@@ -1,0 +1,172 @@
+/*URVALAPP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+{REGVAR.I}
+
+{AONRDEF.I}
+{DIRDEF.I}
+{AVTAONRTEMP.I}
+{OMRTEMPW.I}
+{ANSPROJBER.I}
+{AUTOMREGTEMP.I}
+{EXTRADATA.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{BERATEMP.I}
+
+PROCEDURE ladda.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR anlaggtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR ansvaraotemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR arbarttemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR beratemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR priotemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR automregtemp.
+   ASSIGN Guru.Konstanter:globforetag = gforetag.
+      /*Hämta anläggning*/
+   EMPTY TEMP-TABLE anlaggtemp NO-ERROR.    
+   OPEN QUERY anq FOR EACH ANLAGGNING USE-INDEX ANLAGGNING NO-LOCK.
+   GET FIRST anq NO-LOCK.
+   DO WHILE AVAILABLE(ANLAGGNING):
+      CREATE anlaggtemp.
+      BUFFER-COPY ANLAGGNING TO anlaggtemp.
+      GET NEXT anq NO-LOCK.         
+   END.
+   CLOSE QUERY anq.
+   /*Hämta ansvarig*/
+   EMPTY TEMP-TABLE ansvaraotemp NO-ERROR. 
+   
+   OPEN QUERY ansq FOR EACH ANSVAONR NO-LOCK,
+   EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANSVAONR.PERSONALKOD NO-LOCK.
+   GET FIRST ansq NO-LOCK.
+   DO WHILE AVAILABLE(ANSVAONR):
+      CREATE ansvaraotemp.
+      ASSIGN 
+      ansvaraotemp.NAMN = PERSONALTAB.EFTERNAMN + " " + PERSONALTAB.FORNAMN
+      ansvaraotemp.FORNAMN = PERSONALTAB.FORNAMN 
+      ansvaraotemp.EFTERNAMN = PERSONALTAB.EFTERNAMN 
+      ansvaraotemp.PERSONALKOD = ANSVAONR.PERSONALKOD. 
+      ansvaraotemp.OMRADE       = PERSONALTAB.OMRADE.
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+      GET NEXT ansq NO-LOCK.
+   END.
+   CLOSE QUERY ansq.
+   /*Hämta arbetsart*/
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.         
+   EMPTY TEMP-TABLE arbarttemp NO-ERROR. 
+   OPEN QUERY arbq FOR EACH ARBETSART USE-INDEX ARB NO-LOCK.
+   GET FIRST arbq NO-LOCK.
+   DO WHILE AVAILABLE(ARBETSART):
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "ARBARTAKTIV"                   
+      inextradatatemp.HUVUDINT = ARBETSART.ARBARTKOD.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO: 
+         IF extradatatemp.SOKLOG[1] = TRUE THEN DO:      
+            CREATE arbarttemp.
+            BUFFER-COPY ARBETSART TO arbarttemp.            
+         END.
+      END.                   
+      ELSE DO:
+         CREATE arbarttemp.
+         BUFFER-COPY ARBETSART TO arbarttemp.         
+      END.
+      GET NEXT arbq NO-LOCK.         
+   END.
+   CLOSE QUERY arbq.  
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+   /*Hämta beredare för aonr:et*/
+   FIND FIRST FORETAG WHERE FORETAG.FORETAG = Guru.Konstanter:globforetag NO-LOCK NO-ERROR.
+   IF FORETAG.FORETAG = "GRAN" OR FORETAG.FORETAG = "SUND" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "MISV" OR FORETAG.FORETAG = "ELPA" OR FORETAG.FORETAG = "GKAL" THEN DO:
+      OPEN QUERY bq FOR EACH BEREDAONR NO-LOCK, 
+      EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = BEREDAONR.PERSONALKOD AND 
+      PERSONALTAB.AKTIV = TRUE NO-LOCK.
+   END.          
+   ELSE DO:
+      OPEN QUERY bq FOR EACH BEREDAONR NO-LOCK,
+      EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = BEREDAONR.PERSONALKOD NO-LOCK.
+   END.
+   GET FIRST bq NO-LOCK.
+   DO WHILE AVAILABLE(PERSONALTAB):
+      CREATE beratemp.
+      ASSIGN
+      beratemp.EFTERNAMN    = PERSONALTAB.EFTERNAMN   
+      beratemp.FORNAMN      = PERSONALTAB.FORNAMN    
+      beratemp.PERSONALKOD  = PERSONALTAB.PERSONALKOD
+      beratemp.EPOST        = SUBSTRING(PERSONALTAB.PERSONSOK,20)
+      beratemp.TELEFON      = PERSONALTAB.TELEFON.
+      beratemp.OMRADE       = PERSONALTAB.OMRADE.
+      IF beratemp.TELEFON = "" THEN beratemp.TELEFON = PERSONALTAB.MOBILTEL.
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+      GET NEXT bq NO-LOCK.
+   END.
+   /*Hämta prioritet*/
+   EMPTY TEMP-TABLE priotemp NO-ERROR. 
+   OPEN QUERY pq FOR EACH PRIORITET NO-LOCK.
+   GET FIRST pq NO-LOCK.
+   DO WHILE AVAILABLE(PRIORITET):
+      CREATE priotemp.
+      BUFFER-COPY PRIORITET TO priotemp.
+      GET NEXT pq NO-LOCK.         
+   END.
+   CLOSE QUERY pq.
+   EMPTY TEMP-TABLE automregtemp NO-ERROR. 
+   OPEN QUERY auq FOR EACH AUTOMREG USE-INDEX PRISTYPER NO-LOCK.
+   GET FIRST auq NO-LOCK.
+   DO WHILE AVAILABLE(AUTOMREG):
+      CREATE automregtemp.
+      BUFFER-COPY AUTOMREG TO automregtemp.
+      GET NEXT auq NO-LOCK.         
+   END.
+   CLOSE QUERY auq.
+   
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+PROCEDURE laddaarballa.   
+   DEFINE OUTPUT PARAMETER TABLE FOR arbarttemp.
+   EMPTY TEMP-TABLE arbarttemp NO-ERROR. 
+   OPEN QUERY arbq FOR EACH ARBETSART USE-INDEX ARB NO-LOCK.
+   GET FIRST arbq NO-LOCK.
+   DO WHILE AVAILABLE(ARBETSART):
+      CREATE arbarttemp.
+      BUFFER-COPY ARBETSART TO arbarttemp.
+      GET NEXT arbq NO-LOCK.         
+   END.
+   CLOSE QUERY arbq.  
+END PROCEDURE.
+
+PROCEDURE laddaarbaktiv.   
+   DEFINE OUTPUT PARAMETER TABLE FOR arbarttemp.
+   EMPTY TEMP-TABLE arbarttemp NO-ERROR. 
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.         
+   OPEN QUERY arbq FOR EACH ARBETSART USE-INDEX ARB NO-LOCK.
+   GET FIRST arbq NO-LOCK.
+   DO WHILE AVAILABLE(ARBETSART):
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "ARBARTAKTIV"                   
+      inextradatatemp.HUVUDINT = ARBETSART.ARBARTKOD.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO: 
+         IF extradatatemp.SOKLOG[1] = TRUE THEN DO:      
+            CREATE arbarttemp.
+            BUFFER-COPY ARBETSART TO arbarttemp.            
+         END.
+      END.                   
+      ELSE DO:
+         CREATE arbarttemp.
+         BUFFER-COPY ARBETSART TO arbarttemp.         
+      END.      
+      GET NEXT arbq NO-LOCK.         
+   END.
+   CLOSE QUERY arbq.  
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+END PROCEDURE.

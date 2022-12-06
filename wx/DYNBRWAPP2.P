@@ -1,0 +1,162 @@
+/*DYNBRWAPP.P*/
+
+{SOKDEF.I}
+
+DEFINE VARIABLE tempbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE orgbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE appqueh AS HANDLE NO-UNDO.
+DEFINE VARIABLE appquetemph AS HANDLE NO-UNDO.
+DEFINE VARIABLE valdkommandoquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tempquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE orgtab AS CHARACTER NO-UNDO.
+DEFINE VARIABLE extrafalth3 AS HANDLE NO-UNDO.
+DEFINE VARIABLE extrafalth5 AS HANDLE NO-UNDO.
+DEFINE VARIABLE rowidfaltnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE radant AS INTEGER NO-UNDO.
+DEFINE VARIABLE okvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE orgfraga AS CHARACTER NO-UNDO.
+DEFINE VARIABLE faltvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE startpos AS INTEGER NO-UNDO.
+DEFINE VARIABLE nyaquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE begvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE sokstring AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sparfalt AS CHARACTER NO-UNDO.
+DEFINE VARIABLE temptab AS CHARACTER NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+
+DELETE WIDGET-POOL "dynpool" NO-ERROR.
+CREATE WIDGET-POOL "dynpool" PERSISTENT.
+DEFINE INPUT PARAMETER TABLE FOR valsoktemp.   
+DEFINE INPUT-OUTPUT PARAMETER TABLE-HANDLE apptthtemp.
+DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+tempbufh = apptthtemp:DEFAULT-BUFFER-HANDLE. 
+FIND FIRST valsoktemp NO-LOCK NO-ERROR.
+IF AVAILABLE valsoktemp THEN DO:
+   ASSIGN
+   faltvar = valsoktemp.SOKCHAR[3]  /*SOKFALT*/
+   sokstring = valsoktemp.SOKCHAR[5]  /*SOKVÄRDE FRÅN FILL-IN*/
+   orgtab        = valsoktemp.SOKCHAR[1]
+   orgfraga      = valsoktemp.SOKCHAR[2]
+   rowidfaltnamn = valsoktemp.SOKCHAR[4]
+   felmedd = ""
+   startpos = 0.       
+   /*Skapar buffers för temptabell och skarp tabell*/
+   tempbufh = apptthtemp:DEFAULT-BUFFER-HANDLE.
+   CREATE BUFFER orgbufh FOR TABLE orgtab IN WIDGET-POOL "dynpool".
+  
+   /* Skapar query för temptabell och kopplar Queryn till temp-tabellens buffer */
+   CREATE QUERY appquetemph IN WIDGET-POOL "dynpool".
+   appquetemph:SET-BUFFERS(tempbufh).
+   IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.  
+   tempquery = "FOR EACH " + tempbufh:TABLE + " NO-LOCK.".
+   appquetemph:QUERY-PREPARE(tempquery).
+   appquetemph:QUERY-OPEN().            
+   
+   /*Ta bort WHERE från orgfraga om... */
+   startpos = INDEX(orgfraga,"WHERE",1).
+   IF startpos NE 0 THEN DO:
+      IF faltvar NE sparfalt THEN DO:
+         nyaquery = SUBSTRING(orgfraga,startpos + 5,LENGTH(orgfraga)) + " BY " + faltvar.
+      END.
+      ELSE DO:
+         nyaquery = SUBSTRING(orgfraga,startpos + 5,LENGTH(orgfraga)).
+      END.
+   END.
+   ELSE nyaquery = orgfraga.
+   RUN starwars_UI.
+   IF begvar = ? THEN RETURN.
+   IF rowidfaltnamn NE "" THEN extrafalth3 = tempbufh:BUFFER-FIELD(rowidfaltnamn).
+   RUN kommandoskap_UI.
+   /* Skapar query och kopplar queryn till den skarpa tabellens buffer */
+   CREATE QUERY appqueh IN WIDGET-POOL "dynpool".
+   appqueh:SET-BUFFERS(orgbufh).
+   appqueh:QUERY-PREPARE(valdkommandoquery).
+   appqueh:QUERY-OPEN().      
+   appqueh:GET-FIRST(NO-LOCK).
+   IF appqueh:QUERY-OFF-END = TRUE THEN DO:
+      felmedd = "Det finns inget på sökbegreppet.".
+      okvar = TRUE.
+   END.
+   ELSE DO:
+      tempbufh:EMPTY-TEMP-TABLE  NO-ERROR.
+      DO WHILE appqueh:QUERY-OFF-END = FALSE:
+         tempbufh:BUFFER-CREATE().
+         tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+         IF rowidfaltnamn NE "" THEN DO:
+            extrafalth3:BUFFER-VALUE = orgbufh:ROWID.
+         END.
+         appqueh:GET-NEXT(NO-LOCK).
+      END.         
+   END.
+END.
+DELETE OBJECT apptthtemp NO-ERROR.
+DELETE OBJECT extrafalth3 NO-ERROR. 
+ASSIGN
+apptthtemp = ?
+extrafalth3 = ?.   
+RETURN.
+
+PROCEDURE starwars_UI:
+   IF INDEX(sokstring,"*",1) = 0 THEN DO:
+      begvar = TRUE.
+      RETURN.
+   END.
+   IF SUBSTRING(sokstring,1,1) = "*" THEN DO:
+      begvar = FALSE.
+      RETURN.      
+   END.  
+   
+END PROCEDURE.
+
+PROCEDURE kommandoskap_UI :
+   DEFINE VARIABLE extrafalth5 AS HANDLE NO-UNDO.
+   valdkommandoquery = "".
+   extrafalth5 = tempbufh:BUFFER-FIELD(faltvar).
+   IF begvar = FALSE THEN DO:
+      IF extrafalth5:DATA-TYPE = "CHARACTER" THEN DO:
+         IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES '" + sokstring + "'".
+         ELSE valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES '" + sokstring + "' AND " + nyaquery.
+      END.
+      ELSE IF extrafalth5:DATA-TYPE = "INTEGER" THEN DO: 
+         IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES " + STRING(sokstring).
+         ELSE valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES " + STRING(sokstring) + " AND " + nyaquery.
+      END.
+      ELSE IF extrafalth5:DATA-TYPE = "LOGICAL" THEN DO: 
+         IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES " + STRING(sokstring).
+         ELSE valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES " + STRING(sokstring) + " AND " + nyaquery.
+      END.          
+      ELSE IF extrafalth5:DATA-TYPE = "DECIMAL" THEN DO: 
+         IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES " + STRING(sokstring).
+         ELSE valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES " + STRING(sokstring) + " AND " + nyaquery.
+      END.          
+   END.
+   ELSE DO:
+      IF extrafalth5:DATA-TYPE = "CHARACTER" THEN DO:
+         valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " BEGINS '" + sokstring + "' AND " +  nyaquery.
+      END.
+      ELSE IF extrafalth5:DATA-TYPE = "INTEGER" THEN DO: 
+         valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " BEGINS " + STRING(sokstring) + " AND " + nyaquery.
+      END.
+      ELSE IF extrafalth5:DATA-TYPE = "LOGICAL" THEN DO: 
+         valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " BEGINS " + STRING(sokstring) + " AND " + nyaquery.
+      END.       
+      ELSE IF extrafalth5:DATA-TYPE = "DECIMAL" THEN DO: 
+         valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " BEGINS " + STRING(sokstring) + " AND " + nyaquery.
+      END.       
+   END.
+   DELETE OBJECT extrafalth5 NO-ERROR. 
+   extrafalth5 = ?.
+END PROCEDURE.
+
+PROCEDURE disconnectdb_UI.
+   IF VALID-HANDLE(appqueh) THEN DO:
+      appqueh:QUERY-CLOSE.
+      DELETE OBJECT appqueh NO-ERROR.      
+      DELETE OBJECT extrafalth3 NO-ERROR. 
+      DELETE OBJECT appquetemph NO-ERROR.     
+      DELETE OBJECT orgbufh NO-ERROR.
+      DELETE WIDGET-POOL "dynpool". 
+      extrafalth3 = ?.
+   END.
+   DELETE WIDGET-POOL NO-ERROR.
+END PROCEDURE.

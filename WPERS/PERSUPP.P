@@ -1,0 +1,528 @@
+/*PERSUPP.P*/
+{PHMT.I}
+DEFINE TEMP-TABLE valperskolltemp NO-UNDO LIKE valperstemp. 
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+{SOKDEF.I}
+DEFINE INPUT PARAMETER vartifran AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR valperskolltemp.
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valsoktemp.
+DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+DEFINE VARIABLE anstall AS INTEGER NO-UNDO.
+DEFINE VARIABLE sparaktiv AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+{LOGSEKREGTT.I}
+Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + pkod.
+{GDPRLOGGCLIENT.I}
+IF vartifran = 1 THEN DO:
+   EMPTY TEMP-TABLE valsoktemp NO-ERROR.    
+   CREATE valsoktemp.
+   valsoktemp.SOKVAL = 11.
+   IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV"  
+   OR Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+      IF pkod NE "" THEN DO:
+         FIND FIRST FLEXAVT WHERE FLEXAVT.PERSONALKOD = pkod 
+         USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE FLEXAVT THEN DO:
+            ASSIGN 
+            valsoktemp.SOKLOG[1] = FLEXAVT.FLEXTID
+            valsoktemp.SOKCHAR[1] = FLEXAVT.FLEXKOD.
+         END.   
+      END.      
+   END.
+   RUN vecko_UI.   
+END.    
+IF vartifran = 2 THEN DO:
+   sparaktiv = ?.
+   
+
+   FIND FIRST valperskolltemp NO-ERROR.
+   IF valperskolltemp.PERSONALKOD = "" THEN DO:
+      CREATE felmeddtemp.
+      felmeddtemp.FELMEDD = "Enhet/Sign kan inte vara blank.".
+      RETURN.
+   END. 
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = valperskolltemp.PERSONALKOD 
+   USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:       
+      sparaktiv = PERSONALTAB.AKTIV.
+   END.
+   IF pkod = "" THEN DO:
+      /*ny*/
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = valperskolltemp.PERSONALKOD 
+      USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN DO:       
+         CREATE felmeddtemp.
+         felmeddtemp.FELMEDD = "Enhet/Sign " + valperskolltemp.PERSONALKOD + " finns redan upplagd.".
+         
+         RETURN.      
+      END.
+      FIND LAST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = valperskolltemp.PERSONALKOD AND
+      YEAR(TIDREGITAB.DATUM) = YEAR(TODAY) USE-INDEX PSTART NO-LOCK NO-ERROR.
+      IF AVAILABLE TIDREGITAB THEN DO:
+         CREATE felmeddtemp.
+         felmeddtemp.FELMEDD = "Denna enhet/sign har redan tidskrivning detta år och kan inte användas.".
+         RETURN.
+      END.
+   END.
+   IF valperskolltemp.ANSTNR NE "" THEN DO:
+      IF pkod = "" THEN DO:
+         /*ny*/
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.ANSTNR = valperskolltemp.ANSTNR 
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO:       
+            CREATE felmeddtemp.
+            felmeddtemp.FELMEDD = "Anställningsnumret finns redan.".
+            RETURN.
+         END.
+      END.
+      ELSE DO:
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD NE pkod AND 
+         PERSONALTAB.ANSTNR = valperskolltemp.ANSTNR 
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO:       
+            CREATE felmeddtemp.
+            felmeddtemp.FELMEDD = "Anställningsnumret finns redan.".
+            RETURN.
+         END.
+      END.
+   END.
+   ELSE DO:
+      IF (Guru.Konstanter:globforetag = "CELPA" OR Guru.Konstanter:globforetag = "cGRAN") THEN DO: 
+         CREATE felmeddtemp.
+         felmeddtemp.FELMEDD = "Succel signaturen får inte vara blankt." .
+         RETURN.
+      END.
+      ELSE IF Guru.Konstanter:globforetag = "cGRAN" OR Guru.Konstanter:globforetag = "cGADM" OR Guru.Konstanter:globforetag = "cGRIT" OR Guru.Konstanter:globforetag = "cESAN" THEN DO:
+         CREATE felmeddtemp.
+         felmeddtemp.FELMEDD = "Anställningsnumret får inte vara blankt." .
+         RETURN.
+      END.
+   END.                             
+   IF Guru.Konstanter:globforetag = "cGRAN" THEN DO:   
+      IF SUBSTRING(valperskolltemp.ANSTNR,5 ,1) NE  "" THEN DO:
+         CREATE felmeddtemp.  
+         felmeddtemp.FELMEDD = "Succel signaturen får inte vara mer än fyra positioner." .
+         RETURN.
+      END.
+   END.   
+   
+   /*OBLIGATORISKT FÖR ALLA LENA 20201123*/
+   IF  Guru.Konstanter:globforetag = "GKAL" THEN .
+   ELSE IF  Guru.Konstanter:globforetag = "LULE" THEN .          
+   ELSE IF SUBSTRING(valperskolltemp.PERSONSOK,20) = "" THEN DO:
+      CREATE felmeddtemp.
+      felmeddtemp.FELMEDD = "Epostadress skall vara ifylld" .
+      RETURN.
+   END.
+   IF Guru.Konstanter:globforetag = "GRAN"  THEN DO:
+      IF valperskolltemp.TELEFON = "" AND valperskolltemp.MOBILTEL = "" THEN DO:
+         CREATE felmeddtemp.
+         felmeddtemp.FELMEDD = "Telefon eller Mobiltel skall vara ifylld" .
+         RETURN.
+      END.   
+   END.
+   IF Guru.Konstanter:globforetag = "VAST"  THEN DO:
+      IF valperskolltemp.MOBILTEL = "" THEN DO:
+         CREATE felmeddtemp.
+         felmeddtemp.FELMEDD = "Mobiltel skall vara ifylld" .
+         RETURN.
+      END.   
+   END.
+   
+   IF Guru.Konstanter:varforetypval[2] = 1 THEN musz = musz.
+   ELSE DO:  
+      IF valperskolltemp.AKTIV = FALSE THEN DO:
+      END.
+      ELSE DO:
+         IF valperskolltemp.ANSVARIGTIDR = "" THEN valperskolltemp.ANSVARIGTIDR = valperskolltemp.PERSONALKOD.  
+         ELSE DO:
+            /*FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = valperskolltemp.ANSVARIGTIDR
+            USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE PERSONALTAB THEN DO:
+               CREATE felmeddtemp.   
+               felmeddtemp.FELMEDD = "Ingen person med sign "  + valperskolltemp.ANSVARIGTIDR +
+                                      " finns i registret! Byt ansvarig tidredovisare!".
+                RETURN.
+            END.*/
+         END. 
+         IF valperskolltemp.TIDSGODK = "" THEN DO:
+            FIND FIRST PERSONALTAB USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE PERSONALTAB THEN valperskolltemp.TIDSGODK = valperskolltemp.PERSONALKOD.
+            ELSE valperskolltemp.TIDSGODK = PERSONALTAB.PERSONALKOD.
+         END.    
+         ELSE DO:
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = valperskolltemp.TIDSGODK
+            USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE PERSONALTAB THEN DO:
+               CREATE felmeddtemp.   
+               felmeddtemp.FELMEDD = "Ingen person med sign "  + valperskolltemp.TIDSGODK +
+                                     " finns i registret! Byt tidsedel godkännare!".
+               RETURN.
+            END. 
+            IF valperskolltemp.TIDSGODK = valperskolltemp.PERSONALKOD THEN DO:
+               CREATE felmeddtemp.   
+               felmeddtemp.FELMEDD = "Man kan inte godkänna sina egna tidsedlar!" .
+               RETURN.
+            END.
+         END.
+      END.
+      IF valperskolltemp.AKTIV = FALSE THEN DO:                  
+         /*IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" THEN DO TRANSACTION: 
+            FOR EACH FLEXDAG WHERE FLEXDAG.PERSONALKOD = valperskolltemp.PERSONALKOD AND
+            FLEXDAG.FELOK = FALSE AND FLEXDAG.FELMED = "INGEN REGISTRERING" EXCLUSIVE-LOCK:
+               DELETE FLEXDAG.
+            END.
+         END.*/                  
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = valperskolltemp.PERSONALKOD NO-LOCK NO-ERROR.  
+         IF AVAILABLE PERSONALTAB THEN DO:            
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = valperskolltemp.PERSONALKOD AND
+            TIDREGITAB.GODKAND = "" AND TIDREGITAB.VECKOKORD = "" USE-INDEX PVNR NO-LOCK NO-ERROR.
+            IF AVAILABLE TIDREGITAB THEN DO:
+               CREATE felmeddtemp.  
+               felmeddtemp.FELMEDD = "Denna enhet har tidsedlar som ännu ej är godkända och kan därmed ej göras inaktiv. T.ex " + STRING (TIDREGITAB.DATUM).
+               RETURN. 
+            END. 
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+            TIDREGITAB.VECKOKORD = "" 
+            USE-INDEX PVNR NO-LOCK NO-ERROR.
+            IF AVAILABLE TIDREGITAB THEN DO:
+               CREATE felmeddtemp.  
+               felmeddtemp.FELMEDD = "Denna enhet har tidsedlar som ännu ej är veckokörda och kan därmed ej göras inaktiv. T.ex " + STRING(TIDREGITAB.DATUM).
+               RETURN. 
+            END.            
+         END.
+      END. 
+   END.
+   
+
+   DO TRANSACTION:       
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = valperskolltemp.PERSONALKOD 
+      USE-INDEX PERSONALKOD EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE PERSONALTAB THEN CREATE PERSONALTAB.
+      BUFFER-COPY valperskolltemp TO PERSONALTAB.
+      
+   END.
+   DO TRANSACTION:
+      FIND FIRST GODKANNARTAB WHERE GODKANNARTAB.PERSONALKOD = valperskolltemp.PERSONALKOD 
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE GODKANNARTAB THEN DO:
+         ASSIGN
+         GODKANNARTAB.FORNAMN = PERSONALTAB.FORNAMN
+         GODKANNARTAB.EFTERNAMN = PERSONALTAB.EFTERNAMN.          
+      END.
+   END.
+   Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + valperskolltemp.PERSONALKOD.
+   {GDPRLOGGCLIENT.I}
+   IF Guru.Konstanter:varforetypval[2] = 1 THEN DO TRANSACTION:
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = valperskolltemp.PERSONALKOD 
+      USE-INDEX PERSONALKOD EXCLUSIVE-LOCK NO-ERROR.
+      PERSONALTAB.PERSMASK = TRUE.
+      IF Guru.Konstanter:globforetag = "CLULE" THEN DO:
+         FIND FIRST valsoktemp WHERE valsoktemp.SOKVAL = 1 NO-ERROR.
+         IF AVAILABLE valsoktemp THEN DO:
+            FIND FIRST BEFATTNINGSTAB WHERE BEFATTNINGSTAB.NAMN = valsoktemp.SOKCHAR[3]
+            USE-INDEX BEF NO-LOCK NO-ERROR.         
+            IF AVAILABLE BEFATTNINGSTAB THEN DO:
+               ASSIGN
+               PERSONALTAB.BEFATTNING = BEFATTNINGSTAB.BEFATTNING
+               PERSONALTAB.PERSMASK = BEFATTNINGSTAB.PERSMASK
+               PERSONALTAB.BRAVO = BEFATTNINGSTAB.BRAVO.    
+            END.  
+         END.                      
+      END.
+   END.
+   ELSE DO:     
+      FIND FIRST valsoktemp WHERE valsoktemp.SOKVAL = 1 NO-ERROR.
+      IF AVAILABLE valsoktemp THEN DO:
+         FIND FIRST BEFATTNINGSTAB WHERE BEFATTNINGSTAB.NAMN = valsoktemp.SOKCHAR[3]
+         USE-INDEX BEF NO-LOCK NO-ERROR.  
+         FIND FIRST BERTAB WHERE BERTAB.FORKL = valsoktemp.SOKCHAR[4]
+         USE-INDEX BERTAB NO-LOCK NO-ERROR.   
+         FIND FIRST TRAAVTAB WHERE TRAAVTAB.FORKLARING = valsoktemp.SOKCHAR[1] 
+         USE-INDEX TRAAVTAB NO-LOCK NO-ERROR.
+         DO TRANSACTION:
+            FIND PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = valperskolltemp.PERSONALKOD EXCLUSIVE-LOCK NO-ERROR.  
+            ASSIGN 
+            PERSONALTAB.ANSTALLNING = valsoktemp.SOKCHAR[2]
+            PERSONALTAB.AKTIV = valperskolltemp.AKTIV
+            PERSONALTAB.DELTID = valperskolltemp.DELTID.
+            IF AVAILABLE BEFATTNINGSTAB THEN DO:
+               ASSIGN
+               PERSONALTAB.BEFATTNING = BEFATTNINGSTAB.BEFATTNING
+               PERSONALTAB.PERSMASK = BEFATTNINGSTAB.PERSMASK
+               PERSONALTAB.BRAVO = BEFATTNINGSTAB.BRAVO.    
+            END.
+            ELSE PERSONALTAB.PERSMASK = TRUE.
+            IF AVAILABLE BERTAB THEN PERSONALTAB.BEREDSKAPSAVTAL = BERTAB.BEREDSKAPSAVTAL.      
+            IF AVAILABLE TRAAVTAB THEN PERSONALTAB.TRAAVTAL = TRAAVTAB.TRAAVTAL.       
+            PERSONALTAB.VECKOSCHEMA = valsoktemp.SOKINT[1].  
+         END.
+         FIND CURRENT PERSONALTAB NO-LOCK NO-ERROR.
+         {SOKSTART.I}
+         ASSIGN
+         soktemp.SOKVAL = 3
+         soktemp.SOKINT[1] = Guru.Konstanter:varforetypval[4]
+         soktemp.SOKCHAR[2] = PERSONALTAB.PERSONALKOD.
+         {SOKANROP.I}    
+      END.     
+      FIND FIRST valsoktemp WHERE valsoktemp.SOKVAL = 2 NO-ERROR.
+      IF AVAILABLE valsoktemp THEN DO:
+         IF valsoktemp.SOKCHAR[2] NE valperskolltemp.TIDSGODK THEN DO:
+            FIND FIRST GODKANNARTAB WHERE GODKANNARTAB.PERSONALKOD = valperskolltemp.TIDSGODK 
+            USE-INDEX GODK NO-LOCK NO-ERROR.   
+            IF NOT AVAILABLE GODKANNARTAB THEN DO TRANSACTION:
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = valperskolltemp.TIDSGODK 
+               USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+               CREATE GODKANNARTAB.
+               ASSIGN GODKANNARTAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+               GODKANNARTAB.FORNAMN = PERSONALTAB.FORNAMN
+               GODKANNARTAB.EFTERNAMN = PERSONALTAB.EFTERNAMN.          
+            END.
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.TIDSGODK = valsoktemp.SOKCHAR[2] 
+            USE-INDEX GODK NO-LOCK NO-ERROR.    
+            IF NOT AVAILABLE PERSONALTAB THEN DO TRANSACTION:
+               FIND FIRST GODKANNARTAB WHERE GODKANNARTAB.PERSONALKOD = valsoktemp.SOKCHAR[2] 
+               USE-INDEX GODK EXCLUSIVE-LOCK NO-ERROR.     
+               IF AVAILABLE GODKANNARTAB THEN DO:
+                  DELETE GODKANNARTAB.
+               END.
+            END.                                      
+         END.            
+      END.   
+      FIND FIRST valsoktemp WHERE valsoktemp.SOKVAL = 11 NO-ERROR.
+      IF AVAILABLE valsoktemp THEN DO:
+         IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV"
+         OR Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "ELPA" THEN DO TRANSACTION:
+            FIND FIRST FLEXAVT WHERE FLEXAVT.PERSONALKOD = valperskolltemp.PERSONALKOD 
+            USE-INDEX PERSONALKOD EXCLUSIVE-LOCK NO-ERROR.
+            IF NOT AVAILABLE FLEXAVT THEN DO:
+               CREATE FLEXAVT.
+               ASSIGN
+               FLEXAVT.PERSONALKOD = valperskolltemp.PERSONALKOD
+               FLEXAVT.FLEXTID = FALSE
+               FLEXAVT.FLEXKOD = "T".
+            END.
+            ASSIGN 
+            FLEXAVT.FLEXTID = valsoktemp.SOKLOG[1] 
+            FLEXAVT.FLEXKOD =  valsoktemp.SOKCHAR[1].         
+         END.      
+      END.
+   END.
+   /*Flyttat så att Persmask har hunnit sättas även för ny enhet*/
+   IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "CELPA" THEN DO:
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = valperskolltemp.PERSONALKOD   USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.   
+      IF PERSONALTAB.PERSMASK = TRUE  THEN DO:      
+         IF PERSONALTAB.PERSONNUMMER = "0000000000" THEN DO:
+            CREATE felmeddtemp.
+            felmeddtemp.FELMEDD = "Personnumret får inte vara blankt." .
+            RETURN.
+         END.
+      END.
+   END.
+   OPEN QUERY psekq FOR EACH PERSEK WHERE PERSEK.PERSONALKOD = valperskolltemp.PERSONALKOD 
+   USE-INDEX PERSONALKOD NO-LOCK.
+   GET FIRST psekq NO-LOCK.
+   DO WHILE AVAILABLE(PERSEK):     
+      DO TRANSACTION:
+         GET CURRENT psekq EXCLUSIVE-LOCK.
+         ASSIGN
+         PERSEK.PERSONALKOD = valperskolltemp.PERSONALKOD
+         PERSEK.FORNAMN = valperskolltemp.FORNAMN
+         PERSEK.EFTERNAMN = valperskolltemp.EFTERNAMN.            
+      END. 
+      GET NEXT psekq NO-LOCK.
+   END.               
+   CLOSE QUERY psekq.
+   OPEN QUERY tsekq FOR EACH TIDSEK WHERE TIDSEK.PERSONALKOD = valperskolltemp.PERSONALKOD 
+   USE-INDEX PERSONALKOD NO-LOCK.
+   GET FIRST tsekq NO-LOCK.
+   DO WHILE AVAILABLE(TIDSEK):     
+      DO TRANSACTION:
+         GET CURRENT tsekq EXCLUSIVE-LOCK.
+         ASSIGN
+         TIDSEK.PERSONALKOD = valperskolltemp.PERSONALKOD
+         TIDSEK.FORNAMN = valperskolltemp.FORNAMN
+         TIDSEK.EFTERNAMN = valperskolltemp.EFTERNAMN.            
+      END. 
+      GET NEXT tsekq NO-LOCK.
+   END.               
+   CLOSE QUERY tsekq.         
+   /*endast nya */
+   IF pkod = "" THEN DO TRANSACTION:  
+      FIND FIRST valsoktemp WHERE valsoktemp.SOKVAL = 2 NO-ERROR.
+      IF AVAILABLE valsoktemp THEN DO:
+         FIND FIRST PERSEK WHERE PERSEK.ANVANDARE = valsoktemp.SOKCHAR[3] AND
+         PERSEK.PERSONALKOD = valperskolltemp.PERSONALKOD 
+         USE-INDEX PERSEK EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE PERSEK THEN DO:
+            CREATE logsekregTT.
+            ASSIGN 
+            logsekregTT.ANVANDARE = valsoktemp.SOKCHAR[3] 
+            logsekregTT.DATUM  = NOW 
+            logsekregTT.AVANVANDARE = valsoktemp.SOKCHAR[3]
+            logsekregTT.PROGRAM = THIS-PROCEDURE:NAME 
+            logsekregTT.TYP = "PERS"
+            logsekregTT.PERSONALKOD = valperskolltemp.PERSONALKOD
+            logsekregTT.TILLFRAN = TRUE.
+            RUN LOGSEKREG.P (INPUT TABLE logsekregTT).
+            DELETE logsekregTT.
+            CREATE PERSEK.
+            ASSIGN PERSEK.PANDRA = TRUE.            
+         END.
+         ASSIGN 
+         PERSEK.ANVANDARE = valsoktemp.SOKCHAR[3]         
+         PERSEK.PERSONALKOD = valperskolltemp.PERSONALKOD
+         PERSEK.FORNAMN = valperskolltemp.FORNAMN
+         PERSEK.EFTERNAMN = valperskolltemp.EFTERNAMN.                        
+         FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = valsoktemp.SOKCHAR[3] AND
+         TIDSEK.PERSONALKOD = PERSONALTAB.PERSONALKOD 
+         USE-INDEX TIDSEK EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE TIDSEK THEN DO:
+            CREATE logsekregTT.
+            ASSIGN 
+            logsekregTT.ANVANDARE = valsoktemp.SOKCHAR[3] 
+            logsekregTT.DATUM  = NOW 
+            logsekregTT.AVANVANDARE = valsoktemp.SOKCHAR[3]
+            logsekregTT.PROGRAM = THIS-PROCEDURE:NAME 
+            logsekregTT.TYP = "TID"
+            logsekregTT.PERSONALKOD = valperskolltemp.PERSONALKOD
+            logsekregTT.TILLFRAN = TRUE.
+            RUN LOGSEKREG.P (INPUT TABLE logsekregTT).
+            DELETE logsekregTT.
+            CREATE TIDSEK.
+            ASSIGN TIDSEK.PANDRA = TRUE.            
+         END.
+         ASSIGN TIDSEK.ANVANDARE = valsoktemp.SOKCHAR[3]         
+         TIDSEK.PERSONALKOD = valperskolltemp.PERSONALKOD
+         TIDSEK.FORNAMN = valperskolltemp.FORNAMN
+         TIDSEK.EFTERNAMN = valperskolltemp.EFTERNAMN.
+      END.   
+   END.         
+   IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "elpa" THEN DO TRANSACTION:       
+      IF sparaktiv NE ? AND sparaktiv NE valperskolltemp.AKTIV THEN DO:      
+         IF sparaktiv = TRUE THEN DO:
+            /*när någon läggs inaktiv rensa bort flexdagar "ingen registrering" efter senaste kördatum*/
+            FIND FIRST FLEXREG NO-LOCK NO-ERROR.
+            FOR EACH FLEXDAG WHERE FLEXDAG.PERSONALKOD = valperskolltemp.PERSONALKOD AND
+            FLEXDAG.FELOK = FALSE AND FLEXDAG.FELMED = "Ingen registrering gjord" AND FLEXDAG.KORD = 01/01/97
+            AND FLEXDAG.DATUM > FLEXREG.SALDOKORD EXCLUSIVE-LOCK:
+               DELETE FLEXDAG.
+            END.
+
+         END.
+         IF sparaktiv = FALSE THEN DO:
+            /*när någon läggs aktiv rensa bort flexdagar "ingen registrering" med datum tidigare än senaste kördatum*/
+            FIND FIRST FLEXREG NO-LOCK NO-ERROR.
+            FOR EACH FLEXDAG WHERE FLEXDAG.PERSONALKOD = valperskolltemp.PERSONALKOD AND
+            FLEXDAG.FELOK = FALSE AND FLEXDAG.FELMED = "Ingen registrering gjord" AND FLEXDAG.KORD = 01/01/97
+            AND FLEXDAG.DATUM LE FLEXREG.SALDOKORD EXCLUSIVE-LOCK:
+               DELETE FLEXDAG.
+            END.
+         END.         
+      END.
+   END.
+END.    
+IF vartifran = 3 THEN DO:
+   RUN vecko_UI.
+END.
+PROCEDURE vecko_UI:
+   IF vartifran = 3 THEN DO:
+      FIND FIRST valperskolltemp NO-ERROR.
+      FIND FIRST VECKOARBETID WHERE VECKOARBETID.VECKOSCHEMA = valperskolltemp.VECKOSCHEMA
+      USE-INDEX VECKOSCHEMA NO-LOCK NO-ERROR.
+   END.
+   ELSE DO:
+      IF pkod NE "" THEN DO: 
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO:
+            FIND FIRST VECKOARBETID WHERE VECKOARBETID.VECKOSCHEMA = PERSONALTAB.VECKOSCHEMA
+            USE-INDEX VECKOSCHEMA NO-LOCK NO-ERROR.
+         END.
+      END.
+   END.
+   IF NOT AVAILABLE VECKOARBETID THEN DO:
+      IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" THEN DO:
+           /*föreslå 0-schema*/
+           FIND FIRST VECKOARBETID WHERE VECKOARBETID.VECKOSCHEMA = 0 USE-INDEX VECKOSCHEMA NO-LOCK NO-ERROR.
+      END.   
+      ELSE DO:
+         FIND FIRST VECKOARBETID WHERE VECKOARBETID.VECKOSCHEMA > 0 USE-INDEX VECKOSCHEMA NO-LOCK NO-ERROR.
+      END.   
+   END.
+   IF AVAILABLE VECKOARBETID THEN DO:
+      CREATE valsoktemp.
+      ASSIGN
+      valsoktemp.SOKVAL = 1
+      valsoktemp.SOKINT[1] = VECKOARBETID.VECKOSCHEMA
+      valsoktemp.SOKDECI[1] = VECKOARBETID.TOTVECKTID.
+      FIND ARBETSTIDTAB WHERE
+      ARBETSTIDTAB.ARBTIDKOD = VECKOARBETID.ARBTIDMAN
+      USE-INDEX ARBTIDKOD NO-LOCK NO-ERROR.     
+      ASSIGN
+      valsoktemp.SOKDECI[2] = ARBETSTIDTAB.ARBTIDKOD
+      valsoktemp.SOKDECI[3] = ARBETSTIDTAB.START
+      valsoktemp.SOKDECI[4] = ARBETSTIDTAB.SLUT
+      valsoktemp.SOKDECI[5] = ARBETSTIDTAB.TOTDAGTID.
+      FIND ARBETSTIDTAB WHERE ARBETSTIDTAB.ARBTIDKOD = VECKOARBETID.ARBTIDTIS
+      USE-INDEX ARBTIDKOD NO-LOCK NO-ERROR.
+      CREATE valsoktemp.
+      valsoktemp.SOKVAL = 2.
+      ASSIGN
+      valsoktemp.SOKDECI[2] = ARBETSTIDTAB.ARBTIDKOD
+      valsoktemp.SOKDECI[3] = ARBETSTIDTAB.START
+      valsoktemp.SOKDECI[4] = ARBETSTIDTAB.SLUT
+      valsoktemp.SOKDECI[5] = ARBETSTIDTAB.TOTDAGTID.
+      FIND ARBETSTIDTAB WHERE ARBETSTIDTAB.ARBTIDKOD = VECKOARBETID.ARBTIDONS
+      USE-INDEX ARBTIDKOD NO-LOCK NO-ERROR.
+      CREATE valsoktemp.
+      valsoktemp.SOKVAL = 3.
+      ASSIGN
+      valsoktemp.SOKDECI[2] = ARBETSTIDTAB.ARBTIDKOD
+      valsoktemp.SOKDECI[3] = ARBETSTIDTAB.START
+      valsoktemp.SOKDECI[4] = ARBETSTIDTAB.SLUT
+      valsoktemp.SOKDECI[5] = ARBETSTIDTAB.TOTDAGTID.
+      FIND ARBETSTIDTAB WHERE ARBETSTIDTAB.ARBTIDKOD = VECKOARBETID.ARBTIDTOR
+      USE-INDEX ARBTIDKOD NO-LOCK NO-ERROR.
+      CREATE valsoktemp.
+      valsoktemp.SOKVAL = 4.
+      ASSIGN
+      valsoktemp.SOKDECI[2] = ARBETSTIDTAB.ARBTIDKOD
+      valsoktemp.SOKDECI[3] = ARBETSTIDTAB.START
+      valsoktemp.SOKDECI[4] = ARBETSTIDTAB.SLUT
+      valsoktemp.SOKDECI[5] = ARBETSTIDTAB.TOTDAGTID.
+      FIND ARBETSTIDTAB WHERE ARBETSTIDTAB.ARBTIDKOD = VECKOARBETID.ARBTIDFRE
+      USE-INDEX ARBTIDKOD NO-LOCK NO-ERROR.
+      CREATE valsoktemp.
+      valsoktemp.SOKVAL = 5.
+      ASSIGN
+      valsoktemp.SOKDECI[2] = ARBETSTIDTAB.ARBTIDKOD
+      valsoktemp.SOKDECI[3] = ARBETSTIDTAB.START
+      valsoktemp.SOKDECI[4] = ARBETSTIDTAB.SLUT
+      valsoktemp.SOKDECI[5] = ARBETSTIDTAB.TOTDAGTID.
+      FIND ARBETSTIDTAB WHERE ARBETSTIDTAB.ARBTIDKOD = VECKOARBETID.ARBTIDLOR
+      USE-INDEX ARBTIDKOD NO-LOCK NO-ERROR.
+      CREATE valsoktemp.
+      valsoktemp.SOKVAL = 6.
+      ASSIGN
+      valsoktemp.SOKDECI[2] = ARBETSTIDTAB.ARBTIDKOD
+      valsoktemp.SOKDECI[3] = ARBETSTIDTAB.START
+      valsoktemp.SOKDECI[4] = ARBETSTIDTAB.SLUT
+      valsoktemp.SOKDECI[5] = ARBETSTIDTAB.TOTDAGTID.
+      FIND ARBETSTIDTAB WHERE ARBETSTIDTAB.ARBTIDKOD = VECKOARBETID.ARBTIDSON
+      USE-INDEX ARBTIDKOD NO-LOCK NO-ERROR.
+      CREATE valsoktemp.
+      valsoktemp.SOKVAL = 7.
+      ASSIGN
+      valsoktemp.SOKDECI[2] = ARBETSTIDTAB.ARBTIDKOD
+      valsoktemp.SOKDECI[3] = ARBETSTIDTAB.START
+      valsoktemp.SOKDECI[4] = ARBETSTIDTAB.SLUT
+      valsoktemp.SOKDECI[5] = ARBETSTIDTAB.TOTDAGTID.     
+   END.
+END PROCEDURE.
+
+

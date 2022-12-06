@@ -1,0 +1,167 @@
+/*KNAMNAPP.P*/
+DEFINE VARIABLE exdataapph AS HANDLE NO-UNDO.
+DEFINE TEMP-TABLE gurutextemp  NO-UNDO
+   FIELD EGENTEXT      AS CHARACTER 
+   FIELD EGENTEXTFULL  AS CHARACTER
+   FIELD GURUTEXT      AS CHARACTER
+   FIELD PROGRAM       AS CHARACTER
+   FIELD ORDNING       AS INTEGER
+   INDEX ORDNING IS PRIMARY ORDNING.
+ {EXTRADATA.I}  
+   
+PROCEDURE knamnhmt_UI:
+   DEFINE OUTPUT PARAMETER vatrhome AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER vk1      AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER vk2      AS CHARACTER NO-UNDO.                      
+   DEFINE OUTPUT PARAMETER vk3      AS CHARACTER NO-UNDO.                      
+   DEFINE OUTPUT PARAMETER vk4      AS CHARACTER NO-UNDO.                      
+   DEFINE OUTPUT PARAMETER vk5      AS CHARACTER NO-UNDO.                      
+   DEFINE OUTPUT PARAMETER TABLE FOR gurutextemp.
+   EMPTY TEMP-TABLE gurutextemp NO-ERROR.    
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   DO TRANSACTION:
+      FIND FIRST KBENAMNING USE-INDEX KBEN EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE KBENAMNING THEN DO:     
+         CREATE KBENAMNING.      
+      END.   
+   END.  
+   ASSIGN
+   vk1      =  KBENAMNING.K1  
+   vk2      =  KBENAMNING.K2  
+   vk3      =  KBENAMNING.K3  
+   vk4      =  KBENAMNING.K4  
+   vk5      =  KBENAMNING.K5  
+   vatrhome =  FORETAG.ATRHOME.  
+   RELEASE KBENAMNING NO-ERROR.
+   DEF VAR AA AS INTEGER.          
+   OPEN QUERY gtextq FOR EACH GURUTEXTER NO-LOCK.
+   GET FIRST gtextq NO-LOCK.
+   DO WHILE AVAILABLE(GURUTEXTER):
+      CREATE gurutextemp.
+      AA = AA + 1.
+      ASSIGN
+      gurutextemp.EGENTEXT = GURUTEXTER.EGENTEXT 
+      gurutextemp.EGENTEXTFULL = GURUTEXTER.EGENTEXTFULL 
+      gurutextemp.GURUTEXT = GURUTEXTER.GURUTEXT 
+      gurutextemp.PROGRAM = GURUTEXTER.PROGRAM.   
+      gurutextemp.ORDNING = AA.
+      GET NEXT gtextq NO-LOCK.
+   END.
+END PROCEDURE.
+PROCEDURE knamnspara_UI:
+   DEFINE INPUT PARAMETER vatrhome AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vk1      AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vk2      AS CHARACTER NO-UNDO.                      
+   DEFINE INPUT PARAMETER vk3      AS CHARACTER NO-UNDO.                      
+   DEFINE INPUT PARAMETER vk4      AS CHARACTER NO-UNDO.                      
+   DEFINE INPUT PARAMETER vk5      AS CHARACTER NO-UNDO.                      
+   DEFINE INPUT PARAMETER TABLE FOR gurutextemp.
+   DO TRANSACTION:
+      FIND FIRST KBENAMNING USE-INDEX KBEN EXCLUSIVE-LOCK NO-ERROR.
+      ASSIGN
+      KBENAMNING.K1  = vk1 
+      KBENAMNING.K2  = vk2 
+      KBENAMNING.K3  = vk3 
+      KBENAMNING.K4  = vk4 
+      KBENAMNING.K5  = vk5.     
+   END.
+   DO TRANSACTION:
+      FIND FIRST FORETAG SHARE-LOCK NO-ERROR.
+      FORETAG.ATRHOME = vatrhome. 
+   END.
+   OPEN QUERY gtext2q FOR EACH GURUTEXTER NO-LOCK,
+   EACH gurutextemp WHERE gurutextemp.program = GURUTEXTER.PROGRAM.
+   GET FIRST gtext2q NO-LOCK.
+   DO WHILE AVAILABLE(GURUTEXTER):
+      DO TRANSACTION:
+         GET CURRENT gtext2q EXCLUSIVE-LOCK.
+         ASSIGN
+         GURUTEXTER.EGENTEXT = CAPS(SUBSTRING(gurutextemp.EGENTEXT,1,1)) + LC(SUBSTRING(gurutextemp.EGENTEXT,2)).           
+         GURUTEXTER.EGENTEXTFULL = CAPS(SUBSTRING(gurutextemp.EGENTEXTFULL,1,1)) + LC(SUBSTRING(gurutextemp.EGENTEXTFULL,2)).                            
+      END.
+      GET NEXT gtext2q NO-LOCK.
+   END.
+   RELEASE GURUTEXTER NO-ERROR.
+   RELEASE KBENAMNING NO-ERROR.
+   RELEASE FORETAG NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE fordelhuvhmt_UI.   
+   DEFINE INPUT-OUTPUT PARAMETER montbervar AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER projektledvar AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER projektorvar AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER dokuvar AS INTEGER NO-UNDO.
+   DEFINE VARIABLE montberst AS INTEGER NO-UNDO.
+   DEFINE VARIABLE projektledst  AS INTEGER NO-UNDO.
+   DEFINE VARIABLE projektorst AS INTEGER NO-UNDO.
+   DEFINE VARIABLE dokust AS INTEGER NO-UNDO.
+   /*HÄR SELNÄT LENA*/
+   RUN EXTRADATAHMT.P PERSISTENT SET exdataapph.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "FNYCKEL"                   
+   inextradatatemp.HUVUDCH = "HUVUD" 
+   inextradatatemp.HUVUDINT = 0.   
+   RUN etabhamt_UI IN exdataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp).
+   FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+   IF AVAILABLE extradatatemp THEN DO:
+      ASSIGN
+      montbervar = extradatatemp.SOKINT[1]
+      projektledvar = extradatatemp.SOKINT[2]
+      projektorvar = extradatatemp.SOKINT[3]
+      dokuvar = extradatatemp.SOKINT[4].         
+   END.
+   ELSE DO:
+      assign 
+      montberst = 0
+      projektledst = 0
+      projektorst = 0
+      dokust = 0.
+      /*assign 
+      montberst = 79
+      projektledst = 9
+      projektorst = 7
+      dokust = 5.*/
+   END.             
+   IF VALID-HANDLE(exdataapph) THEN DELETE PROCEDURE exdataapph.      
+   exdataapph = ?. 
+END PROCEDURE.
+
+PROCEDURE fordelhuvspar_UI.
+   
+   DEFINE INPUT PARAMETER montbervar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER projektledvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER projektorvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER dokuvar AS INTEGER NO-UNDO.
+   DEFINE VARIABLE montberst AS INTEGER NO-UNDO.
+   DEFINE VARIABLE projektledst  AS INTEGER NO-UNDO.
+   DEFINE VARIABLE projektorst AS INTEGER NO-UNDO.
+   DEFINE VARIABLE dokust AS INTEGER NO-UNDO.
+   /*HÄR SELNÄT LENA*/ 
+   /*assign 
+   montberst = 79
+   projektledst = 9
+   projektorst = 7
+   dokust = 5.     
+   IF montbervar = montberst AND projektledvar = projektledst AND projektorvar = projektorst AND dokuvar = dokust THEN.
+   ELSE DO:*/
+      RUN EXTRADATAHMT.P PERSISTENT SET exdataapph.
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+      EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "FNYCKEL"                   
+      inextradatatemp.HUVUDCH = "HUVUD" 
+      inextradatatemp.HUVUDINT = 0
+      inextradatatemp.SOKINT[1] = montbervar
+      inextradatatemp.SOKINT[2] = projektledvar
+      inextradatatemp.SOKINT[3] = projektorvar
+      inextradatatemp.SOKINT[4] = dokuvar.
+      RUN extraspar_UI IN exdataapph (INPUT TABLE inextradatatemp).
+   /*END.      */         
+   IF VALID-HANDLE(exdataapph) THEN DELETE PROCEDURE exdataapph.      
+   exdataapph = ?. 
+END PROCEDURE.
+

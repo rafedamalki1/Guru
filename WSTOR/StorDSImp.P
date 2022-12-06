@@ -1,0 +1,917 @@
+
+/*------------------------------------------------------------------------
+    File        : StorDSImp.P
+    Purpose     : 
+
+    Syntax      :IMPORTER OCH EXPORTER AV STÖRNINGSDATA,KUNDDATA , LEDNINGSDATA, DISTRIKT MM
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Mon Feb 13 16:20:07 CET 2017
+    Notes       :
+  ----------------------------------------------------------------------*/
+DEFINE VARIABLE globanv AS CHARACTER NO-UNDO.
+DEFINE INPUT  PARAMETER inglobanv AS CHARACTER NO-UNDO.
+globanv = inglobanv.
+CREATE WIDGET-POOL "DynTableIMP" NO-ERROR.
+{SparaDynDSstar.I}
+/*
+{StorImpDS.I}
+*/
+{StorImpvar.I}
+{StorImpDSFilinfofix.i}
+{StorFelMedtt.i}
+DEFINE VARIABLE InDarwinDS AS HANDLE NO-UNDO.
+
+DEFINE VARIABLE qh AS HANDLE NO-UNDO.
+DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE qh2 AS HANDLE NO-UNDO.
+DEFINE VARIABLE kommandoquery2 AS CHARACTER NO-UNDO.
+
+DEFINE VARIABLE InOutDS AS HANDLE NO-UNDO.
+
+FUNCTION FFinlasttabIN RETURNS INTEGER 
+(INPUT ikod AS CHARACTER,INPUT ityp AS CHARACTER, INPUT sid AS INTEGER):
+   FIND FIRST INLASTAB WHERE INLASTAB.INKOD = ikod AND INLASTAB.INKODTYP = ityp AND
+   INLASTAB.INKODPOSCH = STRING(sid) USE-INDEX INKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE INLASTAB THEN DO:
+      FIND FIRST SPANNINGSNIV WHERE SPANNINGSNIV.INKODID = INLASTAB.INKODID
+       NO-LOCK NO-ERROR.
+      IF AVAILABLE SPANNINGSNIV THEN RETURN SPANNINGSNIV.SPANID.
+      ELSE RETURN sid.
+   END.   
+   ELSE RETURN sid.   
+   
+END FUNCTION.            
+
+FUNCTION FLinlasttabFF RETURNS INTEGER 
+  (INPUT tabnamn AS CHARACTER, INPUT sid AS INTEGER):
+   IF tabnamn = "SEKTIONERING" THEN DO:  
+      FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "F" AND INLASTAB.INKODTYP = "1" AND
+      INLASTAB.INKODPOSCH = STRING(sid) USE-INDEX INKOD
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      FIND FIRST SEKTIONERING WHERE SEKTIONERING.INKODID = INLASTAB.INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE SEKTIONERING THEN RETURN sid.
+      RETURN INTEGER(SEKTIONERING.SEKTIONERID).
+   END.
+   IF tabnamn = "RELAINDIKERING" THEN DO: 
+      FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "G" AND INLASTAB.INKODTYP = "2" AND
+      INLASTAB.INKODPOSCH = STRING(sid) USE-INDEX INKOD
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      FIND FIRST RELAINDIKERING WHERE RELAINDIKERING.INKODID = INLASTAB.INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE RELAINDIKERING THEN RETURN sid.
+      RETURN RELAINDIKERING.RELINID.
+   END.        
+   IF tabnamn = "FELORSAK" THEN DO:
+      FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "S" AND 
+      INLASTAB.INKODPOSCH = STRING(sid) USE-INDEX INKOD
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      FIND FIRST FELORSAK WHERE FELORSAK.INKODID = INLASTAB.INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE FELORSAK THEN RETURN sid.
+      RETURN FELORSAK.FELOID.  
+   END.   
+  
+   IF tabnamn = "BRYTORGAN" THEN DO:  
+      FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "E" AND INLASTAB.INKODTYP = "1" AND
+      INLASTAB.INKODPOSCH = STRING(sid) USE-INDEX INKOD
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      FIND FIRST BRYTORGAN WHERE BRYTORGAN.INKODID = INLASTAB.INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BRYTORGAN THEN RETURN sid.
+      RETURN  BRYTORGAN.BRYTOID.
+   END.  
+   IF tabnamn = "STORDRIFTOMR" THEN DO:  
+      FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "N" AND INLASTAB.INKODTYP = "1" AND
+      INLASTAB.INKODPOSCH = STRING(sid) USE-INDEX INKOD
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      FIND FIRST STORDRIFTOMR WHERE STORDRIFTOMR.INKODID = INLASTAB.INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE STORDRIFTOMR THEN RETURN sid.
+      RETURN  STORDRIFTOMR.STDRIFTID.
+   END. 
+   IF tabnamn = "NATTYP" THEN DO:  
+      FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "Q" AND INLASTAB.INKODTYP = "1" AND
+      INLASTAB.INKODPOSCH = STRING(sid) USE-INDEX INKOD
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      FIND FIRST NATTYP WHERE NATTYP.INKODID = INLASTAB.INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE NATTYP THEN RETURN sid.
+      RETURN  INTEGER(NATTYP.NATTYPID).
+   END. 
+   IF tabnamn = "NATSTRUKTUR1" THEN DO:  
+      FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "P" AND INLASTAB.INKODTYP = "1" AND
+      INLASTAB.INKODPOSCH = STRING(sid) USE-INDEX INKOD
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      FIND FIRST NATSTRUKTUR WHERE NATSTRUKTUR.INKODID = INLASTAB.INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE NATSTRUKTUR THEN RETURN sid.
+      RETURN  NATSTRUKTUR.STRUKID.
+   END.
+   IF tabnamn = "NATSTRUKTUR2" THEN DO:  
+      FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "P" AND INLASTAB.INKODTYP = "2" AND
+      INLASTAB.INKODPOSCH = STRING(sid) USE-INDEX INKOD
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      FIND FIRST NATSTRUKTUR WHERE NATSTRUKTUR.INKODID = INLASTAB.INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE NATSTRUKTUR THEN RETURN sid.
+      RETURN  NATSTRUKTUR.STRUKID.
+   END.  
+   IF tabnamn = "ANLAGGNINGSDEL" THEN DO:  
+      
+      FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "R" AND
+      INLASTAB.INKODPOSCH = STRING(sid) USE-INDEX INKOD
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      FIND FIRST ANLAGGNINGSDEL WHERE ANLAGGNINGSDEL.INKODID = INLASTAB.INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ANLAGGNINGSDEL THEN RETURN sid.
+      IF ANLAGGNINGSDEL.ADELID >= 5 AND  ANLAGGNINGSDEL.ADELID <= 12 THEN RETURN 26. 
+      
+      RETURN  ANLAGGNINGSDEL.ADELID.
+   END.
+   IF tabnamn = "UTLOSNINGSKYDD" THEN DO:
+      FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "G" AND INLASTAB.INKODTYP = "1" AND
+      INLASTAB.INKODPOSCH = STRING(sid) USE-INDEX INKOD
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      FIND FIRST UTLOSNINGSKYDD WHERE UTLOSNINGSKYDD.INKODID = INLASTAB.INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE UTLOSNINGSKYDD THEN RETURN sid.
+      RETURN  UTLOSNINGSKYDD.UTLOSID.
+   END.
+   
+END FUNCTION.  
+PROCEDURE StorfelmedttHmt_UI :
+   DEFINE INPUT  PARAMETER vad AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER ordv AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER hur AS INTEGER NO-UNDO.
+   FIND FIRST Storfelmedtt WHERE Storfelmedtt.SMEDD = vad NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE Storfelmedtt THEN DO:
+      CREATE Storfelmedtt.
+      ASSIGN
+      Storfelmedtt.SMEDD = vad
+      Storfelmedtt.ORDNING = ordv
+      Storfelmedtt.TTRECID = RECID(Storfelmedtt).
+      IF hur = 1 THEN Storfelmedtt.LAGGTILL = TRUE.
+      IF hur = 2 THEN Storfelmedtt.SKRIVOVER = TRUE.
+      IF hur = 3 THEN Storfelmedtt.TABORT = TRUE.
+   END.
+               
+  
+END PROCEDURE.
+PROCEDURE ImportKoll_UI :
+   DEFINE INPUT-OUTPUT PARAMETER DATASET FOR StorningImportDs.
+   DEFINE OUTPUT PARAMETER TABLE FOR Storfelmedtt.
+   DEFINE VARIABLE spankoll AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE Storfelmedtt NO-ERROR. 
+   DEFINE VARIABLE lastdatum AS DATE NO-UNDO.
+   
+   
+   
+   FOR EACH ForetagData WHERE NO-LOCK:
+      FIND FIRST foredatabuff WHERE RECID(foredatabuff) NE RECID(ForetagData) NO-LOCK NO-ERROR.
+      IF AVAILABLE foredatabuff THEN DO:
+         RUN StorfelmedttHmt_UI (INPUT  "Det ligger dubbla företag i filen. Filen går inte att läsa in", INPUT 0,INPUT 3).
+         DATASET StorningImportDs:EMPTY-DATASET().
+         DATASET StorningImportDs:EMPTY-DATASET().
+         RETURN.
+      END.
+      FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = ForetagData.IdentifikationsnrForetag NO-LOCK NO-ERROR.
+      IF AVAILABLE AVDELNING THEN.
+      ELSE DO:
+         RUN StorfelmedttHmt_UI (INPUT "Företaget " + STRING(ForetagData.IdentifikationsnrForetag) + " " + ForetagData.Foretag + " finns inte! Det måste läggas upp först.", INPUT 0,INPUT 3).
+         Storfelmedtt.IdentifikationsnrForetag = ForetagData.IdentifikationsnrForetag.
+         Storfelmedtt.DATATABELL = "ForetagData".
+         DATASET StorningImportDs:EMPTY-DATASET().
+         RETURN.
+      END.
+   END.
+   /*
+   FIND FIRST Storfelmedtt WHERE NO-LOCK NO-ERROR.
+   IF AVAILABLE Storfelmedtt THEN RETURN.*/            
+   FOR EACH DistriktData WHERE NO-LOCK:
+      FIND FIRST ForetagData WHERE ForetagData.IdentifikationsnrForetag = DistriktData.IdentifikationsnrForetag NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ForetagData THEN DO:
+         RUN StorfelmedttHmt_UI (INPUT "Fel data i filen. Företag saknas " + STRING(DistriktData.IdentifikationsnrForetag), INPUT 0,INPUT 3).
+         Storfelmedtt.IdentifikationsnrForetag = DistriktData.IdentifikationsnrForetag.
+         Storfelmedtt.DATATABELL = "DistriktData".
+         DATASET StorningImportDs:EMPTY-DATASET().
+         RETURN.
+      END.
+      FIND FIRST didatabuff WHERE didatabuff.DistriktsId = DistriktData.DistriktsId AND RECID(didatabuff) NE RECID(DistriktData) NO-LOCK NO-ERROR.
+      IF AVAILABLE didatabuff THEN DO:
+         RUN StorfelmedttHmt_UI (INPUT "Det ligger dubbletter av Distrikt i filen. Filen går inte att läsa in", INPUT 0,INPUT 3).
+         DATASET StorningImportDs:EMPTY-DATASET().
+         RETURN.
+      END.
+      FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = DistriktData.IdentifikationsnrForetag NO-LOCK NO-ERROR.
+      IF AVAILABLE AVDELNING THEN.
+      ELSE DO:
+         RUN StorfelmedttHmt_UI (INPUT "Företaget " + STRING(DistriktData.IdentifikationsnrForetag) + " för distrikt " + DistriktData.DistriktsId + " " + DistriktData.DistriktsNamn + " finns inte! Det måste läggas upp först.", INPUT 0,INPUT 3).
+         Storfelmedtt.IdentifikationsnrForetag = DistriktData.IdentifikationsnrForetag.
+         Storfelmedtt.DistriktsId = DistriktData.DistriktsId.
+         Storfelmedtt.DATATABELL = "DistriktData".
+         DATASET StorningImportDs:EMPTY-DATASET().
+         RETURN.
+      END.
+      
+             
+      FIND FIRST STORDISTRIKT WHERE STORDISTRIKT.AVDELNINGNR = DistriktData.IdentifikationsnrForetag AND
+      STORDISTRIKT.VIDISTRIKT = DistriktData.DistriktsId AND STORDISTRIKT.ARTAL = DistriktData.Artal
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE STORDISTRIKT THEN DO:         
+         IF STORDISTRIKT.EXPORTDATUM = ? THEN DO:  
+            RUN StorfelmedttHmt_UI (INPUT  "Distrikt " + DistriktData.DistriktsId + " " + DistriktData.DistriktsNamn + " " + STRING(DistriktData.Artal) + " finns redan. Vill du lägga till eller skriva över all data?", INPUT 2,INPUT 1).
+         END.
+         ELSE DO:
+            RUN StorfelmedttHmt_UI (INPUT  "Distrikt " + DistriktData.DistriktsId + " " + DistriktData.DistriktsNamn + " " + STRING(DistriktData.Artal) + " finns redan och är exporterad till DarwinPlus", INPUT 2,INPUT 3).
+            DistriktData.EXPORTDATUM = STORDISTRIKT.EXPORTDATUM.  
+         END.
+         Storfelmedtt.IdentifikationsnrForetag = DistriktData.IdentifikationsnrForetag.
+         Storfelmedtt.DistriktsId = DistriktData.DistriktsId.
+         Storfelmedtt.DATATABELL = "DistriktData".        
+      END.
+      
+   END.
+   FOR EACH KundData WHERE NO-LOCK:
+      
+      FIND FIRST DistriktData WHERE DistriktData.DistriktsId = KundData.DistriktsId AND DistriktData.Artal = KundData.Artal  NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE DistriktData THEN DO:
+         RUN StorfelmedttHmt_UI (INPUT "Fel data i filen. Distrikt saknas " + STRING(KundData.DistriktsId), INPUT 0,INPUT 3).
+         Storfelmedtt.IdentifikationsnrForetag = KundData.IdentifikationsnrForetag.
+         Storfelmedtt.DistriktsId = KundData.DistriktsId.
+         Storfelmedtt.DATATABELL = "KundData".
+         DATASET StorningImportDs:EMPTY-DATASET().
+         RETURN.
+      END.
+      FIND FIRST kunddatabuff WHERE kunddatabuff.DistriktsId = KundData.DistriktsId AND kunddatabuff.SpanNivId = KundData.SpanNivId AND kunddatabuff.ARTAL = KundData.ARTAL AND RECID(kunddatabuff) NE RECID(KundData) NO-LOCK NO-ERROR.
+      IF AVAILABLE kunddatabuff THEN DO:
+         RUN StorfelmedttHmt_UI (INPUT "Det ligger dubbletter av Kunddata i filen för spänningnivå nr:" + STRING(kunddatabuff.SpanNivId) + "  Dubbletten är borttagen." , INPUT 0,INPUT 3).
+         DELETE kunddatabuff.     
+      END.
+      FIND FIRST STORDISTRIKT WHERE STORDISTRIKT.AVDELNINGNR = DistriktData.IdentifikationsnrForetag AND
+      STORDISTRIKT.VIDISTRIKT = DistriktData.DistriktsId AND STORDISTRIKT.ARTAL = DistriktData.Artal
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE STORDISTRIKT THEN DO:
+         FIND FIRST SPANNINGSNIV  WHERE SPANNINGSNIV.SPANDARWINID = KundData.SpanNivId NO-LOCK NO-ERROR.
+         FIND FIRST KUNDSTOR WHERE KUNDSTOR.DISTRIKTID = STORDISTRIKT.DISTRIKTID AND
+         KUNDSTOR.ARTAL = KundData.ARTAL AND  
+         KUNDSTOR.SPANDARWINID = KundData.SpanNivId
+         NO-LOCK NO-ERROR.
+         /*
+         spankoll =  FFinlasttabIN(INPUT "D",INPUT "1", INPUT KundData.SpanNivId).
+                    FIND FIRST KUNDSTOR WHERE KUNDSTOR.DISTRIKTID = STORDISTRIKT.DISTRIKTID AND
+         KUNDSTOR.ARTAL = KundData.ARTAL AND  
+         KUNDSTOR.SPANID = spankoll
+         NO-LOCK NO-ERROR.
+         */
+         
+         IF AVAILABLE KUNDSTOR THEN DO:
+            IF KUNDSTOR.EXPORTDATUM = ? THEN DO:
+               RUN StorfelmedttHmt_UI (INPUT "KundData för distrikt " + KundData.DistriktsId + " " + STRING(KundData.Artal) + " finns redan. Vill du lägga till eller skriva över data för " + SPANNINGSNIV.NAMN , INPUT 3,INPUT 1).
+            END.
+            ELSE DO:
+               RUN StorfelmedttHmt_UI (INPUT "KundData för distrikt " + KundData.DistriktsId + " " + STRING(KundData.Artal) + " finns redan och är exporterad till DarwinPlus för " + SPANNINGSNIV.NAMN , INPUT 3,INPUT 1).
+               KundData.EXPORTDATUM = KUNDSTOR.EXPORTDATUM .
+            END.      
+            Storfelmedtt.IdentifikationsnrForetag = KundData.IdentifikationsnrForetag.
+            Storfelmedtt.DistriktsId = KundData.DistriktsId.
+            Storfelmedtt.SPANID = KUNDSTOR.SPANID.
+            Storfelmedtt.SpanNivId = KundData.SpanNivId.
+            Storfelmedtt.DATATABELL = "KundData".
+         END.
+      END.   
+   END.
+  
+
+   
+   /*
+   FIND FIRST Storfelmedtt WHERE NO-LOCK NO-ERROR.
+   IF AVAILABLE Storfelmedtt THEN RETURN.*/
+   FOR EACH LedningData WHERE NO-LOCK:
+      FIND FIRST DistriktData WHERE DistriktData.DistriktsId = LedningData.DistriktsId AND DistriktData.Artal = LedningData.Artal  NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE DistriktData THEN DO:
+         RUN StorfelmedttHmt_UI (INPUT "Fel data i filen. Distrikt saknas " + STRING(LedningData.DistriktsId), INPUT 0,INPUT 3).
+         Storfelmedtt.IdentifikationsnrForetag = LedningData.IdentifikationsnrForetag.
+         Storfelmedtt.DistriktsId = LedningData.DistriktsId.
+         Storfelmedtt.DATATABELL = "LedningData".
+         DATASET StorningImportDs:EMPTY-DATASET().
+         RETURN.
+      END.
+      FIND FIRST leddatabuff WHERE leddatabuff.DistriktsId = LedningData.DistriktsId AND leddatabuff.SpanNivId = LedningData.SpanNivId AND leddatabuff.ARTAL = LedningData.ARTAL AND 
+      leddatabuff.Text1 = LedningData.Text1 AND leddatabuff.Text2 = LedningData.Text2 AND
+      RECID(leddatabuff) NE RECID(LedningData) NO-LOCK NO-ERROR.
+      IF AVAILABLE leddatabuff THEN DO:
+         RUN StorfelmedttHmt_UI (INPUT "Det ligger dubbletter av Ledningsdata i filen för spänningnivå och fältbeskrivning:" + STRING(leddatabuff.SpanNivId) + " " +  leddatabuff.Text1 + " " + leddatabuff.Text2 + 
+         " Dubbletten är borttagen.", INPUT 0,INPUT 3).
+         DELETE leddatabuff.     
+      END.
+      FIND FIRST STORDISTRIKT WHERE STORDISTRIKT.AVDELNINGNR = DistriktData.IdentifikationsnrForetag AND
+      STORDISTRIKT.VIDISTRIKT = DistriktData.DistriktsId AND STORDISTRIKT.ARTAL = DistriktData.Artal
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE STORDISTRIKT THEN DO:
+         FIND FIRST SPANNINGSNIV  WHERE SPANNINGSNIV.SPANDARWINID = LedningData.SpanNivId NO-LOCK NO-ERROR.
+          FIND FIRST LEDNINGSDATA WHERE LEDNINGSDATA.DISTRIKTID = STORDISTRIKT.DISTRIKTID AND
+         LEDNINGSDATA.ARTAL = LedningData.ARTAL AND 
+         LEDNINGSDATA.SPANDARWINID = LedningData.SpanNivId
+         NO-LOCK NO-ERROR.
+         /*
+         spankoll = FFinlasttabIN(INPUT "D",INPUT "1", INPUT LedningData.SpanNivId).
+         FIND FIRST LEDNINGSDATA WHERE LEDNINGSDATA.DISTRIKTID = STORDISTRIKT.DISTRIKTID AND
+         LEDNINGSDATA.ARTAL = LedningData.ARTAL AND 
+         LEDNINGSDATA.SPANID = spankoll
+         NO-LOCK NO-ERROR.
+         */
+         IF AVAILABLE LEDNINGSDATA THEN DO:
+            IF LEDNINGSDATA.EXPORTDATUM = ? THEN DO:
+               RUN StorfelmedttHmt_UI (INPUT "Ledningsdata för distrikt " + LedningData.DistriktsId + " " + STRING(LedningData.Artal) + " finns redan. Vill du lägga till eller skriva över data för " + SPANNINGSNIV.NAMN, INPUT 4,INPUT 1).
+            END.
+            ELSE DO:
+               RUN StorfelmedttHmt_UI (INPUT "Ledningsdata för distrikt " + LedningData.DistriktsId + " " + STRING(LedningData.Artal) + " finns redan och är exporterad till DarwinPlus för " + SPANNINGSNIV.NAMN, INPUT 4,INPUT 1).
+               LedningData.EXPORTDATUM = LEDNINGSDATA.EXPORTDATUM.
+            END.   
+            Storfelmedtt.IdentifikationsnrForetag = LedningData.IdentifikationsnrForetag.
+            Storfelmedtt.DistriktsId = LedningData.DistriktsId.
+            Storfelmedtt.SPANID = LEDNINGSDATA.SPANID.
+            Storfelmedtt.SpanNivId = LedningData.SpanNivId.
+            Storfelmedtt.DATATABELL = "LedningData".
+         END.
+      END.   
+        
+   END.
+   
+   FOR EACH StorningData WHERE NO-LOCK:
+      FIND FIRST DistriktData WHERE DistriktData.DistriktsId = StorningData.DistriktsId NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE DistriktData THEN DO:
+         RUN StorfelmedttHmt_UI (INPUT "Fel data i filen distrikt saknas för störning" + STRING(StorningData.DistriktsId), INPUT 0,INPUT 3).
+         Storfelmedtt.IdentifikationsnrForetag = StorningData.IdentifikationsnrForetag.
+         Storfelmedtt.DistriktsId = StorningData.DistriktsId.
+         Storfelmedtt.DATATABELL = "StorningData".
+      END.
+      ELSE DO:
+         FIND FIRST STORDISTRIKT WHERE STORDISTRIKT.AVDELNINGNR = DistriktData.IdentifikationsnrForetag AND
+         STORDISTRIKT.VIDISTRIKT = DistriktData.DistriktsId AND STORDISTRIKT.ARTAL = DistriktData.Artal
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE STORDISTRIKT THEN DO:
+            FIND LAST STORNINGSTAB WHERE STORNINGSTAB.DISTRIKTID = STORDISTRIKT.DISTRIKTID USE-INDEX DATUM 
+            NO-LOCK NO-ERROR.
+            IF AVAILABLE STORNINGSTAB THEN lastdatum = STORNINGSTAB.HDATUM.
+            FIND FIRST STORNINGSTAB WHERE STORNINGSTAB.DISTRIKTID = STORDISTRIKT.DISTRIKTID
+            NO-LOCK NO-ERROR.
+            IF AVAILABLE STORNINGSTAB THEN DO:
+               RUN StorfelmedttHmt_UI (INPUT "Störningar finns på detta distrikt " + STORDISTRIKT.VIDISTRIKT + " " + STORDISTRIKT.NAMN + " Senaste störningsdatum " + STRING(lastdatum) + " ", INPUT 5,INPUT 2).
+               
+               Storfelmedtt.IdentifikationsnrForetag = StorningData.IdentifikationsnrForetag.
+               Storfelmedtt.DistriktsId = StorningData.DistriktsId.
+               Storfelmedtt.DATATABELL = "StorningData".
+            END. 
+             
+            
+         END.     
+      END.   
+   END.
+   DEFINE BUFFER stormtrldatabuff FOR StorFelMtrlData.
+   FOR EACH StorFelMtrlData WHERE NO-LOCK:
+      
+      FIND FIRST stormtrldatabuff WHERE stormtrldatabuff.DistriktsId = StorFelMtrlData.DistriktsId AND stormtrldatabuff.StorId = StorFelMtrlData.StorId AND stormtrldatabuff.SfmId = StorFelMtrlData.SfmId AND 
+      RECID(stormtrldatabuff) NE RECID(StorFelMtrlData) NO-LOCK NO-ERROR.
+      IF AVAILABLE leddatabuff THEN DO:
+         RUN StorfelmedttHmt_UI (INPUT "Det ligger dubbletter av Störningsmateriel för distrikt och störning samt materiel nr " + STRING(stormtrldatabuff.DistriktsId) + " " + STRING(stormtrldatabuff.StorId) + 
+         " " + STRING(stormtrldatabuff.SfmId)  + " Dubbletten är borttagen." , INPUT 0,INPUT 3).
+         DELETE stormtrldatabuff.     
+      END.
+      
+   END.
+   
+   
+   /*
+   FIND FIRST Storfelmedtt WHERE NO-LOCK NO-ERROR.
+   IF AVAILABLE Storfelmedtt THEN RETURN.*/
+END PROCEDURE.
+PROCEDURE Import_UI :
+   DEFINE INPUT PARAMETER DATASET FOR StorningImportDs.
+   DEFINE INPUT PARAMETER TABLE FOR Storfelmedtt.
+   
+   FIND FIRST DistriktData WHERE NO-LOCK NO-ERROR.
+   RUN laddaImportDataDS_UI (INPUT DistriktData.IdentifikationsnrForetag,INPUT DistriktData.Artal).
+   /*
+   InDarwinDS:WRITE-XML("FILE", "C:\PROTEMP10\IndataKlarfil.xml").
+   */
+   RUN DistriktImport_UI.
+   RUN InDarwinDSSpar_UI. 
+END PROCEDURE.
+   
+
+/*InDarwinDS*/
+
+PROCEDURE InDarwinDSTracking_UI :
+   DEFINE INPUT  PARAMETER onoff AS LOGICAL NO-UNDO.
+   Foretagtth:TRACKING-CHANGES = onoff.
+   Distrikttth:TRACKING-CHANGES = onoff.
+   KundDatatth:TRACKING-CHANGES = onoff.
+   LedninggsDatatth:TRACKING-CHANGES = onoff.
+   StorningsDatatth:TRACKING-CHANGES = onoff.
+   StorFelMtrltth:TRACKING-CHANGES = onoff.
+   
+   
+END PROCEDURE.
+PROCEDURE InDarwinDSSpar_UI :
+   DEFINE VARIABLE chDS AS HANDLE NO-UNDO.
+   RUN InDarwinDSTracking_UI (FALSE).
+   
+   CREATE DATASET chDS.
+   chDS:CREATE-LIKE(InDarwinDS).
+   chDS:GET-CHANGES(InDarwinDS).
+/*
+   DEFINE VARIABLE SPARAXML AS CHARACTER NO-UNDO.
+      SPARAXML = "C:\PROTEMP10\CTest.xml". 
+      chDS:WRITE-XML("FILE", SPARAXML).
+      InDarwinDS:WRITE-XML("FILE", "C:\PROTEMP10\IndataKlarfilny.xml").
+*/
+   RUN SparaDynDSstart_UI (INPUT "InDarwinDS", INPUT DATASET-HANDLE chDS).
+   chDS:MERGE-CHANGES(InDarwinDS).
+   
+   /*
+   RUN InDarwinDSTracking_UI (TRUE).
+   */
+END PROCEDURE.      
+
+
+
+PROCEDURE DistriktImport_UI :
+  /*   
+   DATASET StorningImportDs:READ-XML("FILE", filnamnStorXml, "MERGE", ?,False). 
+   RUN Schema_UI.
+   */
+   DEFINE VARIABLE textIn AS INTEGER NO-UNDO.
+   DEFINE VARIABLE stornr AS INTEGER NO-UNDO. 
+   DEFINE VARIABLE mkwhelp AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE txtId1in AS INTEGER NO-UNDO.
+   DEFINE VARIABLE txtId2in AS INTEGER NO-UNDO.
+   DEFINE VARIABLE lastdnr AS INTEGER NO-UNDO.
+   DEFINE VARIABLE artalvar AS INTEGER NO-UNDO.
+   FIND FIRST ForetagData WHERE NO-LOCK NO-ERROR.
+   RUN InDarwinDSTracking_UI (TRUE).
+   ForetagDBbuffh:FIND-FIRST("WHERE  ",NO-LOCK) NO-ERROR.
+   IF ForetagDBbuffh:AVAILABLE THEN ForetagDBbuffh:BUFFER-FIELD("AVDELNINGNAMN"):BUFFER-VALUE = ForetagData.Foretag.
+   ELSE DO: 
+      FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = ForetagData.IdentifikationsnrForetag AND
+      AVDELNING.KOSTMASK = 1 NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE AVDELNING THEN ForetagDBbuffh:BUFFER-CREATE().
+   
+      ASSIGN
+      ForetagDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE = ForetagData.IdentifikationsnrForetag
+      ForetagDBbuffh:BUFFER-FIELD("AVDELNING"):BUFFER-VALUE = ForetagData.Foretag
+      ForetagDBbuffh:BUFFER-FIELD("KOSTMASK"):BUFFER-VALUE = 1.
+   END.   
+   DELETE ForetagData.
+   FIND LAST STORDISTRIKT USE-INDEX DISTRIKTID NO-LOCK NO-ERROR. 
+   IF AVAILABLE STORDISTRIKT THEN lastdnr = STORDISTRIKT.DISTRIKTID + 1.
+   ELSE lastdnr = 1.  
+
+   FOR EACH DistriktData WHERE NO-LOCK:
+      IF DistriktData.EXPORTDATUM NE ? THEN NEXT.
+      FIND FIRST Storfelmedtt WHERE Storfelmedtt.DATATABELL = "DistriktData"  AND
+      Storfelmedtt.DistriktsId = DistriktData.DistriktsId 
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE Storfelmedtt THEN DO:
+         IF Storfelmedtt.LAGGTILL = TRUE THEN DO:
+            DistriktDBbuffh:FIND-FIRST("WHERE VIDISTRIKT = " + QUOTER(DistriktData.DistriktsId) + " AND ARTAL = " + STRING(DistriktData.ARTAL),NO-LOCK) NO-ERROR.
+         END.
+      END.   
+      IF DistriktDBbuffh:AVAILABLE THEN DO:
+         ASSIGN
+         DistriktDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE  = DistriktData.DistriktsId
+         DistriktDBbuffh:BUFFER-FIELD("NAMN"):BUFFER-VALUE        = DistriktData.DistriktsNamn
+         DistriktDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE = DistriktData.IdentifikationsnrForetag
+         DistriktDBbuffh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE       = DistriktData.Artal.
+         DistriktDBbuffh:BUFFER-FIELD("EXPORTDATUM"):BUFFER-VALUE = ?.
+          
+      END.   
+      ELSE DO:
+         DistriktDBbuffh:BUFFER-CREATE().
+         ASSIGN
+         DistriktDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE  = lastdnr
+         DistriktDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE  = DistriktData.DistriktsId
+         DistriktDBbuffh:BUFFER-FIELD("NAMN"):BUFFER-VALUE        = DistriktData.DistriktsNamn
+         DistriktDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE = DistriktData.IdentifikationsnrForetag
+         DistriktDBbuffh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE       = DistriktData.Artal.
+         DistriktDBbuffh:BUFFER-FIELD("EXPORTDATUM"):BUFFER-VALUE = ?.
+         lastdnr = lastdnr + 1.
+      END.      
+      artalvar = DistriktData.Artal.
+      DistriktDBbuffh:BUFFER-RELEASE(). 
+      DELETE DistriktData.
+   END.
+   FOR EACH KundData WHERE NO-LOCK:
+      IF KundData.EXPORTDATUM NE ? THEN NEXT.
+      DistriktDBbuffh:FIND-FIRST("WHERE VIDISTRIKT = " + QUOTER(KundData.DistriktsId) + " AND ARTAL = " + STRING(KundData.ARTAL),NO-LOCK) NO-ERROR.
+      FIND FIRST Storfelmedtt WHERE Storfelmedtt.DATATABELL = "KundData"  AND
+      Storfelmedtt.DistriktsId = KundData.DistriktsId AND Storfelmedtt.SpanNivId = KundData.SpanNivId
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE Storfelmedtt THEN DO:
+         IF Storfelmedtt.LAGGTILL = TRUE THEN DO:
+            KundDataDBbuffh:FIND-FIRST("WHERE DISTRIKTID = " + STRING(DistriktDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE) + " AND ARTAL = " + STRING(KundData.ARTAL) + " AND SPANDARWINID = " + STRING(Storfelmedtt.SpanNivId),NO-LOCK) NO-ERROR.
+         END.
+      END.
+      
+      IF KundDataDBbuffh:AVAILABLE THEN .
+      ELSE DO:
+         KundDataDBbuffh:BUFFER-CREATE().
+      END.
+     
+      ASSIGN
+      KundDataDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE  = DistriktDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE
+      KundDataDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE   = DistriktDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE 
+      KundDataDBbuffh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE        = KundData.ARTAL 
+      KundDataDBbuffh:BUFFER-FIELD("ANTALKUNDER"):BUFFER-VALUE  = KundData.AntalKunderTotalt.
+      
+      /*Anders Olsson Elpool i Umeå AB  10 aug 2017 10:48:19 
+   Bort enligt Matz Tapper
+      KundDataDBbuffh:BUFFER-FIELD("ANTALLUFT"):BUFFER-VALUE    = KundData.AntalKunderLuftnat
+      KundDataDBbuffh:BUFFER-FIELD("ANTALBLAND"):BUFFER-VALUE   = KundData.AntalKunderBlandNat
+      KundDataDBbuffh:BUFFER-FIELD("ANTALKABEL"):BUFFER-VALUE   = KundData.AntalKunderKabelNat.
+       
+      IF KundData.AntalKunderTotalt = 0 THEN DO:
+         KundDataDBbuffh:BUFFER-FIELD("ANTALKUNDER"):BUFFER-VALUE = KundDataDBbuffh:BUFFER-FIELD("ANTALLUFT"):BUFFER-VALUE + 
+         KundDataDBbuffh:BUFFER-FIELD("ANTALBLAND"):BUFFER-VALUE + KundDataDBbuffh:BUFFER-FIELD("ANTALKABEL"):BUFFER-VALUE.
+      END.
+      */
+      IF KundDataDBbuffh:BUFFER-FIELD("ANTALKUNDER"):BUFFER-VALUE = 0 THEN KundDataDBbuffh:BUFFER-DELETE.
+      KundDataDBbuffh:BUFFER-FIELD("SPANID"):BUFFER-VALUE = FFinlasttabIN(INPUT "D",INPUT "1", INPUT KundData.SpanNivId ).
+      KundDataDBbuffh:BUFFER-FIELD("SPANDARWINID"):BUFFER-VALUE = KundData.SpanNivId. 
+      KundDataDBbuffh:BUFFER-FIELD("EXPORTDATUM"):BUFFER-VALUE = ?.
+      KundDataDBbuffh:BUFFER-RELEASE().
+      
+      DELETE KundData.
+   END. 
+   
+   FOR EACH LedningData WHERE NO-LOCK:
+      IF LedningData.EXPORTDATUM NE ? THEN NEXT.
+      DistriktDBbuffh:FIND-FIRST("WHERE VIDISTRIKT = " + QUOTER(LedningData.DistriktsId) + " AND ARTAL = " + STRING(LedningData.ARTAL),NO-LOCK) NO-ERROR.
+      FIND FIRST Storfelmedtt WHERE Storfelmedtt.DATATABELL = "LedningData"  AND
+      Storfelmedtt.DistriktsId = LedningData.DistriktsId AND Storfelmedtt.SpanNivId = LedningData.SpanNivId
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE Storfelmedtt THEN DO:
+         IF Storfelmedtt.LAGGTILL = TRUE THEN DO:
+            LedninggsDataDBbuffh:FIND-FIRST("WHERE DISTRIKTID = " + STRING(DistriktDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE) + " AND ARTAL = " + STRING(LedningData.ARTAL) + " AND SPANDARWINID = " + STRING(Storfelmedtt.SpanNivId),NO-LOCK) NO-ERROR.
+         END.
+      END.
+      
+      IF LedninggsDataDBbuffh:AVAILABLE THEN .
+      ELSE DO:
+         
+         LedninggsDataDBbuffh:BUFFER-CREATE().
+      END.
+     
+      ASSIGN
+      LedninggsDataDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE = DistriktDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE
+      LedninggsDataDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE = DistriktDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE
+      LedninggsDataDBbuffh:BUFFER-FIELD("SPANID"):BUFFER-VALUE = FFinlasttabIN(INPUT "D",INPUT "1", INPUT LedningData.SpanNivId).
+      LedninggsDataDBbuffh:BUFFER-FIELD("SPANDARWINID"):BUFFER-VALUE = LedningData.SpanNivId.
+      LedninggsDataDBbuffh:BUFFER-FIELD("EXPORTDATUM"):BUFFER-VALUE = ?.
+    /*  LedninggsDataDBbuffh:BUFFER-FIELD("indatum"):BUFFER-VALUE = TODAY.*/
+      textIn = INTEGER(LedningData.TEXT1) NO-ERROR.
+      IF textIn = 0 THEN DO:
+         FIND FIRST STORTEXTER WHERE STORTEXTER.NAMN = LedningData.TEXT1 NO-LOCK NO-ERROR.
+         IF AVAILABLE STORTEXTER THEN txtId1in = STORTEXTER.TID.
+         IF  LedningData.TEXT2 = "" THEN  LedningData.TEXT2 =  LedningData.TEXT1.
+         FIND FIRST STORTEXTER WHERE STORTEXTER.NAMN = LedningData.TEXT2 NO-LOCK NO-ERROR.
+         IF AVAILABLE STORTEXTER THEN txtId2in = STORTEXTER.TID.
+         
+         FIND FIRST STORNATUPPKOPP WHERE STORNATUPPKOPP.TEXTID1 = txtId1in AND STORNATUPPKOPP.TEXTID2 = txtId2in NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE STORNATUPPKOPP THEN DO:
+            FIND FIRST STORNATUPPKOPP WHERE STORNATUPPKOPP.TEXTID1 = txtId1in NO-LOCK NO-ERROR.
+         END.
+      END.
+      ELSE DO:
+         FIND FIRST STORNATUPPKOPP WHERE STORNATUPPKOPP.TEXTKOMBID = textIn NO-LOCK NO-ERROR.
+      END.   
+      ASSIGN
+      LedninggsDataDBbuffh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE         = LedningData.Artal
+      LedninggsDataDBbuffh:BUFFER-FIELD("NATUPPLAGGID1"):BUFFER-VALUE = STORNATUPPKOPP.NATUPPLAGGID1 
+      LedninggsDataDBbuffh:BUFFER-FIELD("NATUPPLAGGID2"):BUFFER-VALUE = STORNATUPPKOPP.NATUPPLAGGID2 
+      LedninggsDataDBbuffh:BUFFER-FIELD("NATUPPLAGGID3"):BUFFER-VALUE = STORNATUPPKOPP.NATUPPLAGGID3 
+      LedninggsDataDBbuffh:BUFFER-FIELD("NATUPPLAGGID4"):BUFFER-VALUE = STORNATUPPKOPP.NATUPPLAGGID4 
+      /*Anders Olsson Elpool i Umeå AB  10 aug 2017 10:48:19 
+   Bort enligt Matz Tapper
+      LedninggsDataDBbuffh:BUFFER-FIELD("LANGDLUFT"):BUFFER-VALUE   = LedningData.AntalLuftnat  / STORNATUPPKOPP.M-KM  
+      LedninggsDataDBbuffh:BUFFER-FIELD("LANGDBLAND"):BUFFER-VALUE  = LedningData.AntalBlandNat / STORNATUPPKOPP.M-KM   
+      LedninggsDataDBbuffh:BUFFER-FIELD("LANGDKABEL"):BUFFER-VALUE  = LedningData.AntalKabelNat / STORNATUPPKOPP.M-KM  
+      */
+      LedninggsDataDBbuffh:BUFFER-FIELD("LANGD"):BUFFER-VALUE       = LedningData.AntalTotalt / STORNATUPPKOPP.M-KM.   
+      LedninggsDataDBbuffh:BUFFER-RELEASE().     
+      DELETE LedningData.
+   END. 
+   
+   FIND LAST STORNINGSTAB WHERE 
+   USE-INDEX STORNUMMERID NO-LOCK NO-ERROR.
+   IF AVAILABLE STORNINGSTAB THEN stornr = STORNINGSTAB.STORNUMMERID + 1.
+   ELSE stornr = 1.
+  
+   FOR EACH Storfelmedtt WHERE Storfelmedtt.DATATABELL = "StorningData"  NO-LOCK:
+      IF Storfelmedtt.SKRIVOVER = TRUE THEN DO:
+         DistriktDBbuffh:FIND-FIRST("WHERE VIDISTRIKT = " + QUOTER(StorningData.DistriktsId) + " AND ARTAL = " + STRING(artalvar),NO-LOCK) NO-ERROR.
+  
+         kommandoquery = "FOR EACH " + StorningsDataDBbuffh:TABLE + " WHERE DISTRIKTID = " + STRING(DistriktDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE) + " NO-LOCK". 
+         RUN CreateCustomQuery(INPUT StorningsDataDBbuffh,INPUT kommandoquery,OUTPUT qh).
+         qH:GET-FIRST().
+         DO WHILE qH:QUERY-OFF-END = FALSE:
+            kommandoquery2 = "FOR EACH " + StorFelMtrlDBbuffh:TABLE + " WHERE STORNUMMERID = " + STRING(StorningsDataDBbuffh:BUFFER-FIELD("STORNUMMERID"):BUFFER-VALUE) + " NO-LOCK". 
+            RUN CreateCustomQuery(INPUT StorFelMtrlDBbuffh,INPUT kommandoquery2,OUTPUT qh2).
+            qH2:GET-FIRST().
+            DO WHILE qH2:QUERY-OFF-END = FALSE:
+               StorFelMtrlDBbuffh:BUFFER-DELETE().    
+               qH2:GET-NEXT().
+            END.
+            StorningsDataDBbuffh:BUFFER-DELETE().    
+            qH:GET-NEXT().
+         END.
+      END.   
+       
+      
+   END.   
+   FOR EACH StorningData WHERE NO-LOCK:
+      DistriktDBbuffh:FIND-FIRST("WHERE VIDISTRIKT = " + QUOTER(StorningData.DistriktsId) + " AND ARTAL = " + STRING(artalvar),NO-LOCK) NO-ERROR.
+      
+      StorningsDataDBbuffh:BUFFER-CREATE().
+      ASSIGN   
+      StorningsDataDBbuffh:BUFFER-FIELD("INDATUM"):BUFFER-VALUE                    =               TODAY 
+      StorningsDataDBbuffh:BUFFER-FIELD("INKLOCKAN"):BUFFER-VALUE                  =               TIME                                                                                                       
+      StorningsDataDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE                =               StorningData.IdentifikationsnrForetag 
+      StorningsDataDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE                 =               DistriktDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE
+      StorningsDataDBbuffh:BUFFER-FIELD("STORNUMMERID"):BUFFER-VALUE               =               stornr
+      StorningsDataDBbuffh:BUFFER-FIELD("VSTORNUMMER"):BUFFER-VALUE                =               stornr                  
+      StorningsDataDBbuffh:BUFFER-FIELD("HDATUM"):BUFFER-VALUE                     =               StorningData.StorningsDatum                   
+      StorningsDataDBbuffh:BUFFER-FIELD("HKLOCKAN"):BUFFER-VALUE                   =               StorningData.StorningKlockan / 100                
+      StorningsDataDBbuffh:BUFFER-FIELD("STORTYPID"):BUFFER-VALUE                  =               StorningData.StortypId
+      StorningsDataDBbuffh:BUFFER-FIELD("BRYTORGLIT"):BUFFER-VALUE                 =               StorningData.BrytorgLit               
+      StorningsDataDBbuffh:BUFFER-FIELD("SEKTIONLIT"):BUFFER-VALUE                 =               StorningData.SektionLit               
+      StorningsDataDBbuffh:BUFFER-FIELD("AVBROTTSTID"):BUFFER-VALUE                =               StorningData.KundAvbrottsTid              
+      StorningsDataDBbuffh:BUFFER-FIELD("ANTALHSP"):BUFFER-VALUE                   =               StorningData.AntalHSP               
+      StorningsDataDBbuffh:BUFFER-FIELD("ANTALLSP"):BUFFER-VALUE                   =               StorningData.AntalLSP    
+      StorningsDataDBbuffh:BUFFER-FIELD("STDRIFTLIT"):BUFFER-VALUE                 =               StorningData.StDriftLit.
+       /*        
+      StorningsDataDBbuffh:BUFFER-FIELD("EJBORTKUND"):BUFFER-VALUE                 =               StorningData.EjBortKund               
+      StorningsDataDBbuffh:BUFFER-FIELD("ANTALRESERVKRAFT"):BUFFER-VALUE           =               StorningData.AntalReservKraft         
+      StorningsDataDBbuffh:BUFFER-FIELD("TIDRESERVKRAFT"):BUFFER-VALUE             =               StorningData.TidReservKraft.
+      */
+      mkwhelp = STRING(StorningData.BortKW). 
+      IF LENGTH(mkwhelp) > 3 THEN DO:
+         ASSIGN                                                  
+         StorningsDataDBbuffh:BUFFER-FIELD("BORTMW"):BUFFER-VALUE                     = INTEGER(SUBSTRING(mkwhelp,1,LENGTH(mkwhelp) - 3)).
+         StorningsDataDBbuffh:BUFFER-FIELD("BORTKW"):BUFFER-VALUE                     = INTEGER(SUBSTRING(mkwhelp,LENGTH(mkwhelp) - 2)).
+      END.
+      ELSE DO:
+         StorningsDataDBbuffh:BUFFER-FIELD("BORTKW"):BUFFER-VALUE                     =               StorningData.BortKW. 
+      END.
+      /*
+      mkwhelp = STRING(StorningData.EjBortKW). 
+      StorningsDataDBbuffh:BUFFER-FIELD("EJBORTMW"):BUFFER-VALUE                   =               INTEGER(SUBSTRING(STRING(mkwhelp,"999999999"),1,6))
+      StorningsDataDBbuffh:BUFFER-FIELD("EJBORTKW"):BUFFER-VALUE                   =               INTEGER(SUBSTRING(STRING(mkwhelp,"999999999"),7,3))
+      
+      */
+      ASSIGN 
+      StorningsDataDBbuffh:BUFFER-FIELD("DATUM100%"):BUFFER-VALUE                  =               StorningData.SlutDatum                 
+      StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN100%"):BUFFER-VALUE                =               StorningData.SlutKlockan / 100 
+     
+      StorningsDataDBbuffh:BUFFER-FIELD("FRANSPANID"):BUFFER-VALUE                 =               FFinlasttabIN(INPUT "D",INPUT "1", INPUT StorningData.FranspanId).
+      StorningsDataDBbuffh:BUFFER-FIELD("FRANSPANDARWINID"):BUFFER-VALUE           =               StorningData.FranspanId.                
+      /*
+      IF StorningData.StortypId = 1 THEN DO:*/
+         StorningsDataDBbuffh:BUFFER-FIELD("FELSPANID"):BUFFER-VALUE                  =               FFinlasttabIN(INPUT "D",INPUT "2", INPUT StorningData.FelspanId).
+         StorningsDataDBbuffh:BUFFER-FIELD("FELSPANDARWINID"):BUFFER-VALUE            =               StorningData.FelspanId.               
+     
+      StorningsDataDBbuffh:BUFFER-FIELD("FELYID"):BUFFER-VALUE = StorningData.FelYId.
+      StorningsDataDBbuffh:BUFFER-FIELD("SEKTIONERID"):BUFFER-VALUE = STRING(FLinlasttabFF("SEKTIONERING",StorningData.SektionerId)).
+      StorningsDataDBbuffh:BUFFER-FIELD("SEKTIONERDARWINID"):BUFFER-VALUE = StorningData.SektionerId.
+      StorningsDataDBbuffh:BUFFER-FIELD("RELINID"):BUFFER-VALUE = FLinlasttabFF("RELAINDIKERING",StorningData.RelinId).
+      StorningsDataDBbuffh:BUFFER-FIELD("RELINDARWINID"):BUFFER-VALUE = StorningData.RelinId.
+      StorningsDataDBbuffh:BUFFER-FIELD("FELOID"):BUFFER-VALUE = FLinlasttabFF("FELORSAK",StorningData.FelOId).
+      StorningsDataDBbuffh:BUFFER-FIELD("FELODARWINID"):BUFFER-VALUE = StorningData.FelOId.
+      StorningsDataDBbuffh:BUFFER-FIELD("BRYTOID"):BUFFER-VALUE = FLinlasttabFF("BRYTORGAN",StorningData.BrytoId).
+      StorningsDataDBbuffh:BUFFER-FIELD("BRYTODARWINID"):BUFFER-VALUE = StorningData.BrytoId.
+      StorningsDataDBbuffh:BUFFER-FIELD("STDRIFTID"):BUFFER-VALUE = FLinlasttabFF("STORDRIFTOMR",StorningData.StDriftId).
+      StorningsDataDBbuffh:BUFFER-FIELD("STDRIFTDARWINID"):BUFFER-VALUE = StorningData.StDriftId.
+      
+      StorningsDataDBbuffh:BUFFER-FIELD("ADELID"):BUFFER-VALUE = STRING(FLinlasttabFF("ANLAGGNINGSDEL",StorningData.AdelId)).
+      IF StorningsDataDBbuffh:BUFFER-FIELD("ADELID"):BUFFER-VALUE  >= 5 AND  StorningsDataDBbuffh:BUFFER-FIELD("ADELID"):BUFFER-VALUE  <= 12 THEN StorningsDataDBbuffh:BUFFER-FIELD("ADELDARWINID"):BUFFER-VALUE = 50.
+      ELSE IF StorningsDataDBbuffh:BUFFER-FIELD("ADELID"):BUFFER-VALUE  = 26 THEN StorningsDataDBbuffh:BUFFER-FIELD("ADELDARWINID"):BUFFER-VALUE = 50.
+      ELSE  StorningsDataDBbuffh:BUFFER-FIELD("ADELDARWINID"):BUFFER-VALUE = StorningData.AdelId.
+      
+      
+      StorningsDataDBbuffh:BUFFER-FIELD("UTLOSID"):BUFFER-VALUE = FLinlasttabFF("UTLOSNINGSKYDD",StorningData.UtlosId).
+      StorningsDataDBbuffh:BUFFER-FIELD("UTLOSDARWINID"):BUFFER-VALUE = StorningData.UtlosId.
+         /*Anders Olsson Elpool i Umeå AB  10 aug 2017 10:48:19 
+   Bort enligt Matz Tapper             
+      StorningsDataDBbuffh:BUFFER-FIELD("ANTALREGSTN"):BUFFER-VALUE                =               StorningData.AntalRegStn               
+      StorningsDataDBbuffh:BUFFER-FIELD("ANTALNATSTN"):BUFFER-VALUE                =               StorningData.AntalNatStn
+      */    
+       /*Anders Olsson Elpool i Umeå AB  10 aug 2017 10:48:19 
+   Bort enligt Matz Tapper 
+      StorningsDataDBbuffh:BUFFER-FIELD("DATUM70%"):BUFFER-VALUE                   =               StorningData.SlutDatum70                 
+      StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN70%"):BUFFER-VALUE                 =               StorningData.SlutKlockan70 / 100.                 
+      IF StorningData.SlutDatum70 = "" OR StorningData.SlutDatum70 = ? THEN DO:
+         StorningsDataDBbuffh:BUFFER-FIELD("DATUM70%"):BUFFER-VALUE = ?.
+         StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN70%"):BUFFER-VALUE = ?.
+      END. 
+      IF StorningsDataDBbuffh:BUFFER-FIELD("DATUM70%"):BUFFER-VALUE = StorningsDataDBbuffh:BUFFER-FIELD("DATUM100%"):BUFFER-VALUE AND 
+      StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN70%"):BUFFER-VALUE = StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN100%"):BUFFER-VALUE  THEN DO:
+         StorningsDataDBbuffh:BUFFER-FIELD("DATUM70%"):BUFFER-VALUE = ?.
+         StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN70%"):BUFFER-VALUE = ?.
+      END. 
+      */
+       /*Anders Olsson Elpool i Umeå AB  10 aug 2017 10:45:00 
+      Bort enligt Matz Tapper 
+      StorningsDataDBbuffh:BUFFER-FIELD("NATTYPID"):BUFFER-VALUE = STRING(FLinlasttabFF("NATTYP",StorningData.NattypId)).
+      StorningsDataDBbuffh:BUFFER-FIELD("STRUKIDP1"):BUFFER-VALUE = STRING(FLinlasttabFF("NATSTRUKTUR1",StorningData.NatStrukHSPID)).
+      StorningsDataDBbuffh:BUFFER-FIELD("STRUKIDP2"):BUFFER-VALUE = STRING(FLinlasttabFF("NATSTRUKTUR2",StorningData.NatStrukLSPID)).
+      */ 
+      FOR EACH StorFelMtrlData WHERE StorFelMtrlData.IdentifikationsnrForetag =  StorningData.IdentifikationsnrForetag AND
+      StorFelMtrlData.DistriktsId =  StorningData.DistriktsId AND 
+      StorFelMtrlData.StorId =  StorningData.StorId NO-LOCK:
+         StorFelMtrlDBbuffh:BUFFER-CREATE().
+         StorFelMtrlDBbuffh:BUFFER-FIELD("STORNUMMERID"):BUFFER-VALUE = stornr.
+         StorFelMtrlDBbuffh:BUFFER-FIELD("SFMID"):BUFFER-VALUE = StorFelMtrlData.SfmId.
+         StorFelMtrlDBbuffh:BUFFER-FIELD("APPARAT"):BUFFER-VALUE = StorFelMtrlData.Apparat.
+         StorFelMtrlDBbuffh:BUFFER-FIELD("LEVERANTOR"):BUFFER-VALUE = StorFelMtrlData.Leverantor.
+         StorFelMtrlDBbuffh:BUFFER-FIELD("FABRIKAT"):BUFFER-VALUE = StorFelMtrlData.Fabrikat.
+         StorFelMtrlDBbuffh:BUFFER-FIELD("ARTIKELNR"):BUFFER-VALUE = StorFelMtrlData.Artikelnr.
+         StorFelMtrlDBbuffh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE = StorFelMtrlData.Artal.
+         StorFelMtrlDBbuffh:BUFFER-FIELD("ANTAL"):BUFFER-VALUE = StorFelMtrlData.Antal.
+         DELETE StorFelMtrlData.
+      END.
+      stornr = stornr + 1.
+      DELETE StorningData.
+   END.
+   
+   
+   
+END PROCEDURE.
+
+
+
+PROCEDURE DistriktCreate_UI :
+   DEFINE VARIABLE iField AS INTEGER NO-UNDO.
+   CREATE TEMP-TABLE Foretagtth IN WIDGET-POOL "DynTableIMP".
+   Foretagtth:CREATE-LIKE("AVDELNING").
+   Foretagtth:ADD-NEW-FIELD("TTRECID","RECID").
+   Foretagtth:TEMP-TABLE-PREPARE("Foretaget").
+   ForetagDBbuffh = Foretagtth:DEFAULT-BUFFER-HANDLE.
+   ForetagDBbuffh:BUFFER-FIELD("TTRECID"):XML-NODE-TYPE = "HIDDEN".
+   CREATE TEMP-TABLE Distrikttth IN WIDGET-POOL "DynTableIMP".
+   Distrikttth:CREATE-LIKE("STORDISTRIKT").
+   Distrikttth:ADD-NEW-FIELD("TTRECID","RECID").
+   Distrikttth:TEMP-TABLE-PREPARE("Distrikten").
+   DistriktDBbuffh = Distrikttth:DEFAULT-BUFFER-HANDLE.
+   DistriktDBbuffh:BUFFER-FIELD("VIDISTRIKT"):XML-NODE-NAME = "dId".   
+   DistriktDBbuffh:BUFFER-FIELD("DISTRIKTID"):XML-NODE-TYPE = "HIDDEN". 
+   DistriktDBbuffh:BUFFER-FIELD("AVDELNINGNR"):XML-NODE-TYPE = "HIDDEN".
+  /*
+   DistriktDBbuffh:BUFFER-FIELD("TTRECID"):XML-NODE-TYPE = "HIDDEN".
+   */
+   
+   CREATE TEMP-TABLE KundDatatth IN WIDGET-POOL "DynTableIMP".
+   KundDatatth:CREATE-LIKE("KUNDSTOR").
+   KundDatatth:ADD-NEW-FIELD("AVDELNINGNR","INTEGER").  
+   KundDatatth:ADD-NEW-FIELD("VIDISTRIKT","CHARACTER").
+   KundDatatth:ADD-NEW-FIELD("TTRECID","RECID"). 
+   KundDatatth:TEMP-TABLE-PREPARE("KundDatat").
+   KundDataDBbuffh = KundDatatth:DEFAULT-BUFFER-HANDLE.  
+   KundDataDBbuffh:BUFFER-FIELD("AVDELNINGNR"):XML-NODE-TYPE = "HIDDEN".
+   KundDataDBbuffh:BUFFER-FIELD("VIDISTRIKT"):XML-NODE-NAME = "dId". 
+   KundDataDBbuffh:BUFFER-FIELD("DISTRIKTID"):XML-NODE-TYPE = "HIDDEN".
+   KundDataDBbuffh:BUFFER-FIELD("INDATUM"):XML-NODE-TYPE = "HIDDEN".  
+   /*
+   KundDataDBbuffh:BUFFER-FIELD("TTRECID"):XML-NODE-TYPE = "HIDDEN".
+   */
+   CREATE TEMP-TABLE LedninggsDatatth IN WIDGET-POOL "DynTableIMP".
+   LedninggsDatatth:CREATE-LIKE("LEDNINGSDATA").
+   LedninggsDatatth:ADD-NEW-FIELD("AVDELNINGNR","INTEGER").  
+   LedninggsDatatth:ADD-NEW-FIELD("VIDISTRIKT","CHARACTER"). 
+   LedninggsDatatth:ADD-NEW-FIELD("TEXT1","CHARACTER"). 
+   LedninggsDatatth:ADD-NEW-FIELD("TEXT2","CHARACTER"). 
+   LedninggsDatatth:ADD-NEW-FIELD("TTRECID","RECID").
+   LedninggsDatatth:TEMP-TABLE-PREPARE("LedningsDatat").
+   LedninggsDataDBbuffh = LedninggsDatatth:DEFAULT-BUFFER-HANDLE.
+   LedninggsDataDBbuffh:BUFFER-FIELD("VIDISTRIKT"):XML-NODE-NAME = "dId".    
+   LedninggsDataDBbuffh:BUFFER-FIELD("TTRECID"):XML-NODE-TYPE = "HIDDEN".
+   CREATE TEMP-TABLE StorningsDatatth IN WIDGET-POOL "DynTableIMP".
+   StorningsDatatth:CREATE-LIKE("STORNINGSTAB").
+   StorningsDatatth:ADD-NEW-FIELD("AVDELNINGNR","INTEGER").  
+   StorningsDatatth:ADD-NEW-FIELD("VIDISTRIKT","CHARACTER").
+   StorningsDatatth:ADD-NEW-FIELD("ATERDATUM","DATE").
+   StorningsDatatth:ADD-NEW-FIELD("ATERKLOCKAN","INTEGER"). 
+   StorningsDatatth:ADD-NEW-FIELD("TTRECID","RECID").
+   StorningsDatatth:TEMP-TABLE-PREPARE("StorningsDatat").
+   StorningsDataDBbuffh = StorningsDatatth:DEFAULT-BUFFER-HANDLE.
+   StorningsDataDBbuffh:BUFFER-FIELD("TTRECID"):XML-NODE-TYPE = "HIDDEN".
+   DO iField = 1 TO StorningsDataDBbuffh:NUM-FIELDS:
+      IF StorningsDataDBbuffh:BUFFER-FIELD(iField):NAME MATCHES "*%*" THEN DO:
+         StorningsDataDBbuffh:BUFFER-FIELD(iField):XML-NODE-NAME = REPLACE(StorningsDataDBbuffh:BUFFER-FIELD(iField):NAME,"%","x").   
+      END. 
+   END. 
+   CREATE TEMP-TABLE StorFelMtrltth IN WIDGET-POOL "DynTableIMP".
+   StorFelMtrltth:CREATE-LIKE("STORFELMTRL").
+   StorFelMtrltth:ADD-NEW-FIELD("TTRECID","RECID").
+   StorFelMtrltth:TEMP-TABLE-PREPARE("StorFelMtrl").
+   StorFelMtrlDBbuffh = StorFelMtrltth:DEFAULT-BUFFER-HANDLE.  
+   StorFelMtrlDBbuffh:BUFFER-FIELD("TTRECID"):XML-NODE-TYPE = "HIDDEN".
+END PROCEDURE.
+
+PROCEDURE laddaImportDataDS_UI :
+   DEFINE INPUT  PARAMETER vad AS CHARACTER NO-UNDO. 
+   DEFINE INPUT  PARAMETER vadi AS INTEGER NO-UNDO.
+   {InDarwinDS.I}
+   
+  
+  
+END PROCEDURE.
+PROCEDURE tthclean_UI :
+   DELETE OBJECT Foretagtth NO-ERROR.
+   Foretagtth = ?.
+   DELETE OBJECT ForetagDBbuffh NO-ERROR.
+   ForetagDBbuffh = ?.
+   DELETE OBJECT Distrikttth NO-ERROR.
+   Distrikttth = ?.
+   DELETE OBJECT DistriktDBbuffh NO-ERROR.
+   DistriktDBbuffh = ?.
+   DELETE OBJECT KundDatatth NO-ERROR.
+   KundDatatth = ?.
+   DELETE OBJECT KundDataDBbuffh NO-ERROR.
+   KundDataDBbuffh = ?.
+   DELETE OBJECT LedninggsDatatth NO-ERROR.
+   LedninggsDatatth = ?.
+   DELETE OBJECT LedninggsDataDBbuffh NO-ERROR.
+   LedninggsDataDBbuffh = ?.
+   
+   DELETE OBJECT StorningsDatatth NO-ERROR.
+   StorningsDatatth = ?.
+   DELETE OBJECT StorningsDataDBbuffh NO-ERROR.
+   StorningsDataDBbuffh = ?.
+   DELETE OBJECT StorFelMtrltth NO-ERROR.
+   StorFelMtrltth = ?.
+   DELETE OBJECT StorFelMtrlDBbuffh NO-ERROR.
+   StorFelMtrlDBbuffh = ?.
+END PROCEDURE.
+PROCEDURE avslutaStorning_UI :
+   DELETE WIDGET-POOL "DynTableIMP" NO-ERROR.
+   RUN tthclean_UI.
+   IF VALID-HANDLE(dyndamicDSh) THEN DO:
+      RUN RelDatset_UI IN dyndamicDSh.
+      DELETE PROCEDURE dyndamicDSh NO-ERROR.
+      dyndamicDSh = ?.
+   END.   
+   
+END PROCEDURE.
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh IN WIDGET-POOL "DynTableIMP".
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+   
+PROCEDURE CloseCustomQuery:
+   DEFINE INPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CustomQueryh:QUERY-CLOSE()  NO-ERROR.
+   CustomQueryh = ?.
+END PROCEDURE.
+      
+      
+      
+PROCEDURE Schema_UI :
+   DEFINE VARIABLE cTargetType     AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cFile           AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE lFormatted      AS LOGICAL   NO-UNDO.
+   DEFINE VARIABLE cEncoding       AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cSchemaLocation AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE lWriteSchema    AS LOGICAL   NO-UNDO.
+   DEFINE VARIABLE lMinSchema      AS LOGICAL   NO-UNDO.
+   DEFINE VARIABLE lRetOK          AS LOGICAL   NO-UNDO.
+   
+   ASSIGN 
+   cTargetType    =  "FILE"
+   cFile           = "C:\PROTEMP10\sch1.xml"
+   lFormatted      = TRUE
+   cEncoding       = "iso8859-1"
+   lWriteSchema = TRUE 
+   lMinSchema = TRUE.
+   lRetOK = DATASET  StorningImportDs:WRITE-XMLSCHEMA(cTargetType, cFile, lFormatted,  cEncoding, lMinSchema).
+   cFile           = "C:\PROTEMP10\sch1.json".
+   DATASET  StorningImportDs:WRITE-JSON(cTargetType,cFile).
+   DATASET StorningImportDs:WRITE-XML("FILE", "C:\PROTEMP10\" + "Exempelfil" + ".xml",true).
+END PROCEDURE.
+      
+      
+      
+      
+      
+      
+   
+
+      

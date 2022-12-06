@@ -1,0 +1,131 @@
+
+/*------------------------------------------------------------------------
+    File        : BEFORETEST.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Fri Feb 26 13:18:10 CET 2016
+    Notes       :
+  ----------------------------------------------------------------------*/
+DEFINE  TEMP-TABLE kalknumtt NO-UNDO
+   BEFORE-TABLE kalknumttbef
+   FIELD KALKNR AS INTEGER
+   FIELD OMRADE AS CHARACTER
+   FIELD KLOGSUBID AS INTEGER
+   FIELD ARBKOD AS CHARACTER
+   FIELD LOPNR AS INTEGER    
+   FIELD NUM AS INTEGER
+   FIELD MATRIS AS INTEGER 
+   FIELD BENAMNING AS CHARACTER
+   FIELD ANTAL AS DECIMAL  LABEL "Antal"  DECIMALS 6  /*OBS MÅNGA DECIMALER*/
+   FIELD ENHET AS CHARACTER
+   FIELD KOMMENTAR AS CHARACTER
+   FIELD ANMARKNING AS CHARACTER
+   FIELD TTRECID AS RECID
+   FIELD TYPKALK AS INTEGER 
+   FIELD TOTKOST AS DECIMAL   DECIMALS 4 /*OBS MÅNGA DECIMALER*/  
+   FIELD MARKNING AS CHARACTER
+   FIELD MARKSUB AS CHARACTER
+   FIELD RISK AS DECIMAL  DECIMALS 4
+   FIELD VINST AS DECIMAL  DECIMALS 4
+   FIELD FRITOTKOST AS DECIMAL DECIMALS 4
+   FIELD SID AS INTEGER   
+   FIELD BERNUM AS INTEGER
+   /*FIELD STTOTKOST  AS DECIMAL  /*styckkostnad lena*/  
+   FIELD STFRITOTKOST  AS DECIMAL
+   FIELD STPROJKOST  AS DECIMAL
+   FIELD STFRIPROJKOST  AS DECIMAL
+   FIELD STUTSMET  AS DECIMAL
+   FIELD STFRIUTSMET  AS DECIMAL*/
+   INDEX SID SID ARBKOD LOPNR
+   INDEX BERNUM BERNUM ARBKOD LOPNR
+   INDEX KALKNR KALKNR 
+   INDEX MATRIS KALKNR MATRIS
+   INDEX KLOGSUBID KLOGSUBID
+   INDEX ARBKOD IS PRIMARY ARBKOD LOPNR NUM
+   INDEX NUM NUM.
+ DEFINE VARIABLE KoderTTh              AS HANDLE NO-UNDO.
+ DEFINE VARIABLE Koderbuffh AS HANDLE NO-UNDO.
+ Koderbuffh = TEMP-TABLE kalknumtt:HANDLE:DEFAULT-BUFFER-HANDLE.  
+ 
+ KoderTTh  = Koderbuffh:TABLE-HANDLE.
+ 
+ KoderTTh:TRACKING-CHANGES = TRUE.
+ Koderbuffh:BUFFER-CREATE().
+ Koderbuffh:BUFFER-FIELD("kalknr"):BUFFER-VALUE = 1.
+ Koderbuffh:BUFFER-FIELD("arbkod"):BUFFER-VALUE = "111".
+ 
+ Koderbuffh:BUFFER-CREATE().
+ Koderbuffh:BUFFER-FIELD("kalknr"):BUFFER-VALUE = 2.
+ Koderbuffh:BUFFER-FIELD("arbkod"):BUFFER-VALUE = "112".
+ Koderbuffh:BUFFER-CREATE().
+ Koderbuffh:BUFFER-FIELD("kalknr"):BUFFER-VALUE = 3.
+ Koderbuffh:BUFFER-FIELD("arbkod"):BUFFER-VALUE = "113".
+ KoderTTh:TRACKING-CHANGES = FALSE.
+ RUN BerKalkSynk (Koderbuffh).
+ 
+ KoderTTh:TRACKING-CHANGES = TRUE.
+ Koderbuffh:FIND-FIRST("WHERE  ",NO-LOCK) NO-ERROR.
+ Koderbuffh:BUFFER-DELETE().
+ KoderTTh:TRACKING-CHANGES = FALSE.
+ RUN BerKalkSynk (Koderbuffh).
+ 
+ KoderTTh:TRACKING-CHANGES = TRUE.
+ Koderbuffh:FIND-FIRST("WHERE  ",NO-LOCK) NO-ERROR.
+ Koderbuffh:BUFFER-FIELD("kalknr"):BUFFER-VALUE = 4.
+ KoderTTh:TRACKING-CHANGES = FALSE.
+ RUN BerKalkSynk (Koderbuffh).
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ PROCEDURE BerKalkSynk:
+      DEFINE INPUT  PARAMETER phBuffer AS HANDLE NO-UNDO.
+      DEFINE VARIABLE hBeforeBuff AS HANDLE NO-UNDO.
+      DEFINE VARIABLE hBeforeQry  AS HANDLE    NO-UNDO.
+      DEFINE VARIABLE hchBuff AS HANDLE NO-UNDO.
+      
+      hBeforeBuff = phBuffer:BEFORE-BUFFER.
+      DEFINE VARIABLE SPARAXML AS CHARACTER NO-UNDO.
+      SPARAXML = "C:\Ckalk.xml". 
+       
+      CREATE BUFFER hchBuff.
+      hchBuff:CREATE-LIKE(phBuffer:TABLE-HANDLE).
+      hchBuff:GET-CHANGES(phBuffer).
+      hchBuff:WRITE-XML("FILE", SPARAXML).
+      MESSAGE "NY FIL"
+      VIEW-AS ALERT-BOX.
+      
+      IF VALID-HANDLE(hBeforeBuff) THEN DO:
+         CREATE QUERY hBeforeQry.
+         hBeforeQry:ADD-BUFFER(hBeforeBuff).
+         hBeforeQry:QUERY-PREPARE("FOR EACH " + hBeforeBuff:NAME).
+         hBeforeQry:QUERY-OPEN().
+         hBeforeQry:GET-FIRST().
+         DO WHILE NOT hBeforeQry:QUERY-OFF-END:
+            IF hBeforeBuff:ROW-STATE = ROW-DELETED  THEN DO:
+               MESSAGE "BORT"
+               VIEW-AS ALERT-BOX.
+               
+            END.
+            IF hBeforeBuff:ROW-STATE = ROW-MODIFIED THEN DO:
+               MESSAGE "ÄNDRAD"
+               VIEW-AS ALERT-BOX.            
+   
+            END.
+            IF hBeforeBuff:ROW-STATE = ROW-CREATED THEN DO:
+               MESSAGE "NY"
+               VIEW-AS ALERT-BOX.
+            END.
+            hBeforeQry:GET-NEXT().
+         END.
+      END.      
+  END PROCEDURE.

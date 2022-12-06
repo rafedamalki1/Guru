@@ -1,0 +1,128 @@
+/*STEG9.P*/
+/*steg9 Denna körning syftar till att återställa priser på materiel i lager till det de är inköpta för.
+Detta för att värde på Lager skall bli korrekt. Bygger på filen som skapades i steg8.p samt priserna från fakturor 
+från Ahlsell*/                                                       
+DEFINE TEMP-TABLE tidinah
+   FIELD ENR                AS CHARACTER 
+   FIELD BENAMNING          AS CHARACTER    
+   FIELD ENHET              AS CHARACTER                  
+   FIELD PRISIDAG           AS DECIMAL
+   FIELD INKOPSPRIS         AS DECIMAL
+   FIELD LEV                AS CHARACTER
+   FIELD FAKTURA            AS DECIMAL
+   FIELD LAGERPRIS          AS DECIMAL
+   INDEX ENR IS PRIMARY ENR.
+
+DEFINE TEMP-TABLE templager NO-UNDO
+   FIELD ENR AS CHARACTER
+   FIELD BENAMNING AS CHARACTER
+   FIELD ENHET AS CHARACTER
+   FIELD DPRIS AS DECIMAL
+   FIELD SALDO AS INTEGER
+   FIELD LEVKOD AS CHARACTER
+   FIELD LEVNAMN AS CHARACTER
+   FIELD LEVKOD2 AS CHARACTER
+   FIELD LEVNAMN2 AS CHARACTER
+   FIELD LEVDATUM AS DATE
+   FIELD ANTAL AS INTEGER
+   FIELD PRIS AS DECIMAL
+   FIELD PRIS2 AS DECIMAL
+   FIELD PRIS3 AS DECIMAL.
+   
+
+DEFINE TEMP-TABLE infil
+   FIELD PROGNAMN AS CHARACTER FORMAT "X(78)" 
+   INDEX PRO IS PRIMARY PROGNAMN.
+DEFINE TEMP-TABLE intid
+   FIELD TIN AS CHARACTER FORMAT "X(78)" .
+   
+DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.   
+
+{muswait.i} 
+ASSIGN
+filnamn = "D:\ELPOOL\DELAD\PRO9\steg9.skv".
+{AMERICANEUROPEAN.I}
+EMPTY TEMP-TABLE intid NO-ERROR.
+EMPTY TEMP-TABLE tidinah NO-ERROR.
+
+INPUT FROM VALUE(filnamn) NO-ECHO.
+REPEAT:
+   DO TRANSACTION: 
+      CREATE tidinah.
+      ASSIGN.
+      IMPORT DELIMITER ";" tidinah   NO-ERROR.
+   END.               
+END.
+FOR EACH tidinah WHERE tidinah.ENR = "":
+   DELETE tidinah.
+END.      
+OPEN QUERY dq FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = 1 AND MTRLDEP.IBDATUM = ? NO-LOCK.
+DO TRANSACTION:
+   GET FIRST dq EXCLUSIVE-LOCK.
+   FIND FIRST tidinah WHERE tidinah.ENR = MTRLDEP.ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE tidinah THEN DO:
+      IF tidinah.FAKTURA NE 0 THEN DO:
+         ASSIGN
+         MTRLDEP.NPRIS = tidinah.FAKTURA / 100
+         MTRLDEP.BPRIS = tidinah.FAKTURA / 100.
+      END.
+      ELSE DO:
+         ASSIGN
+         MTRLDEP.NPRIS = tidinah.LAGERPRIS / 100
+         MTRLDEP.BPRIS = tidinah.LAGERPRIS / 100.
+      END.
+   END.
+END.
+/*
+CREATE templager.
+ASSIGN
+templager.ENR = MTRLDEP.ENR
+templager.BENAMNING = MTRLDEP.BENAMNING
+templager.ENHET = MTRLDEP.ENHET
+templager.DPRIS = MTRLDEP.NPRIS
+templager.SALDO = MTRLDEP.SALDO
+templager.LEVKOD = MTRLDEP.LEVKOD
+templager.LEVDATUM = 01/01/91.
+*/
+REPEAT:
+   DO TRANSACTION:
+      GET NEXT dq EXCLUSIVE-LOCK.
+      IF AVAILABLE MTRLDEP THEN DO:
+         /*
+         CREATE templager.
+         ASSIGN
+         templager.ENR = MTRLDEP.ENR
+         templager.BENAMNING = MTRLDEP.BENAMNING
+         templager.ENHET = MTRLDEP.ENHET
+         templager.DPRIS = MTRLDEP.NPRIS
+         templager.SALDO = MTRLDEP.SALDO
+         templager.LEVKOD = MTRLDEP.LEVKOD
+         templager.LEVDATUM = 01/01/91.
+         */
+         FIND FIRST tidinah WHERE tidinah.ENR = MTRLDEP.ENR NO-LOCK NO-ERROR.
+         IF AVAILABLE tidinah THEN DO:
+            IF tidinah.FAKTURA NE 0 THEN DO:
+               ASSIGN
+               MTRLDEP.NPRIS = tidinah.FAKTURA / 100
+               MTRLDEP.BPRIS = tidinah.FAKTURA / 100.
+            END.
+            ELSE DO:
+               ASSIGN
+               MTRLDEP.NPRIS = tidinah.LAGERPRIS / 100
+               MTRLDEP.BPRIS = tidinah.LAGERPRIS / 100.
+            END.
+         END.
+      END.
+      ELSE LEAVE.
+   END.
+   
+END.
+{EUROPEANAMERICAN.I}
+/*
+OUTPUT TO D:\ELPOOL\DELAD\PRO9\070510STEG9.txt. 
+FOR EACH templager BY templager.enr:
+   PUT templager.ENR FORMAT "X(11)" ";" templager.BENAMNING FORMAT "X(40)" ";" templager.ENHET ";" templager.DPRIS ";" 
+       templager.SALDO ";" templager.LEVKOD ";"  templager.PRIS SKIP.
+END.
+OUTPUT CLOSE.
+*/

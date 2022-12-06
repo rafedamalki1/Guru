@@ -1,0 +1,251 @@
+/*
+     Filename: ODBCACESS.P
+
+_Sysdbauth._Grantee,_Sysdbauth._Dbaacc,_Sysdbauth._Resacc
+
+_User._Userid,_User._Password,_User._User-Name
+
+
+*/
+DEFINE TEMP-TABLE feltemp NO-UNDO
+   FIELD FELTEXT AS CHARACTER.
+{ODBCTEMP.I}
+
+DEFINE VARIABLE comrec AS COM-HANDLE NO-UNDO.
+/*
+DEFINE VARIABLE comcon AS COM-HANDLE NO-UNDO.
+*/
+DEFINE VARIABLE comcommand AS COM-HANDLE NO-UNDO.
+DEFINE INPUT  PARAMETER odbcdsn      AS CHARACTER  NO-UNDO.
+DEFINE INPUT  PARAMETER odbcserver   AS CHARACTER  NO-UNDO.
+DEFINE INPUT  PARAMETER odbcuserid   AS CHARACTER  NO-UNDO.
+DEFINE INPUT  PARAMETER odbcpassword AS CHARACTER  NO-UNDO.
+DEFINE OUTPUT PARAMETER comcon AS COM-HANDLE NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR feltemp.
+EMPTY TEMP-TABLE feltemp NO-ERROR. 
+
+DEFINE VARIABLE odbcnull     AS CHARACTER NO-UNDO.
+DEFINE VARIABLE listafalt AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE listadata AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE tabnamnvar AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE faltnr AS INTEGER    NO-UNDO.
+/*
+
+C:\Windows\SysWOW64\odbcad32.exe 
+Create the connection object for the link to SQL */
+CREATE "ADODB.Connection" comcon.
+
+comcon:Open ("data source=" + odbcdsn + ";server=" +
+      odbcserver, odbcuserid, odbcpassword, 0 ) NO-ERROR.
+DEFINE VARIABLE raknare AS INTEGER    NO-UNDO.
+raknare = 0.
+If ( ERROR-STATUS:NUM-MESSAGES > 0 ) THEN DO:
+   DO raknare = 1 TO ERROR-STATUS:NUM-MESSAGES:
+      CREATE feltemp.
+      feltemp.FELTEXT = STRING(ERROR-STATUS:GET-NUMBER(raknare)) + " " + STRING(ERROR-STATUS:GET-MESSAGE(raknare)).      
+   END.     
+END.
+PROCEDURE comset_UI:   
+   /* Create a recordset object ready to return the data */
+   CREATE "ADODB.RecordSet" comrec.
+   /* Create a command object for sending the SQL statement */
+   CREATE "ADODB.Command" comcommand.
+END PROCEDURE.
+PROCEDURE comav_UI:
+   RELEASE OBJECT comcommand NO-ERROR.
+   RELEASE OBJECT comrec NO-ERROR.   
+   ASSIGN 
+   comcommand = ? 
+   comrec = ?.
+END PROCEDURE.
+PROCEDURE avslut_UI:
+   comcon:Close NO-ERROR.
+   RELEASE OBJECT comcon NO-ERROR.
+   RELEASE OBJECT comcommand NO-ERROR.
+   RELEASE OBJECT comrec NO-ERROR.  
+  
+   ASSIGN 
+   comcon = ? 
+   comcommand = ? 
+   comrec = ?.
+END PROCEDURE.
+
+PROCEDURE hamtab_UI:
+   DEFINE VARIABLE odbcquery AS CHARACTER  NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR sqltab.
+   EMPTY TEMP-TABLE sqltab  NO-ERROR.
+    
+   RUN comset_UI.
+   odbcquery = "sp_tables".
+   RUN tabnam_UI (INPUT odbcquery).
+   odbcquery = "SELECT * FROM " + odbcquery + ";". 
+     /*tabinfo = "SELECT COUNT(*) FROM MATREG".*/
+   ASSIGN 
+   comcommand:ActiveConnection = comcon.
+   comcommand:CommandText = odbcquery.
+   comcommand:CommandType = 1. /* adCmdText */
+   comcon:CursorLocation = 3. /* adUseClient */
+   comrec:CursorType = 3. /* adOpenStatic*/
+   comrec = comcommand:Execute( OUTPUT odbcnull, "", 32 ).
+   DO WHILE NOT comrec:eof:
+      IF comrec:FIELDS("TABLE_TYPE"):VALUE = "TABLE" THEN do:
+         CREATE sqltab.                                 
+         sqltab.TABNAMN = comrec:FIELDS("TABLE_NAME"):VALUE.
+          
+      END.
+      comrec:MoveNext.
+   END.
+   FOR EACH sqltab:
+      raknare = 0.
+      RUN comav_UI.
+      RUN comset_UI.
+      odbcquery = "sp_columns @table_name = " + sqltab.TABNAMN.
+      ASSIGN 
+      comcommand:ActiveConnection = comcon.
+      comcommand:CommandText = odbcquery.
+      comcommand:CommandType = 1. /* adCmdText */
+      comcon:CursorLocation = 3. /* adUseClient */
+      comrec:CursorType = 3. /* adOpenStatic*/
+      comrec = comcommand:Execute( OUTPUT odbcnull, "", 32 ).
+      DO WHILE NOT comrec:eof:
+         raknare = raknare + 1.
+         IF raknare <= 50 THEN DO:
+            ASSIGN
+            sqltab.FALTANT = raknare
+            sqltab.FALT[raknare] = comrec:FIELDS("COLUMN_NAME"):VALUE
+            sqltab.FALTTYP[raknare] = comrec:FIELDS("TYPE_NAME"):VALUE.
+         END.               
+         comrec:MoveNext.
+      END.
+   END.   
+END PROCEDURE.
+
+/*Hämta poster*/
+PROCEDURE hamtap_UI:
+   DEFINE INPUT  PARAMETER odbcquery    AS CHARACTER  NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR sqltab.
+   DEFINE OUTPUT PARAMETER TABLE FOR sqldat.
+   EMPTY TEMP-TABLE sqldat NO-ERROR. 
+   RUN comset_UI.
+   RUN tabnam_UI (INPUT odbcquery).
+   odbcquery = "SELECT * FROM " + odbcquery + ";". 
+   ASSIGN
+   comcommand:ActiveConnection = comcon.
+   comcommand:CommandText = odbcquery.
+   comcommand:CommandType = 1. /* adCmdText */
+   comcon:CursorLocation = 3. /* adUseClient */
+   comrec:CursorType = 3. /* adOpenStatic*/
+   comrec = comcommand:Execute( OUTPUT odbcnull, "", 32 ).
+
+   DO WHILE NOT comrec:eof:
+       RUN datatemp_UI.
+       comrec:MoveNext.
+   END.  
+END PROCEDURE.
+/*Lägga till poster*/
+PROCEDURE addp_UI:
+   DEFINE INPUT  PARAMETER odbcquery    AS CHARACTER  NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR sqltab.
+   DEFINE INPUT PARAMETER TABLE FOR sqldat.
+   DEFINE VARIABLE seton AS CHARACTER  NO-UNDO.
+   RUN comset_UI.
+   RUN tabnam_UI(INPUT odbcquery).  
+   RUN faltnamn_UI.
+   IF listafalt = "" THEN RETURN.
+   
+   FOR EACH sqldat WHERE sqldat.TABNAMN = tabnamnvar:
+      seton = "".
+      RUN faltdata_UI.
+      seton = "INSERT INTO " + odbcquery + listafalt + " VALUES " + listadata.    
+      ASSIGN 
+      comcommand:ActiveConnection = comcon
+      comcommand:CommandText = seton
+      comcommand:CommandType = 1 /* adCmdText */
+      comcon:CursorLocation = 3 /* adUseClient */
+      comrec:CursorType = 3 /* adOpenStatic*/
+      comrec = comcommand:Execute( OUTPUT odbcnull, "", 32 ).       
+   END.   
+ END PROCEDURE.
+PROCEDURE andra_UI:
+   DEFINE INPUT  PARAMETER odbtabnan    AS CHARACTER  NO-UNDO.   
+   DEFINE INPUT  PARAMETER odbcquery    AS CHARACTER  NO-UNDO.   
+   RUN comset_UI.
+   odbcquery = "UPDATE " + odbtabnan + " SET  "  + odbcquery + ";".
+   Assign
+   comcommand:ActiveConnection = comcon
+   comcommand:CommandText = odbcquery
+   comcommand:CommandType = 1 /* adCmdText */
+   comcon:CursorLocation = 3 /* adUseClient */
+   comrec:CursorType = 3 /* adOpenStatic*/
+   comrec = comcommand:Execute( OUTPUT odbcnull, "", 32 ).
+END PROCEDURE.
+/*ta bort poster*/
+PROCEDURE bort_UI:
+   /*Ta bort en post*/
+   DEFINE INPUT  PARAMETER odbcquery    AS CHARACTER  NO-UNDO.
+   RUN comset_UI.
+   odbcquery = "DELETE from " + odbcquery + ";".
+   Assign
+   comcommand:ActiveConnection = comcon
+   comcommand:CommandText = odbcquery
+   comcommand:CommandType = 1 /* adCmdText */
+   comcon:CursorLocation = 3 /* adUseClient */
+   comrec:CursorType = 3 /* adOpenStatic*/
+   comrec = comcommand:Execute( OUTPUT odbcnull, "", 32 ).
+   
+END PROCEDURE.
+PROCEDURE tabnam_UI:
+   DEFINE INPUT  PARAMETER odbcquery AS CHARACTER  NO-UNDO.
+   IF INDEX(odbcquery,"where") = 0 THEN tabnamnvar = odbcquery.
+   ELSE DO:
+      tabnamnvar = TRIM(SUBSTRING(odbcquery,1,INDEX(odbcquery,"where") - 1)).
+   END.
+END PROCEDURE.
+PROCEDURE datatemp_UI:
+   raknare = 0.
+   FIND FIRST sqltab WHERE sqltab.TABNAMN = tabnamnvar NO-LOCK NO-ERROR.
+   IF sqltab.FALT[1] = "" THEN RETURN.
+   CREATE sqldat.
+   sqldat.TABNAMN = sqltab.TABNAMN.
+   REPEAT:
+      raknare = raknare + 1.
+      IF raknare > 50 THEN LEAVE.
+      IF sqltab.FALT[raknare] = "" THEN LEAVE.
+      sqldat.DATAFALT[raknare] =  comrec:FIELDS(sqltab.FALT[raknare]):VALUE.
+   END.
+
+END PROCEDURE.
+
+PROCEDURE faltnamn_UI:
+   listafalt = "".
+   FIND FIRST sqltab WHERE sqltab.TABNAMN = tabnamnvar NO-ERROR.
+   faltnr = 1.
+   IF sqltab.FALT[faltnr] = "" THEN RETURN.
+   IF sqltab.FALTTYP[faltnr] = "INT IDENTITY" THEN faltnr = faltnr + 1.
+   listafalt = "(" + sqltab.FALT[faltnr].
+   REPEAT:
+      faltnr = faltnr + 1.
+      IF faltnr > 50 THEN LEAVE.
+      IF sqltab.FALT[faltnr] = "" THEN LEAVE.
+      listafalt = listafalt + "," + sqltab.FALT[faltnr].
+   END.
+   sqltab.FALTANT = faltnr - 1.
+   listafalt = listafalt + ")".
+END PROCEDURE.
+PROCEDURE faltdata_UI:
+   FIND FIRST sqltab WHERE sqltab.TABNAMN = tabnamnvar NO-ERROR.
+   listadata = "".
+   faltnr = 0.
+   IF sqltab.FALTANT = 0 THEN RETURN.
+   faltnr = 1.
+   IF sqltab.FALTTYP[faltnr] = "INT IDENTITY" THEN faltnr = faltnr + 1.
+   listadata = "(" + sqldat.DATAFALT[faltnr].
+   REPEAT:
+      faltnr = faltnr + 1.
+      IF faltnr > sqltab.FALTANT THEN LEAVE.
+      listadata = listadata + "," + sqldat.DATAFALT[faltnr].
+   END.
+   listadata = listadata + ");".
+END PROCEDURE.
+
+

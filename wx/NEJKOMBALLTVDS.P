@@ -1,0 +1,828 @@
+/*NEJKOMBALLTVDS.P PROGRAMMET HÄMTAR MATERIEL DÄR EJ NÅGON KOMBINATION AV FÄLT ÄR UPPLAGD från temp till skarp
+körs från BERSTARTDS.Psom inte körs!!
+SPARAR KONSTRUKTIONER OCH MATERIEL
+*/
+DEFINE INPUT PARAMETER classerkollin AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER globanv2 LIKE ANVANDARE.ANVANDARE NO-UNDO.
+DEFINE variable  valaonr LIKE AONRTAB.AONR NO-UNDO.                           
+DEFINE variable  valomrade LIKE AONRTAB.OMRADE NO-UNDO.                       
+DEFINE variable  valdelnr AS INTEGER NO-UNDO.
+
+DEFINE VARIABLE forsta AS LOGICAL NO-UNDO.
+DEFINE VARIABLE beflev AS CHARACTER NO-UNDO.
+DEFINE VARIABLE logresult AS LOGICAL NO-UNDO.
+{KONVALTEMP.I}
+{LISTMTRL.I}      
+{KONID.I}   
+{KOPPLINA.I}    
+{FRITEMP.I}        
+ {KALKKAT20G.I}
+/*Anders Olsson Elpool i Umeå AB  19 jan 2018 16:14:10*/
+{KALKTEMP2.I}
+{BILDBERTEMP.I}
+
+{SparaDynDSstar.I}
+{STARTFORAPPC.I}
+
+DEFINE TEMP-TABLE bervalkoltt NO-UNDO
+    FIELD AONR AS CHARACTER
+    FIELD OMRADE AS CHARACTER
+    FIELD NUM AS INTEGER
+    FIELD SKAPNUM AS INTEGER
+    INDEX AONR AONR OMRADE NUM SKAPNUM.
+DEFINE BUFFER kbuff FOR kon_val.
+DEFINE VARIABLE valnum AS INTEGER NO-UNDO.
+DEFINE TEMP-TABLE valnumkoll NO-UNDO
+   FIELD NUM AS INTEGER
+   INDEX NUM NUM.
+globanv = SUBSTRING(globanv2,1,131).   
+DEFINE VARIABLE LocalKalknumHandle AS HANDLE NO-UNDO.
+DEFINE VARIABLE kalkiberfinns AS LOGICAL NO-UNDO.
+
+CREATE WIDGET-POOL "DynTable" NO-ERROR.
+DEFINE VARIABLE Konvaltth AS HANDLE NO-UNDO.
+DEFINE VARIABLE Konvalbuffh AS HANDLE NO-UNDO.
+RUN BerTab_UI.
+
+
+PROCEDURE BerTab_UI :
+   CREATE TEMP-TABLE Konvaltth IN WIDGET-POOL "DynTable".
+   Konvaltth:CREATE-LIKE("BERVAL").
+   Konvaltth:ADD-NEW-FIELD("TTRECID","RECID").
+   Konvaltth:TEMP-TABLE-PREPARE("KonvalDStt").
+   Konvalbuffh = Konvaltth:DEFAULT-BUFFER-HANDLE.
+      
+END PROCEDURE.
+
+PROCEDURE laddaBerDS_UI :
+   DEFINE INPUT  PARAMETER vad AS CHARACTER NO-UNDO. 
+   DEFINE OUTPUT PARAMETER DATASET-HANDLE BerDS BIND.
+  
+   RUN GetDatasetDeftt_UI ("BerDS").  
+   DatasetDeftt.antaltab = 1.
+   DatasetDeftt.pcBuffers[1] = STRING(Konvalbuffh).
+   DatasetDeftt.pcSources[1] = "BERVAL".
+   DatasetDeftt.pcSourceKeys[1] = "AONR,OMRADE".
+  
+   DatasetDeftt.pcKeyValue[1] = vad.
+   RUN DefAndLoadDs_UI IN dyndamicDSh 
+   ({DataSetInput.I} OUTPUT DATASET-HANDLE BerDS BIND).
+  
+  
+END PROCEDURE.
+
+
+
+
+PROCEDURE NEJKOMBALLTV_UI :
+
+
+
+DEFINE INPUT-OUTPUT PARAMETER datvar LIKE BERMTRL.DATUM NO-UNDO.     /*håller koll delbest i gamla ink. Måste finnas kvar i detta progm vid ändring avkonst*/                                                       
+DEFINE INPUT PARAMETER kalkvar AS LOGICAL NO-UNDO.                                  
+
+DEFINE INPUT PARAMETER xtillyvar AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR kon_val.                                           
+DEFINE INPUT PARAMETER TABLE FOR list_mtrl.                                  
+DEFINE INPUT PARAMETER TABLE FOR bortkon_val.
+DEFINE INPUT PARAMETER TABLE FOR kon_id.
+DEFINE INPUT PARAMETER TABLE FOR kopp_lina.
+DEFINE INPUT PARAMETER TABLE FOR fri_temp.
+  
+DEFINE INPUT PARAMETER TABLE FOR kalk_temp.                                  
+DEFINE INPUT PARAMETER TABLE FOR bildbertemp.
+DEFINE INPUT PARAMETER TABLE FOR berid2temp.
+DEFINE INPUT-OUTPUT PARAMETER skapamtrl AS LOGICAL NO-UNDO.    /*anders om det är inköpt mtrl I GAMLA INK. För nya ink ALLTID VARA FALSE????*/  
+
+DEFINE VARIABLE enval AS LOGICAL NO-UNDO.
+
+
+RUN GuruAppserverKontakt.p.  /*KONTAKT MED APPSERVERN.*/ 
+
+DEBUGGER:SET-BREAK().
+IF varforetypchar[48] NE "" THEN DO:
+   /*OM KLASSER*/
+   RUN KalkiBerKoll_UI. /*KOLL OM NY BERIKALK*/
+   
+END.
+
+/*OM NÅGON UNDER ÄR ÄNDRAD SÄTT HUVUDPOSTEN TILL ÄNDRAD VAR KAN DETTA SKE ?*/   
+FOR EACH kon_val WHERE kon_val.ANDRAD = "AND" AND kon_val.KSKAP = TRUE:
+   FOR EACH kbuff WHERE kbuff.NUM = kon_val.NUM AND kbuff.ANDRAD = "" AND kbuff.KSKAP = FALSE:
+      kbuff.ANDRAD = "AND".
+   END.
+END.
+
+EMPTY TEMP-TABLE bervalkoltt NO-ERROR. 
+
+
+RUN ladda_UI. /*KALKÅR*/
+RUN ejkomb_UI. /*NYUPPLÄGG ELLER GAMMALT FINNS*/
+ 
+
+/* KONSTGRUPP FÖR MARKSTATION KOLLA TT DET INTE BLIR NÅGON REST KVAR*/
+FOR EACH kon_val WHERE kon_val.ANDRAD = "AND" AND kon_val.KSKAP = FALSE NO-LOCK:
+   enval = FALSE.
+   IF kon_val.GRUPP = 0 THEN enval = TRUE.   
+   ELSE IF LOOKUP(STRING(kon_val.GRUPP),Guru.Konstanter:varforetypchar[5]) > 0 THEN enval = TRUE.    
+   IF enval = TRUE THEN DO:
+      CREATE bervalkoltt.
+      ASSIGN    
+      bervalkoltt.AONR = valaonr
+      bervalkoltt.OMRADE = valomrade
+      bervalkoltt.NUM = kon_val.NUM. 
+   END.
+END.
+/*
+IF varforetypchar[48] NE "" THEN DO:
+   /*KALKYLERA I KALKYL .NET*/
+   RUN KalkiBerKoll_UI.
+END.
+*/
+RUN spara_UI.
+
+/* KONSTGRUPP FÖR MARKSTATION KOLLA TT DET INTE BLIR NÅGON REST KVAR*/
+FOR EACH bervalkoltt WHERE NO-LOCK:
+   FOR EACH BERMTRL WHERE BERMTRL.AONR = bervalkoltt.AONR AND BERMTRL.OMRADE = bervalkoltt.OMRADE AND
+   BERMTRL.NUM = bervalkoltt.NUM EXCLUSIVE-LOCK:
+      FIND FIRST BERVAL WHERE  BERVAL.AONR = BERMTRL.AONR AND BERVAL.OMRADE = BERMTRL.OMRADE AND  
+      BERVAL.NUM = BERMTRL.NUM AND BERVAL.SKAPNUM = BERMTRL.SKAPNUM NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BERVAL THEN DO:
+         DELETE BERMTRL.
+      END.      
+   END.
+END.
+/*
+FOR EACH kalknum  WHERE KALKNUM.KALKNR = 101055 NO-LOCK:
+   kalkiberfinns = kalkiberfinns.
+END.
+*/
+/*STÄDNING*/
+IF VALID-HANDLE(LocalKalknumHandle) THEN DO:
+   RUN avs_UI IN LocalKalknumHandle.
+   DELETE PROCEDURE LocalKalknumHandle NO-ERROR.
+   LocalKalknumHandle = ?.
+END.    
+
+END PROCEDURE. 
+  
+PROCEDURE KalkiBerKoll_UI :
+   IF varforetypchar[48] NE "" THEN DO:
+      /*KALKYLERA I KALKYL .NET*/
+      IF NOT VALID-HANDLE(LocalKalknumHandle) THEN RUN KalkyliBerAnd.P PERSISTENT SET LocalKalknumHandle.
+      FIND FIRST kalk_temp WHERE NO-LOCK NO-ERROR.
+      IF AVAILABLE kalk_temp THEN RUN KalkStart_UI IN LocalKalknumHandle (INPUT Guru.Konstanter:globanv,INPUT valaonr,INPUT valomrade,INPUT TRUE, OUTPUT kalkiberfinns).
+      ELSE                        RUN KalkStart_UI IN LocalKalknumHandle (INPUT Guru.Konstanter:globanv,INPUT valaonr,INPUT valomrade,INPUT FALSE, OUTPUT kalkiberfinns).
+      
+   END.   
+   ELSE kalkiberfinns = FALSE.
+END PROCEDURE.
+PROCEDURE spara_UI:
+   /*TAR BORT ALLA KONSTRUKTIONER SOM SKA BORT*/
+   DEFINE INPUT-OUTPUT PARAMETER skapamtrl AS LOGICAL NO-UNDO. 
+   DEFINE INPUT-OUTPUT PARAMETER datvar LIKE BERMTRL.DATUM NO-UNDO.     /*håller koll delbest i gamla ink. Måste finnas kvar i detta progm vid ändring avkonst*/
+   DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+   FOR EACH bortkon_val:
+      RUN bortval_UI (INPUT bortkon_val.KSKAP,INPUT bortkon_val.NUM,INPUT bortkon_val.MTRLFINNS,INPUT bortkon_val.KALKFINNS).      
+   END.
+   IF kalkiberfinns = TRUE THEN DO:
+      FOR EACH bortkon_val WHERE bortkon_val.KSKAP = FALSE:
+         RUN KalkBort_UI IN LocalKalknumHandle (INPUT bortkon_val.NUM).
+      END.   
+   END.
+  
+   /*TAR BORT ALLA KONSTRUKTIONER SOM ÄR ÄNDRADE*/
+   FOR EACH kon_val WHERE kon_val.ANDRAD = "AND" AND kon_val.KSKAP = FALSE :      
+      RUN bortval_UI (INPUT kon_val.KSKAP, INPUT kon_val.NUM,INPUT kon_val.MTRLFINNS,INPUT kon_val.KALKFINNS).    
+      RUN skapenitaget_UI.
+   END.
+   
+   FOR EACH FRIKORT WHERE FRIKORT.AONR = valaonr AND
+   FRIKORT.OMRADE = valomrade EXCLUSIVE-LOCK:
+      DELETE FRIKORT.                     
+   END.
+   /*tabeller som inte används längre*/
+   IF skapamtrl = FALSE THEN DO:             
+      FOR EACH BERLINKAB WHERE BERLINKAB.AONR = valaonr AND
+      BERLINKAB.OMRADE = valomrade AND BERLINKAB.DATUM = datvar EXCLUSIVE-LOCK:
+         DELETE BERLINKAB.      
+      END.         
+      FOR EACH KSKYDD WHERE KSKYDD.AONR = valaonr AND
+      KSKYDD.OMRADE = valomrade AND KSKYDD.DATUM = datvar AND KSKYDD.BERED = TRUE EXCLUSIVE-LOCK:
+         DELETE KSKYDD.      
+      END.
+   END.
+   /*tabeller som inte användslängre*/
+   IF skapamtrl = TRUE THEN DO:
+      skapamtrl = FALSE.
+      IF datvar NE TODAY THEN datvar = TODAY.
+      ELSE datvar = datvar.                  
+   END.
+   ELSE DO:
+      ASSIGN
+      skapamtrl = skapamtrl
+      datvar = datvar.
+   END.   
+   
+   IF kalkiberfinns = TRUE THEN DO:
+       /*kalky .Net*/
+      musz = TRUE.
+   END.   
+   IF musz = TRUE THEN musz = FALSE.
+   ELSE DO:
+      /*KALKBEFB gamla berkalk*/
+      RUN FINNSTABELL.P (INPUT "KALKBEFB", OUTPUT logresult).
+      IF logresult = TRUE THEN DO:
+         RUN KALKBKOLL.P (INPUT 1,INPUT valaonr, INPUT valomrade, INPUT "", INPUT 0 ).      
+      END.
+   END.
+   /*MATERIEL*/ 
+  
+    /*KALKYL*/
+   
+   /*LINOR OCH KABLAR används ej*/
+   
+   FOR EACH kopp_lina:
+      IF kopp_lina.METER > 0 THEN DO TRANSACTION:
+         CREATE BERLINKAB.
+         BUFFER-COPY kopp_lina TO BERLINKAB.
+         ASSIGN  
+         BERLINKAB.AONR = valaonr
+         /* fler best per dag
+         BERLINKAB.DELNR = valdelnr
+         */
+         BERLINKAB.OMRADE = valomrade
+         BERLINKAB.DATUM = datvar.      
+      END.   
+   END.  
+      
+   /*FRITT KORT*/
+   FOR EACH fri_temp:
+      DO TRANSACTION:
+         CREATE FRIKORT.
+         BUFFER-COPY fri_temp TO FRIKORT.
+         ASSIGN
+         FRIKORT.AONR = valaonr
+         FRIKORT.DELNR = valdelnr   
+         FRIKORT.OMRADE = valomrade. 
+         IF FRIKORT.ARTAL = ? THEN FRIKORT.ARTAL = YEAR(TODAY).                  
+      END.
+   END.
+    
+END PROCEDURE.
+
+PROCEDURE skapenitaget_UI :
+    DEFINE INPUT-OUTPUT PARAMETER datvar LIKE BERMTRL.DATUM NO-UNDO.     /*håller koll delbest i gamla ink. Måste finnas kvar i detta progm vid ändring avkonst*/
+/*lägger tillbaka konstruktionerna*/
+   FOR EACH kbuff WHERE kbuff.NUM = kon_val.NUM AND kbuff.KSKAP = TRUE:
+      DO TRANSACTION:
+         CREATE BERVAL.
+         BUFFER-COPY kbuff TO BERVAL.
+         ASSIGN
+         BERVAL.AONR = valaonr
+         /* fler best per dag
+         BERVAL.DELNR = valdelnr 
+         */
+         BERVAL.OMRADE = valomrade
+         BERVAL.KONSKOD = kbuff.GRUPP
+         BERVAL.KTYPKOD = kbuff.F1
+         BERVAL.ANVANDARE = Guru.Konstanter:globanv.            
+      END.
+   END.
+   DO TRANSACTION:
+      CREATE BERVAL.
+      BUFFER-COPY kon_val TO BERVAL.
+      ASSIGN
+      BERVAL.AONR = valaonr
+      /* fler best per dag
+      BERVAL.DELNR = valdelnr 
+      */
+      BERVAL.OMRADE = valomrade
+      BERVAL.KONSKOD = kon_val.GRUPP
+      BERVAL.KTYPKOD = kon_val.F1
+      BERVAL.ANVANDARE = Guru.Konstanter:globanv.
+      /*IF kon_val.KSKAP = FALSE THEN DO:*/
+         CREATE BERORD.
+         ASSIGN
+         BERORD.OMRADE = valomrade
+         BERORD.AONR = valaonr
+         BERORD.NUM = kon_val.NUM
+         BERORD.ORD = kon_val.ORD.
+      /*END.*/
+   END.
+   /*INDENTIFIKATION*/  
+   FOR EACH kon_id WHERE kon_id.NUM = kon_val.NUM:
+      DO TRANSACTION: 
+         CREATE BERID.
+         BUFFER-COPY kon_id TO BERID.
+         ASSIGN   
+         BERID.AONR = valaonr
+         BERID.DELNR = valdelnr
+         BERID.OMRADE = valomrade.      
+      END.   
+   END.
+   FOR EACH  berid2temp WHERE berid2temp.NUM = kon_val.NUM:
+      DO TRANSACTION: 
+         CREATE BERID2.
+         BUFFER-COPY  berid2temp TO BERID2.
+         ASSIGN   
+         BERID2.AONR = valaonr
+         BERID2.OMRADE = valomrade.      
+      END.   
+   END.
+  
+   FOR EACH bildbertemp WHERE bildbertemp.NUM = kon_val.NUM:
+      DO TRANSACTION: 
+         CREATE EXTRADATA.
+         ASSIGN
+         EXTRADATA.PROGRAM = "BERBILD"
+         EXTRADATA.HUVUDINT = INTEGER(valaonr)
+         EXTRADATA.HUVUDCH = valomrade
+         EXTRADATA.SOKINT[1] = bildbertemp.NUM
+         EXTRADATA.SOKCHAR[1] = bildbertemp.NAMN
+         EXTRADATA.SOKCHAR[2] = bildbertemp.FILNAMN.  
+      END.   
+   END.
+
+   IF kon_val.MTRLFINNS = "" THEN DO:      
+      FOR EACH list_mtrl WHERE list_mtrl.NUM = kon_val.NUM:
+         DO TRANSACTION:
+            CREATE BERMTRL.
+            BUFFER-COPY list_mtrl TO BERMTRL.
+            ASSIGN     
+            BERMTRL.AONR = valaonr
+            /* fler best per dag
+            BERMTRL.DELNR = valdelnr
+            */
+            BERMTRL.OMRADE = valomrade
+            BERMTRL.DATUM = datvar.     
+         END.   
+      END.
+   END.
+   IF kalkiberfinns = TRUE THEN DO:
+     
+      /*Anders Olsson Elpool i Umeå AB  13 jan 2016 10:16:24 
+      För att inte markerade konstruktioner ska få dubbelt upplägg av koder 
+      kalky .Net
+      RUN Kalkspara_UI IN LocalKalknumHandle (INPUT kon_val.NUM, INPUT TABLE kon_val, INPUT TABLE kalk_temp).
+      */
+      DEBUGGER:SET-BREAK().
+      RUN KalkiBerApps.p (INPUT INTEGER(valaonr),INPUT valomrade,INPUT kon_val.NUM, INPUT TABLE kon_val, INPUT TABLE kalk_temp).
+   END.
+   ELSE IF kon_val.KALKFINNS = "" THEN DO:
+      
+      
+      FOR EACH kalk_temp WHERE kalk_temp.NUM = kon_val.NUM:
+         DO TRANSACTION:
+            CREATE BERKALK.
+            BUFFER-COPY kalk_temp TO BERKALK.
+            ASSIGN     
+            BERKALK.AONR = valaonr
+            BERKALK.OMRADE = valomrade.     
+         END.
+      END.  
+   END.          
+   RELEASE BERKALK NO-ERROR. 
+END PROCEDURE.
+
+PROCEDURE bortval_UI:
+   DEFINE INPUT  PARAMETER kskapvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER numval AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER mtrlf AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kalkf AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER skapamtrl AS LOGICAL NO-UNDO.    /*anders om det är inköpt mtrl I GAMLA INK. För nya ink ALLTID VARA FALSE????*/
+   DEFINE INPUT-OUTPUT PARAMETER datvar LIKE BERMTRL.DATUM NO-UNDO.     /*håller koll delbest i gamla ink. Måste finnas kvar i detta progm vid ändring avkonst*/
+   /*TAR BORT ALLT PÅ KONSTRUKTIONEN*/
+   FOR EACH BERVAL WHERE BERVAL.AONR = valaonr AND
+   BERVAL.OMRADE = valomrade AND BERVAL.NUM = numval EXCLUSIVE-LOCK:
+      DELETE BERVAL.                        
+   END.
+   FOR EACH BERORD WHERE BERORD.AONR = valaonr AND
+   BERORD.OMRADE = valomrade AND BERORD.NUM = numval  EXCLUSIVE-LOCK: 
+      DELETE BERORD.                        
+   END.  
+   FOR EACH BERID WHERE BERID.AONR = valaonr AND
+   BERID.OMRADE = valomrade AND BERID.NUM = numval  EXCLUSIVE-LOCK:
+      DELETE BERID.                                  
+   END.
+   FOR EACH BERID2 WHERE BERID2.AONR = valaonr AND
+   BERID2.OMRADE = valomrade AND BERID2.NUM = numval  EXCLUSIVE-LOCK:
+      DELETE BERID2.                                  
+   END.
+   FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "BERBILD" AND EXTRADATA.HUVUDINT = INTEGER(valaonr) AND 
+   EXTRADATA.HUVUDCH = valomrade AND EXTRADATA.SOKINT[1] = numval EXCLUSIVE-LOCK:
+      DELETE EXTRADATA.
+   END.
+
+   IF skapamtrl = FALSE THEN DO:       
+      IF mtrlf = "" THEN DO:
+         FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr AND
+         BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE AND
+         BERMTRL.DATUM = datvar AND BERMTRL.NUM = numval  EXCLUSIVE-LOCK:
+            DELETE BERMTRL.      
+         END.         
+      END.
+   END.
+   IF kalkiberfinns = TRUE THEN RETURN.
+   
+   IF kalkf = "" THEN DO:
+      IF kskapvar = FALSE THEN DO:
+         FOR EACH BERKALK WHERE BERKALK.AONR = valaonr AND
+         BERKALK.OMRADE = valomrade AND BERKALK.NUM = numval EXCLUSIVE-LOCK:
+            DELETE BERKALK.      
+         END.
+      END.   
+   END.
+END PROCEDURE.
+
+PROCEDURE ejkomb_UI:   
+   DEFINE INPUT-OUTPUT PARAMETER skapamtrl AS LOGICAL NO-UNDO.    /*anders om det är inköpt mtrl I GAMLA INK. För nya ink ALLTID VARA FALSE????*/
+   DEFINE INPUT-OUTPUT PARAMETER datvar LIKE BERMTRL.DATUM NO-UNDO.     /*håller koll delbest i gamla ink. Måste finnas kvar i detta progm vid ändring avkonst*/
+   DEFINE INPUT PARAMETER xtillyvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kalkvar AS LOGICAL NO-UNDO.
+   IF skapamtrl = FALSE THEN DO:  
+      /*nYA INK*/
+      /*FINNS DET MTRL ELLER GRUND UPPLÄGG*/                 
+      FOR EACH kon_val WHERE kon_val.KSKAP = FALSE AND kon_val.ANDRAD = "AND":
+         valnum = kon_val.NUM.
+         FIND FIRST list_mtrl WHERE list_mtrl.NUM = kon_val.NUM NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE list_mtrl THEN DO:
+            FIND FIRST BERMTRL WHERE BERMTRL.AONR = valaonr AND
+            BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE AND
+            BERMTRL.DATUM = datvar AND BERMTRL.NUM = valnum NO-LOCK NO-ERROR.
+            IF AVAILABLE BERMTRL THEN DO:
+               kon_val.MTRLFINNS = "MTRL".
+            END.
+            ELSE DO:
+               /*GRUND UPPLÄGG*/
+               FIND FIRST valnumkoll WHERE valnumkoll.NUM = valnum NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE  valnumkoll THEN DO:
+                  CREATE valnumkoll.
+                  valnumkoll.NUM = valnum.
+               END.       
+            END.        
+         END.
+      END.
+   END.
+   ELSE DO:
+      /*GAMLA INK*/               
+      /*FINNS DET MTRL ELLER GRUND UPPLÄGG*/
+      FOR EACH kon_val WHERE kon_val.KSKAP = FALSE:
+         ASSIGN
+         kon_val.ANDRAD = "AND"
+         kon_val.MTRLFINNS = ""
+         valnum = kon_val.NUM.
+         FIND FIRST list_mtrl WHERE list_mtrl.NUM = kon_val.NUM NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE list_mtrl THEN DO:
+            FIND FIRST BERMTRL WHERE BERMTRL.AONR = valaonr AND
+            BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE AND
+            BERMTRL.DATUM = datvar AND BERMTRL.NUM = valnum NO-LOCK NO-ERROR.
+            IF AVAILABLE BERMTRL THEN DO:
+               RUN gammval_UI.
+            END.
+            ELSE DO:
+               /*GRUND UPPLÄGG*/
+               FIND FIRST valnumkoll WHERE valnumkoll.NUM = valnum NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE  valnumkoll THEN DO:
+                  CREATE valnumkoll.
+                  valnumkoll.NUM = valnum.
+               END.       
+            END.               
+         END.
+      END.
+   END.      
+   forsta = TRUE.
+   /*DE UTAN MTRL*/
+   valnum = 0.
+   FOR EACH valnumkoll,
+   EACH kon_val WHERE kon_val.NUM = valnumkoll.NUM:
+      IF valnum NE kon_val.NUM THEN forsta = TRUE.
+      valnum = kon_val.NUM.
+      RUN val_UI.  /*UPPLÄGG FRÅN ADMIN*/
+   END.    
+   /*ÖVERSÄTTER MTEL MELLAN OLIKA LEVERANTÖRER*/
+   IF xtillyvar NE "" THEN DO:
+      FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+      IF AVAILABLE HUVUDLEV THEN DO:
+         beflev = HUVUDLEV.LEVKOD.
+      END.
+      ELSE DO:
+         FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD NE "0"
+         AND LEVERANTOR.BORTTAG = FALSE NO-LOCK NO-ERROR.
+         beflev = LEVERANTOR.LEVKOD.
+      END.
+      IF beflev NE xtillyvar THEN DO:
+         FOR EACH valnumkoll,
+         EACH list_mtrl WHERE list_mtrl.NUM = valnumkoll.NUM AND list_mtrl.LEVKOD = beflev:            
+            FIND FIRST BETPLAN WHERE BETPLAN.NAMN = beflev AND BETPLAN.ANVANDARE = list_mtrl.ENR AND
+            BETPLAN.BESTID = xtillyvar NO-LOCK NO-ERROR.
+            IF AVAILABLE BETPLAN THEN DO:
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = BETPLAN.BESTID AND MTRL.ENR = BETPLAN.OMRADE AND
+               MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+               IF AVAILABLE MTRL THEN DO:
+                  ASSIGN
+                  list_mtrl.ENR = MTRL.ENR
+                  list_mtrl.BENAMNING = MTRL.BENAMNING
+                  list_mtrl.ENHET = MTRL.ENHET
+                  list_mtrl.PRIS = MTRL.NPRIS
+                  list_mtrl.LEVKOD = MTRL.LEVKOD.
+               END.
+               ELSE DO:
+                  ASSIGN
+                  list_mtrl.ENR = BETPLAN.OMRADE
+                  list_mtrl.PRIS = 0
+                  list_mtrl.LEVKOD = BETPLAN.BESTID.
+               END.
+            END.
+            ELSE DO:
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = xtillyvar AND MTRL.ENR = list_mtrl.ENR AND
+               MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+               IF AVAILABLE MTRL THEN DO:
+                  ASSIGN
+                  list_mtrl.ENR = MTRL.ENR
+                  list_mtrl.BENAMNING = MTRL.BENAMNING
+                  list_mtrl.ENHET = MTRL.ENHET
+                  list_mtrl.PRIS = MTRL.NPRIS
+                  list_mtrl.LEVKOD = MTRL.LEVKOD.
+               END.
+            END.
+         END.
+      END.
+   END.
+   EMPTY TEMP-TABLE valnumkoll NO-ERROR. 
+   /*FINNS KALKYLKODER ELLER LÄGG UPP*/   
+   IF kalkvar = TRUE THEN DO:
+      /*OM KALKYL FÅR FINNAS PÅ DENNA BER*/
+      /*BÅDE NYA OCH GAMLA KALKMODULEN*/
+      FOR EACH kon_val WHERE kon_val.KSKAP = FALSE AND kon_val.ANDRAD = "AND":   
+         valnum = kon_val.NUM.
+         FIND FIRST kalk_temp WHERE kalk_temp.NUM = kon_val.NUM NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE kalk_temp THEN DO: 
+            FIND FIRST BERKALK WHERE BERKALK.AONR = valaonr AND
+            BERKALK.OMRADE = valomrade AND BERKALK.NUM = valnum NO-LOCK NO-ERROR.
+            IF AVAILABLE BERKALK THEN DO:
+               kon_val.KALKFINNS = "KALK".
+            END.
+            ELSE DO:
+               /*GRUND UPPLÄGG*/
+               FIND FIRST valnumkoll WHERE valnumkoll.NUM = valnum NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE  valnumkoll THEN DO:
+                  CREATE valnumkoll.
+                  valnumkoll.NUM = valnum.
+               END.       
+            END.                     
+         END.           
+      END. 
+      forsta = TRUE.
+      /*Anders Olsson Elpool i Umeå AB  29 feb 2016 15:47:44 
+      skapar kalk_tempar för grundupplägg 
+      */
+      valnum = 0.
+      FOR EACH valnumkoll,
+      EACH kon_val WHERE kon_val.NUM = valnumkoll.NUM:
+         IF valnum NE kon_val.NUM THEN forsta = TRUE.
+         valnum = kon_val.NUM.            
+         RUN valkalk_UI. /*UPPLÄGG FRÅN ADMIN KALK*/
+      END.         
+   END.   
+END PROCEDURE.
+
+   
+PROCEDURE valkalk_UI.
+   IF forsta = TRUE THEN DO:      
+      /*HÄMTA KODER SOM LIGGER DIREKT PÅ KONSTRUKTIONEN ENDAST EN GÅNG*/
+      OPEN QUERY kalkbq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F1 = "" AND KALKBER.F2 = " " AND KALKBER.F3 = " " AND
+      KALKBER.F4 = " " AND KALKBER.F5 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST kalkbq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapakalk_UI.
+         GET NEXT kalkbq NO-LOCK. 
+      END.
+      CLOSE QUERY kalkbq.
+      forsta = FALSE.      
+   END.      
+   IF kon_val.F2 NE "" THEN DO: 
+      OPEN QUERY kalkbq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F1 = kon_val.F2 AND KALKBER.F2 = " " AND KALKBER.F3 = " " AND
+      KALKBER.F4 = " " AND KALKBER.F5 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST kalkbq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapakalk_UI.
+         GET NEXT kalkbq NO-LOCK. 
+      END.
+      CLOSE QUERY kalkbq.      
+   END.     
+   IF kon_val.F3 NE "" THEN DO: 
+      OPEN QUERY kalkbq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F2 = kon_val.F3 AND KALKBER.F1 = " " AND KALKBER.F3 = " " AND
+      KALKBER.F4 = " " AND KALKBER.F5 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST kalkbq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapakalk_UI.
+         GET NEXT kalkbq NO-LOCK. 
+      END.
+      CLOSE QUERY kalkbq.      
+   END.   
+   IF kon_val.F4 NE "" THEN DO: 
+      OPEN QUERY kalkbq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F3 = kon_val.F4 AND KALKBER.F1 = " " AND KALKBER.F2 = " " AND
+      KALKBER.F4 = " " AND KALKBER.F5 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST kalkbq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapakalk_UI.
+         GET NEXT kalkbq NO-LOCK. 
+      END.
+      CLOSE QUERY kalkbq.      
+   END.   
+   IF kon_val.F5 NE "" THEN DO: 
+      OPEN QUERY kalkbq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F4 = kon_val.F5 AND KALKBER.F1 = " " AND KALKBER.F2 = " " AND
+      KALKBER.F3 = " " AND KALKBER.F5 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST kalkbq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapakalk_UI.
+         GET NEXT kalkbq NO-LOCK. 
+      END.
+      CLOSE QUERY kalkbq.      
+   END.   
+   IF kon_val.F6 NE "" THEN DO: 
+      OPEN QUERY kalkbq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F5 = kon_val.F6 AND KALKBER.F1 = " " AND KALKBER.F2 = " " AND
+      KALKBER.F3 = " " AND KALKBER.F4 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST kalkbq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapakalk_UI.
+         GET NEXT kalkbq NO-LOCK. 
+      END.
+      CLOSE QUERY kalkbq.      
+   END.      
+END PROCEDURE.  
+   
+PROCEDURE ladda_UI :
+   DEFINE VARIABLE katnrartal AS INTEGER NO-UNDO.
+   /*kalkår*/
+   katnrartal = INTEGER(STRING(TODAY,"99999999")).
+    
+      FIND LAST EBRPRIS USE-INDEX AR NO-LOCK NO-ERROR.
+      IF AVAILABLE EBRPRIS THEN hjkatvar[1] = EBRPRIS.ARTAL.
+      ELSE  hjkatvar[1] = YEAR(TODAY). 
+      IF varforetypchar[48] NE "" THEN hjkatvar[1] = YEAR(TODAY). 
+   
+END PROCEDURE.
+
+PROCEDURE skapakalk_UI :   
+   IF varforetypchar[48] = "" THEN DO:
+      /*EJ CLASSER*/
+      IF varforetypval[36] = 1 THEN DO:
+         
+         /*endast p2*/
+         
+            FIND FIRST LOP2 WHERE LOP2.KATAR = hjkatvar[1] AND LOP2.ARBKOD = KALKBER.ARBKOD AND LOP2.LOPNR = KALKBER.LOPNR NO-LOCK NO-ERROR.
+          
+        
+         IF NOT AVAILABLE LOP2 THEN RETURN.
+        
+      END.
+      ELSE DO:   
+         /*endast p3*/
+         FIND FIRST LOP3 WHERE LOP3.KATAR = hjkatvar[1] AND LOP3.ARBKOD = KALKBER.ARBKOD AND LOP3.LOPNR = KALKBER.LOPNR NO-LOCK NO-ERROR.
+        
+         IF NOT AVAILABLE LOP3 THEN RETURN.
+        
+      END.
+   END.
+   
+   FIND FIRST kalk_temp WHERE kalk_temp.NUM = kon_val.NUM AND 
+   kalk_temp.ARBKOD = KALKBER.ARBKOD AND kalk_temp.LOPNR = KALKBER.LOPNR
+   NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE kalk_temp THEN DO:
+      CREATE kalk_temp.
+      ASSIGN 
+      kalk_temp.NUM = kon_val.NUM
+      kalk_temp.ARBKOD = KALKBER.ARBKOD
+      kalk_temp.LOPNR = KALKBER.LOPNR      
+      kalk_temp.BENAMNING = KALKBER.BENAMNING
+      kalk_temp.ENHET = KALKBER.ENHET      
+      kalk_temp.ANTAL = KALKBER.ANTAL.
+   END.
+   ELSE DO:
+      kalk_temp.ANTAL = kalk_temp.ANTAL + KALKBER.ANTAL.
+   END.         
+END PROCEDURE.      
+
+
+
+   
+PROCEDURE val_UI.
+   IF forsta = TRUE THEN DO:      
+      /*HÄMTA MATERIELET SOM LIGGER DIREKT PÅ KONSTRUKTIONEN ENDAST EN GÅNG*/
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = kon_val.F1 AND
+      MTRLBER.F1 = "" AND MTRLBER.F2 = " " AND MTRLBER.F3 = " " AND
+      MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.      
+      CLOSE QUERY mtrlq.
+      forsta = FALSE.      
+   END.
+   IF kon_val.F2 NE "" THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = kon_val.F1 AND
+      MTRLBER.F1 = kon_val.F2 AND MTRLBER.F2 = " " AND MTRLBER.F3 = " " AND
+      MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.     
+   IF kon_val.F3 NE "" THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = kon_val.F1 AND
+      MTRLBER.F2 = kon_val.F3 AND MTRLBER.F1 = " " AND MTRLBER.F3 = " " AND
+      MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.   
+   IF kon_val.F4 NE "" THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = kon_val.F1 AND
+      MTRLBER.F3 = kon_val.F4 AND MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND
+      MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.   
+   IF kon_val.F5 NE "" THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = kon_val.F1 AND
+      MTRLBER.F4 = kon_val.F5 AND MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND
+      MTRLBER.F3 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.   
+   IF kon_val.F6 NE "" THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = kon_val.F1 AND
+      MTRLBER.F5 = kon_val.F6 AND MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND
+      MTRLBER.F3 = " " AND MTRLBER.F4 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.      
+END PROCEDURE.  
+
+PROCEDURE gammval_UI : 
+   DEFINE INPUT-OUTPUT PARAMETER datvar LIKE BERMTRL.DATUM NO-UNDO.     /*håller koll delbest i gamla ink. Måste finnas kvar i detta progm vid ändring avkonst*/
+   FIND FIRST PARSTOLP NO-LOCK NO-ERROR.
+   FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr AND
+   BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE AND
+   BERMTRL.DATUM = datvar AND BERMTRL.NUM = valnum NO-LOCK:
+      CREATE list_mtrl.
+      BUFFER-COPY BERMTRL TO list_mtrl.
+      list_mtrl.ENHET = LC(list_mtrl.ENHET).
+      IF list_mtrl.PAR > 0 THEN DO:
+         IF list_mtrl.PAR = 1 THEN list_mtrl.PAR2 = PARSTOLP.A.
+         ELSE IF list_mtrl.PAR = 2 THEN list_mtrl.PAR2 = PARSTOLP.B.
+         ELSE list_mtrl.PAR2 = PARSTOLP.C.
+      END.      
+   END.      
+END PROCEDURE.  
+
+PROCEDURE skapa_UI :    
+   IF kon_val.GRUPP = 0 THEN DO:
+      FIND FIRST list_mtrl WHERE list_mtrl.ENR = MTRLBER.ENR AND
+      list_mtrl.LEVKOD = MTRLBER.LEVKOD AND list_mtrl.NUM = kon_val.NUM
+      AND list_mtrl.SKAPNUM = kon_val.SKAPNUM NO-LOCK NO-ERROR.
+   END.
+   ELSE DO:
+      FIND FIRST list_mtrl WHERE list_mtrl.ENR = MTRLBER.ENR AND
+      list_mtrl.LEVKOD = MTRLBER.LEVKOD AND list_mtrl.NUM = kon_val.NUM
+     /* AND list_mtrl.SKAPNUM = kon_val.SKAPNUM*/
+      NO-LOCK NO-ERROR.
+   END.   
+   IF NOT AVAILABLE list_mtrl THEN DO:
+      CREATE list_mtrl.
+      BUFFER-COPY MTRLBER TO list_mtrl.
+      ASSIGN 
+      list_mtrl.ENHET = LC(list_mtrl.ENHET)
+      list_mtrl.NUM = kon_val.NUM
+      list_mtrl.SKAPNUM = kon_val.SKAPNUM.        
+   END.
+   ELSE DO:
+      list_mtrl.ANTAL = list_mtrl.ANTAL + MTRLBER.ANTAL.   
+   END.      
+END PROCEDURE.      

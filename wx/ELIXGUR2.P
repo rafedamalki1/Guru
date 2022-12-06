@@ -1,0 +1,78 @@
+/*
+
+==========================================================================
+
+Namn:       : px/px2.p
+Skapat      : 940628, slj
+
+Beskrivning : Uppdaterar projektkalkyl i elix
+
+
+Historik    :
+
+
+============================================================================  */
+
+{com/in/common.def}
+
+DEF INPUT PARAMETER i-aokod LIKE ao.aokod.
+DEF OUTPUT PARAMETER o-retcode AS INTEGER.
+
+DEF VAR i AS INTEGER.
+DEF VAR pkod AS CHAR FORMAT "X(10)".
+
+FIND AONRTAB WHERE RECID(AONRTAB) = aonrrec NO-LOCK NO-ERROR.
+
+
+IF substring(AONRTAB.AONR,1,1) = "0" THEN pkod = substring(plusd.AONRTAB.AONR,2).
+ELSE pkod = AONRTAB.AONR.
+
+IF AONRTAB.DELNR <> 0 THEN pkod = pkod + string(AONRTAB.DELNR,"999").
+FIND OMRADETAB WHERE OMRADETAB.OMRADE = AONRTAB.OMRADE NO-LOCK NO-ERROR.
+/* if OMRADETAB.OMRADE = "SOE" THEN RETURN. */
+
+FIND elix.prkalk WHERE elix.prkalk.ftg = AONRTAB.OMRADE
+and elix.prkalk.projekt_kod = pkod NO-ERROR.
+
+IF NOT AVAILABLE elix.prkalk THEN DO:
+  RETURN.
+END.
+
+ASSIGN
+  elix.prkalk.andring = TODAY
+  elix.prkalk.mallnr = 999
+  elix.prkalk.txt[1] = AOMRTAB.ORT.
+
+/* Radera gammal kontofördelning i elix. Det kan vara onödigt om ingen
+ ändring skett i plusd men vi gör det för enkelhetens skull ..*/
+
+
+DO i = 1 TO 6:
+  ASSIGN
+    elix.prkalk.objekt1[i] = ""
+    elix.prkalk.objekt2[i] = ""
+    elix.prkalk.objekt3[i] = ""
+    elix.prkalk.objekt4[i] = ""
+    elix.prkalk.objekt5[i] = ""
+    elix.prkalk.objekt6[i] = ""
+    elix.prkalk.procent[i]  = 0.
+END.
+
+/* Lägg över ny kontofördelning från plusd till elix */
+
+i = 0.
+FOR EACH AONRKONTKOD NO-LOCK WHERE AONRKONTKOD.AONR = AONRTAB.AONR AND
+AONRKONTKOD.DELNR = AONRTAB.DELNR:
+  i = i + 1.
+  FIND konto OF projkto.
+  ASSIGN
+    elix.prkalk.objekt1[i] = AONRKONTKOD.K1
+    elix.prkalk.objekt2[i] = AONRKONTKOD.K2
+    elix.prkalk.objekt3[i] = AONRKONTKOD.K3
+    elix.prkalk.objekt5[i] = AONRKONTKOD.K4
+    elix.prkalk.objekt6[i] = AONRKONTKOD.K5.
+    if projkto.sats% <> 0 THEN
+      elix.prkalk.objekt4[i] = pkod.
+    elix.prkalk.procent[i] = AONRKONTKOD.sats%.
+END.
+

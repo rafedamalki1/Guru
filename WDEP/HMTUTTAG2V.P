@@ -1,0 +1,79 @@
+DEFINE VARIABLE totpris LIKE MTRL.NPRIS NO-UNDO.
+DEFINE VARIABLE varpaslag AS DECIMAL FORMAT "->9.99" NO-UNDO.
+{TEMPUT.I}
+    
+DEFINE TEMP-TABLE temp_mtrl2 NO-UNDO LIKE temp_ut. 
+
+DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER enrvar AS CHARACTER.
+DEFINE INPUT PARAMETER avdatum AS DATE.
+DEFINE INPUT PARAMETER bdatum AS DATE.
+DEFINE OUTPUT PARAMETER TABLE FOR temp_ut.
+DEBUGGER:SET-BREAK().
+   IF enrvar = "" OR enrvar = ? THEN DO:   
+       OPEN QUERY utq FOR EACH BERBEST WHERE BERBEST.DEPNR = vald_depa AND
+      (BERBEST.LEVDATUM >= avdatum AND BERBEST.LEVDATUM <= bdatum) NO-LOCK.
+   END.
+   ELSE DO:
+      OPEN QUERY utq FOR EACH BERBEST WHERE BERBEST.DEPNR = vald_depa AND
+      (BERBEST.LEVDATUM >= avdatum AND BERBEST.LEVDATUM <= bdatum) AND BERBEST.ENR = enrvar NO-LOCK.
+   END.   
+   GET FIRST utq NO-LOCK.
+   DO WHILE AVAILABLE(BERBEST):
+      IF BERBEST.OFFERT = FALSE THEN DO:      
+         CREATE temp_ut.      
+         BUFFER-COPY BERBEST TO temp_ut.
+         IF BERBEST.UTTAG = TRUE THEN temp_ut.AOBENAMNING = "U".
+         ELSE temp_ut.AOBENAMNING = "R".
+         IF BERBEST.SVINN = TRUE THEN DO:
+             ASSIGN
+             temp_ut.AOBENAMNING = temp_ut.AOBENAMNING + "J".
+             /*temp_ut.AONR = SUBSTRING(BERBEST.BESTALLARE,1,10).*/
+         END.
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = temp_ut.AONR AND AONRTAB.DELNR = temp_ut.DELNR   NO-LOCK NO-ERROR.
+         IF AVAILABLE AONRTAB THEN DO:
+            ASSIGN
+            temp_ut.AOBENAMNING2 = AONRTAB.ORT
+            temp_ut.OMRADE = AONRTAB.OMRADE.
+         END.   
+         /*IF enrvar = ? THEN DO:         
+            FIND FIRST AONRTAB WHERE AONRTAB.AONR = temp_ut.AONR AND AONRTAB.DELNR = temp_ut.DELNR
+            NO-LOCK NO-ERROR.
+            IF AVAILABLE AONRTAB THEN temp_ut.AOBENAMNING2 = AONRTAB.ORT.         
+         END.
+         ELSE DO:
+            IF BERBEST.UTTAG = TRUE THEN temp_ut.AOBENAMNING = "U".
+            ELSE temp_ut.AOBENAMNING = "R".
+            IF BERBEST.SVINN = TRUE THEN DO:
+                ASSIGN
+                temp_ut.AOBENAMNING = temp_ut.AOBENAMNING + "J".
+                /*temp_ut.AONR = SUBSTRING(BERBEST.BESTALLARE,1,10).*/
+            END.
+         END.*/         
+      END.
+      ELSE DO:
+         CREATE temp_mtrl2.      
+         BUFFER-COPY BERBEST TO temp_mtrl2.
+      END.
+      GET NEXT utq NO-LOCK.
+   END.
+   CLOSE QUERY utq.
+
+   FOR EACH temp_mtrl2:
+      ASSIGN
+      varpaslag = 0
+      totpris = 0.
+      FOR EACH temp_ut WHERE temp_ut.BESTNR = temp_mtrl2.BESTNR:
+         totpris = totpris + (temp_ut.PRIS * temp_ut.ANTAL).
+      END.   
+      varpaslag = temp_mtrl2.PRIS / totpris.
+      IF varpaslag = 0 THEN varpaslag = 1. 
+      FOR EACH temp_ut WHERE temp_ut.BESTNR = temp_mtrl2.BESTNR:
+         temp_ut.PRIS = temp_ut.PRIS * varpaslag.
+      END.
+   END. 
+   /*DUMMY för excelfel*/
+   FIND FIRST AONRTAB WHERE NO-LOCK NO-ERROR.
+/*    FOR EACH temp_ut:                          */
+/*       MESSAGE temp_ut.aonr VIEW-AS ALERT-BOX. */
+/*    END.                                       */

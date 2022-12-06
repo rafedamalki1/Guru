@@ -1,0 +1,161 @@
+
+/*------------------------------------------------------------------------
+    File        : SNATBERGET.P
+    Purpose     : 
+
+    Syntax      :d:\DELAD\\SERVER\PRO10S\
+                 
+                  SUNDINSIKTTID
+    Description : 
+
+    Author(s)   : 
+    Created     : Wed May 17 11:25:59 CEST 2017
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+DEFINE TEMP-TABLE kompdir NO-UNDO
+   FIELD SERCHMAPPKOMP AS CHARACTER
+   FIELD SAVEMAPPKOMP AS CHARACTER
+   FIELD MAPPKOMP AS CHARACTER
+   FIELD NIVA AS INTEGER
+   FIELD KLAR AS LOGICAL
+   INDEX MAPPKOMP NIVA SERCHMAPPKOMP MAPPKOMP.
+DEFINE BUFFER kompdirbuff FOR kompdir.   
+DEFINE TEMP-TABLE fileTT NO-UNDO
+   FIELD SERCHMAPPKOMP AS CHARACTER
+   FIELD NAMEFILE  AS CHARACTER
+   FIELD DATA AS CLOB.
+PROCEDURE FileToDisk_UI :
+   DEFINE INPUT PARAMETER TABLE FOR fileTT.
+   FOR EACH fileTT  WHERE fileTT.SERCHMAPPKOMP BEGINS "C:\DELAD\pro10s\SNATBERGET\EXPORT\" NO-LOCK:
+      fileTT.SERCHMAPPKOMP = REPLACE(fileTT.SERCHMAPPKOMP,"C:\DELAD\pro10s\SNATBERGET\EXPORT\","D:\delad\server\pro10s\export\").  
+   END.
+   FOR EACH fileTT  WHERE fileTT.SERCHMAPPKOMP BEGINS "D:\delad\server\pro10s\IMPORT\" NO-LOCK:
+      fileTT.SERCHMAPPKOMP = REPLACE(fileTT.SERCHMAPPKOMP,"D:\delad\server\pro10s\IMPORT\","C:\DELAD\pro10s\SNATBERGET\IMPORT\").  
+   END.
+   FOR EACH fileTT WHERE NO-LOCK:
+      /*OS-APP*/
+      COPY-LOB FROM fileTT.DATA TO FILE fileTT.SERCHMAPPKOMP + fileTT.NAMEFILE APPEND.  
+   END.
+END PROCEDURE.       
+PROCEDURE FileFromDisk_UI :
+   DEFINE INPUT  PARAMETER searchdir AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER CopyToFile AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR fileTT.
+   DEFINE VARIABLE longhelp AS LONGCHAR NO-UNDO.
+   DEFINE VARIABLE utfillong AS LONGCHAR NO-UNDO.
+   
+   EMPTY TEMP-TABLE fileTT NO-ERROR. 
+   DEFINE VARIABLE filnamn AS CHARACTER FORMAT "x(58)" LABEL "File" NO-UNDO.
+   DEFINE VARIABLE dirlist AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE attrlist AS CHARACTER NO-UNDO.
+   RUN files_UI (INPUT searchdir).
+   FOR EACH kompdir WHERE kompdir.KLAR = FALSE:
+      INPUT FROM OS-DIR(kompdir.SERCHMAPPKOMP) NO-ECHO.
+      REPEAT:
+         SET filnamn VIEW-AS EDITOR INNER-CHARS 50 INNER-LINES 3 dirlist VIEW-AS EDITOR INNER-CHARS 50 INNER-LINES 3 attrlist.
+         IF attrlist = "D" THEN.
+         ELSE DO:
+            CREATE fileTT.
+            ASSIGN
+            fileTT.NAMEFILE =  filnamn
+            fileTT.SERCHMAPPKOMP  = kompdir.SERCHMAPPKOMP.
+            filnamn = fileTT.SERCHMAPPKOMP +   fileTT.NAMEFILE.
+            
+            COPY-LOB FROM FILE filnamn  TO fileTT.DATA.
+            IF CopyToFile NE "" THEN DO:
+               COPY-LOB FROM FILE filnamn TO FILE CopyToFile + fileTT.NAMEFILE.
+            END.   
+            OS-DELETE VALUE(filnamn).
+            /*OS-DELETE*/
+         END.
+      END.   
+      INPUT CLOSE.
+      kompdir.KLAR = TRUE.      
+   END.
+    
+END PROCEDURE.
+PROCEDURE CopyFiles_UI :
+   DEFINE INPUT  PARAMETER Fromdir AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER Todir AS CHARACTER NO-UNDO.
+   
+END PROCEDURE.
+PROCEDURE files_UI :
+   DEFINE INPUT  PARAMETER searchdir AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE filnamn AS CHARACTER FORMAT "x(58)" LABEL "File" NO-UNDO.
+   DEFINE VARIABLE filserver AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE attrlist AS CHARACTER FORMAT "x(6)" LABEL "Attributes" NO-UNDO.
+   DEFINE VARIABLE dirlist AS CHARACTER FORMAT "x(60)" LABEL "Directory" NO-UNDO.
+   DEFINE VARIABLE cdirnames AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE delfile AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE curdir AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE numcdir AS INTEGER NO-UNDO.   
+   DEFINE VARIABLE dirnr AS INTEGER NO-UNDO.
+   DEFINE VARIABLE tempsearchdir AS CHARACTER NO-UNDO.
+   
+   EMPTY TEMP-TABLE kompdir NO-ERROR. 
+   DEFINE VARIABLE antalniv AS INTEGER NO-UNDO.
+   antalniv = 1.
+   FIND FIRST kompdir  WHERE kompdir.NIVA = antalniv AND kompdir.SERCHMAPPKOMP = searchdir NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE kompdir THEN DO:
+      CREATE kompdir.
+      ASSIGN
+      kompdir.NIVA = antalniv
+      kompdir.SERCHMAPPKOMP = searchdir.
+   END.    
+INPUT FROM OS-DIR(searchdir) NO-ECHO.
+   REPEAT:
+      SET filnamn ^ attrlist.
+      /* om filen är en mapp.*/
+      IF attrlist = "D" THEN DO: 
+         IF filnamn = "." THEN NEXT.
+         IF filnamn = ".." THEN NEXT.
+         FIND FIRST kompdir  WHERE kompdir.NIVA = antalniv AND kompdir.SERCHMAPPKOMP = searchdir NO-LOCK NO-ERROR.
+        
+         IF NOT AVAILABLE kompdir THEN DO:
+            CREATE kompdir.
+            ASSIGN
+            kompdir.NIVA = antalniv
+            kompdir.SERCHMAPPKOMP = searchdir.
+            /* 
+            kompdir.MAPPKOMP = filnamn.
+            */
+         END.     
+         
+         filnamn = "".
+      END.
+   END.    
+   INPUT CLOSE.
+   
+   REPEAT:
+      FIND FIRST kompdir WHERE kompdir.NIVA = antalniv NO-LOCK NO-ERROR. 
+      IF NOT AVAILABLE kompdir THEN LEAVE.
+      FOR EACH kompdir  WHERE kompdir.NIVA = antalniv NO-LOCK:
+         INPUT FROM OS-DIR(kompdir.SERCHMAPPKOMP) NO-ECHO.
+         REPEAT:
+            SET filnamn ^ attrlist.
+            /*Kolla om filen är en mapp.*/
+            IF attrlist = "D" THEN DO: 
+               IF filnamn = "." THEN NEXT.
+               IF filnamn = ".." THEN NEXT.
+               FIND FIRST kompdirbuff WHERE kompdirbuff.NIVA = antalniv + 1 AND kompdirbuff.SERCHMAPPKOMP = kompdir.SERCHMAPPKOMP + filnamn + "\" NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE kompdirbuff THEN DO:
+                  CREATE kompdirbuff.
+                  ASSIGN
+                  kompdirbuff.NIVA = antalniv + 1
+                  kompdirbuff.SERCHMAPPKOMP = kompdir.SERCHMAPPKOMP + filnamn + "\".
+                  /*
+               kompdirbuff.MAPPKOMP = filnamn.
+               */
+               END.
+               
+           
+               filnamn = "".
+            END.
+         END.
+         INPUT CLOSE.
+      END.
+      antalniv = antalniv + 1.      
+   END.
+        
+END PROCEDURE.

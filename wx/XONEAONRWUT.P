@@ -1,0 +1,151 @@
+/*XONEAONRWUT.P*/
+&Scoped-define NEW NEW  
+&Scoped-define SHARED SHARED 
+
+
+ 
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 0.
+DEFINE VARIABLE cColumn                 AS CHARACTER.
+DEFINE VARIABLE efarg AS INTEGER NO-UNDO.
+
+/*DEFINE NEW SHARED VARIABLE plusaonr AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE plusdnr AS INTEGER NO-UNDO.*/
+
+{GLOBVAR.I}
+
+{EXECLIN2.I}
+DEFINE TEMP-TABLE aotemp NO-UNDO  
+   FIELD AONR    AS  CHARACTER                            
+   FIELD DELNR    AS  INTEGER
+   FIELD ORT AS CHARACTER 
+   FIELD arbetsuppgift AS CHARACTER 
+   INDEX AONR AONR DELNR.      
+
+
+
+
+   CREATE "Excel.Application" chExcelApplication.
+   chExcelApplication:Visible = TRUE.
+   chWorkbook = chExcelApplication:Workbooks:Add().
+   chWorkSheet = chExcelApplication:Sheets:Item(1).
+   chWorkSheet:Columns("A"):ColumnWidth = 11 NO-ERROR.
+   chWorkSheet:Columns("B"):ColumnWidth = 7 NO-ERROR.
+   chWorkSheet:Columns("C"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("D"):ColumnWidth = 30 NO-ERROR.
+   
+   
+   chWorkSheet:Range("A1:P1"):Font:Bold = TRUE NO-ERROR.
+
+   chWorkSheet:Range("A1"):Value = "Uppdrag" NO-ERROR.
+   chWorkSheet:Range("B1"):Value = "Delnr" NO-ERROR.
+   chWorkSheet:Range("C1"):Value = "Arbetsuppgift" NO-ERROR.
+   chWorkSheet:Range("D1"):Value = "Ort/Benämning" NO-ERROR.
+  
+   chWorkSheet:Range("A:A"):NumberFormat = "@" NO-ERROR.
+     
+   
+   EMPTY TEMP-TABLE aotemp NO-ERROR. 
+   for each AONRTAB WHERE AONRTAB.AONRAVDATUM = 01/01/91 NO-LOCK:
+      FIND FIRST BEREDNING  WHERE BEREDNING.AONR =  AONRTAB.aonr AND BEREDNING.DELNR =  AONRTAB.DELNR NO-LOCK NO-ERROR.
+      IF AVAILABLE BEREDNING  THEN DO:
+         FIND FIRST EXTRADATA WHERE EXTRADATA.PROGRAM = "AOREF" AND                   
+         EXTRADATA.HUVUDCH = AONRTAB.AONR AND EXTRADATA.HUVUDINT = AONRTAB.DELNR 
+         AND EXTRADATA.SOKCHAR[6] =  "Worktask" NO-LOCK NO-ERROR.
+         IF AVAILABLE EXTRADATA  THEN DO:
+            CREATE aotemp.
+            assign
+            aotemp.aonr = AONRTAB.AONR
+            aotemp.delnr = AONRTAB.DELNR
+            aotemp.arbetsuppgift = EXTRADATA.SOKCHAR[7]
+            aotemp.ort = AONRTAB.ORT.
+         END.  
+      END.
+      ELSE DO:
+         FIND FIRST EXTRADATA WHERE EXTRADATA.PROGRAM = "AOREF" AND                   
+         EXTRADATA.HUVUDCH = AONRTAB.AONR AND EXTRADATA.HUVUDINT = AONRTAB.DELNR 
+         AND EXTRADATA.SOKCHAR[6] =  "Worktask" NO-LOCK NO-ERROR.
+         IF AVAILABLE EXTRADATA  THEN DO:
+            RUN PaAv_UI.
+         END.   
+      END.                
+    END.          
+   iColumn = 2.
+   FOR EACH aotemp USE-INDEX AONR:
+      iColumn = iColumn + 1.
+      cColumn = STRING(iColumn).
+      cRange = "A" + cColumn.
+      chWorkSheet:Range(cRange):Value = aotemp.AONR NO-ERROR.      
+
+      cRange = "B" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(aotemp.DELNR) NO-ERROR.
+      cRange = "C" + cColumn.
+      chWorkSheet:Range(cRange):Value = aotemp.ARBETSUPPGIFT NO-ERROR.
+      cRange = "D" + cColumn.
+      chWorkSheet:Range(cRange):Value = aotemp.ORT NO-ERROR.
+     
+            
+   END.   
+   RELEASE OBJECT chExcelApplication NO-ERROR.      
+   RELEASE OBJECT chWorkbook NO-ERROR.
+   RELEASE OBJECT chWorksheet NO-ERROR.
+   
+   
+ PROCEDURE PaAv_UI :   
+   /*DEFINE VARIABLE onoff AS LOGICAL NO-UNDO.
+   IF orgtabh:BUFFER-FIELD("AONRAVDATUM"):BUFFER-VALUE = 01/01/91 THEN onoff = TRUE.
+   ELSE onoff = FALSE.*/
+   OPEN QUERY kalkaoq FOR EACH KALKAONR WHERE KALKAONR.AONR = AONRTAB.AONR  AND
+   KALKAONR.DELNR = AONRTAB.DELNR  USE-INDEX AONR NO-LOCK.
+   GET FIRST kalkaoq NO-LOCK.
+   DO WHILE AVAILABLE(KALKAONR):
+      DO TRANSACTION:
+         GET CURRENT kalkaoq EXCLUSIVE-LOCK.
+         KALKAONR.AKTIV = FALSE.
+      END.
+      GET NEXT kalkaoq NO-LOCK.   
+   END.
+   CLOSE QUERY kalkaoq.
+   OPEN QUERY kalkaoq FOR EACH KALKAONR WHERE KALKAONR.AONR = AONRTAB.AONR AND
+   KALKAONR.DELNR = AONRTAB.DELNR USE-INDEX AONR NO-LOCK. 
+   GET FIRST kalkaoq NO-LOCK.
+   DO WHILE AVAILABLE(KALKAONR):
+      DO TRANSACTION:
+         FIND FIRST KALKHUV WHERE KALKHUV.KALKNR = KALKAONR.KALKNR EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE KALKHUV THEN DO:
+            KALKHUV.AKTIV = TRUE.
+         END.   
+      END.
+      RELEASE KALKHUV NO-ERROR.
+      GET NEXT kalkaoq NO-LOCK.
+   END.
+   DO TRANSACTION:
+      FIND CURRENT AONRTAB EXCLUSIVE-LOCK.
+      IF AVAILABLE AONRTAB THEN DO:
+         AONRTAB.AONRAVDATUM = 12/25/2020.
+      END.   
+   END. 
+         
+      
+   /*DO TRANSACTION:
+      FIND FIRST BEREDNING WHERE BEREDNING.AONR = orgtabh:BUFFER-FIELD("AONR"):BUFFER-VALUE AND
+      BEREDNING.DELNR = orgtabh:BUFFER-FIELD("DELNR"):BUFFER-VALUE USE-INDEX AONR
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BEREDNING THEN BEREDNING.AKTIV = onoff.  
+      
+      FIND FIRST AOVARD WHERE AOVARD.AONR = orgtabh:BUFFER-FIELD("AONR"):BUFFER-VALUE AND AOVARD.DELNR = orgtabh:BUFFER-FIELD("DELNR"):BUFFER-VALUE
+      USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF AVAILABLE AOVARD THEN DO:
+         IF AOVARD.VARDNR = ? THEN.
+         ELSE DO:
+            FIND FIRST VARDERING WHERE VARDERING.VARDNR = AOVARD.VARDNR USE-INDEX VARDNR
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE VARDERING THEN DO:
+               ASSIGN VARDERING.AKTIV = onoff.
+            END.
+         END.
+      END.            
+   END.
+   RELEASE BEREDNING NO-ERROR.
+   RELEASE VARDERING NO-ERROR.
+   */      
+END PROCEDURE.      

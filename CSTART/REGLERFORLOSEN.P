@@ -1,0 +1,335 @@
+
+/*------------------------------------------------------------------------
+    File        : REGLERFORLOSEN.P
+    Purpose     : KÖRS FRÅN MULTISTART.w gamla login 
+                  Körs från Guru.w om inloggning TIDMENY   VID BYTE AV LÖSEN 
+                  
+
+    Syntax      :
+
+
+    Description :  Gör samma saker som SPRINGKONTROLL.P men från klient sidan.
+
+    Author(s)   : 
+    Created     : Thu Oct 20 14:50:09 CEST 2016
+    Notes       :
+       
+   RUN startloginclass_UI.
+   RUN konstanter_UI.
+       
+  ----------------------------------------------------------------------*/
+  
+DEFINE VARIABLE globallpers AS LOGICAL NO-UNDO.
+DEFINE VARIABLE globniv AS INTEGER NO-UNDO INITIAL ?. 
+DEFINE VARIABLE globanvavdnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE globanvpkod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE globallao AS LOGICAL NO-UNDO.
+DEFINE VARIABLE globavd AS INTEGER NO-UNDO. 
+DEFINE VARIABLE globomr AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE globpersnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE globjid AS CHARACTER NO-UNDO.
+DEFINE INPUT  PARAMETER GuruAnvandare AS CHARACTER NO-UNDO.
+DEFINE INPUT  PARAMETER gaLosen AS CHARACTER NO-UNDO.
+DEFINE INPUT  PARAMETER nyLosen AS CHARACTER NO-UNDO.  
+DEFINE OUTPUT PARAMETER springfel AS CHARACTER  NO-UNDO.
+DEFINE OUTPUT PARAMETER alltOk AS LOGICAL NO-UNDO.
+DEFINE VARIABLE meddelandevar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE felNr AS INTEGER NO-UNDO.
+
+{GLOBVAR2DEL1.I}
+{HOPALLA.I}
+
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO. 
+{EXTRADATA.I}
+DEFINE VARIABLE storkollbredd AS INTEGER NO-UNDO.
+DEFINE VARIABLE storkollhojd AS INTEGER NO-UNDO.
+
+DEFINE VARIABLE losenwebh AS HANDLE NO-UNDO.
+
+DEFINE VARIABLE outdatornamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE datornamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE datoruser AS CHARACTER NO-UNDO.
+DEFINE VARIABLE MacAdd AS CHARACTER NO-UNDO.
+/*ger dig dataor user*/
+ 
+RUN INLOAPI.P (OUTPUT datoruser, OUTPUT outdatornamn).
+ASSIGN
+datoruser = TRIM(datoruser)
+datornamn = TRIM(outdatornamn).
+  
+ {Computer_LanIP.I} 
+
+RUN ReadMac_UI.
+
+IF Guru.Konstanter:appcon THEN DO:
+   IF NOT VALID-HANDLE(losenwebh) THEN RUN LOSENKOLLWEB.P PERSISTENT SET losenwebh ON Guru.Konstanter:apphand TRANSACTION DISTINCT . 
+END.
+ELSE DO:
+   IF NOT VALID-HANDLE(losenwebh) THEN RUN LOSENKOLLWEB.P PERSISTENT SET losenwebh .    
+END.   
+RUN AppSpringSet_UI  IN losenwebh (INPUT  Guru.Konstanter:AppSpringSet).
+RUN MacAddStart_UI IN losenwebh (INPUT MacAdd).
+RUN ComputerNameStart_UI IN losenwebh (INPUT Guru.Konstanter:AppSpringSet[9]).
+/*koll så att max inte överskrids*/ 
+RUN MaxIpUserCheck_UI IN losenwebh (INPUT Computer_LanIP,INPUT datoruser,INPUT GuruAnvandare,OUTPUT alltOk,OUTPUT meddelandevar).
+springfel = meddelandevar.
+IF alltOk = FALSE THEN DO:
+   MESSAGE meddelandevar
+   VIEW-AS ALERT-BOX.
+   {musarrow.i}
+   QUIT.
+END.
+/*för att datoruser ska sökas som Guruanv*/
+RUN MaxIpUserCheck_UI IN losenwebh (INPUT Computer_LanIP,INPUT datoruser,INPUT datoruser,OUTPUT alltOk,OUTPUT meddelandevar).
+springfel = meddelandevar.
+IF alltOk = FALSE THEN DO:
+   MESSAGE meddelandevar
+   VIEW-AS ALERT-BOX.
+   status-mus = SESSION:SET-WAIT-STATE("").
+   QUIT.
+END.
+
+IF GuruAnvandare = "" THEN DO:
+   alltOk = FALSE.
+   status-mus = SESSION:SET-WAIT-STATE("").
+   QUIT.
+END.
+
+IF Guru.Konstanter:varforetypval[51] = 1 THEN DO:
+  /*kollar att ditt nya lösen sätts rätt gäller även ny upplägg av users*/    
+   RUN RattLosen_UI IN losenwebh (INPUT Computer_LanIP,INPUT datoruser,INPUT GuruAnvandare, INPUT gaLosen, OUTPUT alltOk,OUTPUT meddelandevar).
+   springfel = meddelandevar.
+   IF alltOk = FALSE THEN DO: 
+      MESSAGE meddelandevar
+      VIEW-AS ALERT-BOX.
+      RUN avs_UI.
+      RETURN. 
+   END.
+   RUN losenReglerKoll_UI IN losenwebh (INPUT GuruAnvandare,INPUT-OUTPUT gaLosen,INPUT nyLosen, OUTPUT felNr, OUTPUT alltOk,OUTPUT meddelandevar).
+   springfel = meddelandevar.
+   IF alltOk = FALSE THEN DO:
+      MESSAGE meddelandevar
+      VIEW-AS ALERT-BOX.
+      RUN avs_UI.
+      RETURN.
+   END.   
+
+   /*får du komma in*/  
+   RUN RattLosen_UI IN losenwebh (INPUT Computer_LanIP,INPUT datoruser,INPUT GuruAnvandare, INPUT gaLosen, OUTPUT alltOk,OUTPUT meddelandevar).
+   springfel = meddelandevar.
+   IF alltOk = FALSE THEN DO:
+      MESSAGE meddelandevar
+      VIEW-AS ALERT-BOX. 
+      RUN avs_UI.
+      RETURN. 
+   END.
+   /*Anders Olsson Elpool i Umeå AB  13 sep 2019 14:56:16 
+   Mac sätts bara om datoruser = GuruAnvandare
+   */
+   IF datoruser = GuruAnvandare THEN RUN MacSett_UI IN losenwebh (INPUT GuruAnvandare, INPUT MacAdd).
+END.
+/* om mac ska gälla*/
+IF MacAdd = "" THEN .
+ELSE DO:
+   IF datoruser = GuruAnvandare THEN RUN MacKontroll_UI IN losenwebh (INPUT GuruAnvandare, INPUT MacAdd, OUTPUT alltOk,OUTPUT meddelandevar).
+   springfel = meddelandevar.
+   IF alltOk = FALSE THEN DO:
+      IF meddelandevar = "" THEN.
+      ELSE DO:   
+         MESSAGE meddelandevar
+         VIEW-AS ALERT-BOX. 
+      END.
+      RUN avs_UI.
+      RETURN. 
+         
+   END.
+END.   
+
+/*körs för alla så att globvar sätts*/   
+
+RUN AutoLogin_UI IN losenwebh 
+      (INPUT Computer_LanIP,INPUT datoruser,INPUT GuruAnvandare,INPUT-OUTPUT gaLosen,
+      OUTPUT globallao,
+      OUTPUT globallpers,
+      OUTPUT globavd,
+      OUTPUT globomr,
+      OUTPUT storkollbredd,
+      OUTPUT storkollhojd,
+      OUTPUT globniv,
+      OUTPUT globpersnamn,
+      OUTPUT globanvpkod,
+      OUTPUT globanvavdnr,
+      OUTPUT globjid,
+      OUTPUT alltOk).
+IF alltOk = TRUE THEN DO:
+  
+   /*Anders Olsson Elpool i Umeå AB  13 sep 2019 14:56:16 
+   Mac sätts bara om datoruser = GuruAnvandare
+   */
+   IF datoruser = GuruAnvandare THEN RUN MacSett_UI IN losenwebh (INPUT GuruAnvandare, INPUT MacAdd).
+   /*Så att alla styrevar sätts*/
+  
+   Guru.Konstanter:globanv = GuruAnvandare.
+   
+   Guru.Konstanter:varforetypval[50] = 0.
+   {FORESTYR.I}
+   RUN startloginclass_UI.
+   RUN konstanter_UI.
+   /*sätterkonsta till appserver*/
+   RUN KonstanterSet IN losenwebh (INPUT "globforetag", Guru.Konstanter:globforetag).
+   RUN KonstanterSet IN losenwebh (INPUT "globanv", Guru.Konstanter:globanv).
+   RUN KonstanterSet IN losenwebh (INPUT "globsprak", Guru.Konstanter:globsprak).
+   RUN KonstanterSet IN losenwebh (INPUT "gfore", Guru.Konstanter:GForetag).
+   
+   
+   
+   IF Guru.Konstanter:appcon = TRUE THEN DO:
+      RUN LaddakonstanterApp.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+   END.  
+   
+   RUN sek_UI.
+   IF Guru.Konstanter:appcon = TRUE THEN DO:
+      RUN sek_UI IN losenwebh. 
+   END.
+   
+   IF Guru.Konstanter:globanv = "ALLMÄN" THEN Guru.Konstanter:globallm = TRUE.
+   ELSE IF Guru.Konstanter:globanv = "ALLMÄN2" THEN Guru.Konstanter:globallm = TRUE.
+   ELSE Guru.Konstanter:globallm = FALSE.
+   RUN avs_UI.
+   
+END.   
+ELSE DO:
+   RUN avs_UI.
+   
+END. 
+      
+PROCEDURE ReadMac_UI :
+   DEFINE VARIABLE longhelp AS LONGCHAR NO-UNDO.
+   DEFINE VARIABLE st AS INTEGER NO-UNDO.
+   DEFINE VARIABLE sl AS INTEGER NO-UNDO.
+   DEFINE VARIABLE macfile AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE mackommando AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE MACcheck  AS Helpers.MACcheck              NO-UNDO.
+   MACcheck = NEW Helpers.MACcheck(). 
+   MacAdd = MACcheck:checkMac().
+   /*
+   macfile = STRING(time) + "mac.txt".
+   mackommando = "getmac /fo csv /nh > " + macfile.
+   /*MacAdd*/
+   OS-COMMAND SILENT VALUE(mackommando).
+   COPY-LOB FROM FILE macfile TO longhelp.
+   OS-DELETE VALUE(macfile) NO-ERROR.
+   st = INDEX(longhelp,"\Tcpip_") + 8.
+   sl = INDEX(longhelp,'}"') - 3 - st.
+   longhelp = SUBSTRING(longhelp,st,sl).
+   MacAdd = STRING(longhelp).
+   */
+ 
+END PROCEDURE.
+PROCEDURE avs_UI :
+   IF VALID-HANDLE(losenwebh) THEN DELETE PROCEDURE losenwebh NO-ERROR.
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+   losenwebh = ?.
+   edataapph = ?.
+END PROCEDURE.
+
+PROCEDURE startloginclass_UI :
+  
+   RUN sprakut_UI.
+   ASSIGN 
+   Guru.Konstanter:globanv = GuruAnvandare   
+   Guru.Konstanter:datornamn = datornamn
+   Guru.Konstanter:globanvnt = datoruser
+   Guru.Konstanter:appcon = Guru.Konstanter:appcon.
+   Guru.Konstanter:apphand = Guru.Konstanter:apphand.
+   
+   IF Guru.Konstanter:globanvbyt = "" THEN.
+   ELSE DO:
+      IF Guru.Konstanter:globanvbyt NE "" THEN  DO:
+         Guru.Konstanter:globanv = Guru.Konstanter:globanvbyt.
+         Guru.Konstanter:globanv = Guru.Konstanter:globanvbyt.
+      END.
+      
+   END.      
+END PROCEDURE.
+PROCEDURE konstanter_UI :
+   DEFINE VARIABLE vc AS CHARACTER FORMAT "x(20)". 
+   DEFINE VARIABLE vcnr AS CHARACTER.
+   DEFINE VARIABLE gfore AS CHARACTER NO-UNDO.
+   IF storkollbredd > Guru.Konstanter:globstorb THEN Guru.Konstanter:globstorb = storkollbredd.
+   IF storkollhojd  > Guru.Konstanter:globstorh THEN Guru.Konstanter:globstorh = storkollhojd.
+   IF storkollbredd > Guru.Konstanter:globstorb THEN Guru.Konstanter:globstorb = storkollbredd.
+   IF storkollhojd  > Guru.Konstanter:globstorh THEN Guru.Konstanter:globstorh = storkollhojd.
+   IF Guru.Konstanter:appcon THEN DO:
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT.                  
+   END.
+   ELSE DO:
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   END.                  
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "FAVO"                   
+   inextradatatemp.HUVUDCH = Guru.Konstanter:globanv              
+   inextradatatemp.HUVUDINT =  ?.   
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+   FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+   IF AVAILABLE extradatatemp THEN DO:
+      Guru.Konstanter:alltidmax = extradatatemp.SOKLOG[10].         
+      IF extradatatemp.SOKCHAR[1] = "" THEN extradatatemp.SOKCHAR[1] = "AMERICAN".
+      SESSION:NUMERIC-FORMAT = extradatatemp.SOKCHAR[1].
+      ASSIGN
+      Guru.Konstanter:globsprak         = extradatatemp.SOKINT[3]
+      Guru.Konstanter:globnetprissortvar = extradatatemp.SOKINT[4].
+      {GLOBFONSTER.I}
+   END.      
+    
+      /*
+      Guru.Konstanter:globDefaultstorb sätter NORMAL storlek 
+      spara i  
+      inextradatatemp.PROGRAM = "FAVO"  
+      globDefaultstorb = extradatatemp.SOKINT[5].
+      Guru.Konstanter:globDefaultstorh = extradatatemp.SOKINT[6].
+      Guru.Konstanter:Guru.Konstanter:globstorh   
+      Guru.Konstanter:globstorh DYNFRAMESIZE.P SÄTTER MAX STORLEK PÅ   
+      lagras i 
+      
+      */ 
+      /*Anders Olsson Elpool i Umeå AB  30 nov 2022 18:42:52 
+        SÄTTER Guru.Konstanter:globGuruversion. 
+      */
+    IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN DO:
+       RUN WEBVERSION.P (INPUT 1,INPUT-OUTPUT vc,INPUT-OUTPUT vcnr,OUTPUT gfore).
+    END.     
+   
+   ASSIGN
+   Guru.Konstanter:globallao         = globallao   
+   Guru.Konstanter:globallpers       = globallpers 
+   Guru.Konstanter:globavd           = globavd     
+   Guru.Konstanter:globomr           = globomr.
+     
+   
+   ASSIGN   
+   Guru.Konstanter:globniv           = globniv     
+   Guru.Konstanter:globpersnamn      = globpersnamn
+   Guru.Konstanter:globanvpkod       = globanvpkod 
+   Guru.Konstanter:globanvavdnr      = globanvavdnr
+   Guru.Konstanter:globjid           = globjid.
+   
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   
+   RUN Modules\Global\NUMBERSEPA.P.
+   
+END PROCEDURE.
+PROCEDURE sprakut_UI :
+   /*Skapar en fakeroot som enbart laddar konstanter OCH RENSAR TT*/
+   Guru.Konstanter:startGlobalFakeRoot = NEW Guru.FakeRoot(). 
+   Guru.Konstanter:startGlobalFakeRoot:StartLaddaTT().
+   
+   
+END PROCEDURE.
+
+{LOSENREGLERSEK.I}
+

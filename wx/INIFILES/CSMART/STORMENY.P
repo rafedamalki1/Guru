@@ -1,0 +1,934 @@
+/*STORMENY.P*/
+ 
+{ALLDEF.I}
+{GLOBVAR2DEL1.I}
+{HOPPSEK2W.I}
+{FORETEMP.I}
+{STORWID.I}
+DEFINE SHARED VARIABLE valrec AS RECID NO-UNDO.
+DEFINE SHARED VARIABLE distvar AS INTEGER NO-UNDO.
+DEFINE SHARED VARIABLE stornrid AS INTEGER NO-UNDO.
+DEFINE SHARED VARIABLE forvar AS INTEGER NO-UNDO.
+DEFINE SHARED VARIABLE ny AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE strproch AS HANDLE NO-UNDO. /*Handle till STORHMT.P*/
+DEFINE SHARED VARIABLE sistartal AS INTEGER NO-UNDO.
+DEFINE SHARED VARIABLE regdatum AS DATE NO-UNDO.
+DEFINE SHARED VARIABLE skrivut AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE StorningHelpStartH AS HANDLE NO-UNDO.
+DEFINE VARIABLE strreturn AS LOGICAL NO-UNDO.
+DEFINE VARIABLE status-ok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE antal_valda AS INTEGER NO-UNDO. 
+DEFINE VARIABLE svar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE val AS LOGICAL NO-UNDO.
+DEFINE VARIABLE cmbstr AS CHARACTER NO-UNDO INITIAL " *".
+DEFINE VARIABLE tabellnamn AS CHARACTER NO-UNDO INITIAL "STORNINGSTAB".
+DEFINE VARIABLE kommandoq AS CHARACTER NO-UNDO.
+DEFINE VARIABLE laddartal AS INTEGER NO-UNDO.
+DEFINE VARIABLE sistartalspar AS INTEGER NO-UNDO.
+DEFINE VARIABLE distvarspar AS INTEGER NO-UNDO.
+DEFINE VARIABLE antal_raknare AS INTEGER NO-UNDO.
+&SCOPED-DEFINE NEW 
+&SCOPED-DEFINE SHARED SHARED
+{STRTEMP.I}
+{STORTEMP.I}   
+{AVDELNINGTEMP.I}
+&Scoped-define NEW 
+&Scoped-define SHARED SHARED
+{TIDUTTTSHARED.I}
+framesizeh = framesizeextrah.
+DEFINE VARIABLE vstortemph AS HANDLE NO-UNDO.
+vstortemph = TEMP-TABLE vstorntemp:DEFAULT-BUFFER-HANDLE. 
+DEFINE VARIABLE urstortemph AS HANDLE NO-UNDO.
+urstortemph = TEMP-TABLE urstorntemp:DEFAULT-BUFFER-HANDLE. 
+ON 'CHOOSE':U OF BTN_AVB PERSISTENT RUN avb_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_AOF PERSISTENT RUN sparaaofavoriter_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF BRW_URSTR PERSISTENT RUN vcbrwurstr_UI IN THIS-PROCEDURE.
+ON 'MOUSE-SELECT-DBLCLICK':U OF BRW_VSTR PERSISTENT RUN mdbrwvstr_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF BRW_VSTR PERSISTENT RUN vcbrwvstr_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_BORT PERSISTENT RUN bort_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_HAMT PERSISTENT RUN btnhamt_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_NY PERSISTENT RUN btnny_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF CMB_ANL PERSISTENT RUN vccmbanl_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF CMB_AR PERSISTENT RUN vccmbar_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF CMB_BEL PERSISTENT RUN vccmbbel_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF CMB_FEL PERSISTENT RUN vccmbfel_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF CMB_FOR PERSISTENT RUN vccmbfor_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF CMB_OMR PERSISTENT RUN vccmbomr_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF CMB_SYS PERSISTENT RUN vccmbsys_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF CMB_SYS2 PERSISTENT RUN vccmbsys2_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_ADM PERSISTENT RUN btnadm0_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_DARWINpANV PERSISTENT RUN DarwinPlusUserStart_UI   IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_AND PERSISTENT RUN btnand_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_LAS PERSISTENT RUN btnlas_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_RAPP PERSISTENT RUN btnrapp_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_VIS PERSISTENT RUN btnvis_UI IN THIS-PROCEDURE.
+ON 'MOUSE-MENU-CLICK':U OF FILL-IN-STOR PERSISTENT RUN mmfstor_UI IN THIS-PROCEDURE.
+ON 'ANY-KEY':U OF FILL-IN-STRNR PERSISTENT RUN aksstrnr_UI IN THIS-PROCEDURE.
+ON 'MOUSE-SELECT-DBLCLICK':U OF FILL-IN-STRNR PERSISTENT RUN mdsstrnr_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_HAOF PERSISTENT RUN hmtfavoriter_UI IN THIS-PROCEDURE.
+PROCEDURE autofavo_UI :
+   FIND FIRST vstorntemp NO-LOCK NO-ERROR.
+   IF AVAILABLE vstorntemp THEN DO:
+      RUN sparaaofavoriter_UI.
+   END.
+END PROCEDURE.
+PROCEDURE hmtfavoriter_UI :
+   DEFINE VARIABLE ttbuffh AS HANDLE NO-UNDO.
+   tthandle = TEMP-TABLE vstorntemp:HANDLE.
+   ttbuffh = tthandle:DEFAULT-BUFFER-HANDLE.
+   RUN ttcopy_UI IN huvprogh (INPUT TABLE-HANDLE tthandle).
+   ttbuffh:EMPTY-TEMP-TABLE() NO-ERROR.  
+   FIND FIRST sparaladdatemp NO-ERROR.
+   IF NOT AVAILABLE sparaladdatemp THEN CREATE sparaladdatemp.
+   ASSIGN
+   sparaladdatemp.GLOBANV = Guru.Konstanter:globanv /*Användare, i detta fall ELPAO*/
+   sparaladdatemp.BENAMNING = "STOR" /*Benämnings sufix, i detta fall ELPAO$STOR*/
+   sparaladdatemp.TABVAL = "STORNINGSTAB" /*Tabellnamn*/
+   sparaladdatemp.FALTVALAO = "" /*CHARACTER field*/
+   sparaladdatemp.FALTVALDEL = "STORNUMMERID" /*Integer field*/
+   sparaladdatemp.FALTVALDATE = "".   /*DATE field*/
+   RUN laddabrw_UI IN brwproc[{&RIGHT-BROWSE}] 
+      (INPUT TABLE-HANDLE tthandle, INPUT TABLE sparaladdatemp). 
+   RUN ttjmf_UI IN huvprogh (INPUT-OUTPUT ttbuffh).
+END PROCEDURE.
+{OMSTARTAVGURUH.I}
+RUN main_UI.
+{musarrow.i}
+
+PROCEDURE mdsstrnr_UI :
+   RUN storidsok_UI.
+END PROCEDURE.
+
+PROCEDURE Storning_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/  
+   IF NOT VALID-HANDLE(StorningHelpStartH) THEN RUN Modules\Storning\StorningHelpStart.p PERSISTENT SET StorningHelpStartH.
+   RUN  Storning_UI IN StorningHelpStartH.      
+END PROCEDURE.
+
+PROCEDURE DarwinPlusUserStart_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+  
+   IF NOT VALID-HANDLE(StorningHelpStartH) THEN RUN Modules\Storning\StorningHelpStart.p PERSISTENT SET StorningHelpStartH.
+   RUN  DarwinPlusUserStart_UI IN StorningHelpStartH.   
+END PROCEDURE.
+
+
+PROCEDURE storidsok_UI :
+   IF FILL-IN-STRNR:SCREEN-VALUE = ? AND FILL-IN-STRNR:SCREEN-VALUE = "" THEN DO:
+      MESSAGE "Sökbegreppet kan inte vara blankt." VIEW-AS ALERT-BOX.
+      RETURN NO-APPLY.
+   END.
+   FIND FIRST storvaltemp NO-ERROR.
+   IF NOT AVAILABLE storvaltemp THEN CREATE storvaltemp.
+   ASSIGN
+   storvaltemp.STORNUMMERID = INTEGER(FILL-IN-STRNR:SCREEN-VALUE).
+   FIND FIRST vstorntemp WHERE vstorntemp.STORNUMMERID = INTEGER(FILL-IN-STRNR:SCREEN-VALUE) 
+   NO-LOCK NO-ERROR. 
+   {OMSTARTAVGURUH.I}
+   IF NOT AVAILABLE vstorntemp THEN DO:      
+      strreturn = FALSE.
+      RUN hamtaenstorning_UI IN strproch (INPUT INTEGER(FILL-IN-STRNR:SCREEN-VALUE), OUTPUT TABLE vstorntemp APPEND, OUTPUT strreturn).
+   END.
+   IF strreturn = FALSE THEN DO:
+      RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+      FIND FIRST vstorntemp WHERE vstorntemp.STORNUMMERID = INTEGER(FILL-IN-STRNR:SCREEN-VALUE)
+         NO-LOCK NO-ERROR.
+      IF AVAILABLE vstorntemp THEN DO:
+         RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(vstorntemp)).
+         RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].
+      END.
+   END.
+   ELSE DO:
+      MESSAGE "Hittade ingen störning!" VIEW-AS ALERT-BOX.
+      strreturn = FALSE.
+   END.
+   {musarrow.i}  
+END PROCEDURE.
+
+PROCEDURE aksstrnr_UI :
+   {TRYCKS.I}
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      APPLY "MOUSE-SELECT-DBLCLICK" TO FILL-IN-STRNR.
+   END.  
+END PROCEDURE.
+PROCEDURE mmfstor_UI :
+   Guru.GlobalaVariabler:regdatum = DATE(FILL-IN-STOR:SCREEN-VALUE).
+   RUN AlmanBtn.w.
+   FILL-IN-STOR:SCREEN-VALUE = STRING(Guru.GlobalaVariabler:regdatum).
+   
+END PROCEDURE.
+PROCEDURE fselectfoc_UI :
+   DEFINE VARIABLE brwrowid AS ROWID NO-UNDO.
+   DEFINE VARIABLE brwrecid AS RECID NO-UNDO.
+   IF NOT VALID-HANDLE(vstortemph) THEN DO:
+      vstortemph = TEMP-TABLE vstorntemp:DEFAULT-BUFFER-HANDLE.
+   END.
+   RUN fetrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT antal_raknare,OUTPUT brwrowid) .
+   FIND FIRST vstorntemp WHERE ROWID(vstorntemp) = brwrowid NO-LOCK NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE selectfoc_UI :
+   DEFINE VARIABLE brwrowid AS ROWID NO-UNDO.
+   DEFINE VARIABLE brwrecid AS RECID NO-UNDO.
+   IF NOT VALID-HANDLE(vstortemph) THEN DO:
+      vstortemph = TEMP-TABLE vstorntemp:DEFAULT-BUFFER-HANDLE.
+   END.
+   RUN selectrowid_UI IN brwproc[{&RIGHT-BROWSE}] (OUTPUT brwrowid).
+   RUN selectrecid_UI IN brwproc[{&RIGHT-BROWSE}] (OUTPUT brwrecid).
+   FIND FIRST vstorntemp WHERE ROWID(vstorntemp) = brwrowid NO-LOCK NO-ERROR.   
+END PROCEDURE.
+PROCEDURE btnvis_UI :
+   {OMSTARTAVGURUH.I}
+   RUN selectfoc_UI. 
+   IF AVAILABLE vstorntemp THEN DO:               
+      {AVBGOM2.I}
+      skrivut = FALSE.
+      stornrid = vstorntemp.STORNUMMERID.
+      distvar = vstorntemp.DISTRIKTID.
+      RUN VSTORN.W.   
+      {AVBFRAM2.I}
+      {musarrow.i}
+   END.
+   ELSE DO:
+      MESSAGE "Det finns ingen störning att visa."
+      VIEW-AS ALERT-BOX TITLE "Meddelande".
+   END.   
+   
+END PROCEDURE.
+PROCEDURE btnrapp_UI :
+   {OMSTARTAVGURUH.I}
+   {AVBGOM2.I}
+   {AMERICANEUROPEAN.I}
+   RUN STORVAL.W.
+   {EUROPEANAMERICAN.I}      
+   {AVBFRAM2.I}
+   {musarrow.i}
+   IF valprog = 2 THEN RUN avb_UI IN huvprogh.
+END PROCEDURE.
+PROCEDURE btnlas_UI :
+   {OMSTARTAVGURUH.I}
+   {AVBGOM2.I}         
+   {AMERICANEUROPEAN.I}
+   RUN STRINUT.W (INPUT THIS-PROCEDURE).   
+   {EUROPEANAMERICAN.I} 
+   {AVBFRAM2.I}   
+   EMPTY TEMP-TABLE stordistemp NO-ERROR.
+   EMPTY TEMP-TABLE inlastabtemp NO-ERROR.
+   EMPTY TEMP-TABLE spanningsnivtemp NO-ERROR.
+   EMPTY TEMP-TABLE brytorgantemp NO-ERROR.
+   EMPTY TEMP-TABLE sektioneringtemp NO-ERROR.
+   EMPTY TEMP-TABLE utlosningskyddtemp NO-ERROR.
+   EMPTY TEMP-TABLE relaindikeringtemp NO-ERROR.
+   EMPTY TEMP-TABLE stordriftomrtemp NO-ERROR.
+   EMPTY TEMP-TABLE nattyptemp NO-ERROR.
+   EMPTY TEMP-TABLE anlaggningstyptemp NO-ERROR.
+   EMPTY TEMP-TABLE anlaggningsdeltemp NO-ERROR.
+   EMPTY TEMP-TABLE grundfeltyptemp NO-ERROR.
+   EMPTY TEMP-TABLE felorsaktemp NO-ERROR.
+   EMPTY TEMP-TABLE bortkoppladtemp NO-ERROR.
+   EMPTY TEMP-TABLE anvandartemp NO-ERROR.
+   EMPTY TEMP-TABLE avdelningtemp NO-ERROR.            
+   RUN laddatemptables_UI.
+   RUN laddacmbfor_UI. 
+   RUN andraartal_UI.   
+   {musarrow.i}
+   IF valprog = 4 THEN RUN avb_UI IN huvprogh.   
+END PROCEDURE.
+PROCEDURE btnand_UI :
+   {OMSTARTAVGURUH.I}
+   RUN nyandrastr_UI (INPUT 2).   
+   {musarrow.i}
+END PROCEDURE.
+
+PROCEDURE btnadm0_UI :
+   RUN btnadm_UI.
+   IF valprog = 3 THEN RUN avb_UI IN huvprogh.   
+END PROCEDURE.
+PROCEDURE btnadm_UI :
+   DEFINE VARIABLE tempforvar AS INTEGER NO-UNDO.
+   DEFINE VARIABLE tempsistartal AS INTEGER NO-UNDO.
+   {OMSTARTAVGURUH.I}  
+   {AVBGOM2.I}
+   RUN STORADM.W.
+   FIND FIRST vstorntemp WHERE vstorntemp.STORNUMMERID = stornrid
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE vstorntemp THEN DO:
+      RUN gorlika_UI IN brwproc[{&ARROWS}] (INPUT "STORNUMMERID", INPUT "DISTRIKTID").
+      RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(vstorntemp)).
+      RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").  
+      RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].
+   END. 
+   RUN fetchselrowid_UI IN brwproc[{&LEFT-BROWSE}].
+   RUN openbdyn_UI IN brwproc[{&LEFT-BROWSE}] (INPUT "").  
+   RUN lastselectdyn_UI IN brwproc[{&LEFT-BROWSE}].
+   EMPTY TEMP-TABLE avdelningtemp NO-ERROR.    
+   RUN laddaavdelningtemp_UI IN strproch (OUTPUT TABLE avdelningtemp).
+   tempforvar = forvar.
+   FIND FIRST avdelningtemp WHERE avdelningtemp.AVDELNINGNR = tempforvar
+      NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE avdelningtemp THEN FIND FIRST avdelningtemp NO-LOCK NO-ERROR.
+   IF AVAILABLE avdelningtemp THEN DO:
+      RUN laddacmbfor_UI.
+      ASSIGN
+      forvar = avdelningtemp.AVDELNINGNR
+      CMB_FOR:SCREEN-VALUE = avdelningtemp.AVDELNINGNAMN.
+      RUN andraartal_UI.
+      IF sistartal NE ? THEN CMB_AR:SCREEN-VALUE = STRING(sistartal).
+   END.   
+   {AVBFRAM2.I}
+   {musarrow.i}      
+END PROCEDURE.
+
+PROCEDURE vccmbsys2_UI :
+   CMB_SYS2:PRIVATE-DATA = "".   
+   IF CMB_SYS2:SCREEN-VALUE NE "Alla" THEN DO:      
+      FIND FIRST spanningsnivtemp WHERE spanningsnivtemp.NAMN = CMB_SYS2:SCREEN-VALUE NO-LOCK NO-ERROR.
+      FIND FIRST inlastabtemp WHERE inlastabtemp.INKODID = spanningsnivtemp.INKODID USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF inlastabtemp.INKOD = "D" AND inlastabtemp.INKODPOSCH NE "" AND inlastabtemp.INKODTYP = "2" THEN.
+      ELSE FIND NEXT spanningsnivtemp WHERE spanningsnivtemp.NAMN = CMB_SYS2:SCREEN-VALUE NO-LOCK NO-ERROR.         
+      IF AVAILABLE spanningsnivtemp THEN DO:
+         CMB_SYS2:PRIVATE-DATA = SUBSTITUTE("AND &1.FELSPANID = &2", tabellnamn, spanningsnivtemp.SPANID).
+      END.       
+   END.
+END PROCEDURE.
+PROCEDURE vccmbsys_UI :
+   CMB_SYS:PRIVATE-DATA = "".   
+   IF CMB_SYS:SCREEN-VALUE NE "Alla" THEN DO:      
+      FIND FIRST spanningsnivtemp WHERE spanningsnivtemp.NAMN = CMB_SYS:SCREEN-VALUE NO-LOCK NO-ERROR.
+      FIND FIRST inlastabtemp WHERE inlastabtemp.INKODID = spanningsnivtemp.INKODID USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF inlastabtemp.INKOD = "D" AND inlastabtemp.INKODPOSCH NE "" AND inlastabtemp.INKODTYP = "1" THEN.
+      ELSE FIND NEXT spanningsnivtemp WHERE spanningsnivtemp.NAMN = CMB_SYS:SCREEN-VALUE NO-LOCK NO-ERROR.         
+      IF AVAILABLE spanningsnivtemp THEN DO:
+         CMB_SYS:PRIVATE-DATA = SUBSTITUTE("AND &1.FRANSPANID = &2", tabellnamn, spanningsnivtemp.SPANID).
+      END.       
+   END.
+END PROCEDURE.
+PROCEDURE vccmbomr_UI :
+   FIND FIRST stordistemp WHERE stordistemp.NAMN = CMB_OMR:SCREEN-VALUE AND 
+   stordistemp.ARTAL = sistartal AND stordistemp.AVDELNINGNR = forvar NO-LOCK NO-ERROR.
+   IF AVAILABLE stordistemp THEN distvar = stordistemp.DISTRIKTID.
+END PROCEDURE.
+PROCEDURE vccmbfor_UI :
+   RUN andraartal_UI.
+END PROCEDURE.
+PROCEDURE vccmbfel_UI :
+   CMB_FEL:PRIVATE-DATA = "".
+   IF CMB_FEL:SCREEN-VALUE = "Alla" THEN RETURN.
+   IF CMB_FEL:SCREEN-VALUE BEGINS cmbstr THEN DO:
+      FIND FIRST felorsaktemp WHERE felorsaktemp.NAMN = SUBSTRING(CMB_FEL:SCREEN-VALUE,(LENGTH(cmbstr) + 1)) NO-LOCK NO-ERROR.
+      IF AVAILABLE felorsaktemp THEN DO:
+         CMB_FEL:PRIVATE-DATA = SUBSTITUTE("AND &1.FELOID = &2", tabellnamn, felorsaktemp.FELOID).
+      END.               
+   END.
+   ELSE DO:
+      FIND FIRST grundfeltyptemp WHERE grundfeltyptemp.NAMN = CMB_FEL:SCREEN-VALUE NO-LOCK NO-ERROR.
+      IF AVAILABLE grundfeltyptemp THEN DO: 
+         FOR FIRST felorsaktemp WHERE felorsaktemp.GRUNDFELID = grundfeltyptemp.GRUNDFELID BY FELOID.
+            CMB_FEL:PRIVATE-DATA = SUBSTITUTE("AND &1.FELOID GE &2", tabellnamn, felorsaktemp.FELOID).
+         END.
+         FOR LAST felorsaktemp WHERE felorsaktemp.GRUNDFELID = grundfeltyptemp.GRUNDFELID BY FELOID.
+            CMB_FEL:PRIVATE-DATA = CMB_FEL:PRIVATE-DATA + SUBSTITUTE(" AND &1.FELOID LE &2", tabellnamn, felorsaktemp.FELOID).
+         END.         
+      END.
+   END.                                                                                   
+END PROCEDURE.
+PROCEDURE vccmbbel_UI :
+   CMB_BEL:PRIVATE-DATA = "".
+   IF CMB_BEL:SCREEN-VALUE NE "Alla" THEN DO:
+      FIND FIRST stordriftomrtemp WHERE stordriftomrtemp.NAMN = CMB_BEL:SCREEN-VALUE NO-LOCK NO-ERROR.
+      IF AVAILABLE stordriftomrtemp THEN DO:
+         CMB_BEL:PRIVATE-DATA = SUBSTITUTE("AND &1.STDRIFTID = &2", tabellnamn, stordriftomrtemp.STDRIFTID).
+      END.       
+   END.   
+END PROCEDURE.
+PROCEDURE vccmbar_UI :
+   sistartal = INTEGER(CMB_AR:SCREEN-VALUE).   
+   RUN andraomr_UI.
+END PROCEDURE.
+PROCEDURE andraomr_UI :
+   DO WHILE CMB_OMR:NUM-ITEMS NE 0:
+      CMB_OMR:DELETE(ENTRY(1, CMB_OMR:LIST-ITEMS, ",")).
+   END.
+   OPEN QUERY oq FOR EACH stordistemp WHERE stordistemp.AVDELNINGNR = forvar AND 
+   stordistemp.ARTAL = sistartal NO-LOCK.
+   GET FIRST oq NO-LOCK.
+   DO WHILE AVAILABLE(stordistemp):
+      status-ok = CMB_OMR:ADD-LAST(STRING(stordistemp.NAMN)).
+      GET NEXT oq NO-LOCK.
+   END.
+   CLOSE QUERY oq.
+   IF Guru.Konstanter:globforetag = "GRAN" THEN DO:
+      FIND FIRST stordistemp WHERE stordistemp.AVDELNINGNR = forvar AND 
+      stordistemp.ARTAL = sistartal AND stordistemp.VIDISTRIKT = "1" NO-LOCK NO-ERROR.
+   END.
+   ELSE DO:
+      FIND FIRST stordistemp WHERE stordistemp.AVDELNINGNR = forvar AND 
+      stordistemp.ARTAL = sistartal NO-LOCK NO-ERROR.
+   END.
+   IF AVAILABLE stordistemp THEN DO:   
+      ASSIGN
+      CMB_OMR:SCREEN-VALUE = STRING(stordistemp.NAMN)
+      distvar = stordistemp.DISTRIKTID.
+   END.
+   ELSE DO:
+      FIND FIRST stordistemp WHERE stordistemp.AVDELNINGNR = forvar AND 
+      stordistemp.ARTAL = sistartal NO-LOCK NO-ERROR.
+      IF AVAILABLE stordistemp THEN DO:   
+         ASSIGN
+         CMB_OMR:SCREEN-VALUE = STRING(stordistemp.NAMN)
+         distvar = stordistemp.DISTRIKTID.
+      END.
+   END.
+   APPLY "VALUE-CHANGED" TO CMB_OMR.
+END PROCEDURE.
+
+PROCEDURE vccmbanl_UI :
+   CMB_ANL:PRIVATE-DATA = "".
+   IF CMB_ANL:SCREEN-VALUE = "Alla" THEN RETURN.
+   IF CMB_ANL:SCREEN-VALUE BEGINS cmbstr THEN DO:
+      FIND FIRST anlaggningsdeltemp WHERE anlaggningsdeltemp.NAMN = SUBSTRING(CMB_ANL:SCREEN-VALUE,(LENGTH(cmbstr) + 1)) NO-LOCK NO-ERROR.
+      IF AVAILABLE anlaggningsdeltemp THEN DO:
+         CMB_ANL:PRIVATE-DATA = SUBSTITUTE("AND &1.ADELID = &2", tabellnamn, anlaggningsdeltemp.ADELID).
+      END.
+   END.
+   ELSE DO:
+      FIND FIRST anlaggningstyptemp WHERE anlaggningstyptemp.NAMN = CMB_ANL:SCREEN-VALUE NO-LOCK NO-ERROR.
+      IF AVAILABLE anlaggningstyptemp THEN DO:
+         /* Special för STATIONER , dålig nummerserie för ATYPID */
+         IF anlaggningstyptemp.ATYPID = 1 THEN DO:
+            CMB_ANL:PRIVATE-DATA =  SUBSTITUTE("AND ( &1.ADELID GE 1 AND &1.ADELID LE 3 OR &1.ADELID = 25)", tabellnamn).
+         END.
+         ELSE DO:
+            FOR FIRST anlaggningsdeltemp WHERE anlaggningsdeltemp.ATYPID = anlaggningstyptemp.ATYPID BY ADELID.
+               CMB_ANL:PRIVATE-DATA = SUBSTITUTE("AND &1.ADELID GE &2", tabellnamn, anlaggningsdeltemp.ADELID).
+            END.
+            FOR LAST anlaggningsdeltemp WHERE anlaggningsdeltemp.ATYPID = anlaggningstyptemp.ATYPID BY ADELID.
+               CMB_ANL:PRIVATE-DATA = CMB_ANL:PRIVATE-DATA + SUBSTITUTE(" AND &1.ADELID LE &2", tabellnamn, anlaggningsdeltemp.ADELID).
+            END.
+         END.
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE btnny_UI :
+   {OMSTARTAVGURUH.I}
+   FIND FIRST avdelningtemp WHERE avdelningtemp.AVDELNINGNAMN = CMB_FOR:SCREEN-VALUE NO-LOCK NO-ERROR.
+   IF AVAILABLE avdelningtemp THEN forvar = avdelningtemp.AVDELNINGNR.
+   FIND FIRST stordistemp WHERE stordistemp.NAMN = CMB_OMR:SCREEN-VALUE AND 
+   stordistemp.ARTAL = sistartal AND stordistemp.AVDELNINGNR = forvar NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE stordistemp THEN DO: 
+      MESSAGE "För att skapa en störning måste det finnas ett distrikt." SKIP 
+         "Lägg upp ett nytt distrikt via administrationsknappen."
+         VIEW-AS ALERT-BOX TITLE "Meddelande".
+   END.
+   ELSE RUN nyandrastr_UI (INPUT 1).
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE nyandrastr_UI :
+   DEFINE INPUT PARAMETER nyandval AS INTEGER NO-UNDO.
+   IF nyandval = 1 THEN DO:
+      ny = TRUE.
+      {AVBGOM2.I}
+      RUN STORNAV.W.
+      IF musz = FALSE THEN DO:
+         RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+         FIND FIRST vstorntemp WHERE vstorntemp.STORNUMMERID = stornrid
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE vstorntemp THEN DO:
+            RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(vstorntemp)).
+            RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].           
+         END.
+      END.   
+      {AVBFRAM2.I}
+   END.
+   ELSE IF nyandval = 2 THEN DO:
+      DEFINE VARIABLE templogval AS LOGICAL NO-UNDO.
+      RUN urvalaktiv_UI IN brwproc[{&ARROWS}] (OUTPUT templogval).
+      IF templogval = TRUE THEN
+         antal_valda = BRW_URSTR:NUM-SELECTED-ROWS.
+      ELSE antal_valda = BRW_VSTR:NUM-SELECTED-ROWS. 
+      IF antal_valda = 0 THEN DO:      
+         MESSAGE "Ingen störning är markerad" VIEW-AS ALERT-BOX.
+         RETURN.                
+      END.
+      IF templogval = TRUE THEN DO: 
+         RUN fselectfoc_UI.         
+         stornrid = urstorntemp.STORNUMMERID.
+         distvar = urstorntemp.DISTRIKTID.
+         FIND FIRST vstorntemp WHERE vstorntemp.STORNUMMERID = stornrid
+            NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE vstorntemp THEN DO:
+            CREATE vstorntemp.
+            BUFFER-COPY urstorntemp TO vstorntemp.
+         END.
+      END.
+      ELSE DO: 
+         RUN fselectfoc_UI.         
+         stornrid = vstorntemp.STORNUMMERID.
+         distvar = vstorntemp.DISTRIKTID. 
+      END.
+      ny = FALSE.
+      {AVBGOM2.I}
+      RUN STORNAV.W.
+      {AVBFRAM2.I}
+      FIND FIRST vstorntemp WHERE vstorntemp.STORNUMMERID = stornrid NO-LOCK NO-ERROR.
+      IF AVAILABLE vstorntemp THEN DO:
+         RUN gorlika_UI IN brwproc[{&ARROWS}] (INPUT "STORNUMMERID", INPUT "DISTRIKTID").
+         RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(vstorntemp)).
+         RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").  
+         RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].
+      END. 
+   END.
+   FIND FIRST avdelningtemp WHERE avdelningtemp.AVDELNINGNR = forvar NO-LOCK NO-ERROR.
+   CMB_FOR:SCREEN-VALUE = avdelningtemp.AVDELNINGNAMN.
+   sistartalspar = sistartal.
+   distvarspar = distvar.
+   APPLY "VALUE-CHANGED" TO CMB_FOR.   
+   sistartal = sistartalspar.
+   distvar = distvarspar.
+   FIND FIRST stordistemp WHERE stordistemp.DISTRIKTID = distvar NO-LOCK NO-ERROR.
+   CMB_OMR:SCREEN-VALUE = stordistemp.NAMN.
+   CMB_AR:SCREEN-VALUE = STRING(sistartal).
+END PROCEDURE.
+
+PROCEDURE btnhamt_UI :
+   BTN_HAMT:LOAD-IMAGE("BILDER\xbtn_hamt_over.gif") NO-ERROR.
+   BRW_URSTR:TOOLTIP = "".
+   RUN storapp_UI.
+   BTN_HAMT:LOAD-IMAGE("BILDER\xbtn_hamt.gif") NO-ERROR.
+END PROCEDURE.
+PROCEDURE storapp_UI :
+   {OMSTARTAVGURUH.I}
+   FIND FIRST stordistemp WHERE stordistemp.NAMN = CMB_OMR:SCREEN-VALUE AND stordistemp.ARTAL = sistartal AND
+   stordistemp.AVDELNINGNR = forvar NO-LOCK NO-ERROR.
+   EMPTY TEMP-TABLE urstorntemp NO-ERROR. 
+   IF AVAILABLE stordistemp THEN DO:
+      distvar = stordistemp.DISTRIKTID.
+      kommandoq = SUBSTITUTE("FOR EACH &1 WHERE &1.DISTRIKTID = &2 AND &1.STORTYPID = &3 &4 &5 &6 &7 &8 NO-LOCK.", 
+                             tabellnamn, distvar, RAD_VAL:SCREEN-VALUE, CMB_FEL:PRIVATE-DATA, CMB_BEL:PRIVATE-DATA,
+                             CMB_SYS:PRIVATE-DATA, CMB_SYS2:PRIVATE-DATA, CMB_ANL:PRIVATE-DATA).  
+      
+      RUN hamtaurval_UI IN strproch(INPUT kommandoq, OUTPUT TABLE urstorntemp).  
+      RUN settitlenum_UI IN brwproc[{&LEFT-BROWSE}] (INPUT TRUE).
+      RUN openbdyn_UI IN brwproc[{&LEFT-BROWSE}] (INPUT "").
+      RUN fetchselrowid_UI IN brwproc[{&LEFT-BROWSE}].      
+      {musarrow.i}
+   END.
+   ELSE RUN openbdyn_UI IN brwproc[{&LEFT-BROWSE}] (INPUT "").
+END PROCEDURE.
+
+PROCEDURE bort_UI :
+   RUN selectfoc_UI.    
+   {OMSTARTAVGURUH.I}
+   IF NOT AVAILABLE vstorntemp THEN RETURN.
+   
+   MESSAGE "Vill du ta bort störning:" + STRING(vstorntemp.VSTORNUMMER) + " benämning:" 
+      + vstorntemp.BENAMNING + "?" VIEW-AS ALERT-BOX QUESTION 
+      BUTTONS YES-NO TITLE "Ta bort?" UPDATE svar AS LOGICAL.   
+   IF svar = TRUE THEN DO:
+      RUN tabortstorning_UI IN strproch (INPUT vstorntemp.STORNUMMERID, INPUT vstorntemp.DISTRIKTID, OUTPUT strreturn).
+      IF strreturn = FALSE THEN DO:
+         RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(vstorntemp)).
+         FIND FIRST urstorntemp WHERE urstorntemp.STORNUMMERID = vstorntemp.STORNUMMERID NO-LOCK NO-ERROR.
+         IF AVAILABLE urstorntemp THEN DELETE urstorntemp.
+         IF AVAILABLE vstorntemp THEN DELETE vstorntemp.        
+         RUN selnextprevrow_UI IN brwproc[{&RIGHT-BROWSE}]. 
+         RUN refreshbrw_UI IN brwproc[{&LEFT-BROWSE}].
+         RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+         RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].
+      END.
+      ELSE DO:
+         MESSAGE "Kunde ej ta bort störning!" VIEW-AS ALERT-BOX.
+         strreturn = FALSE.
+      END.
+   END.
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE vcbrwvstr_UI :
+   IF BRW_VSTR:NUM-SELECTED-ROWS > 0 THEN DO:   
+      FIND FIRST vstorntemp WHERE ROWID(vstorntemp) = vstortemph:ROWID NO-LOCK NO-ERROR.
+      IF vstorntemp.KOMMENTAR NE "" THEN BRW_VSTR:TOOLTIP = "Störningsanmärkning:" + CHR(10) + vstorntemp.KOMMENTAR.
+   END.
+   ELSE BRW_VSTR:TOOLTIP = "".
+END PROCEDURE.
+PROCEDURE mdbrwvstr_UI :
+   APPLY "CHOOSE" TO FBTN_AND.
+END PROCEDURE.
+PROCEDURE vcbrwurstr_UI :
+   IF BRW_URSTR:NUM-SELECTED-ROWS > 0 THEN DO:   
+      FIND FIRST urstorntemp WHERE ROWID(urstorntemp) = urstortemph:ROWID NO-LOCK NO-ERROR.
+      IF urstorntemp.KOMMENTAR NE "" THEN BRW_URSTR:TOOLTIP = "Störningsanmärkning:" + CHR(10) + urstorntemp.KOMMENTAR.
+   END.
+   ELSE BRW_URSTR:TOOLTIP = "".
+END PROCEDURE.
+PROCEDURE PlaceraKnapp_UI :
+   Guru.GlobalaVariabler:StartRadForKnappar = BRW_VSTR:ROW.
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_AND).          
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_RAPP).              
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_ADM).              
+   Guru.Konstanter:PlaceraKnapparLodratt(BTN_DARWINpANV).              
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_LAS).           
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_VIS).
+   Guru.Konstanter:PlaceraKnapparLodratt(BTN_HAOF).
+   Guru.Konstanter:PlaceraKnapparLodratt(BTN_AOF).
+   RUN placeracmb_UI .
+END PROCEDURE.
+
+PROCEDURE placeraCmb_UI :
+   Guru.GlobalaVariabler:StartRadForKnappar = CMB_FOR:ROW.
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_FOR).
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_OMR).
+   CMB_AR:ROW = CMB_OMR:ROW.
+   Guru.GlobalaVariabler:StartRadForKnappar = CMB_ANL:ROW.
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_ANL).
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_SYS).
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_SYS2).
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_BEL).
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_FEL).
+   Guru.GlobalaVariabler:StartKolumnForKnappar = CMB_AR:COLUMN + CMB_AR:WIDTH-CHARS + 10.  
+   Guru.Konstanter:PlaceraKnapparVagratt(CMB_ANL,FALSE).
+   Guru.Konstanter:PlaceraKnapparVagratt(CMB_SYS,FALSE).
+   Guru.Konstanter:PlaceraKnapparVagratt(CMB_SYS2,FALSE).
+   Guru.Konstanter:PlaceraKnapparVagratt(CMB_BEL,FALSE).
+   Guru.Konstanter:PlaceraKnapparVagratt(CMB_FEL,FALSE).     
+END PROCEDURE.
+PROCEDURE buttplac_UI :
+   Guru.GlobalaVariabler:collefth = ?.
+   IF Guru.Konstanter:storsekvar[2] = TRUE THEN DO:
+      FBTN_AND:HIDDEN = FALSE.          
+      Guru.GlobalaVariabler:colrighth = FBTN_AND:HANDLE.           
+      RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   END.
+   ELSE FBTN_AND:HIDDEN = TRUE.   
+   IF Guru.Konstanter:storsekvar[5] = TRUE THEN DO:
+      FBTN_RAPP:HIDDEN = FALSE.              
+      Guru.GlobalaVariabler:colrighth = FBTN_RAPP:HANDLE.         
+      RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   END.
+   ELSE FBTN_RAPP:HIDDEN = TRUE.
+   IF Guru.Konstanter:storsekvar[6] = TRUE THEN DO:
+       FBTN_ADM:HIDDEN = FALSE.              
+      Guru.GlobalaVariabler:colrighth = FBTN_ADM:HANDLE.         
+      RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   END.
+   ELSE FBTN_ADM:HIDDEN = TRUE.
+   IF Guru.Konstanter:storsekvar[8] = TRUE THEN DO:
+      BTN_DARWINpANV:HIDDEN = FALSE.              
+      Guru.GlobalaVariabler:colrighth = BTN_DARWINpANV:HANDLE.         
+      RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   END.
+   ELSE BTN_DARWINpANV:HIDDEN = TRUE.   
+   IF Guru.Konstanter:storsekvar[7] = TRUE THEN DO:
+       FBTN_LAS:HIDDEN = FALSE.           
+      Guru.GlobalaVariabler:colrighth = FBTN_LAS:HANDLE.         
+      RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   END.
+   ELSE FBTN_LAS:HIDDEN = TRUE.
+   IF Guru.Konstanter:storsekvar[4] = TRUE THEN DO:
+      FBTN_VIS:HIDDEN = FALSE.
+      Guru.GlobalaVariabler:colrighth = FBTN_VIS:HANDLE.         
+      RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   END.
+   ELSE FBTN_VIS:HIDDEN = TRUE.
+   BTN_HAOF:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = BTN_HAOF:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).      
+   BTN_AOF:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = BTN_AOF:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).      
+END PROCEDURE.
+PROCEDURE main_UI :
+   c-win:TITLE = "Störningsregister" + "-" + "Systemsupport 090/184540    elpool.ume@elpool.se".
+   {OMSTARTAVGURUH.I} 
+   {ALLSTARTDYN.I}         
+   xhop = "STOR".  
+   IF Guru.Konstanter:storsekvar[1] = TRUE THEN BTN_NY:HIDDEN = FALSE.       
+   ELSE BTN_NY:HIDDEN = TRUE.
+   IF Guru.Konstanter:storsekvar[3] = TRUE THEN BTN_BORT:HIDDEN = FALSE.       
+   ELSE BTN_BORT:HIDDEN = TRUE.
+   
+END PROCEDURE.
+PROCEDURE andraartal_UI :
+   FIND FIRST avdelningtemp WHERE avdelningtemp.AVDELNINGNAMN = CMB_FOR:SCREEN-VALUE NO-LOCK NO-ERROR.
+   FIND FIRST stordistemp WHERE stordistemp.AVDELNINGNR = avdelningtemp.AVDELNINGNR NO-LOCK NO-ERROR.
+   IF AVAILABLE stordistemp THEN DO:
+      DO WHILE CMB_AR:NUM-ITEMS NE 0:
+         CMB_AR:DELETE(ENTRY(1, CMB_AR:LIST-ITEMS, ",")).
+      END.
+      FIND FIRST avdelningtemp WHERE avdelningtemp.AVDELNINGNAMN = CMB_FOR:SCREEN-VALUE
+      NO-LOCK NO-ERROR.
+      forvar = avdelningtemp.AVDELNINGNR.
+      OPEN QUERY aq FOR EACH stordistemp WHERE stordistemp.AVDELNINGNR = forvar NO-LOCK BY ARTAL.
+      GET FIRST aq NO-LOCK.
+      sistartal = 0.
+      DO WHILE AVAILABLE(stordistemp):
+         IF sistartal NE stordistemp.ARTAL THEN DO:
+            sistartal = stordistemp.ARTAL.
+            status-ok = CMB_AR:ADD-FIRST(STRING(stordistemp.ARTAL)).
+         END.
+         GET NEXT aq NO-LOCK.
+      END.
+      CLOSE QUERY aq.
+      CMB_AR:SCREEN-VALUE = STRING(sistartal).
+      RUN andraomr_UI.      
+   END.
+   ELSE DO:
+      MESSAGE "Det finns inget distrikt upplagt för " + avdelningtemp.AVDELNINGNAMN
+      VIEW-AS ALERT-BOX TITLE "Meddelande".
+      FIND FIRST avdelningtemp WHERE avdelningtemp.AVDELNINGNR = forvar NO-LOCK NO-ERROR.
+      CMB_FOR:SCREEN-VALUE = avdelningtemp.AVDELNINGNAMN.      
+   END.
+                           
+END PROCEDURE.
+PROCEDURE laddacmbfor_UI :
+   ASSIGN
+   CMB_FOR:LIST-ITEMS = ""
+   CMB_AR:LIST-ITEMS = ""
+   CMB_OMR:LIST-ITEMS = ""
+   CMB_SYS:LIST-ITEMS = ""
+   CMB_SYS2:LIST-ITEMS = ""
+   CMB_FEL:LIST-ITEMS = ""
+   CMB_BEL:LIST-ITEMS = ""
+   CMB_ANL:LIST-ITEMS = "".
+   CMB_FOR:DELIMITER = "$". 
+   FOR EACH avdelningtemp USE-INDEX AVDELNINGNR NO-LOCK:
+      IF avdelningtemp.KOSTMASK = 0 THEN DELETE avdelningtemp.
+      ELSE IF Guru.Konstanter:globforetag = "GRAN" THEN DO:
+         IF avdelningtemp.AVDELNINGNR >= 64 THEN DO:
+            CMB_FOR:ADD-LAST(avdelningtemp.AVDELNINGNAMN).                        
+         END.
+      END.
+      ELSE DO:
+         CMB_FOR:ADD-LAST(avdelningtemp.AVDELNINGNAMN).         
+      END.      
+   END.   
+   IF Guru.Konstanter:globforetag = "GRAN" THEN DO:
+      FIND FIRST avdelningtemp WHERE avdelningtemp.AVDELNINGNR >= 64 
+      USE-INDEX AVDELNINGNR NO-LOCK NO-ERROR.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "BORL" THEN DO:
+      FIND FIRST avdelningtemp WHERE avdelningtemp.AVDELNINGNR = 23 
+      USE-INDEX AVDELNINGNR NO-LOCK NO-ERROR.
+   END.
+   ELSE DO:   
+      FIND FIRST avdelningtemp USE-INDEX AVDELNINGNR NO-LOCK NO-ERROR.
+      FIND FIRST stordistemp WHERE stordistemp.AVDELNINGNR = avdelningtemp.AVDELNINGNR NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE stordistemp THEN DO:
+         FIND LAST stordistemp NO-LOCK NO-ERROR.
+         FIND FIRST avdelningtemp WHERE avdelningtemp.AVDELNINGNR = stordistemp.AVDELNINGNR NO-LOCK NO-ERROR.      
+      END.
+   END.      
+   ASSIGN
+   forvar = avdelningtemp.AVDELNINGNR
+   CMB_FOR:SCREEN-VALUE = avdelningtemp.AVDELNINGNAMN.
+    /* Sökningstillägg */
+   OPEN QUERY sysq FOR EACH inlastabtemp WHERE inlastabtemp.INKOD = "D" NO-LOCK.
+   GET FIRST sysq NO-LOCK.
+   DO WHILE AVAILABLE(inlastabtemp):
+      IF inlastabtemp.INKODPOSCH NE "" THEN DO:
+         IF inlastabtemp.INKODTYP = "1" THEN DO:
+            FIND FIRST spanningsnivtemp WHERE spanningsnivtemp.INKODID = 
+            inlastabtemp.INKODID NO-LOCK NO-ERROR.
+            IF AVAILABLE spanningsnivtemp THEN DO:
+               CMB_SYS:ADD-LAST(spanningsnivtemp.NAMN).
+            END.
+         END.
+         ELSE DO:
+            FIND FIRST spanningsnivtemp WHERE spanningsnivtemp.INKODID = 
+            inlastabtemp.INKODID NO-LOCK NO-ERROR.
+            IF AVAILABLE spanningsnivtemp THEN DO:
+               CMB_SYS2:ADD-LAST(spanningsnivtemp.NAMN).
+            END.
+         END.
+      END.
+      GET NEXT sysq NO-LOCK.
+   END.   
+   CLOSE QUERY sysq.
+   CMB_SYS:ADD-FIRST("Alla").
+   CMB_SYS2:ADD-FIRST("Alla").
+   CMB_SYS:SCREEN-VALUE = "Alla".
+   CMB_SYS2:SCREEN-VALUE = "Alla".   
+   FOR EACH anlaggningstyptemp USE-INDEX ATYPID NO-LOCK:
+      CMB_ANL:ADD-LAST(anlaggningstyptemp.NAMN).
+      CMB_ANL:DELIMITER = "$".
+      FOR EACH anlaggningsdeltemp WHERE anlaggningsdeltemp.ATYPID = anlaggningstyptemp.ATYPID NO-LOCK:
+         CMB_ANL:ADD-LAST(cmbstr + anlaggningsdeltemp.NAMN).
+      END.         
+   END.
+   CMB_ANL:ADD-FIRST("Alla").
+   CMB_ANL:SCREEN-VALUE = "Alla".
+   FOR EACH grundfeltyptemp USE-INDEX GRUNDFELID NO-LOCK:
+      CMB_FEL:ADD-LAST(grundfeltyptemp.NAMN).
+      CMB_FEL:DELIMITER = "$".
+      FOR EACH felorsaktemp WHERE felorsaktemp.GRUNDFELID = grundfeltyptemp.GRUNDFELID NO-LOCK:
+         CMB_FEL:ADD-LAST(cmbstr + felorsaktemp.NAMN).
+      END.
+   END.
+   CMB_FEL:ADD-FIRST("Alla").
+   CMB_FEL:SCREEN-VALUE = "Alla".   
+   CMB_BEL:DELIMITER = "$".
+   FOR EACH stordriftomrtemp USE-INDEX STDRIFTID NO-LOCK:
+      CMB_BEL:ADD-LAST(stordriftomrtemp.NAMN).
+   END.
+   CMB_BEL:ADD-FIRST("Alla").
+   CMB_BEL:SCREEN-VALUE = "Alla".
+   ASSIGN
+   CMB_SYS:PRIVATE-DATA = ""
+   CMB_SYS2:PRIVATE-DATA = ""
+   CMB_FEL:PRIVATE-DATA = ""   
+   CMB_BEL:PRIVATE-DATA = ""
+   CMB_ANL:PRIVATE-DATA = "".
+END PROCEDURE.
+
+PROCEDURE laddatemptables_UI :
+   tthandle = TEMP-TABLE stordistemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "STORDISTRIKT").
+   FIND LAST stordistemp WHERE NO-LOCK NO-ERROR.
+   tthandle = TEMP-TABLE inlastabtemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "INLASTAB").
+   tthandle = TEMP-TABLE spanningsnivtemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "SPANNINGSNIV").
+   tthandle = TEMP-TABLE brytorgantemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "BRYTORGAN").
+   tthandle = TEMP-TABLE sektioneringtemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "SEKTIONERING").
+   tthandle = TEMP-TABLE utlosningskyddtemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "UTLOSNINGSKYDD").
+   tthandle = TEMP-TABLE relaindikeringtemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "RELAINDIKERING").
+   tthandle = TEMP-TABLE stordriftomrtemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "STORDRIFTOMR").
+   tthandle = TEMP-TABLE nattyptemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "NATTYP").
+   tthandle = TEMP-TABLE anlaggningstyptemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "ANLAGGNINGSTYP").
+   tthandle = TEMP-TABLE anlaggningsdeltemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "ANLAGGNINGSDEL").
+   tthandle = TEMP-TABLE grundfeltyptemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "GRUNDFELTYP").
+   tthandle = TEMP-TABLE felorsaktemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "FELORSAK").
+   tthandle = TEMP-TABLE bortkoppladtemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "BORTKOPPLAD").                                                                 
+   tthandle = TEMP-TABLE anvandartemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "ANVANDARE").       
+   RUN laddaavdelningtemp_UI IN strproch (OUTPUT TABLE avdelningtemp).
+   /*slå ihop spänning*/
+     
+   FIND FIRST spanningsnivtemp WHERE spanningsnivtemp.SPANID = 9 NO-LOCK NO-ERROR.
+   IF AVAILABLE spanningsnivtemp THEN DELETE spanningsnivtemp.
+   FIND FIRST spanningsnivtemp WHERE spanningsnivtemp.SPANID = 20 NO-LOCK NO-ERROR.
+   IF AVAILABLE spanningsnivtemp THEN DO: 
+      CREATE utgspanningsnivtemp.
+      BUFFER-COPY spanningsnivtemp TO utgspanningsnivtemp.
+      DELETE spanningsnivtemp.
+   END.
+  
+END PROCEDURE.
+
+PROCEDURE allstartbrw_UI :
+   DEFINE VARIABLE korextra AS LOGICAL NO-UNDO.
+   korextra = FALSE.
+   IF NOT VALID-HANDLE(brwproc[{&LEFT-BROWSE}]) THEN RUN DYNBRW.P PERSISTENT SET brwproc[{&LEFT-BROWSE}] (INPUT BRW_URSTR).
+   IF NOT VALID-HANDLE(brwproc[{&RIGHT-BROWSE}]) THEN RUN DYNBRW.P PERSISTENT SET brwproc[{&RIGHT-BROWSE}] (INPUT BRW_VSTR).
+   IF NOT VALID-HANDLE(brwproc[{&ARROWS}]) THEN DO:
+      RUN DYNARROW.P PERSISTENT SET brwproc[{&ARROWS}]
+      (INPUT BRW_URSTR, INPUT BRW_VSTR,
+       INPUT BTN_OVER, INPUT BTN_ALLOVER,
+       INPUT BTN_ALLBACK, INPUT BTN_BACK).
+      RUN addfillin_UI IN brwproc[{&ARROWS}]
+         (INPUT FILL-IN-BEN, INPUT "ANVANDARE").
+      RUN addfillin_UI IN brwproc[{&ARROWS}]
+         (INPUT FILL-IN-BEN2, INPUT "ANSVARIGPERS").
+      RUN addfillin_UI IN brwproc[{&ARROWS}]
+         (INPUT FILL-IN-STOR, INPUT "HDATUM").
+   END.
+   IF NOT VALID-HANDLE(strproch) THEN korextra = TRUE.
+   IF NOT VALID-HANDLE(strproch) THEN DO:
+      RUN hmtfavoriter_UI.                         
+   END.
+   IF Guru.Konstanter:appcon THEN DO:                           
+      IF NOT VALID-HANDLE(strproch) THEN DO:
+         RUN STORHMT.P PERSISTENT SET strproch ON Guru.Konstanter:apphand TRANSACTION DISTINCT.
+         RUN laddatemptables_UI.
+      END.
+   END.
+   ELSE DO:
+      IF NOT VALID-HANDLE(strproch) THEN DO:
+         RUN STORHMT.P PERSISTENT SET strproch.       
+         RUN laddatemptables_UI.
+      END.
+   END.     
+   IF korextra = TRUE THEN DO:
+      korextra = FALSE.
+      RUN korextra_UI.
+      RUN buttplac_UI.
+   END.
+END PROCEDURE.
+
+PROCEDURE korextra_UI :
+
+   FIND FIRST avdelningtemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE avdelningtemp THEN DO:
+      MESSAGE "Ni måste lägga upp ett företag innan ni kan börja använda störning."
+         VIEW-AS ALERT-BOX TITLE "Meddelande!".
+      RUN STORFORE.W.
+      MESSAGE "Ett distrikt måste läggas upp för företaget!"
+         VIEW-AS ALERT-BOX TITLE "Meddelande!".
+      RUN STORDIST.W.
+   END.   
+   RUN laddacmbfor_UI. 
+   RUN andraartal_UI.
+   ASSIGN
+   RAD_VAL:SCREEN-VALUE = STRING(1)   
+   FILL-IN-STOR:SCREEN-VALUE = STRING(TODAY).
+   IF valprog = 1 THEN musz = musz.
+   ELSE DO:
+      IF valprog = 2 THEN APPLY "CHOOSE" TO FBTN_RAPP .
+      ELSE IF valprog = 3 THEN APPLY "CHOOSE" TO FBTN_ADM .
+      ELSE IF valprog = 4 THEN APPLY "CHOOSE" TO FBTN_LAS .      
+   END.
+END PROCEDURE.
+
+
+PROCEDURE sparaaofavoriter_UI :
+   tthandle = TEMP-TABLE vstorntemp:HANDLE.
+   FIND FIRST sparaladdatemp NO-ERROR.
+   IF NOT AVAILABLE sparaladdatemp THEN CREATE sparaladdatemp.
+   ASSIGN
+   sparaladdatemp.GLOBANV = Guru.Konstanter:globanv /*Användare, i detta fall ELPAO*/
+   sparaladdatemp.BENAMNING = "STOR" /*Benämnings sufix, i detta fall ELPAO$STOR*/
+   sparaladdatemp.TABVAL = "STORNINGSTAB" /*Tabellnamn*/
+   sparaladdatemp.FALTVALAO = "" /*Character field*/
+   sparaladdatemp.FALTVALDEL = "STORNUMMERID" /*Integer field*/
+   sparaladdatemp.FALTVALDATE = "".  /*DATE field*/
+   RUN sparabrw_UI IN brwproc[{&RIGHT-BROWSE}] 
+      (INPUT TABLE-HANDLE tthandle, INPUT TABLE sparaladdatemp).
+END PROCEDURE.
+PROCEDURE avb_UI : 
+   MESSAGE "Du avslutar nu " + SUBSTRING(foretemp.VERSION,1,10)
+   VIEW-AS ALERT-BOX QUESTION BUTTONS OK-CANCEL UPDATE val AS LOGICAL.   
+   IF val = FALSE THEN RETURN NO-APPLY.   
+   IF VALID-HANDLE(StorningHelpStartH) THEN DELETE PROCEDURE StorningHelpStartH NO-ERROR.
+   StorningHelpStartH= ?.
+   RUN avb_UI IN huvprogh.   
+END PROCEDURE.
+
+   
+PROCEDURE borthand_UI :
+   vstortemph:EMPTY-TEMP-TABLE() NO-ERROR.    
+   IF VALID-HANDLE(vstortemph) THEN   DELETE OBJECT vstortemph NO-ERROR.
+   vstortemph = ?.     
+   {BORTBRWPROC.I}
+
+   IF VALID-HANDLE(strproch) THEN DELETE PROCEDURE strproch.   
+END PROCEDURE.  
+

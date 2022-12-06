@@ -1,0 +1,161 @@
+/*PLANARFAST.P*/
+FUNCTION mannamn RETURNS CHARACTER
+  ( INPUT varfaktyp AS INTEGER):
+   IF varfaktyp = 1 THEN RETURN "januari".
+   IF varfaktyp = 2 THEN RETURN "februari".
+   IF varfaktyp = 3 THEN RETURN "mars".
+   IF varfaktyp = 4 THEN RETURN "april".
+   IF varfaktyp = 5 THEN RETURN "maj".
+   IF varfaktyp = 6 THEN RETURN "juni".
+   IF varfaktyp = 7 THEN RETURN "juli".
+   IF varfaktyp = 8 THEN RETURN "augusti".  
+   IF varfaktyp = 9 THEN RETURN "septemper".
+   IF varfaktyp = 10 THEN RETURN "oktober".  
+   IF varfaktyp = 11 THEN RETURN "november".
+   IF varfaktyp = 12 THEN RETURN "december".
+END FUNCTION.
+/*
+DEFINE TEMP-TABLE faktaonrtemp  
+   FIELD FAKTNR LIKE FAKTAONR.FAKTNR
+   FIELD AONR LIKE AONRTAB.AONR
+   FIELD DELNR LIKE AONRTAB.DELNR
+   FIELD ORT LIKE AONRTAB.ORT
+   FIELD OMRADE LIKE AONRTAB.OMRADE
+   FIELD AONRAVDATUM LIKE AONRTAB.AONRAVDATUM
+   FIELD STARTDATUM LIKE AONRTAB.STARTDATUM          
+   FIELD KALKPRIS LIKE KALKSPEC.KALKPRIS
+   FIELD GDATUM AS INTEGER
+   FIELD OPRIS LIKE FAKTAONR.OPRIS
+   INDEX AONR IS PRIMARY AONR DELNR.
+   */
+&Scoped-define NEW NEW 
+{FAKTTEMP.I}
+DEFINE INPUT PARAMETER varifran AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER hurmanga AS INTEGER NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETER totpris AS DECIMAL NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR faktaonrtemp.
+DEFINE VARIABLE nrfakt AS INTEGER NO-UNDO.
+DEFINE VARIABLE nrhjalp AS INTEGER NO-UNDO.
+IF varifran = 1 THEN DO:
+   FIND FIRST faktaonrtemp NO-ERROR.
+   IF NOT AVAILABLE faktaonrtemp THEN RETURN.
+   nrfakt = faktaonrtemp.FAKTNR.
+   FOR EACH faktaonrtemp:
+      DO TRANSACTION:
+         FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = nrfakt AND FAKTAONR.AONR = faktaonrtemp.AONR AND
+         FAKTAONR.DELNR = faktaonrtemp.DELNR EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE FAKTAONR THEN DO:
+            CREATE FAKTAONR.
+            BUFFER-COPY faktaonrtemp TO FAKTAONR.
+         END.
+         IF AVAILABLE FAKTAONR THEN DO:
+            /*EXTRAPRIS = TOTAL ALLA ÅR
+            KALKPRIS = FÖRRA ÅRET
+            OPRIS = SENASTE ÅRET
+            */
+
+            IF FAKTAONR.EXTRAPRIS = 0 THEN FAKTAONR.EXTRAPRIS = FAKTAONR.OPRIS.
+            FAKTAONR.KALKPRIS = FAKTAONR.OPRIS.
+            FAKTAONR.OPRIS = 0.
+            ASSIGN
+            FAKTAONR.OPRIS = faktaonrtemp.OPRIS
+            FAKTAONR.EXTRAPRIS = FAKTAONR.EXTRAPRIS + faktaonrtemp.OPRIS.
+         END.      
+      END.
+   END.
+   /*
+   OPEN QUERY fq FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = nrfakt NO-LOCK.
+   GET FIRST fq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTAONR):
+      DO TRANSACTION:
+         GET CURRENT fq EXCLUSIVE-LOCK.
+         IF FAKTAONR.EXTRAPRIS = 0 THEN FAKTAONR.EXTRAPRIS = FAKTAONR.OPRIS.
+         FAKTAONR.KALKPRIS = FAKTAONR.OPRIS.
+         FAKTAONR.OPRIS = 0.
+         FIND FIRST faktaonrtemp WHERE faktaonrtemp.AONR = FAKTAONR.AONR AND
+         faktaonrtemp.DELNR = FAKTAONR.DELNR NO-ERROR.
+         ASSIGN
+         FAKTAONR.OPRIS = faktaonrtemp.OPRIS
+         FAKTAONR.EXTRAPRIS = FAKTAONR.EXTRAPRIS + faktaonrtemp.OPRIS.
+      END.
+      GET NEXT fq NO-LOCK.
+   END.
+   */
+   REPEAT:
+      IF hurmanga = 1 THEN nrhjalp = nrhjalp + 12.
+      IF hurmanga = 2 THEN nrhjalp = nrhjalp + 6.
+      IF hurmanga = 3 THEN nrhjalp = nrhjalp + 4.
+      IF hurmanga = 4 THEN nrhjalp = nrhjalp + 3.
+      IF hurmanga = 5 THEN nrhjalp = nrhjalp + 1.
+      IF hurmanga = 6 THEN nrhjalp = nrhjalp + 2.
+      IF hurmanga = 7 THEN nrhjalp = nrhjalp + 1.
+      IF hurmanga = 8 THEN nrhjalp = nrhjalp + 1.
+      IF hurmanga = 9 THEN nrhjalp = nrhjalp + 1.
+      IF hurmanga = 10 THEN nrhjalp = nrhjalp + 1.
+      IF hurmanga = 11 THEN nrhjalp = nrhjalp + 1.
+      IF hurmanga = 12 THEN nrhjalp = nrhjalp + 1.
+      IF nrhjalp > 12 THEN LEAVE.
+      IF hurmanga = 6 THEN DO:
+          nrhjalp = nrhjalp.
+      END.
+      ELSE IF hurmanga >= 5 THEN DO:
+         IF nrhjalp > hurmanga THEN LEAVE.   
+      END.
+      DO TRANSACTION:
+         CREATE FAKTSTART.
+         ASSIGN
+         FAKTSTART.BELOPP = totpris / hurmanga
+         FAKTSTART.FAKTNR = nrfakt
+         FAKTSTART.FAKTURERAD = FALSE
+         FAKTSTART.ORDNING = 2 
+         FAKTSTART.START = ""
+         FAKTSTART.PLAN% = INTEGER(100 / hurmanga).
+         FAKTSTART.FRITEXT = mannamn(nrhjalp). 
+         IF nrhjalp = 12 THEN FAKTSTART.PLANDATUM = DATE(nrhjalp,31,YEAR(TODAY)).
+         ELSE FAKTSTART.PLANDATUM = DATE(nrhjalp + 1,01,YEAR(TODAY)) - 1.              
+      END.      
+   END.   
+END.
+IF varifran = 2 THEN DO:
+   totpris = 0.
+   FIND FIRST faktaonrtemp NO-ERROR.
+   IF NOT AVAILABLE faktaonrtemp THEN RETURN.
+   nrfakt = faktaonrtemp.FAKTNR.     
+   OPEN QUERY fsq FOR EACH FAKTSTART WHERE FAKTSTART.FAKTNR = nrfakt AND 
+   YEAR(FAKTSTART.PLANDATUM) = YEAR(TODAY) NO-LOCK.
+   GET FIRST fsq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTSTART):
+      IF FAKTSTART.START = "START" OR FAKTSTART.START = "SLUT" THEN varifran = varifran.
+      ELSE DO TRANSACTION:
+         GET CURRENT fsq EXCLUSIVE-LOCK.
+         DELETE FAKTSTART.
+      END.
+      GET NEXT fsq NO-LOCK.
+   END.
+   OPEN QUERY fq FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = nrfakt 
+   NO-LOCK.
+   GET FIRST fq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTAONR):
+      DO TRANSACTION:
+         GET CURRENT fq EXCLUSIVE-LOCK.
+         /*EXTRAPRIS = TOTAL ALLA ÅR
+            KALKPRIS = FÖRRA ÅRET
+            OPRIS = SENASTE ÅRET
+            */
+         FAKTAONR.EXTRAPRIS = FAKTAONR.EXTRAPRIS - FAKTAONR.OPRIS.
+         FAKTAONR.OPRIS = FAKTAONR.KALKPRIS.         
+         
+         FIND FIRST faktaonrtemp WHERE faktaonrtemp.AONR = FAKTAONR.AONR AND
+         faktaonrtemp.DELNR = FAKTAONR.DELNR AND faktaonrtemp.FAKTNR = nrfakt NO-ERROR.
+         BUFFER-COPY  FAKTAONR  TO faktaonrtemp.
+         /*
+         ASSIGN
+         faktaonrtemp.OPRIS = FAKTAONR.OPRIS.
+         */
+      END.
+      GET NEXT fq NO-LOCK.
+   END.
+   FOR EACH faktaonrtemp WHERE faktaonrtemp.FAKTNR = nrfakt:
+      totpris = totpris + faktaonrtemp.OPRIS.
+   END.
+END.

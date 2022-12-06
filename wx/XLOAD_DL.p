@@ -1,0 +1,64 @@
+/*XLOAD_DL.P*/
+DEFINE VARIABLE lvar      AS CHARACTER EXTENT 10 NO-UNDO.
+DEFINE VARIABLE lvar#     AS INTEGER             NO-UNDO.
+DEFINE VARIABLE i         AS INTEGER             NO-UNDO.
+DEFINE VARIABLE codepage  AS CHARACTER           NO-UNDO init "UNDEFINED".
+DEFINE VARIABLE irecs     AS INTEGER             NO-UNDO.
+DEFINE VARIABLE d-ldbname AS CHARACTER           NO-UNDO.
+DEFINE VARIABLE d-was     AS CHARACTER           NO-UNDO.
+DEFINE VARIABLE numformat AS CHARACTER           NO-UNDO.
+DEFINE VARIABLE maptype   AS CHARACTER           NO-UNDO.
+
+DEFINE VARIABLE kommando AS CHARACTER NO-UNDO.
+DEFINE VARIABLE prog_namn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kommandoprog AS CHARACTER  NO-UNDO.
+define temp-table ttb_dump
+        field db        as character
+        field tbl       as character
+        field DUMP       as character
+        index upi is primary unique db tbl.
+
+DEFINE TEMP-TABLE infil
+   FIELD PROGNAMN AS CHARACTER  
+   INDEX PRO IS PRIMARY PROGNAMN.
+codepage = "iso8859-1".
+prog_namn = "/u10/guru/import/".
+kommandoprog = "C:\delad\PRO8\GURU\IMPORT\aoin.txt".
+INPUT FROM VALUE(kommandoprog) NO-ECHO.
+REPEAT:
+   DO TRANSACTION: 
+      CREATE infil.
+      ASSIGN.
+      IMPORT infil NO-ERROR.
+   END.   
+END.
+INPUT CLOSE.
+FOR EACH infil:   
+   IF INDEX(infil.PROGNAMN,".d") = 0 THEN DO:       
+      DELETE infil.
+      NEXT.
+   END.
+   infil.PROGNAMN = SUBSTRING(infil.PROGNAMN,1,INDEX(infil.PROGNAMN,".d") - 1).   
+END.
+OPEN QUERY fq FOR EACH INFIL NO-LOCK,
+EACH _FILE WHERE _FILE._DUMP-NAME = infil.PROGNAMN  NO-LOCK.
+GET FIRST fq NO-LOCK.
+DO WHILE AVAILABLE(INFIL):
+   RUN ladda1_UI.     
+   GET NEXT fq NO-LOCK.
+END.
+DEF VAR txt AS CHARACTER.
+FOR EACH ttb_dump:   
+   
+   txt = "INPUT FROM " + prog_namn + ttb_dump.DUMP + ".d" + " NO-ECHO .".
+   RUN "XIN.I" ttb_dump.tbl txt prog_namn.
+   /*  FUNKAR EJ I RUN TIME KOMPILERAD.*/
+   /*OM {XIN.I ttb_dump.tbl} GER TTB_DUMP.TBL PÅ ALLA ETTOR.*/                    
+END.
+PROCEDURE ladda1_UI:   
+   CREATE ttb_dump.
+   ASSIGN
+   ttb_dump.db = LDBNAME("DICTDB")
+   ttb_dump.tbl = _FILE._FILE-NAME.
+   ttb_dump.DUMP = _FILE._DUMP-NAME.   
+END PROCEDURE.

@@ -1,0 +1,739 @@
+/*GODAPP.P*/
+{STARTFORAPP.I}
+&Scoped-define NEW NEW
+{TIDPERS.I}
+{GODTEMP.I}
+DEFINE INPUT PARAMETER vadgora AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETE vem AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETE vemf AS CHARACTER NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETE vemregar AS INTEGER NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETE vemregmnr AS INTEGER NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETER vemregdatum AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR tidpers.
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR godmarkpers.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE regmnrspar AS INTEGER FORMAT "99" NO-UNDO.
+DEFINE VARIABLE regarspar AS INTEGER FORMAT "99" NO-UNDO.
+DEFINE VARIABLE kolldatumvar AS DATE NO-UNDO.
+DEFINE VARIABLE gamman AS INTEGER NO-UNDO.
+DEFINE VARIABLE dagbak AS INTEGER NO-UNDO.
+DEFINE BUFFER tidbuff FOR TIDREGITAB.
+DEFINE VARIABLE ftro AS LOGICAL NO-UNDO.
+DEFINE VARIABLE entrepejtid AS LOGICAL NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{EXTRADATA.I}
+RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+ASSIGN
+regar    = vemregar
+regmnr   = vemregmnr
+regdatum = vemregdatum.
+RUN vadgora_UI.
+ASSIGN
+vemregar    = regar
+vemregmnr   = regmnr
+vemregdatum = regdatum.
+FOR EACH tidpers:
+   Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + tidpers.PERSONALKOD.
+END.
+
+{GDPRLOGGCLIENT.I}   
+PROCEDURE vadgora_UI:
+   IF vadgora = 1 THEN DO:
+      FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = vem USE-INDEX ANDV NO-LOCK NO-ERROR.
+      FIND FIRST godmarkpers WHERE godmarkpers.PERSONALKOD = ANVANDARE.PERSONALKOD
+      USE-INDEX PERSONALKOD NO-ERROR.
+      IF AVAILABLE godmarkpers THEN DO:
+         DELETE godmarkpers.   
+      END.   
+      FOR EACH godmarkpers USE-INDEX PERSONALKOD:
+         FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = godmarkpers.PERSONALKOD AND
+         GODKOLL.DATAR = regar AND GODKOLL.DATMAN = regmnr                  
+         USE-INDEX PKODAR NO-LOCK NO-ERROR.
+         IF AVAILABLE GODKOLL THEN DO:            
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = godmarkpers.PERSONALKOD AND
+            YEAR(TIDREGITAB.DATUM) = regar AND
+            MONTH(TIDREGITAB.DATUM) = regmnr AND TIDREGITAB.GODKAND = vemf
+            USE-INDEX PVNR NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE TIDREGITAB THEN DO:               
+               DELETE godmarkpers.
+            END.
+            ELSE DO: 
+               ASSIGN godmarkpers.DATUM = GODKOLL.DATUM.                        
+               FIND LAST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = godmarkpers.PERSONALKOD AND YEAR(TIDREGITAB.DATUM) = godmarkpers.AR
+               AND MONTH(TIDREGITAB.DATUM) = godmarkpers.MANADNR AND TIDREGITAB.GODKAND BEGINS "G" USE-INDEX PSTART NO-LOCK NO-ERROR.
+               IF AVAILABLE TIDREGITAB THEN DO:                  
+                  godmarkpers.KOLLDATUM = TIDREGITAB.DATUM.
+               END.
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = godmarkpers.PERSONALKOD NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALTAB THEN DO:
+                  godmarkpers.TIDSGODK = SUBSTRING(PERSONALTAB.TIDSGODK,1,5).
+               END.   
+            END.
+
+         END.   
+         ELSE DO:
+            DELETE godmarkpers.
+         END.                
+      END.      
+   END.
+   IF vadgora = 2 THEN DO:
+      RUN godv_UI.
+   END.
+   IF vadgora = 3 THEN DO:
+      
+      RUN godv3_UI.
+      FOR EACH tidpers USE-INDEX PERSONALKOD:     
+         ftro = FALSE.
+         RUN ftro_UI.
+         IF ftro = TRUE THEN RUN bortf_UI.
+      END.      
+      
+      IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+         FOR EACH tidpers USE-INDEX PERSONALKOD:
+            entrepejtid = FALSE.     
+            FIND FIRST PERSONALTAB  WHERE PERSONALTAB.PERSONALKOD = tidpers.PERSONALKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE PERSONALTAB THEN DO:
+               IF PERSONALTAB.ANSTALLNING = "ENTREP.AVTAL" AND PERSONALTAB.VECKOSCHEMA = 0 THEN DO:
+                  entrepejtid = TRUE.
+               END.   
+            END.   
+            IF entrepejtid = TRUE THEN RUN bortf_UI.
+         END.
+      END.      
+   END.
+   IF vadgora = 4 THEN DO:
+      FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = vem USE-INDEX ANDV NO-LOCK NO-ERROR.
+      DO TRANSACTION:
+         FIND FIRST godmarkpers WHERE godmarkpers.PERSONALKOD = ANVANDARE.PERSONALKOD 
+         USE-INDEX PERSONALKOD EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE godmarkpers THEN DO:
+            DELETE godmarkpers.   
+         END.
+      END.  
+      FOR EACH godmarkpers USE-INDEX PERSONALKOD:
+         FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = godmarkpers.PERSONALKOD AND
+         GODKOLL.DATAR = regar AND GODKOLL.DATMAN = regmnr                  
+         USE-INDEX PKODAR NO-LOCK NO-ERROR.
+         IF AVAILABLE GODKOLL THEN DO:
+            godmarkpers.DATUM = GODKOLL.DATUM.            
+         END.   
+         ELSE DO:
+            godmarkpers.DATUM = ?.
+         END.           
+      END.
+   END.
+   IF vadgora = 5 THEN DO:
+      RUN godv5_UI.
+   END.
+END PROCEDURE.
+PROCEDURE godv_UI :
+   FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = vem USE-INDEX ANDV NO-LOCK NO-ERROR.   
+   FOR EACH tidpers USE-INDEX PERSONALKOD:                                   
+      regdatum = DATE(MONTH(TODAY),01,YEAR(TODAY)) - 1.      
+      RUN REGVEC.P.
+      IF tidpers.PERSONALKOD = ANVANDARE.PERSONALKOD THEN NEXT.
+      ELSE DO:           
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD AND
+         TIDREGITAB.DATUM <= regdatum AND TIDREGITAB.GODKAND = vemf 
+         USE-INDEX PSTART NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE TIDREGITAB THEN NEXT.
+         IF YEAR(TIDREGITAB.DATUM) = YEAR(TODAY) AND 
+         MONTH(TIDREGITAB.DATUM) = MONTH(TODAY) THEN musz = musz.                                 
+         ELSE DO:               
+            FIND FIRST godmarkpers WHERE godmarkpers.PERSONALKOD = tidpers.PERSONALKOD AND 
+            godmarkpers.MANADNR = MONTH(TIDREGITAB.DATUM) AND 
+            godmarkpers.AR = YEAR(TIDREGITAB.DATUM) USE-INDEX ARMAN NO-ERROR.
+            IF NOT AVAILABLE godmarkpers THEN DO:
+               CREATE godmarkpers.
+               ASSIGN
+               godmarkpers.EFTERNAMN = tidpers.EFTERNAMN
+               godmarkpers.FORNAMN = tidpers.FORNAMN
+               godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+               godmarkpers.GODKAND = ""    
+               godmarkpers.TIDPERSREC = tidpers.TIDPERSREC
+               godmarkpers.MANADNR = MONTH(TIDREGITAB.DATUM)
+               godmarkpers.KOLLDATUM = TIDREGITAB.DATUM
+               godmarkpers.AR = YEAR(TIDREGITAB.DATUM)
+               godmarkpers.VECKONUMMER = TIDREGITAB.VECKONUMMER.
+               regmnr = godmarkpers.MANADNR.
+               RUN MANNAMN.P.
+               godmarkpers.MANAD = regmannamn.
+               FIND FIRST GODKOLL WHERE 
+               GODKOLL.PERSONALKOD = godmarkpers.PERSONALKOD AND                                 
+               GODKOLL.DATAR = godmarkpers.AR AND 
+               GODKOLL.DATMAN = godmarkpers.MANADNR                  
+               USE-INDEX PKODAR NO-LOCK NO-ERROR.                   
+               IF AVAILABLE GODKOLL THEN DO:
+                  godmarkpers.DATUM = GODKOLL.DATUM.
+               END. 
+               ELSE godmarkpers.DATUM = ?.
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = godmarkpers.PERSONALKOD NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALTAB THEN DO:
+                  godmarkpers.TIDSGODK = SUBSTRING(PERSONALTAB.TIDSGODK,1,5).
+               END.
+            END.   
+         END. 
+         regdatum = godmarkpers.KOLLDATUM.
+         REPEAT:
+            FIND NEXT TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD AND
+            TIDREGITAB.DATUM > regdatum  AND TIDREGITAB.GODKAND = vemf 
+            USE-INDEX PSTART NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE TIDREGITAB THEN LEAVE.
+            IF YEAR(TIDREGITAB.DATUM) = YEAR(TODAY) AND 
+            MONTH(TIDREGITAB.DATUM) = MONTH(TODAY) THEN musz = musz.                     
+            ELSE DO:
+               IF TIDREGITAB.VECKONUMMER > regvnr THEN LEAVE. 
+               FIND FIRST godmarkpers WHERE godmarkpers.PERSONALKOD = tidpers.PERSONALKOD AND 
+               godmarkpers.MANADNR = MONTH(TIDREGITAB.DATUM) AND 
+               godmarkpers.AR = YEAR(TIDREGITAB.DATUM) USE-INDEX ARMAN NO-ERROR.
+               IF NOT AVAILABLE godmarkpers THEN DO:
+                  CREATE godmarkpers.
+                  ASSIGN
+                  godmarkpers.EFTERNAMN = tidpers.EFTERNAMN
+                  godmarkpers.FORNAMN = tidpers.FORNAMN
+                  godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+                  godmarkpers.GODKAND = ""    
+                  godmarkpers.TIDPERSREC = tidpers.TIDPERSREC
+                  godmarkpers.MANADNR = MONTH(TIDREGITAB.DATUM)
+                  godmarkpers.KOLLDATUM = TIDREGITAB.DATUM
+                  godmarkpers.AR = YEAR(TIDREGITAB.DATUM)
+                  godmarkpers.VECKONUMMER = TIDREGITAB.VECKONUMMER.
+                  regmnr = godmarkpers.MANADNR.
+                  RUN MANNAMN.P.
+                  godmarkpers.MANAD = regmannamn.
+                  FIND FIRST GODKOLL WHERE 
+                  GODKOLL.PERSONALKOD = godmarkpers.PERSONALKOD AND               
+                  GODKOLL.DATAR = godmarkpers.AR AND 
+                  GODKOLL.DATMAN = godmarkpers.MANADNR                  
+                  USE-INDEX PKODAR NO-LOCK NO-ERROR.                    
+                  IF AVAILABLE GODKOLL THEN DO:
+                     godmarkpers.DATUM = GODKOLL.DATUM.
+                  END. 
+                  ELSE godmarkpers.DATUM = ?.
+                  FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = godmarkpers.PERSONALKOD NO-LOCK NO-ERROR.
+                  IF AVAILABLE PERSONALTAB THEN DO:
+                     godmarkpers.TIDSGODK = SUBSTRING(PERSONALTAB.TIDSGODK,1,5).
+                  END.
+               END.
+            END.
+            IF MONTH(regdatum) = 12 THEN regdatum = DATE(01,01,YEAR(regdatum) + 1).
+            ELSE regdatum = DATE(MONTH(regdatum) + 1,01,YEAR(regdatum)).   
+         END.    
+      END.            
+   END.        
+END PROCEDURE.
+PROCEDURE godv3_UI :   
+   IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV"  THEN dagbak = 5.
+   ELSE dagbak = 7.
+   ASSIGN
+   regmnrspar = regmnr
+   regarspar = regar.
+   FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = vem USE-INDEX ANDV NO-LOCK NO-ERROR.
+   regdatum = TODAY.
+   RUN REGVEC.P.           
+   FOR EACH tidpers USE-INDEX PERSONALKOD:     
+                                   
+      OPEN QUERY godkq FOR EACH GODKOLL WHERE GODKOLL.PERSONALKOD = tidpers.PERSONALKOD AND 
+      GODKOLL.KLAR = FALSE AND GODKOLL.DATAR LE regarspar AND GODKOLL.DATMAN LE regmnrspar NO-LOCK.
+      GET FIRST godkq NO-LOCK.
+      DO WHILE AVAILABLE(GODKOLL):                     
+         IF GODKOLL.DATUM GE (TODAY - dagbak) AND MONTH(GODKOLL.DATUM) = regmnrspar AND MONTH(TODAY) = regmnrspar THEN musz = musz.
+         ELSE IF GODKOLL.DATUM = ? AND MONTH(GODKOLL.DATUM) = MONTH(TODAY)
+         AND DAY(GODKOLL.DATUM) LE dagbak THEN musz = musz.
+         ELSE IF tidpers.PERSONALKOD = ANVANDARE.PERSONALKOD THEN musz = musz.
+         ELSE DO:               
+            FIND FIRST godmarkpers WHERE godmarkpers.PERSONALKOD = tidpers.PERSONALKOD AND 
+            godmarkpers.MANADNR = MONTH(GODKOLL.DATUM) AND 
+            godmarkpers.AR = YEAR(GODKOLL.DATUM) USE-INDEX ARMAN NO-ERROR.               
+            IF NOT AVAILABLE godmarkpers THEN DO:            
+               CREATE godmarkpers.
+               ASSIGN
+               godmarkpers.EFTERNAMN = tidpers.EFTERNAMN
+               godmarkpers.FORNAMN = tidpers.FORNAMN
+               godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+               godmarkpers.GODKAND = ""    
+               godmarkpers.TIDPERSREC = tidpers.TIDPERSREC
+               godmarkpers.MANADNR = MONTH(GODKOLL.DATUM)
+               godmarkpers.AR = YEAR(GODKOLL.DATUM)
+               godmarkpers.DATUM = GODKOLL.DATUM
+               godmarkpers.VECKONUMMER = GODKOLL.VECKONUMMER.
+               regmnr = godmarkpers.MANADNR.
+               RUN MANNAMN.P.
+               godmarkpers.MANAD = regmannamn.                    
+               FIND LAST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = godmarkpers.PERSONALKOD AND YEAR(TIDREGITAB.DATUM) = godmarkpers.AR
+               AND MONTH(TIDREGITAB.DATUM) = godmarkpers.MANADNR AND TIDREGITAB.GODKAND BEGINS "G" USE-INDEX PSTART NO-LOCK NO-ERROR.
+               IF AVAILABLE TIDREGITAB THEN DO:
+                  godmarkpers.KOLLDATUM = TIDREGITAB.DATUM.
+               END.               
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = godmarkpers.PERSONALKOD NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALTAB THEN DO:
+                  godmarkpers.TIDSGODK = SUBSTRING(PERSONALTAB.TIDSGODK,1,5).
+               END.
+            END.   
+         END.            
+         GET NEXT godkq NO-LOCK.
+      END.                     
+      IF DAY(TODAY) GE dagbak AND regarspar GE YEAR(TODAY) AND regmnrspar GE MONTH(TODAY) THEN DO:          
+         FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = tidpers.PERSONALKOD AND
+         YEAR(GODKOLL.DATUM) = YEAR(TODAY) AND MONTH(GODKOLL.DATUM) = MONTH(TODAY)   
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE GODKOLL THEN DO:            
+            FIND FIRST godmarkpers WHERE godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+            AND godmarkpers.AR = YEAR(TODAY) AND godmarkpers.MANADNR = MONTH(TODAY)
+            NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE godmarkpers THEN DO:
+               CREATE godmarkpers.
+               ASSIGN
+               godmarkpers.EFTERNAMN = tidpers.EFTERNAMN
+               godmarkpers.FORNAMN = tidpers.FORNAMN
+               godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+               godmarkpers.GODKAND = ""    
+               godmarkpers.TIDPERSREC = tidpers.TIDPERSREC
+               godmarkpers.MANADNR = MONTH(TODAY)
+               godmarkpers.AR = YEAR(TODAY)
+               godmarkpers.DATUM = ?.               
+               regmnr = godmarkpers.MANADNR.
+               RUN MANNAMN.P.
+               godmarkpers.MANAD = regmannamn.
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = godmarkpers.PERSONALKOD NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALTAB THEN DO:
+                  godmarkpers.TIDSGODK = SUBSTRING(PERSONALTAB.TIDSGODK,1,5).
+               END.                                 
+            END.   
+         END.   
+      END.                             
+      IF regarspar = (YEAR(TODAY) - 1) AND regmnrspar = 12 THEN DO:          
+         FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = tidpers.PERSONALKOD AND
+         YEAR(GODKOLL.DATUM) = regarspar AND MONTH(GODKOLL.DATUM) = regmnrspar   
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE GODKOLL THEN DO:            
+            FIND FIRST godmarkpers WHERE godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+            AND godmarkpers.AR = regarspar AND godmarkpers.MANADNR = regmnrspar
+            NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE godmarkpers THEN DO:
+               CREATE godmarkpers.
+               ASSIGN
+               godmarkpers.EFTERNAMN = tidpers.EFTERNAMN
+               godmarkpers.FORNAMN = tidpers.FORNAMN
+               godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+               godmarkpers.GODKAND = ""    
+               godmarkpers.TIDPERSREC = tidpers.TIDPERSREC
+               godmarkpers.MANADNR = regmnrspar
+               godmarkpers.AR = regarspar
+               godmarkpers.DATUM = ?.
+               /*godmarkpers.VECKONUMMER = GODKOLL.VECKONUMMER.*/
+               regmnr = godmarkpers.MANADNR.
+               RUN MANNAMN.P.
+               godmarkpers.MANAD = regmannamn.
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = godmarkpers.PERSONALKOD NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALTAB THEN DO:
+                  godmarkpers.TIDSGODK = SUBSTRING(PERSONALTAB.TIDSGODK,1,5).
+               END.                                 
+            END.   
+         END.   
+      END.                             
+
+      IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV"  OR Guru.Konstanter:globforetag = "ELPA" THEN DO:         
+         /* De som inte har någon registrering men är aktiva sökt månad*/
+         FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = tidpers.PERSONALKOD AND
+         YEAR(GODKOLL.DATUM) = regarspar AND MONTH(GODKOLL.DATUM) = regmnrspar   
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE GODKOLL THEN DO:                           
+            FIND FIRST FLEXDAG WHERE FLEXDAG.PERSONALKOD = tidpers.PERSONALKOD AND
+            YEAR(FLEXDAG.DATUM) = regarspar AND MONTH(FLEXDAG.DATUM) = regmnrspar  NO-LOCK NO-ERROR.
+            IF AVAILABLE FLEXDAG THEN DO:                            
+               FIND FIRST godmarkpers WHERE godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+               AND godmarkpers.AR = regarspar AND godmarkpers.MANADNR = regmnrspar
+               NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE godmarkpers THEN DO:                  
+                  CREATE godmarkpers.
+                  ASSIGN
+                  godmarkpers.EFTERNAMN = tidpers.EFTERNAMN
+                  godmarkpers.FORNAMN = tidpers.FORNAMN
+                  godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+                  godmarkpers.GODKAND = ""    
+                  godmarkpers.TIDPERSREC = tidpers.TIDPERSREC
+                  godmarkpers.MANADNR = regmnrspar
+                  godmarkpers.AR = regarspar
+                  godmarkpers.DATUM = ?.                  
+                  regmnr = godmarkpers.MANADNR.
+                  RUN MANNAMN.P.
+                  godmarkpers.MANAD = regmannamn.
+                  FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = godmarkpers.PERSONALKOD NO-LOCK NO-ERROR.
+                  IF AVAILABLE PERSONALTAB THEN DO:
+                     godmarkpers.TIDSGODK = SUBSTRING(PERSONALTAB.TIDSGODK,1,5).
+                  END.                                 
+               END. 
+            END.
+         END.            
+         IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV"  OR Guru.Konstanter:globforetag = "ELPA" THEN DO:            
+            /*Om ingen tid är registreras för aktiv person som inte har flex och registreringar finns föregående månad*/
+            FIND FIRST TIDREGITAB WHERE 
+            TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD AND 
+            YEAR(TIDREGITAB.DATUM) = regarspar AND MONTH(TIDREGITAB.DATUM) = regmnrspar
+            AND TIDREGITAB.TIDLOG = TRUE USE-INDEX PSTART NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE TIDREGITAB THEN DO:                              
+               FIND FIRST TIDREGITAB WHERE 
+               TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD AND 
+               TIDREGITAB.DATUM < DATE(regmnrspar,01,regarspar) AND
+               TIDREGITAB.DATUM >  DATE(regmnrspar,01,regarspar) - 30 AND               
+               TIDREGITAB.TIDLOG = TRUE USE-INDEX PSTART NO-LOCK NO-ERROR.
+               IF AVAILABLE TIDREGITAB THEN DO:
+                  FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = tidpers.PERSONALKOD NO-LOCK NO-ERROR.
+                  FIND FIRST FLEXAVT WHERE FLEXAVT.PERSONALKOD = tidpers.PERSONALKOD NO-LOCK NO-ERROR.                  
+                  IF AVAILABLE PERSONALTAB THEN DO:
+                     IF AVAILABLE FLEXAVT THEN DO:                                                                                                  
+                        IF PERSONALTAB.ANSTALLNING = "Ej tidskrivande personal" THEN .
+                        ELSE IF PERSONALTAB.AKTIV = FALSE THEN .
+                        ELSE IF FLEXAVT.FLEXTID = TRUE THEN.
+                        ELSE DO:                           
+                           FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+                           GODKOLL.DATAR = regarspar AND 
+                           GODKOLL.DATMAN = regmnrspar USE-INDEX PKODAR NO-LOCK NO-ERROR.
+                           IF NOT AVAILABLE GODKOLL THEN DO:
+                              regmnr = regmnrspar.                        
+                              FIND FIRST godmarkpers WHERE godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+                              AND godmarkpers.AR = regarspar AND godmarkpers.MANADNR = regmnrspar
+                              NO-LOCK NO-ERROR.
+                              IF NOT AVAILABLE godmarkpers THEN DO:                  
+                                 CREATE godmarkpers.
+                                 ASSIGN
+                                 godmarkpers.EFTERNAMN = tidpers.EFTERNAMN
+                                 godmarkpers.FORNAMN = tidpers.FORNAMN
+                                 godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+                                 godmarkpers.GODKAND = ""    
+                                 godmarkpers.TIDPERSREC = tidpers.TIDPERSREC
+                                 godmarkpers.MANADNR = regmnrspar
+                                 godmarkpers.AR = regarspar
+                                 godmarkpers.DATUM = ?.                                 
+                                 regmnr = godmarkpers.MANADNR.
+                                 RUN MANNAMN.P.
+                                 godmarkpers.MANAD = regmannamn.                                                    
+                                 godmarkpers.TIDSGODK = SUBSTRING(PERSONALTAB.TIDSGODK,1,5).                                                            
+                              END.                               
+                           END.
+                        END.
+                     END.                  
+                  END.
+               END.         
+            END.
+         END.
+         IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV"  OR Guru.Konstanter:globforetag = "ELPA" THEN DO:            
+            /*om en person har saknar tid flera månader bakåt. Görs bara om det finns någon gammaL tid registrerad, 
+            alltså borde det inte drabba nyanställd */
+            FIND FIRST TIDREGITAB WHERE 
+            TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD AND 
+            YEAR(TIDREGITAB.DATUM) = regarspar AND MONTH(TIDREGITAB.DATUM) < regmnrspar
+            AND TIDREGITAB.TIDLOG = TRUE USE-INDEX PSTART NO-LOCK NO-ERROR.
+            IF AVAILABLE TIDREGITAB THEN DO:               
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = tidpers.PERSONALKOD NO-LOCK NO-ERROR.
+               FIND FIRST FLEXAVT WHERE FLEXAVT.PERSONALKOD = tidpers.PERSONALKOD NO-LOCK NO-ERROR.
+               gamman = regmnrspar.
+               IF AVAILABLE PERSONALTAB THEN DO:
+                  IF AVAILABLE FLEXAVT THEN DO:      
+                     gmman:                                                      
+                     REPEAT:                  
+                        gamman = gamman - 1.
+                        IF gamman < 1 THEN LEAVE gmman.                          
+                        IF MONTH(TIDREGITAB.DATUM) > gamman  THEN LEAVE gmman.                        
+                        IF PERSONALTAB.ANSTALLNING = "Ej tidskrivande personal" THEN LEAVE gmman.
+                        IF FLEXAVT.FLEXTID = TRUE THEN LEAVE gmman.
+                        FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = TIDREGITAB.PERSONALKOD AND
+                        GODKOLL.DATAR = regarspar AND 
+                        GODKOLL.DATMAN = gamman USE-INDEX PKODAR NO-LOCK NO-ERROR.
+                        IF NOT AVAILABLE GODKOLL THEN DO:
+                           regmnr = gamman.                        
+                           FIND FIRST godmarkpers WHERE godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+                           AND godmarkpers.AR = regarspar AND godmarkpers.MANADNR = gamman
+                           NO-LOCK NO-ERROR.
+                           IF NOT AVAILABLE godmarkpers THEN DO:                  
+                              CREATE godmarkpers.
+                              ASSIGN
+                              godmarkpers.EFTERNAMN = tidpers.EFTERNAMN
+                              godmarkpers.FORNAMN = tidpers.FORNAMN
+                              godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+                              godmarkpers.GODKAND = ""    
+                              godmarkpers.TIDPERSREC = tidpers.TIDPERSREC
+                              godmarkpers.MANADNR = gamman
+                              godmarkpers.AR = regarspar
+                              godmarkpers.DATUM = ?.                              
+                              regmnr = godmarkpers.MANADNR.
+                              RUN MANNAMN.P.
+                              godmarkpers.MANAD = regmannamn.                               
+                              godmarkpers.TIDSGODK = SUBSTRING(PERSONALTAB.TIDSGODK,1,5).  
+                           END. 
+                           
+                        END.
+                     END.
+                  END.                  
+               END.
+            END.
+         END.
+      END.
+      IF tidpers.PERSONALKOD = ANVANDARE.PERSONALKOD THEN NEXT.  
+      ELSE DO:                    
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD AND
+         TIDREGITAB.VECKONUMMER <= regvnr AND MONTH(TIDREGITAB.DATUM) LE regmnrspar
+         AND YEAR(TIDREGITAB.DATUM) LE regarspar AND 
+         TIDREGITAB.GODKAND = '' AND TIDREGITAB.VECKOKORD = '' AND TIDREGITAB.TIDLOG = TRUE
+         USE-INDEX GODGAMLA NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE TIDREGITAB THEN NEXT.
+         IF YEAR(TIDREGITAB.DATUM) = YEAR(TODAY) AND 
+         MONTH(TIDREGITAB.DATUM) = MONTH(TODAY) THEN musz = musz.                                 
+         ELSE DO:               
+            FIND FIRST godmarkpers WHERE godmarkpers.PERSONALKOD = tidpers.PERSONALKOD AND 
+            godmarkpers.MANADNR = MONTH(TIDREGITAB.DATUM) AND 
+            godmarkpers.AR = YEAR(TIDREGITAB.DATUM) USE-INDEX ARMAN NO-ERROR.
+            IF NOT AVAILABLE godmarkpers THEN DO:                  
+               CREATE godmarkpers.
+               ASSIGN
+               godmarkpers.EFTERNAMN = tidpers.EFTERNAMN
+               godmarkpers.FORNAMN = tidpers.FORNAMN
+               godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+               godmarkpers.GODKAND = ""    
+               godmarkpers.TIDPERSREC = tidpers.TIDPERSREC
+               godmarkpers.MANADNR = MONTH(TIDREGITAB.DATUM)
+               godmarkpers.AR = YEAR(TIDREGITAB.DATUM)
+               godmarkpers.VECKONUMMER = TIDREGITAB.VECKONUMMER.
+               regmnr = godmarkpers.MANADNR.
+               RUN MANNAMN.P.
+               godmarkpers.MANAD = regmannamn.
+               FIND FIRST GODKOLL WHERE 
+               GODKOLL.PERSONALKOD = godmarkpers.PERSONALKOD AND                                 
+               GODKOLL.DATAR = godmarkpers.AR AND 
+               GODKOLL.DATMAN = godmarkpers.MANADNR                  
+               USE-INDEX PKODAR NO-LOCK NO-ERROR.                   
+               IF AVAILABLE GODKOLL THEN DO:
+                  godmarkpers.DATUM = GODKOLL.DATUM.
+               END. 
+               ELSE godmarkpers.DATUM = ?.                    
+               FIND LAST tidbuff WHERE tidbuff.PERSONALKOD = godmarkpers.PERSONALKOD AND YEAR(tidbuff.DATUM) = godmarkpers.AR
+               AND MONTH(tidbuff.DATUM) = godmarkpers.MANADNR AND tidbuff.GODKAND BEGINS "G" USE-INDEX PSTART NO-LOCK NO-ERROR.
+               IF AVAILABLE tidbuff THEN DO:
+                  godmarkpers.KOLLDATUM = tidbuff.DATUM.
+               END.               
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = godmarkpers.PERSONALKOD NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALTAB THEN DO:
+                  godmarkpers.TIDSGODK = SUBSTRING(PERSONALTAB.TIDSGODK,1,5).
+               END.
+            END.   
+         END. 
+         kollextra:
+         REPEAT:
+            FIND NEXT TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD AND
+            TIDREGITAB.VECKONUMMER > godmarkpers.VECKONUMMER AND MONTH(TIDREGITAB.DATUM) LE regmnrspar
+            AND YEAR(TIDREGITAB.DATUM) LE regarspar AND 
+            TIDREGITAB.GODKAND = '' AND TIDREGITAB.VECKOKORD = '' AND TIDREGITAB.TIDLOG = TRUE
+            USE-INDEX GODGAMLA NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE TIDREGITAB THEN LEAVE kollextra.
+            IF YEAR(TIDREGITAB.DATUM) = YEAR(TODAY) AND 
+            MONTH(TIDREGITAB.DATUM) = MONTH(TODAY) THEN musz = musz.                     
+            ELSE DO:
+               IF TIDREGITAB.VECKONUMMER > regvnr THEN LEAVE kollextra. 
+               FIND FIRST godmarkpers WHERE godmarkpers.PERSONALKOD = tidpers.PERSONALKOD AND 
+               godmarkpers.MANADNR = MONTH(TIDREGITAB.DATUM) AND 
+               godmarkpers.AR = YEAR(TIDREGITAB.DATUM) USE-INDEX ARMAN NO-ERROR.
+               IF NOT AVAILABLE godmarkpers THEN DO:
+                  CREATE godmarkpers.
+                  ASSIGN
+                  godmarkpers.EFTERNAMN = tidpers.EFTERNAMN
+                  godmarkpers.FORNAMN = tidpers.FORNAMN
+                  godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+                  godmarkpers.GODKAND = ""    
+                  godmarkpers.TIDPERSREC = tidpers.TIDPERSREC
+                  godmarkpers.MANADNR = MONTH(TIDREGITAB.DATUM)
+                  godmarkpers.AR = YEAR(TIDREGITAB.DATUM)
+                  godmarkpers.VECKONUMMER = TIDREGITAB.VECKONUMMER.
+                  regmnr = godmarkpers.MANADNR.
+                  RUN MANNAMN.P.
+                  godmarkpers.MANAD = regmannamn.
+                  FIND FIRST GODKOLL WHERE 
+                  GODKOLL.PERSONALKOD = godmarkpers.PERSONALKOD AND               
+                  GODKOLL.DATAR = godmarkpers.AR AND 
+                  GODKOLL.DATMAN = godmarkpers.MANADNR                  
+                  USE-INDEX PKODAR NO-LOCK NO-ERROR.                    
+                  IF AVAILABLE GODKOLL THEN DO:
+                     godmarkpers.DATUM = GODKOLL.DATUM.
+                  END. 
+                  ELSE godmarkpers.DATUM = ?.
+                  FIND LAST tidbuff WHERE tidbuff.PERSONALKOD = godmarkpers.PERSONALKOD AND YEAR(tidbuff.DATUM) = godmarkpers.AR
+                  AND MONTH(tidbuff.DATUM) = godmarkpers.MANADNR AND tidbuff.GODKAND BEGINS "G" USE-INDEX PSTART NO-LOCK NO-ERROR.
+                  IF AVAILABLE tidbuff THEN DO:
+                     godmarkpers.KOLLDATUM = tidbuff.DATUM.
+                  END.
+                  FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = godmarkpers.PERSONALKOD NO-LOCK NO-ERROR.
+                  IF AVAILABLE PERSONALTAB THEN DO:
+                     godmarkpers.TIDSGODK = SUBSTRING(PERSONALTAB.TIDSGODK,1,5).
+                  END.               
+               END.
+            END.   
+         END. /* kollextra*/      
+      END.                                                 
+   END.   
+END PROCEDURE.
+
+PROCEDURE godv5_UI :
+   FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = vem USE-INDEX ANDV NO-LOCK NO-ERROR.
+   regdatum = DATE(MONTH(TODAY),01,YEAR(TODAY)) - 1.
+   kolldatumvar = regdatum.
+   RUN REGVEC.P.    
+   FOR EACH tidpers USE-INDEX PERSONALKOD:                           
+      OPEN QUERY godkq FOR EACH GODKOLL WHERE GODKOLL.PERSONALKOD = tidpers.PERSONALKOD AND 
+      GODKOLL.KLAR = FALSE NO-LOCK.
+      GET FIRST godkq NO-LOCK.
+      DO WHILE AVAILABLE(GODKOLL):            
+         IF YEAR(GODKOLL.DATUM) = YEAR(TODAY) AND 
+         MONTH(GODKOLL.DATUM) = MONTH(TODAY) THEN musz = musz.            
+         ELSE IF tidpers.PERSONALKOD = ANVANDARE.PERSONALKOD THEN musz = musz.
+         ELSE DO:               
+            FIND FIRST godmarkpers WHERE godmarkpers.PERSONALKOD = tidpers.PERSONALKOD AND 
+            godmarkpers.MANADNR = MONTH(GODKOLL.DATUM) AND 
+            godmarkpers.AR = YEAR(GODKOLL.DATUM) USE-INDEX ARMAN NO-ERROR.               
+            IF NOT AVAILABLE godmarkpers THEN DO:
+               CREATE godmarkpers.
+               ASSIGN
+               godmarkpers.EFTERNAMN = tidpers.EFTERNAMN
+               godmarkpers.FORNAMN = tidpers.FORNAMN
+               godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+               godmarkpers.GODKAND = ""    
+               godmarkpers.TIDPERSREC = tidpers.TIDPERSREC
+               godmarkpers.MANADNR = MONTH(GODKOLL.DATUM)
+               godmarkpers.AR = YEAR(GODKOLL.DATUM)
+               godmarkpers.DATUM = GODKOLL.DATUM
+               godmarkpers.KOLLDATUM = GODKOLL.DATUM
+               godmarkpers.VECKONUMMER = GODKOLL.VECKONUMMER.
+               regmnr = godmarkpers.MANADNR.
+               RUN MANNAMN.P.
+               godmarkpers.MANAD = regmannamn.
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = godmarkpers.PERSONALKOD NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALTAB THEN DO:
+                  godmarkpers.TIDSGODK = SUBSTRING(PERSONALTAB.TIDSGODK,1,5).
+               END.               
+            END.   
+         END.            
+         GET NEXT godkq NO-LOCK.
+      END.
+      IF tidpers.PERSONALKOD = ANVANDARE.PERSONALKOD THEN NEXT.
+      ELSE DO:           
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD AND
+         TIDREGITAB.DATUM <= regdatum AND TIDREGITAB.GODKAND = '' AND TIDREGITAB.VECKOKORD = ''
+         USE-INDEX PSTART NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE TIDREGITAB THEN NEXT.
+         IF YEAR(TIDREGITAB.DATUM) = YEAR(TODAY) AND 
+         MONTH(TIDREGITAB.DATUM) = MONTH(TODAY) THEN musz = musz.                                 
+         ELSE DO:               
+            FIND FIRST godmarkpers WHERE godmarkpers.PERSONALKOD = tidpers.PERSONALKOD AND 
+            godmarkpers.MANADNR = MONTH(TIDREGITAB.DATUM) AND 
+            godmarkpers.AR = YEAR(TIDREGITAB.DATUM) USE-INDEX ARMAN NO-ERROR.
+            IF NOT AVAILABLE godmarkpers THEN DO:
+               CREATE godmarkpers.
+               ASSIGN
+               godmarkpers.EFTERNAMN = tidpers.EFTERNAMN
+               godmarkpers.FORNAMN = tidpers.FORNAMN
+               godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+               godmarkpers.GODKAND = ""    
+               godmarkpers.TIDPERSREC = tidpers.TIDPERSREC
+               godmarkpers.MANADNR = MONTH(TIDREGITAB.DATUM)
+               godmarkpers.AR = YEAR(TIDREGITAB.DATUM)
+               godmarkpers.KOLLDATUM = TIDREGITAB.DATUM
+               godmarkpers.VECKONUMMER = TIDREGITAB.VECKONUMMER.
+               regmnr = godmarkpers.MANADNR.
+               RUN MANNAMN.P.
+               godmarkpers.MANAD = regmannamn.
+               FIND FIRST GODKOLL WHERE 
+               GODKOLL.PERSONALKOD = godmarkpers.PERSONALKOD AND                                 
+               GODKOLL.DATAR = godmarkpers.AR AND 
+               GODKOLL.DATMAN = godmarkpers.MANADNR                  
+               USE-INDEX PKODAR NO-LOCK NO-ERROR.                   
+               IF AVAILABLE GODKOLL THEN DO:
+                  godmarkpers.DATUM = GODKOLL.DATUM.
+               END. 
+               ELSE godmarkpers.DATUM = ?.
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = godmarkpers.PERSONALKOD NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALTAB THEN DO:
+                  godmarkpers.TIDSGODK = SUBSTRING(PERSONALTAB.TIDSGODK,1,5).
+               END.
+            END.   
+         END.
+         regdatum = godmarkpers.KOLLDATUM. 
+         REPEAT:                                             
+            FIND NEXT TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD AND
+            TIDREGITAB.DATUM > regdatum AND TIDREGITAB.GODKAND = '' AND TIDREGITAB.VECKOKORD = ''
+            USE-INDEX PSTART NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE TIDREGITAB THEN LEAVE.
+            IF YEAR(TIDREGITAB.DATUM) = YEAR(TODAY) AND 
+            MONTH(TIDREGITAB.DATUM) = MONTH(TODAY) THEN musz = musz.                     
+            ELSE DO:
+               IF TIDREGITAB.DATUM > kolldatumvar THEN LEAVE. 
+               FIND FIRST godmarkpers WHERE godmarkpers.PERSONALKOD = tidpers.PERSONALKOD AND 
+               godmarkpers.MANADNR = MONTH(TIDREGITAB.DATUM) AND 
+               godmarkpers.AR = YEAR(TIDREGITAB.DATUM) USE-INDEX ARMAN NO-ERROR.
+               IF NOT AVAILABLE godmarkpers THEN DO:
+                  CREATE godmarkpers.
+                  ASSIGN
+                  godmarkpers.EFTERNAMN = tidpers.EFTERNAMN
+                  godmarkpers.FORNAMN = tidpers.FORNAMN
+                  godmarkpers.PERSONALKOD = tidpers.PERSONALKOD
+                  godmarkpers.GODKAND = ""    
+                  godmarkpers.TIDPERSREC = tidpers.TIDPERSREC
+                  godmarkpers.MANADNR = MONTH(TIDREGITAB.DATUM)
+                  godmarkpers.AR = YEAR(TIDREGITAB.DATUM)
+                  godmarkpers.KOLLDATUM = TIDREGITAB.DATUM
+                  godmarkpers.VECKONUMMER = TIDREGITAB.VECKONUMMER.
+                  regmnr = godmarkpers.MANADNR.
+                  RUN MANNAMN.P.
+                  godmarkpers.MANAD = regmannamn.
+                  FIND FIRST GODKOLL WHERE 
+                  GODKOLL.PERSONALKOD = godmarkpers.PERSONALKOD AND               
+                  GODKOLL.DATAR = godmarkpers.AR AND 
+                  GODKOLL.DATMAN = godmarkpers.MANADNR                  
+                  USE-INDEX PKODAR NO-LOCK NO-ERROR.                    
+                  IF AVAILABLE GODKOLL THEN DO:
+                     godmarkpers.DATUM = GODKOLL.DATUM.
+                  END. 
+                  ELSE godmarkpers.DATUM = ?.
+                  FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = godmarkpers.PERSONALKOD NO-LOCK NO-ERROR.
+                  IF AVAILABLE PERSONALTAB THEN DO:
+                     godmarkpers.TIDSGODK = SUBSTRING(PERSONALTAB.TIDSGODK,1,5).
+                  END.
+               END.
+            END.
+            IF MONTH(regdatum) = 12 THEN regdatum = DATE(01,01,YEAR(regdatum) + 1).
+            ELSE regdatum = DATE(MONTH(regdatum) + 1,01,YEAR(regdatum)).   
+         END.    
+      END.            
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE ftro_UI :      
+   IF Guru.Konstanter:globforetag = "cccGKAL" OR Guru.Konstanter:globforetag = "Csund"  THEN DO:                             
+      /*förtroendetid skriver endast frånvaro SUND
+      BÅDE FRÅNVARO OCH NÄRVARO Kalmar   ska godkänna -hur göra????*/      
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+      ftro = FALSE.
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "FORTRO"                   
+      inextradatatemp.HUVUDCH = tidpers.PERSONALKOD.            
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.     
+      IF AVAILABLE extradatatemp THEN DO:      
+        ftro = extradatatemp.SOKLOG[1].         
+      END.   
+      ELSE ftro = FALSE.                        
+   END.                 
+END PROCEDURE.
+
+PROCEDURE bortf_UI :         
+   FOR EACH godmarkpers WHERE godmarkpers.PERSONALKOD = tidpers.PERSONALKOD :
+      FIND first tidbuff WHERE tidbuff.PERSONALKOD = godmarkpers.PERSONALKOD AND YEAR(tidbuff.DATUM) = godmarkpers.AR
+      AND MONTH(tidbuff.DATUM) = godmarkpers.MANADNR AND tidbuff.TIDLOG = TRUE USE-INDEX PSTART NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE tidbuff THEN DELETE godmarkpers.
+   END.             
+END PROCEDURE.

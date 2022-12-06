@@ -1,0 +1,63 @@
+/*XKATEXELIN.P Inläsning materielkatalog från excel*/
+DEFINE TEMP-TABLE mkattmp   
+   FIELD ENR                AS CHARACTER 
+   FIELD BENAMNING          AS CHARACTER 
+   FIELD ENHET              AS CHARACTER
+   FIELD NPRIS              AS DECIMAL
+   FIELD NPRIS2              AS DECIMAL
+   FIELD NPRIS3              AS DECIMAL
+   INDEX ENR ENR DESCENDING.
+DEFINE BUFFER mkatbuff FOR mkattmp.
+DEFINE TEMP-TABLE felex NO-UNDO LIKE mkattmp.
+
+
+
+   
+DEFINE VARIABLE plusaonr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE varforetypchar AS CHARACTER EXTENT 20 NO-UNDO.
+DEFINE VARIABLE plusdnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE utskriv AS LOGICAL NO-UNDO.
+
+/*{EGENBEN.I}*/
+{EXECLIN2.I}
+DEFINE INPUT PARAMETER filnamn AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR mkattmp.
+DEFINE OUTPUT PARAMETER TABLE FOR felex.
+EMPTY TEMP-TABLE mkattmp NO-ERROR. 
+EMPTY TEMP-TABLE felex NO-ERROR. 
+RUN startin_UI.
+PROCEDURE startin_UI:
+   ASSIGN
+   startc = "A"
+   slutc = "D"
+   iRad = 0. 
+   RUN readexcelstart_UI (INPUT filnamn).
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.      
+      IF allacolumtext[1] NE "" THEN DO:               
+         allacolumtext[1] = REPLACE(allacolumtext[1],"E","").    
+         allacolumtext[1] = REPLACE(allacolumtext[1]," ","").   
+         allacolumtext[4] = REPLACE(allacolumtext[4],",",".").            
+         allacolumtext[4] = REPLACE(allacolumtext[4]," ","").            
+         FIND FIRST mkatbuff WHERE mkatbuff.ENR = allacolumtext[1] NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE mkatbuff THEN DO:         
+            CREATE mkattmp.
+            ASSIGN mkattmp.ENR = allacolumtext[1]
+            mkattmp.BENAMNING = allacolumtext[2]
+            mkattmp.ENHET = allacolumtext[3].
+            mkattmp.NPRIS = DECIMAL(allacolumtext[4]) NO-ERROR.
+         END.
+         IF ERROR-STATUS:ERROR = TRUE THEN DO:
+            IF AVAILABLE mkattmp THEN DO:              
+               CREATE felex.
+               BUFFER-COPY mkattmp TO felex.
+               DELETE mkattmp.
+            END.
+            ERROR-STATUS:ERROR = FALSE.
+         END.
+      END.      
+   END.
+   RUN slutreadexcel_UI.     
+END PROCEDURE.
+

@@ -1,0 +1,239 @@
+/*EXVPFAKT.P*/
+&Scoped-define SHARED  
+{MARKVAL.I}     
+{MARAG.I}     
+
+DEFINE VARIABLE vardartal AS INTEGER NO-UNDO.   
+DEFINE BUFFER mahj FOR marag.
+DEFINE BUFFER kbuff FOR KINDEX.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+
+{EXTRADATA.I}
+
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fbeteck AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR markval .
+   DEFINE OUTPUT PARAMETER omravd AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER omromr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER aovar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER ortvar AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER fkommun AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER fvaker AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER vman AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER vadress AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER vpadress AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER vtelef AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER projl AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER arrendator AS CHARACTER NO-UNDO.   
+
+   DEFINE OUTPUT PARAMETER ipfakt AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER ivfaktaker AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER pomr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER bbelopp AS INTEGER NO-UNDO.
+   
+   DEFINE OUTPUT PARAMETER pfakt AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER vskog AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER oktforekpi AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER kpi1995 AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER kaberSatt AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR marag.
+
+   
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   EMPTY TEMP-TABLE marag NO-ERROR. 
+   ASSIGN
+   omravd = 0
+   aovar = ?
+   delnrvar = ?
+   ortvar = ""
+   projl = "".
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = valvardnr NO-LOCK NO-ERROR.
+   IF AVAILABLE VARDERING THEN DO:
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = VARDERING.OMRADE NO-LOCK NO-ERROR.      
+      IF AVAILABLE OMRADETAB THEN DO:
+         ASSIGN
+         omromr = OMRADETAB.OMRADE
+         omravd = OMRADETAB.AVDELNINGNR.
+      END.
+   END.
+   FIND FIRST AOVARD WHERE AOVARD.VARDNR = valvardnr USE-INDEX VARDNR NO-LOCK NO-ERROR.
+   IF AVAILABLE AOVARD THEN DO:
+      ASSIGN aovar = AOVARD.AONR
+      delnrvar = AOVARD.DELNR.
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = AOVARD.AONR AND
+      AONRTAB.DELNR = AOVARD.DELNR NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB  THEN DO:
+         ortvar = AONRTAB.ORT.
+         FIND FIRST BESTTAB WHERE BESTTAB.BESTID = AONRTAB.BESTID NO-LOCK NO-ERROR.
+         IF AVAILABLE BESTTAB THEN DO:
+            projl = BESTTAB.BESTNAMN.
+         END.
+      END.
+   END.
+   arrendator = "".
+   FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = fbeteck NO-LOCK NO-ERROR.
+   IF AVAILABLE FASTIGHET THEN DO:   
+      fkommun = FASTIGHET.KOMMUN.
+      fvaker = FASTIGHET.VAKER.
+      IF FASTIGHET.ARRENDATOR = TRUE THEN DO:       
+         arrendator = SUBSTRING(FASTIGHET.ANAMN,1,30).  
+      END.
+   END.
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = valvardnr USE-INDEX VARDNR
+   NO-LOCK NO-ERROR.   
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = VARDERING.VARDANV USE-INDEX
+   PERSONALKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB  THEN DO:
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+      /* DUBBELNAMN BLIR FEL - TA BORT 20190823  LENA
+      vman = CAPS(SUBSTRING(PERSONALTAB.FORNAMN,1,1)) + LC(SUBSTRING(PERSONALTAB.FORNAMN,2)) + " " + CAPS(SUBSTRING(PERSONALTAB.EFTERNAMN,1,1)) + LC(SUBSTRING(PERSONALTAB.EFTERNAMN,2)).*/
+      vman = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN.
+      IF PERSONALTAB.TELEFON NE "" THEN vtelef = PERSONALTAB.TELEFON.
+      ELSE IF PERSONALTAB.MOBILTEL NE "" THEN vtelef = PERSONALTAB.MOBILTEL.
+      ELSE vtelef = "".
+      vadress = PERSONALTAB.GATUADRESS.
+      vpadress = PERSONALTAB.POSTNUMMER + " " + PERSONALTAB.POSTADRESS.
+   END.   
+   
+   
+
+   FIND FIRST MARKDIV NO-LOCK NO-ERROR.    
+   ASSIGN
+   ipfakt = MARKDIV.IPVARDE
+   /*ivfakt = MARKDIV.IVARDE
+   borttaget från admin och bara lagt i program 20220118 Lena 
+   bbelopp = MARKDIV.BASBELOPP*/ 
+   pfakt = MARKDIV.FAKTORFS
+   vskog = FASTIGHET.VSKOG.
+   FIND FIRST KINDEX WHERE KINDEX.AR = 1995 AND KINDEX.MANAD = 10 USE-INDEX AR NO-LOCK NO-ERROR.
+   kpi1995 = KINDEX.VARDE / 5.71.
+   
+   /* släck -styr enbart på årtal här nedan enlig 1980 års bas
+   FIND FIRST kbuff WHERE kbuff.AR = (YEAR(TODAY)- 1) AND kbuff.MANAD = 10 USE-INDEX AR NO-LOCK NO-ERROR.  
+   oktforekpi = kbuff.VARDE / 5.71.*/
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "VARDNRARTAL"                   
+   inextradatatemp.HUVUDINT = valvardnr.                    
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+   FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+   IF AVAILABLE extradatatemp THEN DO:      
+      ASSIGN
+      vardartal = extradatatemp.SOKINT[1].      
+   END.
+   ELSE vardartal = YEAR(TODAY).   
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+   
+   /*oktobers värden föregående år. För lite decimaler i Admin markvärd. Använd detta istället. Ligger i ANDVARDSPECAPP.P SKAPPROTOU7.P och EXVPFAKT.P*/
+   IF vardartal = 2023 THEN DO:
+      oktforekpi = 384.04.  /*2022*/
+      bbelopp = 525.        /*2023 */  
+   END.
+   IF vardartal = 2022 THEN DO:
+      oktforekpi = 346.44.  /*2021*/
+      bbelopp = 483.        /*2022 */  
+   END.
+   IF vardartal = 2021 THEN DO:
+      oktforekpi = 336.97.  /*2020*/
+      bbelopp = 476.        /*2021 */  
+   END.
+   IF vardartal = 2020 THEN DO:
+      oktforekpi = 336.04.  /*2019*/
+      bbelopp = 473.        /*2020 */  
+   END.
+   IF vardartal = 2019 THEN DO:
+      oktforekpi = 330.72.  /*2018*/
+      bbelopp = 465.        /*2019 */  
+   END.
+   IF vardartal = 2018 THEN DO:
+      oktforekpi = 323.38.  /*2017*/
+      bbelopp = 455.        /*2018 */  
+   END.
+   IF vardartal = 2017 THEN DO:
+      oktforekpi = 318.00.  /*2016*/
+      bbelopp = 448.        /*2017 */  
+   END.
+   IF vardartal = 2016 THEN DO:
+      oktforekpi = 314.29.  /*2015*/
+      bbelopp = 443.        /*2016 */  
+   END.
+   ELSE IF vardartal = 2015 THEN DO:
+      oktforekpi = 314.02.  /*2014*/
+      bbelopp = 445.        /*2015*/  
+   END.
+   ELSE IF vardartal = 2014 THEN DO:
+       oktforekpi = 314.40. /*2013*/
+       bbelopp = 444.       /*2014*/
+   END.
+   ELSE IF vardartal = 2013 THEN DO:
+       oktforekpi = 314.59.  /*2012*/
+       bbelopp = 445.        /*2013*/
+   END.
+   ELSE IF vardartal = 2012 THEN DO:
+       oktforekpi = 313.42.  /*2011*/
+       bbelopp = 440.       /*2012*/
+   END.       
+   ELSE IF vardartal = 2011 THEN DO:
+      oktforekpi = 305.57. /*2010*/
+      bbelopp = 428.       /*2011*/
+   END.   
+       
+      
+    
+   kabersatt = 3.1 * oktforekpi * 5.71 / KINDEX.VARDE.
+
+  FIND FIRST markval WHERE markval.BETECKNING = fbeteck NO-LOCK NO-ERROR.
+  FIND FIRST AKERVARD WHERE AKERVARD.BETECKNING = markval.BETECKNING AND AKERVARD.VARDNR = markval.VARDNR 
+  AND AKERVARD.L5 = 0 AND AKERVARD.STOLPNR NE 0 USE-INDEX vardnr NO-LOCK  NO-ERROR.
+  IF AVAILABLE AKERVARD THEN DO:
+     FIND FIRST KINDEX WHERE KINDEX.AR = YEAR(AKERVARD.VARDEPKT) AND
+     KINDEX.MANAD = MONTH(AKERVARD.VARDEPKT) USE-INDEX AR NO-LOCK NO-ERROR.    
+     ivfaktaker = KINDEX.VARDE.
+  END.
+  ELSE DO:
+     FIND LAST KINDEX USE-INDEX AR NO-LOCK NO-ERROR.    
+     ivfaktaker = KINDEX.VARDE.
+  END.
+
+   FOR EACH markval:
+   FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = markval.MARKNR NO-LOCK NO-ERROR.   
+   CREATE marag.
+   BUFFER-COPY markval TO marag.
+   Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).
+   
+   IF marag.PNR2 BEGINS "000" THEN.
+   ELSE DO:
+      marag.MARKAGARE = MARKAGARE.MARKAGARE.
+      marag.PNR2 = "0000000000".
+      CREATE mahj.
+      BUFFER-COPY marag TO mahj.
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "MARKAG"                   
+      inextradatatemp.HUVUDINT = MARKAGARE.MARKNR.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO:      
+         ASSIGN       
+         mahj.MARKAGARE = extradatatemp.SOKCHAR[3]
+         mahj.PERSONNUMMER = markval.PNR2
+         mahj.PNR2 = "0000000000".
+      END. 
+   END.
+   FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = markval.BETECKNING 
+   USE-INDEX FAST NO-LOCK NO-ERROR.
+   ASSIGN marag.KOMMUN = FASTIGHET.KOMMUN 
+   marag.SOCKEN = FASTIGHET.SOCKEN
+   marag.PAKER = FASTIGHET.PAKER
+   marag.VAKER = FASTIGHET.VAKER
+   pomr = FASTIGHET.PAKER.       
+END.
+Guru.GlobalaVariabler:GDPRtyp = "M". 
+{GDPRLOGGCLIENT.I}
+IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.        
+edataapph = ?.      

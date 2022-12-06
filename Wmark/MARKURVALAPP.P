@@ -1,0 +1,335 @@
+/*MARKURVALAPP.P*/
+{STARTFORAPP.I}
+{MARKTEMP.I}
+{FASTIGHET.I}
+DEFINE VARIABLE ordnr AS INTEGER NO-UNDO.
+{MAGA.I}
+
+
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{EXTRADATA.I}
+
+
+PROCEDURE ladda.
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER aodelnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR varderingtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR maga.
+   DEFINE OUTPUT PARAMETER TABLE FOR aovardtemp.
+   EMPTY TEMP-TABLE varderingtemp NO-ERROR.    
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = valvardnr NO-LOCK NO-ERROR.
+   IF AVAILABLE VARDERING THEN DO:
+      CREATE varderingtemp.
+      BUFFER-COPY VARDERING TO varderingtemp.
+   END.
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = valvardnr NO-LOCK NO-ERROR.
+   IF AVAILABLE VARDERING THEN DO :
+      FIND FIRST AOVARD WHERE AOVARD.VARDNR = VARDERING.VARDNR USE-INDEX VARDNR NO-LOCK NO-ERROR.
+      IF AVAILABLE AOVARD THEN DO:
+         CREATE aovardtemp.
+         BUFFER-COPY AOVARD TO aovardtemp.
+      END.
+   END.
+   EMPTY TEMP-TABLE maga NO-ERROR.    
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = valvardnr NO-LOCK NO-ERROR.
+   IF AVAILABLE VARDERING THEN DO :
+      IF aodelnr = 1 THEN DO:       
+         OPEN QUERY mq FOR EACH AOVARD WHERE AOVARD.AONR = VARDERING.AONR NO-LOCK,
+         EACH FASTVARD WHERE FASTVARD.VARDNR = AOVARD.VARDNR USE-INDEX VARDNR NO-LOCK, 
+         EACH MARKFAST WHERE MARKFAST.BETECKNING = FASTVARD.BETECKNING USE-INDEX FAST NO-LOCK.
+         GET FIRST mq .
+         DO WHILE AVAILABLE(MARKFAST):
+            FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = MARKFAST.MARKNR USE-INDEX MARKNR NO-LOCK NO-ERROR.
+            Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).
+            IF AVAILABLE MARKAGARE THEN DO:              
+               FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = FASTVARD.BETECKNING USE-INDEX FAST NO-LOCK 
+               NO-ERROR.
+               IF AVAILABLE FASTIGHET THEN DO:                        
+                  CREATE maga.
+                  ASSIGN    
+                  maga.MARKREC = RECID(MARKAGARE)
+                  maga.VARDNR = AOVARD.VARDNR
+                  maga.MARKNR = MARKAGARE.MARKNR               
+                  maga.PERSONNUMMER = MARKAGARE.PERSONNUMMER 
+                  maga.PNR2 = MARKAGARE.PNR2
+                  maga.MARKAGARE = MARKAGARE.MARKAGARE       
+                  maga.GATUADRESS = MARKAGARE.GATUADRESS    
+                  maga.POSTNUMMER = MARKAGARE.POSTNUMMER   
+                  maga.POSTADRESS = MARKAGARE.POSTADRESS 
+                  maga.BETECKNING = MARKFAST.BETECKNING
+                  maga.PROCENT =  MARKFAST.PROCENT
+                  maga.ANAMN = FASTIGHET.ANAMN   
+                  maga.AADRESS = FASTIGHET.AADRESS
+                  maga.APONR = FASTIGHET.APONR
+                  maga.APADRESS = FASTIGHET.APADRESS
+                  maga.APERNR = FASTIGHET.APERNR.                       
+                  /*musz = TRUE.    */
+               END.   
+            END.   
+            GET NEXT mq NO-LOCK.          
+         END.   
+         CLOSE QUERY mq. 
+      END.
+      ELSE DO:      
+         OPEN QUERY mq2 FOR EACH FASTVARD WHERE FASTVARD.VARDNR = VARDERING.VARDNR
+         USE-INDEX VARDNR NO-LOCK, 
+         EACH MARKFAST WHERE MARKFAST.BETECKNING = FASTVARD.BETECKNING USE-INDEX FAST NO-LOCK.
+         GET FIRST mq2 .
+         DO WHILE AVAILABLE(MARKFAST):
+            FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = MARKFAST.MARKNR USE-INDEX MARKNR NO-LOCK NO-ERROR.
+            IF AVAILABLE MARKAGARE THEN DO:
+               Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).              
+               FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = FASTVARD.BETECKNING USE-INDEX FAST NO-LOCK 
+               NO-ERROR.
+               IF AVAILABLE FASTIGHET THEN DO:                        
+                  CREATE maga.
+                  ASSIGN    
+                  maga.MARKREC = RECID(MARKAGARE)
+                  maga.VARDNR = VARDERING.VARDNR
+                  maga.MARKNR = MARKAGARE.MARKNR               
+                  maga.PERSONNUMMER = MARKAGARE.PERSONNUMMER 
+                  maga.PNR2 = MARKAGARE.PNR2
+                  maga.MARKAGARE = MARKAGARE.MARKAGARE       
+                  maga.GATUADRESS = MARKAGARE.GATUADRESS    
+                  maga.POSTNUMMER = MARKAGARE.POSTNUMMER   
+                  maga.POSTADRESS = MARKAGARE.POSTADRESS 
+                  maga.BETECKNING = MARKFAST.BETECKNING
+                  maga.PROCENT =  MARKFAST.PROCENT
+                  maga.ANAMN = FASTIGHET.ANAMN   
+                  maga.AADRESS = FASTIGHET.AADRESS
+                  maga.APONR = FASTIGHET.APONR
+                  maga.APADRESS = FASTIGHET.APADRESS
+                  maga.APERNR = FASTIGHET.APERNR.                           
+               END.   
+            END.   
+            GET NEXT mq2 NO-LOCK.          
+         END.   
+         CLOSE QUERY mq2. 
+      END.
+      ordnr = 0.
+      FOR EACH maga BY maga.BETECKNING BY maga.MARKNR:
+         ordnr = ordnr + 1.   
+         maga.ORDNING = ordnr.  
+      END.
+   END.
+   Guru.GlobalaVariabler:GDPRtyp = "M". 
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+PROCEDURE ladda2.
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER aodelnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR varderingtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR maga2.
+   DEFINE OUTPUT PARAMETER TABLE FOR aovardtemp.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   EMPTY TEMP-TABLE varderingtemp NO-ERROR.    
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = valvardnr NO-LOCK NO-ERROR.
+   IF AVAILABLE VARDERING THEN DO:
+      CREATE varderingtemp.
+      BUFFER-COPY VARDERING TO varderingtemp.
+   END.
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = valvardnr NO-LOCK NO-ERROR.
+   IF AVAILABLE VARDERING THEN DO :
+      FIND FIRST AOVARD WHERE AOVARD.VARDNR = VARDERING.VARDNR USE-INDEX VARDNR NO-LOCK NO-ERROR.
+      IF AVAILABLE AOVARD THEN DO:
+         CREATE aovardtemp.
+         BUFFER-COPY AOVARD TO aovardtemp.
+      END.
+   END.
+   EMPTY TEMP-TABLE maga2 NO-ERROR.    
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = valvardnr NO-LOCK NO-ERROR.
+   IF AVAILABLE VARDERING THEN DO :
+      IF aodelnr = 1 THEN DO:       
+         OPEN QUERY mq FOR EACH AOVARD WHERE AOVARD.AONR = VARDERING.AONR NO-LOCK,
+         EACH FASTVARD WHERE FASTVARD.VARDNR = AOVARD.VARDNR USE-INDEX VARDNR NO-LOCK, 
+         EACH MARKFAST WHERE MARKFAST.BETECKNING = FASTVARD.BETECKNING USE-INDEX FAST NO-LOCK.
+         GET FIRST mq .
+         DO WHILE AVAILABLE(MARKFAST):
+            FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = MARKFAST.MARKNR USE-INDEX MARKNR NO-LOCK NO-ERROR.
+            IF AVAILABLE MARKAGARE THEN DO:              
+               Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).
+               FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = FASTVARD.BETECKNING USE-INDEX FAST NO-LOCK 
+               NO-ERROR.
+               IF AVAILABLE FASTIGHET THEN DO:
+                  /* om samma fastighet förekommer flera gånger i de olika värderingarna ska värderingen summeras på en rad cccccc lena */  
+                  /*FIND FIRST maga2  WHERE maga2.BETECKNING = MARKFAST.BETECKNING AND maga2.MARKNR = MARKAGARE.MARKNR NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE maga2 THEN DO:*/                                        
+                     CREATE maga2.
+                     ASSIGN    
+                     maga2.MARKREC = RECID(MARKAGARE)
+                     maga2.VARDNR = AOVARD.VARDNR
+                     maga2.MARKNR = MARKAGARE.MARKNR               
+                     maga2.PERSONNUMMER = MARKAGARE.PERSONNUMMER 
+                     maga2.PNR2 = MARKAGARE.PNR2
+                     maga2.MARKAGARE = MARKAGARE.MARKAGARE       
+                     maga2.GATUADRESS = MARKAGARE.GATUADRESS    
+                     maga2.POSTNUMMER = MARKAGARE.POSTNUMMER   
+                     maga2.POSTADRESS = MARKAGARE.POSTADRESS 
+                     maga2.BETECKNING = MARKFAST.BETECKNING
+                     maga2.PROCENT =  MARKFAST.PROCENT
+                     maga2.ANAMN = FASTIGHET.ANAMN   
+                     maga2.AADRESS = FASTIGHET.AADRESS
+                     maga2.APONR = FASTIGHET.APONR
+                     maga2.APADRESS = FASTIGHET.APADRESS
+                     maga2.APERNR = FASTIGHET.APERNR
+                     maga2.KONTAKT = FALSE.                  
+                     IF maga2.PNR2 BEGINS "0000" THEN .
+                     ELSE DO:            
+                        EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+                        CREATE inextradatatemp.          
+                        ASSIGN
+                        inextradatatemp.PROGRAM = "MARKAG"                   
+                        inextradatatemp.HUVUDINT = MARKAGARE.MARKNR.                    
+                        RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+                        FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+                        IF AVAILABLE extradatatemp THEN DO: 
+                           IF INDEX(maga2.MARKAGARE,extradatatemp.SOKCHAR[3]) = 0 THEN DO:                     
+                              maga2.MARKAGARE = maga2.MARKAGARE + " " + extradatatemp.SOKCHAR[3].
+                           END.   
+                        END. 
+                     END.
+                     EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+                     CREATE inextradatatemp.          
+                     ASSIGN
+                     inextradatatemp.PROGRAM = "FASTLOPNR"                   
+                     inextradatatemp.HUVUDCH = maga2.BETECKNING.                    
+                     RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+                     FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+                     IF AVAILABLE extradatatemp THEN DO:      
+                        IF maga2.MARKNR = extradatatemp.SOKINT[1] THEN maga2.KONTAKT = TRUE.         
+                     END. 
+                     EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+                     CREATE inextradatatemp.          
+                     ASSIGN
+                     inextradatatemp.PROGRAM = "MARKFASTANDEL"                   
+                     inextradatatemp.HUVUDINT = maga2.MARKNR.                    
+                     inextradatatemp.HUVUDCH = maga2.BETECKNING.                    
+                     RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+                     FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+                     IF AVAILABLE extradatatemp THEN DO:      
+                        ASSIGN maga2.ANDEL = extradatatemp.SOKCHAR[1].                             
+                     END.       
+                     ELSE DO:
+                        IF maga2.PROCENT = 100 THEN maga2.ANDEL = "1/1".
+                        ELSE IF maga2.PROCENT = 80 THEN maga2.ANDEL = "4/5".         
+                        ELSE IF maga2.PROCENT = 66 THEN maga2.ANDEL = "2/3".         
+                        ELSE IF maga2.PROCENT = 60 THEN maga2.ANDEL = "3/5".         
+                        ELSE IF maga2.PROCENT = 50 THEN maga2.ANDEL = "1/2".         
+                        ELSE IF maga2.PROCENT = 40 THEN maga2.ANDEL = "2/5".         
+                        ELSE IF maga2.PROCENT = 33 THEN maga2.ANDEL = "1/3".         
+                        ELSE IF maga2.PROCENT = 34 THEN maga2.ANDEL = "1/3".   
+                        ELSE IF maga2.PROCENT = 25 THEN maga2.ANDEL = "1/4".
+                        ELSE IF maga2.PROCENT = 20 THEN maga2.ANDEL = "1/5".
+                        ELSE IF maga2.PROCENT = 10 THEN maga2.ANDEL = "1/10".
+                        ELSE maga2.ANDEL = STRING(maga2.PROCENT) + "/100".
+                     END.      
+                     IF maga2.PROCENT = 100 THEN maga2.KONTAKT = TRUE.                  
+                     /*musz = TRUE.    */
+                  /*END.*/
+               END.      
+            END.   
+            GET NEXT mq NO-LOCK.          
+         END.   
+         CLOSE QUERY mq. 
+      END.
+      ELSE DO:      
+         OPEN QUERY mq2 FOR EACH FASTVARD WHERE FASTVARD.VARDNR = VARDERING.VARDNR
+         USE-INDEX VARDNR NO-LOCK, 
+         EACH MARKFAST WHERE MARKFAST.BETECKNING = FASTVARD.BETECKNING USE-INDEX FAST NO-LOCK.
+         GET FIRST mq2 .
+         DO WHILE AVAILABLE(MARKFAST):
+            FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = MARKFAST.MARKNR USE-INDEX MARKNR NO-LOCK NO-ERROR.
+            IF AVAILABLE MARKAGARE THEN DO:              
+               Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).
+               FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = FASTVARD.BETECKNING USE-INDEX FAST NO-LOCK 
+               NO-ERROR.
+               IF AVAILABLE FASTIGHET THEN DO:                        
+                  CREATE maga2.
+                  ASSIGN    
+                  maga2.MARKREC = RECID(MARKAGARE)
+                  maga2.VARDNR = VARDERING.VARDNR
+                  maga2.MARKNR = MARKAGARE.MARKNR               
+                  maga2.PERSONNUMMER = MARKAGARE.PERSONNUMMER 
+                  maga2.PNR2 = MARKAGARE.PNR2
+                  maga2.MARKAGARE = MARKAGARE.MARKAGARE       
+                  maga2.GATUADRESS = MARKAGARE.GATUADRESS    
+                  maga2.POSTNUMMER = MARKAGARE.POSTNUMMER   
+                  maga2.POSTADRESS = MARKAGARE.POSTADRESS 
+                  maga2.BETECKNING = MARKFAST.BETECKNING
+                  maga2.PROCENT =  MARKFAST.PROCENT
+                  maga2.ANAMN = FASTIGHET.ANAMN   
+                  maga2.AADRESS = FASTIGHET.AADRESS
+                  maga2.APONR = FASTIGHET.APONR
+                  maga2.APADRESS = FASTIGHET.APADRESS
+                  maga2.APERNR = FASTIGHET.APERNR
+                  maga2.KONTAKT = FALSE.                  
+                  IF maga2.PNR2 BEGINS "0000" THEN .
+                  ELSE DO:            
+                     EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+                     CREATE inextradatatemp.          
+                     ASSIGN
+                     inextradatatemp.PROGRAM = "MARKAG"                   
+                     inextradatatemp.HUVUDINT = MARKAGARE.MARKNR.                    
+                     RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+                     FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+                     IF AVAILABLE extradatatemp THEN DO:           
+                        IF INDEX(maga2.MARKAGARE,extradatatemp.SOKCHAR[3]) = 0 THEN DO:           
+                           maga2.MARKAGARE = maga2.MARKAGARE + " " + extradatatemp.SOKCHAR[3].
+                        END.   
+                     END. 
+                  END.
+                  EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+                  CREATE inextradatatemp.          
+                  ASSIGN
+                  inextradatatemp.PROGRAM = "FASTLOPNR"                   
+                  inextradatatemp.HUVUDCH = maga2.BETECKNING.                    
+                  RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+                  FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+                  IF AVAILABLE extradatatemp THEN DO:      
+                     IF maga2.MARKNR = extradatatemp.SOKINT[1] THEN maga2.KONTAKT = TRUE.         
+                  END. 
+                  EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+                  CREATE inextradatatemp.          
+                  ASSIGN
+                  inextradatatemp.PROGRAM = "MARKFASTANDEL"                   
+                  inextradatatemp.HUVUDINT = maga2.MARKNR.                    
+                  inextradatatemp.HUVUDCH = maga2.BETECKNING.                    
+                  RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+                  FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+                  IF AVAILABLE extradatatemp THEN DO:      
+                     ASSIGN maga2.ANDEL = extradatatemp.SOKCHAR[1].                             
+                  END.       
+                  ELSE DO:
+                     IF maga2.PROCENT = 100 THEN maga2.ANDEL = "1/1".
+                     ELSE IF maga2.PROCENT = 80 THEN maga2.ANDEL = "4/5".         
+                     ELSE IF maga2.PROCENT = 66 THEN maga2.ANDEL = "2/3".         
+                     ELSE IF maga2.PROCENT = 60 THEN maga2.ANDEL = "3/5".         
+                     ELSE IF maga2.PROCENT = 50 THEN maga2.ANDEL = "1/2".         
+                     ELSE IF maga2.PROCENT = 40 THEN maga2.ANDEL = "2/5".         
+                     ELSE IF maga2.PROCENT = 33 THEN maga2.ANDEL = "1/3".         
+                     ELSE IF maga2.PROCENT = 34 THEN maga2.ANDEL = "1/3".   
+                     ELSE IF maga2.PROCENT = 25 THEN maga2.ANDEL = "1/4".
+                     ELSE IF maga2.PROCENT = 20 THEN maga2.ANDEL = "1/5".
+                     ELSE IF maga2.PROCENT = 10 THEN maga2.ANDEL = "1/10".
+                     ELSE maga2.ANDEL = STRING(maga2.PROCENT) + "/100".
+                  END.      
+                  /*musz = TRUE.    */
+               END.   
+            END.   
+            GET NEXT mq2 NO-LOCK.          
+         END.   
+         CLOSE QUERY mq2. 
+      END.
+      ordnr = 0.
+      FOR EACH maga2 BY maga2.BETECKNING BY maga2.MARKNR:
+         ordnr = ordnr + 1.   
+         maga2.ORDNING = ordnr.  
+      END.
+   END.
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+   edataapph = ?.
+  
+   Guru.GlobalaVariabler:GDPRtyp = "M". 
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.

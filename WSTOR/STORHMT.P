@@ -1,0 +1,268 @@
+/*
+     Filename: STORHMT.P
+      Created: 03.06.0012 15:28ELPAO     
+     Modified: 
+*/
+/***************************** VARIABLES *****************************/
+/* DEFINE VARIABLE tempbufh AS HANDLE NO-UNDO. */
+DEFINE VARIABLE orgbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE queh AS HANDLE NO-UNDO.
+DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE skaprec AS RECID NO-UNDO.
+
+DEFINE VARIABLE temph AS HANDLE NO-UNDO.
+DEFINE VARIABLE counter AS INTEGER NO-UNDO.
+DEFINE VARIABLE tempvar2 AS INTEGER NO-UNDO INITIAL 0.
+
+counter = counter.
+/**************************** TEMP-TABLES *****************************/                                                                        
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{STRTEMP.I}
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{STORTEMP.I}
+DEFINE TEMP-TABLE extrastorntemp NO-UNDO LIKE urstorntemp.
+counter = counter.
+{AVDELNINGTEMP.I}
+
+/***************************** PROCEDURES *****************************/
+PROCEDURE test_UI :
+      temph = SESSION:FIRST-PROCEDURE.
+      DEFINE OUTPUT PARAMETER i AS INTEGER NO-UNDO.
+      counter = 1.
+      DO WHILE VALID-HANDLE(temph):
+         counter = counter + 1.
+         MESSAGE counter ": " temph:FILE-NAME temph:PRIVATE-DATA.
+         temph = temph:NEXT-SIBLING.
+      END.
+      i = counter.
+
+      /*       MESSAGE counter. */
+/*    MESSAGE SOURCE-PROCEDURE:FILE-NAME SKIP   */
+/*       SOURCE-PROCEDURE:INTERNAL-ENTRIES SKIP */
+/*       SOURCE-PROCEDURE:PERSISTENT SKIP SKIP  */
+/*       THIS-PROCEDURE:FILE-NAME SKIP          */
+/*       THIS-PROCEDURE:INTERNAL-ENTRIES SKIP   */
+/*       THIS-PROCEDURE:PERSISTENT.             */
+END PROCEDURE. 
+
+
+PROCEDURE laddatemp_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE-HANDLE tth.
+   DEFINE INPUT PARAMETER orgtabch AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE tempbufh AS HANDLE NO-UNDO.
+   tempbufh = tth:DEFAULT-BUFFER-HANDLE.
+   CREATE BUFFER orgbufh FOR TABLE orgtabch. 
+   CREATE QUERY queh.
+
+   IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.
+   queh:SET-BUFFERS(tempbufh).
+   kommandoquery = "FOR EACH " + tempbufh:TABLE + " NO-LOCK.".
+   queh:QUERY-PREPARE(kommandoquery).
+   queh:QUERY-OPEN().
+   queh:GET-FIRST(NO-LOCK).
+   DO WHILE queh:QUERY-OFF-END = FALSE:
+      DO TRANSACTION:
+         queh:GET-CURRENT(EXCLUSIVE-LOCK).
+         tempbufh:BUFFER-DELETE().
+      END.
+      queh:GET-NEXT(NO-LOCK).
+   END.
+
+   queh:SET-BUFFERS(orgbufh).
+   kommandoquery = "FOR EACH " + orgbufh:TABLE + " NO-LOCK.".
+   queh:QUERY-PREPARE(kommandoquery).
+   queh:QUERY-OPEN().
+   queh:GET-FIRST(NO-LOCK).
+   DO WHILE queh:QUERY-OFF-END = FALSE:
+      tempbufh:BUFFER-CREATE().
+      tempbufh:BUFFER-COPY(orgbufh).
+      queh:GET-NEXT(NO-LOCK).
+   END.
+   DELETE OBJECT queh.
+   queh = ?.
+   DELETE OBJECT orgbufh.
+   orgbufh = ?.
+   DELETE OBJECT tth.
+   tth = ?.
+END PROCEDURE. 
+
+PROCEDURE andrastor_UI :
+   DEFINE INPUT PARAMETER TABLE FOR extrastorntemp.
+   FIND FIRST extrastorntemp NO-LOCK NO-ERROR.
+   FIND FIRST STORNINGSTAB WHERE STORNINGSTAB.STORNUMMERID = extrastorntemp.STORNUMMERID AND 
+      STORNINGSTAB.DISTRIKTID = extrastorntemp.DISTRIKTID NO-LOCK.
+   IF AVAILABLE STORNINGSTAB THEN DO:
+      BUFFER-COPY extrastorntemp TO STORNINGSTAB.
+   END.
+   DELETE extrastorntemp.
+END PROCEDURE. 
+
+PROCEDURE skapastor_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR extrastorntemp.
+   DEFINE VARIABLE strnummer AS INTEGER NO-UNDO.
+   
+   FIND LAST STORNINGSTAB USE-INDEX STORNUMMERID NO-LOCK NO-ERROR.
+   IF AVAILABLE STORNINGSTAB THEN DO:
+      strnummer = STORNINGSTAB.STORNUMMERID + 1.
+   END.
+   ELSE DO:                                              
+      strnummer = 1.       
+   END. 
+   DO TRANSACTION: 
+      CREATE STORNINGSTAB.
+      ASSIGN
+      STORNINGSTAB.STORNUMMERID = strnummer
+      STORNINGSTAB.VSTORNUMMER = strnummer
+      STORNINGSTAB.REGDATUM = TODAY
+      STORNINGSTAB.REGKLOCKAN = TIME.  
+      /*Ändring av Mikael.*/
+      skaprec = RECID(STORNINGSTAB).
+   END.
+   FIND FIRST extrastorntemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE extrastorntemp THEN CREATE extrastorntemp.
+   BUFFER-COPY STORNINGSTAB TO extrastorntemp.
+   RELEASE STORNINGSTAB NO-ERROR.
+END PROCEDURE. 
+
+PROCEDURE hamtastor_UI :
+   DEFINE INPUT PARAMETER strid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER distid AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR extrastorntemp.
+   FIND FIRST STORNINGSTAB WHERE STORNINGSTAB.STORNUMMERID = strid
+      AND STORNINGSTAB.DISTRIKTID = distid NO-LOCK NO-ERROR.
+   IF AVAILABLE STORNINGSTAB THEN DO:
+      skaprec = RECID(STORNINGSTAB).
+      FIND FIRST extrastorntemp NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE extrastorntemp THEN CREATE extrastorntemp.
+      BUFFER-COPY STORNINGSTAB TO extrastorntemp.
+   END.
+END PROCEDURE. 
+
+PROCEDURE tabortstorning_UI: /*Ta bort en rad*/
+   DEFINE INPUT PARAMETER strid AS INTEGER NO-UNDO.      
+   DEFINE INPUT PARAMETER distid AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER retvalue AS LOGICAL NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST STORNINGSTAB WHERE STORNINGSTAB.STORNUMMERID = strid AND 
+         STORNINGSTAB.DISTRIKTID = distid EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE STORNINGSTAB THEN DO:
+         OPEN QUERY bq FOR EACH BORTKOPPLAD WHERE BORTKOPPLAD.STORNUMMERID = 
+         STORNINGSTAB.STORNUMMERID USE-INDEX STORNUMMERID NO-LOCK.
+         GET FIRST bq EXCLUSIVE-LOCK.
+         DO WHILE AVAILABLE(BORTKOPPLAD):
+            DELETE BORTKOPPLAD.
+            GET NEXT bq EXCLUSIVE-LOCK.
+         END.
+         CLOSE QUERY bq.   
+         DELETE STORNINGSTAB.
+      END.
+      ELSE retvalue = TRUE.
+   END.
+END.
+
+PROCEDURE hamtaenstorning_UI: /*Hämtar EN post utifrån STORNUMMERID*/
+   DEFINE INPUT PARAMETER storid AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR vstorntemp.
+   DEFINE OUTPUT PARAMETER retvalue AS LOGICAL NO-UNDO.
+   FOR EACH vstorntemp:
+      DELETE vstorntemp.
+   END.
+   FIND FIRST storvaltemp NO-LOCK NO-ERROR.
+   OPEN QUERY tempq FOR EACH STORNINGSTAB WHERE STORNINGSTAB.STORNUMMERID = storid NO-LOCK.     
+   GET FIRST tempq NO-LOCK.
+   IF NOT AVAILABLE STORNINGSTAB THEN DO:
+      retvalue = TRUE.      
+   END.
+   ELSE DO:
+      DO WHILE AVAILABLE(STORNINGSTAB):
+         CREATE vstorntemp.
+         BUFFER-COPY STORNINGSTAB TO vstorntemp.
+         GET NEXT tempq NO-LOCK.
+      END.
+      retvalue = FALSE.
+   END.
+END.
+
+
+
+
+PROCEDURE hamtaurval_UI:
+   DEFINE INPUT PARAMETER kquery AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR urstorntemp.
+   DEFINE VARIABLE qh AS HANDLE NO-UNDO.
+   FOR EACH urstorntemp:
+      DELETE urstorntemp.
+   END.
+   CREATE QUERY qh.
+   qh:SET-BUFFERS(BUFFER STORNINGSTAB:HANDLE).
+   qh:QUERY-PREPARE(kquery).
+   qh:QUERY-OPEN().
+   qh:GET-FIRST(NO-LOCK).
+   DO WHILE qh:QUERY-OFF-END = FALSE:
+      CREATE urstorntemp.
+      BUFFER-COPY STORNINGSTAB TO urstorntemp.
+      qh:GET-NEXT(NO-LOCK).
+   END.
+   qh:QUERY-CLOSE.
+   DELETE OBJECT qh.
+END PROCEDURE.
+
+PROCEDURE sparastor_UI :
+   DEFINE INPUT PARAMETER TABLE FOR extrastorntemp.
+   FIND LAST extrastorntemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE extrastorntemp THEN RETURN.
+   DO TRANSACTION:
+      FIND FIRST STORNINGSTAB WHERE RECID(STORNINGSTAB) = skaprec AND
+         STORNINGSTAB.STORNUMMERID = extrastorntemp.STORNUMMERID EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE STORNINGSTAB THEN DO:
+         BUFFER-COPY extrastorntemp TO STORNINGSTAB.
+      END.
+   END.
+   RELEASE STORNINGSTAB NO-ERROR.
+   skaprec = ?.
+END PROCEDURE. 
+
+PROCEDURE tabortstor_UI :
+   IF skaprec NE ? THEN DO:
+      DO TRANSACTION:
+         FIND FIRST STORNINGSTAB WHERE RECID(STORNINGSTAB) = skaprec
+            EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE STORNINGSTAB THEN DO:
+            DELETE STORNINGSTAB.
+         END.
+      END.
+      RELEASE STORNINGSTAB.
+      skaprec = ?.
+   END.
+END PROCEDURE. 
+
+PROCEDURE andrabortkopplad_UI :
+   DEFINE INPUT PARAMETER TABLE FOR bortkoppladtemp.
+   DEFINE INPUT PARAMETER strid AS INTEGER NO-UNDO.
+   OPEN QUERY bq FOR EACH BORTKOPPLAD WHERE BORTKOPPLAD.STORNUMMERID = strid NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST bq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(BORTKOPPLAD):
+         DELETE BORTKOPPLAD.
+         GET NEXT bq EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY bq.  
+      FOR EACH bortkoppladtemp WHERE bortkoppladtemp.STORNUMMERID = strid:
+         CREATE BORTKOPPLAD.
+         BUFFER-COPY bortkoppladtemp TO BORTKOPPLAD.
+      END.
+   END.
+END PROCEDURE. 
+
+PROCEDURE laddaavdelningtemp_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR avdelningtemp.
+   FOR EACH avdelningtemp.
+      DELETE avdelningtemp.
+   END.
+   FOR EACH AVDELNING WHERE AVDELNING.KOSTMASK = 1 NO-LOCK.
+      CREATE avdelningtemp.
+      BUFFER-COPY AVDELNING TO avdelningtemp.
+   END.
+END PROCEDURE.

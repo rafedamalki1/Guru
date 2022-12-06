@@ -1,0 +1,291 @@
+/*PHMTAPP2.P
+
+*/
+
+{STARTFORAPP.I}
+{BOLAGSEKSTART.I}
+{PHMT.I}
+&Scoped-define NEW NEW 
+{PHMTA.I}
+{SOKDEF.I}
+DEFINE TEMP-TABLE avdjurkoll NO-UNDO
+   FIELD OMRADE AS CHARACTER
+   INDEX OMRADE OMRADE.
+DEFINE QUERY pq FOR PERSONALTAB.
+DEFINE VARIABLE sekkollvar AS LOGICAL NO-UNDO.
+PROCEDURE allpers_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR personaltemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR godkannartemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR avdelningtemp.
+   EMPTY TEMP-TABLE personaltemp NO-ERROR.       
+   FOR EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE NO-LOCK.
+      CREATE personaltemp.
+      BUFFER-COPY PERSONALTAB TO personaltemp.
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.     
+   END.
+   EMPTY TEMP-TABLE godkannartemp NO-ERROR. 
+   EMPTY TEMP-TABLE avdelningtemp  NO-ERROR.       
+   FOR EACH AVDELNING WHERE AVDELNING.KOSTMASK = 0 NO-LOCK:
+      CREATE avdelningtemp.
+      BUFFER-COPY AVDELNING TO avdelningtemp.     
+   END.  
+   
+   {GDPRLOGGCLIENT.I} 
+END PROCEDURE.
+PROCEDURE persen_UI :
+   /*6*/
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR personaltemp.
+   EMPTY TEMP-TABLE personaltemp NO-ERROR.       
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = vem NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      FIND FIRST personaltemp WHERE personaltemp.PERSONALKOD = vem NO-ERROR.
+      IF NOT AVAILABLE personaltemp THEN CREATE personaltemp.
+      BUFFER-COPY PERSONALTAB TO personaltemp.
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+   END.
+
+END PROCEDURE.
+
+PROCEDURE godk_UI :
+   /*2*/
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR godkannartemp.
+   EMPTY TEMP-TABLE godkannartemp NO-ERROR. 
+END PROCEDURE.
+
+PROCEDURE recidset_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR personaltemp.
+   FOR EACH personaltemp:
+     FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = personaltemp.PERSONALKOD NO-LOCK NO-ERROR.
+     IF AVAILABLE PERSONALTAB THEN DO:
+         ASSIGN personaltemp.PERSRECID = RECID(PERSONALTAB).
+      END.     
+   END.
+END PROCEDURE.
+
+PROCEDURE phamta_UI :
+   
+   DEFINE INPUT PARAMETER sektidkoll AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER sekkoll AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR uppvalPerstemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR personaltemp.
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+   
+   sekkollvar = sekkoll.
+   FIND FIRST uppvalPerstemp NO-ERROR.
+   EMPTY TEMP-TABLE personaltemp NO-ERROR. 
+   /*Öppna olika querys*/
+   OPEN QUERY pq FOR EACH PERSONALTAB NO-LOCK.
+   
+   RUN skapa_UI.
+   RUN avdkoll_UI.    
+   
+END PROCEDURE.
+
+PROCEDURE avdkoll_UI.
+   IF uppvalPerstemp.AVDNR NE "ALLA" THEN DO:
+      FOR EACH avdjurkoll:
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = avdjurkoll.OMRADE NO-LOCK NO-ERROR.
+         IF AVAILABLE OMRADETAB THEN DO:
+            IF OMRADETAB.AVDELNINGNR = INTEGER(uppvalPerstemp.AVDNR) THEN uppvalPerstemp.AVDNR = uppvalPerstemp.AVDNR.
+            ELSE DO:
+               FOR EACH personaltemp WHERE personaltemp.OMRADE = avdjurkoll.OMRADE:
+                  DELETE personaltemp.
+               END.
+            END.
+         END.
+      END.
+   END.
+     
+END PROCEDURE.
+
+PROCEDURE skapa_UI:
+   GET FIRST pq NO-LOCK.
+   DO WHILE AVAILABLE(PERSONALTAB):          
+      CREATE personaltemp.          
+      BUFFER-COPY PERSONALTAB TO personaltemp.
+      personaltemp.PERSRECID = RECID(PERSONALTAB).           
+      IF AVAILABLE personaltemp THEN DO:
+         IF sekkollvar= FALSE THEN.
+         ELSE DO:
+            FIND FIRST valsoktemp WHERE valsoktemp.SOKVAL = 1 NO-ERROR.
+            IF valsoktemp.SOKINT[1] NE 0 THEN DO:
+               FIND FIRST PERSEK WHERE PERSEK.ANVANDARE = valsoktemp.SOKCHAR[1] AND
+               PERSEK.PERSONALKOD = personaltemp.PERSONALKOD 
+               USE-INDEX PERSEK NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE PERSEK THEN DO: 
+                  DELETE personaltemp.
+               END.   
+               ELSE DO:
+                  IF PERSEK.PANDRA = FALSE THEN DO:
+                     DELETE personaltemp.
+                  END.
+               END.                 
+            END.      
+         END.
+      END.
+      
+      IF AVAILABLE personaltemp THEN DO:
+         FIND FIRST avdjurkoll WHERE avdjurkoll.OMRADE = personaltemp.OMRADE NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE avdjurkoll THEN DO:
+            CREATE avdjurkoll.
+            avdjurkoll.OMRADE = personaltemp.OMRADE.
+         END.
+      END.
+      
+      GET NEXT pq NO-LOCK.
+      
+   END.
+END PROCEDURE.  
+  
+PROCEDURE ptidsek_UI:
+DEFINE INPUT PARAMETER TABLE FOR valsoktemp.   
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR personaltemp.
+
+
+   FOR EACH personaltemp :       
+      FIND FIRST valsoktemp WHERE valsoktemp.SOKVAL = 1 NO-ERROR.
+      IF valsoktemp.SOKINT[1] NE 0 THEN DO:
+         FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = valsoktemp.SOKCHAR[1] AND
+         TIDSEK.PERSONALKOD = personaltemp.PERSONALKOD 
+         USE-INDEX TIDSEK NO-ERROR.
+         IF NOT AVAILABLE TIDSEK THEN DO: 
+            DELETE personaltemp.
+         END.   
+         ELSE DO:
+            IF TIDSEK.PANDRA = FALSE THEN DO:
+               DELETE personaltemp.
+            END.
+         END.                 
+      END.         
+   END.
+   
+
+  
+END PROCEDURE.  
+PROCEDURE kollbolagen_UI :
+   DEFINE INPUT  PARAMETER globanv2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER FILL-IN_EPERSONALKOD AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valperstemp.
+  /* Guru.Konstanter:globanv = globanv2.*/
+   IF Guru.Konstanter:varforetypval[18] = 0 OR Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)   THEN RETURN.
+   
+   FIND FIRST valperstemp WHERE valperstemp.PERSONALKOD = FILL-IN_EPERSONALKOD     
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE valperstemp THEN DO:
+      FIND FIRST omvtemp WHERE omvtemp.OMRADE = valperstemp.OMRADE NO-LOCK NO-ERROR.
+      FIND FIRST BOLAGSEK WHERE BOLAGSEK.ANVANDARE = Guru.Konstanter:globanv AND BOLAGSEK.OMRADE = omvtemp.JUDID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BOLAGSEK THEN DO:
+         DELETE valperstemp.
+      END.  
+   END. 
+END PROCEDURE.
+PROCEDURE kollbolag_UI :
+   DEFINE INPUT  PARAMETER globanv2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR personaltemp.
+   Guru.Konstanter:globanv = globanv2.
+   IF Guru.Konstanter:varforetypval[18] = 0 OR Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)   THEN RETURN.
+   FOR EACH personaltemp,
+   EACH omvtemp WHERE omvtemp.OMRADE = personaltemp.OMRADE:
+      FIND FIRST BOLAGSEK WHERE BOLAGSEK.ANVANDARE = Guru.Konstanter:globanv AND BOLAGSEK.OMRADE = omvtemp.JUDID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BOLAGSEK THEN DO:
+         DELETE personaltemp.
+      END.  
+   END.
+END PROCEDURE.
+
+PROCEDURE kolldatum_UI :
+   DEFINE INPUT  PARAMETER hjdat AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER hjrak AS INTEGER.
+   DEFINE VARIABLE hjrak2 AS INTEGER NO-UNDO.
+   DEFINE VARIABLE arbd AS LOGICAL NO-UNDO.
+   hjrak = 0.
+   hjrak2 = 0.
+   arbd = TRUE.
+   
+      
+END PROCEDURE.
+  
+PROCEDURE hmtpnren_UI :
+   DEFINE INPUT PARAMETER pnr AS CHARACTER   NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR valperstemp.
+   EMPTY TEMP-TABLE valperstemp NO-ERROR.  
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONNUMMER = pnr
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      FIND FIRST valperstemp WHERE valperstemp.PERSONNUMMER = pnr NO-ERROR.
+      IF NOT AVAILABLE valperstemp THEN CREATE valperstemp.
+      BUFFER-COPY PERSONALTAB TO valperstemp.
+      valperstemp.PERSRECID = RECID(PERSONALTAB).
+            
+   END.
+END PROCEDURE.
+PROCEDURE psek_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR soktemp.
+   FIND FIRST soktemp NO-ERROR.
+   IF soktemp.SOKINT[1] NE 0 THEN DO:
+      FIND FIRST PERSEK WHERE PERSEK.ANVANDARE = soktemp.SOKCHAR[2] AND
+      PERSEK.PERSONALKOD = soktemp.SOKCHAR[1] 
+      USE-INDEX PERSEK NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE PERSEK THEN DO: 
+         ASSIGN
+         soktemp.SOKLOG[1] = TRUE
+         soktemp.SOKLOG[2] = TRUE.
+         FIND FIRST PERSONALTAB WHERE 
+         PERSONALTAB.PERSONALKOD = soktemp.SOKCHAR[1] NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE PERSONALTAB THEN DO:
+            soktemp.SOKCHAR[3] = "Personen finns inte i systemet!". 
+         END.
+         ELSE DO:
+            soktemp.SOKCHAR[3] = "Du har inte behörighet att göra ändringar på denna person!".
+         END.
+      END.   
+      ELSE DO:
+         IF PERSEK.PANDRA = FALSE THEN DO:
+            ASSIGN
+            soktemp.SOKLOG[1] = TRUE
+            soktemp.SOKLOG[2] = TRUE.
+            soktemp.SOKCHAR[3] = "Du har inte behörighet att göra ändringar på denna person!".
+         END.           
+      END.
+   END.      
+END PROCEDURE.
+PROCEDURE pnrsek_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR soktemp.
+   FIND FIRST soktemp NO-ERROR.
+   FIND FIRST PERSONALTAB WHERE
+   PERSONALTAB.PERSONNUMMER = soktemp.SOKCHAR[1] NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      IF soktemp.SOKINT[1] NE 0 THEN DO:
+         FIND FIRST PERSEK WHERE PERSEK.ANVANDARE = soktemp.SOKCHAR[2] AND
+         PERSEK.PERSONALKOD = PERSONALTAB.PERSONALKOD 
+         USE-INDEX PERSEK NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE PERSEK THEN DO: 
+            ASSIGN
+            soktemp.SOKLOG[1] = TRUE
+            soktemp.SOKLOG[2] = TRUE.
+            soktemp.SOKCHAR[3] = "Du har inte behörighet att göra ändringar på denna person!".
+            /*FIND FIRST PERSONALTAB WHERE 
+            PERSONALTAB.PERSONALKOD = soktemp.SOKCHAR[1] NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE PERSONALTAB THEN DO:
+               soktemp.SOKCHAR[3] = "Personen finns inte i systemet!". 
+            END.
+            ELSE DO:
+               soktemp.SOKCHAR[3] = "Du har inte behörighet att göra ändringar på denna person!".
+            END.*/
+         END.   
+         ELSE DO:
+            IF PERSEK.PANDRA = FALSE THEN DO:
+               ASSIGN
+               soktemp.SOKLOG[1] = TRUE
+               soktemp.SOKLOG[2] = TRUE.
+               soktemp.SOKCHAR[3] = "Du har inte behörighet att göra ändringar på denna person!".
+            END.           
+         END.
+      END.
+   END.
+   IF NOT AVAILABLE PERSONALTAB THEN DO:
+      soktemp.SOKCHAR[3] = "Personen finns inte i systemet!". 
+   END.
+END PROCEDURE.

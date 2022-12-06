@@ -1,0 +1,69 @@
+/*NYSINGELDB.P*/
+
+DEFINE INPUT PARAMETER tilldb AS CHARACTER NO-UNDO.      /*orginalnamn på db och får det nya data*/
+DEFINE INPUT PARAMETER tabell AS CHARACTER NO-UNDO.  /*tabell som kopieras*/
+DEFINE OUTPUT PARAMETER felkod AS INTEGER NO-UNDO.
+DEFINE VARIABLE frandb AS CHARACTER NO-UNDO.      /*från db och får det nya data*/
+DEFINE VARIABLE frantab AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tilltab AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kolltab AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kollkommando AS CHARACTER NO-UNDO.
+DEFINE VARIABLE frankommando AS CHARACTER NO-UNDO.
+DEFINE VARIABLE franbh AS HANDLE NO-UNDO.
+DEFINE VARIABLE tillbh AS HANDLE NO-UNDO.
+DEFINE VARIABLE kollh  AS HANDLE NO-UNDO.
+DEFINE VARIABLE franqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE kollqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE uservar AS CHARACTER NO-UNDO.
+frandb = "UTBI".
+frantab = frandb + "." + tabell.
+tilltab = tilldb + "." + tabell.
+kolltab = frandb + "._FILE".
+kollkommando = "FOR EACH " + frandb + "._FILE WHERE " + frandb + "._file._FILE-NAME = '" + tabell + "' NO-LOCK".
+frankommando = "FOR EACH " + frandb + "." + tabell + " NO-LOCK".
+uservar = USERID.
+IF uservar NE {setuser.I} THEN DO:
+   SETUSERID({setuser.I},{setpwd.I}).
+END.
+
+/* Skapar en buffer för till-tabellen och från-tabellen */
+CREATE BUFFER tillbh FOR TABLE tilltab NO-ERROR.
+CREATE BUFFER franbh FOR TABLE frantab NO-ERROR.
+CREATE BUFFER kollh FOR TABLE kolltab NO-ERROR.
+CREATE QUERY franqh.
+CREATE QUERY kollqh.   
+
+kollqh:SET-BUFFERS(kollh).
+kollqh:QUERY-PREPARE(kollkommando).
+kollqh:QUERY-OPEN.
+kollqh:GET-FIRST(NO-LOCK).
+DO WHILE kollqh:QUERY-OFF-END = FALSE:  
+   franqh:SET-BUFFERS(franbh).
+   franqh:QUERY-PREPARE(frankommando).   
+   franqh:QUERY-OPEN().
+   franqh:GET-FIRST(NO-LOCK).
+   DO WHILE franbh:AVAILABLE:
+      DO TRANSACTION:
+         tillbh:BUFFER-CREATE().
+         tillbh:BUFFER-COPY(franbh).            
+      END.
+      /*
+      cnt = 1.
+      REPEAT TRANSACTION WHILE cnt < 500 AND franbh:AVAILABLE:
+         cnt = cnt + 1.
+         tillbh:BUFFER-CREATE().
+         tillbh:BUFFER-COPY(franbh).
+         franqh:GET-NEXT(NO-LOCK).        
+      END.
+      */
+      franqh:GET-NEXT(NO-LOCK).        
+   END.
+   franqh:QUERY-CLOSE().
+   kollqh:GET-NEXT(NO-LOCK).
+END.
+kollqh:QUERY-CLOSE().
+IF uservar NE {setuser.I} THEN DO:
+   IF uservar = "" THEN SETUSERID("","").
+   
+   ELSE SETUSERID(CHR(75) + CHR(85) + CHR(78) + CHR(68),CHR(75) + CHR(85) + CHR(78) + CHR(68)).
+END.

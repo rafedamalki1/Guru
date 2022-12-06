@@ -1,0 +1,6 @@
+DEFINE VARIABLE comm-lin AS CHARACTER FORMAT "x(70)".
+
+REPEAT:
+	UPDATE comm-lin.
+	OS-COMMAND VALUE(comm-lin). 
+END.

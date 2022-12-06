@@ -1,0 +1,20 @@
+1 "ÖVERSTRÖM" "43"
+2 "JORDFELSTRÖM" "44"
+3 "NOLLPUNKTSSPÄNNING" "45"
+4 "DIFFSKYDD" "46"
+5 "VAKTER, UTLÖSNING" "47"
+6 "ÖVRIGA FAKTORER" "48"
+7 "OKÄND" "234"
+8 "DISTANSSKYDD" "237"
+.
+PSC
+filename=RELAINDIKERING
+records=0000000000008
+ldbname=sven
+timestamp=2014/10/21-10:49:19
+numformat=44,46
+dateformat=ymd-1950
+map=NO-MAP
+cpstream=1252
+.
+0000000190

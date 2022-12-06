@@ -1,0 +1,464 @@
+/*KalkyliBerAnd.P  körs från BERHMTKALK.P BERSPARKONMTR.P */
+
+
+{KONVALTEMP.I}
+
+{KALKTEMP2.I}
+DEFINE VARIABLE LocalAppServerHandle AS HANDLE NO-UNDO.
+DEFINE VARIABLE berkopptabbuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE nyKalkNrvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE felmedd AS CHARACTER NO-UNDO.
+DEFINE BUFFER KALKNUMBUF FOR KALKNUM.
+DEFINE VARIABLE forsta AS LOGICAL NO-UNDO.
+DEFINE VARIABLE wKalkyl AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kalkkatval AS INTEGER NO-UNDO.
+wKalkyl = "KalkyliBerAnd" + STRING(TIME). 
+CREATE WIDGET-POOL  wKalkyl.
+PROCEDURE KalkStart_UI :
+   DEFINE INPUT  PARAMETER globanv AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER skapakoppling AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER kalkiberfinns AS LOGICAL NO-UNDO.
+   CREATE BUFFER berkopptabbuffh FOR TABLE "BERKALKOPPLA" IN WIDGET-POOL wKalkyl.
+   berkopptabbuffh:FIND-FIRST("WHERE BERNR = " + valaonr + " AND OMRADE = '" + valomrade + "'", NO-LOCK) NO-ERROR.
+   IF berkopptabbuffh:AVAILABLE THEN DO:
+      FIND FIRST KALKHUV  WHERE KALKHUV.KALKNR = berkopptabbuffh:BUFFER-FIELD("KALKNR"):BUFFER-VALUE AND
+      KALKHUV.OMRADE = berkopptabbuffh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE NO-LOCK NO-ERROR.
+      IF NOT VALID-HANDLE(LocalAppServerHandle) THEN RUN KalkyleraiBeredningStart.p PERSISTENT SET LocalAppServerHandle (INPUT Guru.Konstanter:globanv).
+      kalkiberfinns = TRUE.
+      RUN avsKIB_UI.
+      RETURN.
+   END.   
+   IF skapakoppling = FALSE THEN  RETURN.
+   IF NOT VALID-HANDLE(LocalAppServerHandle) THEN RUN KalkyleraiBeredningStart.p PERSISTENT SET LocalAppServerHandle (INPUT Guru.Konstanter:globanv).
+   /*koppling och kalkyl skapas*/
+   RUN KalkyleraiBeredning_UI IN LocalAppServerHandle (INPUT 0,INPUT INTEGER(valaonr),INPUT valomrade,OUTPUT felmedd,OUTPUT nyKalkNrvar, OUTPUT kalkiberfinns).        
+   RUN avsKIB_UI.
+   
+   berkopptabbuffh:FIND-FIRST("WHERE BERNR = " + valaonr + " AND OMRADE = '" + valomrade + "'", NO-LOCK) NO-ERROR.
+   IF berkopptabbuffh:AVAILABLE THEN DO:
+      FIND FIRST KALKHUV  WHERE KALKHUV.KALKNR = berkopptabbuffh:BUFFER-FIELD("KALKNR"):BUFFER-VALUE AND
+      KALKHUV.OMRADE = berkopptabbuffh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE NO-LOCK NO-ERROR.
+      kalkiberfinns = TRUE.
+      RETURN.
+   END.
+   kalkiberfinns = FALSE.
+   /*Start*/             
+
+END PROCEDURE. 
+ 
+PROCEDURE kalkbefintligt_UI:
+   DEFINE INPUT  PARAMETER Bernrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER valnum AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalk_temp.
+   CREATE BUFFER berkopptabbuffh FOR TABLE "BERKALKOPPLA" IN WIDGET-POOL wKalkyl.
+   berkopptabbuffh:FIND-FIRST("WHERE BERNR = " + STRING(Bernrvar) + " AND OMRADE = '" + valomrade + "'", NO-LOCK) NO-ERROR.
+   IF berkopptabbuffh:AVAILABLE THEN.
+   ELSE RETURN.      
+   
+   EMPTY TEMP-TABLE kalk_temp NO-ERROR. 
+ 
+   FIND FIRST KALKNUM WHERE KALKNUM.KALKNR = berkopptabbuffh:BUFFER-FIELD("KALKNR"):BUFFER-VALUE AND
+   KALKNUM.OMRADE = valomrade AND KALKNUM.BERNUM = valnum
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE KALKNUM THEN DO:
+      FOR EACH KALKNUM WHERE KALKNUM.KALKNR = berkopptabbuffh:BUFFER-FIELD("KALKNR"):BUFFER-VALUE AND
+      KALKNUM.OMRADE = berkopptabbuffh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE AND KALKNUM.BERNUM = valnum NO-LOCK:
+         CREATE kalk_temp.
+         BUFFER-COPY KALKNUM EXCEPT KALKNUM.NUM TO kalk_temp .
+         kalk_temp.NUM = KALKNUM.BERNUM.
+         IF KALKNUM.KLOGSUBID = 0 THEN DO:
+            FIND FIRST KALKBER WHERE KALKBER.ARBKOD = kalk_temp.ARBKOD AND KALKBER.LOPNR = kalk_temp.LOPNR NO-LOCK NO-ERROR.
+            IF AVAILABLE KALKBER THEN DO:
+               ASSIGN
+               kalk_temp.BENAMNING = KALKBER.BENAMNING
+               kalk_temp.ENHET = KALKBER.ENHET. 
+            END.   
+         END.  
+      END. 
+   END.    
+ 
+END PROCEDURE.    
+/*grundupplägg*/
+PROCEDURE kalkgammval_UI :
+   DEFINE INPUT  PARAMETER Bernrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER valnum AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR kon_val.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalk_temp.
+   kalkkatval = 0.
+   RUN Grundupp_UI (INPUT Bernrvar,INPUT valomrade,INPUT valnum,INPUT TRUE).
+    
+END PROCEDURE.
+
+/*grundupplägg komplettering*/
+PROCEDURE komplettering_UI :
+   DEFINE INPUT  PARAMETER Bernrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER valnum AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR kon_val.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalk_temp.
+   kalkkatval = 0.
+   forsta = FALSE.
+   FIND FIRST BEREDNING WHERE BEREDNING.BERNR = Bernrvar AND
+   BEREDNING.OMRADE = valomrade NO-LOCK NO-ERROR.
+   IF BEREDNING.KALKYL = TRUE THEN DO:
+      FOR EACH kon_val WHERE kon_val.NUM = valnum USE-INDEX NUM:
+         RUN valkalk_UI.
+      END.
+   END.
+   /*
+   RUN Grundupp_UI (INPUT Bernrvar,INPUT valomrade,INPUT valnum,INPUT FALSE).
+   */
+END PROCEDURE.
+PROCEDURE Grundupp_UI :
+   DEFINE INPUT  PARAMETER Bernrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER valnum AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER inforst AS LOGICAL NO-UNDO.
+   forsta = inforst.
+   CREATE BUFFER berkopptabbuffh FOR TABLE "BERKALKOPPLA" IN WIDGET-POOL wKalkyl.
+   berkopptabbuffh:FIND-FIRST("WHERE BERNR = " + STRING(Bernrvar) + " AND OMRADE = '" + valomrade + "'", NO-LOCK) NO-ERROR.
+   FIND FIRST kon_val WHERE NO-LOCK NO-ERROR.
+   EMPTY TEMP-TABLE kalk_temp NO-ERROR.
+   IF berkopptabbuffh:AVAILABLE THEN DO:
+      FIND FIRST KALKHUV  WHERE KALKHUV.KALKNR = berkopptabbuffh:BUFFER-FIELD("KALKNR"):BUFFER-VALUE AND
+      KALKHUV.OMRADE = berkopptabbuffh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE NO-LOCK NO-ERROR.
+      kalkkatval = KALKHUV.KLOGID.
+      FIND FIRST KALKNUM WHERE KALKNUM.KALKNR = berkopptabbuffh:BUFFER-FIELD("KALKNR"):BUFFER-VALUE AND
+      KALKNUM.OMRADE = valomrade AND KALKNUM.BERNUM = valnum
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE KALKNUM THEN DO:
+         FOR EACH KALKNUM WHERE KALKNUM.KALKNR = berkopptabbuffh:BUFFER-FIELD("KALKNR"):BUFFER-VALUE AND
+         KALKNUM.OMRADE = berkopptabbuffh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE AND KALKNUM.BERNUM = valnum NO-LOCK:
+            CREATE kalk_temp.
+            BUFFER-COPY KALKNUM EXCEPT KALKNUM.NUM TO kalk_temp .
+            kalk_temp.NUM = KALKNUM.BERNUM.
+            IF KALKNUM.KLOGSUBID = 0 THEN DO:
+               FIND FIRST KALKBER WHERE KALKBER.ARBKOD = kalk_temp.ARBKOD AND KALKBER.LOPNR = kalk_temp.LOPNR NO-LOCK NO-ERROR.
+               IF AVAILABLE KALKBER THEN DO:
+                  ASSIGN
+                  kalk_temp.BENAMNING = KALKBER.BENAMNING
+                  kalk_temp.ENHET = KALKBER.ENHET. 
+               END.   
+            END.  
+         END. 
+        
+      END.    
+      ELSE DO:
+         FIND FIRST BEREDNING WHERE BEREDNING.BERNR = Bernrvar AND
+         BEREDNING.OMRADE = valomrade NO-LOCK NO-ERROR.
+         IF BEREDNING.KALKYL = TRUE THEN DO:
+            FOR EACH kon_val WHERE kon_val.NUM = valnum USE-INDEX NUM:
+               RUN valkalk_UI.
+            END.
+         END.
+      END.
+    END.
+    ELSE DO:
+      FIND FIRST BEREDNING WHERE BEREDNING.BERNR = Bernrvar AND
+      BEREDNING.OMRADE = valomrade NO-LOCK NO-ERROR.
+      IF BEREDNING.KALKYL = TRUE THEN DO:
+         FOR EACH kon_val WHERE kon_val.NUM = valnum USE-INDEX NUM:
+            RUN valkalk_UI.
+         END.
+      END.
+   END.    
+   RELEASE KALKNUM NO-ERROR.   
+END PROCEDURE.
+
+PROCEDURE KalkBort_UI:
+  DEFINE INPUT PARAMETER numval AS INTEGER NO-UNDO.
+  FOR EACH KALKNUM  WHERE KALKNUM.KALKNR = berkopptabbuffh:BUFFER-FIELD("KALKNR"):BUFFER-VALUE AND KALKNUM.OMRADE = 
+  berkopptabbuffh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE AND KALKNUM.BERNUM = numval  EXCLUSIVE-LOCK:
+     FOR EACH KALKNUMSUB WHERE KALKNUMSUB.KALKNR = KALKNUM.KALKNR AND KALKNUMSUB.OMRADE = KALKNUM.OMRADE AND KALKNUMSUB.NUM = KALKNUM.NUM EXCLUSIVE-LOCK:
+        DELETE KALKNUMSUB.
+     END.
+     DELETE KALKNUM.
+  END.
+  RELEASE KALKNUMSUB NO-ERROR.
+  RELEASE KALKNUM NO-ERROR.
+  
+END PROCEDURE.
+PROCEDURE avsKIB_UI :
+   IF VALID-HANDLE(LocalAppServerHandle) THEN DO:
+      RUN avsluta_UI IN LocalAppServerHandle.
+      DELETE PROCEDURE LocalAppServerHandle NO-ERROR.
+      LocalAppServerHandle = ?.
+   END.
+END PROCEDURE.   
+PROCEDURE avs_UI :
+   
+   
+   RELEASE KALKNUMSUB NO-ERROR.
+   RELEASE KALKNUM NO-ERROR.
+   DELETE WIDGET-POOL wKalkyl .
+   DELETE OBJECT berkopptabbuffh NO-ERROR.
+   berkopptabbuffh = ?.
+     
+    
+END PROCEDURE.
+PROCEDURE valkalk_UI.
+   FIND FIRST BERVAL WHERE BERVAL.AONR = STRING(BEREDNING.BERNR) AND BERVAL.OMRADE =  BEREDNING.OMRADE AND BERVAL.NUM = kon_val.NUM AND BERVAL.KSKAP = FALSE 
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE BERVAL THEN DO:
+      IF BERVAL.ORT = "STOPP" THEN RETURN.  
+   END.   
+   IF forsta = TRUE THEN DO:      
+      /*HÄMTA KODER SOM LIGGER DIREKT PÅ KONSTRUKTIONEN ENDAST EN GÅNG*/
+      OPEN QUERY kalkbq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F1 = "" AND KALKBER.F2 = " " AND KALKBER.F3 = " " AND
+      KALKBER.F4 = " " AND KALKBER.F5 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST kalkbq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapakalk_UI.
+         GET NEXT kalkbq NO-LOCK. 
+      END.
+      CLOSE QUERY kalkbq.
+      forsta = FALSE.      
+   END.      
+   IF kon_val.F2 NE "" THEN DO: 
+      OPEN QUERY kalkbq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F1 = kon_val.F2 AND KALKBER.F2 = " " AND KALKBER.F3 = " " AND
+      KALKBER.F4 = " " AND KALKBER.F5 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST kalkbq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapakalk_UI.
+         GET NEXT kalkbq NO-LOCK. 
+      END.
+      CLOSE QUERY kalkbq.      
+   END.     
+   IF kon_val.F3 NE "" THEN DO: 
+      OPEN QUERY kalkbq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F2 = kon_val.F3 AND KALKBER.F1 = " " AND KALKBER.F3 = " " AND
+      KALKBER.F4 = " " AND KALKBER.F5 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST kalkbq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapakalk_UI.
+         GET NEXT kalkbq NO-LOCK. 
+      END.
+      CLOSE QUERY kalkbq.      
+   END.   
+   IF kon_val.F4 NE "" THEN DO: 
+      OPEN QUERY kalkbq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F3 = kon_val.F4 AND KALKBER.F1 = " " AND KALKBER.F2 = " " AND
+      KALKBER.F4 = " " AND KALKBER.F5 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST kalkbq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapakalk_UI.
+         GET NEXT kalkbq NO-LOCK. 
+      END.
+      CLOSE QUERY kalkbq.      
+   END.   
+   IF kon_val.F5 NE "" THEN DO: 
+      OPEN QUERY kalkbq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F4 = kon_val.F5 AND KALKBER.F1 = " " AND KALKBER.F2 = " " AND
+      KALKBER.F3 = " " AND KALKBER.F5 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST kalkbq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapakalk_UI.
+         GET NEXT kalkbq NO-LOCK. 
+      END.
+      CLOSE QUERY kalkbq.      
+   END.   
+   IF kon_val.F6 NE "" THEN DO: 
+      OPEN QUERY kalkbq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F5 = kon_val.F6 AND KALKBER.F1 = " " AND KALKBER.F2 = " " AND
+      KALKBER.F3 = " " AND KALKBER.F4 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST kalkbq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapakalk_UI.
+         GET NEXT kalkbq NO-LOCK. 
+      END.
+      CLOSE QUERY kalkbq.      
+   END.      
+END PROCEDURE.  
+   
+
+PROCEDURE skapakalk_UI : 
+   FIND FIRST kalk_temp WHERE kalk_temp.NUM = kon_val.NUM AND 
+   kalk_temp.ARBKOD = KALKBER.ARBKOD AND kalk_temp.LOPNR = KALKBER.LOPNR
+   NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE kalk_temp THEN DO:
+      RUN berkalkuppkoll_UI.
+     
+   END.
+   ELSE DO:
+      kalk_temp.ANTAL = kalk_temp.ANTAL + KALKBER.ANTAL.
+   END.         
+END PROCEDURE. 
+PROCEDURE berkalkuppkoll_UI :
+   
+   DEFINE VARIABLE finnskkod AS LOGICAL NO-UNDO.
+   IF kalkkatval =  0 THEN FIND LAST KALKYLKATALOG WHERE KALKYLKATALOG.BENAMNING BEGINS "EBR" USE-INDEX VISARTAL NO-LOCK NO-ERROR.
+   ELSE FIND FIRST  KALKYLKATALOG WHERE KALKYLKATALOG.KLOGID = kalkkatval USE-INDEX VISARTAL NO-LOCK NO-ERROR.
+   IF AVAILABLE KALKYLKATALOG THEN DO:
+      KAT: 
+      FOR EACH KALKYLKATALOGSUB WHERE KALKYLKATALOGSUB.KLOGID = KALKYLKATALOG.KLOGID NO-LOCK:
+         FIND FIRST KALKYLLOPPOSTER WHERE KALKYLLOPPOSTER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND KALKYLLOPPOSTER.ARBKOD = KALKBER.ARBKOD AND
+         KALKYLLOPPOSTER.LOPNR = KALKBER.LOPNR NO-LOCK NO-ERROR.                  
+         IF AVAILABLE KALKYLLOPPOSTER THEN DO:
+            finnskkod = TRUE.
+            LEAVE KAT. 
+         END.            
+      END.
+      IF finnskkod = TRUE THEN  DO:
+         CREATE kalk_temp.
+         ASSIGN 
+         kalk_temp.NUM = kon_val.NUM
+         kalk_temp.ARBKOD = KALKBER.ARBKOD
+         kalk_temp.LOPNR = KALKBER.LOPNR      
+         kalk_temp.BENAMNING = KALKBER.BENAMNING
+         kalk_temp.ENHET = KALKBER.ENHET      
+         kalk_temp.ANTAL = KALKBER.ANTAL.
+      END.   
+   END.   
+END PROCEDURE.
+
+/*  
+PROCEDURE Kalkspara_UI:
+   DEFINE INPUT  PARAMETER valnum AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR kon_val.
+   DEFINE INPUT PARAMETER TABLE FOR kalk_temp.
+   EMPTY TEMP-TABLE KalkylimportTT NO-ERROR. 
+   
+   FIND FIRST BEREDNING WHERE BEREDNING.BERNR = berkopptabbuffh:BUFFER-FIELD("BERNR"):BUFFER-VALUE AND
+   BEREDNING.OMRADE = berkopptabbuffh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE NO-LOCK NO-ERROR.
+   FOR EACH kalk_temp WHERE kalk_temp.NUM = valnum NO-LOCK:
+      FIND FIRST KALKNUM WHERE KALKNUM.KALKNR = berkopptabbuffh:BUFFER-FIELD("KALKNR"):BUFFER-VALUE AND
+      KALKNUM.OMRADE = berkopptabbuffh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE AND KALKNUM.BERNUM = valnum AND
+      KALKNUM.ARBKOD = kalk_temp.ARBKOD AND KALKNUM.LOPNR = kalk_temp.LOPNR
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKNUM  THEN DO:
+         
+         CREATE KalkylimportTT.
+         ASSIGN
+         KalkylimportTT.TTRECID = RECID(KalkylimportTT) 
+         KalkylimportTT.KALKNR = berkopptabbuffh:BUFFER-FIELD("KALKNR"):BUFFER-VALUE
+         KalkylimportTT.OMRADE = berkopptabbuffh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE
+         KalkylimportTT.MATRIS = 1
+         KalkylimportTT.ARBKOD = kalk_temp.ARBKOD 
+         KalkylimportTT.LOPNR = kalk_temp.LOPNR
+         KalkylimportTT.ANTAL = kalk_temp.ANTAL
+         KalkylimportTT.BERNUM = kalk_temp.NUM.
+      END.      
+   END.
+   RUN kalknumskap_UI.
+   
+   
+ 
+  EMPTY TEMP-TABLE KalkylimportTT NO-ERROR. 
+  RELEASE KALKNUM NO-ERROR.   
+END PROCEDURE.
+
+PROCEDURE kalknumskap_UI :
+   DEFINE VARIABLE ksid LIKE KALKNUM.KLOGSUBID NO-UNDO.
+   DEFINE VARIABLE numnummer AS INTEGER NO-UNDO.
+   DEFINE VARIABLE numsubnummer AS INTEGER NO-UNDO.
+   DEFINE VARIABLE felmed AS CHARACTER NO-UNDO.
+   FIND FIRST KalkylimportTT  WHERE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KalkylimportTT THEN RETURN.
+   FIND LAST KALKNUMbuf WHERE KALKNUMbuf.KALKNR = KALKHUV.KALKNR AND KALKNUMbuf.OMRADE = KALKHUV.OMRADE USE-INDEX NUM
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE KALKNUMbuf THEN numnummer = KALKNUMbuf.NUM.
+   ELSE numnummer = 0.
+   
+   FOR EACH KalkylimportTT WHERE NO-LOCK:
+      DO TRANSACTION:
+         numnummer = numnummer + 1.
+         CREATE KALKNUM. 
+         BUFFER-COPY KalkylimportTT EXCEPT KalkylimportTT.NUM  TO KALKNUM.
+            
+         ASSIGN
+         KALKNUM.NUM        = numnummer
+         KALKNUM.KALKNR     = KALKHUV.KALKNR
+         KALKNUM.OMRADE     = KALKHUV.OMRADE
+         KALKNUM.TYPKALK    = KALKHUV.TYPKALK.
+        
+      END.   
+   END.
+   EMPTY TEMP-TABLE KalkylimportTT NO-ERROR.
+   RELEASE KALKNUM NO-ERROR.
+   RELEASE KALKNUMbuf NO-ERROR.
+END PROCEDURE.
+*/
+/*
+PROCEDURE kalknumskap_UI :
+   DEFINE VARIABLE ksid LIKE KALKNUM.KLOGSUBID NO-UNDO.
+   DEFINE VARIABLE numnummer AS INTEGER NO-UNDO.
+   DEFINE VARIABLE numsubnummer AS INTEGER NO-UNDO.
+   DEFINE VARIABLE felmed AS CHARACTER NO-UNDO.
+   FIND FIRST KalkylimportTT  WHERE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KalkylimportTT THEN RETURN.
+   IF AVAILABLE KalkylimportTT THEN DO:
+      FIND FIRST ekalkylloppostertt WHERE trim(ekalkylloppostertt.ARBKOD) = TRIM(KalkylimportTT.ARBKOD)
+      AND ekalkylloppostertt.LOPNR = KalkylimportTT.LOPNR  NO-LOCK NO-ERROR.
+      IF AVAILABLE ekalkylloppostertt THEN.
+      ELSE RUN kathmt_UI IN LocalAppServerHandle (INPUT berkopptabbuffh:BUFFER-FIELD("KALKNR"):BUFFER-VALUE,INPUT berkopptabbuffh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE, 
+      INPUT BEREDNING.ANVANDARE,OUTPUT felmed, OUTPUT TABLE kalkylarbkodertt,
+      OUTPUT TABLE ekalkylloppostertt,OUTPUT TABLE kalkylkatalogtt, OUTPUT TABLE markfiltertt,OUTPUT TABLE kalkyldelkatalogtt).
+   END.
+   FIND LAST KALKNUMbuf WHERE KALKNUMbuf.KALKNR = KALKHUV.KALKNR AND KALKNUMbuf.OMRADE = KALKHUV.OMRADE USE-INDEX NUM
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE KALKNUMbuf THEN numnummer = KALKNUMbuf.NUM.
+   ELSE numnummer = 0.
+   
+   FOR EACH KalkylimportTT WHERE NO-LOCK:
+      FIND FIRST ekalkylloppostertt WHERE trim(ekalkylloppostertt.ARBKOD) = TRIM(KalkylimportTT.ARBKOD)
+      AND ekalkylloppostertt.LOPNR = KalkylimportTT.LOPNR  NO-LOCK NO-ERROR.
+      IF AVAILABLE ekalkylloppostertt THEN DO:
+         DO TRANSACTION: 
+            numnummer = numnummer + 1.
+            CREATE KALKNUM. 
+            
+            BUFFER-COPY KalkylimportTT EXCEPT KalkylimportTT.NUM  TO KALKNUM.
+         /*
+            BUFFER-COPY ekalkylloppostertt EXCEPT ekalkylloppostertt.TKOST TO KALKNUM.
+            */
+     
+          
+           ASSIGN
+           KALKNUM.NUM        = numnummer
+           KALKNUM.KALKNR     = KALKHUV.KALKNR
+           KALKNUM.OMRADE     = KALKHUV.OMRADE
+           KALKNUM.TYPKALK    = KALKHUV.TYPKALK.
+           KALKNUM.KLOGSUBID  = ekalkylloppostertt.KLOGSUBID.
+           KALKNUM.BENAMNING = ekalkylloppostertt.BENAMNING.
+           KALKNUM.ENHET     = ekalkylloppostertt.ENHET.
+           KALKNUM.KOMMENTAR = ekalkylloppostertt.KOMMENTA .
+           KALKNUM.MARKNING  = ekalkylloppostertt.MARKNING.  
+           KALKNUM.MARKSUB   = ekalkylloppostertt.MARKSUB.
+        END.
+        RELEASE KALKNUM NO-ERROR.
+        EMPTY TEMP-TABLE ekalknumsubtt NO-ERROR.   
+        RUN skapanumsub_UI IN LocalAppServerHandle (INPUT ekalkylloppostertt.KLOGSUBID,INPUT KalkylimportTT.ARBKOD,INPUT KalkylimportTT.LOPNR,OUTPUT TABLE ekalknumsubtt).
+        numsubnummer = 0.
+        FIND LAST KALKNUMSUB WHERE 
+        KALKNUMSUB.KALKNR = KALKNUM.KALKNR AND KALKNUMSUB.OMRADE = KALKNUM.OMRADE AND
+        KALKNUMSUB.NUM = KALKNUM.NUM USE-INDEX NUM NO-LOCK NO-ERROR.
+        IF AVAILABLE KALKNUMSUB THEN numsubnummer =  KALKNUMSUB.NUMSUBID + 1.
+        DO TRANSACTION:
+           FOR EACH ekalknumsubtt WHERE NO-LOCK:
+              ASSIGN 
+              ekalknumsubtt.KALKNR = KALKHUV.KALKNR
+              ekalknumsubtt.OMRADE = KALKHUV.OMRADE
+              ekalknumsubtt.NUM = numnummer.
+              numsubnummer = numsubnummer + 1.
+              CREATE KALKNUMSUB.
+              BUFFER-COPY ekalknumsubtt TO KALKNUMSUB.
+              KALKNUMSUB.NUMSUBID = numsubnummer.
+              DELETE ekalknumsubtt.                      
+           END.
+        END.   
+        RELEASE KALKNUMSUB NO-ERROR.
+        EMPTY TEMP-TABLE ekalknumsubtt NO-ERROR.
+     END.   
+  END.
+  EMPTY TEMP-TABLE KalkylimportTT NO-ERROR.
+  RELEASE KALKNUM NO-ERROR.
+  RELEASE KALKNUMSUB NO-ERROR.
+  RELEASE KALKNUMbuf NO-ERROR.
+END PROCEDURE.
+*/

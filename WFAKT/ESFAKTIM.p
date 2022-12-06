@@ -1,0 +1,462 @@
+  /*ESFAKTIM.P*/
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+  
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+&Scoped-define NEW NEW
+{FAKTTYPDEF.I}
+&Scoped-define NEW 
+{FAKTTYPSKAP.I}  
+FUNCTION klockan100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+
+FUNCTION klockan60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ):
+  RETURN TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) / 100) * 60 . 
+
+END FUNCTION.
+
+DEFINE INPUT PARAMETER debkred AS LOGICAL NO-UNDO.   
+DEFINE INPUT PARAMETER fplanr LIKE FAKTPLAN.FAKTNR NO-UNDO.
+DEFINE INPUT PARAMETER fpdelnr LIKE FAKTPLAN.FDELNR NO-UNDO.
+DEFINE INPUT PARAMETER skarpvar LIKE FAKTSKARP.LOPNR NO-UNDO.
+DEFINE VARIABLE vartyp AS INTEGER NO-UNDO.
+DEFINE VARIABLE vkdatum AS DATE NO-UNDO.  
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(140)" NO-UNDO.
+DEFINE VARIABLE progrest AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamnold AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamnold2 AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamndat AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamnque AS CHARACTER FORMAT "X(20)" NO-UNDO.                
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE kommandoprog AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE kodanst LIKE ANSTFORMTAB.KOD NO-UNDO.
+DEFINE VARIABLE typdatum AS CHARACTER FORMAT "99999999" NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE pkod LIKE PERSONALTAB.PERSONALKOD NO-UNDO.
+DEFINE VARIABLE aonummer LIKE AONRTAB.AONR NO-UNDO.
+DEFINE VARIABLE delnummer LIKE AONRTAB.DELNR NO-UNDO.
+DEFINE VARIABLE aoomrade LIKE AONRTAB.OMRADE NO-UNDO.
+DEFINE VARIABLE aokategori AS CHARACTER NO-UNDO.
+DEFINE TEMP-TABLE ekoforst
+   FIELD BOLAG LIKE AVDELNING.AVDELNINGNR
+   FIELD GEBOLAG LIKE AVDELNING.AVDELNINGNR
+   FIELD BOKDATUM AS CHARACTER
+   FIELD DEBKRED AS INTEGER
+   FIELD PERSONALKOD LIKE EKRAPPRESULT.EPERSONALKOD 
+   FIELD GEOMRADE LIKE OMRADETAB.OMRADE
+   FIELD AONR LIKE AONRTAB.AONR
+   FIELD DELNR LIKE AONRTAB.DELNR
+   FIELD ANSTALL AS CHARACTER 
+   FIELD ANTAL AS DECIMAL
+   FIELD DKONTO1 AS CHARACTER      
+   FIELD DKONTO2 AS CHARACTER
+   FIELD DKONTO3 AS CHARACTER
+   FIELD KKONTO1 AS CHARACTER      
+   FIELD KKONTO2 AS CHARACTER
+   FIELD KKONTO3 AS CHARACTER
+   FIELD BELOPP1 AS DECIMAL 
+   FIELD BELOPP2 AS DECIMAL
+   FIELD BELOPP3 AS DECIMAL
+   INDEX PERSORG IS PRIMARY PERSONALKOD GEOMRADE ANSTALL.
+DEFINE TEMP-TABLE ekout
+   FIELD BOLAG LIKE AVDELNING.AVDELNINGNR
+   FIELD GEBOLAG LIKE AVDELNING.AVDELNINGNR
+   FIELD DATUM AS CHARACTER
+   FIELD DEBKRED AS INTEGER     
+   FIELD AONR LIKE AONRTAB.AONR
+   FIELD DELNR LIKE AONRTAB.DELNR
+   FIELD OMRADE LIKE OMRADETAB.OMRADE
+   FIELD ANTAL AS DECIMAL
+   FIELD KONTO AS CHARACTER      
+   FIELD BELOPP AS DECIMAL 
+   INDEX PERSORG IS PRIMARY BOLAG OMRADE.  
+vkdatum = TODAY.       
+typdatum = STRING(TODAY,"99999999").
+{AMERICANEUROPEAN.I}
+FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = fplanr NO-LOCK NO-ERROR.
+FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = FAKTPLAN.OMRADE NO-LOCK NO-ERROR.
+FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR 
+NO-LOCK NO-ERROR.
+FIND faktyptemp WHERE faktyptemp.FAKTTYP = FAKTPLAN.FAKTTYP NO-ERROR.
+vartyp = faktyptemp.TYP. 
+IF vartyp = 5 THEN DO:
+   IF FAKTPLAN.FAKTTYPUNDER = 2 OR FAKTPLAN.FAKTTYPUNDER = 4 THEN vartyp = 52.
+END. 
+IF debkred = FALSE THEN DO:   
+   IF (vartyp = 3 AND FAKTPLAN.SLUTFAKT = TRUE) OR 
+   vartyp = 4 OR vartyp = 5 THEN DO:   
+      RUN faktim_UI.
+   END.
+   RUN fria_UI.
+   RUN konto_UI.
+END.
+ELSE DO:
+   RUN faktimk_UI.   
+   RUN friak_UI.
+   RUN kontok_UI.
+END.
+RUN uttimmar_UI.
+RUN ut_UI.
+{EUROPEANAMERICAN.I}
+RETURN.
+PROCEDURE uttimmar_UI:   
+   FOR EACH ekoforst:
+      DO TRANSACTION:
+         FIND FIRST FAKTTIMMAR WHERE FAKTTIMMAR.DATUM = DATE(01,01,YEAR(FAKTPLAN.SENASTTID)) AND
+         FAKTTIMMAR.FAKTNR = FAKTPLAN.FAKTNR AND
+         FAKTTIMMAR.AONR = ekoforst.AONR AND FAKTTIMMAR.DELNR = ekoforst.DELNR AND
+         FAKTTIMMAR.ANSTFORM = ekoforst.ANSTALL AND
+         FAKTTIMMAR.DEBKRED = debkred EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE FAKTTIMMAR THEN CREATE FAKTTIMMAR.              
+         ASSIGN
+         FAKTTIMMAR.DATUM = DATE(01,01,YEAR(FAKTPLAN.SENASTTID)) 
+         FAKTTIMMAR.FAKTNR = FAKTPLAN.FAKTNR 
+         FAKTTIMMAR.AONR = ekoforst.AONR 
+         FAKTTIMMAR.DELNR = ekoforst.DELNR 
+         FAKTTIMMAR.ANSTFORM = ekoforst.ANSTALL 
+         FAKTTIMMAR.DEBKRED = debkred
+         FAKTTIMMAR.TIMMAR = FAKTTIMMAR.TIMMAR + ekoforst.ANTAL. 
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE ut_UI:   
+   IF OPSYS = "UNIX" THEN DO: 
+      ASSIGN
+      prognamndat = "/u10/guru/export/GURUHBOK.DAT".
+      prognamnold = "/u12/guru/export/GURUHBOK." + STRING(vkdatum,"99999999").   
+   END.    
+   ELSE DO: 
+      ASSIGN
+      prognamndat = "d:\delad\PRO9\guru\export\GURUHBOK.DAT"
+      prognamnold = "d:\delad\PRO9\guru\export\GURUHBOK." + STRING(vkdatum,"99999999").   
+   END. 
+   OUTPUT TO VALUE(prognamndat) APPEND NO-ECHO CONVERT TARGET "swedish-7-bit" SOURCE "iso8859-1".
+   FOR EACH ekout:
+      str = "".
+      SUBSTRING(str,1,3) = STRING(ekout.BOLAG,"999").
+      SUBSTRING(str,4,8) = ekout.DATUM.
+      SUBSTRING(str,12,5) = ekout.KONTO.
+      SUBSTRING(str,17,4) = ekout.OMRADE.
+      IF ekout.AONR = "" THEN musz = musz.
+      ELSE SUBSTRING(str,21,8) = STRING(INTEGER(ekout.AONR),"99999999").      
+      SUBSTRING(str,45,15) = STRING(0 * ekout.BELOPP * 100,"999999999999999"). /*ALLTID 0 OBS ANTAL BELOPP FÄLTEN FLYTTADE*/
+      SUBSTRING(str,44,1) = STRING(ekout.DEBKRED,"9").            
+      SUBSTRING(str,29,15) = STRING(ekout.ANTAL * 100,"999999999999999").
+      SUBSTRING(str,60,1) = STRING(ekout.DEBKRED,"9").    
+      PUT UNFORMATTED str AT 1 SKIP. 
+   END.
+   OUTPUT CLOSE.
+   OS-APPEND VALUE(prognamndat) VALUE(prognamnold).   
+END PROCEDURE.
+PROCEDURE konto_UI:
+   FOR EACH ekoforst:
+      CREATE ekout.
+      ASSIGN
+      ekout.BOLAG = ekoforst.BOLAG
+      ekout.DATUM = typdatum
+      ekout.KONTO = ekoforst.DKONTO1
+      ekout.OMRADE = ekoforst.GEOMRADE
+      ekout.AONR = ekoforst.AONR + STRING(ekoforst.DELNR,"99")
+      ekout.BELOPP = ekoforst.BELOPP1
+      ekout.ANTAL = ekoforst.ANTAL      
+      ekout.DEBKRED = 1.
+      CREATE ekout.
+      ASSIGN
+      ekout.BOLAG = ekoforst.BOLAG
+      ekout.DATUM = typdatum
+      ekout.KONTO = ekoforst.KKONTO1
+      /*ekout.AONR = "0"*/
+      ekout.BELOPP = ekoforst.BELOPP1
+      ekout.ANTAL = ekoforst.ANTAL  
+      ekout.DEBKRED = 2.      
+   END. 
+END PROCEDURE.
+PROCEDURE kontok_UI:
+   FOR EACH ekoforst:
+      CREATE ekout.
+      ASSIGN
+      ekout.BOLAG = ekoforst.BOLAG
+      ekout.DATUM = typdatum
+      ekout.KONTO = ekoforst.DKONTO1
+      ekout.OMRADE = ekoforst.GEOMRADE
+      ekout.AONR = ekoforst.AONR + STRING(ekoforst.DELNR,"99")
+      ekout.BELOPP = ekoforst.BELOPP1
+      ekout.ANTAL = ekoforst.ANTAL      
+      ekout.DEBKRED = 2.
+      CREATE ekout.
+      ASSIGN
+      ekout.BOLAG = ekoforst.BOLAG
+      ekout.DATUM = typdatum
+      ekout.KONTO = ekoforst.KKONTO1
+    /*  ekout.AONR = "0"*/
+      ekout.BELOPP = ekoforst.BELOPP1
+      ekout.ANTAL = ekoforst.ANTAL      
+      ekout.DEBKRED = 1.      
+   END. 
+END PROCEDURE.
+PROCEDURE faktim_UI:
+   pkod = "".
+   OPEN QUERY ftq FOR EACH FAKTTID WHERE FAKTTID.FAKTNR = FAKTPLAN.FAKTNR AND FAKTTID.VFAKTNR = skarpvar AND 
+   FAKTTID.MED = TRUE    
+   NO-LOCK,
+   EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = FAKTTID.PERSONALKOD   
+   NO-LOCK.   
+   GET FIRST ftq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTTID):            
+      IF pkod NE PERSONALTAB.PERSONALKOD THEN DO:         
+         pkod = PERSONALTAB.PERSONALKOD.             
+         FIND FIRST ANSTFORMTAB WHERE
+         ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+         USE-INDEX ANSTF NO-LOCK NO-ERROR.
+         kodanst = ANSTFORMTAB.KOD.         
+      END.
+      RUN koll_UI.            
+      GET NEXT ftq NO-LOCK.    
+   END.           
+END PROCEDURE.
+PROCEDURE fria_UI:   
+   aonummer = "".
+   delnummer = 0.
+   OPEN QUERY fkompq FOR EACH FAKTFRIA WHERE FAKTFRIA.FAKTNR = FAKTPLAN.FAKTNR AND
+   FAKTFRIA.VFAKTNR = skarpvar AND FAKTFRIA.TYP = "PERS" AND 
+   FAKTFRIA.FAKTURERAD = TRUE NO-LOCK,
+   EACH BEFATTNINGSTAB WHERE BEFATTNINGSTAB.BEFATTNING = SUBSTRING(FAKTFRIA.FAKTTEXT,100)
+   NO-LOCK.
+   GET FIRST fkompq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTFRIA):                  
+      RUN friakoll_UI.                 
+      GET NEXT fkompq NO-LOCK.    
+   END.           
+END PROCEDURE.
+
+PROCEDURE faktimk_UI:
+   pkod = "".
+   OPEN QUERY ftkq FOR EACH FAKTTIDKRED WHERE FAKTTIDKRED.FAKTNR = FAKTPLAN.FAKTNR AND FAKTTIDKRED.VKREDIT = skarpvar AND 
+   FAKTTIDKRE.MED = TRUE USE-INDEX VKRED NO-LOCK,
+   EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = FAKTTIDKRED.PERSONALKOD
+   NO-LOCK.
+   GET FIRST ftkq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTTIDKRED):            
+      IF pkod NE PERSONALTAB.PERSONALKOD THEN DO:         
+         pkod = PERSONALTAB.PERSONALKOD.             
+         FIND FIRST ANSTFORMTAB WHERE
+         ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+         USE-INDEX ANSTF NO-LOCK NO-ERROR.
+         kodanst = ANSTFORMTAB.KOD.         
+      END.
+      RUN kollk_UI.            
+      GET NEXT ftkq NO-LOCK.    
+   END.           
+END PROCEDURE.
+PROCEDURE friak_UI:
+   aonummer = "".
+   delnummer = 0.
+   OPEN QUERY fkompq FOR EACH FAKTFRIAKRED WHERE FAKTFRIAKRED.FAKTNR = FAKTPLAN.FAKTNR AND
+   FAKTFRIAKRED.VKREDIT = skarpvar AND FAKTFRIAKRED.TYP = "PERS" AND 
+   FAKTFRIAKRED.FAKTURERAD = TRUE NO-LOCK,
+   EACH BEFATTNINGSTAB WHERE BEFATTNINGSTAB.BEFATTNING = SUBSTRING(FAKTFRIAKRED.FAKTTEXT,100)
+   NO-LOCK.
+   GET FIRST fkompq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTFRIA):            
+      RUN friakollk_UI.           
+      GET NEXT fkompq NO-LOCK.    
+   END.           
+END PROCEDURE.
+PROCEDURE koll_UI:                            /*DESSA KODER FINNS I N2.P OCH LON_UI*/   
+   IF FAKTTID.AONR = "" THEN RETURN.
+   IF FAKTTID.PRISTYP = "FRÅNVARO." THEN RETURN.
+   IF FAKTTID.PRISTYP = "RESTID..." THEN RETURN.      
+   IF aonummer = FAKTTID.AONR AND delnummer = FAKTTID.DELNR THEN musz = musz.
+   ELSE DO:
+      ASSIGN
+      aonummer = FAKTTID.AONR 
+      delnummer = FAKTTID.DELNR.
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = FAKTTID.AONR AND
+      AONRTAB.DELNR = FAKTTID.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE AONRTAB THEN DO:
+         aonummer = "".       
+         delnummer = 0.
+         RETURN.            
+      END.
+      aoomrade = AONRTAB.OMRADE.   
+      /*
+      IF AONRTAB.OMRADE = "" THEN DO:
+         aoomrade = PERSONALTAB.OMRADE.
+         RETURN.  
+      END.
+      */
+      FIND FIRST AONRKONTKOD WHERE AONRKONTKOD.AONR = FAKTTID.AONR AND
+      AONRKONTKOD.DELNR = FAKTTID.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRKONTKOD THEN aokategori = AONRKONTKOD.K3.
+    /*  IF aoomrade = PERSONALTAB.OMRADE THEN RETURN.*/
+      IF SUBSTRING(aokategori,1,1) = "Z" THEN RETURN.            
+   END.
+  /* IF aoomrade = PERSONALTAB.OMRADE THEN RETURN.*/
+   IF SUBSTRING(aokategori,1,1) = "Z" THEN RETURN.    
+   FIND FIRST ekoforst WHERE  
+   ekoforst.GEOMRADE = aoomrade AND ekoforst.AONR = aonummer AND 
+   ekoforst.DELNR = delnummer AND ekoforst.ANSTALL = SUBSTRING(kodanst,1,1) 
+   NO-ERROR.
+   IF NOT AVAILABLE ekoforst THEN CREATE ekoforst. 
+   ASSIGN 
+   ekoforst.ANTAL = ekoforst.ANTAL + FAKTTID.TIMMAR + + FAKTTID.OTIMMAR
+   ekoforst.BOLAG = AVDELNING.AVDELNINGNR
+   ekoforst.ANSTALL = SUBSTRING(kodanst,1,1)   
+   ekoforst.GEOMRADE = aoomrade
+   ekoforst.AONR = aonummer 
+   ekoforst.DELNR = delnummer.   
+   IF ekoforst.ANSTALL = "T" THEN DO:
+      ASSIGN 
+      ekoforst.DKONTO1 = "9811"
+      ekoforst.KKONTO1 = "9888".                    
+   END.
+   ELSE DO:
+      ASSIGN
+      ekoforst.DKONTO1 = "9802"      
+      ekoforst.KKONTO1 = "9888".
+   END.  
+END PROCEDURE.
+PROCEDURE kollk_UI:                            /*DESSA KODER FINNS I N2.P OCH LON_UI*/   
+   IF FAKTTIDKRE.AONR = "" THEN RETURN.
+   IF FAKTTIDKRE.PRISTYP = "FRÅNVARO." THEN RETURN.
+   IF FAKTTIDKRE.PRISTYP = "RESTID..." THEN RETURN.      
+   IF aonummer = FAKTTIDKRE.AONR AND delnummer = FAKTTIDKRE.DELNR THEN musz = musz.
+   ELSE DO:
+      ASSIGN
+      aonummer = FAKTTIDKRE.AONR 
+      delnummer = FAKTTIDKRE.DELNR.
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = FAKTTIDKRE.AONR AND
+      AONRTAB.DELNR = FAKTTIDKRE.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE AONRTAB THEN DO:
+         aonummer = "". 
+         delnummer = 0.      
+         RETURN.            
+      END.
+      aoomrade = AONRTAB.OMRADE.   
+      FIND FIRST AONRKONTKOD WHERE AONRKONTKOD.AONR = FAKTTIDKRE.AONR AND
+      AONRKONTKOD.DELNR = FAKTTIDKRE.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRKONTKOD THEN aokategori = AONRKONTKOD.K3.
+      IF SUBSTRING(aokategori,1,1) = "Z" THEN RETURN.            
+   END.
+   IF SUBSTRING(aokategori,1,1) = "Z" THEN RETURN.    
+   FIND FIRST ekoforst WHERE  
+   ekoforst.GEOMRADE = aoomrade AND ekoforst.AONR = aonummer AND 
+   ekoforst.DELNR = delnummer AND ekoforst.ANSTALL = SUBSTRING(kodanst,1,1) 
+   NO-ERROR.
+   IF NOT AVAILABLE ekoforst THEN CREATE ekoforst. 
+   ASSIGN 
+   ekoforst.ANTAL = ekoforst.ANTAL + FAKTTIDKRE.TIMMAR + FAKTTIDKRE.OTIMMAR
+   ekoforst.BOLAG = AVDELNING.AVDELNINGNR
+   ekoforst.ANSTALL = SUBSTRING(kodanst,1,1)   
+   ekoforst.GEOMRADE = aoomrade
+   ekoforst.AONR = aonummer 
+   ekoforst.DELNR = delnummer.   
+   IF ekoforst.ANSTALL = "T" THEN DO:
+      ASSIGN 
+      ekoforst.DKONTO1 = "9811"
+      ekoforst.KKONTO1 = "9888".                    
+   END.
+   ELSE DO:
+      ASSIGN
+      ekoforst.DKONTO1 = "9802"      
+      ekoforst.KKONTO1 = "9888".
+   END.  
+END PROCEDURE.                 
+PROCEDURE friakoll_UI:                            /*DESSA KODER FINNS I N2.P OCH LON_UI*/   
+   IF FAKTFRIA.AONR = "" THEN RETURN.
+   IF aonummer = FAKTFRIA.AONR AND delnummer = FAKTFRIA.DELNR THEN musz = musz.
+   ELSE DO:
+      ASSIGN
+      aonummer = FAKTFRIA.AONR 
+      delnummer = FAKTFRIA.DELNR.
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = FAKTFRIA.AONR AND
+      AONRTAB.DELNR = FAKTFRIA.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE AONRTAB THEN DO:
+         aonummer = "".       
+         delnummer = 0.
+         RETURN.            
+      END.
+      aoomrade = AONRTAB.OMRADE.   
+      FIND FIRST AONRKONTKOD WHERE AONRKONTKOD.AONR = FAKTFRIA.AONR AND
+      AONRKONTKOD.DELNR = FAKTFRIA.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRKONTKOD THEN aokategori = AONRKONTKOD.K3.    
+      IF SUBSTRING(aokategori,1,1) = "Z" THEN RETURN.            
+   END.
+   IF SUBSTRING(aokategori,1,1) = "Z" THEN RETURN.    
+   FIND FIRST ekoforst WHERE  
+   ekoforst.GEOMRADE = aoomrade AND ekoforst.AONR = aonummer AND 
+   ekoforst.DELNR = delnummer AND ekoforst.ANSTALL = BEFATTNINGSTAB.KOSTNADSSLAG 
+   NO-ERROR.
+   IF NOT AVAILABLE ekoforst THEN CREATE ekoforst. 
+   ASSIGN 
+   ekoforst.ANTAL = ekoforst.ANTAL + FAKTFRIA.ANTAL
+   ekoforst.BOLAG = AVDELNING.AVDELNINGNR
+   ekoforst.ANSTALL = BEFATTNING.KOSTNADSSLAG   
+   ekoforst.GEOMRADE = aoomrade
+   ekoforst.AONR = aonummer 
+   ekoforst.DELNR = delnummer.   
+   IF ekoforst.ANSTALL = "T" THEN DO:
+      ASSIGN 
+      ekoforst.DKONTO1 = "9811"
+      ekoforst.KKONTO1 = "9888".                    
+   END.
+   ELSE DO:
+      ASSIGN
+      ekoforst.DKONTO1 = "9802"      
+      ekoforst.KKONTO1 = "9888".
+   END.  
+END PROCEDURE.
+PROCEDURE friakollk_UI:                            /*DESSA KODER FINNS I N2.P OCH LON_UI*/   
+   IF FAKTFRIAKRED.AONR = "" THEN RETURN.
+   IF aonummer = FAKTFRIAKRED.AONR AND delnummer = FAKTFRIAKRED.DELNR THEN musz = musz.
+   ELSE DO:
+      ASSIGN
+      aonummer = FAKTFRIAKRED.AONR 
+      delnummer = FAKTFRIAKRED.DELNR.
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = FAKTFRIAKRED.AONR AND
+      AONRTAB.DELNR = FAKTFRIAKRED.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE AONRTAB THEN DO:
+         aonummer = "".       
+         delnummer = 0.
+         RETURN.            
+      END.
+      aoomrade = AONRTAB.OMRADE.   
+      FIND FIRST AONRKONTKOD WHERE AONRKONTKOD.AONR = FAKTFRIAKRED.AONR AND
+      AONRKONTKOD.DELNR = FAKTFRIAKRED.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRKONTKOD THEN aokategori = AONRKONTKOD.K3.    
+      IF SUBSTRING(aokategori,1,1) = "Z" THEN RETURN.            
+   END.
+   IF SUBSTRING(aokategori,1,1) = "Z" THEN RETURN.    
+   FIND FIRST ekoforst WHERE  
+   ekoforst.GEOMRADE = aoomrade AND ekoforst.AONR = aonummer AND 
+   ekoforst.DELNR = delnummer AND ekoforst.ANSTALL = BEFATTNINGSTAB.KOSTNADSSLAG 
+   NO-ERROR.
+   IF NOT AVAILABLE ekoforst THEN CREATE ekoforst. 
+   ASSIGN 
+   ekoforst.ANTAL = ekoforst.ANTAL + FAKTFRIAKRED.ANTAL
+   ekoforst.BOLAG = AVDELNING.AVDELNINGNR
+   ekoforst.ANSTALL = BEFATTNING.KOSTNADSSLAG   
+   ekoforst.GEOMRADE = aoomrade
+   ekoforst.AONR = aonummer 
+   ekoforst.DELNR = delnummer.   
+   IF ekoforst.ANSTALL = "T" THEN DO:
+      ASSIGN 
+      ekoforst.DKONTO1 = "9811"
+      ekoforst.KKONTO1 = "9888".                    
+   END.
+   ELSE DO:
+      ASSIGN
+      ekoforst.DKONTO1 = "9802"      
+      ekoforst.KKONTO1 = "9888".
+   END.  
+END PROCEDURE.

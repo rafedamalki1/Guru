@@ -1,0 +1,132 @@
+/*EXCDAGBOK.P UTLÄSNING AV DEPÅLAGER TILL EXCEL*/   
+DEFINE SHARED VARIABLE visaaonrh AS HANDLE NO-UNDO.
+                              
+                              
+
+
+DEFINE VARIABLE chExcelApplication      AS COM-HANDLE.
+DEFINE VARIABLE chWorkbook              AS COM-HANDLE.
+DEFINE VARIABLE chWorksheet             AS COM-HANDLE.
+DEFINE VARIABLE chChart                 AS COM-HANDLE.
+DEFINE VARIABLE chWorksheetRange        AS COM-HANDLE.
+DEFINE VARIABLE iCount                  AS INTEGER.
+DEFINE VARIABLE iIndex                  AS INTEGER.
+DEFINE VARIABLE iMonth                  AS INTEGER.
+DEFINE VARIABLE dAnnualQuota            AS DECIMAL.
+DEFINE VARIABLE dTotalSalesAmount       AS DECIMAL.
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 0.
+DEFINE VARIABLE cColumn                 AS CHARACTER.
+DEFINE VARIABLE cRange                  AS CHARACTER.  
+DEFINE VARIABLE felexcel AS LOGICAL NO-UNDO.
+DEFINE VARIABLE bnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dagt AS DECIMAL NO-UNDO.
+DEFINE VARIABLE dagk AS INTEGER NO-UNDO.
+DEFINE VARIABLE link AS CHARACTER NO-UNDO.
+
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{DAGBOKTEMP.I}
+{GLOBVAR2DEL1.I}
+   
+DEFINE INPUT PARAMETER aoinvar    AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER delnrinvar AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE edagboktemp NO-ERROR. 
+   RUN dagbok2 IN visaaonrh (INPUT aoinvar,INPUT delnrinvar,OUTPUT bnamn,OUTPUT TABLE edagboktemp).
+   CREATE "Excel.Application" chExcelApplication.
+   chExcelApplication:Visible = TRUE NO-ERROR.
+   chWorkbook = chExcelApplication:Workbooks:Add() NO-ERROR.
+   chWorkSheet = chExcelApplication:Sheets:Item(1) NO-ERROR.
+   chWorkSheet:Columns("A"):ColumnWidth = 50 NO-ERROR.
+   chWorkSheet:Columns("B"):ColumnWidth = 9 NO-ERROR.
+   chWorkSheet:Columns("C"):ColumnWidth = 9 NO-ERROR.
+   chWorkSheet:Columns("D"):ColumnWidth = 12 NO-ERROR.
+   chWorkSheet:Columns("E"):ColumnWidth = 10 NO-ERROR.
+   RUN imageexcel2_UI.
+      
+   ASSIGN   
+   chWorkSheet:Range("A6:E6"):Font:Bold = TRUE NO-ERROR.
+   cRange = "A" + cColumn.
+   chWorkSheet:Range(cRange):NumberFormat = "@" NO-ERROR.   
+   chWorkSheet:Range("A6"):Value = Guru.Konstanter:gaol + " : " + aoinvar +  " " + STRING(delnrinvar) + "   " + bnamn NO-ERROR.   
+   chWorkSheet:Range("A8:E8"):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range("A8"):Value = "Dagbok" NO-ERROR.
+   chWorkSheet:Range("B8"):Value = "Km" NO-ERROR.
+   chWorkSheet:Range("C8"):Value = "Tim" NO-ERROR.  
+   chWorkSheet:Range("D8"):Value = "Datum" NO-ERROR.  
+   chWorkSheet:Range("E8"):Value = "Inlagd av" NO-ERROR.
+   {EXCELFEL.I}
+      ASSIGN
+   iColumn = 8
+   dagt = 0
+   dagk = 0.
+   FOR EACH edagboktemp NO-LOCK BY edagboktemp.DATUM:
+      {EXCELFEL.I}      
+      iColumn = iColumn + 1.
+      cColumn = STRING(iColumn).
+      cRange = "A" + cColumn.
+      /*chWorkSheet:Range(cRange):NumberFormat = "@" NO-ERROR.   */
+
+      chWorksheetRange = chWorkSheet:Range(cRange) NO-ERROR.      
+      chWorksheetRange:WrapText = TRUE NO-ERROR.
+      chWorksheetRange:Orientation = 0 NO-ERROR.
+      chWorksheetRange:AddIndent = FALSE NO-ERROR.
+      chWorksheetRange:ShrinkToFit = FALSE NO-ERROR.
+      chWorksheetRange:MergeCells = TRUE NO-ERROR.
+
+      chWorkSheet:Range(cRange):Value = edagboktemp.DAGBOKAO NO-ERROR.      
+      cRange = "B" + cColumn.
+      chWorkSheet:Range(cRange):Value = edagboktemp.KILOMETER  NO-ERROR.
+      cRange = "C" + cColumn.
+      chWorkSheet:Range(cRange):Value = edagboktemp.TIMMAR NO-ERROR.      
+      cRange = "D" + cColumn.
+      chWorkSheet:Range(cRange):Value = edagboktemp.DATUM NO-ERROR.
+      cRange = "E" + cColumn.
+      chWorkSheet:Range(cRange):Value = edagboktemp.ANVANDARE NO-ERROR.    
+      dagt = dagt + edagboktemp.TIMMAR. 
+      dagk = dagk + edagboktemp.KILOMETER.      
+      RELEASE OBJECT chWorksheetRange NO-ERROR.
+   END. 
+   iColumn = iColumn + 2.
+   cColumn = STRING(iColumn).
+   cRange = "B" + cColumn.
+   chWorkSheet:Range(cRange):Value = dagk  NO-ERROR.
+   cRange = "C" + cColumn.
+   chWorkSheet:Range(cRange):Value = dagt NO-ERROR.      
+   
+   EMPTY TEMP-TABLE edagboktemp NO-ERROR. 
+   RELEASE OBJECT chExcelApplication NO-ERROR.      
+   RELEASE OBJECT chWorkbook NO-ERROR.
+   RELEASE OBJECT chWorksheet NO-ERROR.
+   
+
+PROCEDURE imageexcel_UI.   
+   ASSIGN iColumn = iColumn + 1.
+   cColumn = STRING(iColumn).
+   cRange = "A" + cColumn.
+   chWorkSheet:Range(cRange):SELECT NO-ERROR.  
+   IF link NE  ? THEN DO:
+      chWorksheetRange = chWorkSheet:Pictures:INSERT(link) NO-ERROR.
+      chWorksheetRange:TOP = 1.
+      chWorksheetRange:LEFT = 1.
+   END.
+   chExcelApplication:VISIBLE = TRUE NO-ERROR.
+   ASSIGN iColumn = iColumn + 7.
+   {EXCELFEL.I}
+END PROCEDURE.
+
+   PROCEDURE imageexcel2_UI:
+      /*FOREBILDER*/
+      {LOGGOR.I}
+
+      ASSIGN iColumn = iColumn + 1.
+      chWorkSheet:rows(iColumn):SELECT NO-ERROR.   
+
+      IF link NE  ? THEN chWorkSheetRange = chWorkSheet:Pictures:INSERT(link) NO-ERROR. 
+      ELSE RETURN.     
+      chWorkSheetRange:TOP = 1 NO-ERROR.
+      chWorkSheetRange:LEFT = 1 NO-ERROR.
+      RELEASE OBJECT chWorkSheetRange NO-ERROR.
+      chWorkSheetRange = ?.  
+      chExcelApplication:VISIBLE = TRUE NO-ERROR.
+      {EXCELFEL.I}
+   END PROCEDURE.

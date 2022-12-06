@@ -1,0 +1,131 @@
+
+/*------------------------------------------------------------------------
+    File        : JMFBERINK.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Tue Sep 04 17:58:15 CEST 2018
+    Notes       :
+  ----------------------------------------------------------------------*/
+  
+{FLBERTEMP.I}
+{JMFBERINKTT.I}
+DEFINE INPUT  PARAMETER beraonrvar AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR flerbertemp.
+DEFINE OUTPUT PARAMETER TABLE FOR berinkmtrtt.
+DEFINE OUTPUT PARAMETER TABLE FOR summberinkmtrtt.
+FOR EACH AONRTAB WHERE AONRTAB.AONR  =  beraonrvar NO-LOCK:
+   CREATE flerbertemp.
+   ASSIGN  
+   flerbertemp.OMRADE = AONRTAB.OMRADE
+   flerbertemp.BENAMNING = AONRTAB.ORT
+   flerbertemp.AONR = AONRTAB.AONR
+   flerbertemp.DELNR = AONRTAB.DELNR.
+END.
+FOR EACH flerbertemp WHERE NO-LOCK:
+   FIND FIRST BEREDNING WHERE BEREDNING.AONR = flerbertemp.AONR AND BEREDNING.DELNR = flerbertemp.DELNR NO-LOCK NO-ERROR.
+   IF AVAILABLE BEREDNING THEN DO:
+      ASSIGN
+      flerbertemp.BERNR = BEREDNING.BERNR
+      flerbertemp.OMRADE = BEREDNING.OMRADE.
+      RUN summabermtrl_UI.
+      RUN summainkmtrl_UI. 
+   END.   
+END.   
+RUN totsumma_UI.
+
+PROCEDURE summabermtrl_UI :
+   DEFINE VARIABLE levkodvar AS CHARACTER NO-UNDO. 
+   FOR EACH BERMTRL WHERE BERMTRL.AONR =  BEREDNING.BERAONR AND BERMTRL.OMRADE =  BEREDNING.OMRADE NO-LOCK BY BEREDNING.LEVKOD:
+      FIND FIRST berinkmtrtt WHERE berinkmtrtt.AONR = flerbertemp.AONR AND berinkmtrtt.DELNR = flerbertemp.DELNR AND 
+      berinkmtrtt.ENRBER = BERMTRL.ENR AND berinkmtrtt.LEVKOD = BERMTRL.LEVKOD
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE berinkmtrtt THEN DO:
+         CREATE berinkmtrtt.
+         BUFFER-COPY BERMTRL TO berinkmtrtt.
+         IF BERMTRL.LEVKOD = "99" THEN berinkmtrtt.LEVNAMNBER = "Depå".
+         ELSE DO:
+            IF levkodvar NE BERMTRL.LEVKOD THEN DO:
+               FIND FIRST LEVERANTOR  WHERE LEVERANTOR.LEVKOD = BERMTRL.LEVKOD NO-LOCK NO-ERROR.
+            END.
+            IF AVAILABLE LEVERANTOR THEN DO:
+               berinkmtrtt.LEVNAMNBER = LEVERANTOR.LEVNAMN.
+               levkodvar = BERMTRL.LEVKOD.
+            END.   
+         END.  
+         ASSIGN
+         berinkmtrtt.BENAMNINGBER = BERMTRL.BENAMNING
+         berinkmtrtt.AONR = flerbertemp.AONR
+         berinkmtrtt.DELNR = flerbertemp.DELNR
+         berinkmtrtt.ENRBER = BERMTRL.ENR.
+      END.
+      berinkmtrtt.ANTALBER = berinkmtrtt.ANTALBER + BERMTRL.ANTAL.
+   END.
+END PROCEDURE.  
+PROCEDURE summainkmtrl_UI :
+   DEFINE VARIABLE levkodvar AS CHARACTER NO-UNDO. 
+   FOR EACH INKMTRL WHERE INKMTRL.AONRAONR =  BEREDNING.AONR AND INKMTRL.AONRDELNR =  BEREDNING.DELNR NO-LOCK BY LEVKODINK:
+      FIND FIRST berinkmtrtt WHERE 
+      berinkmtrtt.AONR =  INKMTRL.AONRAONR AND 
+      berinkmtrtt.DELNR =  INKMTRL.AONRDELNR AND 
+      berinkmtrtt.ENRBER = INKMTRL.ENRORG AND 
+      berinkmtrtt.LEVKOD = INKMTRL.LEVKOD AND
+      berinkmtrtt.ENRINK = INKMTRL.ENR AND 
+      berinkmtrtt.LEVKODINK = INKMTRL.LEVKODINK
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE berinkmtrtt THEN DO:
+         FIND FIRST berinkmtrtt WHERE 
+         berinkmtrtt.AONR =  INKMTRL.AONRAONR AND 
+         berinkmtrtt.DELNR =  INKMTRL.AONRDELNR AND 
+         berinkmtrtt.ENRBER = INKMTRL.ENRORG AND 
+         berinkmtrtt.LEVKOD = INKMTRL.LEVKOD AND
+         berinkmtrtt.ENRINK = "" AND 
+         berinkmtrtt.LEVKODINK = ""
+         NO-LOCK NO-ERROR.
+      END.   
+      IF NOT AVAILABLE berinkmtrtt THEN DO:
+         CREATE berinkmtrtt.
+         ASSIGN
+         berinkmtrtt.AONR =  INKMTRL.AONRAONR  
+         berinkmtrtt.DELNR =  INKMTRL.AONRDELNR 
+         berinkmtrtt.ENRBER = INKMTRL.ENRORG
+         berinkmtrtt.LEVKOD = INKMTRL.LEVKOD
+         berinkmtrtt.ENRINK = INKMTRL.ENR  
+         berinkmtrtt.LEVKODINK = INKMTRL.LEVKODINK.
+      END.
+      IF INKMTRL.LEVKODINK = "99" THEN berinkmtrtt.LEVNAMNINK = "Depå".
+      ELSE DO:
+         IF levkodvar NE INKMTRL.LEVKODINK THEN DO:
+            FIND FIRST LEVERANTOR  WHERE LEVERANTOR.LEVKOD = INKMTRL.LEVKODINK NO-LOCK NO-ERROR.
+         END.
+         IF AVAILABLE LEVERANTOR THEN DO:
+            berinkmtrtt.LEVNAMNINK = LEVERANTOR.LEVNAMN.
+            levkodvar = INKMTRL.LEVKODINK.
+         END.
+      END.     
+      ASSIGN
+      berinkmtrtt.ENRINK = INKMTRL.ENR
+      berinkmtrtt.BENAMNINGINK = INKMTRL.BENAMNING 
+      berinkmtrtt.ANTALINK = berinkmtrtt.ANTALINK + INKMTRL.INKANTAL.
+   END.
+END PROCEDURE.  
+PROCEDURE totsumma_UI :
+   FOR EACH berinkmtrtt BREAK BY berinkmtrtt.ENRBER BY berinkmtrtt.LEVKOD BY berinkmtrtt.ENRINK BY berinkmtrtt.LEVKODINK :
+      ACCUMULATE berinkmtrtt.ANTALBER (TOTAL BY berinkmtrtt.ENRBER BY berinkmtrtt.LEVKOD BY berinkmtrtt.ENRINK BY berinkmtrtt.LEVKODINK). 
+      ACCUMULATE berinkmtrtt.ANTALINK (TOTAL BY berinkmtrtt.ENRBER BY berinkmtrtt.LEVKOD BY berinkmtrtt.ENRINK BY berinkmtrtt.LEVKODINK).
+      IF LAST-OF(berinkmtrtt.LEVKODINK) THEN DO:
+         /*radrakn = radrakn + 1.*/     
+         CREATE summberinkmtrtt.
+         BUFFER-COPY berinkmtrtt TO summberinkmtrtt.
+         summberinkmtrtt.ANTALBER = (ACCUM TOTAL BY berinkmtrtt.LEVKODINK berinkmtrtt.ANTALBER). 
+         summberinkmtrtt.ANTALINK = (ACCUM TOTAL BY berinkmtrtt.LEVKODINK berinkmtrtt.ANTALINK).
+      END.
+   END.   
+END PROCEDURE.
+
+
+

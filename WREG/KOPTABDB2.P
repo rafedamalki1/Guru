@@ -1,0 +1,237 @@
+/*
+     Filename: KOPTABDB2.P
+      Created: 03.08.0021 09:46ELPAO     
+     Modified: 
+*/
+
+DEFINE TEMP-TABLE filetemp NO-UNDO
+   FIELD FILENAME    AS CHARACTER   FORMAT "x(32)"
+   FIELD FILENUMBER  AS INTEGER     FORMAT "->>>>9"
+   FIELD NUMKEY      AS INTEGER     FORMAT ">>9"
+   FIELD NUMKFLD     AS INTEGER     FORMAT ">>9"
+   FIELD NUMKCOMP    AS INTEGER     FORMAT ">>9"
+   FIELD NUMFLD      AS INTEGER     FORMAT ">>9"
+   FIELD LASTCHANGED AS INTEGER     FORMAT "->>>>>>>>>9".
+
+DEFINE TEMP-TABLE valfiletemp NO-UNDO LIKE filetemp.
+
+DEFINE INPUT PARAMETER fnfirst AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER fnsecond AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER frandbtemp AS CHARACTER NO-UNDO.     /*Namnet på från-databsen*/
+DEFINE INPUT PARAMETER tilldbtemp AS CHARACTER NO-UNDO.     /*Namnet på till-databsen*/
+DEFINE INPUT PARAMETER fnamn AS CHARACTER NO-UNDO.               /*Namnet på den tabell som ska kopieras*/
+DEFINE INPUT PARAMETER tilldbcon AS CHARACTER NO-UNDO.      /*Till-databasens anslutningssträng*/
+DEFINE INPUT PARAMETER taborttemp AS LOGICAL NO-UNDO.       /*TRUE ifall man vill ta bort tidigare data*/
+DEFINE OUTPUT PARAMETER felmed AS CHARACTER NO-UNDO.        /*Returnerat felmeddelande*/
+DEFINE OUTPUT PARAMETER fellog AS LOGICAL NO-UNDO.          /*TRUE om fel uppstått!*/
+DEFINE VARIABLE openkommando AS CHARACTER NO-UNDO.       
+DEFINE VARIABLE openkommando2 AS CHARACTER NO-UNDO.      
+DEFINE VARIABLE bufferkommando AS CHARACTER NO-UNDO.
+DEFINE VARIABLE bufferkommando2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE frandb AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tilldb AS CHARACTER NO-UNDO.
+DEFINE VARIABLE franqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE franbh AS HANDLE NO-UNDO.
+DEFINE VARIABLE tillbh AS HANDLE NO-UNDO.
+DEFINE VARIABLE tillqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE compsave AS LOGICAL NO-UNDO.
+DEFINE VARIABLE tabort AS LOGICAL NO-UNDO.
+DEFINE VARIABLE franforsta AS HANDLE NO-UNDO.
+DEFINE VARIABLE franandra AS HANDLE NO-UNDO.
+DEFINE VARIABLE tillforsta AS HANDLE NO-UNDO.
+DEFINE VARIABLE tillandra AS HANDLE NO-UNDO.
+DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE fieldnamefirst AS CHARACTER NO-UNDO.
+DEFINE VARIABLE fieldnamesecond AS CHARACTER NO-UNDO.
+
+ASSIGN
+fellog = FALSE
+frandb = ""
+tilldb = ""
+felmed = ""
+fieldnamefirst = fnfirst
+fieldnamesecond = fnsecond
+filnamn = fnamn.
+/* IF tilldbtemp NE "UTBI" THEN DO:                      */
+/*    felmed = "Måste vara 'UTBI' för Mikael Erikkson.". */
+/*    fellog = TRUE.                                     */
+/*    RETURN.                                            */
+/* END.                                                  */
+ASSIGN
+tabort = taborttemp
+frandb = frandbtemp
+tilldb = tilldbtemp.
+
+/* Ansluter till-databas */
+/* felmed = frandb + ":" + tilldb + ":" + tabell + ":" + tilldbcon + ":" + string(tabort).  */
+tilldbcon = tilldbcon + " -P " + QUOTER({setpwd.I}) +  " -U " + QUOTER({setuser.I}).
+CONNECT VALUE(tilldbcon) NO-ERROR.
+IF NOT CONNECTED(tilldb) THEN DO:
+   felmed = "Går ej att ansluta till databasen " + tilldb.
+   fellog = TRUE.
+   RETURN.
+END.
+
+/* FOR EACH valfiletemp.                   */
+/*    CREATE filetemp.                     */
+/*    BUFFER-COPY valfiletemp TO filetemp. */
+/* END.                                    */
+/* DEFINE QUERY tq FOR filetemp.           */
+
+felmed = "Från DB: " + frandb + CHR(10).
+felmed = felmed + "Till DB: " + tilldb + CHR(10).
+felmed = felmed + "Tar bort tidigare: ".
+IF tabort = TRUE THEN felmed = felmed + "JA" + CHR(10).
+ELSE felmed = felmed + "NEJ" + CHR(10).
+
+/* OPEN QUERY tq FOR EACH filetemp NO-LOCK. */
+/* GET FIRST tq NO-LOCK.                    */
+
+/************************************* Procedure **************************************/
+
+PROCEDURE koptab_UI:
+   DEFINE OUTPUT PARAMETER tabellnamn AS CHARACTER NO-UNDO.
+   tabellnamn = "".
+   IF NOT CONNECTED(tilldb) THEN RETURN.
+/*       DISCONNECT VALUE(tilldb) NO-ERROR. */
+/*       DELETE ALIAS VALUE(tilldb).        */
+/*    END.                                  */
+/*    IF NOT AVAILABLE filetemp THEN DO: */
+      /* Kopplar från till-databsen */
+/*       RETURN. */
+/*    END. */
+   tabellnamn = filnamn. 
+   /* Skapar query-strängar */
+   bufferkommando = frandb + "." + filnamn.
+   openkommando = "FOR EACH " + bufferkommando + " NO-LOCK.".
+   bufferkommando2 = tilldb + "." + filnamn.
+   openkommando2 = "FOR EACH " + bufferkommando2 + " NO-LOCK.".
+   /* Skapar en buffer för till-tabellen och från-tabellen */
+   CREATE BUFFER franbh FOR TABLE bufferkommando.      
+   CREATE BUFFER tillbh FOR TABLE bufferkommando2.
+   CREATE QUERY franqh.
+   CREATE QUERY tillqh.
+   /* Tar bort tidigare poster från till-tabellen */
+   IF tabort = TRUE THEN DO:
+      tillqh:SET-BUFFERS(tillbh). /*Kopplar QUERY till BUFFER*/
+      tillqh:QUERY-PREPARE(openkommando2). /*Laddar 'prepare-string' */
+      tillqh:QUERY-OPEN(). /*Öppnar QUERY*/
+      tillqh:GET-FIRST(NO-LOCK).  /*Väljer första posten*/
+      DO WHILE tillqh:QUERY-OFF-END = FALSE: /*Kollar ifall det finns någon tillgänglig post*/
+         DO TRANSACTION:
+            tillqh:GET-CURRENT(EXCLUSIVE-LOCK). /*EXCLUSIVE-LOCK för senast vald post*/
+            tillbh:BUFFER-DELETE(). /*Tar bort post*/
+         END.
+         tillqh:GET-NEXT(NO-LOCK). /*Väljer nästa post*/
+      END.
+      tillqh:QUERY-CLOSE(). /*Stänger QUERY*/
+   END.
+   
+   openkommando2 = "FOR EACH " + bufferkommando2 + " WHERE " + bufferkommando2 + "." + fieldnamefirst + " = " + 
+   bufferkommando + "." + fieldnamefirst.
+   IF fieldnamesecond NE ? THEN DO:
+      openkommando2 = openkommando2 + " AND " + bufferkommando2 + "." + fieldnamesecond + " = " + 
+      bufferkommando + "." + fieldnamesecond.
+   END.
+   
+   
+   franqh:SET-BUFFERS(franbh).
+   tillqh:SET-BUFFERS(tillbh).
+   franqh:QUERY-PREPARE(openkommando).
+   franqh:QUERY-OPEN().
+   franqh:GET-FIRST(NO-LOCK).
+   DO WHILE franqh:QUERY-OFF-END = FALSE:   
+      franandra = franbh:BUFFER-FIELD(fieldnamesecond).                              
+      franforsta = franbh:BUFFER-FIELD(fieldnamefirst).
+      openkommando2 = "FOR EACH " + bufferkommando2 + " WHERE STRING(" + bufferkommando2 + "." + fieldnamefirst + ") = STRING(" +
+      STRING(franforsta:BUFFER-VALUE) + ")".
+      IF fieldnamesecond NE ? THEN DO:
+         openkommando2 = openkommando2 + " AND STRING(" + bufferkommando2 + "." + fieldnamesecond + ") = STRING(" + 
+         STRING(franandra:BUFFER-VALUE) + ")".
+      END.
+      openkommando2 = openkommando2 + " NO-LOCK".
+      tillqh:QUERY-PREPARE(openkommando2).
+      tillqh:QUERY-OPEN().
+      tillqh:GET-FIRST(NO-LOCK).
+      IF NOT tillbh:AVAILABLE THEN DO TRANSACTION:
+         tillbh:BUFFER-CREATE().
+         tillbh:BUFFER-COPY(franbh).
+      END.
+      franqh:GET-NEXT(NO-LOCK).
+   END.
+
+/*    IF fieldnamesecond = "?" THEN DO: */
+/*    DO WHILE franqh:QUERY-OFF-END = FALSE:                           */
+/*       tillqh:QUERY-PREPARE(openkommando2).                          */
+/*       tillqh:QUERY-OPEN().                                          */
+/*       tillqh:GET-FIRST(NO-LOCK).                                    */
+/*    /*          tillforsta = tillbh:BUFFER-FIELD(fieldnamefirst). */ */
+/*       IF NOT tillbh:AVAILABLE THEN DO TRANSACTION:                  */
+/*          tillbh:BUFFER-CREATE().                                    */
+/*          tillbh:BUFFER-COPY(franbh).                                */
+/*       END.                                                          */
+/*       franqh:GET-NEXT(NO-LOCK).                                     */
+/*    /*          franforsta = franbh:BUFFER-FIELD(fieldnamefirst). */ */
+/*    END.                                                             */
+/*    END.                                                                              */
+/*    ELSE DO:                                                                          */
+/*       franandra = franbh:BUFFER-FIELD(fieldnamesecond).                              */
+/*       DO WHILE franqh:QUERY-OFF-END = FALSE:                                         */
+/*          JJJ                                                                         */
+/*          tillqh:GET-FIRST(NO-LOCK).                                                  */
+/*          tillforsta = tillbh:BUFFER-FIELD(fieldnamefirst).                           */
+/*          tillandra = tillbh:BUFFER-FIELD(fieldnamesecond).                           */
+/*          compsave = FALSE.                                                           */
+/*          DO WHILE tillqh:QUERY-OFF-END = FALSE:                                      */
+/*             IF franforsta:BUFFER-VALUE = tillforsta:BUFFER-VALUE AND                 */
+/*                franandra:BUFFER-VALUE = tillandra:BUFFER-VALUE THEN compsave = TRUE. */
+/*             IF compsave = TRUE THEN LEAVE.                                           */
+/*             tillqh:GET-NEXT(NO-LOCK).                                                */
+/*             tillforsta = tillbh:BUFFER-FIELD(fieldnamefirst).                        */
+/*             tillandra = tillbh:BUFFER-FIELD(fieldnamesecond).                        */
+/*          END.                                                                        */
+/*          IF compsave = FALSE THEN DO:                                                */
+/*             DO TRANSACTION:                                                          */
+/*                tillbh:BUFFER-CREATE().                                               */
+/*                tillbh:BUFFER-COPY(franbh).                                           */
+/*             END.                                                                     */
+/*          END.                                                                        */
+/*          franqh:GET-NEXT(NO-LOCK).                                                   */
+/*          franforsta = franbh:BUFFER-FIELD(fieldnamefirst).                           */
+/*          franandra = franbh:BUFFER-FIELD(fieldnamesecond).                           */
+/*       END.                                                                           */
+/*    END.                                                                              */
+   tillqh:QUERY-CLOSE().
+   franqh:QUERY-CLOSE().
+   DELETE OBJECT franqh.
+   DELETE OBJECT franbh.
+   DELETE OBJECT tillbh.
+   DELETE OBJECT tillqh.    
+   IF CONNECTED(tilldb) THEN DO:
+      DISCONNECT VALUE(tilldb) NO-ERROR.
+      DELETE ALIAS VALUE(tilldb).
+   END.
+/*    GET NEXT tq NO-LOCK. */
+END PROCEDURE.
+
+
+/* PROCEDURE loopquery_UI.                                                   */
+/*    DEFINE OUTPUT PARAMETER tabellnamn AS CHARACTER NO-UNDO.               */
+/*    IF tilldb NE "utbi" THEN DO:                                           */
+/*       felmed = "Måste vara 'utbi' för Mikael Erikkson.".                  */
+/*       RETURN.                                                             */
+/*    END.                                                                   */
+/*                                                                           */
+/*    tabellnamn = "".                                                       */
+/*    ETIME(YES).                                                            */
+/*    DO WHILE ETIME < 300:                                                  */
+/*    END.                                                                   */
+/*    IF NOT AVAILABLE filetemp THEN RETURN.                                 */
+/*    IF filetemp.FILENAME = "AONRTAB" THEN DO:                              */
+/*       tabellnamn = " *** FEL: " + "Error Code(666):" + filetemp.FILENAME. */
+/*    END.                                                                   */
+/*    ELSE DO:                                                               */
+/*       tabellnamn = filetemp.FILENAME.                                     */
+/*    END.                                                                   */
+/*    GET NEXT tq NO-LOCK.                                                   */
+/* END PROCEDURE.                                                            */

@@ -1,0 +1,44 @@
+/*AUTOSTRAN.P*/
+&Scoped-define NEW NEW 
+
+DEFINE VARIABLE dbfilename AS CHARACTER NO-UNDO.
+DEFINE VARIABLE prognamnque AS CHARACTER NO-UNDO. 
+{VALDBDEF.I}
+{VALDBSTRAN.I}
+prognamnque = "E:\delad\PRO9S\autotid.txt". 
+OUTPUT TO VALUE(prognamnque) APPEND.
+PUT "START AUTOKÖRNING " TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+OUTPUT CLOSE.
+IF WEEKDAY(TODAY) = 2 THEN DO:
+   OUTPUT TO  VALUE(prognamnque).
+   PUT "TÖMD" TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+   OUTPUT CLOSE.     
+END.
+OPEN QUERY vq FOR EACH valdbtemp WHERE valdbtemp.DBNAMN NE "UTBI" NO-LOCK.
+GET FIRST vq NO-LOCK.
+DO WHILE AVAILABLE(valdbtemp): 
+   dbfilename = valdbtemp.DBNAMN.
+   
+   /*
+   RUN val_UI.
+   IF CONNECTED(LDBNAME(1)) THEN DO:       
+      IF prognamn NE "" THEN SAVE CACHE COMPLETE VALUE(LDBNAME(1)) TO VALUE(prognamn).
+       /*KÖR DE PROGRAM SOM SKALL KÖRAS*/
+       /*IF valdbtemp.GFORETAG = "BIRK" THEN RUN skapa4artal_UI....*/
+      DISCONNECT VALUE(LDBNAME(1)) NO-ERROR.         
+   END.  
+   */
+   OUTPUT TO VALUE(prognamnque)  APPEND.
+   PUT "BACKUPP START " dbfilename " "  TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+   OUTPUT CLOSE.
+   IF dbfilename NE "" THEN RUN DBBACK.P (INPUT prognamnque,INPUT dbfilename, INPUT "dbkopia\").
+   GET NEXT vq NO-LOCK.
+END.
+
+OUTPUT TO VALUE(prognamnque) APPEND.
+PUT "SLUT AUTOKÖRNING " TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+OUTPUT CLOSE.
+PROCEDURE val_UI :
+   CONNECT VALUE(valdbtemp.DBCON) NO-ERROR.         
+END PROCEDURE.
+

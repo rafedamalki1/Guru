@@ -1,0 +1,35 @@
+DEFINE VARIABLE FILL-IN_BEST AS CHARACTER NO-UNDO.
+DEFINE TEMP-TABLE bb NO-UNDO
+   FIELD a AS CHARACTER
+   FIELD b AS CHARACTER
+   FIELD c AS INTEGER.
+DEFINE TEMP-TABLE cc NO-UNDO
+   FIELD a AS CHARACTER
+   FIELD b AS CHARACTER
+   FIELD c AS INTEGER.
+CREATE bb.
+UPDATE
+bb.a 
+bb.b 
+bb.c WITH FRAME aa.
+ASSIGN
+bb.a:PRIVATE-DATA = "vv"
+bb.c:PRIVATE-DATA = "kk".
+DISP                bb.a bb.c bb.a:PRIVATE-DATA  bb.c:PRIVATE-DATA WITH FRAME aa. 
+CREATE bb.
+UPDATE
+bb.a 
+bb.b 
+bb.c WITH FRAME aa.
+ASSIGN
+bb.a:PRIVATE-DATA = "LL"
+bb.c:PRIVATE-DATA = "DD".
+
+DISP                bb.a bb.c bb.a:PRIVATE-DATA  bb.c:PRIVATE-DATA WITH FRAME aa. 
+CREATE cc.
+BUFFER-COPY bb TO cc.
+
+DISP                cc.a cc.c cc.a:PRIVATE-DATA  cc.c:PRIVATE-DATA WITH FRAME aa1. 
+cc.a:PRIVATE-DATA = bb.a:PRIVATE-DATA.
+DISP                cc.a cc.c cc.a:PRIVATE-DATA  cc.c:PRIVATE-DATA WITH FRAME aa2. 
+

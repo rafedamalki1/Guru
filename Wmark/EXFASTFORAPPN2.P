@@ -1,0 +1,131 @@
+/*EXFASTFORAPPN2.P*/
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{MARKVAL.I}                         
+{FASTFORTEMP.I}
+{MARAG.I}
+DEFINE BUFFER mahj FOR marag.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{EXTRADATA.I}
+   
+   DEFINE INPUT PARAMETER TABLE FOR markval .
+   DEFINE OUTPUT PARAMETER TABLE FOR fastfortemp.
+   DEFINE OUTPUT PARAMETER ortvar  AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER vman AS CHARACTER NO-UNDO.
+
+   FIND FIRST markval NO-LOCK NO-ERROR.
+   IF AVAILABLE markval THEN DO:  
+      FIND FIRST AOVARD WHERE AOVARD.VARDNR = markval.VARDNR USE-INDEX VARDNR NO-LOCK NO-ERROR.
+      IF AVAILABLE AOVARD THEN DO:         
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = AOVARD.AONR AND
+         AONRTAB.DELNR = AOVARD.DELNR NO-LOCK NO-ERROR.
+         IF AVAILABLE AONRTAB  THEN DO:
+            ortvar = AONRTAB.ORT.
+         END.
+      END.
+      FIND FIRST VARDERING WHERE VARDERING.VARDNR = markval.VARDNR USE-INDEX VARDNR
+      NO-LOCK NO-ERROR.   
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = VARDERING.VARDANV USE-INDEX
+      PERSONALKOD NO-LOCK NO-ERROR.             
+      IF AVAILABLE PERSONALTAB THEN DO:
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+         vman = CAPS(SUBSTRING(PERSONALTAB.FORNAMN,1,1)) + LC(SUBSTRING(PERSONALTAB.FORNAMN,2)) + " " + CAPS(SUBSTRING(PERSONALTAB.EFTERNAMN,1,1)) + LC(SUBSTRING(PERSONALTAB.EFTERNAMN,2)).   
+      END.
+   END.  
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   FOR EACH markval USE-INDEX ORDNING:
+      CREATE fastfortemp.
+      BUFFER-COPY markval TO fastfortemp.     
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "MARKAG"                   
+      inextradatatemp.HUVUDINT = markval.MARKNR.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO: 
+         
+         ASSIGN
+         fastfortemp.MOBIL = extradatatemp.SOKCHAR[1]
+         fastfortemp.EPOST = extradatatemp.SOKCHAR[2]
+         fastfortemp.MBANKKONTO = extradatatemp.SOKCHAR[4]
+         fastfortemp.MBANKNAMN = extradatatemp.SOKCHAR[5].           
+      END.                
+      FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = markval.MARKNR NO-LOCK NO-ERROR.
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).
+   
+      ASSIGN fastfortemp.TELEFON = MARKAGARE.TELEFON
+      fastfortemp.TELEFON2 = MARKAGARE.TELEFON2.      
+      FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = markval.BETECKNING NO-LOCK NO-ERROR.
+      ASSIGN        
+      fastfortemp.KOMMUN = FASTIGHET.KOMMUN
+      fastfortemp.ANAMN = FASTIGHET.ANAMN
+      fastfortemp.AADRESS = FASTIGHET.AADRESS
+      fastfortemp.APONR = FASTIGHET.APONR
+      fastfortemp.APADRESS = FASTIGHET.APADRESS.
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "FASTLOPNR"                   
+      inextradatatemp.HUVUDCH = fastfortemp.BETECKNING.
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO:      
+         ASSIGN                 
+         fastfortemp.ATELEFON = extradatatemp.SOKCHAR[3]
+         fastfortemp.ATELEFON2 = extradatatemp.SOKCHAR[4]
+         fastfortemp.AMOBIL = extradatatemp.SOKCHAR[5]
+         fastfortemp.AEPOST = extradatatemp.SOKCHAR[6].
+      END. 
+      ASSIGN
+      fastfortemp.ANAMN = RIGHT-TRIM(fastfortemp.ANAMN)
+      fastfortemp.AADRESS = RIGHT-TRIM(fastfortemp.AADRESS)
+      fastfortemp.ATELEFON = RIGHT-TRIM(fastfortemp.ATELEFON)
+      fastfortemp.GATUADRESS = RIGHT-TRIM(fastfortemp.GATUADRESS)
+      fastfortemp.CHE2 = "".
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "MARKFASTANDEL"                   
+      inextradatatemp.HUVUDINT = fastfortemp.MARKNR.                    
+      inextradatatemp.HUVUDCH = fastfortemp.BETECKNING.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO:      
+         ASSIGN
+         fastfortemp.CHE1 = extradatatemp.SOKCHAR[1]
+         fastfortemp.INTE1 = extradatatemp.SOKINT[1]
+         fastfortemp.INTE2 = extradatatemp.SOKINT[2].         
+      END.       
+      ELSE DO:         
+         IF fastfortemp.PROCENT = 100 THEN fastfortemp.CHE1 = "1/1".
+         ELSE IF fastfortemp.PROCENT = 80 THEN fastfortemp.CHE1 = "4/5".         
+         ELSE IF fastfortemp.PROCENT = 66 THEN fastfortemp.CHE1 = "2/3".         
+         ELSE IF fastfortemp.PROCENT = 60 THEN fastfortemp.CHE1 = "3/5".         
+         ELSE IF fastfortemp.PROCENT = 50 THEN fastfortemp.CHE1 = "1/2".         
+         ELSE IF fastfortemp.PROCENT = 40 THEN fastfortemp.CHE1 = "2/5".         
+         ELSE IF fastfortemp.PROCENT = 33 THEN fastfortemp.CHE1 = "1/3".         
+         ELSE IF fastfortemp.PROCENT = 34 THEN fastfortemp.CHE1 = "1/3".   
+         ELSE IF fastfortemp.PROCENT = 25 THEN fastfortemp.CHE1 = "1/4".
+         ELSE IF fastfortemp.PROCENT = 20 THEN fastfortemp.CHE1 = "1/5".
+         ELSE IF fastfortemp.PROCENT = 10 THEN fastfortemp.CHE1 = "1/10".
+         ELSE fastfortemp.CHE1 = STRING(fastfortemp.PROCENT) + "/100".
+      END.    
+
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "FASTLOPNR"                   
+      inextradatatemp.HUVUDCH = fastfortemp.BETECKNING.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO:      
+         IF fastfortemp.MARKNR = extradatatemp.SOKINT[1] THEN fastfortemp.CHE2 = "K".         
+      END. 
+      IF fastfortemp.PROCENT = 100 THEN fastfortemp.CHE2 = "K".
+   END.
+   Guru.GlobalaVariabler:GDPRtyp = "M". 
+   {GDPRLOGGCLIENT.I}
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.        
+   edataapph = ?.
+   

@@ -1,0 +1,230 @@
+/*BERLISTAPP5U.P*/
+{STARTFORAPP.I}
+{ANMARKD.I}
+{LISTDEF.I} 
+{KONVALTEMP.I}
+DEFINE VARIABLE edmedd AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE valkonst AS LOGICAL NO-UNDO.
+DEFINE VARIABLE prisvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE skrivut AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.          
+DEFINE VARIABLE valaonr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE valdelnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE valort AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE valomrade AS CHARACTER NO-UNDO.  
+DEFINE VARIABLE lin_recid AS RECID NO-UNDO.   
+
+
+DEFINE VARIABLE arrhjsum AS DECIMAL NO-UNDO.    
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(130)" NO-UNDO. 
+DEFINE VARIABLE str2 AS CHARACTER FORMAT "X(130)" NO-UNDO.
+DEFINE VARIABLE totalt AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE sumpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE sumantal AS INTEGER NO-UNDO.
+   
+
+DEFINE TEMP-TABLE mtrl_temp2   
+   FIELD ENR AS CHARACTER
+   FIELD BENAMNING AS CHARACTER
+   FIELD ENHET AS CHARACTER
+   FIELD ANTAL AS INTEGER
+   FIELD PRIS AS DECIMAL 
+   FIELD TOTPRIS AS DECIMAL
+   FIELD LEVKOD AS CHARACTER      
+   INDEX ENR IS PRIMARY ENR ASCENDING. 
+
+DEFINE NEW SHARED TEMP-TABLE tidut
+   FIELD UT AS CHARACTER FORMAT "X(132)".
+
+DEFINE QUERY mtrlprisq FOR BERMTRL. 
+
+
+
+PROCEDURE skapalista_UI :
+   DEFINE INPUT PARAMETER valaonr2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valort2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER globanvpkod2 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER musz2 AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   DEFINE INPUT PARAMETER prisvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER valkonst AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR kon_val.
+
+   EMPTY TEMP-TABLE tidut NO-ERROR. 
+   ASSIGN 
+   valaonr = valaonr2
+   valomrade = valomrade2
+   valort = valort2
+   globanvpkod = globanvpkod2
+   musz = FALSE.
+   RUN huvud_UI.   
+   IF musz = FALSE THEN RUN rubrik_UI.
+   musz2 = musz.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE anm2_UI :
+   CREATE tidut.      
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "Anmärkning   :"
+   retvar = 1
+   ednum = 1
+   ednum3 = LENGTH(edmedd)
+   retvar = INDEX(edmedd,CHR(10),ednum)
+   edtecken = 48
+   edtext = edmedd
+   tidtext = "".  
+   {ANMARK2.I}   
+END PROCEDURE.
+
+PROCEDURE anmark_UI :
+       
+   DEFINE INPUT PARAMETER anmark AS INTEGER NO-UNDO.
+   IF anmark = 2 THEN DO:                
+      ASSIGN            
+      /*SUBSTRING(tidut.UT,11) = ":"*/   
+      SUBSTRING(tidut.UT,16) = tidtext.
+      CREATE tidut.
+   END.     
+END PROCEDURE.
+
+PROCEDURE huvud_UI :
+
+   DO TRANSACTION:   
+      IF musz = TRUE THEN musz = musz.   
+      ELSE DO:          
+         CREATE tidut.                       
+         ASSIGN        
+         SUBSTRING(tidut.UT,1) = "Lista artiklar med text".            
+         ASSIGN   
+         SUBSTRING(tidut.UT,40) = STRING(TODAY)
+         SUBSTRING(tidut.UT,46) = STRING(TIME,"HH:MM:SS").                                                               
+         CREATE tidut.     
+         CREATE tidut. 
+         ASSIGN                                                               
+         SUBSTRING(tidut.UT,1) = "Ort/Benämning: " + valort.
+         CREATE tidut.  
+         ASSIGN                                                               
+         SUBSTRING(tidut.UT,1) = "Beredning nr : " + valaonr.
+         FIND FIRST BEREDNING WHERE BEREDNING.BERNR = INTEGER(valaonr) AND 
+         BEREDNING.OMRADE = valomrade USE-INDEX BERNR NO-LOCK NO-ERROR.
+         IF globforetag = "ELPA" OR globforetag = "UMEA" THEN DO:            
+            FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = BEREDNING.ANVANDARE
+            USE-INDEX ANDV NO-LOCK NO-ERROR.
+            IF AVAILABLE ANVANDARE THEN DO:            
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD
+               USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALTAB THEN DO: 
+                  CREATE tidut.
+                  SUBSTRING(tidut.UT,1) = "Proj.ing     : " + PERSONALTAB.FORNAMN +                
+                  " " + PERSONALTAB.EFTERNAMN + "     " + PERSONALTAB.TELEFON + "     " + PERSONALTAB.MOBILTEL.
+               END.
+            END.
+         END.         
+         IF BEREDNING.AONR NE ? THEN DO:
+            FIND FIRST AONRTAB WHERE AONRTAB.AONR = BEREDNING.AONR AND
+            AONRTAB.DELNR = BEREDNING.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.
+            IF AVAILABLE AONRTAB THEN DO:
+               CREATE tidut.
+               ASSIGN               
+               SUBSTRING(tidut.UT,1) = Guru.Konstanter:gaok
+               SUBSTRING(tidut.UT,14) = ": " + AONRTAB.AONR + " Delnr:" + 
+               STRING(AONRTAB.DELNR,Guru.Konstanter:varforetypchar[1]).
+            END.
+         END.         
+         IF edmedd NE "" THEN DO:
+            RUN anm2_UI.
+         END.
+         CREATE tidut.     
+         CREATE tidut.              
+         ASSIGN  
+         SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:genk)
+         SUBSTRING(tidut.UT,13) = "BENÄMNING"
+         SUBSTRING(tidut.UT,54) = "ENH"
+         SUBSTRING(tidut.UT,58) = "ANTAL".
+         IF prisvar = 1 THEN ASSIGN SUBSTRING(tidut.UT,67) = "PRIS/ENH"
+         SUBSTRING(tidut.UT,76) = "SUMMA".         
+         CREATE tidut. 
+         ASSIGN
+          str =
+"===========.========================================.===.========.========.==========" 
+          str2 =
+"===========.========================================.===.========".
+         IF prisvar = 1 THEN DO:      
+            SUBSTRING(tidut.UT,1) = str.                                                                                        
+         END.
+         ELSE DO:  
+            SUBSTRING(tidut.UT,1) = str2.                                                                                        
+         END. 
+      END.
+   END.   
+   RELEASE BEREDAONR NO-ERROR.
+END PROCEDURE.
+
+
+PROCEDURE rubrik_UI :
+      
+   ASSIGN
+   sumpris = 0
+   sumantal = 0.  
+   
+   IF valkonst = FALSE THEN DO:
+      RUN LISTPROG.P
+      (INPUT valaonr, INPUT valomrade, OUTPUT TABLE mtrl_temp, OUTPUT TABLE lin_upp, 
+      OUTPUT TABLE lin_temp).
+   END.   
+   ELSE DO:
+      RUN LISTPROG2U.P
+         (INPUT TABLE kon_val, OUTPUT TABLE mtrl_temp, OUTPUT TABLE lin_upp, 
+         OUTPUT TABLE lin_temp).
+   END.
+          
+   FOR EACH mtrl_temp WHERE mtrl_temp.MTRLTEXT NE "" USE-INDEX ENR: 
+      IF mtrl_temp.ANTAL = 0 THEN DO:
+         musz = musz.
+      END.   
+      ELSE DO:
+         CREATE tidut.
+         ASSIGN
+         SUBSTRING(tidut.UT,1) = mtrl_temp.ENR              
+         SUBSTRING(tidut.UT,13) = SUBSTRING(mtrl_temp.BENAMNING,1,40)     
+         SUBSTRING(tidut.UT,54) = mtrl_temp.ENHET
+         SUBSTRING(tidut.UT,58) = STRING(mtrl_temp.ANTAL,">>>>>>>9"). 
+         IF prisvar = 1 THEN ASSIGN SUBSTRING(tidut.UT,67) = STRING(mtrl_temp.PRIS,">>>>>>>9")
+         SUBSTRING(tidut.UT,76) = STRING(mtrl_temp.TOTPRIS,">>>>>>>>>9").                  
+         CREATE tidut.            
+         SUBSTRING(tidut.UT,1) = "Text:".         
+         ASSIGN         
+         retvar = 1 
+         ednum = 1    
+         ednum3 = LENGTH(mtrl_temp.MTRLTEXT)      
+         retvar = INDEX(mtrl_temp.MTRLTEXT,CHR(10),ednum)
+         edtecken = 39   
+         edtext = mtrl_temp.MTRLTEXT
+         tidtext = "".        
+         {MTRLTEXT.I}   
+      END.   
+   END.
+   CREATE tidut.
+   IF prisvar = 1 THEN DO:      
+     SUBSTRING(tidut.UT,1) = str.                                                                                        
+   END.
+   ELSE DO:  
+      SUBSTRING(tidut.UT,1) = str2.                                                                                        
+   END. 
+   CREATE tidut.    
+END PROCEDURE.
+
+PROCEDURE mtext_UI : 
+   /* GG ändrat den 12/5-06 */
+   IF tidut.UT = "Text:" THEN DO:
+      tidut.UT = REPLACE(tidut.UT,":"," ")  + "       " + tidtext.
+      RETURN.
+   END.
+   IF tidut.UT NE "" THEN CREATE tidut.
+   ASSIGN                  
+   SUBSTRING(tidut.UT,13) = tidtext.
+/*    SUBSTRING(tidut.UT,6) = tidtext. */
+  
+END PROCEDURE.

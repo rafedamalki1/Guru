@@ -1,0 +1,5 @@
+/*VPERSONALTEMP.I*/
+DEFINE {&NEW} {&SHARED} TEMP-TABLE valperstemp  NO-UNDO
+   {PERSONALTT.I}
+   
+   

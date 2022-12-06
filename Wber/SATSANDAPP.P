@@ -1,0 +1,224 @@
+/*SATSANDAPP.P*/
+{startforapp.i}
+{MTRLTEMP.I}
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+
+DEFINE TEMP-TABLE sats_mtrl
+   FIELD KOD AS CHARACTER
+   FIELD ENR AS CHARACTER 
+   FIELD BENAMNING AS CHARACTER LABEL "Benämning"
+   FIELD ENHET AS CHARACTER LABEL "Enhet" 
+   FIELD ANTAL AS INTEGER LABEL "Antal"
+   FIELD PRIS AS DECIMAL LABEL "Pris"
+   FIELD LEVKOD AS CHARACTER.
+
+DEFINE QUERY skapq FOR SATS.
+
+PROCEDURE okcheck_UI :
+   DEFINE INPUT PARAMETER enrsatsvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   felmedd = "".
+   FIND FIRST MTRL WHERE MTRL.ENR = enrsatsvar AND
+   MTRL.LEVKOD = vald_lev AND MTRL.KALKNR = 0 USE-INDEX LEV
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      felmedd = "Det finns en artikel i leverantörskatalogen som har " +  LC(Guru.Konstanter:genk) + ":" +
+      MTRL.ENR + " med benämningen " + MTRL.BENAMNING + " Vill Ni fortsätta?".
+      RETURN.      
+   END.  
+END PROCEDURE.
+
+PROCEDURE btnok_UI :
+   DEFINE INPUT PARAMETER ny AS LOGICAL NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER skap_row AS ROWID NO-UNDO.
+   DEFINE INPUT PARAMETER sparkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER enrsatsvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kodvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER skapbenvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER enhvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER prisvar AS DECIMAL NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO. 
+   DEFINE INPUT PARAMETER TABLE FOR sats_mtrl.
+   IF ny = FALSE THEN DO: /*Ändra*/
+      OPEN QUERY skapq FOR EACH SATS WHERE SATS.KOD = sparkod AND
+      SATS.LEVKOD = vald_lev AND SATS.SATS = FALSE USE-INDEX KOD NO-LOCK.
+      GET FIRST skapq NO-LOCK.
+      DO WHILE AVAILABLE(SATS):
+         DO TRANSACTION:
+            GET CURRENT skapq EXCLUSIVE-LOCK.
+            DELETE SATS.
+         END.
+         GET NEXT skapq NO-LOCK.
+      END.
+      CLOSE QUERY skapq. 
+      DO TRANSACTION:
+         FIND FIRST SATS WHERE ROWID(SATS) = skap_row EXCLUSIVE-LOCK.
+         ASSIGN
+         SATS.KOD =        kodvar
+         SATS.BENAMNING =  skapbenvar.
+         IF enrsatsvar = " " THEN DO:
+            SATS.ENR = kodvar.
+         END.
+         ELSE DO:
+            SATS.ENR = enrsatsvar.
+         END.
+         ASSIGN      
+         SATS.ENHET = enhvar
+         SATS.PRIS = prisvar
+         SATS.SATS = TRUE
+         SATS.LEVKOD = vald_lev. 
+      END.
+      RELEASE SATS NO-ERROR.
+      FOR EACH sats_mtrl:
+         DO TRANSACTION:
+            CREATE SATS.
+            ASSIGN 
+            SATS.KOD = kodvar
+            SATS.ENR2 = sats_mtrl.ENR 
+            SATS.BENAMNING2 = sats_mtrl.BENAMNING 
+            SATS.ENHET2 = sats_mtrl.ENHET 
+            SATS.ANTAL = sats_mtrl.ANTAL 
+            SATS.PRIS2 = sats_mtrl.PRIS 
+            SATS.LEVKOD = vald_lev
+            SATS.SATS = FALSE.
+         END.
+         RELEASE SATS NO-ERROR.
+      END.   
+   END.  
+   ELSE DO: /*Ny*/
+      DO TRANSACTION:
+         CREATE SATS.
+         ASSIGN
+         SATS.KOD = kodvar
+         SATS.BENAMNING = skapbenvar.
+         IF enrsatsvar = " " THEN DO:
+            SATS.ENR = kodvar.
+         END.
+         ELSE DO:
+            SATS.ENR = enrsatsvar.
+         END.   
+         ASSIGN
+         SATS.ENHET = enhvar
+         SATS.PRIS = prisvar
+         SATS.SATS = TRUE
+         SATS.LEVKOD = vald_lev.
+         ASSIGN skap_row = ROWID(SATS).
+      END.
+      RELEASE SATS NO-ERROR.
+      FOR EACH sats_mtrl:
+         DO TRANSACTION:
+            CREATE SATS.
+            ASSIGN 
+            SATS.KOD = kodvar
+            SATS.ENR2 = sats_mtrl.ENR 
+            SATS.BENAMNING2 = sats_mtrl.BENAMNING 
+            SATS.ENHET2 = sats_mtrl.ENHET 
+            SATS.ANTAL = sats_mtrl.ANTAL 
+            SATS.PRIS2 = sats_mtrl.PRIS 
+            SATS.LEVKOD = vald_lev
+            SATS.SATS = FALSE.
+         END.
+         RELEASE SATS NO-ERROR.
+      END.   
+   END.
+END PROCEDURE.
+
+PROCEDURE over_UI :
+   DEFINE INPUT PARAMETER mtrlrowid AS ROWID NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR sats_mtrl.
+   FOR EACH sats_mtrl:
+      DELETE sats_mtrl.
+   END.
+   FIND FIRST MTRL WHERE ROWID(MTRL) = mtrlrowid NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      CREATE sats_mtrl. 
+      ASSIGN               
+      sats_mtrl.ENR = MTRL.ENR
+      sats_mtrl.BENAMNING = MTRL.BENAMNING
+      sats_mtrl.ENHET = MTRL.ENHET 
+      sats_mtrl.ANTAL = 1              
+      sats_mtrl.PRIS = MTRL.NPRIS          
+      sats_mtrl.LEVKOD = MTRL.LEVKOD.        
+   END.
+END PROCEDURE.
+
+PROCEDURE satsmtrl_UI :
+   DEFINE INPUT PARAMETER sparkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR sats_mtrl.
+   OPEN QUERY skapq FOR EACH SATS WHERE SATS.KOD = sparkod AND
+   SATS.LEVKOD = vald_lev AND SATS.SATS = FALSE USE-INDEX KOD NO-LOCK.
+   GET FIRST skapq NO-LOCK.
+   DO WHILE AVAILABLE(SATS):
+      CREATE sats_mtrl.
+      ASSIGN         
+      sats_mtrl.KOD = SATS.KOD
+      sats_mtrl.ENR = SATS.ENR2 
+      sats_mtrl.BENAMNING = SATS.BENAMNING2 
+      sats_mtrl.ENHET = SATS.ENHET2 
+      sats_mtrl.ANTAL = SATS.ANTAL 
+      sats_mtrl.PRIS = SATS.PRIS2 
+      sats_mtrl.LEVKOD = SATS.LEVKOD.
+      GET NEXT skapq NO-LOCK.
+   END.
+   CLOSE QUERY skapq.
+END PROCEDURE.
+
+PROCEDURE enrsats_UI :
+   DEFINE INPUT PARAMETER ny AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER sparenr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER enrsatsvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   felmedd = "".
+   IF ny = TRUE THEN DO: 
+      FIND FIRST SATS WHERE SATS.ENR = enrsatsvar AND 
+      SATS.LEVKOD = vald_lev AND SATS.SATS = TRUE USE-INDEX KOD 
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE SATS THEN DO:
+         ASSIGN felmedd = "Det finns redan en sats med detta " + LC(Guru.Konstanter:genk) + " ange ett nytt.".
+         RETURN.
+      END.   
+   END.
+   ELSE DO: 
+      IF sparenr NE enrsatsvar THEN DO: 
+         FIND FIRST SATS WHERE SATS.ENR = enrsatsvar AND 
+         SATS.LEVKOD = vald_lev AND SATS.SATS = TRUE USE-INDEX KOD 
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE SATS THEN DO:
+            ASSIGN felmedd = "Det finns redan en sats med detta " + LC(Guru.Konstanter:genk) + " ange ett nytt.". 
+            RETURN.
+         END.   
+      END.   
+   END.
+END PROCEDURE.
+
+PROCEDURE kod_UI :
+   DEFINE INPUT PARAMETER ny AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER sparkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kodvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   felmedd = "".
+   IF ny = TRUE THEN DO: 
+      FIND FIRST SATS WHERE SATS.KOD = kodvar AND 
+      SATS.LEVKOD = vald_lev AND SATS.SATS = TRUE USE-INDEX KOD 
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE SATS THEN DO:
+         ASSIGN felmedd = "Det finns redan en sats med denna kod ange en ny.".
+         RETURN.
+      END.   
+   END.
+   ELSE DO: 
+      IF sparkod NE kodvar THEN DO: 
+         FIND FIRST SATS WHERE SATS.KOD = kodvar AND 
+         SATS.LEVKOD = vald_lev AND SATS.SATS = TRUE USE-INDEX KOD 
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE SATS THEN DO:
+            ASSIGN felmedd = "Det finns redan en sats med denna kod ange en ny.". 
+            RETURN.
+         END.   
+      END.   
+   END.
+END PROCEDURE.

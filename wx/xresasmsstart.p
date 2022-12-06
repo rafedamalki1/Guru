@@ -1,0 +1,184 @@
+{APP.I}
+ASSIGN
+   FILL-IN-BIL = INPUT FILL-IN-BIL
+   FILL-IN-AONR = INPUT FILL-IN-AONR
+   FILL-IN-DELNR = INPUT FILL-IN-DELNR   
+   FILL-IN-SLUT = INPUT FILL-IN-SLUT
+   FILL-IN-START = INPUT FILL-IN-START
+   FILL-IN-DATUM = INPUT FILL-IN-DATUM.
+   regdatum = DATE((regmnr),FILL-IN-DATUM,regar).
+   RUN REGVEC.P.
+   RUN REGDAG.P.
+   RUN SLUTARB.P.
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = FILL-IN-AONR AND 
+   AONRTAB.DELNR = FILL-IN-DELNR USE-INDEX AONR NO-LOCK NO-ERROR.  
+   IF NOT AVAILABLE AONRTAB THEN DO:
+      MESSAGE Guru.Konstanter:gaok FILL-IN-AONR STRING(FILL-IN-DELNR,">99") "finns inte." VIEW-AS ALERT-BOX.
+      APPLY "ENTRY" TO FILL-IN-AONR IN FRAME {&FRAME-NAME}.
+      APPLY "ENDKEY" TO BTN_KLAR IN FRAME {&FRAME-NAME}.
+   END.
+   ELSE DO:
+      {AOKOLLN.I}
+      IF AONRTAB.AONRAVDATUM = 01/01/1991 OR
+      AONRTAB.AONRAVDATUM >= regdatum THEN FILL-IN-DELNR = FILL-IN-DELNR.
+      ELSE DO:
+         MESSAGE Guru.Konstanter:gaok FILL-IN-AONR STRING(FILL-IN-DELNR,">99") "är redan avslutat." VIEW-AS ALERT-BOX.
+         APPLY "ENTRY" TO FILL-IN-AONR IN FRAME {&FRAME-NAME}.
+         APPLY "ENDKEY" TO BTN_KLAR IN FRAME {&FRAME-NAME}.
+      END.
+   END.
+   IF FILL-IN-START > 24.00 THEN DO:
+      MESSAGE "Orimligt klockslag." VIEW-AS ALERT-BOX.
+      APPLY "ENTRY" TO FILL-IN-START.
+      APPLY "ENDKEY" TO BTN_KLAR IN FRAME {&FRAME-NAME}.
+   END.      
+   IF SUBSTRING(STRING(FILL-IN-START),3 ,2) > "59" THEN DO:
+      MESSAGE "Orimligt klockslag." VIEW-AS ALERT-BOX.
+      APPLY "ENTRY" TO FILL-IN-START.
+      APPLY "ENDKEY" TO BTN_KLAR IN FRAME {&FRAME-NAME}.
+   END.      
+   IF FILL-IN-SLUT > 24.00 THEN DO:
+      MESSAGE "Orimligt klockslag." VIEW-AS ALERT-BOX.
+      musz = TRUE.
+      APPLY "ENTRY" TO FILL-IN-SLUT.
+      APPLY "ENDKEY" TO BTN_KLAR IN FRAME {&FRAME-NAME}.
+   END. 
+   IF SUBSTRING(STRING(FILL-IN-SLUT),3 ,2) > "59" THEN DO:
+      MESSAGE "Orimligt klockslag." VIEW-AS ALERT-BOX.
+      musz = TRUE.
+      APPLY "ENTRY" TO FILL-IN-SLUT.
+      APPLY "ENDKEY" TO BTN_KLAR IN FRAME {&FRAME-NAME}.
+   END.     
+   IF FILL-IN-START > regstart AND FILL-IN-START < regslut THEN DO:
+      MESSAGE "Endast restid utanför ordinarie arbetstid skall registreras" VIEW-AS ALERT-BOX.
+      musz = TRUE.
+      APPLY "ENTRY" TO FILL-IN-START.
+      APPLY "ENDKEY" TO BTN_KLAR IN FRAME {&FRAME-NAME}.
+   END.
+   IF FILL-IN-SLUT > regstart AND FILL-IN-SLUT < regslut THEN DO:
+      MESSAGE "Endast restid utanför ordinarie arbetstid skall registreras" VIEW-AS ALERT-BOX.
+      musz = TRUE.
+      APPLY "ENTRY" TO FILL-IN-SLUT.
+      APPLY "ENDKEY" TO BTN_KLAR IN FRAME {&FRAME-NAME}.
+   END.    
+   IF FILL-IN-START LE regstart AND FILL-IN-SLUT GE regslut THEN DO:
+      MESSAGE "Endast restid utanför ordinarie arbetstid skall registreras" VIEW-AS ALERT-BOX.
+      musz = TRUE.
+      APPLY "ENTRY" TO FILL-IN-START.
+      APPLY "ENDKEY" TO BTN_KLAR IN FRAME {&FRAME-NAME}.
+   END. 
+   IF FILL-IN-KM > 0 THEN DO:
+      seku = 3600 * FILL-IN-KM / 54.
+      IF FILL-IN-SLUT LE regstart THEN DO:
+         nytid = FILL-IN-SLUT.
+         RUN TIMSEK.P.
+         sekunder = sekunder - seku.
+         RUN SEKTIM.P.
+         IF FILL-IN-START < 0 THEN ASSIGN FILL-IN-START = 0.
+         ELSE ASSIGN FILL-IN-START = nytid.
+      END.
+      ELSE IF FILL-IN-START GE regslut THEN DO:
+         nytid = FILL-IN-START.
+         RUN TIMSEK.P.
+         sekunder = sekunder + seku.
+         RUN SEKTIM.P.
+         IF FILL-IN-SLUT > 24 THEN ASSIGN FILL-IN-SLUT = 0.
+         ASSIGN FILL-IN-SLUT = nytid.
+      END.
+   END.                           
+   IF FILL-IN-SLUT NE FILL-IN-START THEN DO:      
+      ASSIGN
+      regvnr = FILL-IN-VECKO
+      regdagnamn = FILL-IN-DAG
+      regstart = FILL-IN-START.          
+      FIND TIDREGITAB WHERE RECID(TIDREGITAB) = tidtabrec NO-LOCK NO-ERROR.
+      RUN TIDSTART.P.
+      IF musz = TRUE THEN DO:
+         musz = FALSE.
+         APPLY "ENTRY" TO FILL-IN-START.
+         APPLY "ENDKEY" TO BTN_KLAR IN FRAME {&FRAME-NAME}.
+      END.
+      /*RUN tidstart_UI.
+      IF musz = TRUE THEN DO:
+         musz = FALSE.
+         APPLY "ENTRY" TO FILL-IN-START.
+         APPLY "ENDKEY" TO BTN_KLAR IN FRAME {&FRAME-NAME}.
+      END.                 */
+      IF FILL-IN-SLUT < FILL-IN-START THEN DO:
+         MESSAGE "Start och slut kan ej vara lika." VIEW-AS ALERT-BOX.
+         APPLY "ENTRY" TO FILL-IN-START.
+         APPLY "ENDKEY" TO BTN_KLAR IN FRAME {&FRAME-NAME}.
+      END.
+      IF musz = TRUE THEN musz = FALSE.
+      ELSE DO:                 
+         ASSIGN
+         regstart = FILL-IN-START
+         regslut = FILL-IN-SLUT.
+         FIND TIDREGITAB WHERE RECID(TIDREGITAB) = tidtabrec NO-LOCK NO-ERROR.
+         RUN TIDSLUT.P.
+         IF musz = TRUE THEN DO:
+            musz = FALSE.
+            APPLY "ENTRY" TO FILL-IN-START.
+            APPLY "ENDKEY" TO BTN_KLAR IN FRAME {&FRAME-NAME}.
+         END.
+/*         RUN tidslut_UI.
+         IF musz = TRUE THEN DO:
+            musz = FALSE.
+            APPLY "ENTRY" TO FILL-IN-START.
+            APPLY "ENDKEY" TO BTN_KLAR IN FRAME {&FRAME-NAME}.
+         END.                 */
+      END.
+   END.     
+   DO TRANSACTION:
+      FIND TIDREGITAB WHERE RECID(TIDREGITAB) = tidtabrec EXCLUSIVE-LOCK NO-ERROR.            
+      ASSIGN 
+      TIDREGITAB.START = FILL-IN-START 
+      TIDREGITAB.SLUT = FILL-IN-SLUT 
+      TIDREGITAB.AONR = FILL-IN-AONR 
+      TIDREGITAB.DELNR = FILL-IN-DELNR
+      TIDREGITAB.BILFORARE = FILL-IN-BIL
+      TIDREGITAB.DATUM = regdatum
+      TIDREGITAB.VECKONUMMER = regvnr
+      TIDREGITAB.DAG = regdagnamn
+      TIDREGITAB.LONTILLAGG = ""
+      TIDREGITAB.LONTILLANTAL = 0
+      TIDREGITAB.OKOD1 = ""
+      TIDREGITAB.OST1 = 0
+      TIDREGITAB.OSL1 = 0
+      TIDREGITAB.OANT1 = 0
+      TIDREGITAB.OKOD2 = ""
+      TIDREGITAB.OST2 = 0
+      TIDREGITAB.OSL2 = 0
+      TIDREGITAB.OANT2 = 0
+      TIDREGITAB.OKOD3 = ""
+      TIDREGITAB.OST3 = 0
+      TIDREGITAB.OSL3 = 0
+      TIDREGITAB.OANT3 = 0.
+   END.   
+DO TRANSACTION:
+      FIND TIDREGITAB WHERE RECID(TIDREGITAB) = tidtabrec EXCLUSIVE-LOCK NO-ERROR.            
+      ASSIGN 
+      TIDREGITAB.START = FILL-IN-START 
+      TIDREGITAB.SLUT = FILL-IN-SLUT 
+      TIDREGITAB.AONR = FILL-IN-AONR 
+      TIDREGITAB.DELNR = FILL-IN-DELNR
+      TIDREGITAB.BILFORARE = FILL-IN-BIL
+      TIDREGITAB.DATUM = regdatum
+      TIDREGITAB.VECKONUMMER = regvnr
+      TIDREGITAB.DAG = regdagnamn
+      TIDREGITAB.LONTILLAGG = ""
+      TIDREGITAB.LONTILLANTAL = 0
+      TIDREGITAB.OKOD1 = ""
+      TIDREGITAB.OST1 = 0
+      TIDREGITAB.OSL1 = 0
+      TIDREGITAB.OANT1 = 0
+      TIDREGITAB.OKOD2 = ""
+      TIDREGITAB.OST2 = 0
+      TIDREGITAB.OSL2 = 0
+      TIDREGITAB.OANT2 = 0
+      TIDREGITAB.OKOD3 = ""
+      TIDREGITAB.OST3 = 0
+      TIDREGITAB.OSL3 = 0
+      TIDREGITAB.OANT3 = 0.
+   END.
+RUN RESA.P.

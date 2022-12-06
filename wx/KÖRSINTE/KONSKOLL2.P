@@ -1,0 +1,241 @@
+/*KONSKOLL2.P KÖRS EJ*/
+DEFINE TEMP-TABLE kons_mtrl
+    FIELD KTYPKOD LIKE MTRLBER.KTYPKOD
+    FIELD KONSKOD LIKE KONSTRUKTION.KONSKOD     
+    FIELD ENR LIKE MTRLBER.ENR
+    FIELD BENAMNING LIKE MTRLBER.BENAMNING
+    FIELD ENHET LIKE MTRLBER.ENHET
+    FIELD ANTAL LIKE MTRLBER.ANTAL
+    FIELD LINKAB LIKE MTRLBER.LINKAB
+    FIELD MODUL LIKE MTRLBER.MODUL
+    FIELD TYPBER LIKE MTRLBER.TYPBER
+    FIELD DIAMETER LIKE MTRLBER.DIAMETER
+    INDEX KOD KONSKOD KTYPKOD ENR
+    INDEX ENR ENR.
+
+DEFINE INPUT PARAMETER lev1 LIKE LEVERANTOR.LEVKOD NO-UNDO.
+DEFINE INPUT PARAMETER lev2 LIKE LEVERANTOR.LEVKOD NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR kons_mtrl.
+DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+DEFINE VARIABLE inkberh AS HANDLE NO-UNDO.
+DEFINE VARIABLE fragavar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO. 
+{INKSUMBERTEMP.I}  
+{INKKOLL3.I}
+{DYNPOSTFINNS.I}
+IF inkopkollvar = TRUE THEN DO:               
+   fragavar = "INKMTRL.BERNR = " + STRING(valaonr) + " AND INKMTRL.OMRADE = '" + valomrade + "'".  
+   RUN finnspostdyn_UI (INPUT "INKMTRL",INPUT fragavar,OUTPUT musz).
+   IF musz = FALSE THEN RUN gamminkop_UI.
+   ELSE DO:
+      musz = FALSE.
+      RUN inkop_UI.
+     
+   END.                     
+END.   
+RUN byt_UI.
+PROCEDURE gamminkop_UI :
+   /*dummy*/
+END PROCEDURE.
+PROCEDURE inkop_UI:
+   DEFINE VARIABLE inkaonr AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE inkdelnr AS INTEGER NO-UNDO.
+   RUN INKBERAPP.P PERSISTENT SET inkberh.
+   RUN faltvarde_UI (INPUT "AONRAONR",OUTPUT fragavar).
+   inkaonr = fragavar.
+   RUN faltvarde_UI (INPUT "AONRDELNR",OUTPUT fragavar).
+   inkdelnr = INTEGER(fragavar).
+   RUN beredningskontroll_UI IN inkberh (INPUT inkaonr,INPUT inkdelnr,OUTPUT TABLE sumbernum_mtrl,OUTPUT TABLE sumberskapnum_mtrl).                
+   IF VALID-HANDLE(inkberh) THEN DO: 
+      RUN InkAvs_UI IN inkberh.
+      DELETE PROCEDURE inkberh NO-ERROR.
+   END.   
+END PROCEDURE. 
+
+PROCEDURE byt_UI :
+   
+   OPEN QUERY bmq FOR EACH BERMTRL WHERE BERMTRL.LEVKOD = lev1 AND BERMTRL.AONR = valaonr AND BERMTRL.OMRADE = valomrade NO-LOCK.
+   GET FIRST bmq NO-LOCK.
+   DO WHILE AVAILABLE(BERMTRL):
+      FIND FIRST sumberskapnum_mtrl WHERE sumberskapnum_mtrl.NUM = BERMTRL.NUM AND 
+      sumberskapnum_mtrl.SKAPNUM = BERMTRL.SKAPNUM AND
+      sumberskapnum_mtrl.ENRORG = BERMTRL.ENR AND  
+      sumberskapnum_mtrl.LEVKOD = BERMTRL.LEVKOD 
+      NO-LOCK NO-ERROR.    
+      IF NOT AVAILABLE sumberskapnum_mtrl THEN DO TRANSACTION:
+         GET CURRENT bmq EXCLUSIVE-LOCK.      
+         FIND FIRST BETPLAN WHERE BETPLAN.NAMN = lev1 AND BETPLAN.ANVANDARE = BERMTRL.ENR AND
+         BETPLAN.BESTID = lev2 NO-LOCK NO-ERROR.
+         IF AVAILABLE BETPLAN THEN DO:               
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = lev2 AND MTRL.ENR = BETPLAN.OMRADE AND
+            MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN
+               BERMTRL.ENR = MTRL.ENR
+               BERMTRL.BENAMNING = MTRL.BENAMNING
+               BERMTRL.ENHET = MTRL.ENHET
+               BERMTRL.PRIS = MTRL.NPRIS
+               BERMTRL.LEVKOD = MTRL.LEVKOD.
+            END.
+            ELSE DO:               
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = lev2 AND MTRL.ENR = BERMTRL.ENR AND
+               MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+               IF AVAILABLE MTRL THEN DO:
+                  ASSIGN
+                  BERMTRL.ENR = MTRL.ENR
+                  BERMTRL.BENAMNING = MTRL.BENAMNING
+                  BERMTRL.ENHET = MTRL.ENHET
+                  BERMTRL.PRIS = MTRL.NPRIS
+                  BERMTRL.LEVKOD = MTRL.LEVKOD.
+               END.
+               ELSE DO:
+                  CREATE kons_mtrl.
+                  ASSIGN         
+                  kons_mtrl.ENR = BERMTRL.ENR
+                  kons_mtrl.BENAMNING = BERMTRL.BENAMNING
+                  kons_mtrl.ENHET = BERMTRL.ENHET.         
+               END.
+            END.               
+         END.
+         ELSE DO:
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = lev2 AND MTRL.ENR = BERMTRL.ENR AND
+            MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN
+               BERMTRL.ENR = MTRL.ENR
+               BERMTRL.BENAMNING = MTRL.BENAMNING
+               BERMTRL.ENHET = MTRL.ENHET
+               BERMTRL.PRIS = MTRL.NPRIS
+               BERMTRL.LEVKOD = MTRL.LEVKOD.
+            END.
+            ELSE DO:
+               /*tillägg för att kolla om någon av katalogerna har E framför  /Lena 2008-05-06*/
+               IF BERMTRL.ENR BEGINS "E" THEN DO:               
+                  FIND FIRST MTRL WHERE MTRL.LEVKOD = lev2 AND MTRL.ENR = SUBSTRING(BERMTRL.ENR,2) AND
+                  MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                  IF AVAILABLE MTRL THEN DO:
+                     ASSIGN
+                     BERMTRL.ENR = MTRL.ENR
+                     BERMTRL.BENAMNING = MTRL.BENAMNING
+                     BERMTRL.ENHET = MTRL.ENHET
+                     BERMTRL.PRIS = MTRL.NPRIS
+                     BERMTRL.LEVKOD = MTRL.LEVKOD.
+                  END.
+               END.
+               ELSE DO:
+                  FIND FIRST MTRL WHERE MTRL.LEVKOD = lev2 AND MTRL.ENR =  'E' + BERMTRL.ENR AND
+                  MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                  IF AVAILABLE MTRL THEN DO:
+                     ASSIGN
+                     BERMTRL.ENR = MTRL.ENR
+                     BERMTRL.BENAMNING = MTRL.BENAMNING
+                     BERMTRL.ENHET = MTRL.ENHET
+                     BERMTRL.PRIS = MTRL.NPRIS
+                     BERMTRL.LEVKOD = MTRL.LEVKOD.
+                  END.
+               END.
+            END.
+            IF NOT AVAILABLE MTRL  THEN DO:            
+               CREATE kons_mtrl.
+               ASSIGN         
+               kons_mtrl.ENR = BERMTRL.ENR
+               kons_mtrl.BENAMNING = BERMTRL.BENAMNING
+               kons_mtrl.ENHET = BERMTRL.ENHET.         
+            END.
+         END.
+      END.
+      GET NEXT bmq NO-LOCK.
+   END.
+   CLOSE QUERY bmq.
+
+   OPEN QUERY blq FOR EACH BERLINKAB WHERE BERLINKAB.LEVKOD = lev1 AND BERLINKAB.AONR = valaonr AND BERLINKAB.OMRADE = valomrade NO-LOCK.
+   GET FIRST blq NO-LOCK.
+   DO WHILE AVAILABLE(BERLINKAB):
+      DO TRANSACTION:
+         GET CURRENT blq EXCLUSIVE-LOCK.      
+         FIND FIRST BETPLAN WHERE BETPLAN.NAMN = lev1 AND BETPLAN.ANVANDARE = BERLINKAB.ENR AND
+         BETPLAN.BESTID = lev2 NO-LOCK NO-ERROR.
+         IF AVAILABLE BETPLAN THEN DO:               
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = lev2 AND MTRL.ENR = BETPLAN.OMRADE AND
+            MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN
+               BERLINKAB.ENR = MTRL.ENR
+               BERLINKAB.BENAMNING = MTRL.BENAMNING
+               BERLINKAB.ENHET = MTRL.ENHET
+               BERLINKAB.PRIS = MTRL.NPRIS
+               BERLINKAB.LEVKOD = MTRL.LEVKOD.
+            END.
+            ELSE DO:            
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = lev2 AND MTRL.ENR = BERLINKAB.ENR AND
+               MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+               IF AVAILABLE MTRL THEN DO:
+                  ASSIGN
+                  BERLINKAB.ENR = MTRL.ENR
+                  BERLINKAB.BENAMNING = MTRL.BENAMNING
+                  BERLINKAB.ENHET = MTRL.ENHET
+                  BERLINKAB.PRIS = MTRL.NPRIS
+                  BERLINKAB.LEVKOD = MTRL.LEVKOD.
+               END.               
+               ELSE DO:               
+                  CREATE kons_mtrl.
+                  ASSIGN         
+                  kons_mtrl.ENR = BERLINKAB.ENR
+                  kons_mtrl.BENAMNING = BERLINKAB.BENAMNING
+                  kons_mtrl.ENHET = BERLINKAB.ENHET.                     
+               END.               
+            END.            
+         END.
+         ELSE DO:
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = lev2 AND MTRL.ENR = BERLINKAB.ENR AND
+            MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN
+               BERLINKAB.ENR = MTRL.ENR
+               BERLINKAB.BENAMNING = MTRL.BENAMNING
+               BERLINKAB.ENHET = MTRL.ENHET
+               BERLINKAB.PRIS = MTRL.NPRIS
+               BERLINKAB.LEVKOD = MTRL.LEVKOD.
+            END.
+            ELSE DO:
+               /*tillägg för att kolla om någon av katalogerna har E framför  /Lena 2008-05-06*/
+               IF BERLINKAB.ENR BEGINS "E" THEN DO:               
+                  FIND FIRST MTRL WHERE MTRL.LEVKOD = lev2 AND MTRL.ENR = SUBSTRING(BERLINKAB.ENR,2) AND
+                  MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                  IF AVAILABLE MTRL THEN DO:
+                     ASSIGN
+                     BERLINKAB.ENR = MTRL.ENR
+                     BERLINKAB.BENAMNING = MTRL.BENAMNING
+                     BERLINKAB.ENHET = MTRL.ENHET
+                     BERLINKAB.PRIS = MTRL.NPRIS
+                     BERLINKAB.LEVKOD = MTRL.LEVKOD.
+                  END.
+               END.
+               ELSE DO:
+                  FIND FIRST MTRL WHERE MTRL.LEVKOD = lev2 AND MTRL.ENR =  'E' + BERLINKAB.ENR AND
+                  MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                  IF AVAILABLE MTRL THEN DO:
+                     ASSIGN
+                     BERLINKAB.ENR = MTRL.ENR
+                     BERLINKAB.BENAMNING = MTRL.BENAMNING
+                     BERLINKAB.ENHET = MTRL.ENHET
+                     BERLINKAB.PRIS = MTRL.NPRIS
+                     BERLINKAB.LEVKOD = MTRL.LEVKOD.
+                  END.
+               END.
+            END.
+            IF NOT AVAILABLE MTRL  THEN DO:            
+               CREATE kons_mtrl.
+               ASSIGN         
+               kons_mtrl.ENR = BERLINKAB.ENR
+               kons_mtrl.BENAMNING = BERLINKAB.BENAMNING
+               kons_mtrl.ENHET = BERLINKAB.ENHET.                     
+            END.
+         END.
+      END.
+      GET NEXT blq NO-LOCK.
+   END.
+   CLOSE QUERY blq.
+END PROCEDURE.
+*/

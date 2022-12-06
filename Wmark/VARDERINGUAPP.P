@@ -1,0 +1,421 @@
+/*VARDERINGUAPP.P*/
+{STARTFORAPP.I}
+{FASTIGHET.I}
+{IMPFAST.I}
+
+DEFINE BUFFER markbuff FOR markagare.
+DEFINE VARIABLE adel1 AS INTEGER NO-UNDO.
+DEFINE VARIABLE adel2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE kollpnr AS LOGICAL NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{EXTRADATA.I}
+
+PROCEDURE markkoll_UI :
+   DEFINE INPUT PARAMETER fasthetbet AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   felmedd = "".
+   FIND FIRST MARKFAST WHERE MARKFAST.BETECKNING = fasthetbet USE-INDEX FAST NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE MARKFAST THEN DO:
+      ASSIGN felmedd = "Markägare är inte upplagd för '" + fasthetbet + "'. Vill du lägga upp markägare nu?".
+      RETURN.
+   END.
+
+END PROCEDURE.
+
+PROCEDURE bortcheck_UI :
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fasthetbet AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   felmedd = "".
+   FIND FIRST SKOGVARD WHERE SKOGVARD.VARDNR = valvardnr AND SKOGVARD.BETECKNING = fasthetbet 
+   USE-INDEX VARDNR NO-LOCK NO-ERROR.
+   FIND FIRST VOLSKOG WHERE VOLSKOG.VARDNR = valvardnr AND VOLSKOG.BETECKNING = fasthetbet
+   USE-INDEX VARDNR NO-LOCK NO-ERROR.      
+   FIND FIRST AKERVARD WHERE AKERVARD.VARDNR = valvardnr AND AKERVARD.BETECKNING = fasthetbet
+   USE-INDEX VARDNR NO-LOCK NO-ERROR.      
+   FIND FIRST AKERKAB WHERE AKERKAB.VARDNR = valvardnr AND AKERKAB.BETECKNING = fasthetbet
+   USE-INDEX VARDNR NO-LOCK NO-ERROR.
+   IF AVAILABLE SKOGVARD THEN DO:         
+      ASSIGN felmedd = "Förenklad skogsnorm är upplagd på värderingsnummer:" + STRING(SKOGVARD.VARDNR) + " för fastighet:'" + SKOGVARD.BETECKNING + "' Ta bort denna först.".
+      RETURN.
+   END.      
+   ELSE IF AVAILABLE VOLSKOG THEN DO:  
+      ASSIGN felmedd =  "Volymberäkning är upplagd för värderingsnummer:" + STRING(VOLSKOG.VARDNR) + " för fastighet:'" + VOLSKOG.BETECKNING +  "'Ta bort denna först.".
+      RETURN.
+   END.   
+   ELSE IF AVAILABLE AKERVARD AND AKERVARD.L5 = 0 THEN DO:    
+      ASSIGN felmedd =  "Åkervärdering är upplagd på värderingsnummer:" + STRING(AKERVARD.VARDNR) + " för fastighet:'" + AKERVARD.BETECKNING + "' Ta bort denna först.".
+      RETURN.
+   END.
+   ELSE IF AVAILABLE AKERVARD AND AKERVARD.L5 = 1 THEN DO:    
+      ASSIGN felmedd = "Station är upplagd på värderingsnummer:" + STRING(AKERVARD.VARDNR) + " för fastighet:'" + AKERVARD.BETECKNING + "' Ta bort denna först.".
+      RETURN.
+   END.
+   ELSE IF AVAILABLE AKERKAB THEN DO:    
+      ASSIGN felmedd = "Kabel i mark är upplagd på värderingsnummer:" + STRING(AKERKAB.VARDNR) + " för fastighet:'" + AKERKAB.BETECKNING + "' Ta bort denna först.".
+      RETURN.
+   END.
+
+END PROCEDURE.
+
+PROCEDURE btnok.
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR fastvardtemp.
+   /*Om tillkommen*/
+   DO TRANSACTION:
+      OPEN QUERY vfq FOR EACH fastvardtemp WHERE fastvardtemp.VARDNR = valvardnr NO-LOCK.
+      GET FIRST vfq NO-LOCK.
+      DO WHILE AVAILABLE(fastvardtemp):
+         FIND FIRST FASTVARD WHERE FASTVARD.VARDNR = fastvardtemp.VARDNR AND 
+         FASTVARD.BETECKNING = fastvardtemp.BETECKNING USE-INDEX VARDNR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE FASTVARD THEN DO:
+            CREATE FASTVARD.
+            ASSIGN   
+            FASTVARD.VARDNR = fastvardtemp.VARDNR
+            FASTVARD.BETECKNING = fastvardtemp.BETECKNING.
+         END.                 
+         GET NEXT vfq NO-LOCK.
+      END.
+      
+      CLOSE QUERY vfq.
+   
+      /*Om borttagen*/
+      OPEN QUERY dvfq FOR EACH FASTVARD WHERE FASTVARD.VARDNR = valvardnr NO-LOCK.
+      GET FIRST dvfq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(FASTVARD):
+         FIND FIRST fastvardtemp WHERE fastvardtemp.VARDNR = FASTVARD.VARDNR
+         AND fastvardtemp.BETECKNING = FASTVARD.BETECKNING USE-INDEX VARDNR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE fastvardtemp THEN DO:
+            DELETE FASTVARD.
+         END.           
+         GET NEXT dvfq EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY dvfq.
+  END.
+  RELEASE  FASTVARD NO-ERROR.
+
+END PROCEDURE.
+
+
+PROCEDURE impfast_UI.
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR fasttmp.
+   DEFINE INPUT PARAMETER TABLE FOR marktmp.
+   DEFINE OUTPUT PARAMETER TABLE FOR felex.
+   DEFINE VARIABLE nyfast AS LOGICAL NO-UNDO.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+         
+   FOR EACH fasttmp NO-LOCK:
+      nyfast = TRUE.      
+      FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = fasttmp.BETECKNING AND FASTIGHET.KOMMUN = fasttmp.KOMMUN NO-LOCK NO-ERROR.
+      IF AVAILABLE FASTIGHET THEN nyfast = FALSE.
+      ELSE DO transaction :
+         FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = fasttmp.BETECKNING AND FASTIGHET.KOMMUN NE fasttmp.KOMMUN EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE FASTIGHET THEN DO:
+            IF FASTIGHET.KOMMUN BEGINS fasttmp.KOMMUN THEN DO:
+               /*IMPOrERTERAD som "Sundsvalls kommun", men det ska bara stå "Sundsvall"*/
+               nyfast = FALSE.                  
+               ASSIGN
+               FASTIGHET.KOMMUN = fasttmp.KOMMUN
+               FASTIGHET.VAKER = fasttmp.LAN.            
+            END.    
+            ELSE DO:
+               /*FASTIGHET ÄR INTE UNIK PÅ BETECKNING.
+                 Om samma BETECKNING förekommer på två olika kommuner , lägg till ett extra mellan slag mekkan fastighet och nr tex "Sten 1:1" bli "Sten  1:1"*/
+               FOR EACH marktmp  WHERE marktmp.BETECKNING = fasttmp.BETECKNING :
+                  marktmp.BETECKNING = REPLACE(marktmp.BETECKNING," ","  ").
+               END.                 
+               ASSIGN             
+               fasttmp.BETECKNING = REPLACE(fasttmp.BETECKNING," ","  ").
+            END.                      
+         END.    
+      END.
+      IF nyfast = TRUE THEN DO TRANSACTION:   
+         
+         CREATE FASTIGHET.
+         ASSIGN FASTIGHET.BETECKNING = fasttmp.BETECKNING
+         FASTIGHET.KOMMUN = fasttmp.KOMMUN
+         FASTIGHET.VAKER = fasttmp.LAN.         
+         IF Guru.Konstanter:globforetag = "TECT" OR Guru.Konstanter:globforetag = "PICA" OR Guru.Konstanter:globforetag = "SWEO" OR Guru.Konstanter:globforetag = "UMEA" OR  Guru.Konstanter:globforetag = "UMBR" OR Guru.Konstanter:globforetag = "REJI" OR Guru.Konstanter:globforetag = "ELPC" OR Guru.Konstanter:globforetag = "SKOK"
+         OR Guru.Konstanter:globforetag = "JSBF"  OR Guru.Konstanter:globforetag = "SKEL" OR Guru.Konstanter:globforetag = "LULE" THEN DO:
+            ASSIGN
+            FASTIGHET.PAKER = "NÖ"
+            FASTIGHET.VSKOG = "N"
+            FASTIGHET.GOMRTALL = "Norra"          
+            FASTIGHET.GOMRGRAN = "Norra".          
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "reji" THEN DO:
+            IF Guru.Konstanter:globanv = "LIS" OR Guru.Konstanter:globanv = "USJ" OR Guru.Konstanter:globanv = "jhx" OR Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)   THEN DO:
+               assign
+               FASTIGHET.PAKER = "NN"
+               FASTIGHET.VSKOG = "N"
+               FASTIGHET.GOMRTALL = "Norra"          
+               FASTIGHET.GOMRGRAN = "Norra".
+            END.
+            ELSE DO:
+               assign
+               FASTIGHET.PAKER = "gsk"
+               FASTIGHET.VSKOG = "N"
+               FASTIGHET.GOMRTALL = "Norra"          
+               FASTIGHET.GOMRGRAN = "Norra".               
+            END.
+                          
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "KRIN" THEN DO:
+               assign
+               FASTIGHET.PAKER = "gss"
+               FASTIGHET.VSKOG = "N"
+               FASTIGHET.GOMRTALL = "Södra"          
+               FASTIGHET.GOMRGRAN = "Södra".
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "snat" THEN DO:         
+            assign
+            FASTIGHET.PAKER = "NN"
+            FASTIGHET.VSKOG = "N"
+            FASTIGHET.GOMRTALL = "Norra"          
+            FASTIGHET.GOMRGRAN = "Norra".
+         END. 
+         ELSE IF Guru.Konstanter:globforetag = "KEWA" OR Guru.Konstanter:globforetag = "GULL" OR Guru.Konstanter:globforetag = "SVKK"  THEN DO:
+            ASSIGN
+            FASTIGHET.PAKER = "SSK"
+            FASTIGHET.VSKOG = "N"
+            FASTIGHET.GOMRTALL = "Norra"          
+            FASTIGHET.GOMRGRAN = "Norra".          
+         END.              
+         ELSE DO:
+            assign
+            FASTIGHET.PAKER = "NÖ"
+            FASTIGHET.VSKOG = "N"
+            FASTIGHET.GOMRTALL = "Norra"          
+            FASTIGHET.GOMRGRAN = "Norra".
+         END.   
+                       
+      END.
+         
+      IF valvardnr NE ? THEN DO TRANSACTION:
+         FIND FIRST FASTVARD WHERE FASTVARD.VARDNR = valvardnr AND FASTVARD.BETECKNING = fasttmp.BETECKNING NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE FASTVARD THEN DO:         
+            CREATE FASTVARD.
+            ASSIGN FASTVARD.VARDNR = valvardnr
+            FASTVARD.BETECKNING = fasttmp.BETECKNING.
+         END.
+      END.
+      
+   END.
+   
+   FOR EACH fasttmp NO-LOCK:
+     FIND FIRST marktmp  WHERE marktmp.BETECKNING = fasttmp.BETECKNING NO-LOCK NO-ERROR.
+     IF NOT AVAILABLE marktmp THEN DO:
+        CREATE felex.
+         ASSIGN felex.MARKAGARE = " "
+         felex.BETECKNING = fasttmp.BETECKNING.
+     END.
+  END.   
+  
+   FOR EACH marktmp NO-LOCK:
+      DO TRANSACTION:      
+         FOR EACH MARKFAST WHERE MARKFAST.BETECKNING = marktmp.BETECKNING EXCLUSIVE-LOCK:      
+         /*rensa om ägarförhållandena är ändrade*/
+            
+            /*det ska inte finnas, måste tas bort om man ändrat från 1/3 till 1/1 */
+            EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+            CREATE inextradatatemp.          
+            ASSIGN
+            inextradatatemp.PROGRAM = "MARKFASTANDEL"                   
+            inextradatatemp.HUVUDINT = MARKFAST.MARKNR
+            inextradatatemp.HUVUDCH = MARKFAST.BETECKNING.
+            RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).           
+            EMPTY TEMP-TABLE inextradatatemp NO-ERROR.          
+            DELETE MARKFAST. 
+         END.
+      END.                                 
+   END.
+   /*FOR EACH marktmp NO-LOCK:
+      MESSAGE marktmp.MARKAGARE marktmp.BETECKNING marktmp.TELEFONM marktmp.EPOST
+      VIEW-AS ALERT-BOX.
+   END.*/   
+   
+   FOR EACH marktmp NO-LOCK:
+      kollpnr = FALSE.
+      IF marktmp.PERSONNUMMER = "" THEN kollpnr = TRUE.
+      IF marktmp.PERSONNUMMER  = "0000000000" THEN kollpnr = TRUE.
+      
+      IF kollpnr = TRUE THEN marktmp.PERSONNUMMER  = "0000000000".
+      DO TRANSACTION:
+         FIND FIRST MARKAGARE WHERE MARKAGARE.PERSONNUMMER = marktmp.PERSONNUMMER EXCLUSIVE-LOCK NO-ERROR.      
+         IF AVAILABLE MARKAGARE AND kollpnr = FALSE THEN DO:
+            FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = marktmp.BETECKNING NO-LOCK NO-ERROR.
+            IF AVAILABLE FASTIGHET THEN DO:               
+               adel1 = INTEGER(SUBSTRING(marktmp.ANDEL,1,INDEX(marktmp.ANDEL,"/") - 1)) .
+               adel2 = INTEGER(SUBSTRING(marktmp.ANDEL,INDEX(marktmp.ANDEL,"/") + 1)) .
+               FIND FIRST MARKFAST WHERE MARKFAST.BETECKNING = marktmp.BETECKNING AND 
+               MARKFAST.MARKNR = MARKAGARE.MARKNR NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE MARKFAST  THEN DO:            
+                  CREATE MARKFAST.
+                  ASSIGN MARKFAST.BETECKNING = marktmp.BETECKNING
+                  MARKFAST.MARKNR = MARKAGARE.MARKNR
+                  MARKFAST.PROCENT = 100 * adel1 / adel2.   
+                  IF marktmp.ANDEL = "1/1"  THEN.
+                  ELSE DO:   
+                     EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+                     CREATE inextradatatemp.          
+                     ASSIGN
+                     inextradatatemp.PROGRAM = "MARKFASTANDEL"                   
+                     inextradatatemp.HUVUDINT = MARKAGARE.MARKNR
+                     inextradatatemp.HUVUDCH = marktmp.BETECKNING
+                     inextradatatemp.SOKCHAR[1] = marktmp.ANDEL
+                     inextradatatemp.SOKINT[1] = adel1
+                     inextradatatemp.SOKINT[2] = adel2
+                     inextradatatemp.SOKDEC[1] = 100 * adel1 / adel2.   
+                     RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp). 
+                  END.
+               END.                  
+            END.
+            
+            ASSIGN MARKAGARE.MARKAGARE = marktmp.MARKAGARE 
+            MARKAGARE.GATUADRESS = marktmp.GATUADRESS 
+            MARKAGARE.POSTNUMMER = marktmp.POSTNUMMER 
+            MARKAGARE.POSTADRESS = marktmp.POSTADRESS 
+            MARKAGARE.TELEFON = marktmp.TELEFON.
+            IF marktmp.TELEFONM = "" AND marktmp.EPOST = "" THEN.
+            ELSE DO:
+               EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+               EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+               
+               CREATE inextradatatemp.          
+               ASSIGN
+               inextradatatemp.PROGRAM = "MARKAG"                   
+               inextradatatemp.HUVUDINT = MARKAGARE.MARKNR
+               inextradatatemp.SOKCHAR[1] = marktmp.TELEFONM
+               inextradatatemp.SOKCHAR[2] = marktmp.EPOST.
+               RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp).
+               FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+               IF AVAILABLE extradatatemp THEN DO:
+                  ASSIGN 
+                  inextradatatemp.SOKCHAR[3] = extradatatemp.SOKCHAR[3]
+                  inextradatatemp.SOKCHAR[4] = extradatatemp.SOKCHAR[4]
+                  inextradatatemp.SOKCHAR[5] = extradatatemp.SOKCHAR[5].
+               END.               
+               RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).
+            END.   
+                                        
+         END.        
+         ELSE DO:      
+            kollpnr = FALSE.         
+            FIND LAST markbuff USE-INDEX MARKNR NO-LOCK NO-ERROR.
+            IF AVAILABLE markbuff THEN DO :               
+               CREATE MARKAGARE.
+               ASSIGN 
+               MARKAGARE.MARKNR = markbuff.MARKNR + 1.
+            END.
+            ELSE DO :         
+               CREATE MARKAGARE.
+               ASSIGN 
+               MARKAGARE.MARKNR = 1.
+            END.
+            ASSIGN MARKAGARE.MARKAGARE = marktmp.MARKAGARE 
+            MARKAGARE.GATUADRESS = marktmp.GATUADRESS 
+            MARKAGARE.POSTNUMMER = marktmp.POSTNUMMER 
+            MARKAGARE.POSTADRESS = marktmp.POSTADRESS 
+            MARKAGARE.TELEFON = marktmp.TELEFON 
+            MARKAGARE.PERSONNUMMER = marktmp.PERSONNUMMER.
+            IF marktmp.TELEFONM = "" AND marktmp.EPOST = "" THEN.
+            ELSE DO:
+               EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+               EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+               
+               CREATE inextradatatemp.          
+               ASSIGN
+               inextradatatemp.PROGRAM = "MARKAG"                   
+               inextradatatemp.HUVUDINT = MARKAGARE.MARKNR
+               inextradatatemp.SOKCHAR[1] = marktmp.TELEFONM
+               inextradatatemp.SOKCHAR[2] = marktmp.EPOST.
+               RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp).
+               FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+               IF AVAILABLE extradatatemp THEN DO:
+                  ASSIGN 
+                  inextradatatemp.SOKCHAR[3] = extradatatemp.SOKCHAR[3]
+                  inextradatatemp.SOKCHAR[4] = extradatatemp.SOKCHAR[4]
+                  inextradatatemp.SOKCHAR[5] = extradatatemp.SOKCHAR[5].
+               END.               
+               RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).
+            END.
+            IF marktmp.PERSONNUMMER = "" OR marktmp.PERSONNUMMER = "          " OR marktmp.PERSONNUMMER = "0000000000" THEN DO:         
+               CREATE felex.
+               ASSIGN felex.MARKAGARE = marktmp.MARKAGARE
+               felex.BETECKNING = marktmp.BETECKNING.            
+            END.
+            adel1 = INTEGER(SUBSTRING(marktmp.ANDEL,1,INDEX(marktmp.ANDEL,"/") - 1)) .
+            adel2 = INTEGER(SUBSTRING(marktmp.ANDEL,INDEX(marktmp.ANDEL,"/") + 1)) .
+            FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = marktmp.BETECKNING NO-LOCK NO-ERROR.
+            IF AVAILABLE FASTIGHET THEN DO:
+               FIND FIRST MARKFAST WHERE MARKFAST.BETECKNING = marktmp.BETECKNING AND 
+               MARKFAST.MARKNR = MARKAGARE.MARKNR NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE MARKFAST  THEN DO:            
+                  CREATE MARKFAST.
+                  ASSIGN MARKFAST.BETECKNING = marktmp.BETECKNING
+                  MARKFAST.MARKNR = MARKAGARE.MARKNR
+                  MARKFAST.PROCENT = 100 * adel1 / adel2.   
+                  IF marktmp.ANDEL = "1/1"  THEN DO:
+                     /*det ska inte finnas, måste tas bort om man ändrat från 1/3 till 1/1 */
+                     EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+                     CREATE inextradatatemp.          
+                     ASSIGN
+                     inextradatatemp.PROGRAM = "MARKFASTANDEL"                   
+                     inextradatatemp.HUVUDINT = MARKFAST.MARKNR
+                     inextradatatemp.HUVUDCH = MARKFAST.BETECKNING.
+                     RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).           
+                     EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+                  END.
+                  ELSE DO:   
+                     EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+                     CREATE inextradatatemp.          
+                     ASSIGN
+                     inextradatatemp.PROGRAM = "MARKFASTANDEL"                   
+                     inextradatatemp.HUVUDINT = MARKFAST.MARKNR
+                     inextradatatemp.HUVUDCH = MARKFAST.BETECKNING
+                     inextradatatemp.SOKCHAR[1] = marktmp.ANDEL
+                     inextradatatemp.SOKINT[1] = adel1
+                     inextradatatemp.SOKINT[2] = adel2
+                     inextradatatemp.SOKDEC[1] = 100 * adel1 / adel2.   
+                     RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp). 
+                  END.
+               END.
+            END.
+         END.           
+      END.
+      
+      
+      RELEASE MARKAGARE NO-ERROR.
+      RELEASE MARKFAST NO-ERROR.      
+      
+   END.   
+   FOR EACH fasttmp NO-LOCK:
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+      EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "FASTLOPNR"                   
+      inextradatatemp.HUVUDCH = fasttmp.BETECKNING.
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO:
+         /* om fastigheten bytt ägare kan gamla kontaktpersonen stå kvar här- ta bort Lena 20141125*/
+         IF  extradatatemp.SOKINT[1] NE 0 THEN DO:
+            DEBUGGER:SET-BREAK().
+            FIND FIRST MARKFAST WHERE MARKFAST.BETECKNING = fasttmp.BETECKNING AND MARKFAST.MARKNR = extradatatemp.SOKINT[1]  NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE MARKFAST THEN DO:
+               EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+               CREATE inextradatatemp.          
+               ASSIGN
+               inextradatatemp.PROGRAM = "FASTLOPNR"                   
+               inextradatatemp.HUVUDCH = fasttmp.BETECKNING
+               inextradatatemp.SOKINT[1] = 0.
+               RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).
+            END.     
+         END.  
+      END.
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+      EMPTY TEMP-TABLE extradatatemp NO-ERROR.      
+  END.   
+END PROCEDURE.

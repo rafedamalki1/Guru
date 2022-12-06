@@ -1,0 +1,330 @@
+DEF new shared TEMP-TABLE mmst
+  FIELD menu_nbr   AS integer FORMAT ">9"
+  FIELD menu_name  AS character FORMAT "x(36)"
+  FIELD menu_total_items AS integer
+  FIELD menu_group AS character FORMAT "x(60)"
+  INDEX name IS UNIQUE 
+     menu_name ASC
+  INDEX nbr  IS UNIQUE PRIMARY
+     menu_nbr ASC.
+
+DEF new shared TEMP-TABLE mdet
+  FIELD menu_nbr      AS integer FORMAT ">9"
+  FIELD menu_name     AS character FORMAT "x(36)"
+  FIELD menu_line_nbr AS integer FORMAT ">9"
+  FIELD menu_item     AS character  FORMAT "x(36)"
+  FIELD menu_mnemonic AS character  FORMAT "x(2)"
+  FIELD menu_program  AS character  FORMAT "x(64)"
+  FIELD menu_help_program AS character  FORMAT "x(64)"
+  FIELD menu_help_text AS character FORMAT "x(36)" EXTENT 14
+  FIELD menu_group    AS character  FORMAT "x(60)"
+  FIELD program       AS character  FORMAT "x(60)"
+  FIELD menu_program_type AS integer  FORMAT ">9"
+  FIELD update_pgm    AS character  FORMAT "x(60)"
+  FIELD activities    AS character  FORMAT "x(60)"
+  INDEX mnem IS UNIQUE
+    menu_mnemonic ASC
+  INDEX nbr  IS UNIQUE PRIMARY
+    menu_nbr      ASC
+    menu_line_nbr ASC.
+ 
+DEF new shared BUFFER sys_mmst   FOR mmst.
+DEF new shared BUFFER sys_mdet   FOR mdet.
+DEF        BUFFER x_sys_mdet FOR mdet.
+DEF new shared VAR help_run AS LOGICAL NO-UNDO.
+
+/*************************** Variable Categories ***************************/
+/******************************** Character ********************************/
+DEF VAR current_menu  AS CHAR FORMAT "x(36)"                     NO-UNDO.
+DEF VAR menu_current  AS CHAR FORMAT "x(20)" INITIAL "Main Menu" NO-UNDO.
+DEF VAR menu_select   AS CHAR FORMAT "x(37)" EXTENT 10           NO-UNDO.
+DEF VAR menu_text     AS CHAR FORMAT "x(36)" EXTENT 15           NO-UNDO.
+DEF VAR load_file     AS CHAR                                    NO-UNDO.
+DEF VAR temp_progr    LIKE sys_mdet.menu_program                 NO-UNDO.
+DEF VAR temp_prog     LIKE sys_mdet.menu_program                 NO-UNDO.
+
+DEF new shared VAR g_current_rev   AS CHAR                         NO-UNDO.
+DEF new shared VAR g_func          AS CHAR                         NO-UNDO.
+DEF new shared VAR g_group         AS CHAR FORMAT "x(12)"          NO-UNDO.
+DEF new shared VAR g_site#_name    AS CHAR FORMAT "x(30)"          NO-UNDO.
+DEF new shared VAR g_nodename      AS CHAR                         NO-UNDO.
+DEF new shared VAR g_release_level AS CHAR FORMAT "x(15)"          NO-UNDO.
+DEF new shared VAR g_time          AS CHAR FORMAT "X(9)"           NO-UNDO.
+DEF new shared VAR g_screen        AS CHAR FORMAT "x(75)"          NO-UNDO.
+DEF new shared VAR g_userid        AS CHAR                         NO-UNDO.
+DEF new shared VAR g_mesg_upd      AS CHAR FORMAT "x(10)"          NO-UNDO.
+DEF new shared VAR g_save_rev      AS CHAR                         NO-UNDO.
+DEF new shared VAR g_file_del      AS CHAR FORMAT "x(30)"          NO-UNDO.
+DEF new shared VAR g_mnemonic      LIKE sys_mdet.menu_mnemonic FORMAT "xxx"
+    LABEL "Enter Expert Code or Browse Key for list of choices" NO-UNDO.
+
+/********************************  Integer  ********************************/
+DEF new shared VAR cntr            AS INT                      NO-UNDO.
+DEF new shared VAR i               AS INT                      NO-UNDO.
+DEF new shared VAR menu_key        AS INT FORMAT ">9" EXTENT 4 NO-UNDO.
+DEF new shared VAR menu_level      AS INT FORMAT ">9"          NO-UNDO.
+DEF new shared VAR g_timeout       AS INT FORMAT ">9"          NO-UNDO.
+DEF new shared VAR g_scrlength     AS INT                      NO-UNDO.
+DEF new shared VAR g_pause         AS INT FORMAT ">9"          NO-UNDO.
+DEF        VAR menu_counter    AS INT FORMAT ">9"          NO-UNDO.
+DEF        VAR total_items     AS INT                      NO-UNDO.
+DEF        VAR temp_length     AS INT                      NO-UNDO.
+
+/********************************   Date    ********************************/
+DEF new shared VAR g_today          AS DATE NO-UNDO.
+DEF new shared VAR g_save_rev_date  AS DATE NO-UNDO.
+
+/********************************  Logical  ********************************/
+DEF new shared VAR g_hilite        AS LOGICAL          NO-UNDO.
+DEF new shared VAR g_hotkey        AS LOGICAL INIT yes NO-UNDO.
+DEF new shared VAR g_menuhelp      AS LOGICAL INIT yes NO-UNDO.
+DEF new shared VAR g_exit          AS LOGICAL          NO-UNDO.
+DEF        VAR first_letter    AS LOGICAL INIT YES NO-UNDO.
+
+/***************************************************************************\
+\***************************************************************************/
+
+DEF new shared FRAME menu_header.
+
+FORM  "User ID:"                  AT 3
+      g_userid VIEW-AS TEXT
+      g_release_level             AT 35 VIEW-AS TEXT
+      g_today                     AT 69 VIEW-AS TEXT skip
+      "System:"                   AT 3
+      g_nodename VIEW-AS TEXT
+      g_site#_name                AT 25 VIEW-AS TEXT
+      g_time                      AT 68 VIEW-AS TEXT
+      WITH FRAME menu_header WIDTH 80 ROW 1 no-labels overlay
+      TITLE COLOR normal "Procedure Library".
+
+FORM  menu_text VIEW-AS TEXT SKIP(1)
+      WITH FRAME menu_help_screen WIDTH 38 ROW 5 no-labels overlay.
+
+FORM  menu_select 
+      WITH FRAME menu_choices WIDTH 41
+      NO-LABELS overlay TITLE COLOR normal current_menu
+      VIEW-AS DIALOG-BOX.
+
+
+DEF new shared TEMP-TABLE f_help
+  FIELD fld_name   AS CHAR
+  FIELD pgm_name   AS CHAR
+  INDEX fld_nam IS UNIQUE
+     fld_name ASC.
+
+DEF new shared BUFFER fld_help FOR f_help.
+
+
+
+/*************************** Variable Categories ***************************/
+
+
+
+
+/******************************** Character ********************************/
+/* main menu time display */
+/* screen title */
+/* main menu user id */
+/* holder of program revision level and date */
+
+/********************************   Date    ********************************/
+/* holder of program revision date */
+
+/********************************  Decimal  ********************************/
+
+/********************************  Integer  ********************************/
+/* screen title length */
+
+/********************************  Logical  ********************************/
+/* program exit code */
+
+/************************************************************************************
+        PROCEDURE: help1.dem
+
+        PURPOSE:   Demo program for applhelp.p
+
+        SYNTAX:    "RUN samples/demo/help1.dem"
+
+        REMARKS:   This code creates orders.  If an order is being created
+                   and the user presses F1 applhelp.p is run.
+ ************************************************************************************/
+ /* Copyright(c) PROGRESS SOFTWARE CORPORATION, 1993 - All Rights Reserved.            */
+/* Code Start */
+  
+
+
+DEFINE NEW SHARED VAR s_cust_num LIKE customer.cust-num NO-UNDO.
+DEFINE NEW SHARED VAR s_carrier  LIKE order.carrier     NO-UNDO.
+DEFINE NEW SHARED VAR s_date     AS DATE                NO-UNDO.
+DEFINE NEW SHARED VAR s_cut      AS CHAR                NO-UNDO.
+
+/************* BUTTONS   ****************/
+DEFINE BUTTON btn-Save   LABEL "SAVE" AUTO-GO.
+DEFINE BUTTON btn-Create LABEL "CREATE".
+DEFINE BUTTON btn-Exit   LABEL "EXIT"   AUTO-ENDKEY.
+DEFINE BUTTON btn-Cancel LABEL "CANCEL" AUTO-ENDKEY.
+DEFINE BUTTON btn-Help   LABEL "HELP".
+   
+/************* FRAMES    ****************/
+DEFINE FRAME frm-order
+    order.order-num    COLON 20
+    order.cust-num     COLON 20
+    order.order-date   COLON 20
+    order.promise-date COLON 20
+    order.carrier      COLON 20
+    order.instructions COLON 20
+    btn-Create AT ROW 4 COL 50 btn-Exit AT ROW 6 COL 50
+    WITH ROW 5 COL 2 SIDE-LABELS CENTERED OVERLAY NO-BOX
+    VIEW-AS DIALOG-BOX.  
+    
+FORM 
+    order.order-num    COLON 20
+    order.cust-num     COLON 20
+      HELP "Enter customer number, double-click or press HELP for choices."
+    order.order-date   COLON 20
+      HELP "Enter date, double-click or press HELP for assistance."
+    order.promise-date COLON 20
+      HELP "Enter date, double-click or press HELP for assistance."
+    order.carrier      COLON 20
+      HELP "Enter carrier, double-click or press HELP for choices."
+    order.instructions COLON 20
+    btn-Help AT ROW 2 COL 50
+    btn-Save AT ROW 4 COL 50 btn-Cancel AT ROW 6 COL 50
+    WITH FRAME frm-create OVERLAY ROW 5 SIDE-LABELS CENTERED
+    VIEW-AS DIALOG-BOX.       
+                
+/************* USER INTERFACE TRIGGERS *************/    
+ON CREATE OF order
+    ASSIGN order.order-num = NEXT-VALUE(NEXT-ORD-NUM).
+    
+ON CHOOSE OF btn-Help DO:
+   RUN samples/applhelp.p.
+   DISPLAY order.cust-num order.order-num order.order-date
+           order.promise-date order.carrier order.instructions
+           WITH FRAME frm-create. 
+   ENABLE btn-Save btn-Help btn-Cancel WITH FRAME frm-create.
+END.
+
+ON HELP,MOUSE-SELECT-DBLCLICK OF order.cust-num DO:
+   RUN samples/applhelp.p.
+   DISPLAY s_cust_num @ order.cust-num WITH FRAME frm-create.
+   DISPLAY order.order-num order.order-date
+           order.promise-date order.carrier order.instructions
+           WITH FRAME frm-create. 
+   ENABLE btn-Save btn-Help btn-Cancel WITH FRAME frm-create.
+   APPLY "RETURN" TO order.cust-num IN FRAME frm-create.
+END.
+ON HELP,MOUSE-SELECT-DBLCLICK OF carrier DO:
+   RUN samples/applhelp.p.
+   DISPLAY s_carrier @ order.carrier WITH FRAME frm-create.
+   DISPLAY order.cust-num order.order-num order.order-date
+           order.promise-date order.instructions
+           WITH FRAME frm-create. 
+   ENABLE btn-Save btn-Help btn-Cancel WITH FRAME frm-create.
+   APPLY "RETURN" TO order.carrier IN FRAME frm-create.
+END.
+
+ON HELP,MOUSE-SELECT-DBLCLICK OF order-date DO:
+   IF INPUT FRAME frm-create order.order-date <> ? THEN
+      s_date = INPUT FRAME frm-create order.order-date.
+   RUN samples/applhelp.p.
+   DISPLAY order.cust-num order.order-num order.order-date
+           order.promise-date order.carrier order.instructions
+           WITH FRAME frm-create. 
+   ENABLE btn-Save btn-Help btn-Cancel WITH FRAME frm-create.
+   IF s_date <> ? THEN DO:
+      order.promise-date = s_date + 4.
+      DISPLAY s_date @ order.order-date order.promise-date
+         WITH FRAME frm-create.
+      APPLY "RETURN" TO order.order-date IN FRAME frm-create.
+   END.
+END.
+ON HELP,MOUSE-SELECT-DBLCLICK OF promise-date DO:
+   IF INPUT FRAME frm-create order.promise-date <> ? THEN
+      s_date = INPUT FRAME frm-create order.promise-date.
+   RUN samples/applhelp.p.
+   DISPLAY order.cust-num order.order-num order.order-date
+           order.promise-date order.carrier order.instructions
+           WITH FRAME frm-create. 
+   ENABLE btn-Save btn-Help btn-Cancel WITH FRAME frm-create.
+   IF s_date <> ? THEN DO:
+      DISPLAY s_date @ order.promise-date WITH FRAME frm-create.
+      APPLY "RETURN" TO order.promise-date IN FRAME frm-create.
+   END.
+END.
+
+           
+ON CHOOSE OF btn-Create DO:
+  HIDE FRAME frm-order NO-PAUSE.
+  DO TRANSACTION ON ENDKEY UNDO, LEAVE:
+     CREATE order.
+     order.promise-date = TODAY + 4.
+     DISPLAY order.cust-num order.order-num order.order-date
+             order.promise-date order.carrier order.instructions
+             WITH FRAME frm-create. 
+     UPDATE  order.cust-num
+                 order.order-date order.promise-date 
+                 order.carrier order.instructions
+                 btn-Save btn-Cancel btn-Help
+                 WITH FRAME frm-create.
+     DO WITH FRAME frm-create:
+        ASSIGN order.order-date order.promise-date
+               order.carrier order.instructions.
+     END. /* DO WITH FRAME */
+   END.   /* DO TRANSACTION */
+   HIDE FRAME frm-create NO-PAUSE.
+   VIEW FRAME frm-order.
+   DISPLAY order.cust-num order.order-num order.order-date
+           order.promise-date order.carrier order.instructions
+           WITH FRAME frm-order.
+   ENABLE btn-Create btn-Exit WITH FRAME frm-order.
+END.      /* ON CHOOSE OF btn-Create */
+
+/*************  MAIN LOGIC ********************/ 
+FIND FIRST order.
+PAUSE 0.
+DISPLAY order.cust-num order.order-num order.order-date
+        order.promise-date order.carrier order.instructions
+        WITH FRAME frm-order. 
+UPDATE btn-Create btn-Exit WITH FRAME frm-order.
+HIDE ALL NO-PAUSE.    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

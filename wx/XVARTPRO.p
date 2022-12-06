@@ -1,0 +1,16 @@
+&Scoped-define NEW
+DEFINE SHARED VARIABLE vartpro AS CHARACTER FORMAT "X(3)" NO-UNDO.
+DEFINE SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE aonrrec AS RECID NO-UNDO.
+DEFINE VARIABLE vem AS CHARACTER NO-UNDO.
+REPEAT:
+   IF vartpro = "" THEN DO:
+      {musarrow.i}    
+      RETURN.        
+   END.
+   IF vartpro = "FAF" THEN DO:
+      
+      RUN XLOPFAKA.w.
+   END.
+
+END.      

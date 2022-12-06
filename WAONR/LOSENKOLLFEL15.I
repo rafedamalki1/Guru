@@ -1,0 +1,4 @@
+
+/* LOSENKOLLFEL15.I*/
+    /*Falaktig mailadress! Det går ej att skicka lösen!*/
+CHR(70) + CHR(97) + CHR(108) + CHR(97) + CHR(107) + CHR(116) + CHR(105) + CHR(103) + CHR(32) + CHR(109) + CHR(97) + CHR(105) + CHR(108) + CHR(97) + CHR(100) + CHR(114) + CHR(101) + CHR(115) + CHR(115) + CHR(33) + CHR(32) + CHR(68) + CHR(101) + CHR(116) + CHR(32) + CHR(103) + CHR(229) + CHR(114) + CHR(32) + CHR(101) + CHR(106) + CHR(32) + CHR(97) + CHR(116) + CHR(116) + CHR(32) + CHR(115) + CHR(107) + CHR(105) + CHR(99) + CHR(107) + CHR(97) + CHR(32) + CHR(108) + CHR(246) + CHR(115) + CHR(101) + CHR(110) + CHR(33)  

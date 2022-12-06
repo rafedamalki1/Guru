@@ -1,0 +1,333 @@
+/*INVENTUTV.P*/
+DEFINE VARIABLE datvar AS DATE NO-UNDO.
+&Scoped-define NEW NEW 
+{VARFORETYP.I}
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{SPECMTRLTEMP.I}
+
+
+DEFINE TEMP-TABLE depbuff NO-UNDO
+   FIELD ENR AS CHARACTER
+   FIELD BENAMNING AS CHARACTER
+   FIELD ENHET AS CHARACTER
+   FIELD DEPNR AS INTEGER
+   FIELD IB AS INTEGER
+   FIELD SALDO AS INTEGER
+   FIELD INVANT AS INTEGER
+   FIELD IBDATUM AS DATE
+   FIELD FACKID AS CHARACTER.
+
+
+{EXTRADATA.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE fifo AS LOGICAL NO-UNDO.
+DEFINE VARIABLE uttagvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE totpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE totant AS INTEGER NO-UNDO.
+DEFINE VARIABLE antalvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE datsok AS DATE NO-UNDO.
+
+
+DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER globforetag LIKE FORETAG.FORETAG NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+DEFINE INPUT PARAMETER TABLE FOR depbuff.
+
+FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYREAPP.P (INPUT Guru.Konstanter:globforetag, INPUT-OUTPUT varforetypval, INPUT-OUTPUT varforetypchar, INPUT TRUE).
+{STYREAPPLADD.I}
+   /*FIFO*/
+   /*IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "LULE"  OR Guru.Konstanter:globforetag = "BODE" THEN DO:*/   
+   IF Guru.Konstanter:varforetypval[54] = 1 THEN DO:         
+      fifo = TRUE.
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.     
+   END.
+   ELSE DO:
+      fifo = FALSE.
+   END.
+
+   IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "BODE" OR Guru.Konstanter:globforetag = "KRAF" OR Guru.Konstanter:globforetag = "SNAT"  THEN DO:
+      FIND FIRST spec_mtrl NO-LOCK NO-ERROR.
+      IF AVAILABLE spec_mtrl THEN DO:      
+         FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa AND  MTRLDEP.IBDATUM = spec_mtrl.IBDATUM NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRLDEP THEN DO:         
+            FOR EACH spec_mtrl:
+               IF spec_mtrl.KLAR = TRUE THEN DO: 
+                  IF fifo = TRUE THEN DO:
+                     RUN fifo_UI.                     
+                  END.
+                  DO TRANSACTION:
+                     FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa AND MTRLDEP.IBDATUM = spec_mtrl.IBDATUM AND 
+                     MTRLDEP.ENR = spec_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+                     IF AVAILABLE MTRLDEP THEN DO:                     
+                        ASSIGN
+                        MTRLDEP.SALDO = spec_mtrl.SALDO
+                        MTRLDEP.IB = spec_mtrl.IB
+                        MTRLDEP.INVANT = spec_mtrl.INVANT
+                        MTRLDEP.INVDAT = TODAY.
+                        IF fifo = TRUE THEN DO:
+                           IF totant > 0 THEN MTRLDEP.NPRIS = totpris / totant.
+                        END.
+                     END.
+                     ELSE DO:
+                        CREATE MTRLDEP.
+                        ASSIGN            
+                        MTRLDEP.DEPNR = vald_depa          
+                        MTRLDEP.ENR = spec_mtrl.ENR 
+                        MTRLDEP.BENAMNING = spec_mtrl.BENAMNING
+                        MTRLDEP.NPRIS = spec_mtrl.NPRIS 
+                        MTRLDEP.BPRIS = spec_mtrl.BPRIS
+                        MTRLDEP.ENHET = spec_mtrl.ENHET                                    
+                        MTRLDEP.FACKID = spec_mtrl.FACKID                  
+                        MTRLDEP.LEVKOD = spec_mtrl.LEVKOD
+                        MTRLDEP.SALDO = spec_mtrl.SALDO
+                        MTRLDEP.IBDATUM = spec_mtrl.IBDATUM
+                        MTRLDEP.IB = spec_mtrl.IB
+                        MTRLDEP.INVANT = spec_mtrl.INVANT
+                        MTRLDEP.INVDAT = TODAY.                           
+                        IF fifo = TRUE THEN DO:
+                           IF totant > 0 THEN MTRLDEP.NPRIS = totpris / totant.
+                        END.
+                     END.
+                  END.
+                  DO TRANSACTION:
+                     FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa AND MTRLDEP.IBDATUM = ? AND 
+                     MTRLDEP.ENR = spec_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+                     ASSIGN
+                     MTRLDEP.SALDO = spec_mtrl.INVANT.            
+                  END.
+               END.
+               ELSE DO:
+                  DO TRANSACTION:
+                     FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa AND MTRLDEP.IBDATUM = spec_mtrl.IBDATUM AND 
+                     MTRLDEP.ENR = spec_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+                     IF AVAILABLE MTRLDEP THEN DO:                     
+                        ASSIGN                     
+                        MTRLDEP.INVANT = spec_mtrl.INVANT.
+                     END.
+                     ELSE DO:
+                        CREATE MTRLDEP.
+                        ASSIGN            
+                        MTRLDEP.DEPNR = vald_depa          
+                        MTRLDEP.ENR = spec_mtrl.ENR 
+                        MTRLDEP.BENAMNING = spec_mtrl.BENAMNING
+                        MTRLDEP.NPRIS = spec_mtrl.NPRIS 
+                        MTRLDEP.BPRIS = spec_mtrl.BPRIS
+                        MTRLDEP.ENHET = spec_mtrl.ENHET                                    
+                        MTRLDEP.FACKID = spec_mtrl.FACKID                  
+                        MTRLDEP.LEVKOD = spec_mtrl.LEVKOD
+                        MTRLDEP.SALDO = spec_mtrl.SALDO
+                        MTRLDEP.IBDATUM = spec_mtrl.IBDATUM                           
+                        MTRLDEP.INVANT = spec_mtrl.INVANT
+                        MTRLDEP.INVDAT = ?.                        
+                     END.
+                  END.
+               END.
+            END.
+         END.
+         ELSE DO:
+            FOR EACH spec_mtrl:                             
+               DO TRANSACTION:
+                  CREATE MTRLDEP.
+                  ASSIGN            
+                  MTRLDEP.DEPNR = vald_depa          
+                  MTRLDEP.ENR = spec_mtrl.ENR 
+                  MTRLDEP.BENAMNING = spec_mtrl.BENAMNING
+                  MTRLDEP.NPRIS = spec_mtrl.NPRIS 
+                  MTRLDEP.BPRIS = spec_mtrl.BPRIS
+                  MTRLDEP.ENHET = spec_mtrl.ENHET                                    
+                  MTRLDEP.FACKID = spec_mtrl.FACKID                  
+                  MTRLDEP.LEVKOD = spec_mtrl.LEVKOD
+                  MTRLDEP.SALDO = spec_mtrl.SALDO
+                  MTRLDEP.IBDATUM = TODAY.
+                  IF spec_mtrl.KLAR = TRUE THEN DO:
+                     IF fifo = TRUE THEN DO:
+                        RUN fifo_UI.                     
+                     END.
+                     ASSIGN
+                     MTRLDEP.IB = spec_mtrl.IB
+                     MTRLDEP.INVANT = spec_mtrl.INVANT
+                     MTRLDEP.INVDAT = TODAY.
+                     IF fifo = TRUE THEN DO:
+                        IF totant > 0 THEN MTRLDEP.NPRIS = totpris / totant.
+                     END.
+                     FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa AND MTRLDEP.IBDATUM = ? AND 
+                     MTRLDEP.ENR = spec_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+                     ASSIGN
+                     MTRLDEP.SALDO = spec_mtrl.INVANT.            
+                  END.
+                  ELSE DO:
+                     ASSIGN
+                     MTRLDEP.INVANT = spec_mtrl.INVANT
+                     MTRLDEP.INVDAT = ?.
+                  END.
+               END.
+            END.
+         END.
+      END.
+   END.
+   ELSE DO:
+      FOR EACH depbuff:
+         DO TRANSACTION:         
+            CREATE MTRLDEP.    
+            ASSIGN
+            MTRLDEP.DEPNR = vald_depa
+            MTRLDEP.ENR = depbuff.ENR 
+            MTRLDEP.BENAMNING = depbuff.BENAMNING 
+            MTRLDEP.FACKID = depbuff.FACKID  
+            MTRLDEP.ENHET = depbuff.ENHET 
+            MTRLDEP.INVANT = depbuff.INVANT
+            MTRLDEP.IB = depbuff.IB
+            MTRLDEP.IBDATUM = depbuff.IBDATUM. 
+         END.
+      END.   
+      OPEN QUERY mtrlq FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa 
+      AND MTRLDEP.IBDATUM = ? USE-INDEX DEPNR NO-LOCK. 
+      DO TRANSACTION:
+         GET FIRST mtrlq EXCLUSIVE-LOCK.
+         IF AVAILABLE MTRLDEP THEN DELETE MTRLDEP.
+      END.      
+      REPEAT:
+         DO TRANSACTION:
+            GET NEXT mtrlq EXCLUSIVE-LOCK.
+            IF AVAILABLE MTRLDEP THEN DELETE MTRLDEP.
+            ELSE LEAVE.
+         END.
+      END.      
+      CLOSE QUERY mtrlq.
+      FOR EACH spec_mtrl:
+         DO TRANSACTION:         
+            CREATE MTRLDEP.      
+            ASSIGN
+            MTRLDEP.DEPNR = vald_depa          
+            MTRLDEP.ENR = spec_mtrl.ENR 
+            MTRLDEP.BENAMNING = spec_mtrl.BENAMNING
+            MTRLDEP.NPRIS = spec_mtrl.NPRIS 
+            MTRLDEP.BPRIS = spec_mtrl.BPRIS
+            MTRLDEP.ENHET = spec_mtrl.ENHET
+            MTRLDEP.BESTKVANT = spec_mtrl.BESTKVANT 
+            MTRLDEP.BESTPUNKT = spec_mtrl.BESTPUNKT 
+            MTRLDEP.INVANT = spec_mtrl.INVANT 
+            MTRLDEP.INVDATUM = spec_mtrl.INVDATUM
+            MTRLDEP.FACKID = spec_mtrl.FACKID
+            MTRLDEP.OMSATT = spec_mtrl.OMSATT 
+            MTRLDEP.LEVKOD = spec_mtrl.LEVKOD
+            MTRLDEP.SALDO = spec_mtrl.SALDO
+            MTRLDEP.LAGER = spec_mtrl.LAGER.          
+         END.
+      END.            
+   END.              
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+   edataapph = ?.
+
+PROCEDURE fifo_UI :
+   IF spec_mtrl.IB NE spec_mtrl.INVANT THEN DO:
+      IF spec_mtrl.IB < spec_mtrl.INVANT THEN DO:
+         /*plus vi inventering*/
+         ASSIGN
+         uttagvar = FALSE
+         antalvar = spec_mtrl.INVANT - spec_mtrl.IB.                           
+      END.
+      ELSE DO:
+         /*minus vi inventering*/
+         ASSIGN
+         uttagvar = TRUE
+         antalvar = spec_mtrl.IB - spec_mtrl.INVANT.                           
+      END.
+      REPEAT WHILE antalvar > 0:         
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "FIFO"                                  
+         inextradatatemp.HUVUDINT =  vald_depa
+         inextradatatemp.HUVUDCH =  spec_mtrl.ENR.                    
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+         IF uttagvar = TRUE THEN DO:
+            datsok = TODAY + 1.
+            FOR EACH extradatatemp:
+               IF extradatatemp.SOKDAT[1] < datsok THEN DO:
+                  datsok = extradatatemp.SOKDAT[1].
+               END.
+            END.
+            FIND FIRST extradatatemp WHERE extradatatemp.SOKDAT[1] = datsok NO-LOCK NO-ERROR.
+            IF AVAILABLE extradatatemp THEN DO:
+               IF antalvar <= extradatatemp.SOKINT[1] THEN DO:
+                  extradatatemp.SOKINT[1] = extradatatemp.SOKINT[1] - antalvar.
+                  antalvar = 0.
+                  EMPTY TEMP-TABLE inextradatatemp NO-ERROR.  
+                  CREATE inextradatatemp.
+                  BUFFER-COPY extradatatemp TO inextradatatemp.
+                  IF extradatatemp.SOKINT[1] = 0 THEN DO:                  
+                     RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).
+                  END.
+                  ELSE DO:                                       
+                     RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).
+                  END.
+               END.
+               ELSE DO:
+                  antalvar = antalvar - extradatatemp.SOKINT[1].
+                  EMPTY TEMP-TABLE inextradatatemp NO-ERROR.       
+                  CREATE inextradatatemp.
+                  BUFFER-COPY extradatatemp TO inextradatatemp.
+                  RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).
+               END.
+            END.                  
+         END.
+         ELSE DO:
+            datsok = 01/01/91.
+            FOR EACH extradatatemp:
+               IF extradatatemp.SOKDAT[1] > datsok THEN DO:
+                  datsok = extradatatemp.SOKDAT[1].
+               END.
+            END.
+            FIND FIRST extradatatemp WHERE extradatatemp.SOKDAT[1] = datsok NO-LOCK NO-ERROR.
+            IF AVAILABLE extradatatemp THEN DO:
+               EMPTY TEMP-TABLE inextradatatemp NO-ERROR.       
+               CREATE inextradatatemp.
+               BUFFER-COPY extradatatemp TO inextradatatemp.
+               ASSIGN
+               inextradatatemp.SOKINT[1] =  antalvar
+               inextradatatemp.SOKDATE[1] =  TODAY
+               inextradatatemp.SOKINT[2] =  TIME.                        
+            END.               
+            ELSE DO:
+               /*Priset blir här samma som i depån som i sin tur har priset för senast inköpta artikel*/
+               EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+               CREATE inextradatatemp.          
+               ASSIGN
+               inextradatatemp.PROGRAM = "FIFO"                                  
+               inextradatatemp.HUVUDINT =  vald_depa
+               inextradatatemp.HUVUDCH =  spec_mtrl.ENR
+               inextradatatemp.SOKCHAR[2] =  spec_mtrl.BENAMNING
+               inextradatatemp.SOKCHAR[3] =  spec_mtrl.ENHET
+               inextradatatemp.SOKDEC[1] =  spec_mtrl.NPRIS
+               inextradatatemp.SOKINT[1] =  antalvar
+               inextradatatemp.SOKDATE[1] =  TODAY
+               inextradatatemp.SOKINT[2] =  TIME.                      
+            END.            
+            RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).                
+            antalvar = 0.
+         END.       
+      END.
+   END.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "FIFO"                                  
+   inextradatatemp.HUVUDINT =  vald_depa
+   inextradatatemp.HUVUDCH =  spec_mtrl.ENR.                    
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+   ASSIGN
+   totpris = 0
+   totant = 0.
+   FOR EACH extradatatemp:
+      ASSIGN
+      totpris = totpris + (extradatatemp.SOKDEC[1] * extradatatemp.SOKINT[1])
+      totant = totant + extradatatemp.SOKINT[1].
+   END.
+END PROCEDURE.
+

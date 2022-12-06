@@ -1,0 +1,168 @@
+/*DUMINKOP.P DUMMYKONTROLL AV INKÖP*/ 
+DEFINE VARIABLE datvar LIKE BERMTRL.DATUM NO-UNDO.
+
+DEFINE INPUT PARAMETER valaonr LIKE AONRTAB.AONR NO-UNDO.
+DEFINE INPUT PARAMETER valomrade LIKE AONRTAB.OMRADE NO-UNDO.
+DEFINE OUTPUT PARAMETER kontrollsumma AS INTEGER NO-UNDO.
+
+DEFINE TEMP-TABLE mtrl_temp 
+   FIELD NUM LIKE BERMTRL.NUM  
+   FIELD ENR LIKE MTRLBER.ENR
+   FIELD BENAMNING LIKE MTRLBER.BENAMNING
+   FIELD ENHET LIKE MTRLBER.ENHET
+   FIELD ANTAL LIKE MTRLBER.ANTAL
+   FIELD PRIS LIKE MTRLBER.PRIS      
+   FIELD TOTPRIS LIKE MTRLBER.PRIS
+   FIELD LEVKOD LIKE MTRLBER.LEVKOD
+   FIELD UPPLAG LIKE BERVAL.UPPLAG      
+   FIELD GRUPP LIKE BERVAL.KONSKOD 
+   FIELD XKORD LIKE BERID.XKORD
+   FIELD FORNR LIKE BERID.FORNR
+   FIELD LINNR LIKE BERID.LINNR
+   FIELD NATNR LIKE BERID.NATNR
+   FIELD FRI1 LIKE BERID.FRI1
+   FIELD FRI2 LIKE BERID.FRI2
+   FIELD PAR LIKE BERMTRL.PAR
+   FIELD ORD LIKE BERORD.ORD
+   FIELD MTRLTEXT LIKE BERMTRL.MTRLTEXT
+   INDEX ENR IS PRIMARY ENR ASCENDING
+   INDEX NUM NUM ASCENDING.       
+
+DEFINE TEMP-TABLE lin_upp   
+   FIELD METER LIKE BERLINKAB.METER      
+   FIELD ENR LIKE BERLINKAB.ENR         
+   FIELD BENAMNING LIKE BERLINKAB.BENAMNING 
+   FIELD PRIS LIKE BERLINKAB.PRIS
+   FIELD ENHET LIKE BERLINKAB.ENHET   
+   FIELD TOTMETER LIKE BERLINKAB.TOTMETER
+   FIELD UPPLAG LIKE BERLINKAB.UPPLAG 
+   FIELD LEVKOD LIKE BERLINKAB.LEVKOD
+   FIELD TOTPRIS LIKE BERMTRL.PRIS         
+   INDEX ENR ENR ASCENDING.    
+   
+DEFINE TEMP-TABLE lin_temp  
+   FIELD NUM1 LIKE BERLINKAB.NUM1
+   FIELD NUM2 LIKE BERLINKAB.NUM2 
+   FIELD METER LIKE BERLINKAB.METER              
+   FIELD BENAMNING LIKE BERLINKAB.BENAMNING       
+   INDEX NUM NUM1 NUM2 ASCENDING.    
+
+DEFINE TEMP-TABLE mtrl_temp2   
+   {MTRLTEMP2TT.I}
+   
+   FIND LAST BERMTRL WHERE BERMTRL.AONR = valaonr AND 
+   BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE 
+   USE-INDEX DATUM NO-LOCK NO-ERROR.
+   IF AVAILABLE BERMTRL THEN DO:
+      datvar = BERMTRL.DATUM.
+   END.     
+   ELSE DO:
+      datvar = TODAY.
+   END.
+   OPEN QUERY mtrlprisq FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr AND
+   BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE
+   AND BERMTRL.DATUM = datvar USE-INDEX DATUM NO-LOCK.
+   GET FIRST mtrlprisq NO-LOCK.
+   DO WHILE AVAILABLE(BERMTRL):      
+      CREATE mtrl_temp.
+      ASSIGN  
+      mtrl_temp.NUM = BERMTRL.NUM
+      mtrl_temp.ENR = BERMTRL.ENR     
+      mtrl_temp.BENAMNING = BERMTRL.BENAMNING
+      mtrl_temp.ENHET = BERMTRL.ENHET
+      mtrl_temp.ANTAL = BERMTRL.ANTAL
+      mtrl_temp.PRIS = BERMTRL.PRIS 
+      mtrl_temp.TOTPRIS = BERMTRL.PRIS * BERMTRL.ANTAL      
+      mtrl_temp.LEVKOD = BERMTRL.LEVKOD
+      mtrl_temp.PAR = BERMTRL.PAR
+      mtrl_temp.MTRLTEXT = BERMTRL.MTRLTEXT.
+      GET NEXT mtrlprisq NO-LOCK.
+   END.    
+   CLOSE QUERY mtrlprisq.         
+   
+   OPEN QUERY linq FOR EACH BERLINKAB WHERE BERLINKAB.AONR = valaonr AND 
+   BERLINKAB.OMRADE = valomrade AND BERLINKAB.DATUM = datvar AND BERLINKAB.KORTKOD = ?
+   AND BERLINKAB.UPPLAG NE ? USE-INDEX INKOP NO-LOCK.
+   GET FIRST linq NO-LOCK.
+   DO WHILE AVAILABLE(BERLINKAB):
+      CREATE lin_upp.
+      ASSIGN
+      lin_upp.ENR = BERLINKAB.ENR
+      lin_upp.BENAMNING = BERLINKAB.BENAMNING
+      lin_upp.ENHET = BERLINKAB.ENHET
+      lin_upp.PRIS = BERLINKAB.PRIS
+      lin_upp.LEVKOD = BERLINKAB.LEVKOD
+      lin_upp.METER = BERLINKAB.METER
+      lin_upp.TOTMETER = BERLINKAB.TOTMETER
+      lin_upp.UPPLAG = BERLINKAB.UPPLAG
+      lin_upp.TOTPRIS = BERLINKAB.PRIS * BERLINKAB.TOTMETER.
+      GET NEXT linq NO-LOCK.
+   END.          
+   CLOSE QUERY linq.
+   OPEN QUERY linq FOR EACH BERLINKAB WHERE BERLINKAB.AONR = valaonr AND 
+   BERLINKAB.OMRADE = valomrade AND BERLINKAB.DATUM = datvar AND BERLINKAB.KORTKOD = ?
+   AND BERLINKAB.TOTMETER = 0 USE-INDEX INKOP NO-LOCK.
+   GET FIRST linq NO-LOCK.
+   DO WHILE AVAILABLE(BERLINKAB):
+      FIND FIRST lin_upp WHERE lin_upp.ENR = BERLINKAB.ENR AND
+      lin_upp.LEVKOD = BERLINKAB.LEVKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE lin_upp THEN DO:
+         datvar = datvar.
+      END.
+      ELSE DO:
+         CREATE mtrl_temp.
+         ASSIGN  
+         mtrl_temp.NUM = BERLINKAB.NUM1
+         mtrl_temp.ENR = BERLINKAB.ENR     
+         mtrl_temp.BENAMNING = BERLINKAB.BENAMNING
+         mtrl_temp.ENHET = BERLINKAB.ENHET
+         mtrl_temp.ANTAL = BERLINKAB.METER * BERLINKAB.LEDARE
+         mtrl_temp.PRIS = BERLINKAB.PRIS 
+         mtrl_temp.TOTPRIS = BERLINKAB.PRIS * mtrl_temp.ANTAL      
+         mtrl_temp.LEVKOD = BERLINKAB.LEVKOD.                  
+      END.   
+      CREATE lin_temp.
+      ASSIGN  
+      lin_temp.NUM1 = BERLINKAB.NUM1
+      lin_temp.NUM2 = BERLINKAB.NUM2
+      lin_temp.BENAMNING = BERLINKAB.BENAMNING         
+      lin_temp.METER = BERLINKAB.METER.
+      GET NEXT linq NO-LOCK.
+   END.          
+   CLOSE QUERY linq.   
+   FOR EACH mtrl_temp BREAK BY mtrl_temp.ENR: 
+      ACCUMULATE mtrl_temp.TOTPRIS (TOTAL BY mtrl_temp.ENR). 
+      ACCUMULATE mtrl_temp.ANTAL (TOTAL BY mtrl_temp.ENR).       
+      IF LAST-OF(mtrl_temp.ENR) THEN DO TRANSACTION:
+         CREATE mtrl_temp2.
+         ASSIGN 
+         mtrl_temp2.ENR = mtrl_temp.ENR
+         mtrl_temp2.BENAMNING = mtrl_temp.BENAMNING 
+         mtrl_temp2.ENHET = mtrl_temp.ENHET 
+         mtrl_temp2.PRIS = mtrl_temp.PRIS
+         mtrl_temp2.ANTAL = (ACCUM TOTAL BY mtrl_temp.ENR mtrl_temp.ANTAL)
+         mtrl_temp2.TOTPRIS = (ACCUM TOTAL BY mtrl_temp.ENR mtrl_temp.TOTPRIS).         
+      END.     
+   END.               
+   FOR EACH lin_upp:
+      FIND FIRST mtrl_temp2 WHERE mtrl_temp2.ENR = lin_upp.ENR NO-LOCK NO-ERROR.
+      IF AVAILABLE mtrl_temp2 THEN DO:                      
+         ASSIGN
+         mtrl_temp2.ANTAL = mtrl_temp2.ANTAL + lin_upp.TOTMETER
+         mtrl_temp2.TOTPRIS = mtrl_temp2.TOTPRIS + lin_upp.TOTPRIS.
+      END.
+      ELSE DO:                    
+         CREATE mtrl_temp2.
+         ASSIGN 
+         mtrl_temp2.ENR = lin_upp.ENR
+         mtrl_temp2.BENAMNING = lin_upp.BENAMNING 
+         mtrl_temp2.ENHET = lin_upp.ENHET 
+         mtrl_temp2.PRIS = lin_upp.PRIS
+         mtrl_temp2.TOTPRIS = lin_upp.TOTPRIS                       
+         mtrl_temp2.ANTAL = lin_upp.TOTMETER.
+      END.
+   END.
+   FOR EACH mtrl_temp2:       
+      ACCUMULATE mtrl_temp2.ANTAL (TOTAL).             
+   END.
+   kontrollsumma = ACCUM TOTAL mtrl_temp2.ANTAL.

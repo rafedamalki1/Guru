@@ -1,0 +1,1096 @@
+/*
+     Filename: VISAFKALAPP.P
+      Created: 2004.03.09 13:47ELPAO     
+     Modified: 
+*/
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{GLOBVAR2DEL1.I}
+ {KALKKAT20G.I}
+/*Anders Olsson Elpool i Umeå AB  19 jan 2018 16:14:10*/
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+
+DEFINE VARIABLE xtypmtrl AS INTEGER NO-UNDO.
+DEFINE VARIABLE offert AS LOGICAL NO-UNDO.
+DEFINE VARIABLE monpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE berpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE region AS LOGICAL NO-UNDO.
+DEFINE VARIABLE msktim AS DECIMAL NO-UNDO.
+DEFINE VARIABLE eavar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE arbvar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE mskvar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE faktvar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE prisvar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE delningsvar AS INTEGER NO-UNDO. /*sätts till 1 om F9 värde = 0 och 100 om F9 värde = 1*/
+DEFINE VARIABLE fakdelningvar AS INTEGER NO-UNDO. /*sätts till 1 om F9 värde = 1 och 100 om F9 värde = 2*/
+DEFINE VARIABLE emask3 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{LISTDEF.I}
+{KALKTEMP3.I}
+{KALKSTART.I}
+{EXTKUNDTEMP.I}
+{KALKBEFTEMP.I}
+{FASTKALKTEMP.I}
+{MTRLTEMP.I}
+{FAKTORTEMP.I}
+{PTEMP.I}
+{EXTRADATA.I}
+DEFINE NEW SHARED TEMP-TABLE kalk_temp2 NO-UNDO LIKE kalk_temp.
+DEFINE NEW SHARED TEMP-TABLE mtrl_temp2 NO-UNDO LIKE mtrl_temp.
+
+{TIDUTTTNEW.I}
+DEFINE TEMP-TABLE tidutrubrik NO-UNDO LIKE tidut
+   FIELD ORDNING AS INTEGER
+   FIELD SUMMARAD AS LOGICAL
+   INDEX ORDNING ORDNING.
+DEFINE BUFFER befbuff FOR KALKBEF.   
+DEFINE BUFFER mtrlbuff FOR MTRL.
+
+
+
+/*************************************** Procedurer *************************************************/
+
+PROCEDURE projextra3_UI :
+   DEFINE INPUT PARAMETER aonrref AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER aonrdelnrref AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER refvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER refkon AS CHARACTER NO-UNDO.
+   IF aonrref = ? THEN RETURN.
+   RUN procset_UI.   
+   /*RUN EXTRADATAHMT.P PERSISTENT SET edataapph.*/
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   ASSIGN
+   refvar = "" refkon = "".
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "AOREF"                   
+   inextradatatemp.HUVUDCH = aonrref              
+   inextradatatemp.HUVUDINT =  aonrdelnrref.         
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+   FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+   IF AVAILABLE extradatatemp THEN DO:
+      ASSIGN
+      refkon = extradatatemp.SOKCHAR[5]
+      refvar = extradatatemp.SOKCHAR[1].
+   END.   
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+   edataapph = ?. 
+END PROCEDURE.
+
+PROCEDURE hmtafri_UI :
+   DEFINE INPUT PARAMETER kalknrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR efastkalktemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkbeftemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidutrubrik.
+   EMPTY TEMP-TABLE kalkbeftemp NO-ERROR. 
+   EMPTY TEMP-TABLE efastkalktemp NO-ERROR. 
+   EMPTY TEMP-TABLE tidutrubrik NO-ERROR. 
+   DEFINE VARIABLE kalkfil AS CHARACTER NO-UNDO.
+   /*
+   FOR EACH KALKBEF WHERE KALKBEF.KALKNR = kalknrvar NO-LOCK:
+      CREATE kalkbeftemp.
+      BUFFER-COPY KALKBEF TO kalkbeftemp.
+   END.
+   */
+   {AMERICANEUROPEAN.I}
+   FIND LAST KALKBEF WHERE KALKBEF.KALKNR = 0 NO-LOCK NO-ERROR.
+   IF AVAILABLE KALKBEF THEN DO:
+      CREATE kalkbeftemp.
+      BUFFER-COPY KALKBEF TO kalkbeftemp.
+   END.
+   kalkfil = SESSION:TEMP-DIR + STRING(kalknrvar) + ".txt".
+   OUTPUT TO VALUE(kalkfil).
+   FOR EACH KALKYL WHERE KALKYL.RECKALKYL = kalknrvar AND KALKYL.TYP = "".
+      PUT UNFORMATTED KALKYL.BEFATTNING KALKYL.OMRADE SKIP.
+   END.
+   OUTPUT CLOSE.
+  
+   INPUT FROM VALUE(kalkfil) NO-ECHO.
+   REPEAT:
+      CREATE efastkalktemp.
+      ASSIGN.
+      IMPORT DELIMITER "£" efastkalktemp NO-ERROR.                  
+   END.
+   INPUT CLOSE.
+   FOR EACH efastkalktemp WHERE efastkalktemp.ARBKOD = "":
+      DELETE efastkalktemp.
+   END.
+   OUTPUT TO VALUE(kalkfil).
+   FOR EACH KALKYL WHERE KALKYL.RECKALKYL = kalknrvar AND KALKYL.TYP NE "".
+      PUT UNFORMATTED KALKYL.TYP SKIP.   
+   END.
+   OUTPUT CLOSE.
+   INPUT FROM VALUE(kalkfil) NO-ECHO.
+   REPEAT:
+      CREATE tidutrubrik.
+      ASSIGN.
+      IMPORT DELIMITER "£" tidutrubrik   NO-ERROR.                  
+   END.
+   INPUT CLOSE.
+   FOR EACH tidutrubrik WHERE tidutrubrik.ORDNING = 0:
+      DELETE tidutrubrik.
+   END.
+
+   {EUROPEANAMERICAN.I}
+END PROCEDURE.
+
+PROCEDURE sparafri_UI :
+   DEFINE INPUT PARAMETER kalknrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR efastkalktemp. 
+   DEFINE INPUT PARAMETER TABLE FOR tidutrubrik.
+   /*
+   FOR EACH KALKBEF WHERE KALKBEF.KALKNR = kalknrvar NO-LOCK:
+      DELETE KALKBEF.
+   END.
+   FOR EACH kalkbeftemp WHERE kalkbeftemp.KALKNR = kalknrvar NO-LOCK:
+      CREATE KALKBEF.
+      BUFFER-COPY kalkbeftemp TO KALKBEF.
+   END.
+   */
+   FOR EACH KALKYL WHERE KALKYL.RECKALKYL = kalknrvar.
+      DELETE KALKYL.
+   END.
+   
+   RELEASE KALKBEF NO-ERROR.
+   FOR EACH efastkalktemp:
+      CREATE KALKYL.
+      ASSIGN
+      KALKYL.RECKALKYL = kalknrvar
+      KALKYL.OMRADE = efastkalktemp.BENAMNING
+      KALKYL.BEFATTNING = 
+      efastkalktemp.ARBKOD + "£" +
+      STRING(efastkalktemp.LOPNR) + "£" + "£" +
+     /* efastkalktemp.BENAMNING + "£" +*/
+      efastkalktemp.ENHET + "£" + 
+      STRING(efastkalktemp.F1) + "£" + 
+      STRING(efastkalktemp.F2) + "£" + 
+      STRING(efastkalktemp.F3) + "£" + 
+      STRING(efastkalktemp.F4) + "£" + 
+      STRING(efastkalktemp.F5) + "£" + 
+      STRING(efastkalktemp.F6) + "£" + 
+      STRING(efastkalktemp.F7) + "£" + 
+      STRING(efastkalktemp.F8) + "£" + 
+      STRING(efastkalktemp.F9) + "£" + 
+      STRING(efastkalktemp.F10) + "£" +
+      STRING(efastkalktemp.EA) + "£" +
+      STRING(efastkalktemp.ARBETE) + "£" +
+      STRING(efastkalktemp.MATERIEL) + "£" +
+      STRING(efastkalktemp.MASKINKOST) + "£" +
+      STRING(efastkalktemp.OVRIGT) + "£" +
+      STRING(efastkalktemp.ENTRP) + "£" +
+      STRING(efastkalktemp.ANTAL) + "£" +
+      STRING(efastkalktemp.UTRUST) + "£" +
+      STRING(efastkalktemp.UTRUSTKOST) + "£" +
+      STRING(efastkalktemp.MASKINTIMMAR) + "£" +
+      STRING(efastkalktemp.SUMMA) + "£" +
+      STRING(efastkalktemp.ARBFAKTOR ) + "£" +
+      STRING(efastkalktemp.MASKFAKTOR) + "£" +
+      STRING(efastkalktemp.MTRLFAKTOR) + "£" +
+      STRING(efastkalktemp.OVRFAKTOR ) + "£" +
+      STRING(efastkalktemp.UTRFAKTOR ) + "£" +
+      STRING(efastkalktemp.FAKTOR ) + "£".
+   END.
+   FOR EACH tidutrubrik:        
+      CREATE KALKYL.
+      ASSIGN
+      KALKYL.RECKALKYL = kalknrvar.
+      KALKYL.TYP = tidutrubrik.UT + "£" + STRING(tidutrubrik.ORDNING) + "£" + STRING(tidutrubrik.SUMMA).
+   END.   
+END PROCEDURE.
+
+PROCEDURE laddakalkber_UI :
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valbernr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.
+      
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR. 
+END PROCEDURE.
+PROCEDURE laddatemp_UI:
+   DEFINE INPUT PARAMETER kalknrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkbeftemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR fastkalktemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.   
+   DEFINE OUTPUT PARAMETER TABLE FOR faktortemp.   
+   DEFINE OUTPUT PARAMETER infdel AS INTEGER NO-UNDO.
+
+   EMPTY TEMP-TABLE kalkbeftemp NO-ERROR. 
+   EMPTY TEMP-TABLE fastkalktemp NO-ERROR. 
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR.
+   EMPTY TEMP-TABLE faktortemp NO-ERROR. 
+
+   FIND FIRST FASTSPEC WHERE FASTSPEC.KALKNR = kalknrvar NO-LOCK NO-ERROR.
+   IF AVAILABLE FASTSPEC THEN DO:
+       
+         FIND FIRST KALKBEF WHERE KALKBEF.KALKNR = 0 AND KALKBEF.KATAR = FASTSPEC.KATAR NO-LOCK NO-ERROR.
+      
+      IF AVAILABLE KALKBEF THEN DO:
+         CREATE kalkbeftemp.
+         BUFFER-COPY KALKBEF TO kalkbeftemp.
+      END.            
+      FOR EACH KALKBEF WHERE KALKBEF.KALKNR = FASTSPEC.KALKNR NO-LOCK:
+         CREATE kalkbeftemp.
+         BUFFER-COPY KALKBEF TO kalkbeftemp.
+      END.
+      
+      FOR EACH FASTKALK WHERE FASTKALK.OMRADE = FASTSPEC.OMRADE AND FASTKALK.KALKNR = FASTSPEC.KALKNR NO-LOCK:
+         CREATE fastkalktemp.
+         BUFFER-COPY FASTKALK TO fastkalktemp.
+      END.
+      FOR EACH fastkalktemp:
+         fastkalktemp.BENAMNING = REPLACE(fastkalktemp.BENAMNING,CHR(10)," ").   
+      END.
+      FOR EACH MTRL WHERE MTRL.KALKNR = FASTSPEC.KALKNR NO-LOCK:
+         CREATE mtrltemp.
+         BUFFER-COPY MTRL TO mtrltemp.
+         mtrltemp.ENHET = LC(mtrltemp.ENHET).
+      END.
+      FIND FIRST FAKTOR WHERE FAKTOR.KALKNR = FASTSPEC.KALKNR NO-LOCK NO-ERROR. 
+      IF AVAILABLE FAKTOR THEN DO:
+         CREATE faktortemp.
+         BUFFER-COPY FAKTOR TO faktortemp.         
+         IF faktortemp.FAK9 = 2 THEN DO:
+            ASSIGN
+            faktortemp.FAK1 = faktortemp.FAK1 / 100
+            faktortemp.FAK2 = faktortemp.FAK2 / 100
+            faktortemp.FAK3 = faktortemp.FAK3 / 100
+            faktortemp.FAK4 = faktortemp.FAK4 / 100
+            faktortemp.FAK5 = faktortemp.FAK5 / 100
+            faktortemp.FAK6 = faktortemp.FAK6 / 100
+            faktortemp.FAK7 = faktortemp.FAK7 / 100
+            faktortemp.FAK8 = faktortemp.FAK8 / 100
+            faktortemp.FAKMTRL = faktortemp.FAKMTRL / 100
+            faktortemp.FAKOVRIGT = faktortemp.FAKOVRIGT / 100
+            faktortemp.FAKENT = faktortemp.FAKENT / 100
+            faktortemp.FAKUTRUST = faktortemp.FAKUTRUST / 100
+            faktortemp.FAKUTRUSTKOST = faktortemp.FAKUTRUSTKOST / 100
+            faktortemp.FAKMASKINKOST = faktortemp.FAKMASKINKOST / 100
+            faktortemp.FAKTOT = faktortemp.FAKTOT / 100.
+         END.
+
+      END.
+      FIND FIRST KALKFOR WHERE KALKFOR.KALKNR = FASTSPEC.KALKNR NO-LOCK NO-ERROR.
+      IF AVAILABLE KALKFOR THEN infdel = 1.
+      ELSE infdel = 0.      
+   END.
+END PROCEDURE.
+
+PROCEDURE laddaextkund_UI:
+   DEFINE INPUT PARAMETER kundnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR extkundtemp.
+   
+   EMPTY TEMP-TABLE extkundtemp NO-ERROR.
+   FIND FIRST EXTKUND WHERE EXTKUND.KUNDNR = kundnrvar NO-LOCK NO-ERROR.
+   IF AVAILABLE EXTKUND THEN DO:
+      CREATE extkundtemp.
+      BUFFER-COPY EXTKUND TO extkundtemp.
+   END.        
+END PROCEDURE.
+
+PROCEDURE kalkansvarig_UI:
+   DEFINE INPUT PARAMETER globanvpkod AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER kalkansvnamn AS CHARACTER NO-UNDO.
+
+   kalkansvnamn = "".
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = globanvpkod NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      kalkansvnamn = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN.
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+   END.   
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+
+PROCEDURE laddaptemp_UI:
+   DEFINE INPUT PARAMETER kalknrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR ptemp.   
+   EMPTY TEMP-TABLE ptemp NO-ERROR.
+   FIND FIRST FASTSPEC WHERE FASTSPEC.KALKNR = kalknrvar NO-LOCK NO-ERROR.
+   IF AVAILABLE FASTSPEC THEN DO:
+      
+        FOR EACH P1 WHERE P1.KATAR = FASTSPEC.KATAR NO-LOCK:
+            CREATE ptemp.
+            BUFFER-COPY P1 TO ptemp.
+            ptemp.TYP = 1.
+         END.
+         FOR EACH P2 WHERE P2.KATAR = FASTSPEC.KATAR NO-LOCK:
+            CREATE ptemp.
+            BUFFER-COPY P2 TO ptemp.
+            {PKODREGION.I}
+            ptemp.TYP = 2.
+         END.
+         FOR EACH P3 WHERE P3.KATAR = FASTSPEC.KATAR NO-LOCK:
+            CREATE ptemp.
+            BUFFER-COPY P3 TO ptemp.
+            ptemp.TYP = 3.
+         END.
+         FOR EACH P5 WHERE P5.KATAR = FASTSPEC.KATAR NO-LOCK:
+            CREATE ptemp.
+            BUFFER-COPY P5 TO ptemp.
+            ptemp.TYP = 5.
+         END.
+         
+         /*
+         IF FASTSPEC.TYP = 1 THEN DO:
+            FOR EACH P1 WHERE P1.KATAR = FASTSPEC.KATAR NO-LOCK:
+               CREATE ptemp.
+               BUFFER-COPY P1 TO ptemp.
+               ptemp.TYP = 1.
+            END.
+            FOR EACH P2 WHERE P2.KATAR = FASTSPEC.KATAR NO-LOCK:
+               CREATE ptemp.
+               BUFFER-COPY P2 TO ptemp.
+               ptemp.TYP = 2.
+            END.
+         END.
+         ELSE IF FASTSPEC.TYP = 2 THEN DO:
+            FOR EACH P2 WHERE P2.KATAR = FASTSPEC.KATAR NO-LOCK:
+               CREATE ptemp.
+               BUFFER-COPY P2 TO ptemp.
+               ptemp.TYP = 2.
+            END.
+            FOR EACH P3 WHERE P3.KATAR = FASTSPEC.KATAR NO-LOCK:
+               CREATE ptemp.
+               BUFFER-COPY P3 TO ptemp.
+               ptemp.TYP = 3.
+            END.
+         END.
+         ELSE IF FASTSPEC.TYP = 3 THEN DO:
+            FOR EACH P3 WHERE P3.KATAR = FASTSPEC.KATAR NO-LOCK:
+               CREATE ptemp.
+               BUFFER-COPY P3 TO ptemp.
+               ptemp.TYP = 3.
+            END.
+         END.
+         ELSE DO:
+            FOR EACH P5 WHERE P5.KATAR = FASTSPEC.KATAR NO-LOCK:
+               CREATE ptemp.
+               BUFFER-COPY P5 TO ptemp.
+               ptemp.TYP = 5.
+            END.
+         END.
+         */
+   END.
+    
+END PROCEDURE.
+
+PROCEDURE beredningskalkber_UI :
+   DEFINE INPUT PARAMETER beromr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER bernr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrl_temp.
+   DEFINE OUTPUT PARAMETER TABLE FOR lin_upp.
+   DEFINE OUTPUT PARAMETER TABLE FOR lin_temp.
+   /*KALKBER*/                             
+   FIND FIRST BEREDNING WHERE BEREDNING.OMRADE = beromr AND  BEREDNING.BERNR = bernr NO-LOCK NO-ERROR.
+   IF AVAILABLE BEREDNING THEN DO:
+      RUN LISTPROG.P (INPUT BEREDNING.BERAONR, INPUT BEREDNING.OMRADE, OUTPUT TABLE mtrl_temp, 
+                   OUTPUT TABLE lin_upp, OUTPUT TABLE lin_temp).   
+   END.
+END PROCEDURE.
+PROCEDURE beredningskalk_UI:
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrl_temp.
+   DEFINE OUTPUT PARAMETER TABLE FOR lin_upp.
+   DEFINE OUTPUT PARAMETER TABLE FOR lin_temp.
+   /*KALKBER*/                             
+   FIND FIRST BEREDNING WHERE BEREDNING.AONR = aonrvar AND BEREDNING.DELNR = delnrvar USE-INDEX AONR NO-LOCK NO-ERROR.
+   IF AVAILABLE BEREDNING THEN DO:
+      RUN LISTPROG.P (INPUT BEREDNING.BERAONR, INPUT BEREDNING.OMRADE, OUTPUT TABLE mtrl_temp, 
+                   OUTPUT TABLE lin_upp, OUTPUT TABLE lin_temp).   
+   END.
+END PROCEDURE.
+PROCEDURE bilaga1_UI :
+   DEFINE INPUT PARAMETER kalknrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+
+   EMPTY TEMP-TABLE tidut NO-ERROR. 
+   FIND FIRST KALKBEF WHERE KALKBEF.KALKNR = kalknrvar AND KALKBEF.ARBKOD = "" AND KALKBEF.LOPNR = 0 USE-INDEX OMRADE NO-LOCK NO-ERROR.
+   CREATE tidut.      
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "EGNA PRISER".
+   CREATE tidut.
+   CREATE tidut.
+   IF KALKBEF.BEF1 NE "" THEN DO:    
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = SUBSTRING(KALKBEF.BEF1,1,7) 
+      SUBSTRING(tidut.UT,9) = ":"                                                                                  
+      SUBSTRING(tidut.UT,10) = STRING(KALKBEF.PRIS1,">>>9.99").            
+   END.   
+   IF KALKBEF.BEF2 NE "" THEN DO:             
+      ASSIGN
+      SUBSTRING(tidut.UT,30) = SUBSTRING(KALKBEF.BEF2,1,7)    
+      SUBSTRING(tidut.UT,38) = ":"                                                                                 
+      SUBSTRING(tidut.UT,39) = STRING(KALKBEF.PRIS2,">>>9.99").            
+   END.                                 
+   IF KALKBEF.BEF3 NE "" THEN DO:    
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = SUBSTRING(KALKBEF.BEF3,1,7)                                                                                   
+      SUBSTRING(tidut.UT,9) = ":"
+      SUBSTRING(tidut.UT,10) = STRING(KALKBEF.PRIS3,">>>9.99").            
+   END. 
+   IF KALKBEF.BEF4 NE "" THEN DO:             
+      ASSIGN
+      SUBSTRING(tidut.UT,30) = SUBSTRING(KALKBEF.BEF4,1,7)                                                                                   
+      SUBSTRING(tidut.UT,38) = ":"
+      SUBSTRING(tidut.UT,39) = STRING(KALKBEF.PRIS4,">>>9.99").            
+   END.
+   IF KALKBEF.BEF5 NE "" THEN DO:    
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = SUBSTRING(KALKBEF.BEF5,1,7)                                                                                     
+      SUBSTRING(tidut.UT,9) = ":"
+      SUBSTRING(tidut.UT,10) = STRING(KALKBEF.PRIS5,">>>9.99").            
+   END.
+   IF KALKBEF.BEF6 NE "" THEN DO:             
+      ASSIGN
+      SUBSTRING(tidut.UT,30) = SUBSTRING(KALKBEF.BEF6,1,7)                                                                                 
+      SUBSTRING(tidut.UT,38) = ":"
+      SUBSTRING(tidut.UT,39) = STRING(KALKBEF.PRIS6,">>>9.99").            
+   END.
+   IF KALKBEF.BEF7 NE "" THEN DO:    
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = SUBSTRING(KALKBEF.BEF7,1,7)                                                                                   
+      SUBSTRING(tidut.UT,9) = ":"
+      SUBSTRING(tidut.UT,10) = STRING(KALKBEF.PRIS7,">>>9.99").            
+   END.
+   IF KALKBEF.BEF8 NE "" THEN DO:             
+      ASSIGN
+      SUBSTRING(tidut.UT,30) = SUBSTRING(KALKBEF.BEF8,1,7)                                                                                   
+      SUBSTRING(tidut.UT,38) = ":"
+      SUBSTRING(tidut.UT,39) = STRING(KALKBEF.PRIS8,">>>9.99").           
+   END.
+   IF KALKBEF.BEF9 NE "" THEN DO:    
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = SUBSTRING(KALKBEF.BEF9,1,7)                                                                                     
+      SUBSTRING(tidut.UT,9) = ":"
+      SUBSTRING(tidut.UT,10) = STRING(KALKBEF.PRIS9,">>>9.99").            
+   END.
+   /*KALKmatris
+   IF KALKBEF.BEF10 NE "" THEN DO:            
+      ASSIGN
+      SUBSTRING(tidut.UT,30) = SUBSTRING(KALKBEF.BEF10,1,7)                                                                                   
+      SUBSTRING(tidut.UT,38) = ":"
+      SUBSTRING(tidut.UT,39) = STRING(KALKBEF.PRIS10,">>>9.99").           
+   END.
+   */
+END PROCEDURE.
+
+PROCEDURE bilaga2_UI :
+   DEFINE INPUT PARAMETER kalknrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER katarvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   DEFINE VARIABLE fakdelningvar AS INTEGER NO-UNDO.
+   fakdelningvar = 1.
+   
+   /*KALKÅR*/
+   EMPTY TEMP-TABLE tidut NO-ERROR. 
+   FIND FIRST FAKTOR WHERE FAKTOR.KALKNR = kalknrvar USE-INDEX OMRADE NO-LOCK NO-ERROR.
+   
+      FIND FIRST KALKBEF WHERE KALKBEF.KALKNR = 0 AND KALKBEF.KATAR = katarvar USE-INDEX ARTAL NO-LOCK NO-ERROR.
+    
+   IF AVAILABLE FAKTOR THEN DO:
+      IF FAKTOR.FAK9 = 2 THEN fakdelningvar = 100.
+   END.
+   CREATE tidut.
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "FAKTORER".
+   CREATE tidut.
+   CREATE tidut.
+   IF KALKBEF.BEF1 NE "" THEN DO:    
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = SUBSTRING(KALKBEF.BEF1,1,7)   
+      SUBSTRING(tidut.UT,9) = ":"                                                                                
+      SUBSTRING(tidut.UT,10) = STRING(FAKTOR.FAK1 / fakdelningvar,">>>9.99<<").            
+   END.   
+   IF KALKBEF.BEF2 NE "" THEN DO:             
+      ASSIGN
+      SUBSTRING(tidut.UT,30) = SUBSTRING(KALKBEF.BEF2,1,7) 
+      SUBSTRING(tidut.UT,38) = ":"                                                                                 
+      SUBSTRING(tidut.UT,39) = STRING(FAKTOR.FAK2 / fakdelningvar,">>>9.99<<").            
+   END.                                 
+   IF KALKBEF.BEF3 NE "" THEN DO:    
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = SUBSTRING(KALKBEF.BEF3,1,7)                                                                                    
+      SUBSTRING(tidut.UT,9) = ":"
+      SUBSTRING(tidut.UT,10) = STRING(FAKTOR.FAK3 / fakdelningvar,">>>9.99<<").            
+   END. 
+   IF KALKBEF.BEF4 NE "" THEN DO:             
+      ASSIGN
+      SUBSTRING(tidut.UT,30) = SUBSTRING(KALKBEF.BEF4,1,7)                                                                                 
+      SUBSTRING(tidut.UT,38) = ":"
+      SUBSTRING(tidut.UT,39) = STRING(FAKTOR.FAK4 / fakdelningvar,">>>9.99<<").            
+   END.
+   IF KALKBEF.BEF5 NE "" THEN DO:    
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = SUBSTRING(KALKBEF.BEF5,1,7)                                                                                     
+      SUBSTRING(tidut.UT,9) = ":"
+      SUBSTRING(tidut.UT,10) = STRING(FAKTOR.FAK5 / fakdelningvar,">>>9.99<<").            
+   END.
+   IF KALKBEF.BEF6 NE "" THEN DO:             
+      ASSIGN
+      SUBSTRING(tidut.UT,30) = SUBSTRING(KALKBEF.BEF6,1,7)                                                                                   
+      SUBSTRING(tidut.UT,38) = ":"
+      SUBSTRING(tidut.UT,39) = STRING(FAKTOR.FAK6 / fakdelningvar,">>>9.99<<").            
+   END.
+   IF KALKBEF.BEF7 NE "" THEN DO:    
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = SUBSTRING(KALKBEF.BEF7,1,7)                                                                                  
+      SUBSTRING(tidut.UT,9) = ":"
+      SUBSTRING(tidut.UT,10) = STRING(FAKTOR.FAK7 / fakdelningvar,">>>9.99<<").            
+   END.
+   IF KALKBEF.BEF8 NE "" THEN DO:             
+      ASSIGN
+      SUBSTRING(tidut.UT,30) = SUBSTRING(KALKBEF.BEF8,1,7)                                                                                  
+      SUBSTRING(tidut.UT,38) = ":"
+      SUBSTRING(tidut.UT,39) = STRING(FAKTOR.FAK8 / fakdelningvar,">>>9.99<<").           
+   END.
+   /*IF KALKBEF.BEF9 NE "" THEN DO:    
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = SUBSTRING(KALKBEF.BEF9,1,7)                                                                                    
+      SUBSTRING(tidut.UT,9) = ":"
+      SUBSTRING(tidut.UT,10) = STRING(FAKTOR.FAK9,">>>9.99").            
+   END.*/
+   /*KALKmatris
+   IF KALKBEF.BEF10 NE "" THEN DO:            
+      ASSIGN
+      SUBSTRING(tidut.UT,30) = SUBSTRING(KALKBEF.BEF10,1,7)                                                                                  
+      SUBSTRING(tidut.UT,38) = ":"
+      SUBSTRING(tidut.UT,39) = STRING(FAKTOR.FAK10,">>>9.99").           
+   END.
+   */
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "MATERIEL:"                                                                                     
+   SUBSTRING(tidut.UT,10) = STRING(FAKTOR.FAKMTRL / fakdelningvar,">>>9.99<<")
+   SUBSTRING(tidut.UT,30) = "ÖVRIGT  :"                                                                                     
+   SUBSTRING(tidut.UT,39) = STRING(FAKTOR.FAKOVRIGT / fakdelningvar,">>>9.99<<"). 
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "ENTREPRE:"
+   SUBSTRING(tidut.UT,10) = STRING(FAKTOR.FAKENT / fakdelningvar,">>>9.99<<")
+   SUBSTRING(tidut.UT,30) = "UTRUSTNI:"                                                                                     
+   SUBSTRING(tidut.UT,39) = STRING(FAKTOR.FAKUTRUST / fakdelningvar,">>>9.99<<").
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "UTRUSTKOS:"
+   SUBSTRING(tidut.UT,10) = STRING(FAKTOR.FAKUTRUSTKOST / fakdelningvar,">>>9.99<<")
+   SUBSTRING(tidut.UT,30) = "MASKINKOS:"                                                                                     
+   SUBSTRING(tidut.UT,39) = STRING(FAKTOR.FAKMASKINKOST / fakdelningvar,">>>9.99<<").
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "TOTALT   :"
+   SUBSTRING(tidut.UT,10) = STRING(FAKTOR.FAKTOT / fakdelningvar,">>>9.99<<").
+END PROCEDURE.
+
+
+
+
+PROCEDURE mtrlq_UI:
+
+   /* denna procedure används ej, men kan komma att göra det senare*/
+   DEFINE INPUT PARAMETER kalknrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER typpris AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER globforetagvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER nettopris AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+
+   EMPTY TEMP-TABLE tidut NO-ERROR.
+   IF typpris = 1 THEN DO:
+      OPEN QUERY mtrlq FOR EACH MTRL WHERE MTRL.KALKNR = kalknrvar AND 
+      MTRL.OFFERT = FALSE AND MTRL.KUND = FALSE NO-LOCK BY MTRL.ENR.
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRL):
+         CREATE tidut.      
+         ASSIGN  
+         SUBSTRING(tidut.UT,1) = MTRL.ENR
+         SUBSTRING(tidut.UT,13) = SUBSTRING(MTRL.BENAMNING,1,25)               
+         SUBSTRING(tidut.UT,39) = STRING(MTRL.NPRIS,">>>>>9.99")   
+         SUBSTRING(tidut.UT,50) = MTRL.ENHET    
+         SUBSTRING(tidut.UT,56) = STRING(MTRL.BERKVANT,">>>>9")
+         SUBSTRING(tidut.UT,62) = STRING(MTRL.NPRIS * MTRL.BERKVANT,">>>>>>9").
+         nettopris = (MTRL.NPRIS * MTRL.BERKVANT).          
+         GET NEXT mtrlq NO-LOCK.                            
+      END. 
+      CLOSE QUERY mtrlq.
+   END. 
+   ELSE DO:         
+      FIND FIRST MTRL WHERE MTRL.KALKNR = kalknrvar AND 
+      MTRL.OFFERT = FALSE AND MTRL.KUND = TRUE USE-INDEX KALK NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO: 
+         OPEN QUERY mtrlq FOR EACH MTRL WHERE MTRL.KALKNR = kalknrvar AND 
+         MTRL.OFFERT = FALSE AND MTRL.KUND = TRUE NO-LOCK BY MTRL.ENR.
+         GET FIRST mtrlq NO-LOCK.
+         DO WHILE AVAILABLE(MTRL):
+            CREATE tidut.      
+            ASSIGN  
+            SUBSTRING(tidut.UT,1) = MTRL.ENR
+            SUBSTRING(tidut.UT,13) = SUBSTRING(MTRL.BENAMNING,1,25)               
+            SUBSTRING(tidut.UT,39) = STRING(MTRL.KPRIS,">>>>>9.99")   
+            SUBSTRING(tidut.UT,50) = MTRL.ENHET    
+            SUBSTRING(tidut.UT,56) = STRING(MTRL.BERKVANT,">>>>9")
+            SUBSTRING(tidut.UT,62) = STRING(MTRL.KPRIS * MTRL.BERKVANT,">>>>>>9").
+            nettopris = (MTRL.KPRIS * MTRL.BERKVANT).          
+            GET NEXT mtrlq NO-LOCK.                            
+         END.
+         CLOSE QUERY mtrlq.
+      END.
+      ELSE DO: 
+         OPEN QUERY mtrlq FOR EACH MTRL WHERE MTRL.KALKNR = kalknrvar AND 
+         MTRL.OFFERT = FALSE AND MTRL.KUND = FALSE NO-LOCK BY MTRL.ENR.
+         GET FIRST mtrlq NO-LOCK.
+         DO WHILE AVAILABLE(MTRL):
+            /*OBS! NPRIS ANVÄNDS FAST DET BORDE VARIT BPRIS ALLT ENLIGT
+            ÖNSKEMÅL GSYD*/
+            CREATE tidut.      
+            ASSIGN  
+            SUBSTRING(tidut.UT,1) = MTRL.ENR
+            SUBSTRING(tidut.UT,13) = SUBSTRING(MTRL.BENAMNING,1,25)                        
+            SUBSTRING(tidut.UT,50) = MTRL.ENHET    
+            SUBSTRING(tidut.UT,56) = STRING(MTRL.BERKVANT,">>>>9").
+            IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" THEN DO:
+                ASSIGN
+               SUBSTRING(tidut.UT,39) = STRING(MTRL.BPRIS,">>>>>9.99")
+               SUBSTRING(tidut.UT,62) = STRING(MTRL.BPRIS * MTRL.BERKVANT,">>>>>>9")
+               nettopris = (MTRL.BPRIS * MTRL.BERKVANT).
+            END.
+            ELSE DO:
+               ASSIGN
+               SUBSTRING(tidut.UT,39) = STRING(MTRL.NPRIS,">>>>>9.99")
+               SUBSTRING(tidut.UT,62) = STRING(MTRL.NPRIS * MTRL.BERKVANT,">>>>>>9")
+               nettopris = (MTRL.NPRIS * MTRL.BERKVANT).
+            END.      
+            GET NEXT mtrlq NO-LOCK.                            
+         END.              
+         CLOSE QUERY mtrlq.
+      END.      
+   END.
+END PROCEDURE.
+
+
+PROCEDURE rakna_UI :
+   DEFINE INPUT PARAMETER fkal AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kalknrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER globforetagvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER offertvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER xtypmtrlvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR kalkftemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalk_temp.
+   
+   ASSIGN
+   
+   xtypmtrl = xtypmtrlvar.
+   offert = offertvar.
+   EMPTY TEMP-TABLE kalk_temp NO-ERROR. 
+   FIND FIRST FASTSPEC WHERE FASTSPEC.KALKNR = kalknrvar NO-LOCK NO-ERROR.
+
+   /*GG 2007-10-30 Om blandtyp, hämta katalogår för båda så att monpris laddas rätt vid uträkning*/
+   DEFINE VARIABLE artalnum AS INTEGER NO-UNDO.
+   DEFINE VARIABLE artalsam AS INTEGER NO-UNDO.
+   DEFINE VARIABLE ebrmonpris AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE sebrmonpris AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "DOKALKYL"                   
+   inextradatatemp.HUVUDCH = fkal
+   inextradatatemp.HUVUDINT = kalknrvar.        
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph NO-ERROR.
+   FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+   IF AVAILABLE extradatatemp THEN DO:
+      ASSIGN
+      artalnum = extradatatemp.SOKINT[1]
+      artalsam = extradatatemp.SOKINT[2].
+   END.
+   ELSE DO:
+      ASSIGN
+      artalnum = ?
+      artalsam = ?.
+   END.
+   IF artalnum = ? THEN FIND FIRST EBRPRIS WHERE EBRPRIS.ARTAL = FASTSPEC.KATAR USE-INDEX AR NO-LOCK NO-ERROR.
+   ELSE FIND FIRST EBRPRIS WHERE EBRPRIS.ARTAL = artalnum USE-INDEX AR NO-LOCK NO-ERROR.
+   IF AVAILABLE EBRPRIS THEN ebrmonpris = EBRPRIS.MONT.
+   IF artalsam = ? THEN FIND FIRST SEBRPRIS WHERE SEBRPRIS.ARTAL = FASTSPEC.KATAR USE-INDEX AR NO-LOCK NO-ERROR.
+   ELSE FIND FIRST SEBRPRIS WHERE SEBRPRIS.ARTAL = artalsam USE-INDEX AR NO-LOCK NO-ERROR.
+   IF AVAILABLE SEBRPRIS THEN sebrmonpris = SEBRPRIS.MONT.
+   /*Slut blandtyp */
+
+   IF FASTSPEC.FAKTOR = TRUE THEN DO:
+      FIND FIRST FAKTOR WHERE FAKTOR.KALKNR = FASTSPEC.KALKNR AND
+      FAKTOR.OMRADE = FASTSPEC.OMRADE USE-INDEX OMRADE NO-LOCK NO-ERROR.       
+   END.
+   
+   IF FASTSPEC.EGETPRIS = TRUE THEN DO:
+      FIND FIRST KALKBEF WHERE KALKBEF.KALKNR = FASTSPEC.KALKNR AND
+      KALKBEF.OMRADE = FASTSPEC.OMRADE AND KALKBEF.ARBKOD = "" AND
+      KALKBEF.LOPNR = 0 USE-INDEX OMRADE NO-LOCK NO-ERROR.
+   END.
+   ELSE FIND FIRST KALKBEF WHERE KALKBEF.KALKNR = 0 AND KALKBEF.KATAR = FASTSPEC.KATAR NO-LOCK NO-ERROR.      
+   IF fkal NE ? THEN DO:
+      FIND FIRST kalkftemp WHERE kalkftemp.BESTID = fkal NO-LOCK NO-ERROR.
+      IF kalkftemp.BESTNAMN = "Ej fördelad"  THEN DO:
+         OPEN QUERY kalkq FOR EACH FASTKALK WHERE FASTKALK.KALKNR = FASTSPEC.KALKNR 
+         AND FASTKALK.OMRADE = FASTSPEC.OMRADE USE-INDEX OMRADE NO-LOCK.
+         GET FIRST kalkq NO-LOCK.
+         DO WHILE AVAILABLE(FASTKALK): 
+            IF FASTKALK.TYP = 5 THEN monpris = sebrmonpris. 
+            ELSE monpris = ebrmonpris.                      
+            FIND FIRST kalkftemp WHERE kalkftemp.ARBKOD = FASTKALK.ARBKOD AND
+            kalkftemp.LOPNR = FASTKALK.LOPNR AND kalkftemp.ANTAL = FASTKALK.ANTAL 
+            AND SUBSTRING(kalkftemp.ANM,1,20) = SUBSTRING(FASTKALK.BENAMNING,50,20) USE-INDEX NUM2 NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE kalkftemp  THEN DO:
+               IF FASTKALK.ARBKOD = "EGEN" THEN DO:
+                  /*ANTAL MINUS
+                  IF FASTKALK.ANTAL > 0 THEN DO:
+                     FIND FIRST befbuff WHERE befbuff.KALKNR = FASTSPEC.KALKNR AND
+                     befbuff.OMRADE = FASTSPEC.OMRADE AND befbuff.ARBKOD = FASTKALK.ARBKOD AND
+                     befbuff.LOPNR = FASTKALK.LOPNR USE-INDEX OMRADE NO-LOCK NO-ERROR. 
+                     RUN skapa2_UI.
+                  END.   
+                  */
+                  FIND FIRST befbuff WHERE befbuff.KALKNR = FASTSPEC.KALKNR AND
+                  befbuff.OMRADE = FASTSPEC.OMRADE AND befbuff.ARBKOD = FASTKALK.ARBKOD AND
+                  befbuff.LOPNR = FASTKALK.LOPNR USE-INDEX OMRADE NO-LOCK NO-ERROR. 
+                  RUN skapa2_UI.
+               END.
+               ELSE IF FASTKALK.ARBKOD = "SUCC" THEN DO:
+                  RUN skapa3_UI.
+               END.
+               ELSE DO:
+                  /*ANTAL MINUS
+                  IF FASTKALK.ANTAL > 0 THEN DO:
+                     IF FASTKALK.FAST = FALSE THEN RUN skapa_UI.
+                     ELSE RUN skapa4_UI.
+                  END.   
+                  */
+                  /*hej*/
+
+                  IF FASTKALK.ANTAL = 0 THEN DO:
+                     /*GÖR INGET*/
+                  END.
+                  ELSE DO:
+                     IF FASTKALK.FAST = FALSE THEN RUN skapa_UI.
+                     ELSE RUN skapa4_UI.
+                  END.
+                  
+               END.
+            END.         
+            GET NEXT kalkq NO-LOCK.
+         END.
+      END.
+      
+      OPEN QUERY kalkfq FOR EACH kalkftemp WHERE kalkftemp.KALKNR = FASTSPEC.KALKNR 
+      AND kalkftemp.BESTID = fkal USE-INDEX NUM2 NO-LOCK.
+      GET FIRST kalkfq NO-LOCK.
+      DO WHILE AVAILABLE(kalkftemp):      
+         FIND FIRST FASTKALK WHERE FASTKALK.OMRADE = FASTSPEC.OMRADE AND FASTKALK.KALKNR = kalkftemp.KALKNR AND FASTKALK.ARBKOD = kalkftemp.ARBKOD 
+         AND FASTKALK.LOPNR = kalkftemp.LOPNR AND FASTKALK.ANTAL = kalkftemp.ANTAL  NO-LOCK.
+         IF FASTKALK.TYP = 5 THEN monpris = sebrmonpris. 
+         ELSE monpris = ebrmonpris.
+         IF FASTKALK.ARBKOD = "EGEN" THEN DO:
+            /*ANTAL MINUS
+            IF FASTKALK.ANTAL > 0 THEN DO:
+               FIND FIRST befbuff WHERE befbuff.KALKNR = FASTSPEC.KALKNR AND
+               befbuff.OMRADE = FASTSPEC.OMRADE AND befbuff.ARBKOD = FASTKALK.ARBKOD AND
+               befbuff.LOPNR = FASTKALK.LOPNR USE-INDEX OMRADE NO-LOCK NO-ERROR. 
+               RUN skapa2_UI.
+            END.   
+            */
+             FIND FIRST befbuff WHERE befbuff.KALKNR = FASTSPEC.KALKNR AND
+            befbuff.OMRADE = FASTSPEC.OMRADE AND befbuff.ARBKOD = FASTKALK.ARBKOD AND
+            befbuff.LOPNR = FASTKALK.LOPNR USE-INDEX OMRADE NO-LOCK NO-ERROR. 
+            RUN skapa2_UI.
+         END.
+         ELSE IF FASTKALK.ARBKOD = "SUCC" THEN DO:
+            RUN skapa3_UI.
+         END.
+         ELSE DO:
+            /*ANTAL MINUS
+            IF FASTKALK.ANTAL > 0 THEN DO:
+               IF FASTKALK.FAST = FALSE THEN DO: 
+                  RUN skapa_UI.
+               END.
+               ELSE RUN skapa4_UI.
+            END.   
+            */
+
+            IF FASTKALK.ANTAL = 0 THEN DO:
+                /*GÖR INGET*/
+            END.
+            ELSE DO:
+               IF FASTKALK.FAST = FALSE THEN RUN skapa_UI.
+               ELSE RUN skapa4_UI.
+            END.
+
+            /*
+            IF FASTKALK.FAST = FALSE THEN DO: 
+               RUN skapa_UI.
+            END.
+            ELSE RUN skapa4_UI.
+              */
+         END.
+         IF AVAILABLE kalk_temp THEN DO: 
+            ASSIGN            
+            kalk_temp.PROCENT = kalkftemp.PROCENT. /*Använd för att ladda in procent*/
+            kalk_temp.F1 = kalk_temp.F1 * kalkftemp.PROCENT / 100.
+            kalk_temp.F2 = kalk_temp.F2 * kalkftemp.PROCENT / 100.
+            kalk_temp.F3 = kalk_temp.F3 * kalkftemp.PROCENT / 100.
+            kalk_temp.F4 = kalk_temp.F4 * kalkftemp.PROCENT / 100.
+            kalk_temp.F5 = kalk_temp.F5 * kalkftemp.PROCENT / 100.
+            kalk_temp.F6 = kalk_temp.F6 * kalkftemp.PROCENT / 100.
+            kalk_temp.F7 = kalk_temp.F7 * kalkftemp.PROCENT / 100.
+            kalk_temp.F8 = kalk_temp.F8 * kalkftemp.PROCENT / 100.
+            kalk_temp.F9 = kalk_temp.F9 * kalkftemp.PROCENT / 100.
+             
+            kalk_temp.EA = kalk_temp.EA * kalkftemp.PROCENT / 100.
+            kalk_temp.ARBETE = kalk_temp.ARBETE * kalkftemp.PROCENT / 100.
+            kalk_temp.MATERIEL = kalk_temp.MATERIEL * kalkftemp.PROCENT / 100.
+            kalk_temp.MASKINKOST = kalk_temp.MASKINKOST * kalkftemp.PROCENT / 100.
+            kalk_temp.OVRIGT = kalk_temp.OVRIGT * kalkftemp.PROCENT / 100.
+            kalk_temp.ENTRP = kalk_temp.ENTRP * kalkftemp.PROCENT / 100.
+            kalk_temp.ANTAL = kalk_temp.ANTAL * kalkftemp.PROCENT / 100.
+            kalk_temp.UTRUST = kalk_temp.UTRUST * kalkftemp.PROCENT / 100.
+            kalk_temp.UTRUSTKOST = kalk_temp.UTRUSTKOST * kalkftemp.PROCENT / 100.
+            kalk_temp.MASKINTIMMAR = kalk_temp.MASKINTIMMAR * kalkftemp.PROCENT / 100.            
+         END.
+         GET NEXT kalkfq NO-LOCK.
+      END.
+      CLOSE QUERY kalkfq.         
+   END.
+   ELSE DO:
+      OPEN QUERY kalkq FOR EACH FASTKALK WHERE FASTKALK.KALKNR = FASTSPEC.KALKNR 
+      AND FASTKALK.OMRADE = FASTSPEC.OMRADE USE-INDEX OMRADE NO-LOCK.
+      GET FIRST kalkq NO-LOCK.
+      DO WHILE AVAILABLE(FASTKALK):
+         IF FASTKALK.TYP = 5 THEN monpris = sebrmonpris. 
+         ELSE monpris = ebrmonpris.
+         IF FASTKALK.ARBKOD = "EGEN" THEN DO:
+               /*ANTAL MINUS
+            IF FASTKALK.ANTAL > 0 THEN DO:
+               FIND FIRST befbuff WHERE befbuff.KALKNR = FASTSPEC.KALKNR AND
+               befbuff.OMRADE = FASTSPEC.OMRADE AND befbuff.ARBKOD = FASTKALK.ARBKOD AND
+               befbuff.LOPNR = FASTKALK.LOPNR USE-INDEX OMRADE NO-LOCK NO-ERROR. 
+               RUN skapa2_UI.
+            END.   
+            */
+            FIND FIRST befbuff WHERE befbuff.KALKNR = FASTSPEC.KALKNR AND
+            befbuff.OMRADE = FASTSPEC.OMRADE AND befbuff.ARBKOD = FASTKALK.ARBKOD AND
+            befbuff.LOPNR = FASTKALK.LOPNR USE-INDEX OMRADE NO-LOCK NO-ERROR. 
+            RUN skapa2_UI.
+         END.
+         
+         ELSE IF FASTKALK.ARBKOD = "SUCC" THEN DO:
+            RUN skapa3_UI.
+         END.
+         ELSE DO:
+               /*ANTAL MINUS
+            IF FASTKALK.ANTAL > 0 THEN DO:
+               IF FASTKALK.FAST = FALSE THEN RUN skapa_UI.
+               ELSE RUN skapa4_UI.
+            END.   
+            */
+
+            IF FASTKALK.ANTAL = 0 THEN DO:
+                /*GÖR INGET*/
+            END.
+            ELSE DO:
+               IF FASTKALK.FAST = FALSE THEN RUN skapa_UI.
+               ELSE RUN skapa4_UI.
+            END.
+
+            /*
+            IF FASTKALK.FAST = FALSE THEN RUN skapa_UI.
+               ELSE RUN skapa4_UI.*/
+         END.
+         GET NEXT kalkq NO-LOCK.
+      END.
+      CLOSE QUERY kalkq.
+   END.
+END PROCEDURE.
+ 
+PROCEDURE raknakalar_UI :
+   DEFINE INPUT PARAMETER fkal AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kalknrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER globforetagvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER offertvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER xtypmtrlvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR kalkftemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalk_temp.
+   EMPTY TEMP-TABLE kalk_temp NO-ERROR. 
+   ASSIGN
+   
+   xtypmtrl = xtypmtrlvar.
+   offert = offertvar.
+   FIND FIRST FASTSPEC WHERE FASTSPEC.KALKNR = kalknrvar NO-LOCK NO-ERROR.
+   IF FASTSPEC.FAKTOR = TRUE THEN DO:
+      FIND FIRST FAKTOR WHERE FAKTOR.KALKNR = FASTSPEC.KALKNR AND
+         FAKTOR.OMRADE = FASTSPEC.OMRADE USE-INDEX OMRADE NO-LOCK NO-ERROR.       
+   END.
+   IF FASTSPEC.EGETPRIS = TRUE THEN DO:
+      FIND FIRST KALKBEF WHERE KALKBEF.KALKNR = FASTSPEC.KALKNR AND
+      KALKBEF.OMRADE = FASTSPEC.OMRADE AND KALKBEF.ARBKOD = "" AND
+      KALKBEF.LOPNR = 0 USE-INDEX OMRADE NO-LOCK NO-ERROR.
+   END.
+   ELSE FIND FIRST KALKBEF WHERE KALKBEF.KALKNR = 0 AND KALKBEF.KATAR = hjkatvar[1] NO-LOCK NO-ERROR.      
+   IF fkal NE ? THEN DO:
+      FIND FIRST kalkftemp WHERE kalkftemp.BESTID = fkal NO-LOCK NO-ERROR.
+      IF kalkftemp.BESTNAMN = "Ej fördelad"  THEN DO:
+         OPEN QUERY kalkq FOR EACH FASTKALK WHERE FASTKALK.KALKNR = FASTSPEC.KALKNR 
+         AND FASTKALK.OMRADE = FASTSPEC.OMRADE USE-INDEX OMRADE NO-LOCK.
+         GET FIRST kalkq NO-LOCK.
+         DO WHILE AVAILABLE(FASTKALK): 
+            FIND FIRST kalkftemp WHERE kalkftemp.ARBKOD = FASTKALK.ARBKOD AND
+            kalkftemp.LOPNR = FASTKALK.LOPNR AND kalkftemp.ANTAL = FASTKALK.ANTAL 
+            AND SUBSTRING(kalkftemp.ANM,1,20) = SUBSTRING(FASTKALK.BENAMNING,50,20) USE-INDEX NUM2 NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE kalkftemp  THEN DO:
+               IF FASTKALK.ARBKOD = "EGEN" THEN DO:
+                  /*ANTAL MINUS*/
+                  FIND FIRST befbuff WHERE befbuff.KALKNR = FASTSPEC.KALKNR AND
+                  befbuff.OMRADE = FASTSPEC.OMRADE AND befbuff.ARBKOD = FASTKALK.ARBKOD AND
+                  befbuff.LOPNR = FASTKALK.LOPNR USE-INDEX OMRADE NO-LOCK NO-ERROR. 
+                  RUN skapa2artal_UI.
+               END.
+               ELSE DO:
+                  IF FASTKALK.ANTAL = 0 THEN DO:
+                     /*GÖR INGET*/
+                  END.
+                  ELSE DO:
+                     IF FASTKALK.FAST = FALSE THEN RUN skapaartal_UI.
+                     ELSE RUN skapa4artal_UI.
+                  END.
+                  
+               END.
+            END.         
+            GET NEXT kalkq NO-LOCK.
+         END.
+      END.
+      
+      OPEN QUERY kalkfq FOR EACH kalkftemp WHERE kalkftemp.KALKNR = FASTSPEC.KALKNR 
+      AND kalkftemp.BESTID = fkal USE-INDEX NUM2 NO-LOCK.
+      GET FIRST kalkfq NO-LOCK.
+      DO WHILE AVAILABLE(kalkftemp):      
+         FIND FIRST FASTKALK WHERE FASTKALK.OMRADE = FASTSPEC.OMRADE AND FASTKALK.KALKNR = kalkftemp.KALKNR AND FASTKALK.ARBKOD = kalkftemp.ARBKOD 
+         AND FASTKALK.LOPNR = kalkftemp.LOPNR AND FASTKALK.ANTAL = kalkftemp.ANTAL  NO-LOCK.
+         IF FASTKALK.ARBKOD = "EGEN" THEN DO:
+            /*ANTAL MINUS*/
+            FIND FIRST befbuff WHERE befbuff.KALKNR = FASTSPEC.KALKNR AND
+            befbuff.OMRADE = FASTSPEC.OMRADE AND befbuff.ARBKOD = FASTKALK.ARBKOD AND
+            befbuff.LOPNR = FASTKALK.LOPNR USE-INDEX OMRADE NO-LOCK NO-ERROR. 
+            RUN skapa2artal_UI.
+         END.
+         ELSE DO:
+            /*ANTAL MINUS*/
+         
+            IF FASTKALK.ANTAL = 0 THEN DO:
+                /*GÖR INGET*/
+            END.
+            ELSE DO:
+               IF FASTKALK.FAST = FALSE THEN RUN skapaartal_UI.
+               ELSE RUN skapa4artal_UI.
+            END.
+         END.
+         IF AVAILABLE kalk_temp THEN DO: 
+            ASSIGN            
+            kalk_temp.PROCENT = kalkftemp.PROCENT. /*Använd för att ladda in procent*/
+            kalk_temp.F1 = kalk_temp.F1 * kalkftemp.PROCENT / 100.
+            kalk_temp.F2 = kalk_temp.F2 * kalkftemp.PROCENT / 100.
+            kalk_temp.F3 = kalk_temp.F3 * kalkftemp.PROCENT / 100.
+            kalk_temp.F4 = kalk_temp.F4 * kalkftemp.PROCENT / 100.
+            kalk_temp.F5 = kalk_temp.F5 * kalkftemp.PROCENT / 100.
+            kalk_temp.F6 = kalk_temp.F6 * kalkftemp.PROCENT / 100.
+            kalk_temp.F7 = kalk_temp.F7 * kalkftemp.PROCENT / 100.
+            kalk_temp.F8 = kalk_temp.F8 * kalkftemp.PROCENT / 100.
+            kalk_temp.F9 = kalk_temp.F9 * kalkftemp.PROCENT / 100.
+            
+            kalk_temp.EA = kalk_temp.EA * kalkftemp.PROCENT / 100.
+            kalk_temp.ARBETE = kalk_temp.ARBETE * kalkftemp.PROCENT / 100.
+            kalk_temp.MATERIEL = kalk_temp.MATERIEL * kalkftemp.PROCENT / 100.
+            kalk_temp.MASKINKOST = kalk_temp.MASKINKOST * kalkftemp.PROCENT / 100.
+            kalk_temp.OVRIGT = kalk_temp.OVRIGT * kalkftemp.PROCENT / 100.
+            kalk_temp.ENTRP = kalk_temp.ENTRP * kalkftemp.PROCENT / 100.
+            kalk_temp.ANTAL = kalk_temp.ANTAL * kalkftemp.PROCENT / 100.
+            kalk_temp.UTRUST = kalk_temp.UTRUST * kalkftemp.PROCENT / 100.
+            kalk_temp.UTRUSTKOST = kalk_temp.UTRUSTKOST * kalkftemp.PROCENT / 100.
+            kalk_temp.MASKINTIMMAR = kalk_temp.MASKINTIMMAR * kalkftemp.PROCENT / 100.            
+         END.
+         GET NEXT kalkfq NO-LOCK.
+      END.
+      CLOSE QUERY kalkfq.         
+   END.
+   ELSE DO:
+      OPEN QUERY kalkq FOR EACH FASTKALK WHERE FASTKALK.KALKNR = FASTSPEC.KALKNR 
+      AND FASTKALK.OMRADE = FASTSPEC.OMRADE USE-INDEX OMRADE NO-LOCK.
+      GET FIRST kalkq NO-LOCK.
+      DO WHILE AVAILABLE(FASTKALK):
+         IF FASTKALK.ARBKOD = "EGEN" THEN DO:
+               /*ANTAL MINUS*/
+            FIND FIRST befbuff WHERE befbuff.KALKNR = FASTSPEC.KALKNR AND
+            befbuff.OMRADE = FASTSPEC.OMRADE AND befbuff.ARBKOD = FASTKALK.ARBKOD AND
+            befbuff.LOPNR = FASTKALK.LOPNR USE-INDEX OMRADE NO-LOCK NO-ERROR. 
+            RUN skapa2artal_UI.
+         END.
+         ELSE DO:
+               /*ANTAL MINUS*/
+            IF FASTKALK.ANTAL = 0 THEN DO:
+                /*GÖR INGET*/
+            END.
+            ELSE DO:
+               IF FASTKALK.FAST = FALSE THEN RUN skapaartal_UI.
+               ELSE RUN skapa4artal_UI.
+            END.
+         END.
+         GET NEXT kalkq NO-LOCK.
+      END.
+      CLOSE QUERY kalkq.
+   END.
+END PROCEDURE.
+
+PROCEDURE skapa2_UI : 
+                               
+END PROCEDURE.
+
+PROCEDURE skapa3_UI :
+         
+END PROCEDURE.
+
+PROCEDURE skapa4_UI :
+   DEBUGGER:SET-BREAK().
+     
+END PROCEDURE.
+
+PROCEDURE skapa_UI :
+    
+END PROCEDURE.
+
+
+PROCEDURE skapa2artal_UI : 
+                               
+END PROCEDURE.
+
+PROCEDURE  skapa4artal_UI:
+    
+END PROCEDURE.
+
+PROCEDURE skapaartal_UI :
+    
+END PROCEDURE.
+PROCEDURE procset_UI:  
+  IF NOT VALID-HANDLE(edataapph) THEN RUN EXTRADATAHMT.P PERSISTENT SET edataapph.            
+END PROCEDURE .
+

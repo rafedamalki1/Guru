@@ -1,0 +1,443 @@
+/*FNAMNAPP.P*/
+{STARTFORAPP.I}
+{EDIGRUPP.I}
+{SOKDEF.I}
+{KONSTRMTRL.I}
+{BBENAMNTEMP.I}
+DEFINE VARIABLE kod AS INTEGER NO-UNDO.
+DEFINE VARIABLE ord AS INTEGER NO-UNDO.
+DEFINE VARIABLE var2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE var3 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE var4 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE var5 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE var6 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE varB1 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE varB2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE varB3  AS CHARACTER NO-UNDO.
+DEFINE VARIABLE varB4  AS CHARACTER NO-UNDO.
+DEFINE VARIABLE varB5  AS CHARACTER NO-UNDO.
+DEFINE VARIABLE varB6  AS CHARACTER NO-UNDO.
+DEFINE VARIABLE varID1 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE varID2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE benvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE namn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE nynamn AS CHARACTER NO-UNDO.
+DEFINE TEMP-TABLE hjkonsttemp NO-UNDO
+   FIELD KONSKOD AS INTEGER
+   FIELD GKTYPKOD AS CHARACTER
+   FIELD NKTYPKOD AS CHARACTER
+   INDEX KONSKOD GKTYPKOD NKTYPKOD.
+PROCEDURE laddaedi_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR edigrupptemp.
+   EMPTY TEMP-TABLE edigrupptemp NO-ERROR. 
+   DO TRANSACTION:
+      OPEN QUERY ediq FOR EACH EDIGRUPP NO-LOCK.
+      GET FIRST ediq NO-LOCK.
+      DO WHILE AVAILABLE(EDIGRUPP):
+         CREATE edigrupptemp.
+         BUFFER-COPY EDIGRUPP TO edigrupptemp.
+         GET NEXT ediq NO-LOCK.
+      END.
+      CLOSE QUERY ediq.
+   END.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE btnkop_UI :
+   DEFINE INPUT-OUTPUT PARAMETER kongrkod AS INTEGER NO-UNDO.   
+   DEFINE INPUT PARAMETER FILL-IN-BEN-2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TOG_KON       AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER TOG_KONVAL    AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER TOG_KONMATRL  AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER TOG_P3  AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER TOG_KONANM  AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER ers_uid  AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR konstgrptemp. 
+   DEFINE OUTPUT PARAMETER TABLE FOR bbenamntemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR konsttemp.
+   DEFINE BUFFER konstbuff FOR KONSTGRUPP.
+   DEFINE BUFFER benbuff FOR BBENAMNING.
+   DEFINE BUFFER edibuff FOR EDIGRUPP.   
+   DEFINE BUFFER konstrbuff FOR KONSTRUKTION.
+   DEFINE BUFFER konvbuff FOR KONSTVAL.   
+   DEFINE BUFFER mtrlbuff FOR MTRLBER.
+   DEFINE BUFFER kalkberbuff FOR KALKBER.
+   DEFINE BUFFER fastanmbuff FOR FASTANM.
+  
+   DEFINE VARIABLE hjkonstvar AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE konstgrptemp NO-ERROR. 
+   EMPTY TEMP-TABLE bbenamntemp NO-ERROR.
+   EMPTY TEMP-TABLE konsttemp NO-ERROR. 
+   FIND LAST KONSTGRUPP USE-INDEX KOD NO-LOCK NO-ERROR.
+   IF AVAILABLE KONSTGRUPP THEN DO:
+      kod = KONSTGRUPP.KONSKOD + 1.
+      FIND LAST KONSTGRUPP USE-INDEX ORD NO-LOCK NO-ERROR.
+      ord = KONSTGRUPP.ORDNING + 1.
+   END.
+   ELSE DO:
+      ASSIGN
+      kod = 1
+      ord = 1.
+   END.   
+   
+   FIND FIRST KONSTGRUPP WHERE KONSTGRUPP.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+   DO TRANSACTION:
+      CREATE konstbuff.
+      BUFFER-COPY KONSTGRUPP TO konstbuff.
+      ASSIGN
+      konstbuff.BENAMNING = FILL-IN-BEN-2
+      konstbuff.KONSKOD = kod
+      konstbuff.ORDNING = ord
+      konstbuff.KONSKODMASTER = kongrkod
+      konstbuff.UID = ers_uid.
+      
+      CREATE konstgrptemp.
+      BUFFER-COPY konstbuff TO konstgrptemp.
+      IF konstgrptemp.UID NE 0 THEN DO:
+         FIND FIRST UTBYTESLNAMN WHERE UTBYTESLNAMN.UID = konstgrptemp.UID NO-LOCK NO-ERROR.
+         IF AVAILABLE UTBYTESLNAMN THEN DO:
+             konstgrptemp.UNAMN =  UTBYTESLNAMN.UNAMN.
+         END. 
+       END.
+      ELSE DO:
+        ASSIGN konstgrptemp.UNAMN = "".
+      END. 
+       
+      FOR EACH BBENAMNING WHERE BBENAMNING.KONSKOD = kongrkod NO-LOCK.
+         CREATE benbuff.
+         BUFFER-COPY BBENAMNING TO benbuff.
+         ASSIGN
+         benbuff.KONSKOD = kod.
+         CREATE bbenamntemp.
+         BUFFER-COPY benbuff TO bbenamntemp.
+      END.     
+      FOR EACH EDIGRUPP WHERE EDIGRUPP.KONSKOD = kongrkod NO-LOCK.
+         CREATE edibuff.
+         BUFFER-COPY EDIGRUPP TO edibuff.
+         ASSIGN
+         edibuff.KONSKOD = kod.
+      END.
+      
+   END.
+   
+   IF TOG_KON = TRUE THEN DO:
+      FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = kongrkod NO-LOCK.  
+         hjkonstvar = KONSTRUKTION.KTYPKOD.
+         REPEAT:
+            hjkonstvar = hjkonstvar + "_".
+            FIND FIRST konstrbuff WHERE konstrbuff.KTYPKOD = hjkonstvar NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE konstrbuff THEN DO:
+               CREATE hjkonsttemp.
+               ASSIGN
+               hjkonsttemp.KONSKOD = kod 
+               hjkonsttemp.GKTYPKOD = KONSTRUKTION.KTYPKOD
+               hjkonsttemp.NKTYPKOD = hjkonstvar.
+               LEAVE. 
+            END.
+         END.
+         CREATE konstrbuff.
+         BUFFER-COPY KONSTRUKTION TO konstrbuff.
+         ASSIGN
+         konstrbuff.KONSKOD = kod
+         konstrbuff.KTYPKOD = hjkonstvar.
+         CREATE konsttemp.
+         BUFFER-COPY konstrbuff TO konsttemp .
+      END.
+      IF TOG_KONVAL = TRUE THEN DO:
+         FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = kongrkod NO-LOCK.      
+            CREATE konvbuff.
+            BUFFER-COPY KONSTVAL TO konvbuff.
+            ASSIGN
+            konvbuff.KONSKOD = kod.        
+         END.        
+         FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = kod EXCLUSIVE-LOCK,
+         EACH hjkonsttemp WHERE hjkonsttemp.KONSKOD = KONSTVAL.KONSKOD AND hjkonsttemp.GKTYPKOD = KONSTVAL.KTYPKOD:
+            KONSTVAL.KTYPKOD = hjkonsttemp.NKTYPKOD.
+         END.        
+      END.
+   END.
+   ELSE IF TOG_KON = FALSE AND TOG_KONVAL = TRUE THEN DO TRANSACTION: 
+      hjkonstvar = "KOPI".
+      REPEAT:
+         hjkonstvar = hjkonstvar + "_".
+         FIND FIRST konstrbuff WHERE konstrbuff.KTYPKOD = hjkonstvar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE konstrbuff THEN DO:
+            LEAVE. 
+         END.
+      END.
+      CREATE KONSTRUKTION.
+      ASSIGN
+      KONSTRUKTION.KONSKOD = kod
+      KONSTRUKTION.KTYPKOD = hjkonstvar
+      KONSTRUKTION.BENAMNING = "Byt benämning"
+      KONSTRUKTION.ORDNING = 1.
+      CREATE konsttemp.
+      BUFFER-COPY KONSTRUKTION TO konsttemp .
+      FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = kongrkod NO-LOCK.      
+         FIND FIRST konvbuff WHERE konvbuff.KONSKOD = kod AND konvbuff.BB = KONSTVAL.BB AND 
+         konvbuff.KVALKOD = KONSTVAL.KVALKOD
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE konvbuff THEN DO:
+            CREATE konvbuff.
+            BUFFER-COPY KONSTVAL TO konvbuff.
+            ASSIGN  
+            konvbuff.KOPP = FALSE    
+            konvbuff.KONSKOD = kod
+            konvbuff.KTYPKOD = hjkonstvar.        
+         END.
+      END.
+      
+   END.     
+   IF TOG_KONMATRL THEN DO:
+      FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = kongrkod  NO-LOCK.             
+         FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD NO-LOCK.
+            FIND FIRST hjkonsttemp WHERE hjkonsttemp.KONSKOD = kod AND hjkonsttemp.GKTYPKOD = KONSTRUKTION.KTYPKOD
+            NO-ERROR.
+            IF NOT AVAILABLE hjkonsttemp THEN DO:
+               FIND FIRST hjkonsttemp NO-LOCK NO-ERROR.
+            END.
+            CREATE mtrlbuff.
+            BUFFER-COPY MTRLBER TO mtrlbuff.
+            ASSIGN           
+            mtrlbuff.KTYPKOD = hjkonsttemp.NKTYPKOD.           
+         END.
+      END.      
+   END.
+   IF TOG_P3 = TRUE THEN DO:
+      FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = kongrkod  NO-LOCK.             
+         FOR EACH KALKBER WHERE KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD NO-LOCK.
+            FIND FIRST hjkonsttemp WHERE hjkonsttemp.KONSKOD = kod AND hjkonsttemp.GKTYPKOD = KONSTRUKTION.KTYPKOD
+            NO-ERROR.
+            IF NOT AVAILABLE hjkonsttemp THEN DO:
+               FIND FIRST hjkonsttemp NO-LOCK NO-ERROR.
+            END.
+            CREATE kalkberbuff.
+            BUFFER-COPY KALKBER TO kalkberbuff.
+            ASSIGN           
+            kalkberbuff.KTYPKOD = hjkonsttemp.NKTYPKOD.           
+         END.
+      END.  
+      
+   END.
+   
+   IF TOG_KONANM = TRUE THEN DO:
+      FOR EACH FASTANM WHERE FASTANM.OMRADE = STRING(kongrkod) AND FASTANM.PROGRAM = "BERE" NO-LOCK:
+         CREATE fastanmbuff.
+         BUFFER-COPY  FASTANM TO  fastanmbuff.
+         ASSIGN fastanmbuff.OMRADE = STRING(kod).
+      END.         
+   END.   
+   kongrkod = kod.
+   RUN bildladda_UI (INPUT 1).
+   
+END PROCEDURE.
+{BERBILDLADDA.i}
+PROCEDURE btnok_UI :
+   DEFINE INPUT-OUTPUT PARAMETER kongrkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER nykonst AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER cmbedi AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER ers_uid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp. 
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR konstgrptemp.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR bbenamntemp.
+   DO TRANSACTION:
+      IF nykonst = FALSE THEN DO:
+         FIND FIRST KONSTGRUPP WHERE KONSTGRUPP.KONSKOD = kongrkod EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE KONSTGRUPP THEN RETURN.
+         FIND FIRST BBENAMNING WHERE BBENAMNING.KONSKOD = kongrkod EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE BBENAMNING THEN RETURN.
+         FIND FIRST valsoktemp WHERE valsoktemp.SOKINT[1] = 1 NO-LOCK NO-ERROR.
+         IF AVAILABLE valsoktemp THEN DO:
+            ASSIGN
+            var2 = valsoktemp.SOKCHAR[2]
+            var3 = valsoktemp.SOKCHAR[3]
+            var4 = valsoktemp.SOKCHAR[4]
+            var5 = valsoktemp.SOKCHAR[5]
+            var6 = valsoktemp.SOKCHAR[6].
+            DELETE valsoktemp.
+            FIND FIRST valsoktemp WHERE valsoktemp.SOKINT[1] = 2 NO-LOCK NO-ERROR.
+            IF AVAILABLE valsoktemp THEN DO:
+               ASSIGN
+               varB1  = valsoktemp.SOKCHAR[1]
+               varB2  = valsoktemp.SOKCHAR[2]
+               varB3  = valsoktemp.SOKCHAR[3]
+               varB4  = valsoktemp.SOKCHAR[4]
+               varB5  = valsoktemp.SOKCHAR[5]
+               varB6  = valsoktemp.SOKCHAR[6]
+               varID1 = valsoktemp.SOKCHAR[7]
+               varID2 = valsoktemp.SOKCHAR[8]
+               benvar = valsoktemp.SOKCHAR[9].                                        
+               DELETE valsoktemp.
+               IF varB2 NE var2 THEN DO:
+                  ASSIGN
+                  nynamn = varB2
+                  namn = var2.
+                  RUN bytnamn_UI (INPUT kongrkod,INPUT namn,INPUT nynamn).
+               END.
+               IF varB3 NE var3 THEN DO:
+                  ASSIGN
+                  nynamn = varB3
+                  namn = var3.
+                  RUN bytnamn_UI (INPUT kongrkod,INPUT namn,INPUT nynamn).
+               END.
+               IF varB4 NE var4 THEN DO:
+                  ASSIGN
+                  nynamn = varB4
+                  namn = var4.
+                  RUN bytnamn_UI (INPUT kongrkod,INPUT namn,INPUT nynamn).
+               END.
+               IF varB5 NE var5 THEN DO:
+                  ASSIGN
+                  nynamn = varB5
+                  namn = var5.
+                  RUN bytnamn_UI (INPUT kongrkod,INPUT namn,INPUT nynamn).
+               END.
+               IF varB6 NE var6 THEN DO:
+                  ASSIGN
+                  nynamn = varB6
+                  namn = var6.
+                  RUN bytnamn_UI (INPUT kongrkod,INPUT namn,INPUT nynamn).
+               END.
+               ASSIGN
+               KONSTGRUPP.BENAMNING = benvar 
+               KONSTGRUPP.UID = ers_uid               
+               BBENAMNING.B1 = varB1 
+               BBENAMNING.B2 = varB2 
+               BBENAMNING.B3 = varB3 
+               BBENAMNING.B4 = varB4 
+               BBENAMNING.B5 = varB5 
+               BBENAMNING.B6 = varB6 
+               BBENAMNING.ID1 = varID1
+               BBENAMNING.ID2 = varID2.
+               
+               FIND FIRST konstgrptemp WHERE konstgrptemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+               IF AVAILABLE konstgrptemp THEN DO:
+                  ASSIGN konstgrptemp.BENAMNING = benvar
+                         konstgrptemp.UID = ers_uid.
+                  IF konstgrptemp.UID NE 0 THEN DO:
+                     FIND FIRST UTBYTESLNAMN WHERE UTBYTESLNAMN.UID = konstgrptemp.UID NO-LOCK NO-ERROR.
+                     IF AVAILABLE UTBYTESLNAMN THEN DO:
+                         konstgrptemp.UNAMN =  UTBYTESLNAMN.UNAMN.                         
+                      END. 
+                   END.
+                   ELSE DO:
+                        ASSIGN konstgrptemp.UNAMN = "".
+                    END.
+               END.
+               FIND FIRST bbenamntemp WHERE bbenamntemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+               IF AVAILABLE bbenamntemp THEN DO:
+                  ASSIGN
+                  bbenamntemp.B1 = varB1 
+                  bbenamntemp.B2 = varB2 
+                  bbenamntemp.B3 = varB3 
+                  bbenamntemp.B4 = varB4 
+                  bbenamntemp.B5 = varB5 
+                  bbenamntemp.B6 = varB6 
+                  bbenamntemp.ID1 = varID1
+                  bbenamntemp.ID2 = varID2.
+               END.
+               IF Guru.Konstanter:globniv = 0 THEN DO:
+                  FIND FIRST EDIGRUPP WHERE EDIGRUPP.KONSKOD = kongrkod
+                  USE-INDEX KOD EXCLUSIVE-LOCK NO-ERROR.
+                  IF NOT AVAILABLE EDIGRUPP THEN DO:
+                     CREATE EDIGRUPP.
+                     ASSIGN
+                     EDIGRUPP.BENAMNING = cmbedi
+                     EDIGRUPP.KONSKOD = kongrkod.
+                  END.
+                  ELSE DO:
+                     EDIGRUPP.BENAMNING = cmbedi.
+                  END.
+                  RELEASE EDIGRUPP NO-ERROR.
+               END.
+               RELEASE KONSTGRUPP NO-ERROR.
+               RELEASE BBENAMNING NO-ERROR.
+            END.
+         END.
+      END.
+      ELSE DO:
+         FIND FIRST valsoktemp WHERE valsoktemp.SOKINT[1] = 2 NO-LOCK NO-ERROR.
+         IF AVAILABLE valsoktemp THEN DO:
+            ASSIGN
+            varB1  = valsoktemp.SOKCHAR[1]
+            varB2  = valsoktemp.SOKCHAR[2]
+            varB3  = valsoktemp.SOKCHAR[3]
+            varB4  = valsoktemp.SOKCHAR[4]
+            varB5  = valsoktemp.SOKCHAR[5]
+            varB6  = valsoktemp.SOKCHAR[6]
+            varID1 = valsoktemp.SOKCHAR[7]
+            varID2 = valsoktemp.SOKCHAR[8]
+            benvar = valsoktemp.SOKCHAR[9].                                        
+            DELETE valsoktemp.
+            FIND LAST KONSTGRUPP USE-INDEX KOD NO-LOCK NO-ERROR.
+            IF AVAILABLE KONSTGRUPP THEN DO:
+               kod = KONSTGRUPP.KONSKOD + 1.
+               FIND LAST KONSTGRUPP USE-INDEX ORD NO-LOCK NO-ERROR.
+               ord = KONSTGRUPP.ORDNING + 1.
+            END.
+            ELSE DO:
+               ASSIGN
+               kod = 1
+               ord = 1.
+            END.
+            kongrkod = kod.
+            CREATE KONSTGRUPP.
+            ASSIGN
+            KONSTGRUPP.BENAMNING = benvar
+            KONSTGRUPP.KONSKOD = kod
+            KONSTGRUPP.ORDNING = ord
+            KONSTGRUPP.UID = ers_uid.
+            CREATE konstgrptemp.
+            BUFFER-COPY KONSTGRUPP TO konstgrptemp.
+            IF konstgrptemp.UID NE 0 THEN DO:
+                 FIND FIRST UTBYTESLNAMN WHERE UTBYTESLNAMN.UID = konstgrptemp.UID NO-LOCK NO-ERROR.
+                 IF AVAILABLE UTBYTESLNAMN THEN DO:
+                     konstgrptemp.UNAMN =  UTBYTESLNAMN.UNAMN.
+                 END. 
+            END.
+            ELSE DO:
+                ASSIGN konstgrptemp.UNAMN = "".
+            END.
+            CREATE BBENAMNING.
+            ASSIGN
+            BBENAMNING.B1 = varB1
+            BBENAMNING.B2 = varB2
+            BBENAMNING.B3 = varB3
+            BBENAMNING.B4 = varB4
+            BBENAMNING.B5 = varB5
+            BBENAMNING.B6 = varB6
+            BBENAMNING.ID1 = varID1
+            BBENAMNING.ID2 = varID2
+            BBENAMNING.KONSKOD = kod.
+            CREATE bbenamntemp.
+            BUFFER-COPY BBENAMNING TO bbenamntemp.
+            IF Guru.Konstanter:globniv = 0 THEN DO:
+               CREATE EDIGRUPP.
+               ASSIGN
+               EDIGRUPP.BENAMNING = cmbedi
+               EDIGRUPP.KONSKOD = kod.
+            END.
+            RELEASE EDIGRUPP NO-ERROR.
+            RELEASE KONSTGRUPP NO-ERROR.
+            RELEASE BBENAMNING NO-ERROR.
+         END.
+      END.
+   END.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE bytnamn_UI :
+   DEFINE INPUT PARAMETER kongrkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER namn AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER nynamn AS CHARACTER NO-UNDO.   
+   OPEN QUERY namnq FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = kongrkod AND
+   KONSTVAL.BB = namn NO-LOCK.
+   GET FIRST namnq NO-LOCK.
+   DO WHILE AVAILABLE(KONSTVAL):
+      GET CURRENT namnq EXCLUSIVE-LOCK.
+      ASSIGN KONSTVAL.BB = nynamn.
+      GET NEXT namnq NO-LOCK.
+   END.
+   CLOSE QUERY namnq.   
+   
+END PROCEDURE.

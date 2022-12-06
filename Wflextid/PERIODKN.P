@@ -1,0 +1,351 @@
+/*PERIODKN.P*/
+{AOKOLLNW.I}
+DEFINE VARIABLE hjdat AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER FILL-IN-STARTDAT AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER FILL-IN-SLUTDAT AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER FILL-IN_RESMAL AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE regstartsek AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE regslutsek AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE regdagnamn AS CHARACTER FORMAT "X(3)" NO-UNDO.
+DEFINE NEW SHARED VARIABLE regdatum AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE regvnr AS INTEGER FORMAT "999" NO-UNDO.
+DEFINE NEW SHARED VARIABLE regstart LIKE TIDREGITAB.START NO-UNDO. 
+DEFINE NEW SHARED VARIABLE regslut LIKE TIDREGITAB.SLUT NO-UNDO.
+DEFINE NEW SHARED VARIABLE regtotalt LIKE TIDREGITAB.TOTALT NO-UNDO.
+DEFINE NEW SHARED VARIABLE frustarten AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE fruslutet AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE kaffestart AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE kaffeslut AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE lunchstarten AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE lunchslutet AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE nytid AS DECIMAL FORMAT "99.99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE sekunder AS INTEGER NO-UNDO.    
+DEFINE NEW SHARED VARIABLE vart AS CHARACTER FORMAT "X(3)" NO-UNDO.
+DEFINE NEW SHARED VARIABLE musz AS LOGICAL NO-UNDO.  
+DEFINE NEW SHARED VARIABLE tidtabrec AS RECID NO-UNDO.
+DEFINE VARIABLE semdagar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE sjdagar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE komptimmar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE maxarbkort AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE foremaxarbkort AS DECIMAL NO-UNDO.
+{EXTRADATA.I}
+RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+
+FIND FIRST TIMKOSTNADSTAB WHERE TIMKOSTNADSTAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+TIMKOSTNADSTAB.PRISTYP = AONRTAB.PRISTYP USE-INDEX PRISPERS NO-LOCK NO-ERROR. 
+FIND FIRST FLEXAVT WHERE FLEXAVT.PERSONALKOD = PERSONALTAB.PERSONALKOD NO-LOCK NO-ERROR.
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+/* arbetstidsförkortning*/
+IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "LULE"  OR Guru.Konstanter:globforetag = "ELPA" THEN DO:      
+   DEFINE BUFFER tidbuff10 FOR TIDREGITAB.
+   DEFINE VARIABLE totarbkort AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE avarfor AS INTEGER NO-UNDO.
+   IF AONRTAB.AONR = "160" THEN DO:              
+      totarbkort = 0.                       
+      FOR EACH tidbuff10 WHERE tidbuff10.PERSONALKOD = PERSONALTAB.PERSONALKOD AND tidbuff10.AONR = "160"
+      AND YEAR(tidbuff10.DATUM) = YEAR(FILL-IN-STARTDAT) AND tidbuff10.TIDLOG = TRUE NO-LOCK:
+         totarbkort = totarbkort + klock100(tidbuff10.TOTALT).
+      END.         
+      regdatum = FILL-IN-STARTDAT.
+      RUN REGDAG.P.
+      RUN REGVEC.P.
+      RUN SLFLARB.P.
+      totarbkort = totarbkort + (1 + FILL-IN-SLUTDAT - FILL-IN-STARTDAT ) * klock100(regtotalt).
+      /*ATKGRÄNS*/
+      IF Guru.Konstanter:globforetag = "gkal"  THEN foremaxarbkort = 63.
+      ELSE IF Guru.Konstanter:globforetag = "SNAT"  THEN foremaxarbkort = 63.
+      ELSE IF Guru.Konstanter:globforetag = "SUND"  THEN foremaxarbkort = 54.
+      ELSE IF Guru.Konstanter:globforetag = "LULE"  THEN foremaxarbkort = 63.            
+      ELSE foremaxarbkort = 63.    
+      avarfor = 0.
+      IF Guru.Konstanter:globforetag = "gkal" OR Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "elpa" THEN DO:   
+         RUN havafor (INPUT PERSONALTAB.PERSONALKOD, OUTPUT avarfor).                        
+      END.
+      IF avarfor > 0 THEN maxarbkort = avarfor.
+      ELSE maxarbkort = foremaxarbkort.      
+      IF totarbkort > maxarbkort THEN DO:
+         totarbkort = totarbkort - ((1 + FILL-IN-SLUTDAT - FILL-IN-STARTDAT ) * klock100(regtotalt)).
+         CREATE felmeddtemp.  
+         felmeddtemp.felmedd = "Max " + STRING(maxarbkort) + " timmar per år får skrivas på arbetstidförkortning,du har skrivit"  + STRING(totarbkort) + "timmar".
+         RETURN.                  
+      END.            
+   END.  
+   IF AONRTAB.AONR = "161" THEN DO:              
+      totarbkort = 0.                       
+      FOR EACH tidbuff10 WHERE tidbuff10.PERSONALKOD = PERSONALTAB.PERSONALKOD AND tidbuff10.AONR = "161"
+      AND YEAR(tidbuff10.DATUM) = YEAR(FILL-IN-STARTDAT) AND tidbuff10.TIDLOG = TRUE NO-LOCK:
+         totarbkort = totarbkort + klock100(tidbuff10.TOTALT).
+      END.            
+      regdatum = FILL-IN-STARTDAT.
+      RUN REGDAG.P.
+      RUN REGVEC.P.
+      RUN SLFLARB.P.      
+      totarbkort = totarbkort + (1 + FILL-IN-SLUTDAT - FILL-IN-STARTDAT ) * klock100(regtotalt).
+      /*ATKGRÄNS*/      
+      maxarbkort = 27.      
+      IF totarbkort > maxarbkort THEN DO:
+         totarbkort = totarbkort - (( 1 + FILL-IN-SLUTDAT - FILL-IN-STARTDAT ) * klock100(regtotalt)).
+         CREATE felmeddtemp.  
+         felmeddtemp.felmedd = "Max " + STRING(maxarbkort) + " timmar per år får skrivas på arbetstidförkortning, du har tidigare skrivit "  + STRING(totarbkort) + "timmar".
+         RETURN.                  
+      END.            
+   END.  
+   IF AONRTAB.AONR = "135" THEN DO:              
+      totarbkort = 0.                       
+      FOR EACH tidbuff10 WHERE tidbuff10.PERSONALKOD = PERSONALTAB.PERSONALKOD AND tidbuff10.AONR = "135"
+      AND YEAR(tidbuff10.DATUM) = YEAR(FILL-IN-STARTDAT) AND tidbuff10.TIDLOG = TRUE NO-LOCK:
+         totarbkort = totarbkort + klock100(tidbuff10.TOTALT).
+      END.         
+      regdatum = FILL-IN-STARTDAT.
+      RUN REGDAG.P.
+      RUN REGVEC.P.
+      RUN SLFLARB.P.
+      totarbkort = totarbkort + (FILL-IN-SLUTDAT - FILL-IN-STARTDAT ) * klock100(regtotalt).      
+   END.  
+END.   
+FIND FIRST FLEXREG WHERE FLEXREG.KOD = FLEXAVT.FLEXKOD USE-INDEX FLEXREG NO-LOCK NO-ERROR.
+IF AVAILABLE FLEXREG THEN DO:
+   IF FILL-IN-STARTDAT LE FLEXREG.SALDOKORD THEN DO:
+      CREATE felmeddtemp. 
+      felmeddtemp.felmedd = "Flextid är låst till och med " + STRING(FLEXREG.SALDOKORD).
+      RETURN. 
+   END.   
+END.   
+FIND FIRST FLEXTID WHERE FLEXTID.PERSONALKOD = PERSONALTAB.PERSONALKOD AND 
+FLEXTID.DATUM GE FILL-IN-STARTDAT AND FLEXTID.DATUM LE FILL-IN-SLUTDAT AND 
+FLEXTID.AUTO NE "PERI" NO-LOCK NO-ERROR.
+IF AVAILABLE FLEXTID THEN DO:
+   CREATE felmeddtemp. 
+   felmeddtemp.felmedd = "Det finns redan flextid registrerad denna period".
+   RETURN.
+END.  
+ELSE DO:
+   hjdat = FILL-IN-STARTDAT.
+   period:
+   REPEAT:
+      regdatum = hjdat.
+      RUN REGDAG.P.
+      RUN REGVEC.P.
+      RUN SLFLARB.P.
+      IF regstart NE regslut THEN DO TRANSACTION:
+         FIND FIRST FLEXTID WHERE FLEXTID.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+         FLEXTID.DATUM = hjdat AND FLEXTID.KNAPP = "In" AND FLEXTID.AUTO = "PERI" 
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE FLEXTID THEN DO:            
+            CREATE FLEXTID.
+            ASSIGN
+            FLEXTID.AUTO = "PERI"
+            FLEXTID.DATUM = hjdat
+            FLEXTID.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            FLEXTID.TID = regstart
+            FLEXTID.KNAPP = "In"
+            FLEXTID.KOM = TRUE
+            FLEXTID.GICK = FALSE.
+         END.
+         ASSIGN   
+         FLEXTID.AONR = AONRTAB.AONR
+         FLEXTID.DELNR = AONRTAB.DELNR
+         FLEXTID.ORSAK = AONRTAB.ORT.
+         FIND FIRST FLEXTID WHERE FLEXTID.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+         FLEXTID.DATUM = hjdat AND FLEXTID.KNAPP = "Ut" AND FLEXTID.AUTO = "PERI" 
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE FLEXTID THEN DO:
+            CREATE FLEXTID.
+            ASSIGN
+            FLEXTID.AUTO = "PERI"
+            FLEXTID.DATUM = hjdat
+            FLEXTID.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            FLEXTID.TID = regslut
+            FLEXTID.KNAPP = "Ut"
+            FLEXTID.KOM = FALSE
+            FLEXTID.GICK = TRUE.
+         END.
+         ASSIGN   
+         FLEXTID.AONR = AONRTAB.AONR
+         FLEXTID.DELNR = AONRTAB.DELNR
+         FLEXTID.ORSAK = AONRTAB.ORT.
+         regdatum = hjdat.
+         FIND FIRST FLEXDAG WHERE FLEXDAG.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+         FLEXDAG.DATUM = regdatum USE-INDEX FLEX EXCLUSIVE-LOCK NO-ERROR.     
+         IF NOT AVAILABLE FLEXDAG THEN DO:
+            CREATE FLEXDAG.
+            ASSIGN FLEXDAG.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            FLEXDAG.KONTROLL = "Ejkontroll".
+         END.         
+         ASSIGN
+         FLEXDAG.KONTROLL = "Kontroll"
+         FLEXDAG.DATUM = regdatum
+         FLEXDAG.START = regstart
+         FLEXDAG.SLUT = regslut
+         FLEXDAG.TOTALT = regtotalt
+         FLEXDAG.PLUS = 0
+         FLEXDAG.FELMED = ""
+         FLEXDAG.FELOK = TRUE.
+         IF AONRTAB.AONR = "155" THEN ASSIGN FLEXDAG.FLARB = 0 - regtotalt.
+         ELSE ASSIGN FLEXDAG.FLARB = 0.
+         ASSIGN
+         vart = "nya".
+         RUN TIDSTART.P.
+         IF musz = TRUE THEN DO:
+            musz = FALSE.
+            RETURN.
+         END.      
+         ELSE DO:
+            ASSIGN
+            vart = "nya".
+            RUN TIDSLUT.P.
+            IF musz = TRUE THEN DO:
+               musz = FALSE.
+               RETURN.
+            END.      
+            ELSE DO:
+               FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+               GODKOLL.DATAR = YEAR(regdatum) AND GODKOLL.DATMAN = MONTH(regdatum)
+               USE-INDEX PKODAR NO-LOCK NO-ERROR.         
+               IF AVAILABLE GODKOLL AND GODKOLL.DATUM GE regdatum THEN regdatum = regdatum.
+               ELSE DO:                  
+                  CREATE TIDREGITAB.
+                  ASSIGN TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+                  TIDREGITAB.START = regstart     
+                  TIDREGITAB.SLUT = regslut
+                  TIDREGITAB.PROGRAM = 'period' + STRING(TODAY) + ganv
+                  TIDREGITAB.DATUM = regdatum
+                  TIDREGITAB.DAG = regdagnamn 
+                  TIDREGITAB.VECKONUMMER = regvnr
+                  TIDREGITAB.TRAKTAMENTE = 0 
+                  TIDREGITAB.OVERTIDUTTAG = 'F'
+                  TIDREGITAB.AONR = AONRTAB.AONR 
+                  TIDREGITAB.DELNR = AONRTAB.DELNR
+                  TIDREGITAB.PRISTYP = AONRTAB.PRISTYP
+                  TIDREGITAB.PRIS = TIMKOSTNADSTAB.PRISA
+                  TIDREGITAB.RESMAL = FILL-IN_RESMAL.                                                
+                  RUN pris_UI.
+                  nytid = TIDREGITAB.START.
+                  RUN TIMSEK.P.
+                  regstartsek = sekunder.
+                  nytid = TIDREGITAB.SLUT.
+                  RUN TIMSEK.P.
+                  regslutsek = sekunder.
+                  regdatum = TIDREGITAB.DATUM.           
+                  RUN TOTTID.P.
+                  ASSIGN TIDREGITAB.TOTALT = nytid.
+                  VALIDATE TIDREGITAB.
+                  tidtabrec = RECID(TIDREGITAB). 
+
+                  IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:         
+                     musz = FALSE.  
+                     FIND TIDREGITAB WHERE RECID(TIDREGITAB) = tidtabrec NO-LOCK NO-ERROR.
+                     IF TIDREGITAB.AONR = "150" AND TIDREGITAB.DELNR = 0 THEN DO:      
+                        IF MONTH(TIDREGITAB.DATUM) < 5 THEN musz = TRUE.
+                        ELSE IF MONTH(TIDREGITAB.DATUM) = 12 AND DAY(TIDREGITAB.DATUM) GE 15 THEN musz = TRUE.           
+                        IF musz = TRUE THEN DO:
+                           musz = FALSE.                           
+                           RUN SEMTILL.P (INPUT persrec , INPUT TIDREGITAB.DATUM ,OUTPUT semdagar).                                             
+                           /* VERKAR BLI LÅSNING*/
+                           IF semdagar < 16 THEN DO:      
+                              DO:
+                                 FIND TIDREGITAB WHERE RECID(TIDREGITAB) = tidtabrec EXCLUSIVE-LOCK NO-ERROR.      
+                                 ASSIGN TIDREGITAB.LONTILLAGG = "5089"
+                                 TIDREGITAB.LONTILLANTAL = 1.
+                              END.                               
+                              FIND TIDREGITAB WHERE RECID(TIDREGITAB) = tidtabrec NO-LOCK NO-ERROR.                     
+                           END.
+                        END.                        
+                     END.     
+                     ELSE IF TIDREGITAB.AONR = "110" AND TIDREGITAB.DELNR = 0 THEN DO:       
+                        RUN SJINTY2.P (INPUT persrec , INPUT TIDREGITAB.DATUM).                                          
+                     END.
+                     IF TIDREGITAB.AONR NE "150" AND TIDREGITAB.LONTILLAGG = "5089" THEN DO:
+                        DO :               
+                           FIND TIDREGITAB WHERE RECID(TIDREGITAB) = tidtabrec EXCLUSIVE-LOCK NO-ERROR.      
+                           ASSIGN TIDREGITAB.LONTILLAGG = ""
+                           TIDREGITAB.LONTILLANTAL = 0.
+                        END. 
+                        RELEASE TIDREGITAB NO-ERROR. 
+                     END.
+                     IF TIDREGITAB.AONR NE "171" AND TIDREGITAB.LONTILLAGG = "260" AND TIDREGITAB.LONAUTO = TRUE THEN DO:
+                        DO :               
+                           FIND TIDREGITAB WHERE RECID(TIDREGITAB) = tidtabrec EXCLUSIVE-LOCK NO-ERROR.      
+                           ASSIGN TIDREGITAB.LONTILLAGG = ""
+                           TIDREGITAB.LONTILLANTAL = 0.
+                        END. 
+                        RELEASE TIDREGITAB NO-ERROR. 
+                     END.              
+                     IF TIDREGITAB.AONR = "171" AND TIDREGITAB.DELNR = 0 THEN DO:                             
+                        RUN VECKHAKL.P (INPUT persrec , INPUT TIDREGITAB.DATUM,OUTPUT komptimmar).                                          
+                        IF komptimmar > 0 THEN DO:      
+                           DO :
+                              FIND TIDREGITAB WHERE RECID(TIDREGITAB) = tidtabrec EXCLUSIVE-LOCK NO-ERROR.      
+                              ASSIGN TIDREGITAB.LONTILLAGG = "260"                     
+                              TIDREGITAB.LONTILLANTAL = komptimmar
+                              TIDREGITAB.LONAUTO = TRUE.
+                           END.                               
+                           FIND TIDREGITAB WHERE RECID(TIDREGITAB) = tidtabrec NO-LOCK NO-ERROR.                     
+                        END.
+                     END.         
+                  END.
+                  IF Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:         
+                     musz = FALSE.  
+                     FIND TIDREGITAB WHERE RECID(TIDREGITAB) = tidtabrec NO-LOCK NO-ERROR.
+                     IF TIDREGITAB.AONR = "110" AND TIDREGITAB.DELNR = 0 THEN DO:                               
+                        RUN SJINTY2.P (INPUT persrec , INPUT TIDREGITAB.DATUM).                                          
+                     END.
+                     IF TIDREGITAB.AONR NE "171" AND TIDREGITAB.LONTILLAGG = "260" AND TIDREGITAB.LONAUTO = TRUE THEN DO:
+                        DO :               
+                           FIND TIDREGITAB WHERE RECID(TIDREGITAB) = tidtabrec EXCLUSIVE-LOCK NO-ERROR.      
+                           ASSIGN TIDREGITAB.LONTILLAGG = ""
+                           TIDREGITAB.LONTILLANTAL = 0.
+                        END. 
+                        RELEASE TIDREGITAB NO-ERROR. 
+                     END.              
+                     /* msv får inte komptimmar för veckovila halvdag eller klämdag Ingrid 20101108
+                     Nu ska MSV också ha komptimmar för veckvila klämdag och halvdag Ulla Backman 20120510*/
+                     IF TIDREGITAB.AONR = "171" AND TIDREGITAB.DELNR = 0 THEN DO:      
+                        RUN VECKHAKL.P (INPUT persrec , INPUT TIDREGITAB.DATUM,OUTPUT komptimmar).                                          
+                        IF komptimmar > 0 THEN DO:      
+                           DO :
+                              FIND TIDREGITAB WHERE RECID(TIDREGITAB) = tidtabrec EXCLUSIVE-LOCK NO-ERROR.      
+                              ASSIGN TIDREGITAB.LONTILLAGG = "260"                     
+                              TIDREGITAB.LONTILLANTAL = komptimmar
+                              TIDREGITAB.LONAUTO = TRUE.
+                           END.                               
+                           FIND TIDREGITAB WHERE RECID(TIDREGITAB) = tidtabrec NO-LOCK NO-ERROR.                     
+                        END.
+                     END.
+                  END.                                    
+               END.
+            END.
+         END.
+      END.   
+      hjdat = hjdat + 1.
+      IF hjdat > FILL-IN-SLUTDAT THEN LEAVE period.
+   END.
+END. 
+IF AVAILABLE TIDREGITAB THEN RELEASE TIDREGITAB NO-ERROR.
+IF AVAILABLE FLEXTID THEN RELEASE FLEXTID NO-ERROR.
+IF AVAILABLE FLEXDAG THEN RELEASE FLEXDAG NO-ERROR.
+IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph NO-ERROR.
+edataapph = ?.
+
+PROCEDURE pris_UI :
+   /*PRISFOR*/
+   {PRISBEFTYP.I}   
+END PROCEDURE.
+
+{AVAFOR2.I}
+

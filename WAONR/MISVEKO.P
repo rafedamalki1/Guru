@@ -1,0 +1,205 @@
+/*
+               KSV Editor
+    Copyright: (C) 2000-2003 Serguey Klimoff (bulkl0DD)
+     Filename: MISVEKO.P
+      Comment: <comment>
+   Parameters:
+         Uses:
+      Used by:
+      Created: 2009.04.08 15:07 ELPAO   
+     Modified: 2009.08.26 13:37 ELPAO    
+     Modified: 2009.11.18 09:41 ELPAO    
+     Modified: 2010.07.09 11:28 ELPAO    
+     Modified:   
+*/
+
+/*FRÅGOR :
+SPOLBILEN - ska den över till ekonomi?
+mertid - över som normaltid
+rättningar - hur ska de skickas?
+*/
+
+{LESAMMAN.I}                                
+DEFINE INPUT PARAMETER vkdatum AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER korvar AS CHARACTER NO-UNDO.
+RUN sammut_UI (INPUT 1).
+
+DEFINE TEMP-TABLE ekotemp NO-UNDO
+   FIELD PERSONNUMMER AS CHARACTER
+   FIELD AONR AS CHARACTER
+   FIELD DELNR AS INTEGER
+   FIELD DATUM AS DATE
+   FIELD ANTAL AS DECIMAL
+   FIELD ARTKOD AS CHARACTER
+   INDEX PNR PERSONNUMMER DATUM AONR.
+
+
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+
+DEFINE VARIABLE dynxml AS HANDLE NO-UNDO.
+DEFINE VARIABLE expimpapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE okand AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kodanst AS CHARACTER NO-UNDO.
+DEFINE VARIABLE ovekoll AS LOGICAL NO-UNDO.
+DEFINE VARIABLE dirnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dirspar AS CHARACTER NO-UNDO.
+/*DEFINE INPUT PARAMETER leverantz AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER filnamnz AS CHARACTER NO-UNDO.*/
+DEFINE TEMP-TABLE tempnamn NO-UNDO
+   FIELD NAMNH AS HANDLE
+   FIELD TORGTH AS HANDLE
+   FIELD NODTAB AS CHARACTER.
+
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+FUNCTION klock60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ) :
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) * 60 / 100 ).   /* Function return value. */
+
+END FUNCTION.
+
+
+okand = FALSE.
+{UTXKMLKOLL.I}
+RUN VALUE(vxmlpro) PERSISTENT SET dynxml (INPUT okand).
+
+/*sparfilnamn = SESSION:TEMP-DIRECTORY + Guru.Konstanter:globanv + "\".
+{SESSIONTEMPDIR.I}
+IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN sparfilnamn = webclienttempdir.
+OS-CREATE-DIR VALUE(sparfilnamn) NO-ERROR.*/
+
+OPEN QUERY persq 
+FOR EACH PERSONALTAB WHERE PERSONALTAB.BRAVO = TRUE USE-INDEX PERSONALKOD NO-LOCK.
+GET FIRST persq NO-LOCK.
+DO WHILE AVAILABLE(PERSONALTAB):      
+   FIND FIRST ANSTFORMTAB WHERE
+   ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+   USE-INDEX ANSTF NO-LOCK NO-ERROR.
+   kodanst = ANSTFORMTAB.KOD.
+   OPEN QUERY tidq FOR EACH TIDREGITAB WHERE
+   TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+   TIDREGITAB.GODKAND BEGINS "G" AND TIDREGITAB.VECKOKORD = korvar AND
+   TIDREGITAB.PRISTYP NE "FRÅNVARO." AND TIDREGITAB.PRISTYP NE "RESTID..." AND TIDREGITAB.DATUM <= vkdatum
+   AND TIDREGITAB.TIDLOG = TRUE USE-INDEX PSTART NO-LOCK. 
+   GET FIRST tidq NO-LOCK.
+   DO WHILE AVAILABLE(TIDREGITAB):
+      CREATE ekotemp.
+      ASSIGN 
+      ekotemp.PERSONNUMMER = PERSONALTAB.PERSONNUMMER
+      ekotemp.AONR = TIDREGITAB.AONR
+      ekotemp.DELNR = TIDREGITAB.DELNR
+      ekotemp.DATUM = TIDREGITAB.DATUM.
+      ekotemp.ANTAL = klock100(TIDREGITAB.TOTALT).
+      ekotemp.ARTKOD = "prod0".
+      ovekoll = FALSE.
+      IF TIDREGITAB.OKOD1 NE " " THEN DO: 
+         FIND FIRST OVERKOD WHERE OVERKOD.KOD = kodanst AND
+         OVERKOD.OVERTIDTILL = TIDREGITAB.OKOD1 USE-INDEX OVER NO-LOCK NO-ERROR.
+         IF AVAILABLE OVERKOD THEN DO:
+            ekotemp.ANTAL = klock100(TIDREGITAB.OANT1).
+            IF OVERKOD.ENKEL = "ENKE" THEN ekotemp.ARTKOD = "prod1".
+            IF OVERKOD.ENKEL = "KVAL" THEN ekotemp.ARTKOD = "prod2".
+            ovekoll = TRUE.
+         END.
+         
+      END.          
+      IF TIDREGITAB.OKOD2 NE " " THEN DO: 
+         FIND FIRST OVERKOD WHERE OVERKOD.KOD = kodanst AND
+         OVERKOD.OVERTIDTILL = TIDREGITAB.OKOD2 USE-INDEX OVER NO-LOCK NO-ERROR.
+         IF AVAILABLE OVERKOD THEN DO:
+            IF ovekoll = TRUE THEN DO:
+               CREATE ekotemp.
+               ASSIGN 
+               ekotemp.PERSONNUMMER = PERSONALTAB.PERSONNUMMER
+               ekotemp.AONR = TIDREGITAB.AONR
+               ekotemp.DELNR = TIDREGITAB.DELNR
+               ekotemp.DATUM = TIDREGITAB.DATUM.
+            END.
+            ekotemp.ANTAL = klock100(TIDREGITAB.OANT2).
+            IF OVERKOD.ENKEL = "ENKE" THEN ekotemp.ARTKOD = "prod1".
+            IF OVERKOD.ENKEL = "KVAL" THEN ekotemp.ARTKOD = "prod2".
+            ovekoll = TRUE.
+         END.
+         
+      END.                
+      IF TIDREGITAB.OKOD3 NE " " THEN DO: 
+         FIND FIRST OVERKOD WHERE OVERKOD.KOD = kodanst AND
+         OVERKOD.OVERTIDTILL = TIDREGITAB.OKOD3 USE-INDEX OVER NO-LOCK NO-ERROR.
+         IF AVAILABLE OVERKOD THEN DO:
+            IF ovekoll = TRUE THEN DO:
+               CREATE ekotemp.
+               ASSIGN 
+               ekotemp.PERSONNUMMER = PERSONALTAB.PERSONNUMMER
+               ekotemp.AONR = TIDREGITAB.AONR
+               ekotemp.DELNR = TIDREGITAB.DELNR
+               ekotemp.DATUM = TIDREGITAB.DATUM.
+            END.
+            ekotemp.ANTAL = klock100(TIDREGITAB.OANT3).
+            IF OVERKOD.ENKEL = "ENKE" THEN ekotemp.ARTKOD = "prod1".
+            IF OVERKOD.ENKEL = "KVAL" THEN ekotemp.ARTKOD = "prod2".
+            ovekoll = TRUE.
+         END.
+         
+      END.                
+      GET NEXT tidq NO-LOCK.    
+   END.  /*ELSE DO*/
+   GET NEXT persq NO-LOCK.
+END.
+
+IF Guru.Konstanter:globforetag = "elpa" THEN DO:
+   dirnamn = "G:\pro9s\korning\" + "ekoMSV" + STRING(TODAY,"99999999") + ".xml". 
+   /*dirspar = "C:\elpool\delad\pro10s\exportkopia\" + "ekoD" + STRING(TODAY,"99999999") + ".xml". */
+END.
+IF Guru.Konstanter:globforetag = "MISV" THEN DO:
+   dirnamn = "C:\elpool\delad\pro10s\export\ekonomi\" + "ekoMSV" + STRING(TODAY,"99999999") + ".xml".
+   /*Guru.Konstanter:AppSpringSet[1] = "misvstb"*/
+   dirnamn = "d:\elpool\delad\pro10s\export\ekonomi\" + "ekoMSV" + STRING(TODAY,"99999999") + ".xml".
+   dirspar = "C:\elpool\delad\pro10s\exportkopia\" + "ekoMSV" + STRING(TODAY,"99999999") + ".xml".
+   /*Guru.Konstanter:AppSpringSet[1] = "misvstb"*/ 
+   dirspar = "d:\elpool\delad\pro10s\exportkopia\" + "ekoMSV" + STRING(TODAY,"99999999") + ".xml". 
+END.
+      
+
+
+/*sparfilnamn = sparfilnamn + "mtrl.xml".*/
+
+EMPTY TEMP-TABLE tempnamn NO-ERROR. 
+CREATE tempnamn.        
+tempnamn.NAMNH = BUFFER ekotemp:HANDLE.       
+tempnamn.TORGTH = TEMP-TABLE ekotemp:HANDLE.
+tempnamn.NODTAB = tempnamn.NAMNH:NAME.
+
+
+FOR EACH tempnamn:
+   IF dirnamn NE "" THEN DO: 
+      RUN xmlutstart_UI IN dynxml (INPUT tempnamn.NAMNH,INPUT tempnamn.NAMNH:TABLE,INPUT "start",INPUT tempnamn.NODTAB, INPUT "FOR EACH ",INPUT dirnamn).
+   END.  
+   
+END.         
+
+RUN xmlutslut_UI IN dynxml.
+RUN xmlslut_UI IN dynxml.
+EMPTY TEMP-TABLE tempnamn NO-ERROR. 
+
+
+
+RUN sammut_UI (INPUT 2).
+

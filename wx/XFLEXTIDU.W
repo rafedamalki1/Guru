@@ -1,0 +1,598 @@
+&ANALYZE-SUSPEND _VERSION-NUMBER UIB_v8r12 GUI
+&ANALYZE-RESUME
+&Scoped-define WINDOW-NAME WFLEXTID
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CUSTOM _DEFINITIONS WFLEXTID 
+/*------------------------------------------------------------------------
+
+  File: 
+
+  Description: 
+
+  Input Parameters:
+      <none>
+
+  Output Parameters:
+      <none>
+
+  Author: 
+
+  Created: 95/04/06 -  4:27 pm
+
+------------------------------------------------------------------------*/
+/*          This .W file was created with the Progress UIB.             */
+/*----------------------------------------------------------------------*/
+
+/* Create an unnamed pool to store all the widgets created 
+     by this procedure. This is a good default which assures
+     that this procedure's triggers and internal procedures 
+     will execute in this procedure's storage, and that proper
+     cleanup will occur on deletion of the procedure. */
+
+CREATE WIDGET-POOL.
+
+/* ***************************  Definitions  ************************** */
+
+/* Parameters Definitions ---                                           */
+
+/* Local Variable Definitions ---                                       */
+&Scoped-define NEW NEW  
+&Scoped-define SHARED SHARED  
+DEFINE VARIABLE framesizeh AS HANDLE NO-UNDO.
+/*FRAMSIZETEMP.I*/
+DEFINE TEMP-TABLE frametemp NO-UNDO
+   FIELD ORDNING AS INTEGER
+   FIELD FRMHAND AS HANDLE
+   FIELD FHOJD AS INTEGER
+   FIELD FBREDD AS INTEGER
+   FIELD MFHOJD AS INTEGER
+   FIELD MFBREDD AS INTEGER
+   FIELD FRAMENAMN AS CHARACTER   
+   INDEX ORDNING ORDNING.
+DEFINE TEMP-TABLE widgettemp NO-UNDO
+   FIELD WIDGETHAND AS HANDLE
+   FIELD WIDGETNAMN AS CHARACTER
+   FIELD WIDGETTYP AS CHARACTER
+   FIELD ANDHIDDEN AS INTEGER
+   INDEX WIDGETTYP WIDGETTYP
+   INDEX WIDGETHAND WIDGETHAND
+   INDEX ANDHIDDEN ANDHIDDEN.
+/* DEFINE VARIABLE framesizedh AS HANDLE NO-UNDO. */
+DEFINE SHARED VARIABLE tth AS HANDLE NO-UNDO.
+/*DEFINE SHARED VARIABLE hpApi AS HANDLE NO-UNDO.*/
+DEFINE SHARED VARIABLE hpWinFunc AS HANDLE NO-UNDO.
+DEFINE SHARED VARIABLE retvalkoll AS LOGICAL NO-UNDO.
+DEFINE VARIABLE hcur AS INTEGER NO-UNDO.
+DEFINE VARIABLE retval AS INTEGER NO-UNDO.
+DEFINE VARIABLE brwproc AS HANDLE EXTENT 25 NO-UNDO.
+DEFINE VARIABLE handproc AS HANDLE EXTENT 25 NO-UNDO.
+DEFINE VARIABLE apphandass AS HANDLE NO-UNDO.
+DEFINE VARIABLE apphandklar AS HANDLE NO-UNDO.
+DEFINE VARIABLE appprogok AS LOGICAL NO-UNDO.
+&GLOBAL-DEFINE LEFT-BROWSE 1
+&GLOBAL-DEFINE RIGHT-BROWSE 2
+&GLOBAL-DEFINE ARROWS 3
+DEFINE VARIABLE tthandle AS HANDLE NO-UNDO.
+DEFINE VARIABLE ReturnValue AS INTEGER.
+   DEFINE {&NEW} SHARED TEMP-TABLE foretemp NO-UNDO
+   FIELD ATRHOME AS CHARACTER 
+   FIELD FORETAG AS CHARACTER
+   FIELD GRAFTECK AS LOGICAL
+   FIELD PROGRAM AS CHARACTER
+   FIELD VERSION AS CHARACTER
+   FIELD PLUSD AS LOGICAL.
+
+   CREATE foretemp.
+foretemp.GRAFTECK = TRUE.
+   DEFINE NEW SHARED VARIABLE appcon AS LOGICAL NO-UNDO.
+
+
+
+
+DEFINE NEW SHARED VARIABLE alltidmax AS LOGICAL NO-UNDO.
+                    ASSIGN
+   globstorh = 682
+   globstorb = 1000.
+
+   /*GLOBVAR2.I*/
+DEFINE {&NEW} SHARED VARIABLE globanv AS CHARACTER NO-UNDO. 
+DEFINE {&NEW} SHARED VARIABLE globanvavdnr AS INTEGER NO-UNDO. 
+DEFINE {&NEW} SHARED VARIABLE globanvpkod AS CHARACTER NO-UNDO. 
+DEFINE {&NEW} SHARED VARIABLE globallm AS LOGICAL NO-UNDO. 
+DEFINE {&NEW} SHARED VARIABLE globniv AS INTEGER NO-UNDO. 
+DEFINE {&NEW} SHARED VARIABLE globallpers AS LOGICAL NO-UNDO. 
+DEFINE {&NEW} SHARED VARIABLE globallao AS LOGICAL NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE globavd AS INTEGER NO-UNDO. 
+DEFINE {&NEW} SHARED VARIABLE globomr AS CHARACTER NO-UNDO. 
+DEFINE {&NEW} SHARED VARIABLE globlos AS CHARACTER NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE globpersnamn AS CHARACTER NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE globforetag AS CHARACTER NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE gvisatidpermanad AS LOGICAL NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE globsidl AS INTEGER NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE globsids AS INTEGER NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE plusaonr AS CHARACTER NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE plusdnr AS INTEGER NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE plusrec AS RECID  NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE plustidrec AS RECID  NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE plustid AS DECIMAL NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE plusdval AS LOGICAL NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE succelval AS LOGICAL NO-UNDO. 
+DEFINE VARIABLE Guru.GlobalaVariabler:collefth AS HANDLE NO-UNDO.
+DEFINE VARIABLE Guru.GlobalaVariabler:colrighth AS HANDLE NO-UNDO.
+/*VARFORETYPVAR.I*/
+DEFINE {&NEW} SHARED VARIABLE varforetypval AS INTEGER EXTENT 100 NO-UNDO.     
+DEFINE {&NEW} SHARED VARIABLE varforetypchar AS CHARACTER EXTENT 100 NO-UNDO.     
+  
+
+DEFINE VARIABLE tillochmeddatum AS DATE NO-UNDO.
+DEFINE TEMP-TABLE felinut
+   FIELD ANVANDARE AS CHARACTER
+   FIELD DATUM    AS DATE
+   FIELD EMOTAGET AS LOGICAL
+   FIELD FELKOD   AS INTEGER
+   FIELD FELTEXT  AS CHARACTER
+   FIELD PROGRAM  AS CHARACTER
+   INDEX FELTEXT IS PRIMARY ANVANDARE FELKOD.
+DEFINE {&NEW} SHARED TEMP-TABLE felmeddtemp 
+  FIELD FELMEDD AS CHARACTER
+  FIELD VAL AS INTEGER.
+/*
+  INDEX VAL IS PRIMARY VAL.
+  */
+DEFINE {&NEW} SHARED TEMP-TABLE xsektemp
+  FIELD AV-LEVEL AS INTEGER
+  FIELD MENYVART AS CHARACTER
+  FIELD SEK AS LOGICAL EXTENT 20
+  INDEX XSEK IS PRIMARY MENYVART AV-LEVEL.
+
+
+
+   
+DEFINE VARIABLE ocxvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE fnytid AS DECIMAL FORMAT "-99.99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE flexrec AS RECID NO-UNDO.   
+DEFINE NEW SHARED VARIABLE fldrec AS RECID NO-UNDO.  
+DEFINE NEW SHARED VARIABLE flexpers AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE aonrrec AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE aonummer AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE delnummer AS INTEGER NO-UNDO.   
+DEFINE NEW SHARED VARIABLE valaonrrec AS RECID NO-UNDO. 
+DEFINE NEW SHARED VARIABLE ovut AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE ovkoll AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE regstart AS DECIMAL NO-UNDO. 
+DEFINE NEW SHARED VARIABLE regslut AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE onr AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE onr2 AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE dnr2 AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE dnr AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE tid AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE tra AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE typ AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE tpris AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE tid3 AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE manad AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE frustarten AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE fruslutet AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE kaffestart AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE kaffeslut AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE lunchstarten AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE lunchslutet AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE regtotalt AS DECIMAL NO-UNDO.   
+DEFINE NEW SHARED VARIABLE regstartsek AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE regslutsek AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE bustart3 AS DECIMAL NO-UNDO. 
+DEFINE NEW SHARED VARIABLE vaxla AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE perssokrec AS RECID NO-UNDO. 
+DEFINE NEW SHARED VARIABLE tidtabrec AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE tidtabrec2 AS RECID NO-UNDO.  
+DEFINE NEW SHARED VARIABLE tidsedrec AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE tidsedlog AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE andvisrec AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE anvrec AS RECID NO-UNDO. 
+DEFINE NEW SHARED VARIABLE persrec2 AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE muszval AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE vartgamla AS CHARACTER FORMAT "X(3)" NO-UNDO.
+DEFINE NEW SHARED VARIABLE andvisvnr AS INTEGER FORMAT "999" NO-UNDO.  
+DEFINE NEW SHARED VARIABLE aonrrec2 AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE printer AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE printer1 AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE skrivut AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE regvnr AS INTEGER FORMAT "999" NO-UNDO.
+DEFINE NEW SHARED VARIABLE regdagnamn AS CHARACTER FORMAT "X(3)" NO-UNDO.        
+DEFINE NEW SHARED VARIABLE regdatum AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE bdatum AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE avdatum AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE bilforare AS LOGICAL FORMAT "JA/NEJ" NO-UNDO.
+DEFINE NEW SHARED VARIABLE enflerdygns AS LOGICAL FORMAT "ENDAGS/FLERDYGNS" NO-UNDO.
+DEFINE NEW SHARED VARIABLE vart AS CHARACTER FORMAT "X(3)" NO-UNDO.
+DEFINE NEW SHARED VARIABLE nytid AS DECIMAL FORMAT "99.99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE sekunder AS INTEGER FORMAT "-9999999" NO-UNDO.
+DEFINE NEW SHARED VARIABLE klocka AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE vartpro AS CHARACTER FORMAT "X(3)" NO-UNDO.
+DEFINE NEW SHARED VARIABLE valkalknr AS INTEGER NO-UNDO. 
+DEFINE NEW SHARED VARIABLE kalkmtrl AS LOGICAL NO-UNDO. 
+DEFINE NEW SHARED VARIABLE kalkregvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE florsak AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE flrec AS RECID NO-UNDO.
+
+DEFINE NEW SHARED VARIABLE arnr AS INTEGER FORMAT "9999" NO-UNDO. 
+DEFINE NEW SHARED VARIABLE manadnr AS INTEGER FORMAT "99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE manadnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hamtkoll AS DATE NO-UNDO.
+hamtkoll = TODAY.
+
+
+                              
+
+DEFINE VARIABLE val AS LOGICAL INITIAL YES NO-UNDO.
+DEFINE VARIABLE pkod AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE avb-mus AS LOGICAL NO-UNDO.
+DEFINE VARIABLE overant AS INTEGER NO-UNDO.
+DEFINE VARIABLE otim AS INTEGER NO-UNDO.
+DEFINE VARIABLE otim2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE tiden AS INTEGER NO-UNDO.
+DEFINE VARIABLE kollen AS INTEGER NO-UNDO.    
+DEFINE VARIABLE kollen2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE kollen3 AS INTEGER NO-UNDO.
+DEFINE VARIABLE flkoll AS INTEGER NO-UNDO.
+DEFINE VARIABLE lunchut AS INTEGER NO-UNDO.
+DEFINE VARIABLE tid2 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE tid4 AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE tid5 AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE aonr3 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dnr3 AS INTEGER NO-UNDO.    
+DEFINE VARIABLE pltid AS LOGICAL NO-UNDO.
+DEFINE VARIABLE ejtid AS LOGICAL INITIAL FALSE NO-UNDO.
+DEFINE VARIABLE plus AS INTEGER NO-UNDO.
+DEFINE VARIABLE flhjrec AS RECID NO-UNDO.   
+DEFINE VARIABLE flsaldo AS INTEGER FORMAT "-9999999" NO-UNDO.
+DEFINE VARIABLE status-ok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE regdatumspar AS DATE NO-UNDO. 
+DEFINE VARIABLE my1hand AS WIDGET-HANDL NO-UNDO.
+DEFINE VARIABLE flexkvst AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE flexkvsl AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE flexkvslspar AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE flexmost AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE flexmosl AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE tidreg AS LOGICAL NO-UNDO.
+DEFINE VARIABLE typ3 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tpris3 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE tidslut AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE seku AS INTEGER FORMAT "-9999999" NO-UNDO.
+DEFINE VARIABLE sok1 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sok2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE sok3 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sok4 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sok5 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE blobproch AS HANDLE NO-UNDO.
+DEFINE VARIABLE felmedd AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tempdir AS CHARACTER NO-UNDO.
+DEFINE VARIABLE conappvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE gforetag AS CHARACTER NO-UNDO.
+DEFINE VARIABLE appkolltid AS INTEGER NO-UNDO.
+DEFINE VARIABLE titlevar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE losenvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sparomrade AS CHARACTER NO-UNDO.
+
+&Scoped-define NEW NEW  
+&Scoped-define SHARED SHARED
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-PREPROCESSOR-BLOCK 
+
+/* ********************  Preprocessor Definitions  ******************** */
+
+&Scoped-define PROCEDURE-TYPE WINDOW
+&Scoped-define DB-AWARE no
+
+/* Name of first Frame and/or Browse and/or first Query                 */
+&Scoped-define FRAME-NAME FRAME-A
+
+/* Standard List Definitions                                            */
+&Scoped-Define ENABLED-OBJECTS BTN_SENASTE-2 BTN_SENASTE FILL-IN-PKOD 
+&Scoped-Define DISPLAYED-OBJECTS FILL-IN-PKOD 
+
+/* Custom List Definitions                                              */
+/* List-1,List-2,List-3,List-4,List-5,List-6                            */
+
+/* _UIB-PREPROCESSOR-BLOCK-END */
+&ANALYZE-RESUME
+
+
+
+/* ***********************  Control Definitions  ********************** */
+
+/* Define the widget handle for the window                              */
+DEFINE VAR WFLEXTID AS WIDGET-HANDLE NO-UNDO.
+
+/* Definitions of the field level widgets                               */
+DEFINE BUTTON BTN_SENASTE 
+     LABEL "Senaste reg" 
+     SIZE 12 BY 2 TOOLTIP "Saldo t.o.m. igår".
+
+DEFINE BUTTON BTN_SENASTE-2 
+     LABEL "Message" 
+     SIZE 12 BY 2 TOOLTIP "Saldo t.o.m. igår".
+
+DEFINE VARIABLE FILL-IN-PKOD AS CHARACTER FORMAT "X(5)":U 
+     LABEL "Enhet/Sign" 
+     VIEW-AS FILL-IN 
+     SIZE 8 BY 1 NO-UNDO.
+
+
+/* ************************  Frame Definitions  *********************** */
+
+DEFINE FRAME FRAME-A
+     BTN_SENASTE-2 AT ROW 3 COL 42.5
+     BTN_SENASTE AT ROW 7 COL 42
+     FILL-IN-PKOD AT ROW 7.5 COL 13.5 COLON-ALIGNED
+    WITH 1 DOWN NO-BOX KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 1
+         SIZE 99.38 BY 13.79.
+
+
+/* *********************** Procedure Settings ************************ */
+
+&ANALYZE-SUSPEND _PROCEDURE-SETTINGS
+/* Settings for THIS-PROCEDURE
+   Type: WINDOW
+ */
+&ANALYZE-RESUME _END-PROCEDURE-SETTINGS
+
+/* *************************  Create Window  ************************** */
+
+&ANALYZE-SUSPEND _CREATE-WINDOW
+IF SESSION:DISPLAY-TYPE = "GUI":U THEN
+  CREATE WINDOW WFLEXTID ASSIGN
+         HIDDEN             = YES
+         TITLE              = "Elpool i Umeå AB Flextid"
+         HEIGHT             = 13.83
+         WIDTH              = 99.5
+         MAX-HEIGHT         = 27.38
+         MAX-WIDTH          = 116
+         VIRTUAL-HEIGHT     = 27.38
+         VIRTUAL-WIDTH      = 116
+         MAX-BUTTON         = no
+         RESIZE             = no
+         SCROLL-BARS        = no
+         STATUS-AREA        = no
+         BGCOLOR            = ?
+         FGCOLOR            = ?
+         THREE-D            = yes
+         MESSAGE-AREA       = no
+         SENSITIVE          = yes.
+ELSE {&WINDOW-NAME} = CURRENT-WINDOW.
+/* END WINDOW DEFINITION                                                */
+&ANALYZE-RESUME
+
+
+
+/* ***********  Runtime Attributes and AppBuilder Settings  *********** */
+
+&ANALYZE-SUSPEND _RUN-TIME-ATTRIBUTES
+/* SETTINGS FOR WINDOW WFLEXTID
+  NOT-VISIBLE,,RUN-PERSISTENT                                           */
+/* SETTINGS FOR FRAME FRAME-A
+                                                                        */
+IF SESSION:DISPLAY-TYPE = "GUI":U AND VALID-HANDLE(WFLEXTID)
+THEN WFLEXTID:HIDDEN = yes.
+
+/* _RUN-TIME-ATTRIBUTES-END */
+&ANALYZE-RESUME
+
+ 
+
+
+
+/* ************************  Control Triggers  ************************ */
+
+&Scoped-define SELF-NAME BTN_SENASTE
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_SENASTE WFLEXTID
+ON CHOOSE OF BTN_SENASTE IN FRAME FRAME-A /* Senaste reg */
+DO:
+   RUN btnsenaste_UI.
+   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_SENASTE-2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_SENASTE-2 WFLEXTID
+ON CHOOSE OF BTN_SENASTE-2 IN FRAME FRAME-A /* Message */
+DO:
+   RUN gom_ui (INPUT TRUE).
+   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FILL-IN-PKOD
+&UNDEFINE SELF-NAME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CUSTOM _MAIN-BLOCK WFLEXTID 
+
+
+/* ***************************  Main Block  *************************** */
+
+/* Set CURRENT-WINDOW: this will parent dialog-boxes and frames.        */
+ASSIGN CURRENT-WINDOW                = {&WINDOW-NAME} 
+       THIS-PROCEDURE:CURRENT-WINDOW = {&WINDOW-NAME}.
+
+/* The CLOSE event can be used from inside or outside the procedure to  */
+/* terminate it.                                                        */
+ON CLOSE OF THIS-PROCEDURE
+DO:
+   IF VALID-HANDLE(blobproch) THEN RUN deleteproc_UI IN blobproch.
+   RUN disable_UI.
+END.
+   
+
+/* These events will close the window and terminate the procedure.      */
+/* (NOTE: this will override any user-defined triggers previously       */
+/*  defined on the window.) */
+                  
+ON WINDOW-CLOSE OF {&WINDOW-NAME} DO:
+  APPLY "CLOSE":U TO THIS-PROCEDURE.
+  RETURN NO-APPLY.
+END.
+ON ENDKEY, END-ERROR OF {&WINDOW-NAME} ANYWHERE DO:
+  APPLY "CLOSE":U TO THIS-PROCEDURE.
+  RETURN NO-APPLY.
+END.
+
+/* Best default for GUI applications is...                              */
+PAUSE 0 BEFORE-HIDE.
+
+/* Now enable the interface and wait for the exit condition.            */
+/* (NOTE: handle ERROR and END-KEY so cleanup code will always fire.    */  
+
+MAIN-BLOCK:
+DO ON ERROR   UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK
+   ON END-KEY UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK:
+   WFLEXTID:STATUS-AREA = TRUE.
+   STATUS INPUT OFF.
+   DEF VAR vh AS WIDGET-HANDLE NO-UNDO.
+   vh = {&WINDOW-NAME}:HANDLE.
+   DEFAULT-WINDOW:HIDDEN = TRUE.
+   BTN_SENASTE:LABEL = "PUSH".
+   RUN huvud_UI.
+   DEFINE VARIABLE status-musdia AS LOGICAL NO-UNDO. 
+   status-musdia = SESSION:SET-WAIT-STATE("").
+   IF NOT THIS-PROCEDURE:PERSISTENT THEN
+   WAIT-FOR CLOSE OF THIS-PROCEDURE.      
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+/* **********************  Internal Procedures  *********************** */
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnsenaste_UI WFLEXTID 
+PROCEDURE btnsenaste_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   
+   
+ {&WINDOW-NAME}:HIDDEN = TRUE.
+ DEFAULT-WINDOW:HIDDEN = TRUE.
+ {&WINDOW-NAME}:ALWAYS-ON-TOP = FALSE.         
+  
+      RUN XALLSIST.W.
+
+ {&WINDOW-NAME}:HIDDEN = FALSE.
+ {&WINDOW-NAME}:MOVE-TO-TOP ().
+ RUN gom_UI (INPUT FALSE).
+  
+   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE disable_UI WFLEXTID  _DEFAULT-DISABLE
+PROCEDURE disable_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     DISABLE the User Interface
+  Parameters:  <none>
+  Notes:       Here we clean-up the user-interface by deleting
+               dynamic widgets we have created and/or hide 
+               frames.  This procedure is usually called when
+               we are ready to "clean-up" after running.
+------------------------------------------------------------------------------*/
+  /* Delete the WINDOW we created */
+  IF SESSION:DISPLAY-TYPE = "GUI":U AND VALID-HANDLE(WFLEXTID)
+  THEN DELETE WIDGET WFLEXTID.
+  IF THIS-PROCEDURE:PERSISTENT THEN DELETE PROCEDURE THIS-PROCEDURE.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE enable_UI WFLEXTID  _DEFAULT-ENABLE
+PROCEDURE enable_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     ENABLE the User Interface
+  Parameters:  <none>
+  Notes:       Here we display/view/enable the widgets in the
+               user-interface.  In addition, OPEN all queries
+               associated with each FRAME and BROWSE.
+               These statements here are based on the "Other 
+               Settings" section of the widget Property Sheets.
+------------------------------------------------------------------------------*/
+  DISPLAY FILL-IN-PKOD 
+      WITH FRAME FRAME-A IN WINDOW WFLEXTID.
+  ENABLE BTN_SENASTE-2 BTN_SENASTE FILL-IN-PKOD 
+      WITH FRAME FRAME-A IN WINDOW WFLEXTID.
+  {&OPEN-BROWSERS-IN-QUERY-FRAME-A}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE gom_UI WFLEXTID 
+PROCEDURE gom_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   DEFINE INPUT PARAMETER tackvar AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE hjw AS LOGICAL NO-UNDO.
+   tackvar = TRUE.
+   PAUSE 3 MESSAGE "Tack för din registrering".
+   
+   APPLY "ENTRY" TO FILL-IN-PKOD IN FRAME {&FRAME-NAME}. 
+   musz = FALSE.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE huvud_UI WFLEXTID 
+PROCEDURE huvud_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   
+   SESSION:DATA-ENTRY-RETURN = FALSE.
+  {&WINDOW-NAME}:MAX-BUTTON         = NO.
+  {&WINDOW-NAME}:RESIZE             = NO.
+  
+   
+   titlevar = WFLEXTID:TITLE.
+   RUN enable_UI. 
+   &Scoped-define FRAME-NAME FRAME-A       
+   ASSIGN sparomrade = globomr.  
+   &Scoped-define FRAME-NAME FRAME-A
+   my1hand = FILL-IN-PKOD:HANDLE IN FRAME {&FRAME-NAME}.    
+   APPLY "ENTRY" TO FILL-IN-PKOD IN FRAME {&FRAME-NAME}.
+  
+   {&WINDOW-NAME}:HIDDEN = FALSE.
+   {&WINDOW-NAME}:MOVE-TO-TOP ().
+   DEFINE VARIABLE status-musdia AS LOGICAL NO-UNDO. 
+   status-musdia = SESSION:SET-WAIT-STATE("").
+   
+   
+   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+

@@ -1,0 +1,493 @@
+/*PLANNRHMTU.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{OMRTEMPW.I}
+{PLANNRTEMP.I}
+{DIRDEF.I}
+{SOKDEF.I}
+/*DEFINE INPUT PARAMETER vart AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR uppvaltemp.
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valplantemp.
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR plannrtemp.*/
+
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO. 
+DEFINE VARIABLE valbestomr AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE valdatum AS DATE NO-UNDO. 
+DEFINE VARIABLE utkonto AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kto1 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kto2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kto3 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kto4 AS CHARACTER NO-UNDO.
+DEFINE BUFFER ormbuff FOR OMRADETAB.
+
+{DYNHMT.I}
+
+PROCEDURE vaohmt_UI :
+   DEFINE INPUT PARAMETER TABLE FOR valplantemp.     
+   DEFINE OUTPUT PARAMETER TABLE FOR evaldaao.
+   EMPTY TEMP-TABLE evaldaao NO-ERROR. 
+   FOR EACH valplantemp,
+   EACH AONRTAB WHERE AONRTAB.PLANNR = valplantemp.PLANNR AND AONRTAB.ARTAL = valplantemp.ARTAL NO-LOCK:
+    /*
+   EACH AONRTAB WHERE AONRTAB.AONR = valplantemp.AONR AND AONRTAB.DELNR = valplantemp.DELNR NO-LOCK:
+   */
+      CREATE evaldaao.
+      BUFFER-COPY AONRTAB TO evaldaao.
+   END.
+   FOR EACH evaldaao,
+   EACH OMRADETAB WHERE OMRADETAB.OMRADE = evaldaao.OMRADE:
+      evaldaao.AVDELNINGNR = OMRADETAB.AVDELNINGNR.
+   END.
+END PROCEDURE.
+PROCEDURE planhmt_UI:
+   DEFINE INPUT PARAMETER vart AS INTEGER NO-UNDO. 
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp. 
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR uppvaltemp.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valplantemp.     
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR plannrtemp.     
+   EMPTY TEMP-TABLE utsokaonr NO-ERROR. 
+
+   valdatum = 01/01/1991.
+   IF vart = 1 THEN DO:
+      FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR. 
+      EMPTY TEMP-TABLE plannrtemp NO-ERROR.    
+      FIND FIRST uppvaltemp NO-ERROR.
+      IF uppvaltemp.OMRADE NE "ALLA" THEN DO:
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = uppvaltemp.OMRADE NO-LOCK NO-ERROR. 
+      END.
+      IF uppvaltemp.BESTID NE "ALLA" THEN DO:
+         FIND FIRST BESTTAB WHERE BESTTAB.BESTID = uppvaltemp.BESTID NO-LOCK NO-ERROR.    
+         IF NOT AVAILABLE BESTTAB THEN DO:
+            FIND FIRST ormbuff WHERE ormbuff.OMRADE = uppvaltemp.BESTID NO-LOCK NO-ERROR.
+            IF AVAILABLE ormbuff THEN DO:
+               ASSIGN valbestomr = ormbuff.OMRADE.
+            END.
+         END.
+         ELSE valbestomr = BESTTAB.BESTID.
+      END.
+      IF uppvaltemp.TILLFALLFAST = 1 THEN DO: 
+         /*TOG TILLFÄLIGA*/
+         IF uppvaltemp.PAAV = 1 THEN DO: 
+            /*TOG PÅGÅENDE*/ 
+            RUN allpa_UI (INPUT FALSE,INPUT uppvaltemp.VISPERAR).
+            RUN allpav_UI (INPUT FALSE,INPUT uppvaltemp.VISPERAR).
+         END.
+         ELSE IF uppvaltemp.PAAV = 2 THEN DO:      
+            /*TOG AVSLUTADE*/
+            RUN allav_UI (INPUT FALSE,INPUT uppvaltemp.VISPERAR).
+         END.   
+         ELSE IF uppvaltemp.PAAV = 3 THEN DO:
+            /*ALLA*/
+            RUN allpa_UI (INPUT FALSE,INPUT uppvaltemp.VISPERAR).
+            RUN allav_UI (INPUT FALSE,INPUT uppvaltemp.VISPERAR).      
+         END.
+      END.
+      ELSE IF uppvaltemp.TILLFALLFAST = 2 THEN DO:      
+         /*TOG FASTA*/
+         IF uppvaltemp.PAAV = 1 THEN DO:
+            /*TOG PÅGÅENDE*/
+            RUN allpa_UI (INPUT TRUE,INPUT uppvaltemp.VISPERAR).
+            RUN allpav_UI (INPUT TRUE,INPUT uppvaltemp.VISPERAR).       
+         END.
+         ELSE IF uppvaltemp.PAAV = 2 THEN DO:      
+            /*TOG AVSLUTADE*/
+            RUN allav_UI (INPUT TRUE,INPUT uppvaltemp.VISPERAR).
+         END.   
+         ELSE IF uppvaltemp.PAAV = 3 THEN DO:
+            /*TOG PÅGÅENDE OCH AVSLUTADE*/
+           RUN allpa_UI (INPUT TRUE,INPUT uppvaltemp.VISPERAR).
+           RUN allav_UI (INPUT TRUE,INPUT uppvaltemp.VISPERAR).      
+         END.
+      END.
+      ELSE IF uppvaltemp.TILLFALLFAST = 3 THEN DO:      
+         /*FASTA OCH TILLFÄLLIGA*/
+         IF uppvaltemp.PAAV = 1 THEN DO: 
+            /*TOG PÅGÅENDE*/
+            RUN allpa_UI (INPUT FALSE,INPUT uppvaltemp.VISPERAR).
+            RUN allpa_UI (INPUT TRUE,INPUT uppvaltemp.VISPERAR).
+            RUN allpav_UI (INPUT FALSE,INPUT uppvaltemp.VISPERAR).
+            RUN allpav_UI (INPUT TRUE,INPUT uppvaltemp.VISPERAR). 
+         END.
+         ELSE IF uppvaltemp.PAAV = 2 THEN DO:      
+            /*TOG AVSLUTADE*/
+            RUN allav_UI (INPUT FALSE,INPUT uppvaltemp.VISPERAR).
+            RUN allav_UI (INPUT TRUE,INPUT uppvaltemp.VISPERAR).        
+         END.   
+         ELSE IF uppvaltemp.PAAV = 3 THEN DO:
+            /*TOG PÅGÅENDE OCH AVSLUTADE*/
+            RUN allpa_UI (INPUT FALSE,INPUT uppvaltemp.VISPERAR).
+            RUN allav_UI (INPUT FALSE,INPUT uppvaltemp.VISPERAR).
+            RUN allpa_UI (INPUT TRUE,INPUT uppvaltemp.VISPERAR).
+            RUN allav_UI (INPUT TRUE,INPUT uppvaltemp.VISPERAR).        
+         END.
+      END.
+      FOR EACH plannrtemp WHERE plannrtemp.KOPPAO = TRUE :
+         FIND FIRST AONRTAB WHERE AONRTAB.PLANNR = plannrtemp.PLANNR AND
+         AONRTAB.ARTAL = plannrtemp.ARTAL NO-LOCK NO-ERROR.
+         IF AVAILABLE AONRTAB THEN DO:
+            ASSIGN
+            plannrtemp.AONR = AONRTAB.AONR 
+            plannrtemp.DELNR = AONRTAB.DELNR.
+         END.
+      END.
+   END.
+   
+   IF vart = 2 THEN DO:
+      FOR EACH valplantemp WHERE valplantemp.KOPPAO = TRUE :
+         FIND FIRST AONRTAB WHERE AONRTAB.PLANNR = valplantemp.PLANNR AND 
+         AONRTAB.ARTAL = valplantemp.ARTAL NO-LOCK NO-ERROR.
+         IF AVAILABLE AONRTAB THEN DO:
+            ASSIGN 
+            valplantemp.AONR = AONRTAB.AONR 
+            valplantemp.DELNR = AONRTAB.DELNR.
+         END.
+      END.
+   END.
+END PROCEDURE.
+
+
+PROCEDURE labelk2:
+   DEFINE OUTPUT PARAMETER labelvar AS CHARACTER NO-UNDO.
+   FIND FIRST KBENAMNING USE-INDEX KBEN NO-LOCK NO-ERROR.   
+   /*IF globforetag = "LULE" OR globforetag = "celpa" THEN DO:
+      ASSIGN labelvar = CAPS(SUBSTRING(KBENAMNING.K1,1,1)) + LC(SUBSTRING(KBENAMNING.K1,2)).
+   END.
+   ELSE DO:*/
+      ASSIGN labelvar = CAPS(SUBSTRING(KBENAMNING.K2,1,1)) + LC(SUBSTRING(KBENAMNING.K2,2)).
+   /*END.*/
+END PROCEDURE.
+PROCEDURE labelk3:
+   DEFINE OUTPUT PARAMETER labelvar AS CHARACTER NO-UNDO.
+   FIND FIRST KBENAMNING USE-INDEX KBEN NO-LOCK NO-ERROR.   
+   ASSIGN labelvar = CAPS(SUBSTRING(KBENAMNING.K3,1,1)) + LC(SUBSTRING(KBENAMNING.K3,2)).
+   
+END PROCEDURE.
+PROCEDURE labelk4:
+   DEFINE OUTPUT PARAMETER labelvar AS CHARACTER NO-UNDO.
+   FIND FIRST KBENAMNING USE-INDEX KBEN NO-LOCK NO-ERROR.   
+   ASSIGN labelvar = CAPS(SUBSTRING(KBENAMNING.K4,1,1)) + LC(SUBSTRING(KBENAMNING.K4,2)).
+   
+END PROCEDURE.
+
+PROCEDURE labelk1:
+   DEFINE OUTPUT PARAMETER labelvar AS CHARACTER NO-UNDO.
+   FIND FIRST KBENAMNING USE-INDEX KBEN NO-LOCK NO-ERROR.      
+   ASSIGN labelvar = CAPS(SUBSTRING(KBENAMNING.K1,1,1)) + LC(SUBSTRING(KBENAMNING.K1,2)).   
+   
+END PROCEDURE.
+
+PROCEDURE dynstartkoll_UI:  
+   musz = FALSE.
+   IF uppvaltemp.BESTID NE "ALLA" THEN DO:
+      ASSIGN
+      kommandonyfalt = "BESTID"
+      kommandoorgfalt = "BESTID".
+      RUN dynakoll_UI (OUTPUT musz).
+      IF musz = TRUE THEN RETURN.
+   END.
+   IF uppvaltemp.OMRADE NE "ALLA" THEN DO:
+      ASSIGN
+      kommandonyfalt = "OMRADE"
+      kommandoorgfalt = "OMRADE".
+      RUN dynakoll_UI (OUTPUT musz).
+      IF musz = TRUE THEN RETURN.
+   END.
+   IF uppvaltemp.ARBANSVARIG NE "ALLA" THEN DO:
+      ASSIGN
+      kommandonyfalt = "ARBANSVARIG"
+      kommandoorgfalt = "ARBANSVARIG".
+      RUN dynakoll_UI (OUTPUT musz).
+      IF musz = TRUE THEN RETURN.
+   END.
+END PROCEDURE. 
+
+PROCEDURE allpa_UI.
+   DEFINE INPUT PARAMETER fastplan AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER visaarperiod AS LOGICAL NO-UNDO.
+   kommandoquery = "".
+   IF uppvaltemp.BESTID = "ALLA" THEN DO:
+      IF visaarperiod = FALSE THEN DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.FASTAPLANNR = " + STRING(fastplan).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.PLANNRAVDATUM = " + STRING(valdatum).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL = " + STRING(YEAR(uppvaltemp.STARTDATUM)).         
+      END.
+      ELSE DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.FASTAPLANNR = " + STRING(fastplan).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.PLANNRAVDATUM = " + STRING(valdatum).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL >= " + STRING(YEAR(uppvaltemp.STARTDATUM)).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL <= " + STRING(YEAR(uppvaltemp.SLUTDATUM)).         
+      END.
+      
+   END.
+   ELSE DO: 
+      IF visaarperiod = FALSE THEN DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.FASTAPLANNR = " + STRING(fastplan).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.PLANNRAVDATUM = " + STRING(valdatum).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.BESTID = """  + STRING(valbestomr) + """".
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL = " + STRING(YEAR(uppvaltemp.STARTDATUM)).         
+      END.
+      ELSE DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.FASTAPLANNR = " + STRING(fastplan).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.PLANNRAVDATUM = " + STRING(valdatum).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.BESTID = """ + STRING(valbestomr) + """".
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL >= " + STRING(YEAR(uppvaltemp.STARTDATUM)).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL <= " + STRING(YEAR(uppvaltemp.SLUTDATUM)).        
+      END.
+   END. 
+   RUN skapaq_UI.
+   RUN bortplan_UI.
+END PROCEDURE.
+
+PROCEDURE allpav_UI.
+   DEFINE INPUT PARAMETER fastplan AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER visaarperiod AS LOGICAL NO-UNDO.
+   kommandoquery = "".
+   IF uppvaltemp.BESTID = "ALLA" THEN DO:
+      IF visaarperiod = FALSE THEN DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.FASTAPLANNR = " + STRING(fastplan).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.PLANNRAVDATUM > " + STRING(TODAY).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL = " + STRING(YEAR(uppvaltemp.STARTDATUM)).        
+      END.
+      ELSE DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.FASTAPLANNR = " + STRING(fastplan).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.PLANNRAVDATUM > " + STRING(TODAY).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL >= " + STRING(YEAR(uppvaltemp.STARTDATUM)).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL <= " + STRING(YEAR(uppvaltemp.SLUTDATUM)).         
+      END.
+   END.
+   ELSE DO:
+      IF visaarperiod = FALSE THEN DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.FASTAPLANNR = " + STRING(fastplan).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.PLANNRAVDATUM > " + STRING(TODAY).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.BESTID = """ + STRING(valbestomr) + """".
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL = " + STRING(YEAR(uppvaltemp.STARTDATUM)).        
+      END.
+      ELSE DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.FASTAPLANNR = " + STRING(fastplan).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.PLANNRAVDATUM > " + STRING(TODAY).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.BESTID = """ + STRING(valbestomr) + """".
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL >= " + STRING(YEAR(uppvaltemp.STARTDATUM)).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL <= " + STRING(YEAR(uppvaltemp.SLUTDATUM)).         
+      END.
+   END.
+   RUN skapaq_UI.
+   RUN bortplan_UI.
+END PROCEDURE.
+
+PROCEDURE allav_UI.
+   DEFINE INPUT PARAMETER fastplan AS LOGICAL NO-UNDO. 
+   DEFINE INPUT PARAMETER visaarperiod AS LOGICAL NO-UNDO.
+   kommandoquery = "".
+   IF uppvaltemp.BESTID = "ALLA" THEN DO:
+      IF visaarperiod = FALSE THEN DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.FASTAPLANNR = " + STRING(fastplan).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.PLANNRAVDATUM >= " + STRING(uppvaltemp.AVSLUTSTART).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.PLANNRAVDATUM <= " + STRING(uppvaltemp.AVSLUTSLUT).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL = " + STRING(YEAR(uppvaltemp.STARTDATUM)).         
+      END.
+      ELSE DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.FASTAPLANNR = " + STRING(fastplan).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.PLANNRAVDATUM >= " + STRING(uppvaltemp.AVSLUTSTART).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.PLANNRAVDATUM <= " + STRING(uppvaltemp.AVSLUTSLUT).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL >= " + STRING(YEAR(uppvaltemp.STARTDATUM)).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL <= " + STRING(YEAR(uppvaltemp.SLUTDATUM)).         
+      END.
+   END.
+   ELSE DO:
+      IF visaarperiod = FALSE THEN DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.FASTAPLANNR = " + STRING(fastplan).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.PLANNRAVDATUM >= " + STRING(uppvaltemp.AVSLUTSTART).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.PLANNRAVDATUM <= " + STRING(uppvaltemp.AVSLUTSLUT).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.BESTID = """ + STRING(valbestomr) + """".
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL = " + STRING(YEAR(uppvaltemp.STARTDATUM)).         
+      END.
+      ELSE DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.FASTAPLANNR = " + STRING(fastplan).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.PLANNRAVDATUM >= " + STRING(uppvaltemp.AVSLUTSTART).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.PLANNRAVDATUM <= " + STRING(uppvaltemp.AVSLUTSLUT).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.BESTID = """ + STRING(valbestomr) + """".
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL >= " + STRING(YEAR(uppvaltemp.STARTDATUM)).
+         RUN and_UI.
+         kommandoquery = kommandoquery + " PLANNRTAB.ARTAL <= " + STRING(YEAR(uppvaltemp.SLUTDATUM)).         
+      END.
+   END.
+   RUN skapaq_UI.
+   RUN bortplan_UI.
+   RUN objdelete_UI.
+END PROCEDURE.
+
+PROCEDURE skapaq_UI.
+   ASSIGN
+   utvaltab   = "FOR EACH uppvaltemp"
+   nytab      = "plannrtemp"
+   orginaltab = "PLANNRTAB".
+   ASSIGN
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".   
+   /*BUGG 9.1c FIX*/
+   
+   ASSIGN extratemptabh = TEMP-TABLE plannrtemp:DEFAULT-BUFFER-HANDLE.
+   ASSIGN extratemptabh2 = TEMP-TABLE uppvaltemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT TRUE,INPUT FALSE).
+
+END PROCEDURE.
+
+PROCEDURE bortplan_UI.
+   ASSIGN
+   kto1 = ""
+   kto2 = ""
+   kto3 = ""
+   kto4 = ""
+   kto1 = SUBSTRING(uppvaltemp.PROJEKTOR,35,10)
+   kto2 = SUBSTRING(uppvaltemp.PROJEKTOR,25,10)
+   kto3 = SUBSTRING(uppvaltemp.PROJEKTOR,45,10)
+   kto4 = SUBSTRING(uppvaltemp.PROJEKTOR,55,10).
+   FIND FIRST valsoktemp NO-ERROR.
+   IF valsoktemp.SOKCHAR[1] = "alla" THEN .
+   ELSE DO:
+      FOR EACH plannrtemp:      
+         IF plannrtemp.ARBARTKOD = valsoktemp.SOKINT[1] THEN.
+         ELSE DO:
+            IF AVAILABLE plannrtemp THEN DO:                                          
+               DELETE plannrtemp.               
+            END.
+         END.
+      END.
+   END.
+   IF kto2 = "" AND kto1 = "" AND kto3 = "" THEN.
+   ELSE DO:   
+      FOR EACH plannrtemp:      
+         IF kto2 NE "" THEN DO:
+            IF INDEX(kto2,"*") = 1 THEN .
+            ELSE DO:                
+               IF INDEX(kto2,"*") = 0 THEN DO:
+                  FIND FIRST PLANKONTO WHERE PLANKONTO.PLANNR =  plannrtemp.PLANNR AND
+                  PLANKONTO.ARTAL =  plannrtemp.ARTAL AND PLANKONTO.K2 = kto2
+                  NO-LOCK NO-ERROR.
+               END.
+               ELSE DO:
+                  utkonto = SUBSTRING(uppvaltemp.PROJEKTOR,25,INDEX(kto2,"*") - 1).
+                  FIND FIRST PLANKONTO WHERE PLANKONTO.PLANNR =  plannrtemp.PLANNR AND
+                  PLANKONTO.ARTAL =  plannrtemp.ARTAL AND PLANKONTO.K2 BEGINS utkonto
+                  NO-LOCK NO-ERROR.
+               END.               
+               IF NOT AVAILABLE PLANKONTO THEN DO:
+                  IF AVAILABLE plannrtemp THEN DELETE plannrtemp. 
+               END.
+            END.
+         END.         
+         IF kto1 NE "" THEN DO:
+            IF INDEX(kto1,"*") = 1 THEN utkonto = utkonto.
+            ELSE DO:                   
+               IF INDEX(kto1,"*") = 0 THEN DO:
+                  FIND FIRST PLANKONTO WHERE PLANKONTO.PLANNR =  plannrtemp.PLANNR AND
+                  PLANKONTO.ARTAL =  plannrtemp.ARTAL AND PLANKONTO.K1 = kto1
+                  NO-LOCK NO-ERROR.
+               END.
+               ELSE DO:
+                  utkonto = SUBSTRING(uppvaltemp.PROJEKTOR,35,INDEX(kto1,"*") - 1).
+                  FIND FIRST PLANKONTO WHERE PLANKONTO.PLANNR =  plannrtemp.PLANNR AND
+                  PLANKONTO.ARTAL =  plannrtemp.ARTAL AND PLANKONTO.K1 BEGINS utkonto
+                  NO-LOCK NO-ERROR.
+               END.
+              
+               IF NOT AVAILABLE PLANKONTO THEN DO:
+                  IF AVAILABLE plannrtemp THEN DELETE plannrtemp. 
+               END.
+            END.
+         END.
+         IF kto3 NE "" THEN DO:
+            IF INDEX(kto3,"*") = 1 THEN .
+            ELSE DO:                
+               IF INDEX(kto3,"*") = 0 THEN DO:
+                  FIND FIRST PLANKONTO WHERE PLANKONTO.PLANNR =  plannrtemp.PLANNR AND
+                  PLANKONTO.ARTAL =  plannrtemp.ARTAL AND PLANKONTO.K3 = kto3
+                  NO-LOCK NO-ERROR.
+               END.
+               ELSE DO:
+                  utkonto = SUBSTRING(uppvaltemp.PROJEKTOR,45,INDEX(kto3,"*") - 1).
+                  FIND FIRST PLANKONTO WHERE PLANKONTO.PLANNR =  plannrtemp.PLANNR AND
+                  PLANKONTO.ARTAL =  plannrtemp.ARTAL AND PLANKONTO.K3 BEGINS utkonto
+                  NO-LOCK NO-ERROR.
+               END.               
+               IF NOT AVAILABLE PLANKONTO THEN DO:
+                  IF AVAILABLE plannrtemp THEN DELETE plannrtemp. 
+               END.
+            END.
+         END.    
+         IF kto4 NE "" THEN DO:
+            IF INDEX(kto4,"*") = 1 THEN .
+            ELSE DO:                
+               IF INDEX(kto4,"*") = 0 THEN DO:
+                  FIND FIRST PLANKONTO WHERE PLANKONTO.PLANNR =  plannrtemp.PLANNR AND
+                  PLANKONTO.ARTAL =  plannrtemp.ARTAL AND PLANKONTO.K4 = kto4
+                  NO-LOCK NO-ERROR.
+               END.
+               ELSE DO:
+                  utkonto = SUBSTRING(uppvaltemp.PROJEKTOR,55,INDEX(kto4,"*") - 1).
+                  FIND FIRST PLANKONTO WHERE PLANKONTO.PLANNR =  plannrtemp.PLANNR AND
+                  PLANKONTO.ARTAL =  plannrtemp.ARTAL AND PLANKONTO.K4 BEGINS utkonto
+                  NO-LOCK NO-ERROR.
+               END.               
+               IF NOT AVAILABLE PLANKONTO THEN DO:
+                  IF AVAILABLE plannrtemp THEN DELETE plannrtemp. 
+               END.
+            END.
+         END.   
+         
+      END.
+   END.
+END PROCEDURE.
+
+
+

@@ -1,0 +1,6907 @@
+&ANALYZE-SUSPEND _VERSION-NUMBER UIB_v9r12 GUI
+&ANALYZE-RESUME
+/* Connected Databases 
+          temp-db          PROGRESS
+*/
+&Scoped-define WINDOW-NAME C-Win
+
+/* Temp-Table and Buffer definitions                                    */
+DEFINE TEMP-TABLE kabeltemp NO-UNDO LIKE kabeltemp.
+
+DEFINE TEMP-TABLE konstgrptemp NO-UNDO LIKE konstgrptemp.
+DEFINE TEMP-TABLE konsttemp NO-UNDO LIKE konsttemp.
+DEFINE TEMP-TABLE konstvaltemp NO-UNDO LIKE konstvaltemp.
+DEFINE TEMP-TABLE mtrlbertemp NO-UNDO LIKE mtrlbertemp.
+DEFINE TEMP-TABLE mtrltemp NO-UNDO LIKE mtrltemp.
+DEFINE TEMP-TABLE satstemp NO-UNDO LIKE satstemp.
+DEFINE TEMP-TABLE spec_mtrl NO-UNDO LIKE spec_mtrl.
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CUSTOM _DEFINITIONS C-Win 
+/*------------------------------------------------------------------------
+
+  File: 
+
+  Description: 
+
+  Input Parameters:
+      <none>
+
+  Output Parameters:
+      <none>
+
+  Author: 
+
+  Created: 
+
+------------------------------------------------------------------------*/
+/*          This .W file was created with the Progress AppBuilder.      */
+/*----------------------------------------------------------------------*/
+
+/* Create an unnamed pool to store all the widgets created 
+     by this procedure. This is a good default which assures
+     that this procedure's triggers and internal procedures 
+     will execute in this procedure's storage, and that proper
+     cleanup will occur on deletion of the procedure. */
+
+CREATE WIDGET-POOL.
+
+/* ***************************  Definitions  ************************** */
+
+/* Parameters Definitions ---                                           */
+
+/* Local Variable Definitions ---                                       */
+{ALLDEF.I}
+&Scoped-define NEW 
+{GLOBVAR2DEL1.I}
+{HOPALLA.I}
+/*{EGENBEN.I}*/
+{DEFSOK.I} 
+{FORETEMP.I}
+&Scoped-define SHARED SHARED
+{KONVALTEMP.I}
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{SOKDEF.I}
+{LEVTEMP.I}
+{MTRLTEMP.I}
+{HUVLEVTEMP.I}
+{KONSTRMTRL.I}
+{BBENAMNTEMP.I}
+{SMTRL.I}   
+DEFINE NEW SHARED VARIABLE stolpe AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE berval2 AS LOGICAL NO-UNDO.
+
+DEFINE NEW SHARED VARIABLE kalkkoppapph AS HANDLE NO-UNDO. /*kalkkoppapp.p*/
+DEFINE NEW SHARED VARIABLE gruppkod AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE satstrue AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE satsmtrl AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE konstvalvar AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE kon_rowid AS ROWID NO-UNDO. 
+DEFINE NEW SHARED VARIABLE valnum AS INTEGER NO-UNDO. 
+DEFINE NEW SHARED VARIABLE katvar AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE satsinn AS LOGICAL NO-UNDO.  
+DEFINE NEW SHARED VARIABLE mtrl_rowid AS ROWID NO-UNDO.
+DEFINE NEW SHARED VARIABLE brow AS ROWID NO-UNDO.
+DEFINE NEW SHARED VARIABLE nykonst AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE nykonst2 AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE kongrkod AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE lista AS INTEGER NO-UNDO.
+DEFINE SHARED VARIABLE sokant AS LOGICAL NO-UNDO. 
+DEFINE SHARED VARIABLE bestant AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE huvudlev AS CHARACTER NO-UNDO.
+DEFINE SHARED VARIABLE vald_kundlev AS CHARACTER NO-UNDO.
+DEFINE SHARED VARIABLE vald_lev AS CHARACTER NO-UNDO.  
+DEFINE SHARED VARIABLE skrivut AS LOGICAL NO-UNDO.  
+DEFINE SHARED VARIABLE musz AS LOGICAL NO-UNDO. 
+DEFINE SHARED VARIABLE vartpro AS CHARACTER FORMAT "X(3)" NO-UNDO. 
+DEFINE SHARED VARIABLE vart AS CHARACTER FORMAT "X(3)" NO-UNDO.
+DEFINE VARIABLE hjkvalkod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sortkollvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE varkod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE mtrlkod AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE mtrlenr AS CHARACTER NO-UNDO.     
+DEFINE VARIABLE status-ok AS LOGICAL NO-UNDO. 
+DEFINE VARIABLE firstkod AS INTEGER NO-UNDO. 
+DEFINE VARIABLE var2 AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE var3 AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE var4 AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE var5 AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE var6 AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE antal_valda AS INTEGER NO-UNDO.
+DEFINE VARIABLE antal_raknare AS INTEGER NO-UNDO. 
+DEFINE VARIABLE finns2 AS LOGICAL NO-UNDO.
+DEFINE VARIABLE finns3 AS LOGICAL NO-UNDO.
+DEFINE VARIABLE finns4 AS LOGICAL NO-UNDO.
+DEFINE VARIABLE finns5 AS LOGICAL NO-UNDO.
+DEFINE VARIABLE finns6 AS LOGICAL NO-UNDO.
+DEFINE VARIABLE counter AS INTEGER NO-UNDO. 
+DEFINE VARIABLE brw AS INTEGER NO-UNDO. 
+DEFINE VARIABLE mark AS LOGICAL NO-UNDO. 
+DEFINE VARIABLE svar AS LOGICAL.
+DEFINE VARIABLE satsvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE spec_rec AS ROWID NO-UNDO.
+DEFINE VARIABLE konmtrlapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE aosok AS CHARACTER FORMAT "X(40)" NO-UNDO.
+DEFINE VARIABLE posok AS CHARACTER FORMAT "X(11)" NO-UNDO.
+DEFINE VARIABLE lev AS CHARACTER NO-UNDO.  
+DEFINE VARIABLE val AS LOGICAL NO-UNDO.
+DEFINE VARIABLE valkon AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kabelskap AS LOGICAL NO-UNDO.
+DEFINE VARIABLE fran_rowid AS ROWID NO-UNDO.        
+DEFINE VARIABLE till_rowid AS ROWID NO-UNDO.   
+DEFINE VARIABLE frannr AS INTEGER NO-UNDO.  
+DEFINE VARIABLE tillnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE laddaproch AS HANDLE NO-UNDO.
+DEFINE VARIABLE enrvar     AS CHARACTER NO-UNDO.
+DEFINE VARIABLE levkodvar  AS CHARACTER NO-UNDO.
+DEFINE VARIABLE felmedd AS CHARACTER NO-UNDO.
+DEFINE VARIABLE mtrlhmtapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE beskvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE tva AS LOGICAL NO-UNDO.
+DEFINE VARIABLE satskoll AS LOGICAL NO-UNDO.
+DEFINE VARIABLE tvatilltre AS INTEGER NO-UNDO.
+DEFINE VARIABLE tillfyra AS INTEGER NO-UNDO.
+DEFINE VARIABLE radio AS INTEGER NO-UNDO. 
+DEFINE VARIABLE bbval AS CHARACTER NO-UNDO.
+DEFINE VARIABLE krow AS ROWID NO-UNDO.
+DEFINE VARIABLE rubrik AS CHARACTER NO-UNDO.
+DEFINE VARIABLE stat AS LOGICAL NO-UNDO.
+DEFINE VARIABLE f2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE f3 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE f4 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE f5 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE f6 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE bort1 AS CHARACTER NO-UNDO.  
+DEFINE VARIABLE bort2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dummykod AS INTEGER NO-UNDO. 
+DEFINE VARIABLE kgrfranvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kgrtillvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE radkonto1  AS CHARACTER NO-UNDO.
+DEFINE VARIABLE radkonto2  AS CHARACTER NO-UNDO.
+DEFINE VARIABLE radkonto3  AS CHARACTER NO-UNDO.
+DEFINE VARIABLE radkonto4  AS CHARACTER NO-UNDO.
+DEFINE VARIABLE radkonto5  AS CHARACTER NO-UNDO.
+DEFINE VARIABLE radspar AS INTEGER NO-UNDO.
+DEFINE VARIABLE entryantal AS LOGICAL NO-UNDO.
+DEFINE VARIABLE entryben AS LOGICAL NO-UNDO.
+DEFINE VARIABLE mtrlberbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE mtrlbertth AS HANDLE NO-UNDO.
+DEFINE VARIABLE levinlast AS CHARACTER NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE btnnovit AS HANDLE NO-UNDO. 
+{EXTRADATA.I}
+DEFINE VARIABLE konstvaltempvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kongrtempkod AS INTEGER NO-UNDO.
+DEFINE VARIABLE vismtrl AS CHARACTER NO-UNDO.
+DEFINE VARIABLE visval AS INTEGER NO-UNDO.
+DEFINE TEMP-TABLE multiseltemp
+   FIELD VAD AS CHARACTER
+   FIELD NUMSEL AS INTEGER
+   FIELD SELROW AS ROWID
+   INDEX NUM AS PRIMARY NUMSEL.
+
+/* DEFINE NEW SHARED TEMP-TABLE kval          */
+/*    FIELD KVALKOD AS CHARACTER   */
+/*    FIELD KTYPKOD AS CHARACTER   */
+/*    FIELD KONSKOD AS INTEGER     */
+/*    FIELD KOPP AS LOGICAL        */
+/*    FIELD BENAMNING AS CHARACTER */
+/*    FIELD BB AS CHARACTER        */
+/*    FIELD ORDNING AS INTEGER     */
+/*    FIELD KROWID AS ROWID        */
+/*    INDEX ORD ORDNING.           */
+
+DEFINE NEW SHARED TEMP-TABLE kval
+   FIELD TRIMKVALKOD   AS CHARACTER  FORMAT "X(8)" LABEL "Konstruktionsvalskod"    
+   FIELD KVALKOD AS CHARACTER
+   FIELD KTYPKOD AS CHARACTER 
+   FIELD KONSKOD AS INTEGER
+   FIELD KOPP AS LOGICAL
+   FIELD BENAMNING AS CHARACTER
+   FIELD BB AS CHARACTER
+   FIELD ORDNING AS INTEGER
+   FIELD KROWID AS ROWID
+   INDEX ORD ORDNING.
+
+DEFINE TEMP-TABLE k_rec 
+   FIELD KREC AS RECID.
+
+DEFINE NEW SHARED TEMP-TABLE tidut
+   FIELD UT AS CHARACTER FORMAT "X(132)".   
+DEFINE TEMP-TABLE visamtrl NO-UNDO
+   FIELD ENR AS CHARACTER FORMAT "x(11)" LABEL "Enr"    
+   FIELD BENAMNING AS CHARACTER FORMAT "x(40)" LABEL "Benämning"   
+   FIELD ENHET AS CHARACTER FORMAT "x(5)" LABEL "Enhet" 
+   FIELD ANTAL AS INTEGER FORMAT ">>>>>9" LABEL "Antal"
+   FIELD LEVKOD AS CHARACTER
+   INDEX ENR IS PRIMARY ENR ASCENDING.
+
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(80)" NO-UNDO.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-PREPROCESSOR-BLOCK 
+
+/* ********************  Preprocessor Definitions  ******************** */
+
+&Scoped-define PROCEDURE-TYPE Window
+&Scoped-define DB-AWARE no
+
+/* Name of first Frame and/or Browse and/or first Query                 */
+&Scoped-define FRAME-NAME FRAME-BARABREDD
+&Scoped-define BROWSE-NAME BRW_B2
+
+/* Internal Tables (found by Frame, Query & Browse Queries)             */
+&Scoped-define INTERNAL-TABLES konstvaltemp konstgrptemp mtrltemp konsttemp ~
+spec_mtrl mtrlbertemp satstemp
+
+/* Definitions for BROWSE BRW_B2                                        */
+&Scoped-define FIELDS-IN-QUERY-BRW_B2 konstvaltemp.KVALKOD ~
+konstvaltemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_B2 
+&Scoped-define QUERY-STRING-BRW_B2 FOR EACH konstvaltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_B2 OPEN QUERY BRW_B2 FOR EACH konstvaltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_B2 konstvaltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_B2 konstvaltemp
+
+
+/* Definitions for BROWSE BRW_B3                                        */
+&Scoped-define FIELDS-IN-QUERY-BRW_B3 konstvaltemp.KVALKOD ~
+konstvaltemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_B3 
+&Scoped-define QUERY-STRING-BRW_B3 FOR EACH konstvaltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_B3 OPEN QUERY BRW_B3 FOR EACH konstvaltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_B3 konstvaltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_B3 konstvaltemp
+
+
+/* Definitions for BROWSE BRW_B4                                        */
+&Scoped-define FIELDS-IN-QUERY-BRW_B4 konstvaltemp.KVALKOD ~
+konstvaltemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_B4 
+&Scoped-define QUERY-STRING-BRW_B4 FOR EACH konstvaltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_B4 OPEN QUERY BRW_B4 FOR EACH konstvaltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_B4 konstvaltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_B4 konstvaltemp
+
+
+/* Definitions for BROWSE BRW_B5                                        */
+&Scoped-define FIELDS-IN-QUERY-BRW_B5 konstvaltemp.KVALKOD ~
+konstvaltemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_B5 
+&Scoped-define QUERY-STRING-BRW_B5 FOR EACH konstvaltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_B5 OPEN QUERY BRW_B5 FOR EACH konstvaltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_B5 konstvaltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_B5 konstvaltemp
+
+
+/* Definitions for BROWSE BRW_B6                                        */
+&Scoped-define FIELDS-IN-QUERY-BRW_B6 konstvaltemp.KVALKOD ~
+konstvaltemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_B6 
+&Scoped-define QUERY-STRING-BRW_B6 FOR EACH konstvaltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_B6 OPEN QUERY BRW_B6 FOR EACH konstvaltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_B6 konstvaltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_B6 konstvaltemp
+
+
+/* Definitions for BROWSE BRW_GRUPP                                     */
+&Scoped-define FIELDS-IN-QUERY-BRW_GRUPP konstgrptemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_GRUPP 
+&Scoped-define QUERY-STRING-BRW_GRUPP FOR EACH konstgrptemp NO-LOCK ~
+    BY konstgrptemp.BENAMNING
+&Scoped-define OPEN-QUERY-BRW_GRUPP OPEN QUERY BRW_GRUPP FOR EACH konstgrptemp NO-LOCK ~
+    BY konstgrptemp.BENAMNING.
+&Scoped-define TABLES-IN-QUERY-BRW_GRUPP konstgrptemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_GRUPP konstgrptemp
+
+
+/* Definitions for BROWSE BRW_HLEV                                      */
+&Scoped-define FIELDS-IN-QUERY-BRW_HLEV mtrltemp.Enr mtrltemp.Benamning ~
+mtrltemp.Enhet mtrltemp.NPRIS 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_HLEV 
+&Scoped-define QUERY-STRING-BRW_HLEV FOR EACH mtrltemp NO-LOCK ~
+    BY MTRL.Enr INDEXED-REPOSITION
+&Scoped-define OPEN-QUERY-BRW_HLEV OPEN QUERY BRW_HLEV FOR EACH mtrltemp NO-LOCK ~
+    BY MTRL.Enr INDEXED-REPOSITION.
+&Scoped-define TABLES-IN-QUERY-BRW_HLEV mtrltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_HLEV mtrltemp
+
+
+/* Definitions for BROWSE BRW_KON                                       */
+&Scoped-define FIELDS-IN-QUERY-BRW_KON konsttemp.KTYPKOD ~
+konsttemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_KON 
+&Scoped-define QUERY-STRING-BRW_KON FOR EACH konsttemp NO-LOCK INDEXED-REPOSITION
+&Scoped-define OPEN-QUERY-BRW_KON OPEN QUERY BRW_KON FOR EACH konsttemp NO-LOCK INDEXED-REPOSITION.
+&Scoped-define TABLES-IN-QUERY-BRW_KON konsttemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_KON konsttemp
+
+
+/* Definitions for BROWSE BRW_KON2                                      */
+&Scoped-define FIELDS-IN-QUERY-BRW_KON2 konsttemp.KTYPKOD ~
+konsttemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_KON2 
+&Scoped-define QUERY-STRING-BRW_KON2 FOR EACH konsttemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_KON2 OPEN QUERY BRW_KON2 FOR EACH konsttemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_KON2 konsttemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_KON2 konsttemp
+
+
+/* Definitions for BROWSE BRW_MTRL                                      */
+&Scoped-define FIELDS-IN-QUERY-BRW_MTRL spec_mtrl.Enr spec_mtrl.Benamning ~
+spec_mtrl.BERKVANT spec_mtrl.Enhet spec_mtrl.LEVKOD spec_mtrl.LINKAB ~
+spec_mtrl.NPRIS spec_mtrl.MODUL 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_MTRL spec_mtrl.Benamning ~
+spec_mtrl.BERKVANT 
+&Scoped-define ENABLED-TABLES-IN-QUERY-BRW_MTRL spec_mtrl
+&Scoped-define FIRST-ENABLED-TABLE-IN-QUERY-BRW_MTRL spec_mtrl
+&Scoped-define QUERY-STRING-BRW_MTRL FOR EACH spec_mtrl NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_MTRL OPEN QUERY BRW_MTRL FOR EACH spec_mtrl NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_MTRL spec_mtrl
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_MTRL spec_mtrl
+
+
+/* Definitions for BROWSE BRW_MTRLBER                                   */
+&Scoped-define FIELDS-IN-QUERY-BRW_MTRLBER mtrlbertemp.ENR ~
+mtrlbertemp.BENAMNING mtrlbertemp.ANTAL mtrlbertemp.F1 mtrlbertemp.F2 ~
+mtrlbertemp.F3 mtrlbertemp.F4 mtrlbertemp.F5 mtrlbertemp.LINKAB ~
+mtrlbertemp.MODUL 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_MTRLBER mtrlbertemp.ANTAL ~
+mtrlbertemp.LINKAB mtrlbertemp.MODUL 
+&Scoped-define ENABLED-TABLES-IN-QUERY-BRW_MTRLBER mtrlbertemp
+&Scoped-define FIRST-ENABLED-TABLE-IN-QUERY-BRW_MTRLBER mtrlbertemp
+&Scoped-define QUERY-STRING-BRW_MTRLBER FOR EACH mtrlbertemp NO-LOCK ~
+    BY mtrlbertemp.F1 ~
+       BY mtrlbertemp.F2 ~
+        BY mtrlbertemp.F3 ~
+         BY mtrlbertemp.F4 ~
+          BY mtrlbertemp.F5
+&Scoped-define OPEN-QUERY-BRW_MTRLBER OPEN QUERY BRW_MTRLBER FOR EACH mtrlbertemp NO-LOCK ~
+    BY mtrlbertemp.F1 ~
+       BY mtrlbertemp.F2 ~
+        BY mtrlbertemp.F3 ~
+         BY mtrlbertemp.F4 ~
+          BY mtrlbertemp.F5.
+&Scoped-define TABLES-IN-QUERY-BRW_MTRLBER mtrlbertemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_MTRLBER mtrlbertemp
+
+
+/* Definitions for BROWSE BRW_SATS                                      */
+&Scoped-define FIELDS-IN-QUERY-BRW_SATS satstemp.KOD satstemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_SATS 
+&Scoped-define QUERY-STRING-BRW_SATS FOR EACH satstemp NO-LOCK INDEXED-REPOSITION
+&Scoped-define OPEN-QUERY-BRW_SATS OPEN QUERY BRW_SATS FOR EACH satstemp NO-LOCK INDEXED-REPOSITION.
+&Scoped-define TABLES-IN-QUERY-BRW_SATS satstemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_SATS satstemp
+
+
+/* Definitions for BROWSE BRW_VAL                                       */
+&Scoped-define FIELDS-IN-QUERY-BRW_VAL konstvaltemp.KVALKOD ~
+konstvaltemp.BENAMNING konstvaltemp.KOPP konstvaltemp.ORDNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_VAL 
+&Scoped-define QUERY-STRING-BRW_VAL FOR EACH konstvaltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_VAL OPEN QUERY BRW_VAL FOR EACH konstvaltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_VAL konstvaltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_VAL konstvaltemp
+
+
+/* Definitions for FRAME FRAME-KONST                                    */
+
+/* Definitions for FRAME FRAME-KONSTGRP                                 */
+
+/* Definitions for FRAME FRAME-VMTRL                                    */
+
+/* Standard List Definitions                                            */
+&Scoped-Define ENABLED-OBJECTS MBTN_KONSTGRP MBTN_KONST MBTN_KONSTMTRL ~
+MBTN_KONSTKALK MBTN_MADM RECT-MENY FBTN_HAMTA FBTN_ANDRA2 FBTN_ATER ~
+FBTN_KOPI BTN_AVB 
+
+/* Custom List Definitions                                              */
+/* List-1,List-2,List-3,List-4,List-5,List-6                            */
+
+/* _UIB-PREPROCESSOR-BLOCK-END */
+&ANALYZE-RESUME
+
+
+
+/* ***********************  Control Definitions  ********************** */
+
+/* Define the widget handle for the window                              */
+DEFINE VAR C-Win AS WIDGET-HANDLE NO-UNDO.
+
+/* Menu Definitions                                                     */
+DEFINE MENU POPUP-MENU-BRW_MTRL 
+       MENU-ITEM m_Antal        LABEL "Antal"         .
+
+DEFINE MENU POPUP-MENU-BRW_MTRLBER 
+       MENU-ITEM m_Avmarkera    LABEL "Avmarkera"     
+       MENU-ITEM m_Information  LABEL "Information"   .
+
+
+/* Definitions of the field level widgets                               */
+DEFINE BUTTON BTN_AVB AUTO-GO DEFAULT 
+     LABEL "Avsluta" 
+     SIZE 14 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON FBTN_ANDRA2 
+     LABEL "Ändra" 
+     SIZE 14 BY 1.
+
+DEFINE BUTTON FBTN_ATER 
+     LABEL "Åter" 
+     SIZE 14 BY 1.
+
+DEFINE BUTTON FBTN_HAMTA 
+     LABEL "Hämta" 
+     SIZE 14 BY 1.
+
+DEFINE BUTTON FBTN_KOPI 
+     LABEL "Kopiera" 
+     SIZE 14 BY 1.
+
+DEFINE BUTTON MBTN_KONST 
+     LABEL "Konstruktioner" 
+     SIZE 7.5 BY 2.33.
+
+DEFINE BUTTON MBTN_KONSTGRP 
+     LABEL "Konstruktionsgrupp-Konstruktioner" 
+     SIZE 7.5 BY 2.33.
+
+DEFINE BUTTON MBTN_KONSTKALK 
+     LABEL "Konstruktioner-Kalkyl" 
+     SIZE 7.5 BY 2.33.
+
+DEFINE BUTTON MBTN_KONSTMTRL 
+     LABEL "Konstruktioner-Materiel" 
+     SIZE 7.5 BY 2.33.
+
+DEFINE BUTTON MBTN_MADM 
+     LABEL "Materieladm." 
+     SIZE 7.5 BY 2.33.
+
+DEFINE VARIABLE RAD_VAL AS INTEGER INITIAL 1 
+     VIEW-AS RADIO-SET HORIZONTAL
+     RADIO-BUTTONS 
+          "Konstruktionsgrupp-Konstruktioner", 1,
+"Konstruktioner", 2,
+"Konstruktioner-Materiel", 3,
+"Konstruktioner-Kalkyl", 4
+     SIZE 2.5 BY 1 NO-UNDO.
+
+DEFINE RECTANGLE RECT-MENY
+     EDGE-PIXELS 2 GRAPHIC-EDGE  NO-FILL 
+     SIZE 124.75 BY .08.
+
+DEFINE BUTTON BTN_AND-4 
+     LABEL "Ändra":L 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_AND-5 
+     LABEL "Ändra":L 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_BILD-2 
+     LABEL "Bild":L 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_BILD-3 
+     LABEL "Bild":L 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_BORT-3 
+     LABEL "Ta bort":L 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_BORT-4 
+     LABEL "Ta bort":L 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_KOPIERKONST-2 
+     LABEL "Kopiera":L 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_NER2 
+     IMAGE-UP FILE "BILDER\pilner":U
+     LABEL "Btn 1" 
+     SIZE 4 BY 1.5 TOOLTIP "Flytta ner".
+
+DEFINE BUTTON BTN_NER3 
+     IMAGE-UP FILE "BILDER\pilner":U
+     LABEL "Btn 1" 
+     SIZE 4 BY 1.5 TOOLTIP "Flytta ner".
+
+DEFINE BUTTON BTN_NY-3 
+     LABEL "Ny":L 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_NY-4 
+     LABEL "Ny":L 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_OK-2 
+     LABEL "Koppla":L 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_UPP2 
+     IMAGE-UP FILE "BILDER\pilupp":U
+     LABEL "Btn 1" 
+     SIZE 4 BY 1.5 TOOLTIP "Flytta upp".
+
+DEFINE BUTTON BTN_UPP3 
+     IMAGE-UP FILE "BILDER\pilupp":U
+     LABEL "Btn 1" 
+     SIZE 4 BY 1.5 TOOLTIP "Flytta upp".
+
+DEFINE BUTTON BTN_VPER-2 
+     LABEL "Visa":L 
+     SIZE 12 BY 1.
+
+DEFINE VARIABLE CMB_VAL2 AS CHARACTER FORMAT "X(30)":U 
+     VIEW-AS COMBO-BOX INNER-LINES 5
+     LIST-ITEMS "0" 
+     DROP-DOWN-LIST
+     SIZE 28.5 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-KODKOPPLAD AS CHARACTER FORMAT "X(10)":U 
+     LABEL "Koppla till" 
+      VIEW-AS TEXT 
+     SIZE 15 BY .67 NO-UNDO.
+
+DEFINE {&NEW} SHARED VARIABLE RAD_KONTO AS INTEGER 
+     VIEW-AS RADIO-SET HORIZONTAL
+     RADIO-BUTTONS 
+          "", 1
+     SIZE 106 BY .67 NO-UNDO.
+
+DEFINE BUTTON BTN_ANDRA 
+     LABEL "Ändra" 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_BORT 
+     LABEL "Ta bort" 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_KOP-5 
+     LABEL "Kopiera" 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_KOR 
+     LABEL "Kör funktion" 
+     SIZE 14 BY 1.
+
+DEFINE BUTTON BTN_NER 
+     IMAGE-UP FILE "BILDER\pilner":U
+     LABEL "Btn 1" 
+     SIZE 4 BY 1.5 TOOLTIP "Flytta ner".
+
+DEFINE BUTTON BTN_NY 
+     LABEL "Ny" 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_UPP 
+     IMAGE-UP FILE "BILDER\pilupp":U
+     LABEL "Btn 1" 
+     SIZE 4 BY 1.5 TOOLTIP "Flytta upp".
+
+DEFINE BUTTON FBTN_EX 
+     LABEL "Visa I EXCEL" 
+     SIZE 14 BY 1
+     FGCOLOR 1 .
+
+DEFINE VARIABLE CMB_LEVFR AS CHARACTER FORMAT "X(15)":U 
+     LABEL "Från leverantör" 
+     VIEW-AS COMBO-BOX INNER-LINES 5
+     LIST-ITEMS "0" 
+     DROP-DOWN-LIST
+     SIZE 18.75 BY 1 NO-UNDO.
+
+DEFINE VARIABLE CMB_LEVTILL AS CHARACTER FORMAT "X(15)":U 
+     LABEL "Till leverantör" 
+     VIEW-AS COMBO-BOX INNER-LINES 5
+     LIST-ITEMS "0" 
+     DROP-DOWN-LIST
+     SIZE 18.75 BY 1 NO-UNDO.
+
+DEFINE VARIABLE CMB_LEVVAL AS CHARACTER FORMAT "X(15)":U 
+     LABEL "Leverantörer" 
+     VIEW-AS COMBO-BOX INNER-LINES 5
+     LIST-ITEMS "0" 
+     DROP-DOWN-LIST
+     SIZE 18.75 BY 1 NO-UNDO.
+
+DEFINE VARIABLE SEL_UPP AS CHARACTER 
+     VIEW-AS SELECTION-LIST SINGLE SCROLLBAR-VERTICAL 
+     SIZE 46.5 BY 19.5
+     BGCOLOR 7 FGCOLOR 15 FONT 17 NO-UNDO.
+
+DEFINE VARIABLE TOG_LEV AS LOGICAL INITIAL yes 
+     LABEL "Visa leverantörsnamn" 
+     VIEW-AS TOGGLE-BOX
+     SIZE 22.5 BY .79 NO-UNDO.
+
+DEFINE BUTTON BTN_AND-3 
+     LABEL "Ändra alla" 
+     SIZE 12 BY 1 TOOLTIP "Byt markerad artikel och alla likadana mot markerade artiklar i vald materiel".
+
+DEFINE BUTTON BTN_AND1 
+     LABEL "Ändra" 
+     SIZE 12 BY 1 TOOLTIP "Markerade artiklar i övre fönstret byts mot markerade artiklar i Vald materiel".
+
+DEFINE BUTTON BTN_ANDANT 
+     LABEL "Ändra antal" 
+     SIZE 12 BY 1 TOOLTIP "Ändra antal på en/flera artiklar. Det går också att uppdatera direkt i fältet".
+
+DEFINE BUTTON BTN_ANDLIN 
+     LABEL "Ändra Lin/Kab" 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_ANDMOD 
+     LABEL "Ändra moduler" 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_BACK 
+     IMAGE-UP FILE "BILDER\prev-u":U
+     LABEL "":L 
+     SIZE 4 BY 1.21 TOOLTIP "Markerade tas bort från vallistan".
+
+DEFINE BUTTON BTN_BORT-2 
+     LABEL "Ta bort" 
+     SIZE 12 BY 1 TOOLTIP "Ta bort markerad artikel/artiklar i övre fönstret från konstruktionen".
+
+DEFINE BUTTON BTN_LEV 
+     LABEL "Åter huvudleverantör" 
+     SIZE 20 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON BTN_LIN 
+     LABEL "Lin/kab":L 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_MOD 
+     LABEL "Moduler":L 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_NY-2 
+     LABEL "Ny" 
+     SIZE 12 BY 1 TOOLTIP "Markerade artiklar i vald materiel läggs till på markerad undergrupp i övre fönstret".
+
+DEFINE BUTTON BTN_OVER 
+     IMAGE-UP FILE "BILDER\next-u.bmp":U
+     LABEL "":L 
+     SIZE 4 BY 1.21 TOOLTIP "Markerade väljs".
+
+DEFINE BUTTON BTN_RENSA 
+     LABEL "Rensa":L 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_SATS 
+     LABEL "Sats info":L 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_SKAPA 
+     LABEL "Koppla" 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_SPEC 
+     LABEL "Spec.mtrl":L 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON btn_uppant 
+     LABEL "Antal":L 
+     SIZE 12 BY 1.
+
+DEFINE VARIABLE CMB_LEV AS CHARACTER FORMAT "X(40)":U 
+     LABEL "Leverantörer" 
+     VIEW-AS COMBO-BOX INNER-LINES 5
+     LIST-ITEMS "0" 
+     DROP-DOWN-LIST
+     SIZE 18.75 BY 1 NO-UNDO.
+
+DEFINE VARIABLE CMB_VAL AS CHARACTER FORMAT "X(30)":U 
+     VIEW-AS COMBO-BOX INNER-LINES 5
+     LIST-ITEMS "0" 
+     DROP-DOWN-LIST
+     SIZE 28.5 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-B1 AS CHARACTER FORMAT "X(256)":U 
+      VIEW-AS TEXT 
+     SIZE 36 BY .71
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-B2 AS CHARACTER FORMAT "X(256)":U 
+      VIEW-AS TEXT 
+     SIZE 36 BY .71
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-B3 AS CHARACTER FORMAT "X(256)":U 
+      VIEW-AS TEXT 
+     SIZE 36 BY .71
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-B4 AS CHARACTER FORMAT "X(256)":U 
+      VIEW-AS TEXT 
+     SIZE 36 BY .71
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-B5 AS CHARACTER FORMAT "X(256)":U 
+      VIEW-AS TEXT 
+     SIZE 36 BY .71
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-B6 AS CHARACTER FORMAT "X(256)":U 
+      VIEW-AS TEXT 
+     SIZE 36 BY .71
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-BEN AS CHARACTER FORMAT "X(40)":U 
+     LABEL "Benämning" 
+     VIEW-AS FILL-IN 
+     SIZE 12.25 BY .83 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-ENR AS CHARACTER FORMAT "X(11)":U 
+     LABEL "Enr" 
+     VIEW-AS FILL-IN 
+     SIZE 9.75 BY .83 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-KOD AS CHARACTER FORMAT "X(11)":U 
+     LABEL "Kod" 
+     VIEW-AS FILL-IN 
+     SIZE 9.75 BY .83 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-SOKALT AS CHARACTER FORMAT "X(256)":U INITIAL "Sökalternativ:" 
+      VIEW-AS TEXT 
+     SIZE 10.75 BY .63 NO-UNDO.
+
+DEFINE IMAGE IMAGE-7
+     FILENAME "BILDER\sokpa.gif":U CONVERT-3D-COLORS
+     SIZE 8 BY .83.
+
+DEFINE VARIABLE RAD_SOK AS INTEGER 
+     VIEW-AS RADIO-SET HORIZONTAL
+     RADIO-BUTTONS 
+          "Början", 1,
+"Någonstans", 2,
+"Slutet", 3
+     SIZE 28.25 BY .83 NO-UNDO.
+
+DEFINE RECTANGLE RECT-22
+     EDGE-PIXELS 2 GRAPHIC-EDGE  NO-FILL 
+     SIZE 45 BY 2.21
+     BGCOLOR 8 .
+
+DEFINE VARIABLE TOG_BEN AS LOGICAL INITIAL no 
+     LABEL "Ändra på benämning" 
+     VIEW-AS TOGGLE-BOX
+     SIZE 18 BY .79 NO-UNDO.
+
+/* Query definitions                                                    */
+&ANALYZE-SUSPEND
+DEFINE QUERY BRW_B2 FOR 
+      konstvaltemp SCROLLING.
+
+DEFINE QUERY BRW_B3 FOR 
+      konstvaltemp SCROLLING.
+
+DEFINE QUERY BRW_B4 FOR 
+      konstvaltemp SCROLLING.
+
+DEFINE QUERY BRW_B5 FOR 
+      konstvaltemp SCROLLING.
+
+DEFINE QUERY BRW_B6 FOR 
+      konstvaltemp SCROLLING.
+
+DEFINE QUERY BRW_GRUPP FOR 
+      konstgrptemp SCROLLING.
+
+DEFINE QUERY BRW_HLEV FOR 
+      mtrltemp SCROLLING.
+
+DEFINE QUERY BRW_KON FOR 
+      konsttemp SCROLLING.
+
+DEFINE QUERY BRW_KON2 FOR 
+      konsttemp SCROLLING.
+
+DEFINE QUERY BRW_MTRL FOR 
+      spec_mtrl SCROLLING.
+
+DEFINE QUERY BRW_MTRLBER FOR 
+      mtrlbertemp SCROLLING.
+
+DEFINE QUERY BRW_SATS FOR 
+      satstemp SCROLLING.
+
+DEFINE QUERY BRW_VAL FOR 
+      konstvaltemp SCROLLING.
+&ANALYZE-RESUME
+
+/* Browse definitions                                                   */
+DEFINE BROWSE BRW_B2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_B2 C-Win _STRUCTURED
+  QUERY BRW_B2 NO-LOCK DISPLAY
+      konstvaltemp.KVALKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U
+            WIDTH 10
+      konstvaltemp.BENAMNING FORMAT "X(256)":U WIDTH 22
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING MULTIPLE SIZE 36 BY 4.5.
+
+DEFINE BROWSE BRW_B3
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_B3 C-Win _STRUCTURED
+  QUERY BRW_B3 NO-LOCK DISPLAY
+      konstvaltemp.KVALKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U
+            WIDTH 10
+      konstvaltemp.BENAMNING FORMAT "X(256)":U WIDTH 22
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING MULTIPLE SIZE 36 BY 4.5.
+
+DEFINE BROWSE BRW_B4
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_B4 C-Win _STRUCTURED
+  QUERY BRW_B4 NO-LOCK DISPLAY
+      konstvaltemp.KVALKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U
+            WIDTH 10
+      konstvaltemp.BENAMNING FORMAT "X(256)":U WIDTH 22
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING MULTIPLE SIZE 36 BY 4.5.
+
+DEFINE BROWSE BRW_B5
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_B5 C-Win _STRUCTURED
+  QUERY BRW_B5 NO-LOCK DISPLAY
+      konstvaltemp.KVALKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U
+            WIDTH 10
+      konstvaltemp.BENAMNING FORMAT "X(256)":U WIDTH 22
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING MULTIPLE SIZE 36 BY 4.5.
+
+DEFINE BROWSE BRW_B6
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_B6 C-Win _STRUCTURED
+  QUERY BRW_B6 NO-LOCK DISPLAY
+      konstvaltemp.KVALKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U
+            WIDTH 10
+      konstvaltemp.BENAMNING FORMAT "X(256)":U WIDTH 22
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING MULTIPLE SIZE 36 BY 4.5.
+
+DEFINE BROWSE BRW_GRUPP
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_GRUPP C-Win _STRUCTURED
+  QUERY BRW_GRUPP NO-LOCK DISPLAY
+      konstgrptemp.BENAMNING FORMAT "X(256)":U WIDTH 42.75
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING SIZE 42.5 BY 23.25.
+
+DEFINE BROWSE BRW_HLEV
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_HLEV C-Win _STRUCTURED
+  QUERY BRW_HLEV NO-LOCK DISPLAY
+      mtrltemp.Enr FORMAT "X(11)":U
+      mtrltemp.Benamning FORMAT "x(256)":U WIDTH 25
+      mtrltemp.Enhet COLUMN-LABEL "Enh" FORMAT "x(3)":U
+      mtrltemp.NPRIS FORMAT ">>>>>9.99":U
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-ROW-MARKERS NO-COLUMN-SCROLLING MULTIPLE SIZE 45 BY 10.08
+         TITLE "Materiellista huvudleverantör.".
+
+DEFINE BROWSE BRW_KON
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_KON C-Win _STRUCTURED
+  QUERY BRW_KON NO-LOCK DISPLAY
+      konsttemp.KTYPKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U WIDTH 10
+      konsttemp.BENAMNING FORMAT "X(40)":U WIDTH 27
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING SIZE 39.5 BY 20.
+
+DEFINE BROWSE BRW_KON2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_KON2 C-Win _STRUCTURED
+  QUERY BRW_KON2 NO-LOCK DISPLAY
+      konsttemp.KTYPKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U WIDTH 10
+      konsttemp.BENAMNING FORMAT "X(256)":U WIDTH 22
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING SIZE 36 BY 4.5.
+
+DEFINE BROWSE BRW_MTRL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_MTRL C-Win _STRUCTURED
+  QUERY BRW_MTRL NO-LOCK DISPLAY
+      spec_mtrl.Enr FORMAT "X(11)":U
+      spec_mtrl.Benamning FORMAT "x(256)":U WIDTH 20
+      spec_mtrl.BERKVANT FORMAT ">>>>9":U
+      spec_mtrl.Enhet COLUMN-LABEL "Enh" FORMAT "x(3)":U
+      spec_mtrl.LEVKOD COLUMN-LABEL "Lev" FORMAT "X(4)":U
+      spec_mtrl.LINKAB FORMAT "Ja/Nej":U
+      spec_mtrl.NPRIS FORMAT ">>>>>9.99":U
+      spec_mtrl.MODUL COLUMN-LABEL "Moduler" FORMAT ">>>>>>9":U
+  ENABLE
+      spec_mtrl.Benamning
+      spec_mtrl.BERKVANT
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING MULTIPLE SIZE 59.75 BY 10.58
+         TITLE "Vald materiel".
+
+DEFINE BROWSE BRW_MTRLBER
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_MTRLBER C-Win _STRUCTURED
+  QUERY BRW_MTRLBER NO-LOCK DISPLAY
+      mtrlbertemp.ENR FORMAT "X(11)":U
+      mtrlbertemp.BENAMNING FORMAT "x(42)":U WIDTH 30
+      mtrlbertemp.ANTAL FORMAT ">>>>9":U
+      mtrlbertemp.F1 FORMAT "X(12)":U
+      mtrlbertemp.F2 FORMAT "X(12)":U
+      mtrlbertemp.F3 FORMAT "X(12)":U
+      mtrlbertemp.F4 FORMAT "X(12)":U
+      mtrlbertemp.F5 FORMAT "X(12)":U
+      mtrlbertemp.LINKAB FORMAT "Ja/Nej":U
+      mtrlbertemp.MODUL FORMAT ">>>9":U
+  ENABLE
+      mtrlbertemp.ANTAL
+      mtrlbertemp.LINKAB
+      mtrlbertemp.MODUL
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING MULTIPLE SIZE 109 BY 10.42
+         TITLE "Kopplad materiel".
+
+DEFINE BROWSE BRW_SATS
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_SATS C-Win _STRUCTURED
+  QUERY BRW_SATS NO-LOCK DISPLAY
+      satstemp.KOD FORMAT "X(11)":U
+      satstemp.BENAMNING FORMAT "x(256)":U WIDTH 25
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-ROW-MARKERS NO-COLUMN-SCROLLING MULTIPLE SIZE 45 BY 8.29
+         TITLE "Materielsatser".
+
+DEFINE BROWSE BRW_VAL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_VAL C-Win _STRUCTURED
+  QUERY BRW_VAL NO-LOCK DISPLAY
+      konstvaltemp.KVALKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U
+            WIDTH 10
+      konstvaltemp.BENAMNING FORMAT "X(32)":U WIDTH 30
+      konstvaltemp.KOPP FORMAT "Ja/Nej":U
+      konstvaltemp.ORDNING FORMAT ">9":U
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING MULTIPLE SIZE 58.63 BY 20.
+
+
+/* ************************  Frame Definitions  *********************** */
+
+DEFINE FRAME FRAME-BARABREDD
+     MBTN_KONSTGRP AT ROW 1 COL 1
+     MBTN_KONST AT ROW 1 COL 16.5
+     MBTN_KONSTMTRL AT ROW 1 COL 28.5
+     MBTN_KONSTKALK AT ROW 1 COL 42.5
+     MBTN_MADM AT ROW 1 COL 54.5
+     RAD_VAL AT ROW 1.08 COL 122 NO-LABEL
+     FBTN_HAMTA AT ROW 8 COL 111.5
+     FBTN_ANDRA2 AT ROW 9.08 COL 111.25
+     FBTN_ATER AT ROW 9.08 COL 111.5
+     FBTN_KOPI AT ROW 10.21 COL 111.5
+     BTN_AVB AT ROW 28.17 COL 111.5
+     RECT-MENY AT ROW 3.38 COL 1
+    WITH 1 DOWN NO-BOX KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 1
+         SIZE 124.75 BY 28.38.
+
+DEFINE FRAME FRAME-KONST
+     RAD_KONTO AT ROW 2.29 COL 4.5 NO-LABEL
+     CMB_VAL2 AT ROW 3.13 COL 1.5 NO-LABEL
+     BRW_KON AT ROW 4.21 COL 1.5
+     BRW_VAL AT ROW 4.21 COL 46.5
+     BTN_UPP2 AT ROW 10.33 COL 41.75
+     BTN_UPP3 AT ROW 10.33 COL 106.13
+     BTN_NER2 AT ROW 13.17 COL 41.75
+     BTN_NER3 AT ROW 13.17 COL 106.13
+     BTN_NY-3 AT ROW 24.58 COL 1.5
+     BTN_AND-4 AT ROW 24.58 COL 15.25
+     BTN_BORT-3 AT ROW 24.58 COL 28.88
+     BTN_NY-4 AT ROW 24.58 COL 56.63
+     BTN_AND-5 AT ROW 24.58 COL 70.38
+     BTN_BORT-4 AT ROW 24.58 COL 84
+     BTN_KOPIERKONST-2 AT ROW 25.75 COL 1.5
+     BTN_BILD-2 AT ROW 25.75 COL 15.25
+     BTN_VPER-2 AT ROW 25.75 COL 28.88
+     BTN_OK-2 AT ROW 25.75 COL 56.63
+     BTN_BILD-3 AT ROW 25.75 COL 70.38
+     FILL-IN-KODKOPPLAD AT ROW 3.08 COL 58.13 COLON-ALIGNED
+     "Konstruktioner" VIEW-AS TEXT
+          SIZE 21 BY 1.21 AT ROW 1.17 COL 2.5
+          FONT 17
+    WITH 1 DOWN NO-BOX KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 3.48
+         SIZE 109.5 BY 25.8.
+
+DEFINE FRAME FRAME-KONSTGRP
+     SEL_UPP AT ROW 2.29 COL 1.38 NO-LABEL
+     BRW_GRUPP AT ROW 2.29 COL 62.75
+     BTN_KOR AT ROW 2.38 COL 48.38
+     FBTN_EX AT ROW 3.88 COL 48.38
+     BTN_UPP AT ROW 11.04 COL 106.13
+     BTN_NER AT ROW 13.88 COL 106.13
+     TOG_LEV AT ROW 21.88 COL 13.63
+     CMB_LEVVAL AT ROW 22.92 COL 16.13 COLON-ALIGNED
+     CMB_LEVFR AT ROW 24.13 COL 16.13 COLON-ALIGNED
+     CMB_LEVTILL AT ROW 25.25 COL 16.13 COLON-ALIGNED
+     BTN_NY AT ROW 25.71 COL 60.63
+     BTN_ANDRA AT ROW 25.71 COL 73.25
+     BTN_BORT AT ROW 25.71 COL 85.88
+     BTN_KOP-5 AT ROW 25.71 COL 98.63
+     "Konstruktionsgrupp" VIEW-AS TEXT
+          SIZE 22 BY 1.21 AT ROW 1.08 COL 62.5
+          FONT 17
+     "Administration" VIEW-AS TEXT
+          SIZE 21.5 BY 1.21 AT ROW 1.08 COL 5.5
+          FONT 17
+    WITH 1 DOWN NO-BOX KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 3.48
+         SIZE 110.3 BY 25.8.
+
+DEFINE FRAME FRAME-VMTRL
+     BRW_MTRLBER AT ROW 1.08 COL 1.5
+     CMB_VAL AT ROW 1.08 COL 1.75 NO-LABEL
+     BRW_KON2 AT ROW 2.96 COL 1.5
+     BRW_B2 AT ROW 2.96 COL 38
+     BRW_B3 AT ROW 2.96 COL 74.5
+     BRW_B4 AT ROW 8.42 COL 1.5
+     BRW_B5 AT ROW 8.42 COL 38
+     BRW_B6 AT ROW 8.42 COL 74.5
+     BTN_NY-2 AT ROW 11.71 COL 2.75
+     BTN_AND1 AT ROW 11.71 COL 18
+     BTN_AND-3 AT ROW 11.71 COL 33.25
+     BTN_BORT-2 AT ROW 11.71 COL 48.5
+     BTN_ANDANT AT ROW 11.71 COL 63.75
+     BTN_ANDLIN AT ROW 11.71 COL 79
+     BTN_ANDMOD AT ROW 11.71 COL 94.25
+     BRW_HLEV AT ROW 13.17 COL 1.5
+     BRW_SATS AT ROW 13.17 COL 1.5
+     BRW_MTRL AT ROW 13.17 COL 50.75
+     BTN_OVER AT ROW 16.25 COL 46.63
+     BTN_BACK AT ROW 18.75 COL 46.63
+     BTN_LEV AT ROW 23.38 COL 33.25 RIGHT-ALIGNED
+     CMB_LEV AT ROW 23.38 COL 19.5 COLON-ALIGNED
+     BTN_SKAPA AT ROW 24.04 COL 50.5
+     BTN_RENSA AT ROW 24.04 COL 64.25
+     BTN_MOD AT ROW 24.04 COL 78
+     BTN_SATS AT ROW 24.04 COL 91.75
+     FILL-IN-ENR AT ROW 24.71 COL 11 COLON-ALIGNED
+     FILL-IN-KOD AT ROW 24.71 COL 11 COLON-ALIGNED
+     FILL-IN-BEN AT ROW 24.71 COL 29.38 COLON-ALIGNED
+     btn_uppant AT ROW 25.29 COL 50.5
+     BTN_SPEC AT ROW 25.29 COL 64.25
+     BTN_LIN AT ROW 25.29 COL 78
+     TOG_BEN AT ROW 25.38 COL 92.5
+     RAD_SOK AT ROW 25.75 COL 14.88 NO-LABEL
+     FILL-IN-B1 AT ROW 2.21 COL 1.5 NO-LABEL
+     FILL-IN-B2 AT ROW 2.21 COL 38 NO-LABEL
+     FILL-IN-B3 AT ROW 2.21 COL 72.5 COLON-ALIGNED NO-LABEL
+     FILL-IN-B4 AT ROW 7.67 COL 1.5 NO-LABEL
+     FILL-IN-B5 AT ROW 7.67 COL 38 NO-LABEL
+     FILL-IN-B6 AT ROW 7.67 COL 72.5 COLON-ALIGNED NO-LABEL
+     FILL-IN-SOKALT AT ROW 25.75 COL 2.13 NO-LABEL
+     RECT-22 AT ROW 24.54 COL 1.5
+     IMAGE-7 AT ROW 24.71 COL 1.88
+    WITH 1 DOWN NO-BOX KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 3.48
+         SIZE 110 BY 25.8.
+
+
+/* *********************** Procedure Settings ************************ */
+
+&ANALYZE-SUSPEND _PROCEDURE-SETTINGS
+/* Settings for THIS-PROCEDURE
+   Type: Window
+   Allow: Basic,Browse,DB-Fields,Window,Query
+   Temp-Tables and Buffers:
+      TABLE: konstgrptemp T "?" NO-UNDO temp-db konstgrptemp
+      TABLE: konsttemp T "?" NO-UNDO temp-db konsttemp
+      TABLE: konstvaltemp T "?" NO-UNDO temp-db konstvaltemp
+      TABLE: mtrlbertemp T "?" NO-UNDO temp-db mtrlbertemp
+      TABLE: mtrltemp T "?" NO-UNDO temp-db mtrltemp
+      TABLE: satstemp T "?" NO-UNDO temp-db satstemp
+      TABLE: spec_mtrl T "?" NO-UNDO temp-db spec_mtrl
+   END-TABLES.
+ */
+&ANALYZE-RESUME _END-PROCEDURE-SETTINGS
+
+/* *************************  Create Window  ************************** */
+
+&ANALYZE-SUSPEND _CREATE-WINDOW
+IF SESSION:DISPLAY-TYPE = "GUI":U THEN
+  CREATE WINDOW C-Win ASSIGN
+         HIDDEN             = YES
+         TITLE              = "<insert window title>"
+         HEIGHT             = 28.42
+         WIDTH              = 124.88
+         MAX-HEIGHT         = 29.83
+         MAX-WIDTH          = 127.38
+         VIRTUAL-HEIGHT     = 29.83
+         VIRTUAL-WIDTH      = 127.38
+         RESIZE             = yes
+         SCROLL-BARS        = no
+         STATUS-AREA        = no
+         BGCOLOR            = ?
+         FGCOLOR            = ?
+         KEEP-FRAME-Z-ORDER = yes
+         THREE-D            = yes
+         MESSAGE-AREA       = no
+         SENSITIVE          = yes.
+ELSE {&WINDOW-NAME} = CURRENT-WINDOW.
+/* END WINDOW DEFINITION                                                */
+&ANALYZE-RESUME
+
+
+
+/* ***********  Runtime Attributes and AppBuilder Settings  *********** */
+
+&ANALYZE-SUSPEND _RUN-TIME-ATTRIBUTES
+/* SETTINGS FOR WINDOW C-Win
+  NOT-VISIBLE,,RUN-PERSISTENT                                           */
+/* REPARENT FRAME */
+ASSIGN FRAME FRAME-KONST:FRAME = FRAME FRAME-BARABREDD:HANDLE
+       FRAME FRAME-KONSTGRP:FRAME = FRAME FRAME-BARABREDD:HANDLE
+       FRAME FRAME-VMTRL:FRAME = FRAME FRAME-BARABREDD:HANDLE.
+
+/* SETTINGS FOR FRAME FRAME-BARABREDD
+                                                                        */
+ASSIGN 
+       MBTN_KONST:HIDDEN IN FRAME FRAME-BARABREDD           = TRUE.
+
+ASSIGN 
+       MBTN_KONSTGRP:HIDDEN IN FRAME FRAME-BARABREDD           = TRUE.
+
+ASSIGN 
+       MBTN_KONSTKALK:HIDDEN IN FRAME FRAME-BARABREDD           = TRUE.
+
+ASSIGN 
+       MBTN_KONSTMTRL:HIDDEN IN FRAME FRAME-BARABREDD           = TRUE.
+
+ASSIGN 
+       MBTN_MADM:HIDDEN IN FRAME FRAME-BARABREDD           = TRUE.
+
+/* SETTINGS FOR RADIO-SET RAD_VAL IN FRAME FRAME-BARABREDD
+   NO-DISPLAY NO-ENABLE                                                 */
+ASSIGN 
+       RAD_VAL:HIDDEN IN FRAME FRAME-BARABREDD           = TRUE.
+
+/* SETTINGS FOR FRAME FRAME-KONST
+                                                                        */
+/* BROWSE-TAB BRW_KON CMB_VAL2 FRAME-KONST */
+/* BROWSE-TAB BRW_VAL BRW_KON FRAME-KONST */
+ASSIGN 
+       BRW_KON:HIDDEN  IN FRAME FRAME-KONST                = TRUE
+       BRW_KON:MAX-DATA-GUESS IN FRAME FRAME-KONST         = 300.
+
+ASSIGN 
+       BRW_VAL:HIDDEN  IN FRAME FRAME-KONST                = TRUE
+       BRW_VAL:MAX-DATA-GUESS IN FRAME FRAME-KONST         = 300.
+
+ASSIGN 
+       BTN_BILD-3:HIDDEN IN FRAME FRAME-KONST           = TRUE.
+
+ASSIGN 
+       BTN_NER2:HIDDEN IN FRAME FRAME-KONST           = TRUE.
+
+ASSIGN 
+       BTN_NER3:HIDDEN IN FRAME FRAME-KONST           = TRUE.
+
+ASSIGN 
+       BTN_OK-2:HIDDEN IN FRAME FRAME-KONST           = TRUE.
+
+ASSIGN 
+       BTN_UPP2:HIDDEN IN FRAME FRAME-KONST           = TRUE.
+
+ASSIGN 
+       BTN_UPP3:HIDDEN IN FRAME FRAME-KONST           = TRUE.
+
+/* SETTINGS FOR COMBO-BOX CMB_VAL2 IN FRAME FRAME-KONST
+   ALIGN-L                                                              */
+ASSIGN 
+       FILL-IN-KODKOPPLAD:HIDDEN IN FRAME FRAME-KONST           = TRUE.
+
+/* SETTINGS FOR RADIO-SET RAD_KONTO IN FRAME FRAME-KONST
+   SHARED                                                               */
+/* SETTINGS FOR FRAME FRAME-KONSTGRP
+                                                                        */
+/* BROWSE-TAB BRW_GRUPP SEL_UPP FRAME-KONSTGRP */
+ASSIGN 
+       BRW_GRUPP:MAX-DATA-GUESS IN FRAME FRAME-KONSTGRP         = 1000
+       BRW_GRUPP:ALLOW-COLUMN-SEARCHING IN FRAME FRAME-KONSTGRP = TRUE.
+
+ASSIGN 
+       CMB_LEVFR:HIDDEN IN FRAME FRAME-KONSTGRP           = TRUE.
+
+ASSIGN 
+       CMB_LEVTILL:HIDDEN IN FRAME FRAME-KONSTGRP           = TRUE.
+
+ASSIGN 
+       CMB_LEVVAL:HIDDEN IN FRAME FRAME-KONSTGRP           = TRUE.
+
+/* SETTINGS FOR TOGGLE-BOX TOG_LEV IN FRAME FRAME-KONSTGRP
+   NO-DISPLAY                                                           */
+ASSIGN 
+       TOG_LEV:HIDDEN IN FRAME FRAME-KONSTGRP           = TRUE.
+
+/* SETTINGS FOR FRAME FRAME-VMTRL
+                                                                        */
+/* BROWSE-TAB BRW_MTRLBER 1 FRAME-VMTRL */
+/* BROWSE-TAB BRW_KON2 IMAGE-7 FRAME-VMTRL */
+/* BROWSE-TAB BRW_B2 BRW_KON2 FRAME-VMTRL */
+/* BROWSE-TAB BRW_B3 BRW_B2 FRAME-VMTRL */
+/* BROWSE-TAB BRW_B4 BRW_B3 FRAME-VMTRL */
+/* BROWSE-TAB BRW_B5 BRW_B4 FRAME-VMTRL */
+/* BROWSE-TAB BRW_B6 BRW_B5 FRAME-VMTRL */
+/* BROWSE-TAB BRW_HLEV BTN_ANDMOD FRAME-VMTRL */
+/* BROWSE-TAB BRW_SATS BRW_HLEV FRAME-VMTRL */
+/* BROWSE-TAB BRW_MTRL BRW_SATS FRAME-VMTRL */
+ASSIGN 
+       BRW_B2:HIDDEN  IN FRAME FRAME-VMTRL                = TRUE
+       BRW_B2:COLUMN-RESIZABLE IN FRAME FRAME-VMTRL       = TRUE.
+
+ASSIGN 
+       BRW_B3:HIDDEN  IN FRAME FRAME-VMTRL                = TRUE
+       BRW_B3:COLUMN-RESIZABLE IN FRAME FRAME-VMTRL       = TRUE.
+
+ASSIGN 
+       BRW_B4:HIDDEN  IN FRAME FRAME-VMTRL                = TRUE
+       BRW_B4:COLUMN-RESIZABLE IN FRAME FRAME-VMTRL       = TRUE.
+
+ASSIGN 
+       BRW_B5:HIDDEN  IN FRAME FRAME-VMTRL                = TRUE
+       BRW_B5:COLUMN-RESIZABLE IN FRAME FRAME-VMTRL       = TRUE.
+
+ASSIGN 
+       BRW_B6:HIDDEN  IN FRAME FRAME-VMTRL                = TRUE
+       BRW_B6:COLUMN-RESIZABLE IN FRAME FRAME-VMTRL       = TRUE.
+
+ASSIGN 
+       BRW_HLEV:HIDDEN  IN FRAME FRAME-VMTRL                = TRUE
+       BRW_HLEV:MAX-DATA-GUESS IN FRAME FRAME-VMTRL         = 50000
+       BRW_HLEV:ALLOW-COLUMN-SEARCHING IN FRAME FRAME-VMTRL = TRUE
+       BRW_HLEV:COLUMN-RESIZABLE IN FRAME FRAME-VMTRL       = TRUE.
+
+ASSIGN 
+       BRW_KON2:HIDDEN  IN FRAME FRAME-VMTRL                = TRUE
+       BRW_KON2:COLUMN-RESIZABLE IN FRAME FRAME-VMTRL       = TRUE.
+
+ASSIGN 
+       BRW_MTRL:POPUP-MENU IN FRAME FRAME-VMTRL             = MENU POPUP-MENU-BRW_MTRL:HANDLE
+       BRW_MTRL:MAX-DATA-GUESS IN FRAME FRAME-VMTRL         = 50000
+       BRW_MTRL:ALLOW-COLUMN-SEARCHING IN FRAME FRAME-VMTRL = TRUE
+       BRW_MTRL:COLUMN-RESIZABLE IN FRAME FRAME-VMTRL       = TRUE.
+
+ASSIGN 
+       BRW_MTRLBER:POPUP-MENU IN FRAME FRAME-VMTRL             = MENU POPUP-MENU-BRW_MTRLBER:HANDLE
+       BRW_MTRLBER:MAX-DATA-GUESS IN FRAME FRAME-VMTRL         = 40000
+       BRW_MTRLBER:ALLOW-COLUMN-SEARCHING IN FRAME FRAME-VMTRL = TRUE
+       BRW_MTRLBER:COLUMN-RESIZABLE IN FRAME FRAME-VMTRL       = TRUE.
+
+ASSIGN 
+       BRW_SATS:HIDDEN  IN FRAME FRAME-VMTRL                = TRUE
+       BRW_SATS:MAX-DATA-GUESS IN FRAME FRAME-VMTRL         = 50000
+       BRW_SATS:ALLOW-COLUMN-SEARCHING IN FRAME FRAME-VMTRL = TRUE
+       BRW_SATS:COLUMN-RESIZABLE IN FRAME FRAME-VMTRL       = TRUE.
+
+ASSIGN 
+       BTN_ANDMOD:HIDDEN IN FRAME FRAME-VMTRL           = TRUE.
+
+/* SETTINGS FOR BUTTON BTN_BACK IN FRAME FRAME-VMTRL
+   NO-ENABLE                                                            */
+ASSIGN 
+       BTN_BACK:HIDDEN IN FRAME FRAME-VMTRL           = TRUE.
+
+/* SETTINGS FOR BUTTON BTN_LEV IN FRAME FRAME-VMTRL
+   ALIGN-R                                                              */
+ASSIGN 
+       BTN_LEV:HIDDEN IN FRAME FRAME-VMTRL           = TRUE.
+
+ASSIGN 
+       BTN_MOD:HIDDEN IN FRAME FRAME-VMTRL           = TRUE.
+
+/* SETTINGS FOR BUTTON BTN_OVER IN FRAME FRAME-VMTRL
+   NO-ENABLE                                                            */
+ASSIGN 
+       BTN_OVER:HIDDEN IN FRAME FRAME-VMTRL           = TRUE.
+
+ASSIGN 
+       BTN_SATS:HIDDEN IN FRAME FRAME-VMTRL           = TRUE.
+
+/* SETTINGS FOR COMBO-BOX CMB_VAL IN FRAME FRAME-VMTRL
+   ALIGN-L                                                              */
+/* SETTINGS FOR FILL-IN FILL-IN-B1 IN FRAME FRAME-VMTRL
+   ALIGN-L                                                              */
+ASSIGN 
+       FILL-IN-B1:HIDDEN IN FRAME FRAME-VMTRL           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-B2 IN FRAME FRAME-VMTRL
+   ALIGN-L                                                              */
+ASSIGN 
+       FILL-IN-B2:HIDDEN IN FRAME FRAME-VMTRL           = TRUE.
+
+ASSIGN 
+       FILL-IN-B3:HIDDEN IN FRAME FRAME-VMTRL           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-B4 IN FRAME FRAME-VMTRL
+   ALIGN-L                                                              */
+ASSIGN 
+       FILL-IN-B4:HIDDEN IN FRAME FRAME-VMTRL           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-B5 IN FRAME FRAME-VMTRL
+   ALIGN-L                                                              */
+ASSIGN 
+       FILL-IN-B5:HIDDEN IN FRAME FRAME-VMTRL           = TRUE.
+
+ASSIGN 
+       FILL-IN-B6:HIDDEN IN FRAME FRAME-VMTRL           = TRUE.
+
+ASSIGN 
+       FILL-IN-BEN:HIDDEN IN FRAME FRAME-VMTRL           = TRUE.
+
+ASSIGN 
+       FILL-IN-ENR:HIDDEN IN FRAME FRAME-VMTRL           = TRUE.
+
+ASSIGN 
+       FILL-IN-KOD:HIDDEN IN FRAME FRAME-VMTRL           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-SOKALT IN FRAME FRAME-VMTRL
+   ALIGN-L                                                              */
+ASSIGN 
+       FILL-IN-SOKALT:READ-ONLY IN FRAME FRAME-VMTRL        = TRUE.
+
+IF SESSION:DISPLAY-TYPE = "GUI":U AND VALID-HANDLE(C-Win)
+THEN C-Win:HIDDEN = yes.
+
+/* _RUN-TIME-ATTRIBUTES-END */
+&ANALYZE-RESUME
+
+
+/* Setting information for Queries and Browse Widgets fields            */
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_B2
+/* Query rebuild information for BROWSE BRW_B2
+     _TblList          = "Temp-Tables.konstvaltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konstvaltemp.KVALKOD
+"konstvaltemp.KVALKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konstvaltemp.BENAMNING
+"konstvaltemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "22" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_B2 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_B3
+/* Query rebuild information for BROWSE BRW_B3
+     _TblList          = "Temp-Tables.konstvaltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konstvaltemp.KVALKOD
+"konstvaltemp.KVALKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konstvaltemp.BENAMNING
+"konstvaltemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "22" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_B3 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_B4
+/* Query rebuild information for BROWSE BRW_B4
+     _TblList          = "Temp-Tables.konstvaltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konstvaltemp.KVALKOD
+"konstvaltemp.KVALKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konstvaltemp.BENAMNING
+"konstvaltemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "22" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_B4 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_B5
+/* Query rebuild information for BROWSE BRW_B5
+     _TblList          = "Temp-Tables.konstvaltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konstvaltemp.KVALKOD
+"konstvaltemp.KVALKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konstvaltemp.BENAMNING
+"konstvaltemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "22" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_B5 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_B6
+/* Query rebuild information for BROWSE BRW_B6
+     _TblList          = "Temp-Tables.konstvaltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konstvaltemp.KVALKOD
+"konstvaltemp.KVALKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konstvaltemp.BENAMNING
+"konstvaltemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "22" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_B6 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_GRUPP
+/* Query rebuild information for BROWSE BRW_GRUPP
+     _TblList          = "Temp-Tables.konstgrptemp"
+     _Options          = "NO-LOCK"
+     _OrdList          = "Temp-Tables.konstgrptemp.BENAMNING|yes"
+     _FldNameList[1]   > Temp-Tables.konstgrptemp.BENAMNING
+"konstgrptemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "42.75" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_GRUPP */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_HLEV
+/* Query rebuild information for BROWSE BRW_HLEV
+     _TblList          = "Temp-Tables.mtrltemp"
+     _Options          = "NO-LOCK INDEXED-REPOSITION"
+     _OrdList          = "rt9.MTRL.Enr|yes"
+     _FldNameList[1]   = Temp-Tables.mtrltemp.Enr
+     _FldNameList[2]   > Temp-Tables.mtrltemp.Benamning
+"mtrltemp.Benamning" ? "x(256)" "character" ? ? ? ? ? ? no ? no no "25" yes no no "U" "" ""
+     _FldNameList[3]   > Temp-Tables.mtrltemp.Enhet
+"mtrltemp.Enhet" "Enh" "x(3)" "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _FldNameList[4]   > Temp-Tables.mtrltemp.NPRIS
+"mtrltemp.NPRIS" ? ">>>>>9.99" "decimal" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_HLEV */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_KON
+/* Query rebuild information for BROWSE BRW_KON
+     _TblList          = "Temp-Tables.konsttemp"
+     _Options          = "NO-LOCK INDEXED-REPOSITION"
+     _FldNameList[1]   > Temp-Tables.konsttemp.KTYPKOD
+"konsttemp.KTYPKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konsttemp.BENAMNING
+"konsttemp.BENAMNING" ? ? "character" ? ? ? ? ? ? no ? no no "27" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_KON */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_KON2
+/* Query rebuild information for BROWSE BRW_KON2
+     _TblList          = "Temp-Tables.konsttemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konsttemp.KTYPKOD
+"konsttemp.KTYPKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konsttemp.BENAMNING
+"konsttemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "22" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_KON2 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_MTRL
+/* Query rebuild information for BROWSE BRW_MTRL
+     _TblList          = "Temp-Tables.spec_mtrl"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   = Temp-Tables.spec_mtrl.Enr
+     _FldNameList[2]   > Temp-Tables.spec_mtrl.Benamning
+"spec_mtrl.Benamning" ? "x(256)" "character" ? ? ? ? ? ? yes ? no no "20" yes no no "U" "" ""
+     _FldNameList[3]   > Temp-Tables.spec_mtrl.BERKVANT
+"spec_mtrl.BERKVANT" ? ">>>>9" "decimal" ? ? ? ? ? ? yes ? no no ? yes no no "U" "" ""
+     _FldNameList[4]   > Temp-Tables.spec_mtrl.Enhet
+"spec_mtrl.Enhet" "Enh" "x(3)" "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _FldNameList[5]   > Temp-Tables.spec_mtrl.LEVKOD
+"spec_mtrl.LEVKOD" "Lev" ? "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _FldNameList[6]   = Temp-Tables.spec_mtrl.LINKAB
+     _FldNameList[7]   > Temp-Tables.spec_mtrl.NPRIS
+"spec_mtrl.NPRIS" ? ">>>>>9.99" "decimal" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _FldNameList[8]   > Temp-Tables.spec_mtrl.MODUL
+"spec_mtrl.MODUL" "Moduler" ">>>>>>9" "integer" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_MTRL */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_MTRLBER
+/* Query rebuild information for BROWSE BRW_MTRLBER
+     _TblList          = "Temp-Tables.mtrlbertemp"
+     _Options          = "NO-LOCK"
+     _OrdList          = "Temp-Tables.mtrlbertemp.F1|yes,Temp-Tables.mtrlbertemp.F2|yes,Temp-Tables.mtrlbertemp.F3|yes,Temp-Tables.mtrlbertemp.F4|yes,Temp-Tables.mtrlbertemp.F5|yes"
+     _FldNameList[1]   = Temp-Tables.mtrlbertemp.ENR
+     _FldNameList[2]   > Temp-Tables.mtrlbertemp.BENAMNING
+"mtrlbertemp.BENAMNING" ? "x(42)" "character" ? ? ? ? ? ? no ? no no "30" yes no no "U" "" ""
+     _FldNameList[3]   > Temp-Tables.mtrlbertemp.ANTAL
+"mtrlbertemp.ANTAL" ? ">>>>9" "integer" ? ? ? ? ? ? yes ? no no ? yes no no "U" "" ""
+     _FldNameList[4]   > Temp-Tables.mtrlbertemp.F1
+"mtrlbertemp.F1" ? "X(12)" "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _FldNameList[5]   > Temp-Tables.mtrlbertemp.F2
+"mtrlbertemp.F2" ? "X(12)" "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _FldNameList[6]   > Temp-Tables.mtrlbertemp.F3
+"mtrlbertemp.F3" ? "X(12)" "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _FldNameList[7]   > Temp-Tables.mtrlbertemp.F4
+"mtrlbertemp.F4" ? "X(12)" "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _FldNameList[8]   > Temp-Tables.mtrlbertemp.F5
+"mtrlbertemp.F5" ? "X(12)" "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _FldNameList[9]   > Temp-Tables.mtrlbertemp.LINKAB
+"mtrlbertemp.LINKAB" ? ? "logical" ? ? ? ? ? ? yes ? no no ? yes no no "U" "" ""
+     _FldNameList[10]   > Temp-Tables.mtrlbertemp.MODUL
+"mtrlbertemp.MODUL" ? ? "integer" ? ? ? ? ? ? yes ? no no ? yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_MTRLBER */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_SATS
+/* Query rebuild information for BROWSE BRW_SATS
+     _TblList          = "Temp-Tables.satstemp"
+     _Options          = "NO-LOCK INDEXED-REPOSITION"
+     _FldNameList[1]   = Temp-Tables.satstemp.KOD
+     _FldNameList[2]   > Temp-Tables.satstemp.BENAMNING
+"satstemp.BENAMNING" ? "x(256)" "character" ? ? ? ? ? ? no ? no no "25" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_SATS */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_VAL
+/* Query rebuild information for BROWSE BRW_VAL
+     _TblList          = "Temp-Tables.konstvaltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konstvaltemp.KVALKOD
+"konstvaltemp.KVALKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konstvaltemp.BENAMNING
+"konstvaltemp.BENAMNING" ? "X(32)" "character" ? ? ? ? ? ? no ? no no "30" yes no no "U" "" ""
+     _FldNameList[3]   = Temp-Tables.konstvaltemp.KOPP
+     _FldNameList[4]   = Temp-Tables.konstvaltemp.ORDNING
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_VAL */
+&ANALYZE-RESUME
+
+ 
+
+
+
+/* ************************  Control Triggers  ************************ */
+
+&Scoped-define SELF-NAME C-Win
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL C-Win C-Win
+ON END-ERROR OF C-Win /* <insert window title> */
+OR ENDKEY OF {&WINDOW-NAME} ANYWHERE DO:
+  /* This case occurs when the user presses the "Esc" key.
+     In a persistently run window, just ignore this.  If we did not, the
+     application would exit. */
+  IF THIS-PROCEDURE:PERSISTENT THEN RETURN NO-APPLY.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL C-Win C-Win
+ON WINDOW-CLOSE OF C-Win /* <insert window title> */
+DO:
+  /* This event will close the window and terminate the procedure.  */
+  APPLY "CLOSE":U TO THIS-PROCEDURE.
+  RETURN NO-APPLY.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_B2
+&Scoped-define FRAME-NAME FRAME-VMTRL
+&Scoped-define SELF-NAME BRW_B2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_B2 C-Win
+ON MOUSE-MENU-CLICK OF BRW_B2 IN FRAME FRAME-VMTRL
+DO:  
+   IF finns2 = TRUE THEN DO:
+      ASSIGN
+      status-ok = BRW_B2:DESELECT-ROWS() IN FRAME {&FRAME-NAME}
+      mark = FALSE. 
+   END.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_B2 C-Win
+ON VALUE-CHANGED OF BRW_B2 IN FRAME FRAME-VMTRL
+DO: 
+   ASSIGN
+   brw = 2.    
+   IF AVAILABLE konstvaltemp THEN hjkvalkod = konstvaltemp.KVALKOD.   
+   RUN markerade_UI.  
+   IF finns2 = TRUE THEN ASSIGN mark = TRUE.          
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_B3
+&Scoped-define SELF-NAME BRW_B3
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_B3 C-Win
+ON MOUSE-MENU-CLICK OF BRW_B3 IN FRAME FRAME-VMTRL
+DO:
+   IF finns3 = TRUE THEN DO:
+      ASSIGN
+      status-ok = BRW_B3:DESELECT-ROWS() IN FRAME {&FRAME-NAME}
+      mark = FALSE. 
+   END.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_B3 C-Win
+ON VALUE-CHANGED OF BRW_B3 IN FRAME FRAME-VMTRL
+DO: 
+   ASSIGN
+   brw = 3.
+   IF AVAILABLE konstvaltemp THEN hjkvalkod = konstvaltemp.KVALKOD.   
+   RUN markerade_UI.  
+   IF finns3 = TRUE THEN ASSIGN mark = TRUE.         
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_B4
+&Scoped-define SELF-NAME BRW_B4
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_B4 C-Win
+ON MOUSE-MENU-CLICK OF BRW_B4 IN FRAME FRAME-VMTRL
+DO:
+   IF finns4 = TRUE THEN DO:
+      ASSIGN
+      status-ok = BRW_B4:DESELECT-ROWS() IN FRAME {&FRAME-NAME}
+      mark = FALSE. 
+   END.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_B4 C-Win
+ON VALUE-CHANGED OF BRW_B4 IN FRAME FRAME-VMTRL
+DO: 
+   ASSIGN
+   brw = 4.
+   IF AVAILABLE konstvaltemp THEN hjkvalkod = konstvaltemp.KVALKOD.   
+   RUN markerade_UI.  
+   IF finns4 = TRUE THEN ASSIGN mark = TRUE.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_B5
+&Scoped-define SELF-NAME BRW_B5
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_B5 C-Win
+ON MOUSE-MENU-CLICK OF BRW_B5 IN FRAME FRAME-VMTRL
+DO:
+   IF finns5 = TRUE THEN DO:
+      ASSIGN
+      status-ok = BRW_B5:DESELECT-ROWS() IN FRAME {&FRAME-NAME}
+      mark = FALSE. 
+   END.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_B5 C-Win
+ON VALUE-CHANGED OF BRW_B5 IN FRAME FRAME-VMTRL
+DO: 
+   ASSIGN
+   brw = 5.
+   IF AVAILABLE konstvaltemp THEN hjkvalkod = konstvaltemp.KVALKOD.
+   RUN markerade_UI.  
+   IF finns5 = TRUE THEN ASSIGN mark = TRUE.           
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_B6
+&Scoped-define SELF-NAME BRW_B6
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_B6 C-Win
+ON MOUSE-MENU-CLICK OF BRW_B6 IN FRAME FRAME-VMTRL
+DO:
+   IF finns6 = TRUE THEN DO:
+      ASSIGN
+      status-ok = BRW_B6:DESELECT-ROWS() IN FRAME {&FRAME-NAME}
+      mark = FALSE. 
+   END.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_B6 C-Win
+ON VALUE-CHANGED OF BRW_B6 IN FRAME FRAME-VMTRL
+DO: 
+   ASSIGN
+   brw = 6.
+   IF AVAILABLE konstvaltemp THEN hjkvalkod = konstvaltemp.KVALKOD.   
+   RUN markerade_UI.  
+   IF finns6 = TRUE THEN ASSIGN mark = TRUE.          
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_GRUPP
+&Scoped-define FRAME-NAME FRAME-KONSTGRP
+&Scoped-define SELF-NAME BRW_GRUPP
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_GRUPP C-Win
+ON VALUE-CHANGED OF BRW_GRUPP IN FRAME FRAME-KONSTGRP
+DO: 
+   ASSIGN
+   status-ok = {&BROWSE-NAME}:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME} NO-ERROR.
+   ASSIGN
+   kongrkod = konstgrptemp.KONSKOD.  
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_HLEV
+&Scoped-define FRAME-NAME FRAME-VMTRL
+&Scoped-define SELF-NAME BRW_HLEV
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_HLEV C-Win
+ON MOUSE-MENU-CLICK OF BRW_HLEV IN FRAME FRAME-VMTRL /* Materiellista huvudleverantör. */
+DO:                                                                
+   {muswait.i}
+/*    RUN infoES_UI (INPUT 2). */
+   {musarrow.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_HLEV C-Win
+ON MOUSE-SELECT-DBLCLICK OF BRW_HLEV IN FRAME FRAME-VMTRL /* Materiellista huvudleverantör. */
+DO:
+   {muswait.i}
+   satsmtrl = TRUE.
+   RUN SATSINNEU.W (INPUT ROWID(mtrltemp)).
+   satsmtrl = FALSE.
+   {musarrow.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_HLEV C-Win
+ON START-SEARCH OF BRW_HLEV IN FRAME FRAME-VMTRL /* Materiellista huvudleverantör. */
+DO:
+   APPLY "END-SEARCH" TO SELF.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_KON
+&Scoped-define FRAME-NAME FRAME-KONST
+&Scoped-define SELF-NAME BRW_KON
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_KON C-Win
+ON VALUE-CHANGED OF BRW_KON IN FRAME FRAME-KONST
+DO:
+   ASSIGN
+   status-ok = BRW_KON:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME} NO-ERROR.
+   IF AVAILABLE konsttemp THEN DO:
+      ASSIGN
+      konstvalvar = konsttemp.KTYPKOD
+      kongrkod = konsttemp.KONSKOD
+      FILL-IN-KODKOPPLAD = konstvalvar.
+   END.
+   ELSE FILL-IN-KODKOPPLAD = "".
+   DISPLAY FILL-IN-KODKOPPLAD WITH FRAME {&FRAME-NAME}.
+   RAD_KONTO = 1.
+   APPLY "VALUE-CHANGED" TO RAD_KONTO IN FRAME {&FRAME-NAME}.    
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_KON2
+&Scoped-define FRAME-NAME FRAME-VMTRL
+&Scoped-define SELF-NAME BRW_KON2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_KON2 C-Win
+ON VALUE-CHANGED OF BRW_KON2 IN FRAME FRAME-VMTRL
+DO: 
+   {muswait.i}
+   ASSIGN
+   status-ok = BRW_KON2:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME} NO-ERROR.
+   ASSIGN
+   konstvalvar = ""
+   hjkvalkod = "".
+   IF AVAILABLE konsttemp THEN konstvalvar = konsttemp.KTYPKOD.   
+   mark = FALSE.   
+   RUN bytkonst_UI.      
+   {musarrow.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_MTRL
+&Scoped-define SELF-NAME BRW_MTRL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_MTRL C-Win
+ON MOUSE-SELECT-DBLCLICK OF BRW_MTRL IN FRAME FRAME-VMTRL /* Vald materiel */
+DO:    
+   {muswait.i}           
+   musz = FALSE.
+   RUN BERANTALU.W (INPUT ROWID(spec_mtrl)).
+   RUN openbdynspec_UI IN brwproc[10].
+   {musarrow.i}    
+  
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_MTRL C-Win
+ON VALUE-CHANGED OF BRW_MTRL IN FRAME FRAME-VMTRL /* Vald materiel */
+DO:
+   status-ok = BRW_MTRL:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME} NO-ERROR.
+   IF AVAILABLE spec_mtrl THEN enrvar = spec_mtrl.ENR.      
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME spec_mtrl.Benamning
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL spec_mtrl.Benamning BRW_MTRL _BROWSE-COLUMN C-Win
+ON ENTRY OF spec_mtrl.Benamning IN BROWSE BRW_MTRL /* benämning */
+DO:
+   IF AVAILABLE spec_mtrl THEN DISPLAY spec_mtrl.Benamning WITH BROWSE BRW_MTRL.    
+   entryben = TRUE.      
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL spec_mtrl.Benamning BRW_MTRL _BROWSE-COLUMN C-Win
+ON LEAVE OF spec_mtrl.Benamning IN BROWSE BRW_MTRL /* benämning */
+DO:
+   musz = musz.
+   IF AVAILABLE spec_mtrl THEN DO:
+      spec_mtrl.BENAMNING = INPUT BROWSE BRW_MTRL spec_mtrl.BENAMNING.
+      DISPLAY spec_mtrl.BENAMNING WITH BROWSE BRW_MTRL NO-ERROR.   
+   END.           
+   entryben = FALSE.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME spec_mtrl.BERKVANT
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL spec_mtrl.BERKVANT BRW_MTRL _BROWSE-COLUMN C-Win
+ON ENTRY OF spec_mtrl.BERKVANT IN BROWSE BRW_MTRL /* antal */
+DO:
+   IF AVAILABLE spec_mtrl THEN DISPLAY spec_mtrl.BERKVANT WITH BROWSE BRW_MTRL. 
+   entryantal = TRUE.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL spec_mtrl.BERKVANT BRW_MTRL _BROWSE-COLUMN C-Win
+ON LEAVE OF spec_mtrl.BERKVANT IN BROWSE BRW_MTRL /* antal */
+DO:
+   musz = musz.
+   IF AVAILABLE spec_mtrl THEN DO:
+      spec_mtrl.BERKVANT = INPUT BROWSE BRW_MTRL spec_mtrl.BERKVANT.
+      DISPLAY spec_mtrl.BERKVANT WITH BROWSE BRW_MTRL NO-ERROR.   
+   END.           
+   entryantal = FALSE.  
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_MTRLBER
+&Scoped-define SELF-NAME BRW_MTRLBER
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_MTRLBER C-Win
+ON ROW-LEAVE OF BRW_MTRLBER IN FRAME FRAME-VMTRL /* Kopplad materiel */
+DO:
+   status-ok = BRW_MTRLBER:SELECT-FOCUSED-ROW() IN FRAME FRAME-VMTRL NO-ERROR.
+   IF AVAILABLE mtrlbertemp THEN DO:
+      DISPLAY mtrlbertemp.ANTAL WITH BROWSE BRW_MTRLBER. 
+      mtrlbertemp.ANTAL = INPUT BROWSE BRW_MTRLBER mtrlbertemp.ANTAL.
+      DISPLAY mtrlbertemp.ANTAL WITH BROWSE BRW_MTRLBER.       
+   END.    
+
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_MTRLBER C-Win
+ON VALUE-CHANGED OF BRW_MTRLBER IN FRAME FRAME-VMTRL /* Kopplad materiel */
+DO:   
+   status-ok = BRW_MTRLBER:SELECT-FOCUSED-ROW() IN FRAME FRAME-VMTRL NO-ERROR.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME mtrlbertemp.ANTAL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL mtrlbertemp.ANTAL BRW_MTRLBER _BROWSE-COLUMN C-Win
+ON ENTRY OF mtrlbertemp.ANTAL IN BROWSE BRW_MTRLBER /* Antal */
+DO:
+   status-ok = BRW_MTRLBER:SELECT-FOCUSED-ROW() IN FRAME FRAME-VMTRL NO-ERROR.
+   IF AVAILABLE mtrlbertemp THEN DISPLAY mtrlbertemp.ANTAL WITH BROWSE BRW_MTRLBER.          
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL mtrlbertemp.ANTAL BRW_MTRLBER _BROWSE-COLUMN C-Win
+ON LEAVE OF mtrlbertemp.ANTAL IN BROWSE BRW_MTRLBER /* Antal */
+DO:
+   musz = musz.
+   IF AVAILABLE mtrlbertemp THEN DO:
+      mtrlbertemp.ANTAL = INPUT BROWSE BRW_MTRLBER mtrlbertemp.ANTAL.
+      FIND FIRST emtrlbertemp WHERE emtrlbertemp.MTRLROW = mtrlbertemp.MTRLROW NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE emtrlbertemp THEN CREATE emtrlbertemp.      
+      BUFFER-COPY mtrlbertemp TO emtrlbertemp.
+      DISPLAY mtrlbertemp.ANTAL WITH BROWSE BRW_MTRLBER NO-ERROR.   
+   END.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME mtrlbertemp.LINKAB
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL mtrlbertemp.LINKAB BRW_MTRLBER _BROWSE-COLUMN C-Win
+ON ENTRY OF mtrlbertemp.LINKAB IN BROWSE BRW_MTRLBER /* Lin/Kab */
+DO:
+   IF AVAILABLE mtrlbertemp THEN DISPLAY mtrlbertemp.LINKAB WITH BROWSE BRW_MTRLBER.    
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL mtrlbertemp.LINKAB BRW_MTRLBER _BROWSE-COLUMN C-Win
+ON LEAVE OF mtrlbertemp.LINKAB IN BROWSE BRW_MTRLBER /* Lin/Kab */
+DO:   
+   IF AVAILABLE mtrlbertemp THEN DO:
+      mtrlbertemp.LINKAB = INPUT BROWSE BRW_MTRLBER mtrlbertemp.LINKAB.
+      FIND FIRST emtrlbertemp WHERE emtrlbertemp.MTRLROW = mtrlbertemp.MTRLROW NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE emtrlbertemp THEN CREATE emtrlbertemp.      
+      BUFFER-COPY mtrlbertemp TO emtrlbertemp.
+      DISPLAY mtrlbertemp.LINKAB WITH BROWSE BRW_MTRLBER NO-ERROR.   
+   END.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL mtrlbertemp.LINKAB BRW_MTRLBER _BROWSE-COLUMN C-Win
+ON MOUSE-SELECT-CLICK OF mtrlbertemp.LINKAB IN BROWSE BRW_MTRLBER /* Lin/Kab */
+DO:
+   IF AVAILABLE mtrlbertemp THEN DO:
+      IF NOT mtrlbertemp.LINKAB  THEN mtrlbertemp.LINKAB = TRUE.
+      ELSE mtrlbertemp.LINKAB = FALSE.
+      DISPLAY mtrlbertemp.LINKAB WITH BROWSE BRW_MTRLBER. 
+   END.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME mtrlbertemp.MODUL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL mtrlbertemp.MODUL BRW_MTRLBER _BROWSE-COLUMN C-Win
+ON ENTRY OF mtrlbertemp.MODUL IN BROWSE BRW_MTRLBER /* Moduler */
+DO:
+  IF AVAILABLE mtrlbertemp THEN DISPLAY mtrlbertemp.MODUL WITH BROWSE BRW_MTRLBER.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL mtrlbertemp.MODUL BRW_MTRLBER _BROWSE-COLUMN C-Win
+ON LEAVE OF mtrlbertemp.MODUL IN BROWSE BRW_MTRLBER /* Moduler */
+DO:   
+   IF AVAILABLE mtrlbertemp THEN DO:
+      mtrlbertemp.MODUL = INPUT BROWSE BRW_MTRLBER mtrlbertemp.MODUL.
+      FIND FIRST emtrlbertemp WHERE emtrlbertemp.MTRLROW = mtrlbertemp.MTRLROW NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE emtrlbertemp THEN CREATE emtrlbertemp.      
+      BUFFER-COPY mtrlbertemp TO emtrlbertemp.
+      DISPLAY mtrlbertemp.MODUL WITH BROWSE BRW_MTRLBER NO-ERROR.   
+   END.    
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_SATS
+&Scoped-define SELF-NAME BRW_SATS
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_SATS C-Win
+ON MOUSE-SELECT-DBLCLICK OF BRW_SATS IN FRAME FRAME-VMTRL /* Materielsatser */
+DO:
+   {muswait.i}      
+   satstrue = TRUE.
+   RUN SATSINNEU.W (INPUT ROWID(satstemp)).
+   satstrue = FALSE.
+   {musarrow.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_SATS C-Win
+ON START-SEARCH OF BRW_SATS IN FRAME FRAME-VMTRL /* Materielsatser */
+DO:
+   APPLY "END-SEARCH" TO SELF.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_VAL
+&Scoped-define FRAME-NAME FRAME-KONST
+&Scoped-define SELF-NAME BRW_VAL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_VAL C-Win
+ON VALUE-CHANGED OF BRW_VAL IN FRAME FRAME-KONST
+DO:
+  RUN brwval_UI.  
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-VMTRL
+&Scoped-define SELF-NAME BTN_AND-3
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_AND-3 C-Win
+ON CHOOSE OF BTN_AND-3 IN FRAME FRAME-VMTRL /* Ändra alla */
+DO:
+   RUN btnand-3_UI.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONST
+&Scoped-define SELF-NAME BTN_AND-4
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_AND-4 C-Win
+ON CHOOSE OF BTN_AND-4 IN FRAME FRAME-KONST /* Ändra */
+DO:
+   RUN btnand2_UI.     
+   {musarrow.i}   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_AND-5
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_AND-5 C-Win
+ON CHOOSE OF BTN_AND-5 IN FRAME FRAME-KONST /* Ändra */
+DO:
+   RUN btnand3_UI.     
+   {musarrow.i} 
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-VMTRL
+&Scoped-define SELF-NAME BTN_AND1
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_AND1 C-Win
+ON CHOOSE OF BTN_AND1 IN FRAME FRAME-VMTRL /* Ändra */
+DO:
+   RUN btnand1_UI.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_ANDANT
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_ANDANT C-Win
+ON CHOOSE OF BTN_ANDANT IN FRAME FRAME-VMTRL /* Ändra antal */
+DO: 
+   RUN btnandant_UI.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_ANDLIN
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_ANDLIN C-Win
+ON CHOOSE OF BTN_ANDLIN IN FRAME FRAME-VMTRL /* Ändra Lin/Kab */
+DO: 
+   RUN andlin_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_ANDMOD
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_ANDMOD C-Win
+ON CHOOSE OF BTN_ANDMOD IN FRAME FRAME-VMTRL /* Ändra moduler */
+DO:   
+   RUN andmod_UI.       
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONSTGRP
+&Scoped-define SELF-NAME BTN_ANDRA
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_ANDRA C-Win
+ON CHOOSE OF BTN_ANDRA IN FRAME FRAME-KONSTGRP /* Ändra */
+DO:
+   APPLY "VALUE-CHANGED" TO BRW_GRUPP.
+   RUN btnandra_UI.
+   {musarrow.i}   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-BARABREDD
+&Scoped-define SELF-NAME BTN_AVB
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_AVB C-Win
+ON CHOOSE OF BTN_AVB IN FRAME FRAME-BARABREDD /* Avsluta */
+DO:
+   APPLY "GO" TO BTN_AVB.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_AVB C-Win
+ON GO OF BTN_AVB IN FRAME FRAME-BARABREDD /* Avsluta */
+DO:
+   APPLY "CLOSE":U TO THIS-PROCEDURE.
+   RETURN.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-VMTRL
+&Scoped-define SELF-NAME BTN_BACK
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_BACK C-Win
+ON CHOOSE OF BTN_BACK IN FRAME FRAME-VMTRL
+DO:
+   RUN rowleave_UI.
+   RUN btnback_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONST
+&Scoped-define SELF-NAME BTN_BILD-2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_BILD-2 C-Win
+ON CHOOSE OF BTN_BILD-2 IN FRAME FRAME-KONST /* Bild */
+DO:
+   {muswait.i}      
+   FIND FIRST konsttemp WHERE konsttemp.KONSKOD = kongrkod USE-INDEX ORD NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE konsttemp THEN DO:
+      MESSAGE "Det finns ingen " + bbenamntemp.B1 " att koppla bild till." 
+      VIEW-AS ALERT-BOX.
+   END.
+   ELSE DO: 
+      bbval = bbenamntemp.B1.
+      {AVBGOM.I}      
+      RUN KOPPBILDU.W (INPUT konstvalvar,INPUT kongrkod).      
+      {AVBFRAM.I}
+      
+   END.
+   {musarrow.i}  
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_BILD-3
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_BILD-3 C-Win
+ON CHOOSE OF BTN_BILD-3 IN FRAME FRAME-KONST /* Bild */
+DO:
+   {muswait.i}         
+   IF BRW_VAL:NUM-SELECTED-ROWS > 1 THEN DO:
+      MESSAGE "Man kan bara koppla bild till en konstruktion i taget." 
+      VIEW-AS ALERT-BOX.
+      RETURN.
+   END.     
+   IF AVAILABLE konstvaltemp THEN DO:
+      IF konstvaltemp.KOPP = FALSE THEN DO:
+         MESSAGE "Man kan bara koppla bild till en kopplad konstruktion." 
+         VIEW-AS ALERT-BOX.
+         RETURN.
+      END.
+   END.
+   bbval = bbenamntemp.B1.
+   {AVBGOM.I}      
+   RUN KOPPBILDU.W (INPUT konstvaltempvar,INPUT kongrtempkod).      
+   {AVBFRAM.I}   
+   {musarrow.i}  
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONSTGRP
+&Scoped-define SELF-NAME BTN_BORT
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_BORT C-Win
+ON CHOOSE OF BTN_BORT IN FRAME FRAME-KONSTGRP /* Ta bort */
+DO:              
+   APPLY "VALUE-CHANGED" TO BRW_GRUPP.
+   RUN bort_UI.    
+   {musarrow.i}              
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-VMTRL
+&Scoped-define SELF-NAME BTN_BORT-2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_BORT-2 C-Win
+ON CHOOSE OF BTN_BORT-2 IN FRAME FRAME-VMTRL /* Ta bort */
+DO:
+   RUN bortmtrlber_UI.                 
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONST
+&Scoped-define SELF-NAME BTN_BORT-3
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_BORT-3 C-Win
+ON CHOOSE OF BTN_BORT-3 IN FRAME FRAME-KONST /* Ta bort */
+DO:   
+   &Scoped-define FRAME-NAME FRAME-KONST
+   APPLY "VALUE-CHANGED" TO BRW_KON IN FRAME {&FRAME-NAME}. 
+   valkon = FALSE.
+   RUN setcolsortvar_UI IN brwproc[15] (INPUT " WHERE KONSKOD = '" + STRING(kongrkod) + "' USE-INDEX ORD").  
+   RUN bort2_UI.       
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_BORT-4
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_BORT-4 C-Win
+ON CHOOSE OF BTN_BORT-4 IN FRAME FRAME-KONST /* Ta bort */
+DO:   
+   RUN bortkonst_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONSTGRP
+&Scoped-define SELF-NAME BTN_KOP-5
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_KOP-5 C-Win
+ON CHOOSE OF BTN_KOP-5 IN FRAME FRAME-KONSTGRP /* Kopiera */
+DO:
+   RUN btnkop-5_UI.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONST
+&Scoped-define SELF-NAME BTN_KOPIERKONST-2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_KOPIERKONST-2 C-Win
+ON CHOOSE OF BTN_KOPIERKONST-2 IN FRAME FRAME-KONST /* Kopiera */
+DO:
+   RUN btnkopier_UI.   
+   {musarrow.i}  
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONSTGRP
+&Scoped-define SELF-NAME BTN_KOR
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_KOR C-Win
+ON CHOOSE OF BTN_KOR IN FRAME FRAME-KONSTGRP /* Kör funktion */
+DO:
+   SEL_UPP = INPUT SEL_UPP.   
+   RUN vart_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-VMTRL
+&Scoped-define SELF-NAME BTN_LEV
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_LEV C-Win
+ON CHOOSE OF BTN_LEV IN FRAME FRAME-VMTRL /* Åter huvudleverantör */
+DO:  
+   RUN btnlev_UI.                  
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_LIN
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_LIN C-Win
+ON CHOOSE OF BTN_LIN IN FRAME FRAME-VMTRL /* Lin/kab */
+DO:   
+   RUN rowleave_UI.
+   RUN btnlinkab_UI.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_MOD
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_MOD C-Win
+ON CHOOSE OF BTN_MOD IN FRAME FRAME-VMTRL /* Moduler */
+DO:   
+   RUN btnmod_UI.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONSTGRP
+&Scoped-define SELF-NAME BTN_NER
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_NER C-Win
+ON CHOOSE OF BTN_NER IN FRAME FRAME-KONSTGRP /* Btn 1 */
+DO:
+   RUN btnner_UI.         
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONST
+&Scoped-define SELF-NAME BTN_NER2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_NER2 C-Win
+ON CHOOSE OF BTN_NER2 IN FRAME FRAME-KONST /* Btn 1 */
+DO:
+   RUN btnner2_UI.   
+   {musarrow.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_NER3
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_NER3 C-Win
+ON CHOOSE OF BTN_NER3 IN FRAME FRAME-KONST /* Btn 1 */
+DO:
+   RUN btnner3_UI.   
+   {musarrow.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONSTGRP
+&Scoped-define SELF-NAME BTN_NY
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_NY C-Win
+ON CHOOSE OF BTN_NY IN FRAME FRAME-KONSTGRP /* Ny */
+DO:
+   RUN btnny_UI.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-VMTRL
+&Scoped-define SELF-NAME BTN_NY-2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_NY-2 C-Win
+ON CHOOSE OF BTN_NY-2 IN FRAME FRAME-VMTRL /* Ny */
+DO:
+   RUN ny-2_UI.        
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONST
+&Scoped-define SELF-NAME BTN_NY-3
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_NY-3 C-Win
+ON CHOOSE OF BTN_NY-3 IN FRAME FRAME-KONST /* Ny */
+DO:
+   RUN ny2_UI.       
+   {musarrow.i}   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_NY-4
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_NY-4 C-Win
+ON CHOOSE OF BTN_NY-4 IN FRAME FRAME-KONST /* Ny */
+DO:
+   RUN ny3_UI.       
+   {musarrow.i}     
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_OK-2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_OK-2 C-Win
+ON CHOOSE OF BTN_OK-2 IN FRAME FRAME-KONST /* Koppla */
+DO:      
+   RUN btnok_UI.
+   {musarrow.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-VMTRL
+&Scoped-define SELF-NAME BTN_OVER
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_OVER C-Win
+ON CHOOSE OF BTN_OVER IN FRAME FRAME-VMTRL
+DO: 
+   RUN rowleave_UI.
+   RUN btnover_UI.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_RENSA
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_RENSA C-Win
+ON CHOOSE OF BTN_RENSA IN FRAME FRAME-VMTRL /* Rensa */
+DO: 
+   {muswait.i}   
+   EMPTY TEMP-TABLE spec_mtrl NO-ERROR. 
+   RUN openbdynspec_UI IN brwproc[10].
+   {musarrow.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_SATS
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_SATS C-Win
+ON CHOOSE OF BTN_SATS IN FRAME FRAME-VMTRL /* Sats info */
+DO:
+   RUN rowleave_UI.
+   RUN btnsats_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_SKAPA
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_SKAPA C-Win
+ON CHOOSE OF BTN_SKAPA IN FRAME FRAME-VMTRL /* Koppla */
+DO: 
+   {muswait.i}
+   RUN rowleave_UI.
+   RUN skapamtrl_UI.
+   RUN openbdynspec_UI IN brwproc[10].
+   MESSAGE "Materiel är nu kopplat."
+   VIEW-AS ALERT-BOX TITLE "Meddelande".
+   {musarrow.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_SPEC
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_SPEC C-Win
+ON CHOOSE OF BTN_SPEC IN FRAME FRAME-VMTRL /* Spec.mtrl */
+DO:
+   {muswait.i}
+   RUN rowleave_UI.
+   {AVBGOM.I}      
+   RUN BERSPECANV2.W.
+   {AVBFRAM.I}
+   
+   RUN openbdynspec_UI IN brwproc[10].
+   {musarrow.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONSTGRP
+&Scoped-define SELF-NAME BTN_UPP
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_UPP C-Win
+ON CHOOSE OF BTN_UPP IN FRAME FRAME-KONSTGRP /* Btn 1 */
+DO:
+   RUN  btnupp_UI.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONST
+&Scoped-define SELF-NAME BTN_UPP2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_UPP2 C-Win
+ON CHOOSE OF BTN_UPP2 IN FRAME FRAME-KONST /* Btn 1 */
+DO:
+   RUN btnupp2_UI.   
+   {musarrow.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_UPP3
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_UPP3 C-Win
+ON CHOOSE OF BTN_UPP3 IN FRAME FRAME-KONST /* Btn 1 */
+DO:
+   RUN btnupp3_UI.   
+   {musarrow.i}   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-VMTRL
+&Scoped-define SELF-NAME btn_uppant
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL btn_uppant C-Win
+ON CHOOSE OF btn_uppant IN FRAME FRAME-VMTRL /* Antal */
+DO: 
+   RUN rowleave_UI.
+   ASSIGN
+   musz = FALSE
+   antal_valda = BRW_MTRL:NUM-SELECTED-ROWS
+   antal_raknare = 1.    
+   DO WHILE antal_raknare LE antal_valda:   
+      status-ok = BRW_MTRL:FETCH-SELECTED-ROW(antal_raknare).  
+      RUN BERANTALU.W (INPUT ROWID(spec_mtrl)).
+      /*lena 20070420 pga fel om man markerar flera
+      APPLY "ENTRY" TO BRW_MTRL IN FRAME {&FRAME-NAME}.*/
+      antal_raknare = antal_raknare + 1.   
+   END.
+   APPLY "ENTRY" TO BRW_MTRL IN FRAME {&FRAME-NAME}.
+   RUN openbdynspec_UI IN brwproc[10].
+   {musarrow.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONST
+&Scoped-define SELF-NAME BTN_VPER-2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_VPER-2 C-Win
+ON CHOOSE OF BTN_VPER-2 IN FRAME FRAME-KONST /* Visa */
+DO:
+   IF musz = TRUE THEN musz = FALSE.
+   ASSIGN
+   skrivut = FALSE.
+   &Scoped-define FRAME-NAME FRAME-KONST
+   APPLY "VALUE-CHANGED" TO BRW_KON IN FRAME {&FRAME-NAME}.    
+   {AVBGOM.I}      
+   RUN VISAKONSU.W (INPUT konstvalvar,INPUT kongrkod).
+   {AVBFRAM.I}   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-VMTRL
+&Scoped-define SELF-NAME CMB_LEV
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL CMB_LEV C-Win
+ON VALUE-CHANGED OF CMB_LEV IN FRAME FRAME-VMTRL /* Leverantörer */
+DO:                      
+   ASSIGN           
+   lev = INPUT CMB_LEV.
+   IF lev NE huvudlev THEN DO:
+      IF SUBSTRING(lev,1,5) = "Sats " THEN DO:
+         RUN changebrwh_UI IN brwproc[12] 
+         (INPUT BRW_SATS:HANDLE IN FRAME {&FRAME-NAME}, INPUT BRW_MTRL:HANDLE IN FRAME {&FRAME-NAME}).
+         ASSIGN                      
+         BRW_HLEV:HIDDEN = TRUE
+         CMB_LEV:HIDDEN = TRUE
+         FILL-IN-ENR:HIDDEN = TRUE
+         BTN_LEV:HIDDEN = FALSE   
+         BRW_SATS:HIDDEN = FALSE         
+         FILL-IN-KOD:HIDDEN = FALSE 
+         satsvar = TRUE
+         val = TRUE.
+         RUN setorgtitle_UI IN brwproc[11] (INPUT "Satslista " + lev).         
+         FIND FIRST levtemp WHERE levtemp.LEVNAMN = SUBSTRING(lev,6,20) 
+         USE-INDEX LEV NO-LOCK NO-ERROR.
+         vald_lev = levtemp.LEVKOD.
+      END.
+      ELSE DO:
+         RUN changebrwh_UI IN brwproc[12] 
+         (INPUT BRW_HLEV:HANDLE IN FRAME {&FRAME-NAME}, INPUT BRW_MTRL:HANDLE IN FRAME {&FRAME-NAME}).
+         ASSIGN                      
+         BRW_HLEV:HIDDEN = FALSE
+         CMB_LEV:HIDDEN = TRUE
+         BRW_SATS:HIDDEN = TRUE
+         FILL-IN-KOD:HIDDEN = TRUE
+         BTN_LEV:HIDDEN = FALSE               
+         val = TRUE.         
+         /*Niklas personlig spec_mtrl*/
+         IF lev BEGINS globanv THEN vald_lev = "99" + Guru.Konstanter:globanv.          
+         ELSE DO:
+            FIND FIRST levtemp WHERE levtemp.LEVNAMN = lev 
+            USE-INDEX LEV NO-LOCK NO-ERROR.
+            vald_lev = levtemp.LEVKOD. 
+         END. 
+         IF vald_lev BEGINS "99" THEN RUN initsok_UI (INPUT 2,INPUT "").   
+         levinlast = "".
+         RUN levinlast_UI (INPUT vald_lev,OUTPUT levinlast).
+         RUN setorgtitle_UI IN brwproc[7] (INPUT "Materiellista " + lev + levinlast).         
+         RUN setcolsortvar_UI IN brwproc[7] (INPUT " WHERE KALKNR = 0 AND LEVKOD = '" + STRING(vald_lev) + "' USE-INDEX ENR ").
+         RUN openbdynspec_UI IN brwproc[7].
+      END.
+   END.   
+   ELSE vald_lev = vald_kundlev.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONSTGRP
+&Scoped-define SELF-NAME CMB_LEVFR
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL CMB_LEVFR C-Win
+ON VALUE-CHANGED OF CMB_LEVFR IN FRAME FRAME-KONSTGRP /* Från leverantör */
+DO:                                 
+   CMB_LEVFR = INPUT CMB_LEVFR.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME CMB_LEVTILL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL CMB_LEVTILL C-Win
+ON VALUE-CHANGED OF CMB_LEVTILL IN FRAME FRAME-KONSTGRP /* Till leverantör */
+DO:                                 
+   CMB_LEVTILL = INPUT CMB_LEVTILL.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME CMB_LEVVAL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL CMB_LEVVAL C-Win
+ON VALUE-CHANGED OF CMB_LEVVAL IN FRAME FRAME-KONSTGRP /* Leverantörer */
+DO:
+   CMB_LEVVAL = INPUT CMB_LEVVAL.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-VMTRL
+&Scoped-define SELF-NAME CMB_VAL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL CMB_VAL C-Win
+ON VALUE-CHANGED OF CMB_VAL IN FRAME FRAME-VMTRL
+DO:  
+   {muswait.i} 
+   ASSIGN
+   CMB_VAL = INPUT CMB_VAL
+   mark = FALSE.
+   FIND FIRST konstgrptemp WHERE konstgrptemp.BENAMNING = CMB_VAL NO-LOCK NO-ERROR. 
+   IF AVAILABLE konstgrptemp THEN kongrkod = konstgrptemp.KONSKOD.   
+   IF NOT AVAILABLE konstgrptemp THEN FIND FIRST konstgrptemp NO-LOCK NO-ERROR. 
+   IF konstgrptemp.KONSKOD = 0 THEN DO:
+      &Scoped-define FRAME-NAME FRAME-VMTRL
+      BTN_MOD:HIDDEN IN FRAME {&FRAME-NAME} = FALSE.      
+   END.
+   ELSE BTN_MOD:HIDDEN = TRUE.   
+   FIND FIRST konsttemp WHERE konsttemp.KONSKOD = kongrkod AND konsttemp.KTYPKOD = konstvalvar NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE konsttemp THEN DO:
+      FIND FIRST konsttemp WHERE konsttemp.KONSKOD = kongrkod USE-INDEX ORD NO-LOCK NO-ERROR.
+   END.
+   FIND FIRST konstvaltemp WHERE konstvaltemp.KONSKOD = konstgrptemp.KONSKOD NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE konstvaltemp THEN DO:
+      RUN laddatempen_UI IN konmtrlapph (INPUT konstgrptemp.KONSKOD, OUTPUT TABLE konstvaltemp APPEND).
+   END.
+   RUN bytgrupp_UI.  
+   {musarrow.i}      
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONST
+&Scoped-define SELF-NAME CMB_VAL2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL CMB_VAL2 C-Win
+ON VALUE-CHANGED OF CMB_VAL2 IN FRAME FRAME-KONST
+DO: 
+   {muswait.i} 
+   ASSIGN
+   CMB_VAL2 = INPUT CMB_VAL2.
+   RUN cmbval_UI.   
+   {musarrow.i}      
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-BARABREDD
+&Scoped-define SELF-NAME FBTN_ANDRA2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FBTN_ANDRA2 C-Win
+ON CHOOSE OF FBTN_ANDRA2 IN FRAME FRAME-BARABREDD /* Ändra */
+DO:
+   
+   RUN btnandra2_UI.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FBTN_ATER
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FBTN_ATER C-Win
+ON CHOOSE OF FBTN_ATER IN FRAME FRAME-BARABREDD /* Åter */
+DO:
+   /*Spara undan ändrade poster*/
+   RUN andraspar_UI IN konmtrlapph (INPUT TABLE emtrlbertemp).
+   ASSIGN
+   {&WINDOW-NAME}:TITLE = "Administration av materiel kopplat till konstruktioner".
+   RUN title_UI.
+   ASSIGN
+   FBTN_ANDRA2:HIDDEN = FALSE
+   FBTN_ATER:HIDDEN = TRUE
+   /*FBTN_SKAPA:HIDDEN = FALSE*/
+   FBTN_HAMTA:HIDDEN = FALSE
+   FBTN_KOPI:HIDDEN = FALSE
+   /*FBTN_ADM:HIDDEN = FALSE*/
+   CMB_VAL:HIDDEN IN FRAME FRAME-VMTRL = FALSE
+   BRW_KON2:HIDDEN = FALSE  
+   BRW_B2:HIDDEN = FALSE  
+   BRW_B3:HIDDEN = FALSE  
+   BRW_B4:HIDDEN = FALSE  
+   BRW_B5:HIDDEN = FALSE  
+   BRW_B6:HIDDEN = FALSE  
+   FILL-IN-B1:HIDDEN = FALSE
+   FILL-IN-B2:HIDDEN = FALSE
+   FILL-IN-B3:HIDDEN = FALSE
+   FILL-IN-B4:HIDDEN = FALSE
+   FILL-IN-B5:HIDDEN = FALSE
+   FILL-IN-B6:HIDDEN = FALSE
+   BRW_MTRLBER:HIDDEN = TRUE
+   BTN_NY-2:HIDDEN = TRUE
+   BTN_AND1:HIDDEN = TRUE
+   BTN_AND-3:HIDDEN = TRUE
+   BTN_BORT-2:HIDDEN = TRUE
+   BTN_ANDANT:HIDDEN = TRUE
+   BTN_ANDLIN:HIDDEN = TRUE
+   BTN_ANDMOD:HIDDEN = TRUE.
+   ENABLE UNLESS-HIDDEN BTN_SKAPA WITH FRAME FRAME-VMTRL.                                         
+/*    ENABLE UNLESS-HIDDEN RAD_SOK BRW_HLEV BRW_SATS BRW_MTRL FILL-IN-KOD FILL-IN-ENR FILL-IN-BEN */
+/*    CMB_LEV BTN_LEV BTN_SKAPA BTN_OVER BTN_BACK BTN_RENSA BTN_MOD BTN_SATS                      */
+/*    BTN_UPPANT BTN_SPEC BTN_LIN WITH FRAME FRAME-VMTRL.                                         */
+/*    RUN setcolsortvar_UI IN brwproc[7] (INPUT " WHERE mtrltemp.KALKNR = 0 AND mtrltemp.LEVKOD = '" + STRING(vald_kundlev) + "'"). */
+/*    RUN openbdynspec_UI IN brwproc[7].                                                                                            */
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONSTGRP
+&Scoped-define SELF-NAME FBTN_EX
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FBTN_EX C-Win
+ON CHOOSE OF FBTN_EX IN FRAME FRAME-KONSTGRP /* Visa I EXCEL */
+DO:
+   {muswait.i} 
+   IF SEL_UPP = "Materiel som används på konstruktioner" THEN DO:      
+      IF CMB_LEV = "Alla lev" THEN RUN EXCMTRL3.P  (INPUT TOG_LEV,INPUT ? ).  
+      ELSE  DO:
+         FIND FIRST levtemp WHERE levtemp.LEVNAMN = CMB_LEV NO-LOCK NO-ERROR.
+         RUN EXCMTRL3.P (INPUT TOG_LEV,INPUT levtemp.LEVKOD ).      
+      END.
+   END.   
+   /*ELSE IF SEL_UPP = "Lista på artiklar i konstruktionsupplägget som ej får träff hos ny leverantör." THEN DO:      
+      RUN xxx (INPUT TOG_LEV,INPUT levtemp.LEVKOD ).  
+   END.*/
+   {musarrow.i}  
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-BARABREDD
+&Scoped-define SELF-NAME FBTN_HAMTA
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FBTN_HAMTA C-Win
+ON CHOOSE OF FBTN_HAMTA IN FRAME FRAME-BARABREDD /* Hämta */
+DO: 
+   RUN rowleave_UI.
+   RUN btnhamta_UI.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FBTN_KOPI
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FBTN_KOPI C-Win
+ON CHOOSE OF FBTN_KOPI IN FRAME FRAME-BARABREDD /* Kopiera */
+DO:
+   RUN rowleave_UI.
+   RUN btnkopi_UI.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-VMTRL
+&Scoped-define SELF-NAME FILL-IN-BEN
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-BEN C-Win
+ON ANY-KEY OF FILL-IN-BEN IN FRAME FRAME-VMTRL /* Benämning */
+DO:
+   {TRYCKS.I}
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      APPLY "MOUSE-SELECT-DBLCLICK" TO FILL-IN-BEN IN FRAME {&FRAME-NAME}.
+   END.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-BEN C-Win
+ON MOUSE-SELECT-DBLCLICK OF FILL-IN-BEN IN FRAME FRAME-VMTRL /* Benämning */
+DO:
+   RUN dbcben_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FILL-IN-ENR
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-ENR C-Win
+ON ANY-KEY OF FILL-IN-ENR IN FRAME FRAME-VMTRL /* Enr */
+DO:
+   {TRYCKS.I}
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      APPLY "MOUSE-SELECT-DBLCLICK" TO FILL-IN-ENR IN FRAME {&FRAME-NAME}.
+   END.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-ENR C-Win
+ON MOUSE-SELECT-DBLCLICK OF FILL-IN-ENR IN FRAME FRAME-VMTRL /* Enr */
+DO:    
+   RUN dbcenr_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FILL-IN-KOD
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-KOD C-Win
+ON ANY-KEY OF FILL-IN-KOD IN FRAME FRAME-VMTRL /* Kod */
+DO:
+   {TRYCKS.I}
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      APPLY "MOUSE-SELECT-DBLCLICK" TO FILL-IN-KOD IN FRAME {&FRAME-NAME}.
+   END.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-KOD C-Win
+ON MOUSE-SELECT-DBLCLICK OF FILL-IN-KOD IN FRAME FRAME-VMTRL /* Kod */
+DO: 
+   {muswait.i}
+   {ENRHMT3.I}
+   RUN initsok_UI (INPUT 2,INPUT posok).
+   {musarrow.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-BARABREDD
+&Scoped-define SELF-NAME MBTN_KONST
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL MBTN_KONST C-Win
+ON CHOOSE OF MBTN_KONST IN FRAME FRAME-BARABREDD /* Konstruktioner */
+DO:
+   RUN btnvit_UI (INPUT MBTN_KONST:HANDLE).
+   RUN rowleave_UI.
+   RAD_VAL = 2.
+   APPLY "VALUE-CHANGED" TO RAD_VAL.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME MBTN_KONSTGRP
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL MBTN_KONSTGRP C-Win
+ON CHOOSE OF MBTN_KONSTGRP IN FRAME FRAME-BARABREDD /* Konstruktionsgrupp-Konstruktioner */
+DO:
+   RUN btnvit_UI (INPUT MBTN_KONSTGRP:HANDLE).
+   RUN rowleave_UI.
+   RAD_VAL = 1.
+   APPLY "VALUE-CHANGED" TO RAD_VAL.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME MBTN_KONSTKALK
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL MBTN_KONSTKALK C-Win
+ON CHOOSE OF MBTN_KONSTKALK IN FRAME FRAME-BARABREDD /* Konstruktioner-Kalkyl */
+DO:   
+   RUN btnvit_UI (INPUT MBTN_KONSTGRP:HANDLE).
+   RUN rowleave_UI.
+   RAD_VAL = 4.
+  APPLY "VALUE-CHANGED" TO RAD_VAL.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME MBTN_KONSTMTRL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL MBTN_KONSTMTRL C-Win
+ON CHOOSE OF MBTN_KONSTMTRL IN FRAME FRAME-BARABREDD /* Konstruktioner-Materiel */
+DO:
+   RUN btnvit_UI (INPUT MBTN_KONSTMTRL:HANDLE).
+   RAD_VAL = 3.
+   APPLY "VALUE-CHANGED" TO RAD_VAL.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME MBTN_MADM
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL MBTN_MADM C-Win
+ON CHOOSE OF MBTN_MADM IN FRAME FRAME-BARABREDD /* Materieladm. */
+DO:           
+   RUN btnvit_UI (INPUT MBTN_KONSTGRP:HANDLE).
+   RUN rowleave_UI.
+   {muswait.i}
+   {AVBGOM.I}
+   RUN MTRLADMV.W.
+   {AVBFRAM.I}
+   {musarrow.i}   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME m_Antal
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL m_Antal C-Win
+ON CHOOSE OF MENU-ITEM m_Antal /* Antal */
+DO:
+   {muswait.i}           
+   musz = FALSE.
+   RUN BERANTALU.W (INPUT ROWID(spec_mtrl)).
+   RUN openbdynspec_UI IN brwproc[10].
+   {musarrow.i}   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME m_Avmarkera
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL m_Avmarkera C-Win
+ON CHOOSE OF MENU-ITEM m_Avmarkera /* Avmarkera */
+DO:
+   status-ok = BRW_MTRLBER:DESELECT-ROWS() IN FRAME FRAME-VMTRL NO-ERROR.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME m_Information
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL m_Information C-Win
+ON CHOOSE OF MENU-ITEM m_Information /* Information */
+DO:  
+   RUN BERBENU.W (INPUT konstvalvar).     
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONST
+&Scoped-define SELF-NAME RAD_KONTO
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL RAD_KONTO C-Win
+ON VALUE-CHANGED OF RAD_KONTO IN FRAME FRAME-KONST
+DO: 
+   {muswait.i}      
+   RAD_KONTO = INPUT RAD_KONTO.
+   EMPTY TEMP-TABLE konstvaltemp NO-ERROR. 
+   IF RAD_KONTO = 1 THEN bbval = bbenamntemp.B2.
+   IF RAD_KONTO = 2 THEN bbval = bbenamntemp.B3.
+   IF RAD_KONTO = 3 THEN bbval = bbenamntemp.B4.
+   IF RAD_KONTO = 4 THEN bbval = bbenamntemp.B5.
+   IF RAD_KONTO = 5 THEN bbval = bbenamntemp.B6.        
+   EMPTY TEMP-TABLE konstvaltemp NO-ERROR. 
+   RUN radkonto_UI IN konmtrlapph (INPUT bbval,INPUT kongrkod,INPUT konstvalvar,
+                                   INPUT-OUTPUT TABLE konstvaltemp).        
+   RUN setcolsortvar_UI IN brwproc[14] (INPUT "USE-INDEX ORD").  
+   RUN openbdynspec_UI IN brwproc[14].       
+   {musarrow.i}       
+
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-VMTRL
+&Scoped-define SELF-NAME RAD_SOK
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL RAD_SOK C-Win
+ON VALUE-CHANGED OF RAD_SOK IN FRAME FRAME-VMTRL
+DO:
+   RAD_SOK = INPUT RAD_SOK.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-BARABREDD
+&Scoped-define SELF-NAME RAD_VAL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL RAD_VAL C-Win
+ON VALUE-CHANGED OF RAD_VAL IN FRAME FRAME-BARABREDD
+DO:
+   RUN radval_UI.  
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONSTGRP
+&Scoped-define SELF-NAME SEL_UPP
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL SEL_UPP C-Win
+ON MOUSE-SELECT-DBLCLICK OF SEL_UPP IN FRAME FRAME-KONSTGRP
+DO:
+   SEL_UPP = INPUT SEL_UPP.     
+   RUN vart_UI.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL SEL_UPP C-Win
+ON VALUE-CHANGED OF SEL_UPP IN FRAME FRAME-KONSTGRP
+DO:
+   SEL_UPP = INPUT SEL_UPP. 
+   IF SEL_UPP = "Konstruktioner" THEN SEL_UPP:TOOLTIP = "Skapa och ändra konstruktionsgrupper och dess konstruktioner. Skapa och ändra materiel kopplat till konstruktioner.".
+   ELSE IF SEL_UPP = "Anläggningar" THEN SEL_UPP:TOOLTIP = "Administration av anläggningsregistret.".
+   ELSE IF SEL_UPP = "Kabelskåp" THEN SEL_UPP:TOOLTIP = "Skapa och ändra kabelskåp och dess materiel.".
+   ELSE IF SEL_UPP = "Stolpar" THEN SEL_UPP:TOOLTIP = "Lägga upp stolpar i ett register.".
+   ELSE IF SEL_UPP = "Transformatorer" THEN SEL_UPP:TOOLTIP = "Lägga upp transformatorer i ett register.".
+   ELSE IF SEL_UPP = "Apparater" THEN SEL_UPP:TOOLTIP = "Lägga upp apparater i ett register".
+   ELSE IF SEL_UPP = "Schaktadministration" THEN SEL_UPP:TOOLTIP = "Administration av förläggningssätt, ytbeläggning, kabelskydd och samförläggning".
+   ELSE IF SEL_UPP = "Materielsatser" THEN SEL_UPP:TOOLTIP = "Skapa och ändra materielsatser.".
+   ELSE IF SEL_UPP = "Materiel - konstruktioner" THEN SEL_UPP:TOOLTIP = "Skapa och ändra P3-koder kopplade till konstruktioner.".     
+   ELSE IF SEL_UPP = "Leverantörsbyte på alla konstruktioner" THEN SEL_UPP:TOOLTIP = "Byte från en leverantör till en annan. Lista på artiklar som ej får träff hos den nya leverantören.".                
+   IF SEL_UPP = "Materiel som används på konstruktioner" THEN DO:      
+      TOG_LEV = TRUE.
+      CMB_LEVFR:HIDDEN IN FRAME FRAME-KONSTGRP = TRUE.
+      CMB_LEVTILL:HIDDEN IN FRAME FRAME-KONSTGRP = TRUE.
+      TOG_LEV:HIDDEN IN FRAME FRAME-KONSTGRP = FALSE.
+      FBTN_EX:HIDDEN IN FRAME FRAME-KONSTGRP = FALSE.
+      CMB_LEVVAL:HIDDEN IN FRAME FRAME-KONSTGRP = FALSE.
+      DISPLAY TOG_LEV WITH FRAME FRAME-KONSTGRP.
+      Guru.GlobalaVariabler:collefth = ?.      
+      IF BTN_KOR:VISIBLE IN FRAME FRAME-KONSTGRP = TRUE THEN DO:
+         Guru.GlobalaVariabler:colrighth = BTN_KOR:HANDLE.           
+         RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).    
+      END.
+      IF FBTN_EX:VISIBLE IN FRAME FRAME-KONSTGRP = TRUE THEN DO:
+         Guru.GlobalaVariabler:colrighth = FBTN_EX:HANDLE.           
+         RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+      END.   
+   END.
+   ELSE DO:
+      CMB_LEVFR:HIDDEN IN FRAME FRAME-KONSTGRP = TRUE.
+      CMB_LEVTILL:HIDDEN IN FRAME FRAME-KONSTGRP = TRUE.
+      TOG_LEV:HIDDEN IN FRAME FRAME-KONSTGRP = TRUE.
+      FBTN_EX:HIDDEN IN FRAME FRAME-KONSTGRP = TRUE.
+      CMB_LEVVAL:HIDDEN IN FRAME FRAME-KONSTGRP = TRUE.
+   END.
+   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-VMTRL
+&Scoped-define SELF-NAME TOG_BEN
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL TOG_BEN C-Win
+ON VALUE-CHANGED OF TOG_BEN IN FRAME FRAME-VMTRL /* Ändra på benämning */
+DO:
+   TOG_BEN = INPUT TOG_BEN.
+   IF TOG_BEN = FALSE THEN Spec_mtrl.BENAMNING:READ-ONLY IN BROWSE BRW_MTRL = TRUE.
+   ELSE Spec_mtrl.BENAMNING:READ-ONLY IN BROWSE BRW_MTRL = FALSE.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-KONSTGRP
+&Scoped-define SELF-NAME TOG_LEV
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL TOG_LEV C-Win
+ON VALUE-CHANGED OF TOG_LEV IN FRAME FRAME-KONSTGRP /* Visa leverantörsnamn */
+DO:
+  TOG_LEV = INPUT TOG_LEV.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define FRAME-NAME FRAME-BARABREDD
+&Scoped-define BROWSE-NAME BRW_B2
+&UNDEFINE SELF-NAME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CUSTOM _MAIN-BLOCK C-Win 
+
+
+/* ***************************  Main Block  *************************** */
+
+/* Set CURRENT-WINDOW: this will parent dialog-boxes and frames.        */
+ASSIGN CURRENT-WINDOW                = {&WINDOW-NAME} 
+       THIS-PROCEDURE:CURRENT-WINDOW = {&WINDOW-NAME}.
+
+/* The CLOSE event can be used from inside or outside the procedure to  */
+/* terminate it.                                                        */
+ON CLOSE OF THIS-PROCEDURE 
+DO:
+   {BORTBRWPROC.I}
+   IF VALID-HANDLE(kalkkoppapph) THEN DELETE PROCEDURE kalkkoppapph.
+   IF VALID-HANDLE(mtrlhmtapph) THEN DELETE PROCEDURE mtrlhmtapph.
+   IF VALID-HANDLE(laddaproch) THEN DELETE PROCEDURE laddaproch.
+   IF VALID-HANDLE(konmtrlapph) THEN DELETE PROCEDURE konmtrlapph.
+   IF VALID-HANDLE(tthandle) THEN DELETE OBJECT tthandle.
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.
+   
+   RUN disable_UI.
+END.
+
+/* These events will close the window and terminate the procedure.      */
+/* (NOTE: this will override any user-defined triggers previously       */
+/*  defined on the window.)                                             */
+ON WINDOW-CLOSE OF {&WINDOW-NAME} DO:
+  APPLY "CLOSE":U TO THIS-PROCEDURE.
+  RETURN NO-APPLY.
+END.
+ON ENDKEY, END-ERROR OF {&WINDOW-NAME} ANYWHERE DO:
+  /*APPLY "CLOSE":U TO THIS-PROCEDURE.*/
+  RETURN NO-APPLY.
+END.
+
+/* Best default for GUI applications is...                              */
+PAUSE 0 BEFORE-HIDE.
+
+/* Now enable the interface and wait for the exit condition.            */
+/* (NOTE: handle ERROR and END-KEY so cleanup code will always fire.    */
+MAIN-BLOCK:
+DO ON ERROR   UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK
+   ON END-KEY UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK:
+   &Scoped-define FRAME-NAME FRAME-BARABREDD
+   RUN winmstart_UI.
+   /*{&WINDOW-NAME}:HIDDEN = FALSE.
+   {&WINDOW-NAME}:MOVE-TO-TOP ().*/
+   {muswait.i}
+   EMPTY TEMP-TABLE levtemp NO-ERROR. 
+   {ALLSTARTDYN.I}      
+   Spec_mtrl.BENAMNING:READ-ONLY IN BROWSE BRW_MTRL = TRUE.
+   &Scoped-define FRAME-NAME FRAME-BARABREDD
+   RUN ladda_UI IN kalkkoppapph (OUTPUT katvar). 
+   RAD_VAL = 1.
+   RUN setcolsortvar_UI IN brwproc[1] (INPUT "").
+   RUN openbdynspec_UI IN brwproc[1].   
+   RUN enable_UI.   
+   APPLY "VALUE-CHANGED" TO BRW_GRUPP.      
+   {FRMSIZEF.I}         
+   RUN menyrad_UI.
+   RUN huvud3_UI.
+   ASSIGN
+   FRAME FRAME-KONSTGRP:BGCOLOR = ? 
+   SEL_UPP:FONT = varforetypval[20] 
+   SEL_UPP:BGCOLOR = 15
+   SEL_UPP:FGCOLOR = ?.
+   &Scoped-define FRAME-NAME FRAME-KONSTGRP   
+   status-ok = SEL_UPP:ADD-LAST("************************ Administrera konstruktionsupplägg ***************************") IN FRAME {&FRAME-NAME}.      
+   status-ok = SEL_UPP:ADD-LAST("Kabelskåp").  
+   status-ok = SEL_UPP:ADD-LAST("Stolpar").
+   IF Guru.Konstanter:globforetag = "UMEA" THEN status-ok = SEL_UPP:ADD-LAST("Kablar").      
+   ELSE status-ok = SEL_UPP:ADD-LAST("Transformatorer").      
+    status-ok = SEL_UPP:ADD-LAST("Materielsatser").
+   IF globforetag NE "UMEA" THEN status-ok = SEL_UPP:ADD-LAST("Anläggningar").   
+   status-ok = SEL_UPP:ADD-LAST("Apparater").  
+   status-ok = SEL_UPP:ADD-LAST("Schaktadministration").
+   status-ok = SEL_UPP:ADD-LAST("Benämning parstolpar").
+   status-ok = SEL_UPP:ADD-LAST("Fasta anmärkningar").         
+   status-ok = SEL_UPP:ADD-LAST("") IN FRAME {&FRAME-NAME}.     
+   status-ok = SEL_UPP:ADD-LAST("************************ Administrera ersättningslista *******************************") IN FRAME {&FRAME-NAME}.        
+   status-ok = SEL_UPP:ADD-LAST("Administrera ersättningslista").
+   status-ok = SEL_UPP:ADD-LAST("") IN FRAME {&FRAME-NAME}.     
+   status-ok = SEL_UPP:ADD-LAST("************************ Vid ny materielkatalog *************************************") IN FRAME {&FRAME-NAME}.     
+   status-ok = SEL_UPP:ADD-LAST("Artiklar som ej finns i katalogen") IN FRAME {&FRAME-NAME}.   
+   IF Guru.Konstanter:globforetag = "ELPA"  
+   OR Guru.Konstanter:globforetag = "GRAN" OR Guru.Konstanter:globforetag = "GKAL" THEN status-ok = SEL_UPP:ADD-LAST("Artiklar med pris 0") IN FRAME {&FRAME-NAME}.   
+   status-ok = SEL_UPP:ADD-LAST("") IN FRAME {&FRAME-NAME}.     
+   status-ok = SEL_UPP:ADD-LAST("************************ Använt materiel/Byt materiel *******************************") IN FRAME {&FRAME-NAME}.        
+   status-ok = SEL_UPP:ADD-LAST("Materiel som används på konstruktioner") IN FRAME {&FRAME-NAME}.
+   status-ok = SEL_UPP:ADD-LAST("Byt mtrl X --> Y på konstruktioner") IN FRAME {&FRAME-NAME}.
+   status-ok = SEL_UPP:ADD-LAST("Ändra-Tabort" + " " + Guru.Konstanter:genk + "/Konstruktion(er)") IN FRAME {&FRAME-NAME}.   
+   status-ok = SEL_UPP:ADD-LAST("Konst.grupp/konstruktion/materiel") IN FRAME {&FRAME-NAME}.
+   status-ok = SEL_UPP:ADD-LAST("Konst.grupp/konstruktion/P3-Koder") IN FRAME {&FRAME-NAME}.
+   status-ok = SEL_UPP:ADD-LAST("Konstruktionsgrupp/materiel till excel") IN FRAME {&FRAME-NAME}.         
+   IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "GRAN" OR Guru.Konstanter:globforetag = "GKAL" OR 
+   Guru.Konstanter:globforetag = "TREC" THEN DO:
+      status-ok = SEL_UPP:ADD-LAST("") IN FRAME {&FRAME-NAME}.     
+      status-ok = SEL_UPP:ADD-LAST("************************ Export/Import *********************************************") IN FRAME {&FRAME-NAME}.        
+      status-ok = SEL_UPP:ADD-LAST("Export av konstruktion till excel") IN FRAME {&FRAME-NAME}.
+      status-ok = SEL_UPP:ADD-LAST("Import av konstruktion") IN FRAME {&FRAME-NAME}.
+   END.   
+   status-ok = SEL_UPP:ADD-LAST("") IN FRAME {&FRAME-NAME}.     
+   status-ok = SEL_UPP:ADD-LAST("************************ Vid byte av leverantör ************************************") IN FRAME {&FRAME-NAME}.     
+   status-ok = SEL_UPP:ADD-LAST("Lista på artiklar i konstruktionsupplägget som ej får träff hos ny leverantör.") IN FRAME {&FRAME-NAME}.
+   status-ok = SEL_UPP:ADD-LAST("Leverantörsbyte på alla konstruktioner") IN FRAME {&FRAME-NAME}.     
+   RUN btnvit_UI (INPUT MBTN_KONSTGRP:HANDLE).
+   {musarrow.i}     
+   {WIN_M_SLUT.I}
+   IF NOT THIS-PROCEDURE:PERSISTENT THEN
+    WAIT-FOR CLOSE OF THIS-PROCEDURE.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+/* **********************  Internal Procedures  *********************** */
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE allstartbrw_UI C-Win 
+PROCEDURE allstartbrw_UI :
+/* -----------------------------------------------------------
+  Purpose:      
+  Parameters:  
+  Notes:       
+-------------------------------------------------------------*/ 
+   &Scoped-define FRAME-NAME FRAME-BARABREDD
+   CREATE frametemp.
+   ASSIGN
+   frametemp.ORDNING = 1
+   frametemp.FRMHAND = FRAME {&FRAME-NAME}:HANDLE.
+   CREATE frametemp.
+   ASSIGN
+   frametemp.ORDNING = 2
+   frametemp.FRMHAND = FRAME FRAME-KONSTGRP:HANDLE.
+   CREATE frametemp.
+   ASSIGN
+   frametemp.ORDNING = 3
+   frametemp.FRMHAND = FRAME FRAME-KONST:HANDLE.
+   &Scoped-define FRAME-NAME FRAME-KONSTGRP
+   RUN DYNBRW.P PERSISTENT SET brwproc[1]
+      (INPUT BRW_GRUPP:HANDLE IN FRAME {&FRAME-NAME}).
+   &Scoped-define FRAME-NAME FRAME-VMTRL   
+   RUN DYNBRW.P PERSISTENT SET brwproc[2]
+      (INPUT BRW_B2:HANDLE IN FRAME {&FRAME-NAME}).    
+   RUN DYNBRW.P PERSISTENT SET brwproc[3]
+      (INPUT BRW_B3:HANDLE IN FRAME {&FRAME-NAME}).    
+   RUN DYNBRW.P PERSISTENT SET brwproc[4]
+      (INPUT BRW_B4:HANDLE IN FRAME {&FRAME-NAME}).           
+   RUN DYNBRW.P PERSISTENT SET brwproc[5]
+      (INPUT BRW_B5:HANDLE IN FRAME {&FRAME-NAME}).        
+   RUN DYNBRW.P PERSISTENT SET brwproc[6]
+      (INPUT BRW_B6:HANDLE IN FRAME {&FRAME-NAME}).    
+   &Scoped-define FRAME-NAME FRAME-VMTRL   
+   RUN DYNBRW.P PERSISTENT SET brwproc[7]
+      (INPUT BRW_HLEV:HANDLE IN FRAME {&FRAME-NAME}).    
+   &Scoped-define FRAME-NAME FRAME-VMTRL
+   RUN DYNBRW.P PERSISTENT SET brwproc[8]
+      (INPUT BRW_KON2:HANDLE IN FRAME {&FRAME-NAME}).    
+   &Scoped-define FRAME-NAME FRAME-VMTRL 
+   RUN DYNBRW.P PERSISTENT SET brwproc[10]
+      (INPUT BRW_MTRL:HANDLE IN FRAME {&FRAME-NAME}).       
+   RUN DYNBRW.P PERSISTENT SET brwproc[11]
+      (INPUT BRW_SATS:HANDLE IN FRAME {&FRAME-NAME}). 
+   RUN DYNARROW.P PERSISTENT SET brwproc[12] 
+      (INPUT BRW_HLEV:HANDLE, INPUT BRW_MTRL:HANDLE ,
+       INPUT ?, INPUT ? , INPUT ?, INPUT ?).
+   RUN DYNBRW.P PERSISTENT SET brwproc[13]  (INPUT BRW_MTRLBER:HANDLE IN FRAME FRAME-VMTRL). 
+   RUN DYNBRW.P PERSISTENT SET brwproc[14] (INPUT BRW_VAL:HANDLE IN FRAME FRAME-KONST). 
+   RUN DYNBRW.P PERSISTENT SET brwproc[15]  (INPUT BRW_KON:HANDLE IN FRAME FRAME-KONST).
+   RUN setcolindex_UI IN brwproc[1] (INPUT "ORDNING"). 
+   RUN setcolindex_UI IN brwproc[2] (INPUT "ORDNING"). 
+   RUN setcolindex_UI IN brwproc[3] (INPUT "ORDNING"). 
+   RUN setcolindex_UI IN brwproc[4] (INPUT "ORDNING"). 
+   RUN setcolindex_UI IN brwproc[5] (INPUT "ORDNING"). 
+   RUN setcolindex_UI IN brwproc[6] (INPUT "ORDNING"). 
+   RUN setcolindex_UI IN brwproc[8] (INPUT "ORDNING").    
+   RUN setcolindex_UI IN brwproc[10] (INPUT "ENR"). 
+   RUN setcolindex_UI IN brwproc[11] (INPUT "KOD").  
+   RUN setcolindex_UI IN brwproc[13] (INPUT "F1 BY F2 by F3 by F4 by F5" ).    
+   RUN setcolindex_UI IN brwproc[15] (INPUT "ORDNING"). 
+   RUN setcolindex_UI IN brwproc[14] (INPUT "ORDNING").    
+   RUN brwsetupstop_UI IN brwproc[1] (INPUT 1).
+   RUN brwsetupstop_UI IN brwproc[2] (INPUT 1).
+   RUN brwsetupstop_UI IN brwproc[3] (INPUT 1).
+   RUN brwsetupstop_UI IN brwproc[4] (INPUT 1).
+   RUN brwsetupstop_UI IN brwproc[5] (INPUT 1).
+   RUN brwsetupstop_UI IN brwproc[6] (INPUT 1). 
+   RUN brwsetupstop_UI IN brwproc[8] (INPUT 1). 
+   RUN brwsetupstop_UI IN brwproc[14] (INPUT 1).
+   RUN addmenuitem_UI IN brwproc[2] (INPUT BRW_B2:HANDLE,INPUT "Avmarkera",INPUT "avmark_UI").
+   RUN addmenuitem_UI IN brwproc[3] (INPUT BRW_B3:HANDLE,INPUT "Avmarkera",INPUT "avmark_UI").
+   RUN addmenuitem_UI IN brwproc[4] (INPUT BRW_B4:HANDLE,INPUT "Avmarkera",INPUT "avmark_UI").
+   RUN addmenuitem_UI IN brwproc[5] (INPUT BRW_B5:HANDLE,INPUT "Avmarkera",INPUT "avmark_UI").
+   RUN addmenuitem_UI IN brwproc[6] (INPUT BRW_B6:HANDLE,INPUT "Avmarkera",INPUT "avmark_UI").
+   RUN addmenuitem_UI IN brwproc[2] (INPUT BRW_B2:HANDLE,INPUT "Visa materiel",INPUT "vismtrl2_UI").
+   RUN addmenuitem_UI IN brwproc[3] (INPUT BRW_B3:HANDLE,INPUT "Visa materiel",INPUT "vismtrl3_UI").
+   RUN addmenuitem_UI IN brwproc[4] (INPUT BRW_B4:HANDLE,INPUT "Visa materiel",INPUT "vismtrl4_UI").
+   RUN addmenuitem_UI IN brwproc[5] (INPUT BRW_B5:HANDLE,INPUT "Visa materiel",INPUT "vismtrl5_UI").
+   RUN addmenuitem_UI IN brwproc[6] (INPUT BRW_B6:HANDLE,INPUT "Visa materiel",INPUT "vismtrl6_UI").
+   RUN addmenuitem_UI IN brwproc[8] (INPUT BRW_KON2:HANDLE,INPUT "Visa materiel",INPUT "vismkon_UI").   
+   RUN addmenuitem_UI IN brwproc[7] (INPUT BRW_HLEV:HANDLE,INPUT "Visa information via vald Leverantör",INPUT "hlevvisa_UI").
+   RUN addmenuitem_UI IN brwproc[10] (INPUT BRW_SATS:HANDLE,INPUT "Visa information via vald Leverantör",INPUT "satsvisa_UI").
+   RUN addmenuitem_UI IN brwproc[11] (INPUT BRW_MTRL:HANDLE,INPUT "Visa information via vald Leverantör",INPUT "mtrlvisa_UI").
+   IF Guru.Konstanter:appcon THEN DO:
+      RUN KALKKOPPAPP.P PERSISTENT SET kalkkoppapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+   END.
+   ELSE DO:
+      RUN KALKKOPPAPP.P PERSISTENT SET kalkkoppapph.
+   END.  
+   IF Guru.Konstanter:appcon THEN DO:
+      RUN KONMTRLAPP.P PERSISTENT SET konmtrlapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+   END.
+   ELSE DO:
+      RUN KONMTRLAPP.P PERSISTENT SET konmtrlapph.
+   END.  
+   IF Guru.Konstanter:appcon THEN DO:
+      RUN MTRLHMT.P PERSISTENT SET mtrlhmtapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+   END.
+   ELSE DO:
+      RUN MTRLHMT.P PERSISTENT SET mtrlhmtapph.
+   END.  
+   tthandle = TEMP-TABLE konstgrptemp:HANDLE.
+   IF Guru.Konstanter:appcon THEN DO:
+      RUN DYNLADDATEMP.P PERSISTENT SET laddaproch ON Guru.Konstanter:apphand TRANSACTION DISTINCT
+         (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "KONSTGRUPP", INPUT "").
+   END.
+   ELSE DO:
+      RUN DYNLADDATEMP.P PERSISTENT SET laddaproch
+         (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "KONSTGRUPP", INPUT "").
+   END.
+   IF Guru.Konstanter:appcon THEN DO:
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT.                  
+   END.
+   ELSE DO:
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   END.
+   tthandle = TEMP-TABLE bbenamntemp:HANDLE. 
+   RUN laddatemp_UI IN laddaproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "BBENAMNING", INPUT "").
+   tthandle = TEMP-TABLE konsttemp:HANDLE.
+   RUN laddatemp_UI IN laddaproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "KONSTRUKTION", INPUT "").   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE andlin_UI C-Win 
+PROCEDURE andlin_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/ 
+   &Scoped-define FRAME-NAME FRAME-VMTRL
+   antal_valda = BRW_MTRLBER:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+   IF antal_valda > 0 THEN DO:      
+      ASSIGN
+      antal_valda = BRW_MTRLBER:NUM-SELECTED-ROWS
+      antal_raknare = 1.
+      DO WHILE antal_raknare LE antal_valda:
+         ASSIGN                                   
+         status-ok = BRW_MTRLBER:FETCH-SELECTED-ROW(antal_raknare)
+         mtrl_rowid = mtrlbertemp.MTRLROW.                                      
+         IF mtrlbertemp.LINKAB = FALSE THEN DO:
+            &Scoped-define FRAME-NAME FRAME-BARABREDD 
+            musz = TRUE.              
+            RUN TRUELINAU.W (INPUT mtrl_rowid).                 
+            musz = FALSE.            
+         END.
+         ELSE DO:  
+            RUN andlin_UI IN konmtrlapph (INPUT mtrl_rowid).
+            FIND FIRST mtrlbertemp WHERE mtrlbertemp.MTRLROW = mtrl_rowid NO-LOCK NO-ERROR.
+            IF AVAILABLE mtrlbertemp THEN DO:
+               ASSIGN
+               mtrlbertemp.LINKAB = FALSE
+               mtrlbertemp.DIAMETER = 0.  
+            END.
+         END.          
+         antal_raknare = antal_raknare + 1.   
+         RUN setlastrowid_UI IN brwproc[13] (INPUT ROWID(mtrlbertemp)).              
+      END.
+      RUN setcolindexkoll_UI IN brwproc[13] (OUTPUT sortkollvar).
+      IF sortkollvar = "" OR sortkollvar = ? THEN RUN setcolindex_UI IN brwproc[13] (INPUT "F1 BY F2 by F3 by F4 by F5" ).    
+      RUN openbdynspec_UI IN brwproc[13].   
+      RUN lastselectdyn_UI IN brwproc[13].
+      IF sortkollvar = "" or sortkollvar = ? THEN RUN setcolindex_UI IN brwproc[13] (INPUT "").    
+   END.
+   ELSE DO:
+      MESSAGE "Du har inte valt något kopplat materiel som Lin/Kab ska ändras för."
+      VIEW-AS ALERT-BOX TITLE "Meddelande".
+   END.      
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE andmod_UI C-Win 
+PROCEDURE andmod_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/       
+   &Scoped-define FRAME-NAME FRAME-VMTRL
+   antal_valda = BRW_MTRLBER:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+   IF antal_valda > 0 THEN DO:      
+      ASSIGN
+      antal_valda = BRW_MTRLBER:NUM-SELECTED-ROWS
+      antal_raknare = 1.
+      DO WHILE antal_raknare LE antal_valda: 
+         musz = FALSE.  
+         status-ok = BRW_MTRLBER:FETCH-SELECTED-ROW(antal_raknare).
+         &Scoped-define FRAME-NAME FRAME-BARABREDD         
+         RUN MODANTU2.W (INPUT mtrlbertemp.MTRLROW).         
+         antal_raknare = antal_raknare + 1.   
+         RUN setlastrowid_UI IN brwproc[13] (INPUT ROWID(mtrlbertemp)).
+      END.
+      RUN setcolindexkoll_UI IN brwproc[13] (OUTPUT sortkollvar).
+      IF sortkollvar = "" OR sortkollvar = ? THEN RUN setcolindex_UI IN brwproc[13] (INPUT "F1 BY F2 by F3 by F4 by F5" ).    
+      RUN openbdynspec_UI IN brwproc[13].   
+      RUN lastselectdyn_UI IN brwproc[13].
+      IF sortkollvar = "" or sortkollvar = ? THEN RUN setcolindex_UI IN brwproc[13] (INPUT "").    
+   END.
+   ELSE DO:
+      MESSAGE "Du har inte valt något kopplat materiel som Moduler ska ändras för."
+      VIEW-AS ALERT-BOX TITLE "Meddelande".
+   END. 
+   {musarrow.i}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE antal_UI C-Win 
+PROCEDURE antal_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/  
+   &Scoped-define FRAME-NAME FRAME-VMTRL
+   ASSIGN
+   antal_valda = BRW_MTRL:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}
+   antal_raknare = 1
+   musz = FALSE
+   sokant = FALSE
+   bestant = FALSE.    
+   DO WHILE antal_raknare LE antal_valda:   
+      status-ok = BRW_MTRL:FETCH-SELECTED-ROW(antal_raknare). 
+      &Scoped-define FRAME-NAME FRAME-BARABREDD      
+      RUN BERANTALU.W (INPUT ROWID(spec_mtrl)).
+      &Scoped-define FRAME-NAME FRAME-VMTRL
+      APPLY "ENTRY" TO BRW_MTRL IN FRAME {&FRAME-NAME}.
+      &Scoped-define FRAME-NAME FRAME-BARABREDD      
+      antal_raknare = antal_raknare + 1.   
+   END.
+   FOR EACH spec_mtrl WHERE spec_mtrl.MARK = FALSE.
+      DELETE spec_mtrl.
+   END.
+   RUN refreshbrw_UI IN brwproc[10].
+   {musarrow.i}  
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE avmark_UI C-Win 
+PROCEDURE avmark_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/    
+   &Scoped-define FRAME-NAME FRAME-VMTRL      
+   IF brw = 2 THEN DO:                     
+      hjkvalkod = "".
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B2 IN FRAME {&FRAME-NAME}.      
+   END.  
+   ELSE IF brw = 3 THEN DO:                                           
+      hjkvalkod = "".
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B3 IN FRAME {&FRAME-NAME}.      
+   END.   
+   ELSE IF brw = 4 THEN DO:                                           
+      hjkvalkod = "".
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B4 IN FRAME {&FRAME-NAME}.      
+   END.   
+   ELSE IF brw = 5 THEN DO:                                           
+      hjkvalkod = "".
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B5 IN FRAME {&FRAME-NAME}.      
+   END.   
+   ELSE IF brw = 6 THEN DO:                                    
+      hjkvalkod = "".
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B6 IN FRAME {&FRAME-NAME}.     
+   END.    
+       
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE bort2_UI C-Win 
+PROCEDURE bort2_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   IF valkon = TRUE THEN DO:     
+      ASSIGN
+      bort1 =  konstvaltemp.KVALKOD 
+      bort2 =  konstvaltemp.BENAMNING.
+   END.
+   ELSE DO: 
+      ASSIGN
+      bort1 =  konsttemp.KTYPKOD 
+      bort2 =  konsttemp.BENAMNING. 
+   END.   
+   MESSAGE "Vill du verkligen ta bort " + 
+   bort1 + " " + bort2 + "?"
+   VIEW-AS ALERT-BOX QUESTION BUTTONS YES-NO TITLE "Borttag"
+   UPDATE answer AS LOGICAL.
+   IF answer THEN DO TRANSACTION:
+      {muswait.i}
+      IF valkon = TRUE THEN DO: 
+         EMPTY TEMP-TABLE ekonstvaltemp NO-ERROR. 
+         CREATE ekonstvaltemp.
+         BUFFER-COPY konstvaltemp TO ekonstvaltemp.         
+         RUN bortkval_UI IN konmtrlapph (INPUT valkon,INPUT krow,INPUT kongrkod,INPUT bort1,
+                                         INPUT bbval,INPUT TABLE ekonstvaltemp).                                         
+         EMPTY TEMP-TABLE ekonstvaltemp NO-ERROR. 
+         DELETE konstvaltemp.         
+         IF antal_raknare = antal_valda THEN DO:
+            RUN selnextprevrow_UI IN brwproc[14].          
+         END.         
+         /*
+         RUN selnextprevrow_UI IN brwproc[14].
+         DELETE konstvaltemp.         
+         */
+      END.
+      ELSE DO:
+         RUN bortkonstr_UI IN konmtrlapph (INPUT valkon,INPUT konstvalvar).
+         DELETE konsttemp.
+         RUN selnextprevrow_UI IN brwproc[15].
+         RUN openbdynspec_UI IN brwproc[15].
+         RUN lastselectdyn_UI IN brwproc[15].            
+      END.
+      {musarrow.i}
+   END.      
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE bortkonst_UI C-Win 
+PROCEDURE bortkonst_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   antal_valda = BRW_VAL:NUM-SELECTED-ROWS IN FRAME FRAME-KONST.
+   antal_raknare = 1.    
+   DO WHILE antal_raknare LE antal_valda:
+      status-ok = BRW_VAL:FETCH-SELECTED-ROW(antal_raknare).
+      IF AVAILABLE konstvaltemp THEN DO:
+         ASSIGN   
+         krow = konstvaltemp.KVALROW
+         valkon = TRUE.                 
+         RUN bort2_UI.                 
+      END.
+      antal_raknare = antal_raknare + 1.   
+   END.
+   RUN setcolsortvar_UI IN brwproc[14] (INPUT "USE-INDEX ORD").  
+   RUN openbdynspec_UI IN brwproc[14].
+   RUN lastselectdyn_UI IN brwproc[14].    
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE bortmtrlber_UI C-Win 
+PROCEDURE bortmtrlber_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   /*GGG*/
+   ASSIGN
+   antal_valda = BRW_MTRLBER:NUM-SELECTED-ROWS IN FRAME FRAME-VMTRL
+   antal_raknare = 1.
+   DO WHILE antal_raknare LE antal_valda:
+      ASSIGN                                   
+      status-ok = BRW_MTRLBER:FETCH-SELECTED-ROW(antal_raknare)
+      mtrl_rowid = mtrlbertemp.MTRLROW.
+      MESSAGE "Vill du ta bort materiel - " + mtrlbertemp.ENR + " " + mtrlbertemp.BENAMNING VIEW-AS ALERT-BOX
+      QUESTION BUTTONS YES-NO TITLE "Meddelande" UPDATE svar AS LOGICAL.         
+      IF svar THEN DO:
+         DELETE mtrlbertemp.         
+         IF antal_raknare = antal_valda THEN RUN selnextprevrow_UI IN brwproc[13].
+         RUN bort_UI IN konmtrlapph (INPUT mtrl_rowid).         
+      END.
+      antal_raknare = antal_raknare + 1.   
+   END.    
+   RUN setcolindexkoll_UI IN brwproc[13] (OUTPUT sortkollvar).
+   IF sortkollvar = "" OR sortkollvar = ? THEN RUN setcolindex_UI IN brwproc[13] (INPUT "F1 BY F2 by F3 by F4 by F5" ).    
+   RUN openbdynspec_UI IN brwproc[13].
+   RUN lastselectdyn_UI IN brwproc[13].
+   IF sortkollvar = "" or sortkollvar = ? THEN RUN setcolindex_UI IN brwproc[13] (INPUT "").    
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE bort_UI C-Win 
+PROCEDURE bort_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   IF konstgrptemp.KONSKOD = 0 THEN DO:
+      MESSAGE "Denna konstruktionsgrupp är ej möjlig att ta bort. Kontakta Elpool 090 - 18 45 40 för besked."
+      VIEW-AS ALERT-BOX TITLE "Meddelande".
+   END.
+   ELSE DO:   
+      MESSAGE "Vill du ta bort konstruktionsgrupp - " + konstgrptemp.BENAMNING VIEW-AS ALERT-BOX
+      QUESTION BUTTONS YES-NO UPDATE svar AS LOGICAL.         
+      IF svar THEN DO:
+         FIND konstgrptemp WHERE konstgrptemp.KONSKOD = kongrkod EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE konstgrptemp THEN DO:
+            RUN bortkontroll_UI IN konmtrlapph (INPUT kongrkod,OUTPUT TABLE felmeddtemp).
+            FIND FIRST felmeddtemp NO-LOCK NO-ERROR.
+            IF AVAILABLE felmeddtemp THEN DO: 
+               MESSAGE felmeddtemp.FELMEDD VIEW-AS ALERT-BOX
+               WARNING BUTTONS YES-NO TITLE "Borttag av konstruktionsgrupp" UPDATE svar2 AS LOGICAL .
+               DELETE felmeddtemp.               
+               IF svar2 = FALSE THEN RETURN.               
+            END.                                             
+            RUN bortgrupp_UI IN konmtrlapph (INPUT kongrkod).
+            DELETE konstgrptemp.                 
+            RUN selnextprevrow_UI IN brwproc[1].
+            RUN openbdynspec_UI IN brwproc[1].
+            RUN lastselectdyn_UI IN brwproc[1].              
+         END.   
+      END.        
+   END.      
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE brwval_UI C-Win 
+PROCEDURE brwval_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+  status-ok = BRW_VAL:SELECT-FOCUSED-ROW() IN FRAME FRAME-KONST NO-ERROR.
+  IF BRW_VAL:NUM-SELECTED-ROWS = 1 THEN DO:
+     IF konstvaltemp.KOPP = TRUE THEN BTN_OK-2:LABEL IN FRAME FRAME-KONST = "Koppla från".             
+     ELSE BTN_OK-2:LABEL IN FRAME FRAME-KONST = "Koppla".     
+  END.
+  ELSE BTN_OK-2:LABEL IN FRAME FRAME-KONST = "Koppla".   
+  DISPLAY BTN_OK-2 WITH FRAME FRAME-KONST.
+  IF AVAILABLE konstvaltemp THEN DO:
+     ASSIGN
+     konstvaltempvar = konstvaltemp.KVALKOD
+     kongrtempkod = konstvaltemp.KONSKOD.
+  END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnadm_UI C-Win 
+PROCEDURE btnadm_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   {muswait.i}
+   &Scoped-define FRAME-NAME FRAME-BARABREDD
+   {AVBGOM.I}
+   IF Guru.Konstanter:globforetag = "elpa" THEN RUN KOPPADMU2.W.
+   ELSE RUN KOPPADMU.W.
+   {AVBFRAM.I}
+   &Scoped-define FRAME-NAME FRAME-KONSTGRP
+   {musarrow.i}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnand-3_UI C-Win 
+PROCEDURE btnand-3_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/    
+   EMPTY TEMP-TABLE emtrlbertemp NO-ERROR. 
+   antal_valda = BRW_MTRLBER:NUM-SELECTED-ROWS IN FRAME FRAME-VMTRL.
+   IF antal_valda > 0 THEN DO:
+      FIND FIRST spec_mtrl NO-LOCK NO-ERROR.
+      IF AVAILABLE spec_mtrl THEN DO:
+         ASSIGN
+         antal_valda = BRW_MTRLBER:NUM-SELECTED-ROWS
+         antal_raknare = 1.
+         IF antal_valda > 1 THEN DO:
+            MESSAGE "Vid ändring av alla kan endast en artikel åt gången markeras."
+            VIEW-AS ALERT-BOX TITLE "Meddelande".
+            status-ok = BRW_MTRLBER:DESELECT-ROWS() NO-ERROR.
+         END.
+         ELSE DO:   
+            DO WHILE antal_raknare LE antal_valda:
+               ASSIGN                                   
+               status-ok = BRW_MTRLBER:FETCH-SELECTED-ROW(antal_raknare)
+               mtrl_rowid = mtrlbertemp.MTRLROW.                           
+               MESSAGE "Vill du ersätta alla - " + mtrlbertemp.ENR + " " + mtrlbertemp.BENAMNING VIEW-AS ALERT-BOX
+               QUESTION BUTTONS YES-NO TITLE "Meddelande" UPDATE svar AS LOGICAL.         
+               IF svar THEN DO:
+                  FIND FIRST mtrlbertemp WHERE mtrlbertemp.MTRLROW = mtrl_rowid NO-LOCK NO-ERROR.
+                  ASSIGN
+                  mtrlkod = mtrlbertemp.KTYPKOD
+                  mtrlenr = mtrlbertemp.ENR.
+                  OPEN QUERY mtrlq FOR EACH mtrlbertemp WHERE mtrlbertemp.KTYPKOD = mtrlkod AND mtrlbertemp.ENR = mtrlenr.
+                  GET FIRST mtrlq.
+                  DO WHILE AVAILABLE(mtrlbertemp):
+                     ASSIGN 
+                     mtrl_rowid = mtrlbertemp.MTRLROW
+                     mtrlkod = mtrlbertemp.KTYPKOD
+                     var2 = mtrlbertemp.F1
+                     var3 = mtrlbertemp.F2
+                     var4 = mtrlbertemp.F3
+                     var5 = mtrlbertemp.F4 
+                     var6 = mtrlbertemp.F5.
+                     DELETE mtrlbertemp.
+                     RUN btnand_UI IN konmtrlapph (INPUT mtrl_rowid,INPUT mtrlkod,INPUT var2,INPUT var3,
+                                               INPUT var4,INPUT var5,INPUT var6,
+                                               INPUT TABLE spec_mtrl,OUTPUT TABLE emtrlbertemp APPEND).
+                     GET NEXT mtrlq.                     
+                  END.   
+                  CLOSE QUERY mtrlq.
+               END.
+               antal_raknare = antal_raknare + 1.   
+            END.
+            
+            FOR EACH emtrlbertemp:
+               FIND FIRST mtrlbertemp WHERE mtrlbertemp.KTYPKOD = emtrlbertemp.KTYPKOD AND
+               mtrlbertemp.ENR = emtrlbertemp.ENR AND mtrlbertemp.F1 = emtrlbertemp.F1
+               AND mtrlbertemp.F2 = emtrlbertemp.F2 AND mtrlbertemp.F3 = emtrlbertemp.F3 AND mtrlbertemp.F4 = emtrlbertemp.F4
+               AND mtrlbertemp.F5 = emtrlbertemp.F5 NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE mtrlbertemp THEN DO:
+                  CREATE mtrlbertemp.
+                  BUFFER-COPY emtrlbertemp TO mtrlbertemp.
+               END.
+            END.
+            IF AVAILABLE mtrlbertemp THEN DO:
+               RUN setlastrowid_UI IN brwproc[13] (INPUT ROWID(mtrlbertemp)).              
+            END.
+            RUN setcolsortvar_UI IN brwproc[13] (INPUT " WHERE KTYPKOD = '" + konstvalvar + "' USE-INDEX KOD").  
+            RUN setcolindexkoll_UI IN brwproc[13] (OUTPUT sortkollvar).
+            IF sortkollvar = "" OR sortkollvar = ? THEN RUN setcolindex_UI IN brwproc[13] (INPUT "F1 BY F2 by F3 by F4 by F5" ).                
+            RUN openbdynspec_UI IN brwproc[13].   
+            RUN lastselectdyn_UI IN brwproc[13].
+            IF sortkollvar = "" or sortkollvar = ? THEN RUN setcolindex_UI IN brwproc[13] (INPUT "").                
+         END.
+      END.
+      ELSE DO:
+         MESSAGE "Du har inte valt något materiel som ändringen ska gälla för."
+         VIEW-AS ALERT-BOX TITLE "Meddelande".
+      END.      
+   END.
+   ELSE DO:
+      MESSAGE "Du har inte valt något kopplat materiel som ändringen ska gälla för."
+      VIEW-AS ALERT-BOX TITLE "Meddelande".
+   END.      
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnand1_UI C-Win 
+PROCEDURE btnand1_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   &Scoped-define FRAME-NAME FRAME-VMTRL
+   EMPTY TEMP-TABLE emtrlbertemp NO-ERROR. 
+   antal_valda = BRW_MTRLBER:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.   
+   IF antal_valda > 0 THEN DO:
+      FIND FIRST spec_mtrl NO-LOCK NO-ERROR.
+      IF AVAILABLE spec_mtrl THEN DO:
+         ASSIGN
+         antal_valda = BRW_MTRLBER:NUM-SELECTED-ROWS
+         antal_raknare = 1.
+         DO WHILE antal_raknare LE antal_valda:
+            ASSIGN                                   
+            status-ok = BRW_MTRLBER:FETCH-SELECTED-ROW(antal_raknare)
+            mtrl_rowid = mtrlbertemp.MTRLROW.                           
+            MESSAGE "Vill du ersätta materiel - " + mtrlbertemp.ENR + " " + mtrlbertemp.BENAMNING VIEW-AS ALERT-BOX
+            QUESTION BUTTONS YES-NO TITLE "Meddelande" UPDATE svar AS LOGICAL.         
+            IF svar THEN DO:                              
+               FIND FIRST mtrlbertemp WHERE mtrlbertemp.MTRLROW = mtrl_rowid NO-LOCK NO-ERROR.
+               ASSIGN
+               mtrlkod = mtrlbertemp.KTYPKOD
+               var2 = mtrlbertemp.F1
+               var3 = mtrlbertemp.F2
+               var4 = mtrlbertemp.F3
+               var5 = mtrlbertemp.F4 
+               var6 = mtrlbertemp.F5.
+               DELETE mtrlbertemp.            
+               RUN btnand_UI IN konmtrlapph (INPUT mtrl_rowid,INPUT mtrlkod,INPUT var2,INPUT var3,
+                                              INPUT var4,INPUT var5,INPUT var6,
+                                              INPUT TABLE spec_mtrl,OUTPUT TABLE emtrlbertemp APPEND).
+            END.
+            antal_raknare = antal_raknare + 1.   
+            RUN setlastrowid_UI IN brwproc[13] (INPUT ROWID(mtrlbertemp)).              
+         END.                  
+         FOR EACH emtrlbertemp:
+            FIND FIRST mtrlbertemp WHERE mtrlbertemp.KTYPKOD = emtrlbertemp.KTYPKOD AND
+            mtrlbertemp.ENR = emtrlbertemp.ENR AND mtrlbertemp.F1 = emtrlbertemp.F1
+            AND mtrlbertemp.F2 = emtrlbertemp.F2 AND mtrlbertemp.F3 = emtrlbertemp.F3 AND mtrlbertemp.F4 = emtrlbertemp.F4
+            AND mtrlbertemp.F5 = emtrlbertemp.F5 NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE mtrlbertemp THEN DO:
+               CREATE mtrlbertemp.
+               BUFFER-COPY emtrlbertemp TO mtrlbertemp.              
+            END.            
+         END.
+         IF AVAILABLE mtrlbertemp THEN DO:
+            RUN setlastrowid_UI IN brwproc[13] (INPUT ROWID(mtrlbertemp)).              
+         END.
+         RUN setcolsortvar_UI IN brwproc[13] (INPUT " WHERE KTYPKOD = '" + konstvalvar + "' USE-INDEX KOD").  
+         RUN setcolindexkoll_UI IN brwproc[13] (OUTPUT sortkollvar).
+         IF sortkollvar = "" OR sortkollvar = ? THEN RUN setcolindex_UI IN brwproc[13] (INPUT "F1 BY F2 by F3 by F4 by F5" ).    
+         RUN openbdynspec_UI IN brwproc[13].   
+         RUN lastselectdyn_UI IN brwproc[13].
+         IF sortkollvar = "" or sortkollvar = ? THEN RUN setcolindex_UI IN brwproc[13] (INPUT "").    
+      END.
+      ELSE DO:
+         MESSAGE "Du har inte valt något materiel som ändringen ska gälla för."
+         VIEW-AS ALERT-BOX TITLE "Meddelande".
+      END.      
+   END.
+   ELSE DO:
+      MESSAGE "Du har inte valt något kopplat materiel som ändringen ska gälla för."
+      VIEW-AS ALERT-BOX TITLE "Meddelande".
+   END.      
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnand2_UI C-Win 
+PROCEDURE btnand2_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+  {muswait.i}    
+   FIND FIRST konsttemp WHERE konsttemp.KONSKOD = kongrkod USE-INDEX ORD NO-LOCK NO-ERROR.   
+   IF NOT AVAILABLE konsttemp THEN DO:
+      MESSAGE "Det finns ingen " + bbenamntemp.B1 " att utföra ändring på." 
+      VIEW-AS ALERT-BOX.
+   END.
+   ELSE DO: 
+      ASSIGN
+      bbval = bbenamntemp.B1
+      valkon = FALSE.
+      APPLY "VALUE-CHANGED" TO BRW_KON IN FRAME FRAME-KONST.           
+      RUN NYKONSTU.W (INPUT valkon,INPUT krow,INPUT nykonst2,INPUT kongrkod,
+                      INPUT konstvalvar,INPUT bbval,OUTPUT varkod).
+      FIND FIRST konsttemp WHERE konsttemp.KONSKOD = kongrkod AND konsttemp.KTYPKOD = varkod USE-INDEX ORD NO-LOCK NO-ERROR.
+      IF AVAILABLE konsttemp THEN DO:
+         RUN setcolsortvar_UI IN brwproc[15] (INPUT " WHERE KONSKOD = '" + STRING(kongrkod) + "' USE-INDEX ORD").             
+         RUN setlastrowid_UI IN brwproc[15] (INPUT ROWID(konsttemp)).
+         RUN openbdynspec_UI IN brwproc[15].      
+         RUN lastselectdyn_UI IN brwproc[15].
+      END.      
+   END.   
+   {musarrow.i}     
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnand3_UI C-Win 
+PROCEDURE btnand3_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+  {muswait.i} 
+   FIND FIRST konstvaltemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE konstvaltemp THEN DO:
+      MESSAGE "Det finns ingen " + bbval + " att utföra ändring på." 
+      VIEW-AS ALERT-BOX.
+   END.
+   ELSE DO: 
+      antal_valda = BRW_VAL:NUM-SELECTED-ROWS IN FRAME FRAME-KONST.
+      antal_raknare = 1.    
+      DO WHILE antal_raknare LE antal_valda:
+         ASSIGN   
+         valkon = TRUE
+         status-ok = BRW_VAL:FETCH-SELECTED-ROW(antal_raknare)
+         krow = konstvaltemp.KVALROW.
+         RUN NYKONSTU.W (INPUT valkon,INPUT krow,INPUT nykonst2,INPUT kongrkod,
+                         INPUT konstvalvar,INPUT bbval,OUTPUT varkod).
+         antal_raknare = antal_raknare + 1.   
+      END.  
+      APPLY "VALUE-CHANGED" TO RAD_KONTO IN FRAME FRAME-KONST.
+   END.
+   FIND FIRST konstvaltemp WHERE konstvaltemp.KONSKOD = kongrkod AND
+   konstvaltemp.KVALKOD = varkod NO-LOCK NO-ERROR.
+   RUN setlastrowid_UI IN brwproc[14] (INPUT ROWID(konstvaltemp)).                 
+   RUN lastselectdyn_UI IN brwproc[14].
+   {musarrow.i}     
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnandant_UI C-Win 
+PROCEDURE btnandant_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/       
+   antal_valda = BRW_MTRLBER:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+   IF antal_valda > 0 THEN DO:      
+      ASSIGN
+      antal_valda = BRW_MTRLBER:NUM-SELECTED-ROWS
+      antal_raknare = 1.
+      DO WHILE antal_raknare LE antal_valda:
+         ASSIGN                                   
+         status-ok = BRW_MTRLBER:FETCH-SELECTED-ROW(antal_raknare).
+         &Scoped-define FRAME-NAME FRAME-BARABREDD
+         {muswait.i}   
+         RUN ANTALANDU.W (INPUT mtrlbertemp.MTRLROW).
+         FIND FIRST emtrlbertemp WHERE emtrlbertemp.MTRLROW = mtrlbertemp.MTRLROW NO-LOCK NO-ERROR.
+         IF AVAILABLE emtrlbertemp THEN emtrlbertemp.ANTAL = mtrlbertemp.ANTAL.         
+         {musarrow.i}
+         antal_raknare = antal_raknare + 1. 
+         RUN setlastrowid_UI IN brwproc[13] (INPUT ROWID(mtrlbertemp)).
+      END.   
+      RUN setcolindexkoll_UI IN brwproc[13] (OUTPUT sortkollvar).
+      IF sortkollvar = "" OR sortkollvar = ? THEN RUN setcolindex_UI IN brwproc[13] (INPUT "F1 BY F2 by F3 by F4 by F5" ).    
+      RUN openbdynspec_UI IN brwproc[13].   
+      RUN lastselectdyn_UI IN brwproc[13].
+      IF sortkollvar = "" OR sortkollvar = ? THEN RUN setcolindex_UI IN brwproc[13] (INPUT "").          
+   END.
+   ELSE DO:
+      MESSAGE "Du har inte valt något kopplat materiel som antal ska ändras för."
+      VIEW-AS ALERT-BOX TITLE "Meddelande".
+   END.      
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnandra2_UI C-Win 
+PROCEDURE btnandra2_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   {muswait.i}         
+   /*LADDA*/
+   &Scoped-define FRAME-NAME FRAME-VMTRL
+   {&WINDOW-NAME}:TITLE = "Ändring av materiel kopplat till konstruktion " + konstvalvar.
+   RUN title_UI.
+   EMPTY TEMP-TABLE mtrlbertemp NO-ERROR. 
+   BRW_MTRLBER:HIDDEN IN FRAME FRAME-VMTRL = FALSE.                  
+   RUN ladda_UI IN konmtrlapph (INPUT konstvalvar,OUTPUT TABLE mtrlbertemp).
+   RUN labelater_UI IN brwproc[13].
+   RUN setcolindex_UI IN brwproc[13] (INPUT "F1 BY F2 by F3 by F4 by F5" ).    
+   RUN setcolsortvar_UI IN brwproc[13] (INPUT " KTYPKOD = '" + konstvalvar + "'").
+   RUN openbdynspec_UI IN brwproc[13].  
+   RUN setcolindex_UI IN brwproc[13] (INPUT "").    
+   IF brw = 2 AND finns2 = TRUE THEN DO:
+      FIND FIRST mtrlbertemp WHERE mtrlbertemp.KTYPKOD = konstvalvar AND
+      mtrlbertemp.F1 = hjkvalkod AND mtrlbertemp.ENR = enrvar
+      NO-LOCK NO-ERROR.                            
+      IF NOT AVAILABLE mtrlbertemp THEN DO:
+         FIND FIRST mtrlbertemp WHERE mtrlbertemp.KTYPKOD = konstvalvar AND
+         mtrlbertemp.F1 = hjkvalkod 
+         NO-LOCK NO-ERROR.                            
+      END.
+   END.                 
+   IF brw = 3 AND finns3 = TRUE THEN DO:
+      FIND FIRST mtrlbertemp WHERE mtrlbertemp.KTYPKOD = konstvalvar AND
+      mtrlbertemp.F2 = hjkvalkod AND mtrlbertemp.ENR = enrvar
+      NO-LOCK NO-ERROR.                            
+      IF NOT AVAILABLE mtrlbertemp THEN DO:
+         FIND FIRST mtrlbertemp WHERE mtrlbertemp.KTYPKOD = konstvalvar AND
+         mtrlbertemp.F2 = hjkvalkod 
+         NO-LOCK NO-ERROR.                            
+      END.      
+   END.                 
+   IF brw = 4 AND finns4 = TRUE THEN DO:
+      FIND FIRST mtrlbertemp WHERE mtrlbertemp.KTYPKOD = konstvalvar AND
+      mtrlbertemp.F3 = hjkvalkod AND mtrlbertemp.ENR = enrvar
+      NO-LOCK NO-ERROR.                            
+      IF NOT AVAILABLE mtrlbertemp THEN DO:
+         FIND FIRST mtrlbertemp WHERE mtrlbertemp.KTYPKOD = konstvalvar AND
+         mtrlbertemp.F3 = hjkvalkod 
+         NO-LOCK NO-ERROR.                            
+      END.      
+   END.                 
+   IF brw = 5 AND finns5 = TRUE THEN DO:
+      FIND FIRST mtrlbertemp WHERE mtrlbertemp.KTYPKOD = konstvalvar AND
+      mtrlbertemp.F4 = hjkvalkod AND mtrlbertemp.ENR = enrvar
+      NO-LOCK NO-ERROR.                            
+      IF NOT AVAILABLE mtrlbertemp THEN DO:
+         FIND FIRST mtrlbertemp WHERE mtrlbertemp.KTYPKOD = konstvalvar AND
+         mtrlbertemp.F4 = hjkvalkod 
+         NO-LOCK NO-ERROR.                            
+      END.      
+   END.                 
+   IF brw = 6 AND finns6 = TRUE THEN DO:
+      FIND FIRST mtrlbertemp WHERE mtrlbertemp.KTYPKOD = konstvalvar AND
+      mtrlbertemp.F5 = hjkvalkod AND mtrlbertemp.ENR = enrvar
+      NO-LOCK NO-ERROR.                            
+      IF NOT AVAILABLE mtrlbertemp THEN DO:
+         FIND FIRST mtrlbertemp WHERE mtrlbertemp.KTYPKOD = konstvalvar AND
+         mtrlbertemp.F5 = hjkvalkod 
+         NO-LOCK NO-ERROR.                            
+      END.           
+   END. 
+   IF brw = 0 AND finns6 = TRUE THEN DO:
+      FIND FIRST mtrlbertemp WHERE mtrlbertemp.KTYPKOD = konstvalvar AND
+      mtrlbertemp.F1 = hjkvalkod AND mtrlbertemp.ENR = enrvar
+      NO-LOCK NO-ERROR.                            
+      IF NOT AVAILABLE mtrlbertemp THEN DO:
+         FIND FIRST mtrlbertemp WHERE mtrlbertemp.KTYPKOD = konstvalvar AND
+         mtrlbertemp.F1 = hjkvalkod 
+         NO-LOCK NO-ERROR.                            
+      END.           
+   END.    
+   IF AVAILABLE mtrlbertemp THEN DO:
+      RUN setlastrowid_UI IN brwproc[13] (INPUT ROWID(mtrlbertemp)).
+      RUN lastselectdyn_UI IN brwproc[13].
+   END.   
+   &Scoped-define FRAME-NAME FRAME-BARABREDD   
+   ASSIGN
+   FBTN_ATER:HIDDEN IN FRAME {&FRAME-NAME} = FALSE
+   /*FBTN_SKAPA:HIDDEN = TRUE*/
+   FBTN_HAMTA:HIDDEN = TRUE
+   FBTN_KOPI:HIDDEN = TRUE
+   /*FBTN_ADM:HIDDEN = TRUE */
+   FBTN_ANDRA2:HIDDEN = TRUE
+   CMB_VAL:HIDDEN IN FRAME FRAME-VMTRL = TRUE  
+   BRW_KON2:HIDDEN = TRUE                    
+   BRW_B2:HIDDEN = TRUE                       
+   BRW_B3:HIDDEN = TRUE                        
+   BRW_B4:HIDDEN = TRUE                        
+   BRW_B5:HIDDEN = TRUE                        
+   BRW_B6:HIDDEN = TRUE                        
+   FILL-IN-B1:HIDDEN = TRUE                    
+   FILL-IN-B2:HIDDEN = TRUE                    
+   FILL-IN-B3:HIDDEN = TRUE                    
+   FILL-IN-B4:HIDDEN = TRUE                    
+   FILL-IN-B5:HIDDEN = TRUE                    
+   FILL-IN-B6:HIDDEN = TRUE                    
+   BTN_NY-2:HIDDEN = FALSE                     
+   BTN_AND1:HIDDEN = FALSE                     
+   BTN_AND-3:HIDDEN = FALSE                    
+   BTN_BORT-2:HIDDEN = FALSE                   
+   BTN_ANDANT:HIDDEN = FALSE                   
+   BTN_ANDLIN:HIDDEN = FALSE                   
+   BTN_ANDMOD:HIDDEN = FALSE.                  
+   DISABLE UNLESS-HIDDEN BTN_SKAPA WITH FRAME FRAME-VMTRL.                                         
+/*    DISABLE UNLESS-HIDDEN RAD_SOK BRW_HLEV BRW_SATS BRW_MTRL FILL-IN-KOD FILL-IN-ENR */
+/*    BTN_LEV CMB_LEV FILL-IN-BEN CMB_LEV BTN_LEV BTN_SKAPA BTN_OVER BTN_BACK          */
+/*    BTN_RENSA BTN_MOD BTN_SATS BTN_UPPANT BTN_SPEC BTN_LIN WITH FRAME FRAME-VMTRL.   */
+/*    EMPTY TEMP-TABLE spec_mtrl NO-ERROR. */
+   FRAME FRAME-VMTRL:HIDDEN = FALSE.    
+   FIND FIRST konsttemp WHERE konsttemp.KTYPKOD = konstvalvar USE-INDEX KOD NO-LOCK NO-ERROR.
+   IF konsttemp.KONSKOD = 0 THEN DO:
+      ASSIGN
+      mtrltemp.ENR:LABEL IN BROWSE BRW_HLEV = Guru.Konstanter:genk
+      SPEC_MTRL.ENR:LABEL IN BROWSE BRW_MTRL = Guru.Konstanter:genk
+      mtrlbertemp.ENR:LABEL IN BROWSE BRW_MTRLBER = Guru.Konstanter:genk.
+      &Scoped-define FRAME-NAME FRAME-VMTRL
+      BTN_ANDMOD:HIDDEN IN FRAME {&FRAME-NAME} = FALSE.
+      &Scoped-define FRAME-NAME FRAME-VMTRL
+      BTN_MOD:HIDDEN IN FRAME {&FRAME-NAME} = FALSE.
+   END.
+   ELSE DO:
+      ASSIGN
+      BTN_ANDMOD:HIDDEN = TRUE
+      BTN_MOD:HIDDEN = TRUE.
+   END.      
+   FIND FIRST bbenamntemp WHERE bbenamntemp.KONSKOD = konsttemp.KONSKOD
+   USE-INDEX KOD NO-LOCK NO-ERROR.
+   ASSIGN
+   mtrlbertemp.ENR:LABEL IN BROWSE BRW_MTRLBER = Guru.Konstanter:genk
+   mtrlbertemp.BENAMNING:LABEL IN BROWSE BRW_MTRLBER = "Benämning"
+   mtrlbertemp.ANTAL:LABEL IN BROWSE BRW_MTRLBER = "Antal"      
+   mtrlbertemp.F1:LABEL IN BROWSE BRW_MTRLBER = SUBSTRING(bbenamntemp.B2,1,10) 
+   mtrlbertemp.F2:LABEL IN BROWSE BRW_MTRLBER = SUBSTRING(bbenamntemp.B3,1,10)  
+   mtrlbertemp.F3:LABEL IN BROWSE BRW_MTRLBER = SUBSTRING(bbenamntemp.B4,1,10)
+   mtrlbertemp.F4:LABEL IN BROWSE BRW_MTRLBER = SUBSTRING(bbenamntemp.B5,1,10)      
+   mtrlbertemp.F5:LABEL IN BROWSE BRW_MTRLBER = SUBSTRING(bbenamntemp.B6,1,10)      
+   mtrlbertemp.LINKAB:LABEL IN BROWSE BRW_MTRLBER = "Lin/Kab"
+   mtrlbertemp.MODUL:LABEL IN BROWSE BRW_MTRLBER = "Moduler".
+   {&OPEN-BROWSERS-IN-QUERY-{&FRAME-NAME}}
+/*    RUN setcolsortvar_UI IN brwproc[7] (INPUT " LEVKOD = '" + vald_kundlev + "' AND KALKNR = 0 USE-INDEX LEV"). */
+/*    RUN openbdynspec_UI IN brwproc[7].                                                                          */
+/*    ASSIGN                     */
+/*    BTN_LEV:HIDDEN = TRUE      */
+/*    BRW_SATS:HIDDEN = TRUE     */
+/*    FILL-IN-KOD:HIDDEN = TRUE. */
+/*    RUN openbdynspec_UI IN brwproc[10]. */
+   {musarrow.i}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnandra_UI C-Win 
+PROCEDURE btnandra_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+{muswait.i}
+   
+   FIND FIRST konstgrptemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE konstgrptemp THEN DO:
+      MESSAGE "Det finns ingen konstruktionsgrupp att utföra ändring på." 
+      VIEW-AS ALERT-BOX.
+   END.
+   ELSE DO:   
+      status-ok = BRW_GRUPP:SELECT-FOCUSED-ROW() IN FRAME FRAME-KONSTGRP NO-ERROR.
+      IF Guru.Konstanter:globniv NE 0 THEN DO:
+         IF konstgrptemp.KONSKOD = 0 THEN DO:
+            MESSAGE "Denna konstruktionsgrupp är ej möjlig att ändra. Kontakta Elpool 090 - 18 45 40 för besked."
+            VIEW-AS ALERT-BOX TITLE "Meddelande".
+         END.
+         ELSE DO: 
+            kongrkod = konstgrptemp.KONSKOD.
+            RUN FNAMNU.W (INPUT-OUTPUT kongrkod).
+            RUN openbdynspec_UI IN brwproc[1].
+            FIND FIRST konstgrptemp WHERE konstgrptemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+            IF AVAILABLE konstgrptemp THEN DO:
+               RUN setlastrowid_UI IN brwproc[1] (INPUT ROWID(konstgrptemp)).
+               RUN lastselectdyn_UI IN brwproc[1].    
+            END.          
+         END.
+      END.      
+      ELSE DO:  
+         kongrkod = konstgrptemp.KONSKOD.
+         RUN FNAMNU.W (INPUT-OUTPUT kongrkod).
+         IF musz = FALSE THEN DO:
+            RUN openbdynspec_UI IN brwproc[1].
+            FIND FIRST konstgrptemp WHERE konstgrptemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+            IF AVAILABLE konstgrptemp THEN DO:
+               RUN setlastrowid_UI IN brwproc[1] (INPUT ROWID(konstgrptemp)).
+               RUN lastselectdyn_UI IN brwproc[1].    
+            END.  
+         END.
+      END.   
+   END. 
+   {musarrow.i}  
+   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnback_UI C-Win 
+PROCEDURE btnback_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   &Scoped-define FRAME-NAME FRAME-VMTRL   
+   ASSIGN
+   antal_valda = BRW_MTRL:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}
+   antal_raknare = 1.
+   DO WHILE antal_raknare LE antal_valda:                                   
+      status-ok = BRW_MTRL:FETCH-SELECTED-ROW(antal_raknare).                      
+      DELETE spec_mtrl.
+      RUN valrattright_UI IN brwproc[10] 
+      (INPUT antal_raknare,INPUT svar,INPUT ROWID(spec_mtrl)).
+      antal_raknare = antal_raknare + 1.   
+   END.       
+   RUN openbdynspec_UI IN brwproc[10].
+   RUN lastselectdyn_UI IN brwproc[10].
+
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnhamta_UI C-Win 
+PROCEDURE btnhamta_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   {muswait.i}
+   EMPTY TEMP-TABLE kon_val NO-ERROR. 
+   RUN hamta_UI.   
+   kon_rowid = ROWID(kon_val).   
+   valnum = kon_val.NUM.
+   EMPTY TEMP-TABLE spec_mtrl NO-ERROR. 
+   IF Guru.Konstanter:appcon THEN DO:                           
+      RUN ADMHMTKONMTRL.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+      (INPUT valnum, INPUT TABLE kon_val, OUTPUT TABLE spec_mtrl).
+   END.
+   ELSE DO:
+      RUN ADMHMTKONMTRL.P
+      (INPUT valnum, INPUT TABLE kon_val, OUTPUT TABLE spec_mtrl).
+   END. 
+   RUN openbdynspec_UI IN brwproc[10].
+   status-ok = BRW_MTRL:SELECT-ROW(1) IN FRAME {&FRAME-NAME} NO-ERROR.
+   APPLY "VALUE-CHANGED" TO BRW_MTRL.
+   {musarrow.i}           
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnkop-5_UI C-Win 
+PROCEDURE btnkop-5_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   DEFINE VARIABLE kongrkodspar AS INTEGER NO-UNDO.
+   status-ok = BRW_GRUPP:SELECT-FOCUSED-ROW() IN FRAME FRAME-KONSTGRP NO-ERROR.
+   IF NOT AVAILABLE konstgrptemp THEN DO:
+      RETURN.
+   END.
+   {muswait.i}
+   nykonst = TRUE.
+   &Scoped-define FRAME-NAME FRAME-BARABREDD
+   ASSIGN
+   kongrkod = konstgrptemp.KONSKOD
+   kongrkodspar = kongrkod.
+   RUN KFNAMNU.W (INPUT-OUTPUT kongrkod).
+   IF musz = FALSE THEN DO:
+      &Scoped-define FRAME-NAME FRAME-KONSTGRP
+      nykonst = FALSE.
+      RUN openbdynspec_UI IN brwproc[1].
+      FIND FIRST konstgrptemp WHERE konstgrptemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+      IF AVAILABLE konstgrptemp THEN DO:
+         IF kongrkod NE kongrkodspar THEN DO:
+            status-ok = CMB_VAL2:ADD-LAST(konstgrptemp.BENAMNING) IN FRAME FRAME-KONST.
+            status-ok = CMB_VAL:ADD-LAST(konstgrptemp.BENAMNING) IN FRAME FRAME-VMTRL.
+         END.
+         RUN setlastrowid_UI IN brwproc[1] (INPUT ROWID(konstgrptemp)).
+         RUN lastselectdyn_UI IN brwproc[1].    
+      END.              
+   END.
+   musz = FALSE.
+   {musarrow.i}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnkopier_UI C-Win 
+PROCEDURE btnkopier_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+{muswait.i}      
+   ASSIGN   
+   bbval = bbenamntemp.B1
+   valkon = FALSE
+   nykonst2 = TRUE
+   musz = FALSE. 
+   status-ok = BRW_KON:SELECT-FOCUSED-ROW() IN FRAME FRAME-KONST NO-ERROR.
+   IF NOT AVAILABLE konsttemp THEN DO:
+      MESSAGE "Du måste skapa en post först!" VIEW-AS ALERT-BOX.
+      RETURN.
+   END.
+   ASSIGN
+   konstvalvar = konsttemp.KTYPKOD
+   kongrkod = konsttemp.KONSKOD.
+   RUN NYKONSTU.W (INPUT valkon,INPUT ?,INPUT nykonst2,INPUT kongrkod,
+                   INPUT konstvalvar,INPUT bbval,OUTPUT varkod).
+   nykonst2 = FALSE.
+   IF musz = FALSE THEN DO:
+      RUN kopiera_UI IN konmtrlapph (INPUT konstvalvar,INPUT kongrkod,INPUT varkod,INPUT katvar).
+      FOR EACH konsttemp WHERE konsttemp.KONSKOD = kongrkod:
+         DELETE konsttemp.
+      END.
+      RUN laddanytt_UI IN konmtrlapph (INPUT kongrkod,OUTPUT TABLE konsttemp APPEND).
+      RUN setcolsortvar_UI IN brwproc[15] (INPUT " WHERE KONSKOD = '" + STRING(kongrkod) + "' USE-INDEX ORD").  
+      RUN openbdynspec_UI IN brwproc[15].                         
+      FIND FIRST konsttemp WHERE konsttemp.KONSKOD = kongrkod AND konsttemp.KTYPKOD = varkod USE-INDEX ORD NO-LOCK NO-ERROR.
+      IF AVAILABLE konsttemp THEN DO:
+         RUN setlastrowid_UI IN brwproc[15] (INPUT ROWID(konsttemp)).
+         RUN lastselectdyn_UI IN brwproc[15].
+      END.
+   END.
+   ELSE musz = FALSE.      
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnkopi_UI C-Win 
+PROCEDURE btnkopi_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   {muswait.i}
+   &Scoped-define FRAME-NAME FRAME-BARABREDD   
+   ASSIGN 
+   gruppkod = kongrkod
+   musz = FALSE.   
+   RUN BERKOPIAU.W.   
+   &Scoped-define FRAME-NAME FRAME-KONST
+   {musarrow.i}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnlev_UI C-Win 
+PROCEDURE btnlev_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   IF satsvar = FALSE THEN DO:
+      FIND FIRST mtrltemp WHERE mtrltemp.LEVKOD = vald_lev NO-LOCK NO-ERROR.
+      IF AVAILABLE mtrltemp THEN status-ok = BRW_HLEV:DESELECT-ROWS() IN FRAME FRAME-VMTRL NO-ERROR.      
+   END.
+   ELSE DO:
+      FIND FIRST satstemp WHERE satstemp.LEVKOD = vald_lev AND
+      satstemp.SATS = TRUE NO-LOCK NO-ERROR.
+      IF AVAILABLE satstemp THEN status-ok = BRW_SATS:DESELECT-ROWS() NO-ERROR.      
+   END.
+   ASSIGN 
+   FILL-IN-BEN:HIDDEN = FALSE 
+   FILL-IN-ENR:HIDDEN = FALSE 
+   BTN_LEV:HIDDEN = TRUE
+   BRW_SATS:HIDDEN = TRUE
+   FILL-IN-KOD:HIDDEN = TRUE
+   CMB_LEV:HIDDEN = FALSE
+   BRW_HLEV:HIDDEN = FALSE 
+   CMB_LEV:SCREEN-VALUE = huvudlev
+   vald_lev = vald_kundlev
+   val = FALSE
+   satsvar = FALSE.
+   levinlast = "".
+   RUN levinlast_UI (INPUT vald_lev,OUTPUT levinlast).
+   RUN setorgtitle_UI IN brwproc[7] (INPUT "Materiellista huvudleverantör " + huvudlev + levinlast).            
+   IF posok NE " " THEN DO:
+      APPLY "ENTRY" TO FILL-IN-ENR IN FRAME FRAME-VMTRL.
+      RETURN NO-APPLY.
+   END.
+   ELSE DO:
+      APPLY "ENTRY" TO FILL-IN-BEN IN FRAME FRAME-VMTRL.
+      RETURN NO-APPLY.
+   END.   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnlinkab_UI C-Win 
+PROCEDURE btnlinkab_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   &Scoped-define FRAME-NAME FRAME-VMTRL   
+   ASSIGN
+   antal_valda = BRW_MTRL:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}
+   antal_raknare = 1.    
+   DO WHILE antal_raknare LE antal_valda:   
+      spec_rec = ROWID(spec_mtrl).
+      status-ok = BRW_MTRL:FETCH-SELECTED-ROW(antal_raknare).  
+      IF spec_mtrl.LINKAB = FALSE THEN DO:
+         musz = FALSE. 
+         RUN TRUELINAU.W (INPUT ROWID(spec_mtrl)).                       
+         /* lena 20070420  pga fel om man markerar flera
+         APPLY "ENTRY" TO BRW_MTRL IN FRAME {&FRAME-NAME}.*/
+      END.
+      ELSE DO:
+         ASSIGN
+         spec_mtrl.LINKAB = FALSE
+         spec_mtrl.DIAMETER = 0.  
+      END.   
+      antal_raknare = antal_raknare + 1.   
+   END.   
+   APPLY "ENTRY" TO BRW_MTRL IN FRAME {&FRAME-NAME}.
+   RUN openbdynspec_UI IN brwproc[10].
+   RUN setlastrowid_UI IN brwproc[10] (INPUT spec_rec).
+   RUN lastselectdyn_UI IN brwproc[10].
+   
+   {musarrow.i}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnmod_UI C-Win 
+PROCEDURE btnmod_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/   
+   &Scoped-define FRAME-NAME FRAME-VMTRL
+   RUN rowleave_UI.
+   ASSIGN
+   antal_valda = BRW_MTRL:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}
+   antal_raknare = 1.    
+   DO WHILE antal_raknare LE antal_valda:   
+      status-ok = BRW_MTRL:FETCH-SELECTED-ROW(antal_raknare).  
+      RUN MODANTALU.W (INPUT ROWID(spec_mtrl)).
+      /*lena 20070420 pga fel om man markerar flera
+      APPLY "ENTRY" TO BRW_MTRL IN FRAME {&FRAME-NAME}.*/
+      antal_raknare = antal_raknare + 1.   
+   END.
+   APPLY "ENTRY" TO BRW_MTRL IN FRAME {&FRAME-NAME}.
+   RUN openbdynspec_UI IN brwproc[10].
+   {musarrow.i}   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnner2_UI C-Win 
+PROCEDURE btnner2_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   {muswait.i}
+   ASSIGN
+   status-ok = BRW_KON:SELECT-FOCUSED-ROW() IN FRAME FRAME-KONST NO-ERROR.
+   ASSIGN
+   valkon = FALSE
+   frannr = konsttemp.ORDNING
+   kgrfranvar = konsttemp.KTYPKOD
+   fran_rowid = ROWID(konsttemp).
+   status-ok = BRW_KON:SELECT-NEXT-ROW() IN FRAME FRAME-KONST.
+   ASSIGN 
+   tillnr = konsttemp.ORDNING
+   kgrtillvar = konsttemp.KTYPKOD
+   till_rowid = ROWID(konsttemp).
+   IF frannr = tillnr THEN musz = musz.   
+   ELSE DO:
+      RUN bytnr_UI IN konmtrlapph (INPUT valkon,INPUT frannr,INPUT tillnr,INPUT kgrfranvar,
+                                   INPUT kgrtillvar,INPUT bbval,INPUT konstvalvar,INPUT kongrkod,INPUT TABLE konstvaltemp).
+   END.
+   FIND konsttemp WHERE ROWID(konsttemp) = till_rowid NO-LOCK NO-ERROR.
+   ASSIGN konsttemp.ORDNING = frannr.  
+   FIND konsttemp WHERE ROWID(konsttemp) = fran_rowid NO-LOCK NO-ERROR.
+   ASSIGN konsttemp.ORDNING = tillnr. 
+   RUN setcolsortvar_UI IN brwproc[15] (INPUT " WHERE KONSKOD = '" + STRING(kongrkod) + "' USE-INDEX ORD").  
+   RUN openbdynspec_UI IN brwproc[15].  
+   FIND FIRST konsttemp WHERE ROWID(konsttemp) = fran_rowid NO-LOCK NO-ERROR.
+   IF AVAILABLE konsttemp THEN DO:
+      RUN setlastrowid_UI IN brwproc[15] (INPUT ROWID(konsttemp)).
+      RUN lastselectdyn_UI IN brwproc[15].        
+   END.   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnner3_UI C-Win 
+PROCEDURE btnner3_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   {muswait.i}
+   ASSIGN
+   status-ok = BRW_VAL:SELECT-FOCUSED-ROW() IN FRAME FRAME-KONST NO-ERROR.
+   ASSIGN
+   valkon = TRUE
+   frannr = konstvaltemp.ORDNING
+   fran_rowid = ROWID(konstvaltemp).
+   status-ok = BRW_VAL:SELECT-NEXT-ROW() IN FRAME FRAME-KONST.
+   ASSIGN
+   tillnr = konstvaltemp.ORDNING
+   till_rowid = ROWID(konstvaltemp).    
+   IF frannr = tillnr THEN musz = musz.   
+   ELSE DO:
+      RUN bytnr_UI IN konmtrlapph (INPUT valkon,INPUT frannr,INPUT tillnr,INPUT ?,INPUT ?,
+                                   INPUT bbval,INPUT konstvalvar,INPUT kongrkod,
+                                   INPUT TABLE konstvaltemp).
+   END.
+   FIND konstvaltemp WHERE ROWID(konstvaltemp) = till_rowid NO-LOCK.
+   konstvaltemp.ORDNING = frannr.  
+   FIND konstvaltemp WHERE ROWID(konstvaltemp) = fran_rowid NO-LOCK.
+   konstvaltemp.ORDNING = tillnr.  
+   RUN setcolsortvar_UI IN brwproc[14] (INPUT "USE-INDEX ORD").  
+   RUN openbdynspec_UI IN brwproc[14].  
+   FIND FIRST konstvaltemp WHERE ROWID(konstvaltemp) = fran_rowid NO-LOCK NO-ERROR.
+   IF AVAILABLE konstvaltemp THEN DO:
+      RUN setlastrowid_UI IN brwproc[14] (INPUT ROWID(konstvaltemp)).
+      RUN lastselectdyn_UI IN brwproc[14].        
+   END.      
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnner_UI C-Win 
+PROCEDURE btnner_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   ASSIGN
+   status-ok = BRW_GRUPP:SELECT-FOCUSED-ROW() IN FRAME FRAME-KONSTGRP NO-ERROR.
+   ASSIGN
+   frannr = konstgrptemp.ORDNING
+   fran_rowid = ROWID(konstgrptemp)   
+   status-ok = BRW_GRUPP:SELECT-NEXT-ROW() IN FRAME FRAME-KONSTGRP
+   till_rowid = ROWID(konstgrptemp)   
+   tillnr = konstgrptemp.ORDNING. 
+   FIND konstgrptemp WHERE ROWID(konstgrptemp) = till_rowid EXCLUSIVE-LOCK.
+   konstgrptemp.ORDNING = frannr. 
+   RUN sparaord_UI IN konmtrlapph (INPUT konstgrptemp.KONSKOD,INPUT konstgrptemp.ORDNING).
+   FIND konstgrptemp WHERE ROWID(konstgrptemp) = fran_rowid EXCLUSIVE-LOCK.
+   konstgrptemp.ORDNING = tillnr.  
+   RUN sparaord_UI IN konmtrlapph (INPUT konstgrptemp.KONSKOD,INPUT konstgrptemp.ORDNING).
+   RUN openbdynspec_UI IN brwproc[1].
+   FIND FIRST konstgrptemp WHERE konstgrptemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+   IF AVAILABLE konstgrptemp THEN DO:
+      RUN setlastrowid_UI IN brwproc[1] (INPUT ROWID(konstgrptemp)).
+      RUN lastselectdyn_UI IN brwproc[1].    
+   END.  
+   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnny_UI C-Win 
+PROCEDURE btnny_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   DEFINE VARIABLE kongrkodspar AS INTEGER NO-UNDO.
+   {muswait.i}
+   nykonst = TRUE.
+   status-ok = BRW_GRUPP:SELECT-FOCUSED-ROW() IN FRAME FRAME-KONSTGRP NO-ERROR.
+   IF AVAILABLE konstgrptemp THEN DO:
+      ASSIGN
+      kongrkod = konstgrptemp.KONSKOD
+      kongrkodspar = kongrkod.
+   END.
+   RUN FNAMNU.W (INPUT-OUTPUT kongrkod).
+   IF musz = FALSE THEN DO:
+      &Scoped-define FRAME-NAME FRAME-KONSTGRP
+      nykonst = FALSE.
+      RUN openbdynspec_UI IN brwproc[1].
+      FIND FIRST konstgrptemp WHERE konstgrptemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+      IF AVAILABLE konstgrptemp THEN DO:
+         IF kongrkod NE kongrkodspar THEN DO:
+            status-ok = CMB_VAL2:ADD-LAST(konstgrptemp.BENAMNING) IN FRAME FRAME-KONST.
+            status-ok = CMB_VAL:ADD-LAST(konstgrptemp.BENAMNING) IN FRAME FRAME-VMTRL.
+         END.
+         RUN setlastrowid_UI IN brwproc[1] (INPUT ROWID(konstgrptemp)).
+         RUN lastselectdyn_UI IN brwproc[1].    
+      END.              
+   END.
+   musz = FALSE.
+  {musarrow.i}   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnok_UI C-Win 
+PROCEDURE btnok_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   {muswait.i}   
+   EMPTY TEMP-TABLE kval NO-ERROR. 
+   &Scoped-define FRAME-NAME FRAME-KONST
+   antal_valda = BRW_VAL:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.         
+   antal_raknare = 1.
+   DO WHILE antal_raknare LE antal_valda:                                   
+      status-ok = BRW_VAL:FETCH-SELECTED-ROW(antal_raknare).
+      felmedd = "".
+      IF konstvaltemp.KOPP = TRUE THEN DO:
+         RUN nejkontroll_UI IN konmtrlapph (INPUT kongrkod,INPUT konstvalvar,
+                                        konstvaltemp.KVALKOD,konstvaltemp.BB,
+                                        OUTPUT felmedd).
+         IF felmedd NE "" THEN DO:
+            MESSAGE felmedd  VIEW-AS ALERT-BOX QUESTION BUTTONS YES-NO TITLE "Borttag" UPDATE svar AS LOGICAL.
+            IF svar THEN DO:
+               CREATE kval.
+               ASSIGN 
+               kval.KVALKOD = konstvaltemp.KVALKOD
+               kval.KTYPKOD = konstvalvar
+               kval.KONSKOD = konstvaltemp.KONSKOD
+               kval.BENAMNING = konstvaltemp.BENAMNING
+               kval.KOPP = konstvaltemp.KOPP
+               kval.BB = konstvaltemp.BB
+               kval.ORDNING = konstvaltemp.ORDNING.
+               IF konstvaltemp.KOPP = TRUE THEN konstvaltemp.KOPP = FALSE.
+            END.
+         END.
+         ELSE DO:
+            CREATE kval.
+            ASSIGN 
+            kval.KVALKOD = konstvaltemp.KVALKOD
+            kval.KTYPKOD = konstvalvar
+            kval.KONSKOD = konstvaltemp.KONSKOD
+            kval.BENAMNING = konstvaltemp.BENAMNING
+            kval.KOPP = konstvaltemp.KOPP
+            kval.BB = konstvaltemp.BB
+            kval.ORDNING = konstvaltemp.ORDNING.
+            IF konstvaltemp.KOPP = TRUE THEN konstvaltemp.KOPP = FALSE.
+         END.
+      END.
+      ELSE DO:        
+         CREATE kval.
+         ASSIGN 
+         kval.KVALKOD = konstvaltemp.KVALKOD
+         kval.KTYPKOD = konstvalvar
+         kval.KONSKOD = konstvaltemp.KONSKOD
+         kval.BENAMNING = konstvaltemp.BENAMNING
+         kval.KOPP = konstvaltemp.KOPP
+         kval.BB = konstvaltemp.BB
+         kval.ORDNING = konstvaltemp.ORDNING.
+         IF konstvaltemp.KOPP = FALSE THEN konstvaltemp.KOPP = TRUE.         
+      END.
+      antal_raknare = antal_raknare + 1.      
+   END.
+   RUN btnkopp_UI IN konmtrlapph (INPUT konstvalvar,INPUT kongrkod,INPUT TABLE kval).      
+   APPLY "VALUE-CHANGED" TO BRW_KON. 
+   /*
+   FIND FIRST konstvaltemp WHERE konstvaltemp.KVALKOD = kval.KVALKOD AND 
+   konstvalvar = kval.KTYPKOD AND konstvaltemp.KONSKOD = kval.KONSKOD AND
+   konstvaltemp.BENAMNING = kval.BENAMNING AND konstvaltemp.BB = kval.BB AND konstvaltemp.ORDNING = kval.ORDNING NO-LOCK NO-ERROR.
+   */
+   FIND LAST konstvaltemp WHERE konstvaltemp.KVALKOD = kval.KVALKOD AND 
+   konstvaltemp.KTYPKOD = kval.KTYPKOD AND konstvaltemp.KONSKOD = kval.KONSKOD AND
+   konstvaltemp.BENAMNING = kval.BENAMNING AND konstvaltemp.BB = kval.BB NO-LOCK NO-ERROR.
+   IF AVAILABLE konstvaltemp THEN DO:
+      RUN setlastrowid_UI IN brwproc[14] (INPUT ROWID(konstvaltemp)).
+      RUN lastselectdyn_UI IN brwproc[14].                
+   END.
+   {musarrow.i}     
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnover_UI C-Win 
+PROCEDURE btnover_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   IF val = FALSE THEN DO:     
+      ASSIGN
+      antal_valda = BRW_HLEV:NUM-SELECTED-ROWS IN FRAME FRAME-VMTRL      
+      antal_raknare = 1.
+      DO WHILE antal_raknare LE antal_valda:                    
+         ASSIGN            
+         status-ok = BRW_HLEV:FETCH-SELECTED-ROW(antal_raknare)
+         mtrl_rowid = ROWID(mtrltemp).           
+         RUN over_UI.
+/*          RUN BERANTALU.W (INPUT ROWID(spec_mtrl)). */
+         antal_raknare = antal_raknare + 1.
+      END. 
+      RUN openbdynspec_UI IN brwproc[10].
+      status-ok = BRW_HLEV:DESELECT-ROWS() NO-ERROR.         
+      FIND FIRST spec_mtrl WHERE ROWID(spec_mtrl) = spec_rec NO-LOCK NO-ERROR.
+      IF AVAILABLE spec_mtrl THEN DO:
+         RUN setlastrowid_UI IN brwproc[10] (INPUT ROWID(spec_mtrl)).
+         RUN lastselectdynejv_UI IN brwproc[10].    
+      END.       
+   END.
+   ELSE DO:
+      IF satsvar = FALSE THEN DO:
+         ASSIGN
+         antal_valda = BRW_HLEV:NUM-SELECTED-ROWS
+         antal_raknare = 1.
+         DO WHILE antal_raknare LE antal_valda:    
+            ASSIGN                               
+            status-ok = BRW_HLEV:FETCH-SELECTED-ROW(antal_raknare)
+            mtrl_rowid = ROWID(mtrltemp).
+            RUN over_UI. 
+/*             RUN BERANTALU.W (INPUT ROWID(spec_mtrl)). */
+            antal_raknare = antal_raknare + 1.
+         END. 
+         RUN openbdynspec_UI IN brwproc[10].
+         status-ok = BRW_HLEV:DESELECT-ROWS() NO-ERROR.
+         FIND FIRST spec_mtrl WHERE ROWID(spec_mtrl) = spec_rec NO-LOCK NO-ERROR.
+         IF AVAILABLE spec_mtrl THEN DO:
+            RUN setlastrowid_UI IN brwproc[10] (INPUT ROWID(spec_mtrl)).
+            RUN lastselectdynejv_UI IN brwproc[10].    
+         END.  
+      END.
+      ELSE DO:
+         ASSIGN
+         antal_valda = BRW_SATS:NUM-SELECTED-ROWS
+         antal_raknare = 1.
+         DO WHILE antal_raknare LE antal_valda:    
+            ASSIGN                               
+            status-ok = BRW_SATS:FETCH-SELECTED-ROW(antal_raknare).
+            RUN sats_UI. 
+/*             RUN BERANTALU.W (INPUT ROWID(spec_mtrl)). */
+            antal_raknare = antal_raknare + 1.
+         END. 
+         RUN openbdynspec_UI IN brwproc[10].
+         status-ok = BRW_SATS:DESELECT-ROWS() NO-ERROR.
+         FIND FIRST spec_mtrl WHERE ROWID(spec_mtrl) = spec_rec NO-LOCK NO-ERROR.
+         IF AVAILABLE spec_mtrl THEN DO:
+            RUN setlastrowid_UI IN brwproc[10] (INPUT ROWID(spec_mtrl)).
+            RUN lastselectdynejv_UI IN brwproc[10].    
+         END.  
+      END.   
+   END.
+   APPLY "ENTRY" TO spec_mtrl.BERKVANT IN BROWSE BRW_MTRL.   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnsats_UI C-Win 
+PROCEDURE btnsats_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   {muswait.i}
+    &Scoped-define FRAME-NAME FRAME-VMTRL
+    ASSIGN
+   antal_valda = BRW_MTRL:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}
+   antal_raknare = 1
+   satstrue = TRUE.
+   DO WHILE antal_raknare LE antal_valda:
+      status-ok = BRW_MTRL:FETCH-SELECTED-ROW(antal_raknare).      
+      IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+         IF spec_mtrl.LEVKOD = "11" THEN DO:
+            FIND FIRST satstemp WHERE satstemp.SATS = TRUE AND satstemp.KOD = spec_mtrl.ENR AND
+            satstemp.LEVKOD = "1" USE-INDEX KOD NO-LOCK NO-ERROR.
+         END.
+         ELSE DO:
+            FIND FIRST satstemp WHERE satstemp.SATS = TRUE AND satstemp.KOD = spec_mtrl.ENR AND
+            satstemp.LEVKOD = spec_mtrl.LEVKOD USE-INDEX KOD NO-LOCK NO-ERROR.
+         END.
+      END.
+      ELSE DO:
+         FIND FIRST satstemp WHERE satstemp.SATS = TRUE AND satstemp.KOD = spec_mtrl.ENR AND
+         satstemp.LEVKOD = spec_mtrl.LEVKOD USE-INDEX KOD NO-LOCK NO-ERROR.
+      END.      
+      IF AVAILABLE satstemp THEN DO: 
+         spec_mtrl.SATS = TRUE.
+         &Scoped-define FRAME-NAME FRAME-BARABREDD         
+         RUN SATSINNEU.W (INPUT ROWID(satstemp)).         
+         &Scoped-define FRAME-NAME FRAME-KONST
+      END.
+      ELSE DO:
+         RUN satskoll_UI IN konmtrlapph (INPUT spec_mtrl.ENR, INPUT spec_mtrl.LEVKOD, INPUT Guru.Konstanter:globforetag, OUTPUT felmedd).
+         IF felmedd NE "" THEN DO:         
+            spec_mtrl.SATS = FALSE.
+            MESSAGE Guru.Konstanter:genl + ":" + spec_mtrl.ENR + " med benämningen:" + spec_mtrl.BENAMNING + 
+            " är ej en sats." VIEW-AS ALERT-BOX TITLE "Meddelande".      
+         END.
+         ELSE DO:
+            felmedd = "".
+            CREATE satstemp.
+            ASSIGN
+            satstemp.KOD = spec_mtrl.ENR
+            satstemp.LEVKOD = spec_mtrl.LEVKOD            
+            spec_mtrl.SATS = TRUE.
+            IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+               IF spec_mtrl.LEVKOD = "11" THEN satstemp.LEVKOD = "1".               
+            END.            
+            &Scoped-define FRAME-NAME FRAME-BARABREDD            
+            RUN SATSINNEU.W (INPUT ROWID(satstemp)).
+            &Scoped-define FRAME-NAME FRAME-KONST     
+            DELETE satstemp.       
+         END.
+      END.      
+      antal_raknare = antal_raknare + 1.  
+   END. 
+   satstrue = FALSE.
+   {musarrow.i}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnupp2_UI C-Win 
+PROCEDURE btnupp2_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+  {muswait.i}
+   ASSIGN
+   status-ok = BRW_KON:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME} NO-ERROR.
+   ASSIGN
+   valkon = FALSE
+   frannr = konsttemp.ORDNING
+   kgrfranvar = konsttemp.KTYPKOD
+   fran_rowid = ROWID(konsttemp)
+   status-ok = BRW_KON:SELECT-PREV-ROW() IN FRAME {&FRAME-NAME}.
+   ASSIGN 
+   tillnr = konsttemp.ORDNING
+   kgrtillvar = konsttemp.KTYPKOD
+   till_rowid = ROWID(konsttemp).
+   IF frannr = tillnr THEN DO:
+      musz = musz.
+   END.
+   ELSE DO:
+      RUN bytnr_UI IN konmtrlapph (INPUT valkon,INPUT frannr,INPUT tillnr,INPUT kgrfranvar,
+                                   INPUT kgrtillvar,INPUT bbval,INPUT konstvalvar,INPUT kongrkod,INPUT TABLE konstvaltemp).
+   END.
+   FIND konsttemp WHERE ROWID(konsttemp) = till_rowid NO-LOCK NO-ERROR.
+   ASSIGN konsttemp.ORDNING = frannr.  
+   FIND konsttemp WHERE ROWID(konsttemp) = fran_rowid NO-LOCK NO-ERROR.
+   ASSIGN konsttemp.ORDNING = tillnr.  
+   RUN setcolsortvar_UI IN brwproc[15] (INPUT " WHERE KONSKOD = '" + STRING(kongrkod) + "' USE-INDEX ORD").  
+   RUN openbdynspec_UI IN brwproc[15].  
+   FIND FIRST konsttemp WHERE ROWID(konsttemp) = fran_rowid NO-LOCK NO-ERROR.
+   IF AVAILABLE konsttemp THEN DO:
+      RUN setlastrowid_UI IN brwproc[15] (INPUT ROWID(konsttemp)).
+      RUN lastselectdyn_UI IN brwproc[15].        
+   END.
+   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnupp3_UI C-Win 
+PROCEDURE btnupp3_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+  {muswait.i}
+   ASSIGN
+   status-ok = BRW_VAL:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME} NO-ERROR.
+   ASSIGN
+   valkon = TRUE
+   frannr = konstvaltemp.ORDNING
+   fran_rowid = ROWID(konstvaltemp)
+   status-ok = BRW_VAL:SELECT-PREV-ROW() IN FRAME {&FRAME-NAME}.
+   ASSIGN
+   tillnr = konstvaltemp.ORDNING
+   till_rowid = ROWID(konstvaltemp).     
+   IF frannr = tillnr THEN musz = musz.   
+   ELSE DO:
+      RUN bytnr_UI IN konmtrlapph (INPUT valkon,INPUT frannr,INPUT tillnr,INPUT ?,INPUT ?,
+                                   INPUT bbval,INPUT konstvalvar,INPUT kongrkod,
+                                   INPUT TABLE konstvaltemp).
+   END.
+   FIND konstvaltemp WHERE ROWID(konstvaltemp) = till_rowid NO-LOCK.
+   konstvaltemp.ORDNING = frannr.  
+   FIND konstvaltemp WHERE ROWID(konstvaltemp) = fran_rowid NO-LOCK.
+   konstvaltemp.ORDNING = tillnr.  
+   RUN setcolsortvar_UI IN brwproc[14] (INPUT "USE-INDEX ORD").  
+   RUN openbdynspec_UI IN brwproc[14].  
+   FIND FIRST konstvaltemp WHERE ROWID(konstvaltemp) = fran_rowid NO-LOCK NO-ERROR.
+   IF AVAILABLE konstvaltemp THEN DO:
+      RUN setlastrowid_UI IN brwproc[14] (INPUT ROWID(konstvaltemp)).
+      RUN lastselectdyn_UI IN brwproc[14].        
+   END.
+   {musarrow.i}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnupp_UI C-Win 
+PROCEDURE btnupp_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   ASSIGN
+   status-ok = BRW_GRUPP:SELECT-FOCUSED-ROW() IN FRAME FRAME-KONSTGRP NO-ERROR.
+   ASSIGN
+   frannr = konstgrptemp.ORDNING
+   fran_rowid = ROWID(konstgrptemp)   
+   status-ok = BRW_GRUPP:SELECT-PREV-ROW() IN FRAME FRAME-KONSTGRP 
+   till_rowid = ROWID(konstgrptemp)   
+   tillnr = konstgrptemp.ORDNING.
+   FIND konstgrptemp WHERE ROWID(konstgrptemp) = till_rowid EXCLUSIVE-LOCK.
+   konstgrptemp.ORDNING = frannr.  
+   RUN sparaord_UI IN konmtrlapph (INPUT konstgrptemp.KONSKOD,INPUT konstgrptemp.ORDNING).
+   FIND konstgrptemp WHERE ROWID(konstgrptemp) = fran_rowid EXCLUSIVE-LOCK.
+   konstgrptemp.ORDNING = tillnr.  
+   RUN sparaord_UI IN konmtrlapph (INPUT konstgrptemp.KONSKOD,INPUT konstgrptemp.ORDNING).
+   RUN openbdynspec_UI IN brwproc[1].
+   FIND FIRST konstgrptemp WHERE konstgrptemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+   IF AVAILABLE konstgrptemp THEN DO:
+      RUN setlastrowid_UI IN brwproc[1] (INPUT ROWID(konstgrptemp)).
+      RUN lastselectdyn_UI IN brwproc[1].    
+   END.  
+   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnvit_UI C-Win 
+PROCEDURE btnvit_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   DEFINE INPUT PARAMETER btnh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE btnlabel AS CHARACTER NO-UNDO.
+   IF btnnovit NE ? THEN DO:
+      btnlabel = btnnovit:IMAGE.
+      btnlabel = REPLACE(btnlabel,"_vit.gif",".gif"). 
+      btnnovit:LOAD-IMAGE (btnlabel) NO-ERROR.
+   END.
+   btnlabel = btnh:IMAGE.
+   btnlabel = REPLACE(btnlabel,".gif","_vit.gif"). 
+   btnh:LOAD-IMAGE (btnlabel) NO-ERROR.
+   btnnovit = btnh.   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE bytgrupp_UI C-Win 
+PROCEDURE bytgrupp_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/       
+   &Scoped-define FRAME-NAME FRAME-VMTRL  
+   kongrkod = konstgrptemp.KONSKOD.
+   FIND FIRST bbenamntemp WHERE bbenamntemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+   FILL-IN-B1 = bbenamntemp.B1.
+   DISPLAY FILL-IN-B1 WITH FRAME {&FRAME-NAME}.  
+   RUN setcolsortvar_UI IN brwproc[8] (INPUT " WHERE konsttemp.KONSKOD = " + STRING(kongrkod) + "").
+   RUN openbdynspec_UI IN brwproc[8].
+   FIND FIRST konsttemp WHERE konsttemp.KONSKOD = kongrkod AND konsttemp.KTYPKOD = konstvalvar NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE konsttemp THEN DO:
+      FIND FIRST konsttemp WHERE konsttemp.KONSKOD = kongrkod USE-INDEX ORD NO-LOCK NO-ERROR.
+   END.
+   IF AVAILABLE konsttemp THEN DO:
+      RUN setlastrowid_UI IN brwproc[8] (INPUT ROWID(konsttemp)).
+      RUN lastselectdyn_UI IN brwproc[8].
+   END.
+   APPLY "VALUE-CHANGED" TO BRW_KON2 IN FRAME {&FRAME-NAME}.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE bytkonst_UI C-Win 
+PROCEDURE bytkonst_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/       
+   &Scoped-define FRAME-NAME FRAME-VMTRL   
+   IF bbenamntemp.B2 NE " " THEN DO:
+      ASSIGN
+      FILL-IN-B2 = bbenamntemp.B2.
+      DISPLAY FILL-IN-B2 WITH FRAME {&FRAME-NAME}.
+      BRW_B2:HIDDEN = TRUE. 
+      RUN setcolsortvar_UI IN brwproc[2] (INPUT " WHERE KONSKOD = '" + STRING(kongrkod) + 
+      "' AND KTYPKOD = '" + STRING(konstvalvar) + "' AND KOPP = TRUE AND BB = '" + STRING(bbenamntemp.B2) + "'").  
+      RUN openbdynspec_UI IN brwproc[2].
+      IF AVAILABLE konstvaltemp THEN finns2 = TRUE.
+      ELSE finns2 = FALSE.             
+      ASSIGN
+      BRW_B2:HIDDEN IN FRAME {&FRAME-NAME} = FALSE
+      FILL-IN-B2:HIDDEN IN FRAME {&FRAME-NAME} = FALSE.
+   END. 
+   ELSE DO:
+      ASSIGN
+      BRW_B2:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      FILL-IN-B2:HIDDEN IN FRAME {&FRAME-NAME} = TRUE.
+   END.   
+   IF bbenamntemp.B3 NE " " THEN DO: 
+      ASSIGN
+      FILL-IN-B3 = bbenamntemp.B3.
+      DISPLAY FILL-IN-B3 WITH FRAME {&FRAME-NAME}.  
+      BRW_B3:HIDDEN IN FRAME {&FRAME-NAME} = TRUE.
+      RUN setcolsortvar_UI IN brwproc[3] (INPUT " WHERE KONSKOD = '" + STRING(kongrkod) + 
+      "' AND KTYPKOD = '" + STRING(konstvalvar) + "' AND KOPP = TRUE AND BB = '" + STRING(bbenamntemp.B3) + "'").  
+      RUN openbdynspec_UI IN brwproc[3].
+      IF AVAILABLE konstvaltemp THEN finns3 = TRUE.
+      ELSE finns3 = FALSE.  
+      ASSIGN
+      BRW_B3:HIDDEN IN FRAME {&FRAME-NAME} = FALSE
+      FILL-IN-B3:HIDDEN IN FRAME {&FRAME-NAME} = FALSE.
+   END.  
+   ELSE DO: 
+      ASSIGN
+      BRW_B3:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      FILL-IN-B3:HIDDEN IN FRAME {&FRAME-NAME} = TRUE.
+   END.  
+   IF bbenamntemp.B4 NE " " THEN DO:
+      ASSIGN
+      FILL-IN-B4 = bbenamntemp.B4.
+      DISPLAY FILL-IN-B4 WITH FRAME {&FRAME-NAME}.
+      BRW_B4:HIDDEN IN FRAME {&FRAME-NAME} = TRUE.    
+      RUN setcolsortvar_UI IN brwproc[4] (INPUT " WHERE KONSKOD = '" + STRING(kongrkod) + 
+      "' AND KTYPKOD = '" + STRING(konstvalvar) + "' AND KOPP = TRUE AND BB = '" + STRING(bbenamntemp.B4) + "'").  
+      RUN openbdynspec_UI IN brwproc[4].
+      IF AVAILABLE konstvaltemp THEN finns4 = TRUE.
+      ELSE finns4 = FALSE.  
+      ASSIGN
+      BRW_B4:HIDDEN IN FRAME {&FRAME-NAME} = FALSE
+      FILL-IN-B4:HIDDEN IN FRAME {&FRAME-NAME} = FALSE.
+   END.
+   ELSE DO: 
+      ASSIGN
+      BRW_B4:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      FILL-IN-B4:HIDDEN IN FRAME {&FRAME-NAME} = TRUE.
+   END.    
+   IF bbenamntemp.B5 NE " " THEN DO:
+      ASSIGN
+      FILL-IN-B5 = bbenamntemp.B5.
+      DISPLAY FILL-IN-B5 WITH FRAME {&FRAME-NAME}.
+      BRW_B5:HIDDEN IN FRAME {&FRAME-NAME} = TRUE.  
+      RUN setcolsortvar_UI IN brwproc[5] (INPUT " WHERE KONSKOD = '" + STRING(kongrkod) + 
+      "' AND KTYPKOD = '" + STRING(konstvalvar) + "' AND KOPP = TRUE AND BB = '" + STRING(bbenamntemp.B5) + "'").  
+      RUN openbdynspec_UI IN brwproc[5].
+      IF AVAILABLE konstvaltemp THEN finns5 = TRUE.
+      ELSE finns5 = FALSE. 
+      ASSIGN
+      BRW_B5:HIDDEN IN FRAME {&FRAME-NAME} = FALSE
+      FILL-IN-B5:HIDDEN IN FRAME {&FRAME-NAME} = FALSE.
+   END.       
+   ELSE DO:
+      ASSIGN
+      BRW_B5:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      FILL-IN-B5:HIDDEN IN FRAME {&FRAME-NAME} = TRUE.
+   END. 
+   IF bbenamntemp.B6 NE " " THEN DO: 
+      ASSIGN
+      FILL-IN-B6 = bbenamntemp.B6.
+      DISPLAY FILL-IN-B6 WITH FRAME {&FRAME-NAME}.
+      BRW_B6:HIDDEN IN FRAME {&FRAME-NAME} = TRUE.
+      RUN setcolsortvar_UI IN brwproc[6] (INPUT " WHERE KONSKOD = '" + STRING(kongrkod) + 
+      "' AND KTYPKOD = '" + STRING(konstvalvar) + "' AND KOPP = TRUE AND BB = '" + STRING(bbenamntemp.B6) + "'").  
+      RUN openbdynspec_UI IN brwproc[6].
+      IF AVAILABLE konstvaltemp THEN finns6 = TRUE.
+      ELSE finns6 = FALSE. 
+      ASSIGN
+      BRW_B6:HIDDEN IN FRAME {&FRAME-NAME} = FALSE
+      FILL-IN-B6:HIDDEN IN FRAME {&FRAME-NAME} = FALSE.
+   END. 
+   ELSE DO:
+      ASSIGN
+      BRW_B6:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      FILL-IN-B6:HIDDEN IN FRAME {&FRAME-NAME} = TRUE.
+   END.      
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE cmbval_UI C-Win 
+PROCEDURE cmbval_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   &Scoped-define FRAME-NAME FRAME-KONST
+   ASSIGN
+   mark = FALSE
+   RAD_KONTO = 1.
+   FIND FIRST konstgrptemp WHERE konstgrptemp.BENAMNING = CMB_VAL2 NO-LOCK NO-ERROR. 
+   IF NOT AVAILABLE konstgrptemp THEN FIND FIRST konstgrptemp NO-LOCK NO-ERROR. 
+   IF AVAILABLE konstgrptemp THEN DO:
+      kongrkod = konstgrptemp.KONSKOD.
+      
+      ASSIGN C-Win:TITLE = "Administration av konstruktionsgrupp " + konstgrptemp.BENAMNING.      
+      RUN title_UI.
+      FIND FIRST bbenamntemp WHERE bbenamntemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+      IF AVAILABLE bbenamntemp THEN DO:
+         stat = RAD_KONTO:DELETE("") IN FRAME {&FRAME-NAME} NO-ERROR.
+         IF radkonto1 NE "" THEN stat = RAD_KONTO:DELETE(radkonto1) IN FRAME {&FRAME-NAME}.            
+         IF radkonto2 NE "" THEN stat = RAD_KONTO:DELETE(radkonto2) IN FRAME {&FRAME-NAME}.            
+         IF radkonto3 NE "" THEN stat = RAD_KONTO:DELETE(radkonto3) IN FRAME {&FRAME-NAME}.            
+         IF radkonto4 NE "" THEN stat = RAD_KONTO:DELETE(radkonto4) IN FRAME {&FRAME-NAME}.            
+         IF radkonto5 NE "" THEN stat = RAD_KONTO:DELETE(radkonto5) IN FRAME {&FRAME-NAME}.            
+         ASSIGN
+         radkonto1 = CAPS(SUBSTRING(bbenamntemp.B2,1,1)) + LC(SUBSTRING(bbenamntemp.B2,2)).
+         radkonto2 = CAPS(SUBSTRING(bbenamntemp.B3,1,1)) + LC(SUBSTRING(bbenamntemp.B3,2)).
+         radkonto3 = CAPS(SUBSTRING(bbenamntemp.B4,1,1)) + LC(SUBSTRING(bbenamntemp.B4,2)).
+         radkonto4 = CAPS(SUBSTRING(bbenamntemp.B5,1,1)) + LC(SUBSTRING(bbenamntemp.B5,2)).
+         radkonto5 = CAPS(SUBSTRING(bbenamntemp.B6,1,1)) + LC(SUBSTRING(bbenamntemp.B6,2)).
+         IF bbenamntemp.B2 = " " THEN f2 = bbenamntemp.B2.  
+         ELSE stat = RAD_KONTO:ADD-LAST(radkonto1,1).   
+         IF bbenamntemp.B3 = " " THEN f3 = bbenamntemp.B3. 
+         ELSE stat = RAD_KONTO:ADD-LAST(radkonto2,2).
+         IF bbenamntemp.B4 = " " THEN f4 = bbenamntemp.B4. 
+         ELSE stat = RAD_KONTO:ADD-LAST(radkonto3,3).
+         IF bbenamntemp.B5 = " " THEN f5 = bbenamntemp.B5. 
+         ELSE stat = RAD_KONTO:ADD-LAST(radkonto4,4).
+         IF bbenamntemp.B6 = " " THEN f6 = bbenamntemp.B6.   
+         ELSE stat = RAD_KONTO:ADD-LAST(radkonto5,5).
+         ASSIGN
+         f2 = bbenamntemp.B2
+         f3 = bbenamntemp.B3
+         f4 = bbenamntemp.B4
+         f5 = bbenamntemp.B5
+         f6 = bbenamntemp.B6
+         radio = 1. 
+         DISPLAY RAD_KONTO WITH FRAME {&FRAME-NAME}.
+      END.
+      RUN setcolsortvar_UI IN brwproc[15] (INPUT " WHERE KONSKOD = '" + STRING(kongrkod) + "' USE-INDEX ORD").  
+      RUN openbdynspec_UI IN brwproc[15].                         
+      FIND FIRST konsttemp WHERE konsttemp.KONSKOD = kongrkod AND konsttemp.KTYPKOD = konstvalvar NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE konsttemp THEN DO:
+         FIND FIRST konsttemp WHERE konsttemp.KONSKOD = kongrkod USE-INDEX ORD NO-LOCK NO-ERROR.
+      END.
+      IF AVAILABLE konsttemp THEN DO:
+         RUN setlastrowid_UI IN brwproc[15] (INPUT ROWID(konsttemp)).
+         RUN lastselectdyn_UI IN brwproc[15].
+      END.
+      APPLY "VALUE-CHANGED" TO BRW_KON.
+   END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE dbcben_UI C-Win 
+PROCEDURE dbcben_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   {muswait.i}
+   &Scoped-define FRAME-NAME FRAME-VMTRL 
+   {BENHMT2.I}  
+   RUN initsok_UI (INPUT 1,INPUT aosok).
+   {musarrow.i}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE dbcenr_UI C-Win 
+PROCEDURE dbcenr_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   {muswait.i}
+   &Scoped-define FRAME-NAME FRAME-VMTRL
+   {ENRHMT2.I}
+   RUN initsok_UI (INPUT 2,INPUT posok).
+   {musarrow.i}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE disable_UI C-Win  _DEFAULT-DISABLE
+PROCEDURE disable_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     DISABLE the User Interface
+  Parameters:  <none>
+  Notes:       Here we clean-up the user-interface by deleting
+               dynamic widgets we have created and/or hide 
+               frames.  This procedure is usually called when
+               we are ready to "clean-up" after running.
+------------------------------------------------------------------------------*/
+  /* Delete the WINDOW we created */
+  IF SESSION:DISPLAY-TYPE = "GUI":U AND VALID-HANDLE(C-Win)
+  THEN DELETE WIDGET C-Win.
+  IF THIS-PROCEDURE:PERSISTENT THEN DELETE PROCEDURE THIS-PROCEDURE.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE enable_UI C-Win  _DEFAULT-ENABLE
+PROCEDURE enable_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     ENABLE the User Interface
+  Parameters:  <none>
+  Notes:       Here we display/view/enable the widgets in the
+               user-interface.  In addition, OPEN all queries
+               associated with each FRAME and BROWSE.
+               These statements here are based on the "Other 
+               Settings" section of the widget Property Sheets.
+------------------------------------------------------------------------------*/
+  ENABLE MBTN_KONSTGRP MBTN_KONST MBTN_KONSTMTRL MBTN_KONSTKALK MBTN_MADM 
+         RECT-MENY FBTN_HAMTA FBTN_ANDRA2 FBTN_ATER FBTN_KOPI BTN_AVB 
+      WITH FRAME FRAME-BARABREDD IN WINDOW C-Win.
+  {&OPEN-BROWSERS-IN-QUERY-FRAME-BARABREDD}
+  DISPLAY RAD_KONTO CMB_VAL2 FILL-IN-KODKOPPLAD 
+      WITH FRAME FRAME-KONST IN WINDOW C-Win.
+  ENABLE RAD_KONTO CMB_VAL2 BRW_KON BRW_VAL BTN_UPP2 BTN_UPP3 BTN_NER2 BTN_NER3 
+         BTN_NY-3 BTN_AND-4 BTN_BORT-3 BTN_NY-4 BTN_AND-5 BTN_BORT-4 
+         BTN_KOPIERKONST-2 BTN_BILD-2 BTN_VPER-2 BTN_OK-2 BTN_BILD-3 
+         FILL-IN-KODKOPPLAD 
+      WITH FRAME FRAME-KONST IN WINDOW C-Win.
+  {&OPEN-BROWSERS-IN-QUERY-FRAME-KONST}
+  DISPLAY SEL_UPP CMB_LEVVAL CMB_LEVFR CMB_LEVTILL 
+      WITH FRAME FRAME-KONSTGRP IN WINDOW C-Win.
+  ENABLE SEL_UPP BRW_GRUPP BTN_KOR FBTN_EX BTN_UPP BTN_NER TOG_LEV CMB_LEVVAL 
+         CMB_LEVFR CMB_LEVTILL BTN_NY BTN_ANDRA BTN_BORT BTN_KOP-5 
+      WITH FRAME FRAME-KONSTGRP IN WINDOW C-Win.
+  {&OPEN-BROWSERS-IN-QUERY-FRAME-KONSTGRP}
+  DISPLAY CMB_VAL CMB_LEV FILL-IN-ENR FILL-IN-KOD FILL-IN-BEN TOG_BEN RAD_SOK 
+          FILL-IN-B1 FILL-IN-B2 FILL-IN-B3 FILL-IN-B4 FILL-IN-B5 FILL-IN-B6 
+          FILL-IN-SOKALT 
+      WITH FRAME FRAME-VMTRL IN WINDOW C-Win.
+  ENABLE BRW_MTRLBER CMB_VAL RECT-22 IMAGE-7 BRW_KON2 BRW_B2 BRW_B3 BRW_B4 
+         BRW_B5 BRW_B6 BTN_NY-2 BTN_AND1 BTN_AND-3 BTN_BORT-2 BTN_ANDANT 
+         BTN_ANDLIN BTN_ANDMOD BRW_HLEV BRW_SATS BRW_MTRL BTN_LEV CMB_LEV 
+         BTN_SKAPA BTN_RENSA BTN_MOD BTN_SATS FILL-IN-ENR FILL-IN-KOD 
+         FILL-IN-BEN btn_uppant BTN_SPEC BTN_LIN TOG_BEN RAD_SOK FILL-IN-B1 
+         FILL-IN-B2 FILL-IN-B3 FILL-IN-B4 FILL-IN-B5 FILL-IN-B6 FILL-IN-SOKALT 
+      WITH FRAME FRAME-VMTRL IN WINDOW C-Win.
+  {&OPEN-BROWSERS-IN-QUERY-FRAME-VMTRL}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE goma_UI C-Win 
+PROCEDURE goma_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   &Scoped-define FRAME-NAME FRAME-BARABREDD
+   radspar = RAD_VAL.
+   IF RAD_VAL = 1 THEN DO:
+      ASSIGN
+      FRAME FRAME-KONSTGRP:HIDDEN = FALSE
+      FRAME FRAME-KONST:HIDDEN = TRUE
+      FRAME FRAME-VMTRL:HIDDEN = TRUE.
+      ASSIGN  
+      FBTN_HAMTA:HIDDEN IN FRAME {&FRAME-NAME} = TRUE      
+      FBTN_ANDRA2:HIDDEN = TRUE
+      FBTN_KOPI:HIDDEN = TRUE      
+      FBTN_ATER:HIDDEN = TRUE.
+   END.
+   IF RAD_VAL = 2 THEN DO:
+      ASSIGN 
+      FRAME FRAME-KONSTGRP:HIDDEN = TRUE
+      FRAME FRAME-KONST:HIDDEN = FALSE
+      FRAME FRAME-VMTRL:HIDDEN = TRUE.   
+      ASSIGN                                                
+      FBTN_HAMTA:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      FBTN_ANDRA2:HIDDEN = TRUE
+      FBTN_KOPI:HIDDEN = TRUE.      
+      FBTN_ATER:HIDDEN = TRUE.
+   END.   
+   IF RAD_VAL = 3 THEN DO:
+      ASSIGN 
+      FRAME FRAME-KONSTGRP:HIDDEN = TRUE
+      FRAME FRAME-KONST:HIDDEN = TRUE
+      FRAME FRAME-VMTRL:HIDDEN = FALSE.
+      ASSIGN                                                
+      FBTN_HAMTA:HIDDEN IN FRAME {&FRAME-NAME} = FALSE
+      FBTN_ANDRA2:HIDDEN = FALSE
+      FBTN_KOPI:HIDDEN = FALSE      
+      BTN_OVER:HIDDEN IN FRAME FRAME-VMTRL = FALSE 
+      BTN_BACK:HIDDEN IN FRAME FRAME-VMTRL = FALSE 
+      FBTN_ATER:HIDDEN = TRUE
+      CMB_VAL:HIDDEN IN FRAME FRAME-VMTRL = FALSE  
+      BRW_KON2:HIDDEN = FALSE  
+      BRW_B2:HIDDEN = FALSE
+      BRW_B3:HIDDEN = FALSE  
+      BRW_B4:HIDDEN = FALSE  
+      BRW_B5:HIDDEN = FALSE  
+      BRW_B6:HIDDEN = FALSE  
+      FILL-IN-B1:HIDDEN = FALSE
+      FILL-IN-B2:HIDDEN = FALSE
+      FILL-IN-B3:HIDDEN = FALSE
+      FILL-IN-B4:HIDDEN = FALSE
+      FILL-IN-B5:HIDDEN = FALSE
+      FILL-IN-B6:HIDDEN = FALSE
+      BRW_MTRLBER:HIDDEN = TRUE
+      BTN_NY-2:HIDDEN = TRUE
+      BTN_AND1:HIDDEN = TRUE
+      BTN_AND-3:HIDDEN = TRUE
+      BTN_BORT-2:HIDDEN = TRUE
+      BTN_ANDANT:HIDDEN = TRUE
+      BTN_ANDLIN:HIDDEN = TRUE
+      BTN_ANDMOD:HIDDEN = TRUE.
+      ENABLE BTN_OVER BTN_BACK WITH FRAME FRAME-VMTRL.
+      APPLY "VALUE-CHANGED" TO BRW_KON2 IN FRAME FRAME-VMTRL.
+   END.
+   IF RAD_VAL = 4 THEN DO:
+      &Scoped-define FRAME-NAME FRAME-BARABREDD
+      ASSIGN 
+      varkod = ?.
+      kongrkod = konstgrptemp.KONSKOD.
+      IF tillfyra NE 0 THEN DO:
+         IF AVAILABLE konsttemp THEN varkod = konsttemp.KTYPKOD.
+      END.      
+      {AVBGOM.I}        
+      RUN KALKKOPPU.W (INPUT varkod). 
+      {AVBFRAM.I}
+      RAD_VAL = 1.      
+      ASSIGN {&WINDOW-NAME}:TITLE = "Administration beredningsmodul".
+      RUN title_UI.
+      APPLY "VALUE-CHANGED" TO RAD_VAL.
+      &Scoped-define FRAME-NAME FRAME-KONSTGRP
+      RUN openbdynspec_UI IN brwproc[1].
+      FIND FIRST konstgrptemp WHERE konstgrptemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+      IF AVAILABLE konstgrptemp THEN DO:
+         RUN setlastrowid_UI IN brwproc[1] (INPUT ROWID(konstgrptemp)).
+         RUN lastselectdyn_UI IN brwproc[1].    
+      END.
+      RUN goma_UI.
+   END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE hamta_UI C-Win 
+PROCEDURE hamta_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/  
+   &Scoped-define FRAME-NAME FRAME-VMTRL
+   FIND FIRST bbenamntemp WHERE bbenamntemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+   CREATE kon_val.
+   ASSIGN 
+   kon_val.NUM = counter                         
+   kon_val.GRUPP = kongrkod
+   kon_val.F1 = konsttemp.KTYPKOD.    
+   IF bbenamntemp.B2 NE " " THEN DO:
+      antal_valda = BRW_B2:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+      IF antal_valda NE 0 THEN DO:
+         ASSIGN
+         status-ok = BRW_B2:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME} NO-ERROR.
+         kon_val.F2 = konstvaltemp.KVALKOD.         
+      END.
+   END.   
+   IF bbenamntemp.B3 NE " " THEN DO:
+      antal_valda = BRW_B3:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+      IF antal_valda NE 0 THEN DO:
+         ASSIGN
+         status-ok = BRW_B3:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME} NO-ERROR.
+         kon_val.F3 = konstvaltemp.KVALKOD.                  
+      END.   
+   END.     
+   IF bbenamntemp.B4 NE " " THEN DO:
+      antal_valda = BRW_B4:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+      IF antal_valda NE 0 THEN DO:
+         ASSIGN
+         status-ok = BRW_B4:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME} NO-ERROR.
+         kon_val.F4 = konstvaltemp.KVALKOD.         
+      END.   
+   END.   
+   IF bbenamntemp.B5 NE " " THEN DO:
+      antal_valda = BRW_B5:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+      IF antal_valda NE 0 THEN DO:
+         ASSIGN
+         status-ok = BRW_B5:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME} NO-ERROR.
+         kon_val.F5 = konstvaltemp.KVALKOD.            
+      END.   
+   END.          
+   IF bbenamntemp.B6 NE " " THEN DO:
+      antal_valda = BRW_B6:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+      IF antal_valda NE 0 THEN DO:
+         ASSIGN
+         status-ok = BRW_B6:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME} NO-ERROR.
+         kon_val.F6 = konstvaltemp.KVALKOD.          
+      END.   
+   END.    
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE hlevvisa_UI C-Win 
+PROCEDURE hlevvisa_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   RUN infoES_UI (INPUT 2).   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE huvud2_UI C-Win 
+PROCEDURE huvud2_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   &Scoped-define FRAME-NAME FRAME-KONST   
+   {muswait.i}
+   /*Göra check om det är laddat redan???*/
+   tthandle = TEMP-TABLE kalkbertemp:HANDLE.
+   RUN laddatemp_UI IN laddaproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "KALKBER", INPUT "").     
+   status-ok = CMB_VAL2:DELETE("0") IN FRAME {&FRAME-NAME}.
+   IF CMB_VAL2 = "" THEN DO:
+      FOR EACH konstgrptemp USE-INDEX ORD NO-LOCK:
+         status-ok = CMB_VAL2:ADD-LAST(konstgrptemp.BENAMNING) IN FRAME {&FRAME-NAME}. 
+         IF konstgrptemp.KONSKOD = kongrkod THEN CMB_VAL2:SCREEN-VALUE = konstgrptemp.BENAMNING.
+      END.
+   END.
+   FIND FIRST konstgrptemp WHERE konstgrptemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+   ASSIGN C-Win:TITLE = "Administration av konstruktionsgrupp " + konstgrptemp.BENAMNING.      
+   RUN title_UI.
+   IF radspar = 1 THEN CMB_VAL2:SCREEN-VALUE = konstgrptemp.BENAMNING NO-ERROR.   
+   ELSE CMB_VAL2:SCREEN-VALUE = CMB_VAL.
+   APPLY "VALUE-CHANGED" TO CMB_VAL2 IN FRAME {&FRAME-NAME}.
+   &Scoped-define FRAME-NAME FRAME-KONST
+   FIND FIRST konsttemp WHERE konsttemp.KONSKOD = kongrkod AND konsttemp.KTYPKOD = konstvalvar NO-LOCK NO-ERROR.
+   IF AVAILABLE konsttemp THEN DO:
+      RUN setlastrowid_UI IN brwproc[15] (INPUT ROWID(konsttemp)).
+      RUN lastselectdyn_UI IN brwproc[15].
+      &Scoped-define FRAME-NAME FRAME-KONST
+      ASSIGN 
+      konstvalvar = konsttemp.KTYPKOD
+      BRW_KON:HIDDEN = FALSE
+      BRW_VAL:HIDDEN = FALSE 
+      valkon = TRUE
+      FILL-IN-KODKOPPLAD = konstvalvar.       
+      DISPLAY FILL-IN-KODKOPPLAD WITH FRAME {&FRAME-NAME}.
+      &Scoped-define FRAME-NAME FRAME-KONST
+      ASSIGN
+      BTN_OK-2:HIDDEN IN FRAME {&FRAME-NAME} = FALSE
+      BTN_BILD-2:HIDDEN = FALSE.       
+      IF Guru.Konstanter:globforetag = "elpa" THEN BTN_BILD-3:HIDDEN = FALSE.       
+   END.  
+   ELSE DO:     
+      APPLY "VALUE-CHANGED" TO BRW_KON.
+      FIND FIRST konsttemp WHERE konsttemp.KONSKOD = kongrkod USE-INDEX ORD NO-LOCK NO-ERROR.
+      IF AVAILABLE konsttemp THEN DO:
+         RUN setlastrowid_UI IN brwproc[15] (INPUT ROWID(konsttemp)).
+         RUN lastselectdyn_UI IN brwproc[15].
+      END.
+   END.
+   {musarrow.i}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE huvud3_UI C-Win 
+PROCEDURE huvud3_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   &Scoped-define FRAME-NAME FRAME-KONSTGRP   
+   FIND FIRST levtemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE levtemp THEN RUN laddalev_UI.            
+   ELSE DO:
+      FIND FIRST huvlevtemp NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE huvlevtemp THEN DO:      
+         EMPTY TEMP-TABLE huvlevtemp NO-ERROR.       
+         tthandle = TEMP-TABLE huvlevtemp:HANDLE.
+         RUN laddatemp_UI IN laddaproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "HUVUDLEV", INPUT "").
+      END.
+   END.
+   FIND FIRST huvlevtemp WHERE huvlevtemp.DEP-NR = 999 NO-LOCK NO-ERROR.
+   IF AVAILABLE huvlevtemp THEN vald_kundlev = huvlevtemp.LEVKOD.   
+   ELSE DO:      
+      FIND FIRST levtemp WHERE levtemp.LEVKOD NE "0"
+      AND levtemp.BORTTAG = FALSE NO-LOCK NO-ERROR.
+      vald_kundlev = levtemp.LEVKOD.
+   END.   
+   status-ok = CMB_LEVVAL:DELETE("0")IN FRAME {&FRAME-NAME}.    
+   ASSIGN
+   CMB_LEVVAL = "Alla lev"
+   status-ok = CMB_LEVVAL:ADD-LAST("Alla lev")IN FRAME {&FRAME-NAME}
+   CMB_LEVVAL:SCREEN-VALUE IN FRAME {&FRAME-NAME} = "Alla lev".
+   FOR EACH levtemp WHERE /*levtemp.LEVKOD NE vald_kundlev AND */
+   levtemp.LEVKOD NE "0" AND levtemp.BORTTAG = FALSE USE-INDEX LEV NO-LOCK:      
+      status-ok = CMB_LEVVAL:ADD-LAST(levtemp.LEVNAMN)IN FRAME {&FRAME-NAME}.              
+   END.             
+   CMB_LEVVAL = INPUT CMB_LEVVAL.
+   ASSIGN 
+   vald_lev = vald_kundlev
+   status-ok = CMB_LEVFR:DELETE("0")
+   status-ok = CMB_LEVTILL:DELETE("0"). 
+   FIND FIRST levtemp WHERE levtemp.LEVKOD = vald_kundlev
+   USE-INDEX LEV NO-LOCK NO-ERROR. 
+   ASSIGN
+   status-ok = CMB_LEVFR:ADD-LAST(levtemp.LEVNAMN)IN FRAME {&FRAME-NAME}  
+   status-ok = CMB_LEVTILL:ADD-LAST(levtemp.LEVNAMN)IN FRAME {&FRAME-NAME}
+   CMB_LEVFR:SCREEN-VALUE = levtemp.LEVNAMN 
+   CMB_LEVTILL:SCREEN-VALUE = levtemp.LEVNAMN
+   huvudlev = levtemp.LEVNAMN. 
+   FOR EACH levtemp WHERE levtemp.LEVKOD NE vald_kundlev AND 
+   levtemp.LEVKOD NE "0" AND levtemp.LEVKOD NE "99" 
+   AND levtemp.BORTTAG = FALSE USE-INDEX LEV NO-LOCK:
+      ASSIGN      
+      status-ok = CMB_LEVFR:ADD-LAST(levtemp.LEVNAMN)IN FRAME {&FRAME-NAME}
+      status-ok = CMB_LEVTILL:ADD-LAST(levtemp.LEVNAMN)IN FRAME {&FRAME-NAME}.              
+   END.        
+   ASSIGN     
+   CMB_LEVFR = INPUT CMB_LEVFR
+   CMB_LEVTILL = INPUT CMB_LEVTILL.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE huvud_UI C-Win 
+PROCEDURE huvud_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/   
+   &Scoped-define FRAME-NAME FRAME-VMTRL
+   DELETE OBJECT tth NO-ERROR.
+   tth = ?.
+   ASSIGN   
+   status-ok = CMB_VAL:DELETE("0") IN FRAME  {&FRAME-NAME}
+   musz = FALSE.   
+   FIND FIRST levtemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE levtemp THEN RUN laddalev_UI.            
+   ELSE DO:
+      FIND FIRST huvlevtemp NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE huvlevtemp THEN DO:      
+         EMPTY TEMP-TABLE huvlevtemp NO-ERROR.       
+         tthandle = TEMP-TABLE huvlevtemp:HANDLE.
+         RUN laddatemp_UI IN laddaproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "HUVUDLEV", INPUT "").
+      END.
+   END.
+   FIND FIRST huvlevtemp WHERE huvlevtemp.DEP-NR = 999 NO-LOCK NO-ERROR.
+   IF AVAILABLE huvlevtemp THEN vald_kundlev = huvlevtemp.LEVKOD.   
+   ELSE DO:      
+      FIND FIRST levtemp WHERE levtemp.LEVKOD NE "0"
+      AND levtemp.BORTTAG = FALSE NO-LOCK NO-ERROR.
+      vald_kundlev = levtemp.LEVKOD.
+   END.   
+   IF tvatilltre = 3 AND radspar = 2 THEN DO:
+      IF vald_lev NE vald_kundlev THEN vald_lev = vald_lev.
+      ELSE vald_lev = vald_kundlev.
+   END.
+   ELSE vald_lev = vald_kundlev.
+   levinlast = "".
+   RUN levinlast_UI (INPUT vald_lev,OUTPUT levinlast).
+   RUN setorgtitle_UI IN brwproc[7] (INPUT "Materiellista huvudleverantör " + huvudlev + levinlast).            
+   status-ok = CMB_VAL:DELETE("0") IN FRAME {&FRAME-NAME}.
+   IF CMB_VAL = "" THEN DO:
+      FOR EACH konstgrptemp USE-INDEX ORD NO-LOCK:
+         status-ok = CMB_VAL:ADD-LAST(konstgrptemp.BENAMNING) IN FRAME {&FRAME-NAME}. 
+         IF konstgrptemp.KONSKOD = kongrkod THEN CMB_VAL:SCREEN-VALUE = konstgrptemp.BENAMNING.
+      END.   
+   END.
+   IF CMB_VAL NE CMB_VAL2 THEN CMB_VAL:SCREEN-VALUE = CMB_VAL2.
+   APPLY "VALUE-CHANGED" TO CMB_VAL IN FRAME {&FRAME-NAME}. 
+   &Scoped-define FRAME-NAME FRAME-VMTRL   
+   ASSIGN
+   musz = FALSE
+   counter = 0
+   mark = FALSE
+   CMB_VAL = INPUT CMB_VAL.
+   EMPTY TEMP-TABLE spec_mtrl NO-ERROR. 
+   EMPTY TEMP-TABLE kon_val NO-ERROR. 
+   ASSIGN
+   FILL-IN-ENR:LABEL IN FRAME {&FRAME-NAME} = Guru.Konstanter:genk
+   mtrltemp.ENR:LABEL IN BROWSE BRW_HLEV = Guru.Konstanter:genk
+   spec_mtrl.ENR:LABEL IN BROWSE BRW_MTRL = Guru.Konstanter:genk
+   CMB_LEV:LIST-ITEMS = "".
+   FIND FIRST levtemp WHERE levtemp.LEVKOD = vald_kundlev
+   USE-INDEX LEV NO-LOCK NO-ERROR.
+   ASSIGN
+   status-ok = CMB_LEV:ADD-LAST(levtemp.LEVNAMN) IN FRAME {&FRAME-NAME}
+   CMB_LEV:SCREEN-VALUE = levtemp.LEVNAMN
+   huvudlev = levtemp.LEVNAMN.
+   FOR EACH levtemp WHERE levtemp.LEVKOD NE vald_kundlev AND
+   levtemp.LEVKOD NE "0" AND levtemp.BORTTAG = FALSE USE-INDEX LEV NO-LOCK:
+      /*Niklas personlig spec_mtrl*/
+      IF levtemp.LEVKOD = "99" THEN DO:
+         status-ok = CMB_LEV:ADD-LAST(globanv + " " + levtemp.LEVNAMN)IN FRAME {&FRAME-NAME}.
+         status-ok = CMB_LEV:ADD-LAST(levtemp.LEVNAMN)IN FRAME {&FRAME-NAME}.
+      END.
+      ELSE status-ok = CMB_LEV:ADD-LAST(levtemp.LEVNAMN)IN FRAME {&FRAME-NAME}.      
+   END.
+   FOR EACH levtemp WHERE levtemp.LEVKOD NE "0" AND levtemp.LEVKOD NE "99" AND
+   levtemp.BORTTAG = FALSE USE-INDEX LEV NO-LOCK:
+      status-ok = CMB_LEV:ADD-LAST("Sats " + levtemp.LEVNAMN) IN FRAME {&FRAME-NAME}.
+   END.
+   IF tvatilltre = 3 AND radspar = 2 THEN DO:
+      IF vald_lev NE vald_kundlev THEN vald_lev = vald_lev.      
+      ELSE vald_lev = vald_kundlev.      
+   END.
+   ELSE vald_lev = vald_kundlev.
+   ASSIGN
+   CMB_LEV = INPUT CMB_LEV
+   bestant = FALSE
+   val = FALSE
+   satsmtrl = FALSE
+   satstrue = FALSE
+   RAD_SOK = 2.
+   &Scoped-define FRAME-NAME FRAME-VMTRL   
+   ASSIGN
+   BRW_B2:HIDDEN = TRUE
+   FILL-IN-B2:HIDDEN = TRUE
+   BRW_B3:HIDDEN = TRUE
+   FILL-IN-B3:HIDDEN = TRUE
+   BRW_B4:HIDDEN = TRUE
+   FILL-IN-B4:HIDDEN = TRUE
+   BRW_B5:HIDDEN = TRUE
+   FILL-IN-B5:HIDDEN = TRUE
+   BRW_B6:HIDDEN = TRUE
+   FILL-IN-B6:HIDDEN = TRUE.
+   APPLY "VALUE-CHANGED" TO CMB_VAL IN FRAME {&FRAME-NAME}.
+   ENABLE UNLESS-HIDDEN BTN_SKAPA WITH FRAME FRAME-VMTRL.                                         
+/*    ENABLE UNLESS-HIDDEN RAD_SOK BRW_HLEV BRW_SATS BRW_MTRL FILL-IN-KOD FILL-IN-ENR FILL-IN-BEN */
+/*    CMB_LEV BTN_LEV BTN_SKAPA BTN_OVER BTN_BACK BTN_RENSA BTN_MOD BTN_SATS                      */
+/*    BTN_UPPANT BTN_SPEC BTN_LIN WITH FRAME FRAME-VMTRL.                                         */
+   RUN setcolsortvar_UI IN brwproc[7] (INPUT " WHERE mtrltemp.KALKNR = 0 AND mtrltemp.LEVKOD = '" + STRING(vald_kundlev) + "'").         
+   RUN openbdynspec_UI IN brwproc[7].             
+   IF tvatilltre = 3 AND radspar = 2 THEN DO:
+      IF vald_lev NE vald_kundlev THEN BTN_LEV:HIDDEN = FALSE.      
+      ELSE DO:
+         ASSIGN
+         BTN_LEV:HIDDEN = TRUE
+         CMB_LEV:HIDDEN = FALSE.
+      END.
+   END.
+   ELSE DO: 
+      BTN_LEV:HIDDEN = TRUE.
+      CMB_LEV:HIDDEN = FALSE.
+   END.
+   ASSIGN
+   BRW_SATS:HIDDEN = TRUE
+   FILL-IN-KOD:HIDDEN = TRUE.  
+   {musarrow.i}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE infoES_UI C-Win 
+PROCEDURE infoES_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   DEFINE INPUT PARAMETER valbrw AS INTEGER NO-UNDO.   
+   DEFINE VARIABLE valenr AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE levnamnvar AS CHARACTER NO-UNDO.
+    &Scoped-define FRAME-NAME FRAME-VMTRL 
+   /*GÅR TILL ELEKTROSKANDIAS HEMSIDA*/   
+   IF valbrw = 1 THEN DO:   
+      status-ok = BRW_MTRL:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME} NO-ERROR.
+      IF status-ok THEN DO:
+         valenr = spec_mtrl.ENR.
+         FIND FIRST levtemp WHERE levtemp.LEVKOD = spec_mtrl.LEVKOD
+         NO-LOCK NO-ERROR.      
+      END.
+   END.
+   ELSE IF valbrw = 2 THEN DO:
+      status-ok = BRW_HLEV:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME} NO-ERROR.
+      IF status-ok THEN DO:
+         valenr = mtrltemp.ENR.
+         FIND FIRST levtemp WHERE levtemp.LEVKOD = mtrltemp.LEVKOD
+         NO-LOCK NO-ERROR.      
+      END.
+   END.
+   ELSE IF valbrw = 3 THEN DO:
+      status-ok = BRW_SATS:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME} NO-ERROR.
+      IF status-ok THEN DO:
+         valenr = satstemp.KOD.
+         FIND FIRST levtemp WHERE levtemp.LEVKOD = satstemp.LEVKOD
+         NO-LOCK NO-ERROR.      
+      END.
+   END.   
+   ELSE IF valbrw = 4 THEN DO:
+      status-ok = BRW_HLEV:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME} NO-ERROR.
+      IF status-ok THEN DO:
+         valenr = mtrltemp.ENR.
+         FIND FIRST levtemp WHERE levtemp.LEVKOD = mtrltemp.LEVKOD
+         NO-LOCK NO-ERROR.      
+      END.
+   END. 
+   IF status-ok THEN DO:
+      levnamnvar = levtemp.LEVNAMN.
+      {LEVLANK.I}
+      /*
+      IF levtemp.LEVNAMN = "Elektroskandia" OR levtemp.LEVNAMN = "ES Nettopriser" THEN DO:
+         RUN OPENDOC.P ("http://www.elektroskandia.se/itemfindext.asp?search=" + valenr,"","",NO).      
+      END.
+      ELSE IF levtemp.LEVNAMN = "Ahlsell" THEN DO:   
+         RUN OPENDOC.P ('http://internetbutiken.ahlsell.se/ahlsinet_site.dll?EPAC_XMLFromDocid&FORCE=23&MSN=T001&DOCID=&XSL=proceedo.xsl&DOC=fil.xml&SES=ns&QUERYDOC=(I001="' + valenr + '")&FUNC=ModifyDoc',"","",NO).
+      END.
+      ELSE IF levtemp.LEVNAMN = "Onninen" THEN DO:   
+         RUN OPENDOC.P ("http://www.onninen.se/elkraft/produktkatalog/elef.pdf","","",NO).
+      END.
+      ELSE DO:
+         MESSAGE "Funktionen att gå till leverantörens hemsida är endast i drift för Elektroskandia."
+         VIEW-AS ALERT-BOX TITLE "Meddelande".
+      END.
+      */
+   END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE initsok_UI C-Win 
+PROCEDURE initsok_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/           
+   DEFINE INPUT  PARAMETER vad AS INTEGER    NO-UNDO.
+   DEFINE INPUT PARAMETER sokpa AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE orgfraga AS CHARACTER NO-UNDO.   
+   IF satsvar = FALSE THEN DO:
+      IF vad = 1 THEN DO:
+         orgfraga = " WHERE KALKNR = " + STRING(0) + " AND LEVKOD = '" + STRING(vald_lev) + "' USE-INDEX LEV".
+         tth = TEMP-TABLE mtrltemp:HANDLE.
+         EMPTY TEMP-TABLE valsoktemp NO-ERROR. 
+         CREATE valsoktemp.
+         ASSIGN 
+         valsoktemp.SOKCHAR[1] = "MTRL"     /*Skarp tabell*/
+         valsoktemp.SOKCHAR[2] = orgfraga   /*Öppningsquery*/
+         valsoktemp.SOKCHAR[3] = "BENAMNING" /*sökfält*/
+         valsoktemp.SOKCHAR[4] = "MTRLROW"  /*temptabells faltnamn för rowid*/
+         valsoktemp.SOKCHAR[5] = sokpa.      /*sök på*/       
+         RUN sokhmt_UI IN  brwproc[7] (INPUT TABLE valsoktemp).  
+      END.
+      IF vad = 2 THEN DO:
+        orgfraga = " WHERE KALKNR = " + STRING(0) + " AND LEVKOD = '" + STRING(vald_lev) + "' USE-INDEX LEV".
+        tth = TEMP-TABLE mtrltemp:HANDLE.
+        EMPTY TEMP-TABLE valsoktemp NO-ERROR. 
+        CREATE valsoktemp.
+        ASSIGN 
+        valsoktemp.SOKCHAR[1] = "MTRL"     /*Skarp tabell*/
+        valsoktemp.SOKCHAR[2] = orgfraga   /*Öppningsquery*/
+        valsoktemp.SOKCHAR[3] = "ENR" /*sökfält*/
+        valsoktemp.SOKCHAR[4] = "MTRLROW"  /*temptabells faltnamn för rowid*/
+        valsoktemp.SOKCHAR[5] = sokpa.      /*sök på*/       
+        RUN sokhmt_UI IN  brwproc[7] (INPUT TABLE valsoktemp).  
+     END.
+   END.
+   ELSE DO:
+      IF vad = 1 THEN DO:
+         orgfraga = " WHERE SATS = TRUE AND LEVKOD = '" + STRING(vald_lev) + "' USE-INDEX KOD ".
+         tth = TEMP-TABLE satstemp:HANDLE.
+         EMPTY TEMP-TABLE valsoktemp NO-ERROR. 
+         CREATE valsoktemp.
+         ASSIGN 
+         valsoktemp.SOKCHAR[1] = "SATS"     /*Skarp tabell*/
+         valsoktemp.SOKCHAR[2] = orgfraga   /*Öppningsquery*/
+         valsoktemp.SOKCHAR[3] = "BENAMNING" /*sökfält*/
+         valsoktemp.SOKCHAR[4] = "SATSROW"  /*temptabells faltnamn för rowid*/
+         valsoktemp.SOKCHAR[5] = sokpa.      /*sök på*/       
+         RUN sokhmt_UI IN  brwproc[11] (INPUT TABLE valsoktemp).  
+      END.
+      IF vad = 2 THEN DO:
+        orgfraga = " WHERE SATS = TRUE AND LEVKOD = '" + STRING(vald_lev) + "' USE-INDEX KOD ".
+        tth = TEMP-TABLE satstemp:HANDLE.
+        EMPTY TEMP-TABLE valsoktemp NO-ERROR. 
+        CREATE valsoktemp.
+        ASSIGN 
+        valsoktemp.SOKCHAR[1] = "SATS"     /*Skarp tabell*/
+        valsoktemp.SOKCHAR[2] = orgfraga   /*Öppningsquery*/
+        valsoktemp.SOKCHAR[3] = "KOD" /*sökfält*/
+        valsoktemp.SOKCHAR[4] = "SATSROW"  /*temptabells faltnamn för rowid*/
+        valsoktemp.SOKCHAR[5] = sokpa.      /*sök på*/       
+        RUN sokhmt_UI IN  brwproc[11] (INPUT TABLE valsoktemp).  
+     END.
+
+   END.
+
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE laddalev_UI C-Win 
+PROCEDURE laddalev_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/ 
+   EMPTY TEMP-TABLE levtemp NO-ERROR. 
+   EMPTY TEMP-TABLE huvlevtemp NO-ERROR. 
+   tthandle = TEMP-TABLE levtemp:HANDLE.
+   RUN laddatemp_UI IN laddaproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "LEVERANTOR", INPUT " WHERE BORTTAG = FALSE ").
+   tthandle = TEMP-TABLE huvlevtemp:HANDLE.
+   RUN laddatemp_UI IN laddaproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "HUVUDLEV", INPUT "").
+   FIND FIRST huvlevtemp WHERE huvlevtemp.DEP-NR = 999 NO-LOCK NO-ERROR.
+   IF AVAILABLE huvlevtemp THEN DO:
+      vald_kundlev = huvlevtemp.LEVKOD.
+   END.
+   ELSE DO:
+      FIND FIRST levtemp WHERE levtemp.LEVKOD NE "0"
+      AND levtemp.BORTTAG = FALSE NO-LOCK NO-ERROR.
+      vald_kundlev = levtemp.LEVKOD.
+   END.   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE levinlast_UI C-Win 
+PROCEDURE levinlast_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/  
+   DEFINE INPUT PARAMETER lekod AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER levinlast AS CHARACTER NO-UNDO.   
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "INLKAT"                   
+   inextradatatemp.HUVUDCH = lekod.                                              
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+   FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+   IF AVAILABLE extradatatemp THEN DO:
+      levinlast = " Inläst " + STRING(extradatatemp.SOKDATE[1]).
+      IF extradatatemp.SOKDATE[2] NE ? AND extradatatemp.SOKDATE[2] NE ?  THEN DO:      
+         RUN tooltip_UI IN brwproc[7] (INPUT "Katalogen gäller från: " + STRING(extradatatemp.SOKDATE[2]) + " till: " + STRING(extradatatemp.SOKDATE[3])).          
+      END.
+      ELSE RUN tooltip_UI IN brwproc[7] (INPUT "").             
+   END.   
+   ELSE RUN tooltip_UI IN brwproc[7] (INPUT "").             
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE markerade_UI C-Win 
+PROCEDURE markerade_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/    
+   &Scoped-define FRAME-NAME FRAME-VMTRL
+   IF brw = 2 THEN DO:                                           
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B3 IN FRAME {&FRAME-NAME}.
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B4 IN FRAME {&FRAME-NAME}.
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B5 IN FRAME {&FRAME-NAME}.
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B6 IN FRAME {&FRAME-NAME}.
+   END.  
+   ELSE IF brw = 3 THEN DO:                                           
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B2 IN FRAME {&FRAME-NAME}.
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B4 IN FRAME {&FRAME-NAME}.
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B5 IN FRAME {&FRAME-NAME}.
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B6 IN FRAME {&FRAME-NAME}.
+   END.   
+   ELSE IF brw = 4 THEN DO:                                           
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B2 IN FRAME {&FRAME-NAME}.
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B3 IN FRAME {&FRAME-NAME}.
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B5 IN FRAME {&FRAME-NAME}.
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B6 IN FRAME {&FRAME-NAME}.
+   END.   
+   ELSE IF brw = 5 THEN DO:                                           
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B2 IN FRAME {&FRAME-NAME}.
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B3 IN FRAME {&FRAME-NAME}.
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B4 IN FRAME {&FRAME-NAME}.
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B6 IN FRAME {&FRAME-NAME}.
+   END.   
+   ELSE DO:                                           
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B2 IN FRAME {&FRAME-NAME}.
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B3 IN FRAME {&FRAME-NAME}.
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B4 IN FRAME {&FRAME-NAME}.
+      APPLY "MOUSE-MENU-CLICK" TO BRW_B5 IN FRAME {&FRAME-NAME}.
+   END.           
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE menyrad_UI C-Win 
+PROCEDURE menyrad_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   ASSIGN
+   MBTN_KONSTGRP:HIDDEN IN FRAME FRAME-BARABREDD = FALSE
+   MBTN_KONST:HIDDEN IN FRAME FRAME-BARABREDD = FALSE
+   MBTN_KONSTMTRL:HIDDEN IN FRAME FRAME-BARABREDD = FALSE
+   MBTN_KONSTKALK:HIDDEN IN FRAME FRAME-BARABREDD = FALSE.   
+   MBTN_MADM:HIDDEN IN FRAME FRAME-BARABREDD = FALSE.   
+   MBTN_KONSTGRP:LOAD-IMAGE("BILDER\xbtn_konstgrupp.gif") IN FRAME FRAME-BARABREDD NO-ERROR.     
+   MBTN_KONST:LOAD-IMAGE("BILDER\xbtn_konstruktion.gif") IN FRAME FRAME-BARABREDD NO-ERROR.
+   MBTN_KONSTMTRL:LOAD-IMAGE("BILDER\xbtn_konstmtrl.gif") IN FRAME FRAME-BARABREDD NO-ERROR.
+   MBTN_KONSTKALK:LOAD-IMAGE("BILDER\xbtn_konstkalk.gif") IN FRAME FRAME-BARABREDD NO-ERROR.
+   MBTN_MADM:LOAD-IMAGE("BILDER\xbtn_mtrladm.gif") IN FRAME FRAME-BARABREDD NO-ERROR.   
+   Guru.GlobalaVariabler:collefth = MBTN_KONSTGRP:HANDLE. 
+   Guru.GlobalaVariabler:colrighth = MBTN_KONST:HANDLE.           
+   RUN buttcol_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).       
+   Guru.GlobalaVariabler:colrighth = MBTN_KONSTMTRL:HANDLE.           
+   RUN buttcol_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).       
+   IF Guru.Konstanter:kalk2sekvar[1] = TRUE THEN DO: 
+      Guru.GlobalaVariabler:colrighth = MBTN_KONSTKALK:HANDLE.           
+      RUN buttcol_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).       
+   END.
+   ELSE MBTN_KONSTKALK:HIDDEN = TRUE.
+   Guru.GlobalaVariabler:colrighth = MBTN_MADM:HANDLE.           
+   RUN buttcol_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).       
+   IF SEL_UPP = "Materiel som används på konstruktioner" THEN DO:      
+      CMB_LEVFR:HIDDEN IN FRAME FRAME-KONSTGRP = TRUE.
+      CMB_LEVTILL:HIDDEN IN FRAME FRAME-KONSTGRP = TRUE.
+      TOG_LEV:HIDDEN IN FRAME FRAME-KONSTGRP = FALSE.
+      FBTN_EX:HIDDEN IN FRAME FRAME-KONSTGRP = FALSE.
+      CMB_LEVVAL:HIDDEN IN FRAME FRAME-KONSTGRP = FALSE.
+   END.
+   ELSE DO:
+      CMB_LEVFR:HIDDEN IN FRAME FRAME-KONSTGRP = TRUE.
+      CMB_LEVTILL:HIDDEN IN FRAME FRAME-KONSTGRP = TRUE.
+      TOG_LEV:HIDDEN IN FRAME FRAME-KONSTGRP = TRUE.
+      FBTN_EX:HIDDEN IN FRAME FRAME-KONSTGRP = TRUE.
+      CMB_LEVVAL:HIDDEN IN FRAME FRAME-KONSTGRP = TRUE.
+   END.
+   Guru.GlobalaVariabler:collefth = ?.      
+   Guru.GlobalaVariabler:colrighth = BTN_KOR:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).    
+   ASSIGN       
+   spec_mtrl.MODUL:COLUMN-FGCOLOR IN BROWSE BRW_MTRL = 0
+   spec_mtrl.MODUL:LABEL-FGCOLOR IN BROWSE BRW_MTRL = 0.
+   APPLY "VALUE-CHANGED" TO RAD_VAL. 
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE mtrlvisa_UI C-Win 
+PROCEDURE mtrlvisa_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/    
+   RUN infoES_UI (INPUT 1).   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE ny-2_UI C-Win 
+PROCEDURE ny-2_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/       
+   &Scoped-define FRAME-NAME FRAME-VMTRL
+   antal_valda = BRW_MTRLBER:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+   IF antal_valda > 0 THEN DO:
+      FIND FIRST spec_mtrl NO-LOCK NO-ERROR.
+      IF AVAILABLE spec_mtrl THEN DO:
+         ASSIGN
+         antal_valda = BRW_MTRLBER:NUM-SELECTED-ROWS
+         antal_raknare = 1.
+         DO WHILE antal_raknare LE antal_valda:
+            ASSIGN                                   
+            status-ok = BRW_MTRLBER:FETCH-SELECTED-ROW(antal_raknare)
+            mtrl_rowid = mtrlbertemp.MTRLROW.                           
+            MESSAGE "Vill du lägga upp nytt materiel till - " + mtrlbertemp.KTYPKOD + " " + mtrlbertemp.F1 + 
+            " " + mtrlbertemp.F2 + " " + mtrlbertemp.F3 + " " + mtrlbertemp.F4 + " " + mtrlbertemp.F5 VIEW-AS ALERT-BOX
+            QUESTION BUTTONS YES-NO TITLE "Meddelande" UPDATE svar AS LOGICAL.         
+            IF svar THEN DO:
+               FIND FIRST mtrlbertemp WHERE mtrlbertemp.MTRLROW = mtrl_rowid NO-LOCK NO-ERROR.
+               ASSIGN
+               mtrlkod = mtrlbertemp.KTYPKOD
+               var2 = mtrlbertemp.F1
+               var3 = mtrlbertemp.F2
+               var4 = mtrlbertemp.F3
+               var5 = mtrlbertemp.F4 
+               var6 = mtrlbertemp.F5.
+               RUN ny_UI IN konmtrlapph (INPUT mtrlkod,INPUT var2,INPUT var3,
+                                             INPUT var4,INPUT var5,INPUT var6,INPUT TABLE spec_mtrl,
+                                             OUTPUT TABLE mtrlbertemp APPEND).
+            END.
+            antal_raknare = antal_raknare + 1.
+            IF AVAILABLE mtrlbertemp THEN RUN setlastrowid_UI IN brwproc[13] (INPUT ROWID(mtrlbertemp)).
+         END. 
+         RUN setcolindexkoll_UI IN brwproc[13] (OUTPUT sortkollvar).
+         IF sortkollvar = "" OR sortkollvar = ? THEN RUN setcolindex_UI IN brwproc[13] (INPUT "F1 BY F2 by F3 by F4 by F5" ).    
+         RUN setcolsortvar_UI IN brwproc[13] (INPUT " WHERE KTYPKOD = '" + konstvalvar + "' USE-INDEX KOD").  
+         RUN openbdynspec_UI IN brwproc[13].  
+         RUN lastselectdyn_UI IN brwproc[13].
+         IF sortkollvar = "" or sortkollvar = ? THEN RUN setcolindex_UI IN brwproc[13] (INPUT "").    
+      END.
+      ELSE DO:
+         MESSAGE "Du har inte valt något materiel som ska läggas upp."
+         VIEW-AS ALERT-BOX TITLE "Meddelande".
+      END.      
+   END.
+   ELSE DO:
+      MESSAGE "Du har inte valt något kopplat materiel som kan gälla som mall för upplägga av nytt materiel."
+      VIEW-AS ALERT-BOX TITLE "Meddelande".
+   END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE ny2_UI C-Win 
+PROCEDURE ny2_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+  {muswait.i}
+   ASSIGN   
+   bbval = bbenamntemp.B1
+   valkon = FALSE
+   nykonst2 = TRUE
+   musz = FALSE.
+   RUN NYKONSTU.W (INPUT valkon,INPUT ?,INPUT nykonst2,INPUT kongrkod,
+                   INPUT konstvalvar,INPUT bbval,OUTPUT varkod).
+   nykonst2 = FALSE.
+   IF musz = FALSE THEN DO:
+      FOR EACH konsttemp WHERE konsttemp.KONSKOD = kongrkod:
+         DELETE konsttemp.
+      END.
+      RUN laddanytt_UI IN konmtrlapph (INPUT kongrkod,OUTPUT TABLE konsttemp APPEND).
+      RUN setcolsortvar_UI IN brwproc[15] (INPUT " WHERE KONSKOD = '" + STRING(kongrkod) + "' USE-INDEX ORD").  
+      RUN openbdynspec_UI IN brwproc[15].                         
+      FIND FIRST konsttemp WHERE konsttemp.KONSKOD = kongrkod AND konsttemp.KTYPKOD = varkod USE-INDEX ORD NO-LOCK NO-ERROR.
+      IF AVAILABLE konsttemp THEN DO:
+         RUN setlastrowid_UI IN brwproc[15] (INPUT ROWID(konsttemp)).
+         RUN lastselectdyn_UI IN brwproc[15].
+      END.
+   END.
+   ELSE musz = FALSE.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE ny3_UI C-Win 
+PROCEDURE ny3_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+  {muswait.i}
+   ASSIGN   
+   valkon = TRUE
+   nykonst2 = TRUE
+   musz = FALSE.
+   RUN NYKONSTU.W (INPUT valkon,INPUT ?,INPUT nykonst2,INPUT kongrkod,
+                   INPUT konstvalvar,INPUT bbval,OUTPUT varkod).   
+   nykonst2 = FALSE.
+   &Scoped-define FRAME-NAME FRAME-KONST
+   APPLY "VALUE-CHANGED" TO RAD_KONTO IN FRAME {&FRAME-NAME}.
+   FIND FIRST konstvaltemp WHERE konstvaltemp.KONSKOD = kongrkod AND
+   konstvaltemp.KVALKOD = varkod NO-LOCK NO-ERROR.
+   RUN setlastrowid_UI IN brwproc[14] (INPUT ROWID(konstvaltemp)).                 
+   RUN lastselectdyn_UI IN brwproc[14].
+   {musarrow.i}      
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE over_UI C-Win 
+PROCEDURE over_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/  
+   /*Niklas personlig spec_mtrl*/
+   IF mtrltemp.LEVKOD BEGINS "99" THEN DO:
+      FIND FIRST spec_mtrl WHERE spec_mtrl.ENR = mtrltemp.ENR AND spec_mtrl.LEV = "99" 
+      NO-LOCK NO-ERROR. 
+   END.
+   ELSE DO:
+      FIND FIRST spec_mtrl WHERE spec_mtrl.ENR = mtrltemp.ENR AND spec_mtrl.LEV = mtrltemp.LEVKOD 
+      NO-LOCK NO-ERROR. 
+   END.   
+   IF AVAILABLE spec_mtrl THEN DO:
+      ASSIGN
+      spec_rec = ROWID(spec_mtrl)
+      spec_mtrl.MARK = TRUE.
+   END.      
+   ELSE DO:
+      CREATE spec_mtrl. 
+      ASSIGN
+      spec_mtrl.ENR = mtrltemp.ENR
+      spec_mtrl.BENAMNING = mtrltemp.BENAMNING
+      spec_mtrl.ENHET = mtrltemp.ENHET
+      spec_mtrl.BERKVANT = 1
+      spec_mtrl.NPRIS = mtrltemp.NPRIS 
+      spec_mtrl.BPRIS = mtrltemp.BPRIS      
+      spec_mtrl.MARK = TRUE
+      spec_mtrl.MODUL = 0
+      spec_rec = ROWID(spec_mtrl).
+      /*Niklas personlig spec_mtrl*/
+      IF mtrltemp.LEVKOD BEGINS "99" THEN spec_mtrl.LEVKOD = "99".           
+      ELSE spec_mtrl.LEVKOD = mtrltemp.LEVKOD. 
+      FIND FIRST satstemp WHERE satstemp.SATS = TRUE AND satstemp.KOD = spec_mtrl.ENR AND
+      satstemp.LEVKOD = spec_mtrl.LEVKOD USE-INDEX KOD NO-LOCK NO-ERROR.
+      IF AVAILABLE satstemp THEN spec_mtrl.SATS = TRUE.
+   END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE radval_UI C-Win 
+PROCEDURE radval_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   {muswait.i}
+   DELETE OBJECT tth NO-ERROR.
+   tth = ?.
+   ASSIGN
+   tvatilltre = 0.
+   tillfyra = 0.
+   IF radspar = 2 THEN DO:
+      tvatilltre = 2.
+      RUN tvatilltre_UI (INPUT 1).
+   END.
+   IF radspar = 2 OR radspar = 3 THEN tillfyra = radspar.
+   IF RAD_VAL = 3 THEN DO:
+      IF tvatilltre = 2 THEN tvatilltre = 3.
+      ASSIGN {&WINDOW-NAME}:TITLE = "Administration av materiel kopplat till konstruktioner".
+      RUN title_UI.
+      EMPTY TEMP-TABLE konstvaltemp NO-ERROR. 
+      FIND FIRST konstgrptemp WHERE konstgrptemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+      IF AVAILABLE konstgrptemp THEN kongrkod = konstgrptemp.KONSKOD.               
+      RUN huvud_UI.      
+   END.
+   ELSE IF RAD_VAL = 2 THEN DO:
+      &Scoped-define FRAME-NAME FRAME-KONSTGRP
+      EMPTY TEMP-TABLE konstvaltemp NO-ERROR. 
+      FIND FIRST konstgrptemp WHERE konstgrptemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE konstgrptemp THEN DO:
+         MESSAGE "Det finns ingen konstruktionsgrupp att utföra funktionen på." 
+         VIEW-AS ALERT-BOX.
+      END.
+      ELSE DO: 
+         FIND FIRST bbenamntemp WHERE bbenamntemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+         RUN huvud2_UI.
+      END.              
+   END.
+   ELSE IF RAD_VAL = 1 THEN DO:
+      ASSIGN {&WINDOW-NAME}:TITLE = "Administration beredningsmodul".
+      RUN title_UI.
+      &Scoped-define FRAME-NAME FRAME-KONSTGRP
+      RUN openbdynspec_UI IN brwproc[1].
+      FIND FIRST konstgrptemp WHERE konstgrptemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+      IF AVAILABLE konstgrptemp THEN DO:
+         RUN setlastrowid_UI IN brwproc[1] (INPUT ROWID(konstgrptemp)).
+         RUN lastselectdyn_UI IN brwproc[1].    
+      END.       
+   END.
+   RUN goma_UI.
+   IF tvatilltre = 3 THEN RUN tvatilltre_UI (INPUT 2).   
+   tvatilltre = 0.
+   {musarrow.i} 
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE rowleave_UI C-Win 
+PROCEDURE rowleave_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   IF RAD_VAL = 3 THEN DO: 
+      IF entryben = TRUE THEN DO:
+        IF AVAILABLE spec_mtrl THEN APPLY "LEAVE" TO spec_mtrl.BENAMNING IN BROWSE BRW_MTRL.        
+     END.
+     IF entryantal = TRUE THEN DO:
+        IF AVAILABLE spec_mtrl THEN APPLY "LEAVE" TO spec_mtrl.BERKVANT IN BROWSE BRW_MTRL.        
+     END.
+  END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE satsvisa_UI C-Win 
+PROCEDURE satsvisa_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   RUN infoES_UI (INPUT 3).   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE sats_UI C-Win 
+PROCEDURE sats_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/     
+   FIND FIRST spec_mtrl WHERE spec_mtrl.ENR = satstemp.ENR AND spec_mtrl.LEV = satstemp.LEVKOD 
+   NO-LOCK NO-ERROR. 
+   IF AVAILABLE spec_mtrl THEN DO:
+      ASSIGN
+      spec_rec = ROWID(spec_mtrl)
+      spec_mtrl.MARK = TRUE.
+   END.      
+   ELSE DO:
+      CREATE spec_mtrl. 
+      ASSIGN
+      spec_mtrl.ENR = satstemp.ENR
+      spec_mtrl.BENAMNING = satstemp.BENAMNING
+      spec_mtrl.ENHET = satstemp.ENHET
+      spec_mtrl.BERKVANT = 1
+      spec_mtrl.NPRIS = satstemp.PRIS 
+      spec_mtrl.BPRIS = satstemp.PRIS
+      spec_mtrl.LEV = satstemp.LEVKOD
+      spec_mtrl.MARK = TRUE
+      spec_mtrl.MODUL = 0
+      spec_mtrl.SATS = TRUE
+      spec_rec = ROWID(spec_mtrl).
+   END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE skapamtrl_UI C-Win 
+PROCEDURE skapamtrl_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/ 
+   &Scoped-define FRAME-NAME FRAME-VMTRL
+   FOR EACH spec_mtrl:
+      spec_mtrl.MARK = TRUE.
+   END.
+   IF mark = TRUE THEN DO:
+      IF brw = 2 THEN DO:
+         antal_valda = BRW_B2:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+         antal_raknare = 1.
+         DO WHILE antal_raknare LE antal_valda:
+            status-ok = BRW_B2:FETCH-SELECTED-ROW(antal_raknare).
+            var2 = konstvaltemp.KVALKOD.
+            RUN skapamtrl_UI IN konmtrlapph (INPUT mark,INPUT brw,INPUT konstvalvar,
+                                             INPUT var2,INPUT ?,INPUT ?,INPUT ?,INPUT ?,
+                                             INPUT-OUTPUT TABLE spec_mtrl,INPUT-OUTPUT TABLE mtrlbertemp).
+            antal_raknare = antal_raknare + 1.
+         END.
+      END.
+      ELSE IF brw = 3 THEN DO:
+         antal_valda = BRW_B3:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+         antal_raknare = 1.
+         DO WHILE antal_raknare LE antal_valda:
+            status-ok = BRW_B3:FETCH-SELECTED-ROW(antal_raknare).
+            var3 = konstvaltemp.KVALKOD.
+            RUN skapamtrl_UI IN konmtrlapph (INPUT mark,INPUT brw,INPUT konstvalvar,
+                                             INPUT ?,INPUT var3,INPUT ?,INPUT ?,INPUT ?,
+                                             INPUT-OUTPUT TABLE spec_mtrl,INPUT-OUTPUT TABLE mtrlbertemp).
+            antal_raknare = antal_raknare + 1.
+         END.
+      END.
+      ELSE IF brw = 4 THEN DO:
+         antal_valda = BRW_B4:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+         antal_raknare = 1.
+         DO WHILE antal_raknare LE antal_valda:
+            status-ok = BRW_B4:FETCH-SELECTED-ROW(antal_raknare).
+            var4 = konstvaltemp.KVALKOD.
+            RUN skapamtrl_UI IN konmtrlapph (INPUT mark,INPUT brw,INPUT konstvalvar,
+                                             INPUT ?,INPUT ?,INPUT var4,INPUT ?,INPUT ?,
+                                             INPUT-OUTPUT TABLE spec_mtrl,INPUT-OUTPUT TABLE mtrlbertemp).
+            antal_raknare = antal_raknare + 1.
+         END.
+      END.
+      ELSE IF brw = 5 THEN DO:
+         antal_valda = BRW_B5:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+         antal_raknare = 1.
+         DO WHILE antal_raknare LE antal_valda:
+            status-ok = BRW_B5:FETCH-SELECTED-ROW(antal_raknare).
+            var5 = konstvaltemp.KVALKOD.
+            RUN skapamtrl_UI IN konmtrlapph (INPUT mark,INPUT brw,INPUT konstvalvar,
+                                             INPUT ?,INPUT ?,INPUT ?,INPUT var5,INPUT ?,
+                                             INPUT-OUTPUT TABLE spec_mtrl,INPUT-OUTPUT TABLE mtrlbertemp).
+            antal_raknare = antal_raknare + 1.
+         END.
+      END.
+      ELSE DO:
+         antal_valda = BRW_B6:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+         antal_raknare = 1.
+         DO WHILE antal_raknare LE antal_valda:
+            status-ok = BRW_B6:FETCH-SELECTED-ROW(antal_raknare).
+            var6 = konstvaltemp.KVALKOD.
+            RUN skapamtrl_UI IN konmtrlapph (INPUT mark,INPUT brw,INPUT konstvalvar,
+                                             INPUT ?,INPUT ?,INPUT ?,INPUT ?,INPUT var6,
+                                             INPUT-OUTPUT TABLE spec_mtrl,INPUT-OUTPUT TABLE mtrlbertemp).
+            antal_raknare = antal_raknare + 1.
+         END.
+      END.
+   END.
+   ELSE DO:
+      FIND FIRST bbenamntemp WHERE bbenamntemp.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+      ASSIGN
+      var2 = " "
+      var3 = " "
+      var4 = " "
+      var5 = " "
+      var6 = " ".
+      IF bbenamntemp.B2 NE " " THEN DO:        
+         antal_valda = BRW_B2:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+         antal_raknare = 1.
+         DO WHILE antal_raknare LE antal_valda:
+            ASSIGN
+            status-ok = BRW_B2:FETCH-SELECTED-ROW(antal_raknare)
+            var2 = konstvaltemp.KVALKOD
+            antal_raknare = antal_raknare + 1.
+         END.         
+      END.
+      IF bbenamntemp.B3 NE " " THEN DO:
+         antal_valda = BRW_B3:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+         antal_raknare = 1.
+         DO WHILE antal_raknare LE antal_valda:
+            ASSIGN
+            status-ok = BRW_B3:FETCH-SELECTED-ROW(antal_raknare)
+            var3 = konstvaltemp.KVALKOD
+            antal_raknare = antal_raknare + 1.
+         END.
+      END.
+      IF bbenamntemp.B4 NE " " THEN DO:
+         antal_valda = BRW_B4:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+         antal_raknare = 1.
+         DO WHILE antal_raknare LE antal_valda:
+            ASSIGN
+            status-ok = BRW_B4:FETCH-SELECTED-ROW(antal_raknare)
+            var4 = konstvaltemp.KVALKOD
+            antal_raknare = antal_raknare + 1.
+         END.         
+      END.
+      IF bbenamntemp.B5 NE " " THEN DO:
+         antal_valda = BRW_B5:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+         antal_raknare = 1.
+         DO WHILE antal_raknare LE antal_valda:
+            ASSIGN
+            status-ok = BRW_B5:FETCH-SELECTED-ROW(antal_raknare)
+            var5 = konstvaltemp.KVALKOD
+            antal_raknare = antal_raknare + 1.
+         END.
+      END.
+      IF bbenamntemp.B6 NE " " THEN DO:
+         antal_valda = BRW_B6:NUM-SELECTED-ROWS IN FRAME {&FRAME-NAME}.
+         antal_raknare = 1.
+         DO WHILE antal_raknare LE antal_valda:
+            ASSIGN
+            status-ok = BRW_B6:FETCH-SELECTED-ROW(antal_raknare)
+            var6 = konstvaltemp.KVALKOD
+            antal_raknare = antal_raknare + 1.
+         END.
+      END.
+      RUN skapamtrl_UI IN konmtrlapph (INPUT mark,INPUT brw,INPUT konstvalvar,
+                                       INPUT var2,INPUT var3,INPUT var4,INPUT var5,INPUT var6,
+                                       INPUT-OUTPUT TABLE spec_mtrl,INPUT-OUTPUT TABLE mtrlbertemp).
+
+   END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE title_UI C-Win 
+PROCEDURE title_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   FIND FIRST foretemp NO-LOCK NO-ERROR.
+   {&WINDOW-NAME}:TITLE = {&WINDOW-NAME}:TITLE + "-" + foretemp.ATRHOME.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE tvatilltre_UI C-Win 
+PROCEDURE tvatilltre_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   DEFINE INPUT PARAMETER vad AS INTEGER NO-UNDO.
+   DEFINE VARIABLE dynok AS LOGICAL NO-UNDO.
+   IF vad = 1 THEN DO:
+      EMPTY TEMP-TABLE multiseltemp NO-ERROR. 
+      antal_valda = BRW_VAL:NUM-SELECTED-ROWS IN FRAME FRAME-KONST.
+      antal_raknare = 1.    
+      DO WHILE antal_raknare LE antal_valda:
+         status-ok = BRW_VAL:FETCH-SELECTED-ROW(antal_raknare).
+         CREATE multiseltemp.
+         ASSIGN
+         multiseltemp.VAD    = konstvaltemp.KVALKOD
+         multiseltemp.NUMSEL = antal_raknare   
+         multiseltemp.SELROW = ROWID(konstvaltemp).         
+         antal_raknare = antal_raknare + 1.          
+      END.  
+      RETURN.
+   END.
+   tvatilltre = 0.   
+   FOR EACH multiseltemp BY NUMSEL DESCENDING:
+      IF RAD_KONTO = 1 THEN DO:
+         FIND FIRST konstvaltemp WHERE konstvaltemp.KONSKOD = kongrkod AND 
+         konstvaltemp.KTYPKOD = konstvalvar AND konstvaltemp.KOPP = TRUE AND 
+         konstvaltemp.BB = bbenamntemp.B2 AND konstvaltemp.KVALKOD = multiseltemp.VAD 
+         NO-ERROR.           
+         IF AVAILABLE konstvaltemp THEN DO: 
+            REPOSITION BRW_B2 TO ROWID ROWID(konstvaltemp) NO-ERROR.  
+            BRW_B2:SELECT-FOCUSED-ROW() IN FRAME FRAME-VMTRL  NO-ERROR.
+         END.
+      END.
+      IF RAD_KONTO = 2 THEN DO:
+         FIND FIRST konstvaltemp WHERE konstvaltemp.KONSKOD = kongrkod AND 
+         konstvaltemp.KTYPKOD = konstvalvar AND konstvaltemp.KOPP = TRUE AND 
+         konstvaltemp.BB = bbenamntemp.B3 AND konstvaltemp.KVALKOD = multiseltemp.VAD 
+         NO-ERROR.           
+         IF AVAILABLE konstvaltemp THEN DO: 
+            REPOSITION BRW_B3 TO ROWID ROWID(konstvaltemp) NO-ERROR.  
+            BRW_B3:SELECT-FOCUSED-ROW() IN FRAME FRAME-VMTRL  NO-ERROR.
+         END.
+      END.
+      IF RAD_KONTO = 3 THEN DO:
+         FIND FIRST konstvaltemp WHERE konstvaltemp.KONSKOD = kongrkod AND 
+         konstvaltemp.KTYPKOD = konstvalvar AND konstvaltemp.KOPP = TRUE AND 
+         konstvaltemp.BB = bbenamntemp.B4 AND konstvaltemp.KVALKOD = multiseltemp.VAD 
+         NO-ERROR.           
+         IF AVAILABLE konstvaltemp THEN DO: 
+            REPOSITION BRW_B4 TO ROWID ROWID(konstvaltemp) NO-ERROR.  
+            BRW_B4:SELECT-FOCUSED-ROW() IN FRAME FRAME-VMTRL  NO-ERROR.
+         END.
+      END.
+      IF RAD_KONTO = 4 THEN DO:
+         FIND FIRST konstvaltemp WHERE konstvaltemp.KONSKOD = kongrkod AND 
+         konstvaltemp.KTYPKOD = konstvalvar AND konstvaltemp.KOPP = TRUE AND 
+         konstvaltemp.BB = bbenamntemp.B5 AND konstvaltemp.KVALKOD = multiseltemp.VAD 
+         NO-ERROR.           
+         IF AVAILABLE konstvaltemp THEN DO: 
+            REPOSITION BRW_B5 TO ROWID ROWID(konstvaltemp) NO-ERROR.  
+            BRW_B5:SELECT-FOCUSED-ROW() IN FRAME FRAME-VMTRL  NO-ERROR.
+         END.
+      END.
+      IF RAD_KONTO = 5 THEN DO:
+         FIND FIRST konstvaltemp WHERE konstvaltemp.KONSKOD = kongrkod AND 
+         konstvaltemp.KTYPKOD = konstvalvar AND konstvaltemp.KOPP = TRUE AND 
+         konstvaltemp.BB = bbenamntemp.B6 AND konstvaltemp.KVALKOD = multiseltemp.VAD 
+         NO-ERROR.           
+         IF AVAILABLE konstvaltemp THEN DO: 
+            REPOSITION BRW_B6 TO ROWID ROWID(konstvaltemp) NO-ERROR.  
+            BRW_B6:SELECT-FOCUSED-ROW() IN FRAME FRAME-VMTRL  NO-ERROR.
+         END.
+      END.
+   END.
+   EMPTY TEMP-TABLE multiseltemp NO-ERROR.   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE vart_UI C-Win 
+PROCEDURE vart_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/   
+   IF SEL_UPP = "Konstruktioner" THEN RETURN.   
+   {muswait.i}
+   {AVBGOM.I}
+   IF SEL_UPP = "Anläggningar" THEN DO:
+      berval2 = FALSE.          
+      RUN BERANNU.W (INPUT ?, INPUT ?, INPUT ?,INPUT globomr).      
+   END.
+   ELSE IF SEL_UPP = "Kabelskåp" THEN RUN SKAPADMU.W.   
+   ELSE IF SEL_UPP = "Stolpar" THEN DO:      
+      stolpe = TRUE.
+      RUN STOLPADMU.W.
+      stolpe = FALSE.
+   END.
+   ELSE IF SEL_UPP = "Transformatorer" THEN DO:
+      stolpe = FALSE.
+      RUN STOLPADMU.W.
+   END.
+   ELSE IF SEL_UPP = "Kablar" THEN DO:      
+      stolpe = FALSE.
+      RUN STOLPADMU.W.
+   END.
+   ELSE IF SEL_UPP = "Apparater" THEN RUN APPARADMU.W.   
+   ELSE IF SEL_UPP = "Schaktadministration" THEN RUN SCHAKADMU.W.   
+   ELSE IF SEL_UPP = "Materielsatser" THEN RUN SATSADMU.W.       
+   ELSE IF SEL_UPP = "Konstruktioner - Kalkyl" THEN RUN KALKKOPPU.W.       
+   ELSE IF SEL_UPP = "Benämning parstolpar" THEN DO:
+      {AVBFRAM.I}
+      RUN PARSTOLPU.W.
+   END.
+   ELSE IF SEL_UPP = "Fasta anmärkningar" THEN RUN BERFANMU.W.   
+   ELSE IF SEL_UPP = "Administrera ersättningslista" THEN RUN ADMERSATTN.W.   
+   IF SEL_UPP = "Leverantörsbyte på alla konstruktioner" THEN RUN BYTLEVU2.W.     
+   ELSE IF SEL_UPP = "Konst.grupp/konstruktion/materiel" THEN DO:
+      lista = 1.
+      RUN VALGRUPPU.W.   
+   END.
+   ELSE IF SEL_UPP = "Konst.grupp/konstruktion/P3-Koder" THEN DO:
+      lista = 2.
+      RUN VALGRUPPU.W.      
+   END.
+   ELSE IF SEL_UPP = "Konstruktionsgrupp/materiel till excel" THEN DO:
+      lista = 3.
+      RUN VALGRUPPU.W.      
+   END.
+   ELSE IF SEL_UPP = "Ändra-Tabort" + " " + Guru.Konstanter:genk + "/Konstruktion(er)" THEN DO:
+      lista = 2.
+      RUN VALGRUPPU2.W.      
+   END.
+   ELSE IF SEL_UPP = "Export av konstruktion till excel" THEN DO:
+      lista = 1.
+      RUN VALGRUPPU3.W.   
+   END.
+   ELSE IF SEL_UPP = "Import av konstruktion" THEN DO:            
+      lista = 2.      
+      RUN VALGRUPPU3.W. 
+   END.
+   ELSE IF SEL_UPP = "Materiel som används på konstruktioner" THEN DO:            
+      {AVBGOM.I}
+      IF CMB_LEVVAL = "Alla lev" THEN RUN SPECSOLEUN.W (INPUT TOG_LEV,INPUT ? ).               
+      ELSE DO: 
+         FIND FIRST levtemp WHERE levtemp.LEVNAMN = CMB_LEVVAL NO-LOCK NO-ERROR.
+         RUN SPECSOLEUN.W (INPUT TOG_LEV,INPUT levtemp.LEVKOD ).      
+      END.
+      {AVBFRAM.I}
+      /*MESSAGE "Vill du se leverantörsnamn"
+      VIEW-AS ALERT-BOX
+      QUESTION BUTTONS YES-NO TITLE "Leverantör?" UPDATE levvar.                        
+      MESSAGE "Vill du se listan i Excel klicka 'Ja' annars 'Nej'."
+      VIEW-AS ALERT-BOX
+      QUESTION BUTTONS YES-NO-CANCEL TITLE "Excel?" UPDATE svar AS LOGICAL.         
+      IF svar THEN DO:
+         RUN EXCMTRL2.P (INPUT levvar).
+      END.
+      ELSE IF NOT svar THEN DO:
+         {AVBGOM.I}
+         RUN SPECSOLEU.W (INPUT levvar).
+         {AVBFRAM.I}
+      END.       
+      ELSE DO:
+         SEL_UPP = SEL_UPP.
+      END.*/
+   END.
+   ELSE IF SEL_UPP = "Byt mtrl X --> Y på konstruktioner" THEN DO:      
+      lista = 1.
+      RUN VALGRUPPU2.W.
+   END.  
+   ELSE IF SEL_UPP = "Ta bort mtrl på konstruktioner" THEN DO:      
+      lista = 3.
+      RUN VALGRUPPU2.W.
+   END.
+   ELSE IF SEL_UPP = "Artiklar med pris 0" THEN RUN PRISNOLLU.W.   
+   ELSE IF SEL_UPP = "Artiklar som ej finns i katalogen" THEN RUN VALAVLEVU.W.   
+   ELSE IF SEL_UPP = "Lista på artiklar i konstruktionsupplägget som ej får träff hos ny leverantör." THEN RUN BYTLEVU4.W.   
+   {AVBFRAM.I}
+   {musarrow.i}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE visamtrl_UI C-Win 
+PROCEDURE visamtrl_UI :
+/* -----------------------------------------------------------
+Purpose:     
+Parameters:  <none>
+Notes:       
+-------------------------------------------------------------*/       
+   status-ok = BRW_KON2:SELECT-FOCUSED-ROW() IN FRAME FRAME-VMTRL NO-ERROR.   
+   EMPTY TEMP-TABLE visamtrl NO-ERROR.      
+   RUN visamtrlhmt_UI IN konmtrlapph (INPUT konsttemp.KTYPKOD, INPUT vismtrl, INPUT visval,
+                                    OUTPUT TABLE visamtrl).     
+   RUN BERVISAMTRL.W (INPUT konsttemp.KTYPKOD, INPUT vismtrl, INPUT visval, INPUT TABLE visamtrl).      
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE vismkon_UI C-Win 
+PROCEDURE vismkon_UI :
+/* -----------------------------------------------------------
+Purpose:     
+Parameters:  <none>
+Notes:       
+-------------------------------------------------------------*/         
+   visval = 1.
+   RUN visamtrl_UI. 
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE vismtrl2_UI C-Win 
+PROCEDURE vismtrl2_UI :
+/* -----------------------------------------------------------
+Purpose:     
+Parameters:  <none>
+Notes:       
+-------------------------------------------------------------*/         
+  status-ok = BRW_B2:SELECT-FOCUSED-ROW() IN FRAME FRAME-VMTRL NO-ERROR.
+  IF status-ok = TRUE THEN DO:  
+     ASSIGN
+     vismtrl = konstvaltemp.KVALKOD
+     visval = 2.
+     RUN visamtrl_UI.
+  END. 
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE vismtrl3_UI C-Win 
+PROCEDURE vismtrl3_UI :
+/* -----------------------------------------------------------
+Purpose:     
+Parameters:  <none>
+Notes:       
+-------------------------------------------------------------*/         
+  status-ok = BRW_B3:SELECT-FOCUSED-ROW() IN FRAME FRAME-VMTRL NO-ERROR.
+  IF status-ok = TRUE THEN DO:  
+     ASSIGN
+     vismtrl = konstvaltemp.KVALKOD
+     visval = 3.
+     RUN visamtrl_UI.
+  END. 
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE vismtrl4_UI C-Win 
+PROCEDURE vismtrl4_UI :
+/* -----------------------------------------------------------
+Purpose:     
+Parameters:  <none>
+Notes:       
+-------------------------------------------------------------*/       
+  status-ok = BRW_B4:SELECT-FOCUSED-ROW() IN FRAME FRAME-VMTRL NO-ERROR.  
+  IF status-ok = TRUE THEN DO:  
+     ASSIGN
+     vismtrl = konstvaltemp.KVALKOD
+     visval = 4.
+     RUN visamtrl_UI.
+  END. 
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE vismtrl5_UI C-Win 
+PROCEDURE vismtrl5_UI :
+/* -----------------------------------------------------------
+Purpose:     
+Parameters:  <none>
+Notes:       
+-------------------------------------------------------------*/         
+  status-ok = BRW_B5:SELECT-FOCUSED-ROW() IN FRAME FRAME-VMTRL NO-ERROR.
+  IF status-ok = TRUE THEN DO:  
+     ASSIGN
+     vismtrl = konstvaltemp.KVALKOD
+     visval = 5.
+     RUN visamtrl_UI.
+  END. 
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE vismtrl6_UI C-Win 
+PROCEDURE vismtrl6_UI :
+/* -----------------------------------------------------------
+Purpose:     
+Parameters:  <none>
+Notes:       
+-------------------------------------------------------------*/         
+  status-ok = BRW_B6:SELECT-FOCUSED-ROW() IN FRAME FRAME-VMTRL NO-ERROR.
+  IF status-ok = TRUE THEN DO:  
+     ASSIGN
+     vismtrl = konstvaltemp.KVALKOD
+     visval = 6.
+     RUN visamtrl_UI.
+  END. 
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE winmstart_UI C-Win 
+PROCEDURE winmstart_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/       
+   
+   &Scoped-define FRAME-NAME FRAME-BARABREDD
+   {WIN_M_START.I}
+    
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+

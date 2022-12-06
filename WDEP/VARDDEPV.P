@@ -1,0 +1,84 @@
+/*VARDDEPV.P*/
+{TMPUT.i}
+/*DEFINE TEMP-TABLE temp_ut NO-UNDO
+ FIELD BENAMNING  AS CHARACTER 
+ FIELD BESTKVANT  AS DECIMAL 
+ FIELD BESTPUNKT  AS INTEGER
+ FIELD BPRIS      AS DECIMAL 
+ FIELD DEPNR      AS INTEGER 
+ FIELD ENHET      AS CHARACTER  
+ FIELD ENR        AS CHARACTER 
+ FIELD FACKID     AS CHARACTER 
+ FIELD IB         AS INTEGER 
+ FIELD IBDATUM    AS DATE 
+ FIELD INVANT     AS INTEGER 
+ FIELD INVDATUM   AS DATE  
+ FIELD LAGER      AS LOGICAL 
+ FIELD LEVKOD     AS CHARACTER
+ FIELD NPRIS      AS DECIMAL 
+ FIELD OMSATT     AS DECIMAL 
+ FIELD SALDO      AS INTEGER
+ INDEX ENR ENR.*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+{EXTRADATA.I}
+
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE totpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE totant AS INTEGER NO-UNDO.
+
+DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR tmp_ut.
+
+   OPEN QUERY mtrlq FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa 
+   AND MTRLDEP.IBDATUM = ? USE-INDEX ENR NO-LOCK.
+   GET FIRST mtrlq NO-LOCK.
+   DO WHILE AVAILABLE(MTRLDEP):                         
+      CREATE tmp_ut.
+      BUFFER-COPY MTRLDEP TO tmp_ut.            
+      GET NEXT mtrlq NO-LOCK.              
+   END. 
+   CLOSE QUERY mtrlq. 
+   /*FIFO*/
+   DEBUGGER:SET-BREAK().
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   ASSIGN Guru.Konstanter:globforetag = FORETAG.FORETAG.
+   {FORESTYR.I}
+   /*IF FORETAG.FORETAG = "ELPA" OR FORETAG.FORETAG = "LULE" OR FORETAG.FORETAG = "BODE" THEN DO:*/
+   IF Guru.Konstanter:varforetypval[54] = 1 THEN DO:   
+      
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+      FOR EACH tmp_ut:      
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "FIFO"                                  
+         inextradatatemp.HUVUDINT =  vald_depa
+         inextradatatemp.HUVUDCH =  tmp_ut.ENR.                    
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+         ASSIGN
+         totpris = 0
+         totant = 0.
+         FOR EACH extradatatemp:
+            ASSIGN
+            totpris = totpris + (extradatatemp.SOKDEC[1] * extradatatemp.SOKINT[1])
+            totant = totant + extradatatemp.SOKINT[1].
+         END.
+         FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+         IF AVAILABLE extradatatemp THEN
+         tmp_ut.NPRIS = totpris / totant.
+         IF Guru.Konstanter:globforetag = "snat" THEN DO:
+            FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa  AND  MTRLDEP.ENR = tmp_ut.ENR AND   MTRLDEP.IBDATUM = ? NO-LOCK NO-ERROR.
+            IF AVAILABLE MTRLDEP THEN DO:   
+               tmp_ut.FACKID.
+            END.
+         END.
+         
+      END.
+      /*dummy*/
+      FIND FIRST FORETAG NO-LOCK NO-ERROR.
+      IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+      edataapph = ?.
+   END.

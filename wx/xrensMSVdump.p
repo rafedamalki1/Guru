@@ -1,0 +1,102 @@
+/*xrensMSV2.P*/
+/*manuellt :
+tidslagen
+avtal*/
+FOR EACH personaltab WHERE personaltab.AKTIV = TRUE NO-LOCK:
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+   FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+   FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+   IF JURPERS.VIJUDID =  "svab" THEN DO:
+      /* TIDREGITAB */
+      OUTPUT TO c:\tidregit.d  convert target "iso8859-1" source "iso8859-1" APPEND.
+      OPEN QUERY tidq FOR EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = personaltab.PERSONALKOD AND TIDREGITAB.DATUM GE 10/01/2009 NO-LOCK. 
+      GET FIRST tidq NO-LOCK.
+      DO WHILE AVAILABLE(TIDREGITAB):
+         EXPORT TIDREGITAB.
+         GET NEXT tidq NO-LOCK.
+      END.
+      CLOSE QUERY tidq.
+      OUTPUT CLOSE.
+      
+      /* FLEXTID */
+      OUTPUT TO c:\flextid.d  convert target "iso8859-1" source "iso8859-1" APPEND.
+      OPEN QUERY flexq FOR EACH FLEXTID WHERE FLEXTID.PERSONALKOD = personaltab.PERSONALKOD AND FLEXTID.DATUM GE 10/01/2009 NO-LOCK. 
+      
+      GET FIRST flexq NO-LOCK.
+      DO WHILE AVAILABLE(FLEXTID):
+         EXPORT FLEXTID.
+         GET NEXT flexq NO-LOCK.
+      END.
+      CLOSE QUERY flexq.
+      OUTPUT CLOSE.
+      
+      /* FLEXDAG */
+      OUTPUT TO c:\flexdag.d  convert target "iso8859-1" source "iso8859-1" APPEND.
+      OPEN QUERY fldq FOR EACH FLEXDAG WHERE FLEXDAG.PERSONALKOD = personaltab.PERSONALKOD AND FLEXDAG.DATUM GE 10/01/2009 NO-LOCK. 
+      
+      GET FIRST fldq NO-LOCK.
+      DO WHILE AVAILABLE(FLEXDAG):
+         EXPORT FLEXDAG.
+         GET NEXT fldq NO-LOCK.
+      END.
+      CLOSE QUERY fldq.
+      OUTPUT CLOSE.
+      
+      /* FLBET */
+      OUTPUT TO c:\flbet.d  convert target "iso8859-1" source "iso8859-1" APPEND.
+      OPEN QUERY flbq FOR EACH FLBET WHERE FLBET.PERSONALKOD = personaltab.PERSONALKOD AND FLBET.DATUM GE 10/01/2009 NO-LOCK. 
+      
+      GET FIRST flbq NO-LOCK.
+      DO WHILE AVAILABLE(FLBET):
+         EXPORT FLBET.
+         GET NEXT flbq NO-LOCK.
+      END.
+      CLOSE QUERY flbq.
+      OUTPUT CLOSE.
+      
+
+      
+      /* FLEXSALDO */
+      OUTPUT TO c:\flexsald.d  convert target "iso8859-1" source "iso8859-1" APPEND.
+      OPEN QUERY fsalq FOR EACH FLEXSALDO WHERE FLEXSALDO.PERSONALKOD = personaltab.PERSONALKOD  NO-LOCK. 
+      GET FIRST fsalq NO-LOCK.
+      DO WHILE AVAILABLE(FLEXSALDO):
+         EXPORT FLEXSALDO.
+         GET NEXT fsalq NO-LOCK.
+      END.
+      CLOSE QUERY fsalq.
+      OUTPUT CLOSE.
+      
+
+      /* SUMTIDDAG */
+      OUTPUT TO c:\sumtidda.d  convert target "iso8859-1" source "iso8859-1" APPEND.
+      OPEN QUERY sumq FOR EACH SUMTIDDAG WHERE SUMTIDDAG.PERSONALKOD = personaltab.PERSONALKOD AND SUMTIDDAG.DATUM GE 10/01/2009 NO-LOCK. 
+      
+      GET FIRST sumq NO-LOCK.
+      DO WHILE AVAILABLE(SUMTIDDAG):
+         EXPORT SUMTIDDAG.
+         GET NEXT sumq NO-LOCK.
+      END.
+      CLOSE QUERY sumq.
+      OUTPUT CLOSE.
+   
+      /* VECKOARBAV */
+      OUTPUT TO c:\ny1.d  convert target "iso8859-1" source "iso8859-1" APPEND.
+      OPEN QUERY vaavq FOR EACH VECKOARBAV WHERE VECKOARBAV.PERSONALKOD = personaltab.PERSONALKOD AND VECKOARBAV.VECKONUMMER GE 200941 NO-LOCK. 
+      
+      GET FIRST vaavq NO-LOCK.
+      DO WHILE AVAILABLE(VECKOARBAV):
+         EXPORT VECKOARBAV.
+         GET NEXT vaavq NO-LOCK.
+      END.
+      CLOSE QUERY vaavq.
+      OUTPUT CLOSE.
+   
+      
+   END.
+END.
+
+
+ 
+
+

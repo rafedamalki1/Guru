@@ -1,0 +1,7 @@
+/*GLOBVAR2.I*/
+{GLOBVAR2DEL1.I}
+
+
+
+  
+

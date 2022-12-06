@@ -1,0 +1,177 @@
+/*DYNBRWAPPTT.P*/
+DEFINE VARIABLE sokvarhelp AS CHARACTER NO-UNDO.
+{SOKDEF.I}
+
+DEFINE VARIABLE tempbufh AS HANDLE NO-UNDO.
+
+DEFINE VARIABLE orgtab AS CHARACTER NO-UNDO.
+DEFINE VARIABLE rowidfaltnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE orgfraga AS CHARACTER NO-UNDO.
+DEFINE VARIABLE faltvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE startpos AS INTEGER NO-UNDO.
+DEFINE VARIABLE nyaquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE begvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE sokstring AS CHARACTER FORMAT "x(40)" EXTENT 10 NO-UNDO.
+DEFINE VARIABLE sparfalt AS CHARACTER NO-UNDO.
+DEFINE VARIABLE temptab AS CHARACTER NO-UNDO.
+DEFINE VARIABLE enhetfalth AS HANDLE NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+
+DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+DEFINE INPUT PARAMETER TABLE-HANDLE apptthtemp.
+DEFINE INPUT-OUTPUT PARAMETER valdkommandoquery AS CHARACTER NO-UNDO.  
+
+tempbufh = apptthtemp:DEFAULT-BUFFER-HANDLE. 
+FIND FIRST valsoktemp NO-LOCK NO-ERROR.
+IF AVAILABLE valsoktemp THEN DO:
+   ASSIGN
+   orgtab         = valsoktemp.SOKCHAR[1]
+   orgfraga       = valsoktemp.SOKCHAR[2]
+   faltvar        = valsoktemp.SOKCHAR[3]  /*SOKFALT*/
+   rowidfaltnamn  = valsoktemp.SOKCHAR[4]
+   sokstring[1]      = valsoktemp.SOKCHAR[5]  /*SOKVÄRDE FRÅN FILL-IN*/
+   startpos = 0.       
+   
+   /*Ta bort WHERE från orgfraga om... */
+   startpos = INDEX(orgfraga,"WHERE",1).
+   IF startpos NE 0 THEN DO:
+      orgfraga = SUBSTRING(orgfraga,startpos + 5,LENGTH(orgfraga)).
+      /*Ta bort USE-INDEX från orgfraga om... */
+      RUN bortuseindex_UI.      
+   END.
+   ELSE DO:
+      /*Ta bort USE-INDEX från orgfraga om... */
+      
+      RUN bortuseindex_UI.      
+   END.
+   RUN starwars_UI (INPUT sokstring[1]).
+   IF begvar = ? THEN RETURN.
+
+   RUN kommandoskap_UI (INPUT sokstring[1]).
+   
+END.
+
+IF sokstring[2] = "" THEN .
+ELSE RUN sokmera_UI.
+
+   
+
+RETURN.
+PROCEDURE sokmera_UI :
+   DEFINE VARIABLE rkollvar AS INTEGER NO-UNDO.
+   
+   nyaquery = "".
+   rkollvar = 2.
+   REPEAT: 
+      IF sokstring[rkollvar] = "" THEN LEAVE.
+      RUN starwars_UI (INPUT sokstring[rkollvar]).
+      IF begvar = ? THEN LEAVE.
+      RUN kommandoskap_UI (INPUT sokstring[rkollvar]).
+      /* Skapar query och kopplar queryn till den skarpa tabellens buffer */
+     
+   END.  
+   
+END PROCEDURE.
+PROCEDURE sokoch_UI :
+   DEFINE INPUT  PARAMETER sokstringorg AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE forsta AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE sista AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE kollvar AS INTEGER NO-UNDO.
+   DEFINE VARIABLE rkollvar AS INTEGER NO-UNDO.
+   IF INDEX(sokstringorg,"&&") = 0  THEN RETURN.
+   IF SUBSTRING(sokstringorg,1,1) = "*" THEN  forsta = "*".
+   IF SUBSTRING(sokstringorg,LENGTH(sokstringorg),1) = "*" THEN  sista = "*".
+   sokstringorg = REPLACE(sokstringorg,"*","").
+   rkollvar = 1.
+   kollvar = 1.
+   REPEAT: 
+      IF kollvar >= LENGTH(sokstringorg) THEN LEAVE.
+      IF rkollvar > 1 THEN DO:
+         ASSIGN
+         forsta = "*"
+         sista = "*".
+      END.   
+      IF INDEX(sokstringorg,"&&",kollvar) = 0 THEN DO: 
+         sokstring[rkollvar] = TRIM(forsta + SUBSTRING(sokstringorg,kollvar) + sista).
+         LEAVE.
+      END.
+      sokstring[rkollvar] = TRIM(forsta + SUBSTRING(sokstringorg,kollvar,INDEX(sokstringorg,"&&",kollvar) - kollvar) + sista).
+      kollvar = INDEX(sokstringorg,"&&",kollvar) + 2.
+      rkollvar = rkollvar + 1.
+      IF rkollvar > 10 THEN LEAVE.
+   END.  
+END PROCEDURE.
+
+
+PROCEDURE bortuseindex_UI:
+   /*Ta bort USE-INDEX från orgfraga om... */
+   startpos = INDEX(orgfraga,"USE-INDEX",1).
+   IF startpos NE 0 THEN DO:
+      nyaquery = SUBSTRING(orgfraga,1,startpos - 1).      
+   END.
+   ELSE nyaquery = orgfraga.
+END PROCEDURE.
+
+PROCEDURE starwars_UI:
+   DEFINE INPUT  PARAMETER stringkoll AS CHARACTER NO-UNDO.
+   IF INDEX(stringkoll,"*",1) = 0 THEN DO:
+      begvar = TRUE.
+      RETURN.
+   END.
+   IF SUBSTRING(stringkoll,1,1) = "*" THEN DO:
+      begvar = FALSE.
+      RETURN.      
+   END.  
+   
+END PROCEDURE.
+
+PROCEDURE kommandoskap_UI :
+   DEFINE INPUT  PARAMETER sokmera AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE extrafalth5 AS HANDLE NO-UNDO.
+   valdkommandoquery = "".
+   IF sokstring[1] NE "" THEN DO:
+      extrafalth5 = tempbufh:BUFFER-FIELD(faltvar).
+      IF begvar = FALSE THEN DO:
+         IF extrafalth5:DATA-TYPE = "CHARACTER" THEN DO:
+            IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + faltvar + " MATCHES '" + sokmera + "'".
+            ELSE valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + faltvar + " MATCHES '" + sokmera + "' AND " + nyaquery.
+         END.
+         ELSE IF extrafalth5:DATA-TYPE = "INTEGER" THEN DO: 
+            IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + faltvar + " MATCHES " + STRING(sokmera).
+            ELSE valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + faltvar + " MATCHES " + STRING(sokmera) + " AND " + nyaquery.
+         END.
+         ELSE IF extrafalth5:DATA-TYPE = "LOGICAL" THEN DO: 
+            IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + faltvar + " MATCHES " + STRING(sokmera).
+            ELSE valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + faltvar + " MATCHES " + STRING(sokmera) + " AND " + nyaquery.
+         END.          
+         ELSE IF extrafalth5:DATA-TYPE = "DECIMAL" THEN DO: 
+            IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + faltvar + " MATCHES " + STRING(sokmera).
+            ELSE valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + faltvar + " MATCHES " + STRING(sokmera) + " AND " + nyaquery.
+         END.          
+      END.
+      ELSE DO:
+         IF extrafalth5:DATA-TYPE = "CHARACTER" THEN DO:
+            IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + faltvar + " BEGINS '" + sokmera + "'".
+            ELSE valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + faltvar + " BEGINS '" + sokmera + "' AND " +  nyaquery.
+         END.
+         ELSE IF extrafalth5:DATA-TYPE = "INTEGER" THEN DO: 
+            IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + faltvar + " BEGINS " + STRING(sokmera).
+            ELSE valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + faltvar + " BEGINS " + STRING(sokmera) + " AND " + nyaquery.
+         END.
+         ELSE IF extrafalth5:DATA-TYPE = "LOGICAL" THEN DO: 
+            IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + faltvar + " BEGINS " + STRING(sokmera).
+            ELSE valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + faltvar + " BEGINS " + STRING(sokmera) + " AND " + nyaquery.
+         END.       
+         ELSE IF extrafalth5:DATA-TYPE = "DECIMAL" THEN DO: 
+            IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + faltvar + " BEGINS " + STRING(sokmera).
+            ELSE valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + faltvar + " BEGINS " + STRING(sokmera) + " AND " + nyaquery.
+         END.       
+      END.
+      DELETE OBJECT extrafalth5 NO-ERROR. 
+      extrafalth5 = ?.
+   END.
+   ELSE DO:
+      valdkommandoquery = " FOR EACH " + valsoktemp.SOKCHAR[1] + " WHERE " + nyaquery.
+   END.
+END PROCEDURE.
+

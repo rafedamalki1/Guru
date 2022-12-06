@@ -1,0 +1,85 @@
+/*
+     Filename: DYNSPARATEMP.P
+      Created: 03.08.0029 14:45ELPAO     
+     Modified: 
+*/
+
+/*********************  VARIABLES **************************/
+{DYNHMT.I}
+DEFINE VARIABLE tempbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE orgbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE queh AS HANDLE NO-UNDO.
+
+
+/*********************    CODE    *************************/
+
+
+PROCEDURE sparatemp_UI:
+   /*
+   RUN sparatemp_UI IN laddaproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "BBENAMNING".
+   */
+   DEFINE INPUT PARAMETER TABLE-HANDLE tth.
+   DEFINE INPUT PARAMETER orgtabch AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+   RUN FINNSTABELL.P (INPUT orgtabch, OUTPUT bloblog).
+   IF bloblog = FALSE THEN RETURN.
+   CREATE WIDGET-POOL "SdynTemp" NO-ERROR.
+   extratemptabh = tth:DEFAULT-BUFFER-HANDLE.
+   
+   kommandoquery = "FOR EACH " + tth:NAME.
+   CREATE BUFFER orgbufh FOR TABLE orgtabch IN WIDGET-POOL "SdynTemp". 
+   CREATE QUERY queh.
+    ASSIGN
+   nytab      = tth:NAME
+   orginaltab = orgtabch.    
+   RUN dynspar_UI.  
+   RUN objdelete_UI.
+   DELETE WIDGET-POOL "SdynTemp" NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE sparamtrltemp_UI:
+   DEFINE INPUT  PARAMETER valnlevmtrlkat AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE-HANDLE tth.
+   DEFINE INPUT PARAMETER orgtabch AS CHARACTER NO-UNDO.
+   extratemptabh = tth:DEFAULT-BUFFER-HANDLE.
+   kommandoquery = "FOR EACH " + tth:NAME.
+   CREATE BUFFER orgbufh FOR TABLE orgtabch. 
+   CREATE QUERY queh.
+   ASSIGN
+   nytab      = tth:NAME
+   orginaltab = orgtabch.    
+   RUN dynsparmtrl_UI (valnlevmtrlkat).  
+   RUN objdelete_UI.
+   
+END PROCEDURE.
+PROCEDURE dynsparmtrl_UI:
+    DEFINE INPUT  PARAMETER valnlevmtrlkat AS CHARACTER NO-UNDO.
+/*   {SETUSE.I}*/
+   CREATE WIDGET-POOL "dynTemp" NO-ERROR.
+   /*tabell i databasen som efterfrågas*/
+   CREATE BUFFER orgtabh FOR TABLE orginaltab IN WIDGET-POOL "dynTemp". 
+   /*resultattabell */
+   CREATE BUFFER nytabh FOR TABLE extratemptabh IN WIDGET-POOL "dynTemp".
+   
+   
+   CREATE QUERY qh IN WIDGET-POOL "dynTemp".
+   qh:SET-BUFFERS(nytabh).
+   qh:QUERY-PREPARE(kommandoquery).   
+   qh:QUERY-OPEN().
+   qh:GET-FIRST(NO-LOCK).
+   
+   DO WHILE nytabh:AVAILABLE: 
+      DO TRANSACTION:
+         orgtabh:BUFFER-CREATE().      
+         orgtabh:BUFFER-COPY(nytabh). 
+         utvalfalth = orgtabh:BUFFER-FIELD("LEVKOD").
+         utvalfalth:BUFFER-VALUE = valnlevmtrlkat.
+                 
+      END.
+      qh:GET-NEXT(NO-LOCK).        
+   END.
+   IF orgtabh:AVAILABLE THEN orgtabh:BUFFER-RELEASE() NO-ERROR.      
+   qh:QUERY-CLOSE().   
+   DELETE WIDGET-POOL "dynTemp" NO-ERROR.
+/*   {UNSETUSE.I}*/
+END PROCEDURE. 

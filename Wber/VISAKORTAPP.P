@@ -1,0 +1,280 @@
+/*VISAKORTAPP.P*/
+{STARTFORAPP.I}
+{BEREDNINGTEMP.I}
+{KONVALTEMP.I}
+DEFINE VARIABLE skrivut AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.          
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(130)" NO-UNDO. 
+DEFINE VARIABLE str2 AS CHARACTER FORMAT "X(130)" NO-UNDO.
+DEFINE VARIABLE totalt AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE nummer AS INTEGER NO-UNDO.
+DEFINE VARIABLE valnum AS INTEGER NO-UNDO. 
+DEFINE VARIABLE skapstorlek AS INTEGER NO-UNDO. 
+DEFINE VARIABLE musz2 AS LOGICAL NO-UNDO.
+DEFINE VARIABLE konnum AS INTEGER NO-UNDO.
+
+DEFINE TEMP-TABLE list_mtrl 
+   {LISTMTRLTT.I}
+DEFINE TEMP-TABLE kopp_lina
+   FIELD NUM1 AS INTEGER
+   FIELD NUM2 AS INTEGER  
+   FIELD METER AS INTEGER
+   FIELD LEDARE AS INTEGER
+   FIELD ENR AS CHARACTER       
+   FIELD BENAMNING AS CHARACTER 
+   FIELD PRIS AS DECIMAL
+   FIELD ENHET AS CHARACTER
+   FIELD KABNR AS INTEGER
+   FIELD SKAP AS CHARACTER
+   FIELD SKAPADR AS CHARACTER
+   FIELD KABADR AS CHARACTER
+   FIELD TYP AS CHARACTER 
+   FIELD ARTAL AS INTEGER
+   FIELD SAKR AS INTEGER
+   FIELD MAXSAKR AS INTEGER
+   FIELD ANMARK AS CHARACTER
+   FIELD KORTKOD AS INTEGER
+   FIELD KABNR2 AS INTEGER   
+   FIELD TOTMETER AS INTEGER
+   FIELD UPPLAG AS INTEGER 
+   FIELD LEVKOD AS CHARACTER 
+   FIELD APPARAT AS CHARACTER 
+   FIELD DIAMETER AS INTEGER 
+   INDEX NUM IS PRIMARY NUM1 NUM2 ASCENDING 
+   INDEX ENR ENR ASCENDING
+   INDEX KABNR KABNR ASCENDING
+   INDEX LIN NUM1 NUM2 KABNR ASCENDING.
+
+
+{TIDUTTT.I}
+
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{KONID.I}
+
+DEFINE BUFFER koppbuff FOR kopp_lina.
+DEFINE BUFFER idbuff FOR kon_id.
+
+
+PROCEDURE skapalista_UI :
+   DEFINE INPUT PARAMETER konnum2 AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER musz2 AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR kon_id.
+   DEFINE INPUT PARAMETER TABLE FOR list_mtrl.
+   DEFINE INPUT PARAMETER TABLE FOR kopp_lina.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   ASSIGN 
+   konnum = konnum2.
+   EMPTY TEMP-TABLE tidut NO-ERROR. 
+   
+str=
+"=======================================================================================".      
+   RUN huvud_UI.   
+   IF musz = FALSE THEN RUN rubrik_UI.
+   musz2 = musz.
+
+END PROCEDURE.
+
+PROCEDURE huvud_UI :
+     /*HUVUD*/ 
+   DO TRANSACTION:   
+      
+      IF musz = TRUE THEN musz = musz.   
+      ELSE DO:                   
+         CREATE tidut. 
+         ASSIGN        
+         SUBSTRING(tidut.UT,1) = "KABELSKÅPSKORT"
+         SUBSTRING(tidut.UT,40) = STRING(TODAY)
+         SUBSTRING(tidut.UT,50) = STRING(TIME,"HH:MM:SS").                                                               
+         CREATE tidut.                  
+      END.
+   END.                    
+END PROCEDURE.
+
+PROCEDURE rubrik_UI :
+   ASSIGN
+   str2 =
+"================================================================================================================================".                         
+   str =                                                                    
+"==.===================================.======.=====.=========================.======.==============================.===.===.====".                  
+   FIND FIRST kon_id WHERE kon_id.NUM = konnum NO-LOCK NO-ERROR.
+   FIND FIRST ANNNAMN NO-LOCK NO-ERROR.
+   FIND FIRST BBENAMNING WHERE BBENAMNING.KONSKOD = kon_id.GRUPP NO-LOCK NO-ERROR.
+   FIND FIRST kopp_lina WHERE (kopp_lina.NUM1 = kon_id.NUM OR
+   kopp_lina.NUM2 = kon_id.NUM) AND kopp_lina.METER > 0 AND 
+   kopp_lina.KORTKOD = kon_id.NUM NO-LOCK NO-ERROR.   
+   
+   CREATE tidut. 
+   SUBSTRING(tidut.UT,1) = str2. 
+   IF kon_id.FRI3 NE "" THEN DO:      
+      IF Guru.Konstanter:globforetag = "GRAN" OR Guru.Konstanter:globforetag = "NAEK"  OR Guru.Konstanter:globforetag = "CPOMA" OR Guru.Konstanter:globforetag = "GKAL" THEN DO:
+         CREATE tidut.
+         ASSIGN  
+         SUBSTRING(tidut.UT,1) = "LITTERA"
+         SUBSTRING(tidut.UT,25) = ":"  
+         SUBSTRING(tidut.UT,26) = kon_id.FRI3.
+      END.
+      ELSE DO:
+         CREATE tidut.
+         ASSIGN  
+         SUBSTRING(tidut.UT,1) = "FRI IDENTITET"
+         SUBSTRING(tidut.UT,25) = ":"  
+         SUBSTRING(tidut.UT,26) = kon_id.FRI3.
+      END.      
+   END.
+   IF AVAILABLE kopp_lina  THEN DO:
+      IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" THEN DO:      
+         CREATE tidut.        
+         IF kon_id.FRI2 NE ? THEN              
+         ASSIGN
+         SUBSTRING(tidut.UT,1) = BBENAMNING.ID2
+         SUBSTRING(tidut.UT,25) = ":"  
+         SUBSTRING(tidut.UT,26) = STRING(kon_id.FRI2).          
+         CREATE tidut.
+         ASSIGN      
+         SUBSTRING(tidut.UT,1) = "SKÅPTYP"  
+         SUBSTRING(tidut.UT,25) = ":" 
+         SUBSTRING(tidut.UT,26) = kopp_lina.SKAP. 
+         CREATE tidut.
+         ASSIGN            
+         SUBSTRING(tidut.UT,1) = "SKÅPADRESS"
+         SUBSTRING(tidut.UT,25) = ":"   
+         SUBSTRING(tidut.UT,26) = kopp_lina.SKAPADR.
+      END.
+      ELSE DO:
+         CREATE tidut.
+         ASSIGN         
+         SUBSTRING(tidut.UT,1) = ANNNAMN.TAB1
+         SUBSTRING(tidut.UT,25) = ":" 
+         SUBSTRING(tidut.UT,26) = kon_id.FORNR.   
+         IF kon_id.FRI1 NE ? THEN              
+         ASSIGN
+         SUBSTRING(tidut.UT,40) = BBENAMNING.ID1
+         SUBSTRING(tidut.UT,60) = ":"  
+         SUBSTRING(tidut.UT,61) = STRING(kon_id.FRI1).
+         CREATE tidut.
+         ASSIGN  
+         SUBSTRING(tidut.UT,1) = ANNNAMN.TAB2
+         SUBSTRING(tidut.UT,25) = ":"  
+         SUBSTRING(tidut.UT,26) = kon_id.LINNR.  
+         IF kon_id.FRI2 NE ? THEN              
+         ASSIGN
+         SUBSTRING(tidut.UT,40) = BBENAMNING.ID2
+         SUBSTRING(tidut.UT,60) = ":"  
+         SUBSTRING(tidut.UT,61) = STRING(kon_id.FRI2).          
+         CREATE tidut.
+         ASSIGN
+         SUBSTRING(tidut.UT,1) = ANNNAMN.TAB3
+         SUBSTRING(tidut.UT,25) = ":"  
+         SUBSTRING(tidut.UT,26) = kon_id.NATNR
+         SUBSTRING(tidut.UT,40) = "SKÅPTYP"  
+         SUBSTRING(tidut.UT,60) = ":" 
+         SUBSTRING(tidut.UT,61) = kopp_lina.SKAP. 
+         CREATE tidut.
+         ASSIGN            
+         SUBSTRING(tidut.UT,40) = "SKÅPADRESS"
+         SUBSTRING(tidut.UT,60) = ":"   
+         SUBSTRING(tidut.UT,61) = kopp_lina.SKAPADR.
+      END.   
+   END.   
+
+   CREATE tidut. 
+   IF kon_id.GRUPP = 0 THEN DO:
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = "RESERV"
+      SUBSTRING(tidut.UT,25) = ":".
+      ASSIGN
+      valnum = kon_id.NUM
+      skapstorlek = 0.
+      FOR EACH kon_val WHERE kon_val.NUM = valnum USE-INDEX NUM:       
+         FOR EACH list_mtrl WHERE list_mtrl.NUM = kon_val.NUM AND
+         list_mtrl.SKAPNUM = kon_val.SKAPNUM USE-INDEX NUM2:
+            IF list_mtrl.TYPBER = TRUE THEN DO:
+               IF list_mtrl.ANTAL > 0 THEN DO:
+                  skapstorlek = skapstorlek + (list_mtrl.MODUL * kon_val.TYP).
+               END.   
+            END.
+            ELSE DO:
+               IF list_mtrl.ANTAL > 0 THEN DO:
+                  skapstorlek = skapstorlek + list_mtrl.MODUL.
+               END.   
+            END.   
+         END.      
+      END.
+      FIND FIRST list_mtrl WHERE list_mtrl.NUM = valnum AND 
+      list_mtrl.SKAPMTRL = TRUE NO-LOCK NO-ERROR.
+      IF AVAILABLE list_mtrl THEN DO:         
+         SUBSTRING(tidut.UT,26) = STRING(list_mtrl.SKAPMODUL - skapstorlek,"->>>>").
+      END.   
+      ELSE DO:      
+         SUBSTRING(tidut.UT,26) = "INGET SKÅP VALT".
+      END. 
+      CREATE tidut.
+   END.
+   SUBSTRING(tidut.UT,1) = str.            
+   CREATE tidut.      
+   ASSIGN                         
+   SUBSTRING(tidut.UT,1) = "NR"                                        
+   SUBSTRING(tidut.UT,4) = "KABEL"
+   SUBSTRING(tidut.UT,40) = "TYP"                      
+   SUBSTRING(tidut.UT,47) = "LÄNGD" 
+   SUBSTRING(tidut.UT,53) = "APPARAT" 
+   SUBSTRING(tidut.UT,79) = "ANLÄGG"
+   SUBSTRING(tidut.UT,86) = "KABELADRESS"
+   SUBSTRING(tidut.UT,117) = "SÄK"
+   SUBSTRING(tidut.UT,121) = "MAX"
+   SUBSTRING(tidut.UT,125) = "ÅR".                   
+   CREATE tidut.       
+   SUBSTRING(tidut.UT,1) = str. 
+   nummer = 0.   
+   FOR EACH kopp_lina WHERE (kopp_lina.NUM1 = kon_id.NUM OR
+   kopp_lina.NUM2 = kon_id.NUM) AND kopp_lina.METER > 0 AND 
+   kopp_lina.KORTKOD = kon_id.NUM BY kopp_lina.KABNR2:  
+      nummer = nummer + 1. 
+      CREATE tidut.          
+      ASSIGN                
+      SUBSTRING(tidut.UT,1) = STRING(nummer)
+      SUBSTRING(tidut.UT,4) = SUBSTRING(kopp_lina.BENAMNING,1,35) 
+      SUBSTRING(tidut.UT,40) = kopp_lina.TYP      
+      SUBSTRING(tidut.UT,47) = STRING(kopp_lina.METER)
+      SUBSTRING(tidut.UT,53) = SUBSTRING(kopp_lina.APPARAT,1,25).      
+      FIND FIRST koppbuff WHERE (koppbuff.NUM1 = kon_id.NUM OR
+      koppbuff.NUM2 = kon_id.NUM) AND koppbuff.METER > 0 AND 
+      koppbuff.KORTKOD NE ? AND ROWID(koppbuff) NE ROWID(kopp_lina) AND
+      koppbuff.KABNR = kopp_lina.KABNR NO-LOCK NO-ERROR.
+      IF AVAILABLE koppbuff THEN DO:         
+         FIND FIRST idbuff WHERE idbuff.NUM = koppbuff.KORTKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE idbuff THEN DO:            
+            IF idbuff.FRI2 NE ? THEN
+            SUBSTRING(tidut.UT,79) =  STRING(idbuff.FRI2).
+         END.   
+      END. 
+      ASSIGN      
+      SUBSTRING(tidut.UT,86) = kopp_lina.KABADR.
+      IF kopp_lina.SAKR NE ? THEN DO: 
+         SUBSTRING(tidut.UT,117) = STRING(kopp_lina.SAKR).
+      END.   
+      IF kopp_lina.MAXSAKR NE ? THEN DO:
+         SUBSTRING(tidut.UT,121) = STRING(kopp_lina.MAXSAKR).
+      END.   
+      SUBSTRING(tidut.UT,125) = STRING(kopp_lina.ARTAL).         
+   END.
+   CREATE tidut.
+   CREATE tidut.       
+   SUBSTRING(tidut.UT,1) = str2.  
+   CREATE tidut. 
+   SUBSTRING(tidut.UT,1) = "ANMÄRKNINGAR".
+   CREATE tidut. 
+   SUBSTRING(tidut.UT,1) = str2.          
+   nummer = 0.  
+   FIND FIRST kon_id WHERE kon_id.NUM = konnum NO-LOCK NO-ERROR. 
+   FOR EACH kopp_lina WHERE (kopp_lina.NUM1 = kon_id.NUM OR
+   kopp_lina.NUM2 = kon_id.NUM) AND kopp_lina.METER > 0 AND 
+   kopp_lina.KORTKOD = kon_id.NUM BY kopp_lina.KABNR2:  
+      nummer = nummer + 1. 
+      CREATE tidut.          
+      ASSIGN                
+      SUBSTRING(tidut.UT,1) = STRING(nummer)
+      SUBSTRING(tidut.UT,4) = kopp_lina.ANMARK.
+   END.     
+END PROCEDURE.

@@ -1,0 +1,51 @@
+/*IMPORTSCHSTRAPP.P*/
+
+{KONSTGRUPP.I}
+{KONVALTEMP.I}
+{KONID.I} 
+DEFINE INPUT  PARAMETER valaonr AS CHARACTER NO-UNDO.
+DEFINE INPUT  PARAMETER valomrade AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR konstgrptemp.
+DEFINE OUTPUT PARAMETER TABLE FOR kon_val.
+DEFINE OUTPUT PARAMETER TABLE FOR kon_id.  
+EMPTY TEMP-TABLE konstgrptemp NO-ERROR. 
+FOR EACH KONSTGRUPP USE-INDEX ORD NO-LOCK:
+   FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = KONSTGRUPP.KONSKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE KONSTRUKTION THEN DO:
+      CREATE konstgrptemp.
+      BUFFER-COPY KONSTGRUPP TO konstgrptemp.        
+   END.
+END. 
+FOR EACH BERVAL WHERE BERVAL.AONR = valaonr AND BERVAL.OMRADE = valomrade AND BERVAL.KSKAP = FALSE NO-LOCK:
+   CREATE kon_val.
+   BUFFER-COPY BERVAL TO kon_val.
+   ASSIGN 
+   kon_val.GRUPP = BERVAL.KONSKOD 
+   kon_val.F1 = BERVAL.KTYPKOD.
+END.      
+FOR EACH BERID WHERE BERID.AONR = valaonr AND BERID.OMRADE = valomrade NO-LOCK.
+   FIND FIRST kon_val WHERE kon_val.NUM = BERID.NUM USE-INDEX NUM NO-LOCK NO-ERROR.
+   IF AVAILABLE kon_val THEN DO:
+      CREATE kon_id.
+      BUFFER-COPY BERID TO kon_id.
+      ASSIGN      
+      kon_id.GRUPP = kon_val.GRUPP.
+   END.         
+END. 
+FOR EACH kon_val WHERE kon_val.KSKAP = FALSE:
+   IF kon_val.ID = TRUE THEN DO:
+      FIND FIRST kon_id WHERE kon_id.NUM = kon_val.NUM
+      USE-INDEX NUM NO-LOCK NO-ERROR.
+      IF AVAILABLE kon_id THEN DO:
+         IF kon_id.FRI2 = ? THEN kon_val.ID2 = kon_id.NATNR.
+         ELSE kon_val.ID2 = STRING(kon_id.FRI2). 
+         
+         IF kon_id.FRI2 = ? THEN kon_val.ID2 = kon_id.NATNR.
+         ELSE kon_val.ID2 = STRING(kon_id.FRI2).    
+         kon_val.EXTRA = "+" + " " + kon_id.FRI3.
+         kon_val.EXTRA1 = SUBSTRING(kon_val.EXTRA,3).
+      END.
+      ELSE DELETE kon_val.
+   END.   
+END.
+   

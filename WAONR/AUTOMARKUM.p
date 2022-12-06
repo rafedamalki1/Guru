@@ -1,0 +1,116 @@
+/*AUTOMARKUM.P*/
+
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+DEFINE BUFFER medbuff FOR MEDDELANDE.
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+DEFINE VARIABLE projrapp AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE stdatum AS DATE NO-UNDO.
+DEFINE VARIABLE hjtext AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hjadel AS CHARACTER NO-UNDO.
+FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG. 
+DEFINE BUFFER exdatabuff FOR EXTRADATA.
+{NAMNDB.I}
+{AMERICANEUROPEAN.I}
+    
+   
+RUN STYRFORE.P (INPUT FORETAG.FORETAG).
+
+
+FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "VARDFASTAG2"  AND EXTRADATA.SOKLOG[4] = TRUE   EXCLUSIVE-LOCK BY  EXTRADATA.HUVUDINT:
+   IF  EXTRADATA.SOKDATE[1] = TODAY + 1 THEN DO:
+      hjtext = "".
+      FIND FIRST VARDERING WHERE VARDERING.VARDNR =  EXTRADATA.HUVUDINT NO-LOCK NO-ERROR.
+      IF AVAILABLE  VARDERING THEN DO:         
+         FIND FIRST FASTIGHET  WHERE FASTIGHET.BETECKNING = EXTRADATA.HUVUDCH NO-LOCK NO-ERROR.
+         IF AVAILABLE FASTIGHET THEN DO:
+            FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = EXTRADATA.SOKINT[4]  NO-LOCK NO-ERROR.
+            IF AVAILABLE MARKAGARE THEN DO:
+               FIND FIRST exdatabuff  WHERE exdatabuff.PROGRAM = "MARKFASTANDEL"  AND exdatabuff.HUVUDINT = MARKAGARE.MARKNR AND exdatabuff.HUVUDCH = FASTIGHET.BETECKNING NO-LOCK NO-ERROR.
+               IF AVAILABLE  exdatabuff THEN DO:
+                  hjadel = "Andel: " + exdatabuff.SOKCHAR[1] + CHR(10). 
+               END.   
+               ELSE DO:
+                  hjadel = "Andel: " + "1/1" + CHR(10).
+               END.   
+                
+               FIND FIRST ANVANDARE WHERE ANVANDARE.PERSONALKOD = VARDERING.VARDANV NO-LOCK NO-ERROR.
+               IF AVAILABLE ANVANDARE THEN DO:
+                  FIND FIRST AOVARD WHERE AOVARD.VARDNR = VARDERING.VARDNR NO-LOCK NO-ERROR.
+                  IF AVAILABLE AOVARD THEN DO:
+                     FIND FIRST AONRTAB  WHERE AONRTAB.AONR =  AOVARD.AONR   AND AONRTAB.DELNR = AOVARD.DELNR NO-LOCK NO-ERROR.   
+                     IF AVAILABLE AONRTAB THEN DO:  
+                        hjtext = "Projektnummer: " + AONRTAB.AONR + " " + STRING(AONRTAB.DELNR) + " Benämning: " + AONRTAB.ORT + CHR(10) +
+                        "Värderingsnummer: " + STRING(VARDERING.VARDNR) + " Benämning: " + VARDERING.BENAMNING + CHR(10) +
+                        "Fastighet: " + FASTIGHET.BETECKNING  + CHR(10) +
+                        "Markägare: " + STRING(MARKAGARE.MARKNR) + " " + MARKAGARE.MARKAGARE + CHR(10) +
+                        hjadel +
+                        "Bevakning: " + STRING(EXTRADATA.SOKDATE[1]) + " " + EXTRADATA.SOKCHAR[3] + CHR(10) + CHR(10).
+                     END.
+                     ELSE DO:
+                        hjtext = "Värderingsnummer: " + STRING(VARDERING.VARDNR) + " Benämning: " + VARDERING.BENAMNING + CHR(10) +
+                        "Fastighet: " + FASTIGHET.BETECKNING  + CHR(10) +
+                        "Markägare: " + STRING(MARKAGARE.MARKNR) + " " + MARKAGARE.MARKAGARE + CHR(10) +
+                        hjadel +
+                        "Bevakning: " + STRING(EXTRADATA.SOKDATE[1]) + " " + EXTRADATA.SOKCHAR[3] + CHR(10) + CHR(10).
+                     END.   
+                  END.
+                  ELSE DO:
+                     hjtext = "Värderingsnummer: " + STRING(VARDERING.VARDNR) + " Benämning: " + VARDERING.BENAMNING + CHR(10) +
+                        "Fastighet: " + FASTIGHET.BETECKNING  + CHR(10) +
+                        "Markägare: " + STRING(MARKAGARE.MARKNR) + " " + MARKAGARE.MARKAGARE + CHR(10) +
+                        hjadel +
+                        "Bevakning: " + STRING(EXTRADATA.SOKDATE[1]) + " " + EXTRADATA.SOKCHAR[3] + CHR(10) + CHR(10).
+                  END.
+               END.
+           END.
+        END.
+     END.
+     IF hjtext NE ""  THEN DO:         
+         FIND FIRST MEDDELANDE WHERE MEDDELANDE.SANDARE = "Markvärdering" AND 
+         MEDDELANDE.MOTTAGARE = ANVANDARE.ANVANDARE AND MEDDELANDE.EMOTAGET = FALSE AND LENGTH(MEDDELANDE.MEDD,"CHARACTER") < 30000 
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE MEDDELANDE THEN DO:
+            CREATE MEDDELANDE.
+            ASSIGN               
+            MEDDELANDE.SANDARE = "Markvärdering"
+            MEDDELANDE.EMOTAGET = FALSE
+            MEDDELANDE.SDATUM = TODAY
+            MEDDELANDE.MEDD = "Fastigheter med bevakning " + STRING(TODAY)  + CHR(10) 
+            MEDDELANDE.MOTTAGARE = ANVANDARE.ANVANDARE.
+         END.
+         
+         MEDDELANDE.MEDD = MEDDELANDE.MEDD + CHR(10) +   
+         hjtext.
+         
+         ASSIGN EXTRADATA.SOKLOG[4] = FALSE.
+      END.
+   END.      
+END.
+
+
+
+PROCEDURE medd_UI:  
+   FIND FIRST ANVANDARE WHERE ANVANDARE.PERSONALKOD = AONRTAB.ARBANSVARIG 
+   NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE ANVANDARE THEN DO:
+      FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = "SEKAN" 
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ANVANDARE THEN RETURN.
+   END.
+   FIND FIRST MEDDELANDE WHERE MEDDELANDE.SANDARE = "SLUTBESIKTNING" AND 
+   MEDDELANDE.MOTTAGARE = ANVANDARE.ANVANDARE AND LENGTH(MEDDELANDE.MEDD,"CHARACTER") < 30000 
+   EXCLUSIVE-LOCK NO-ERROR.
+   IF NOT AVAILABLE MEDDELANDE THEN DO:
+      CREATE MEDDELANDE.
+      ASSIGN               
+      MEDDELANDE.SANDARE = "SLUTBESIKTNING"
+      MEDDELANDE.EMOTAGET = FALSE
+      MEDDELANDE.SDATUM = TODAY
+      MEDDELANDE.MEDD = CAPS(Guru.Konstanter:gaok) + " FÖR SLUT BESIKTNING" + CHR(10) 
+      MEDDELANDE.MOTTAGARE = ANVANDARE.ANVANDARE.
+   END.
+   MEDDELANDE.MED = MEDDELANDE.MED + AONRTAB.AONR + " " +  
+   STRING(DELNR,Guru.Konstanter:varforetypchar[1]) + " " + AONRTAB.ORT +  CHR(10).   
+END PROCEDURE.

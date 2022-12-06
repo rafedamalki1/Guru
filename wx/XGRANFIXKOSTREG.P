@@ -1,0 +1,92 @@
+/*
+     Filename: XGRANFIXKOSTREG.P
+      Created: 03.09.0001 16:25ELPAO     
+     Modified: 
+*/
+DEFINE VARIABLE helbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE helfieldh AS HANDLE NO-UNDO.
+DEFINE VARIABLE helqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE tempbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE tempqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE tempfieldh AS HANDLE NO-UNDO.
+DEFINE VARIABLE tempstr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tabnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE exceptnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE counter AS INTEGER NO-UNDO.
+DEFINE VARIABLE tempcount AS INTEGER NO-UNDO.
+DEFINE VARIABLE tempfaktnr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE compsave AS LOGICAL NO-UNDO.
+DEFINE VARIABLE tempcomp AS LOGICAL NO-UNDO.
+DEFINE VARIABLE tfnr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cc AS INTEGER NO-UNDO.
+ 
+ASSIGN
+tfnr = ""
+tabnamn = "KOSTREG"
+exceptnamn = "RADNR"
+tempcount = 0
+counter = 0.
+
+CREATE BUFFER helbufh FOR TABLE tabnamn.
+CREATE BUFFER tempbufh FOR TABLE tabnamn.
+CREATE QUERY helqh.
+CREATE QUERY tempqh.
+tempstr = "FOR EACH " + tabnamn + " WHERE KOSTREG.BETDATUM > DATE('2003-01-25') NO-LOCK BY FAKTNR.". /* WHERE KOSTREG.BETDATUM > DATE('2003-01-20') NO-LOCK.".*/
+
+helqh:SET-BUFFERS(helbufh).
+tempqh:SET-BUFFERS(tempbufh).
+helqh:QUERY-PREPARE(tempstr).
+helqh:QUERY-OPEN().
+helqh:GET-FIRST(NO-LOCK).
+cc = ETIME.
+OUTPUT TO "C:\Mikael\kostreg.log".
+DO WHILE helqh:QUERY-OFF-END = FALSE:
+   helfieldh = helbufh:BUFFER-FIELD("FAKTNR").
+   tempfaktnr = helfieldh:BUFFER-VALUE.
+   tempstr = "FOR EACH " + tabnamn + " WHERE KOSTREG.FAKTNR = '" + tempfaktnr + "' NO-LOCK.".
+   tempqh:QUERY-PREPARE(tempstr).
+   tempqh:QUERY-OPEN().
+   tempqh:GET-FIRST(NO-LOCK).   
+   compsave = FALSE.
+   DO WHILE tempqh:QUERY-OFF-END = FALSE:
+      compsave = tempbufh:BUFFER-COMPARE(helbufh,?,exceptnamn,?) NO-ERROR.
+      IF compsave = TRUE THEN DO: 
+         tempcomp = FALSE.
+         tempcomp = tempbufh:BUFFER-COMPARE(helbufh) NO-ERROR.
+         IF tempcomp = TRUE THEN DO:
+            compsave = FALSE.
+         END.
+         ELSE DO:
+            LEAVE.
+         END.
+      END.
+      tempqh:GET-NEXT(NO-LOCK).
+   END.
+   IF compsave = TRUE THEN DO:
+      helfieldh = helbufh:BUFFER-FIELD("FAKTNR").
+      IF tfnr NE helfieldh:BUFFER-VALUE THEN DO:
+         tfnr = helfieldh:BUFFER-VALUE.
+         tempcount = tempcount + 1.
+         MESSAGE "********* **** " helfieldh:BUFFER-VALUE " **** ***********".
+         helfieldh = helbufh:BUFFER-FIELD("REGDATUM").
+         tempfieldh = tempbufh:BUFFER-FIELD("BETDATUM").
+         MESSAGE "*** BET-datum: " tempfieldh:BUFFER-VALUE " *** REG-datum: " helfieldh:BUFFER-VALUE.
+      END.
+      helfieldh = helbufh:BUFFER-FIELD(exceptnamn).
+      tempfieldh = tempbufh:BUFFER-FIELD(exceptnamn).
+      MESSAGE "Radnr: " helfieldh:BUFFER-VALUE " - " tempfieldh:BUFFER-VALUE.      
+   END.
+   counter = counter + 1.
+   helqh:GET-NEXT(NO-LOCK).
+END.
+cc = ETIME - cc.
+MESSAGE "Antal lika poster: " tempcount " av " counter "    time: " DECIMAL(cc / 1000).
+OUTPUT CLOSE.
+MESSAGE "Klar!".
+helqh:QUERY-CLOSE.
+tempqh:QUERY-CLOSE.
+DELETE OBJECT helqh.
+DELETE OBJECT helbufh.
+DELETE OBJECT tempbufh.
+DELETE OBJECT tempqh. 
+

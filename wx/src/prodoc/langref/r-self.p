@@ -1,0 +1,37 @@
+/* r-self.p */
+
+DEFINE BUTTON b_quit LABEL "Quit"
+  TRIGGERS:
+    ON CHOOSE QUIT.
+  END.
+
+DEFINE VARIABLE x AS CHAR INIT "MOVE ME".
+
+DEFINE FRAME move
+  x NO-LABEL
+  WITH SIZE 80 BY 10 TITLE "Move/Resize Widget".
+
+ASSIGN x:MOVABLE = TRUE
+       x:SELECTABLE = TRUE.
+
+DEFINE FRAME butt-frame
+  b_quit
+  WITH CENTERED ROW SCREEN-LINES - 1.
+  
+ON END-MOVE OF x IN FRAME move
+  DISPLAY 
+    SELF:FRAME-ROW
+    SELF:FRAME-COL
+    WITH FRAME end-info CENTERED ROW 14 TITLE "End Position".
+     
+ON START-MOVE OF x IN FRAME move
+  DISPLAY 
+    SELF:FRAME-ROW
+    SELF:FRAME-COL 
+    WITH FRAME info CENTERED ROW 12 TITLE "Start Position".    
+  
+ENABLE b_quit WITH FRAME butt-frame.
+DISPLAY x WITH FRAME move.
+ENABLE x WITH FRAME move.
+
+WAIT-FOR CHOOSE OF b_quit IN FRAME butt-frame FOCUS x.

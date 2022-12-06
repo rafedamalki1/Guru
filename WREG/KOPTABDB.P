@@ -1,0 +1,275 @@
+/*
+     Filename: KOPTABDB.P
+      Created: 03.08.0021 09:46ELPAO     
+     Modified: 
+*/
+
+DEFINE TEMP-TABLE filetemp NO-UNDO
+   FIELD FILENAME    AS CHARACTER   FORMAT "x(32)"
+   FIELD FILENUMBER  AS INTEGER     FORMAT "->>>>9"
+   FIELD NUMKEY      AS INTEGER     FORMAT ">>9"
+   FIELD NUMKFLD     AS INTEGER     FORMAT ">>9"
+   FIELD NUMKCOMP    AS INTEGER     FORMAT ">>9"
+   FIELD NUMFLD      AS INTEGER     FORMAT ">>9"
+   FIELD LASTCHANGED AS INTEGER     FORMAT "->>>>>>>>>9"
+   INDEX NAMN  FILENAME.
+
+DEFINE TEMP-TABLE valfiletemp NO-UNDO LIKE filetemp.
+
+DEFINE INPUT PARAMETER frandbtemp AS CHARACTER NO-UNDO.     /*Namnet på från-databsen*/
+DEFINE INPUT PARAMETER tilldbtemp AS CHARACTER NO-UNDO.     /*Namnet på till-databsen*/
+DEFINE INPUT PARAMETER TABLE FOR valfiletemp.               /*Namnet på den tabell som ska kopieras*/
+DEFINE INPUT PARAMETER tilldbcon AS CHARACTER NO-UNDO.      /*Till-databasens anslutningssträng*/
+DEFINE INPUT PARAMETER frandbcon AS CHARACTER NO-UNDO.      /*Till-databasens anslutningssträng*/
+DEFINE INPUT PARAMETER taborttemp AS LOGICAL NO-UNDO.       /*TRUE ifall man vill ta bort tidigare data*/
+DEFINE OUTPUT PARAMETER felmed AS CHARACTER NO-UNDO.        /*Returnerat felmeddelande*/
+DEFINE OUTPUT PARAMETER fellog AS LOGICAL NO-UNDO.          /*TRUE om fel uppstått!*/
+DEFINE VARIABLE openkommando AS CHARACTER NO-UNDO.       
+DEFINE VARIABLE openkommando2 AS CHARACTER NO-UNDO.      
+DEFINE VARIABLE bufferkommando AS CHARACTER NO-UNDO.
+DEFINE VARIABLE bufferkommando2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE frandb AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tilldb AS CHARACTER NO-UNDO.
+DEFINE VARIABLE franqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE franbh AS HANDLE NO-UNDO.
+DEFINE VARIABLE tillbh AS HANDLE NO-UNDO.
+DEFINE VARIABLE tillqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE compsave AS LOGICAL NO-UNDO.
+DEFINE VARIABLE tabort AS LOGICAL NO-UNDO.
+
+ASSIGN
+fellog = FALSE
+frandb = ""
+tilldb = ""
+felmed = "".
+/*
+IF tilldbtemp NE "UTBI" THEN DO:
+   felmed = "Måste vara 'UTBI' för Mikael Erikkson.".
+   fellog = TRUE.
+   RETURN.
+END.               
+*/
+ASSIGN
+tabort = taborttemp
+frandb = frandbtemp
+tilldb = tilldbtemp.
+
+/* Ansluter till-databas */
+/* felmed = frandb + ":" + tilldb + ":" + tabell + ":" + tilldbcon + ":" + string(tabort).  */
+tilldbcon = tilldbcon + " -P " + QUOTER({setpwd.I}) +  " -U " + QUOTER({setuser.I}).
+CONNECT VALUE(tilldbcon) NO-ERROR.
+IF NOT CONNECTED(tilldb) THEN DO:
+   felmed = "Går ej att ansluta till databasen " + tilldb.
+   fellog = TRUE.
+   RETURN.
+END.
+IF NOT CONNECTED(frandb) THEN DO:
+   frandbcon = frandbcon + " -P " + QUOTER({setpwd.I}) +  " -U " + QUOTER({setuser.I}).
+   CONNECT VALUE(frandbcon) NO-ERROR.
+   IF NOT CONNECTED(frandb) THEN DO:
+      felmed = "Går ej att ansluta till databasen " + frandb.
+      fellog = TRUE.
+      RETURN.
+   END.
+END.
+CREATE ALIAS RT99 FOR DATABASE VALUE(tilldb) NO-ERROR.
+tilldb = "RT99".
+FOR EACH valfiletemp.
+   CREATE filetemp.
+   BUFFER-COPY valfiletemp TO filetemp.
+END.
+DEFINE QUERY tq FOR filetemp.
+
+felmed = "Från DB: " + frandb + CHR(10).
+felmed = felmed + "Till DB: " + tilldb + CHR(10).
+felmed = felmed + "Tar bort tidigare: ".
+IF tabort = TRUE THEN felmed = felmed + "JA" + CHR(10).
+ELSE felmed = felmed + "NEJ" + CHR(10).
+
+OPEN QUERY tq FOR EACH filetemp NO-LOCK.
+GET FIRST tq NO-LOCK.
+
+/************************************* Procedure **************************************/
+PROCEDURE koptabe_UI:
+   DEFINE OUTPUT PARAMETER tabellnamn AS CHARACTER NO-UNDO.
+   tabellnamn = "".
+   FIND FIRST valfiletemp NO-LOCK NO-ERROR.
+   IF AVAILABLE valfiletemp THEN DO:
+      FIND FIRST filetemp WHERE  filetemp.FILENAME = valfiletemp.FILENAME NO-LOCK NO-ERROR.
+      DELETE valfiletemp.
+   END.
+   IF NOT AVAILABLE filetemp THEN DO: 
+      /* Kopplar från till-databsen */
+      IF CONNECTED(tilldb) THEN DO:
+         DISCONNECT VALUE(tilldb) NO-ERROR.
+         DELETE ALIAS VALUE(tilldb).
+      END.
+      RETURN.
+   END.
+   tabellnamn = filetemp.FILENAME. 
+   /* Skapar query-strängar */
+   bufferkommando = frandb + "." + filetemp.FILENAME.
+   openkommando = "FOR EACH " + bufferkommando + " NO-LOCK.".
+   bufferkommando2 = tilldb + "." + filetemp.FILENAME.
+   openkommando2 = "FOR EACH " + bufferkommando2 + " NO-LOCK.".
+   
+   /* Skapar en buffer för till-tabellen och från-tabellen */
+   CREATE BUFFER franbh FOR TABLE bufferkommando.      
+   CREATE BUFFER tillbh FOR TABLE bufferkommando2.
+   CREATE QUERY franqh.
+   CREATE QUERY tillqh.
+   /* Tar bort tidigare poster från till-tabellen */
+   IF tabort = TRUE THEN DO:
+      tillqh:SET-BUFFERS(tillbh). /*Kopplar QUERY till BUFFER*/
+      tillqh:QUERY-PREPARE(openkommando2). /*Laddar 'prepare-string' */
+      tillqh:QUERY-OPEN(). /*Öppnar QUERY*/
+      tillqh:GET-FIRST(NO-LOCK).  /*Väljer första posten*/
+      DO WHILE tillqh:QUERY-OFF-END = FALSE: /*Kollar ifall det finns någon tillgänglig post*/
+         DO TRANSACTION:
+            tillqh:GET-CURRENT(EXCLUSIVE-LOCK). /*EXCLUSIVE-LOCK för senast vald post*/
+            tillbh:BUFFER-DELETE(). /*Tar bort post*/
+         END.
+         tillqh:GET-NEXT(NO-LOCK). /*Väljer nästa post*/
+      END.
+      tillqh:QUERY-CLOSE(). /*Stänger QUERY*/
+   END.
+   franqh:SET-BUFFERS(franbh).
+   franqh:QUERY-PREPARE(openkommando).
+   franqh:QUERY-OPEN().
+   /*
+   tillqh:SET-BUFFERS(tillbh).
+   tillqh:QUERY-PREPARE(openkommando2).
+   tillqh:QUERY-OPEN().
+   */
+   franqh:GET-FIRST(NO-LOCK).
+   DO WHILE franqh:QUERY-OFF-END = FALSE:
+      compsave = FALSE.
+      /*
+      tillqh:GET-FIRST(NO-LOCK).
+      compsave = FALSE.
+      DO WHILE tillqh:QUERY-OFF-END = FALSE:
+         compsave = tillbh:BUFFER-COMPARE(franbh) NO-ERROR.
+         IF compsave = TRUE THEN LEAVE.
+         tillqh:GET-NEXT(NO-LOCK).
+      END.
+      */
+      IF compsave = FALSE THEN DO:
+         DO TRANSACTION:
+            tillbh:BUFFER-CREATE().
+            tillbh:BUFFER-COPY(franbh).
+         END.
+      END.
+      franqh:GET-NEXT(NO-LOCK).
+   END.
+   franqh:QUERY-CLOSE().
+   DELETE OBJECT franqh.
+   DELETE OBJECT franbh.
+   DELETE OBJECT tillbh.
+   DELETE OBJECT tillqh.    
+   ASSIGN
+   franqh = ?
+   franbh = ?
+   tillbh = ?
+   tillqh = ?.       
+END PROCEDURE.
+
+PROCEDURE koptab_UI:
+   DEFINE OUTPUT PARAMETER tabellnamn AS CHARACTER NO-UNDO.
+   tabellnamn = "".
+   IF NOT AVAILABLE filetemp THEN DO: 
+      /* Kopplar från till-databsen */
+      IF CONNECTED(tilldb) THEN DO:
+         DISCONNECT VALUE(tilldb) NO-ERROR.
+         DELETE ALIAS VALUE(tilldb).
+      END.
+      RETURN.
+   END.
+   tabellnamn = filetemp.FILENAME. 
+   /* Skapar query-strängar */
+   bufferkommando = frandb + "." + filetemp.FILENAME.
+   openkommando = "FOR EACH " + bufferkommando + " NO-LOCK.".
+   bufferkommando2 = tilldb + "." + filetemp.FILENAME.
+   openkommando2 = "FOR EACH " + bufferkommando2 + " NO-LOCK.".
+   
+   /* Skapar en buffer för till-tabellen och från-tabellen */
+   CREATE BUFFER franbh FOR TABLE bufferkommando.      
+   CREATE BUFFER tillbh FOR TABLE bufferkommando2.
+   CREATE QUERY franqh.
+   CREATE QUERY tillqh.
+   /* Tar bort tidigare poster från till-tabellen */
+   IF tabort = TRUE THEN DO:
+      tillqh:SET-BUFFERS(tillbh). /*Kopplar QUERY till BUFFER*/
+      tillqh:QUERY-PREPARE(openkommando2). /*Laddar 'prepare-string' */
+      tillqh:QUERY-OPEN(). /*Öppnar QUERY*/
+      tillqh:GET-FIRST(NO-LOCK).  /*Väljer första posten*/
+      DO WHILE tillqh:QUERY-OFF-END = FALSE: /*Kollar ifall det finns någon tillgänglig post*/
+         DO TRANSACTION:
+            tillqh:GET-CURRENT(EXCLUSIVE-LOCK). /*EXCLUSIVE-LOCK för senast vald post*/
+            tillbh:BUFFER-DELETE(). /*Tar bort post*/
+         END.
+         tillqh:GET-NEXT(NO-LOCK). /*Väljer nästa post*/
+      END.
+      tillqh:QUERY-CLOSE(). /*Stänger QUERY*/
+   END.
+   franqh:SET-BUFFERS(franbh).
+   franqh:QUERY-PREPARE(openkommando).
+   franqh:QUERY-OPEN().
+   /*
+   tillqh:SET-BUFFERS(tillbh).
+   tillqh:QUERY-PREPARE(openkommando2).
+   tillqh:QUERY-OPEN().
+   */
+   franqh:GET-FIRST(NO-LOCK).
+   DO WHILE franqh:QUERY-OFF-END = FALSE:
+      compsave = FALSE.
+      /*
+      tillqh:GET-FIRST(NO-LOCK).
+      compsave = FALSE.
+      DO WHILE tillqh:QUERY-OFF-END = FALSE:
+         compsave = tillbh:BUFFER-COMPARE(franbh) NO-ERROR.
+         IF compsave = TRUE THEN LEAVE.
+         tillqh:GET-NEXT(NO-LOCK).
+      END.
+      */
+      IF compsave = FALSE THEN DO:
+         DO TRANSACTION:
+            tillbh:BUFFER-CREATE().
+            tillbh:BUFFER-COPY(franbh).
+         END.
+      END.
+      franqh:GET-NEXT(NO-LOCK).
+   END.
+   franqh:QUERY-CLOSE().
+   DELETE OBJECT franqh.
+   DELETE OBJECT franbh.
+   DELETE OBJECT tillbh.
+   DELETE OBJECT tillqh.    
+   ASSIGN
+   franqh = ?
+   franbh = ?
+   tillbh = ?
+   tillqh = ?.    
+   GET NEXT tq NO-LOCK.
+END PROCEDURE.
+
+
+/* PROCEDURE loopquery_UI.                                                   */
+/*    DEFINE OUTPUT PARAMETER tabellnamn AS CHARACTER NO-UNDO.               */
+/*    IF tilldb NE "utbi" THEN DO:                                           */
+/*       felmed = "Måste vara 'utbi' för Mikael Erikkson.".                  */
+/*       RETURN.                                                             */
+/*    END.                                                                   */
+/*                                                                           */
+/*    tabellnamn = "".                                                       */
+/*    ETIME(YES).                                                            */
+/*    DO WHILE ETIME < 300:                                                  */
+/*    END.                                                                   */
+/*    IF NOT AVAILABLE filetemp THEN RETURN.                                 */
+/*    IF filetemp.FILENAME = "AONRTAB" THEN DO:                              */
+/*       tabellnamn = " *** FEL: " + "Error Code(666):" + filetemp.FILENAME. */
+/*    END.                                                                   */
+/*    ELSE DO:                                                               */
+/*       tabellnamn = filetemp.FILENAME.                                     */
+/*    END.                                                                   */
+/*    GET NEXT tq NO-LOCK.                                                   */
+/* END PROCEDURE.                                                            */

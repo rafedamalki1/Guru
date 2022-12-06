@@ -1,0 +1,1184 @@
+/*BERINKOPAPP.P*/
+{STARTFORAPP.I}
+{BERMTRL.I}
+{SCHAKTADM.I}
+{BERLINKABTEMP.I}
+{KONVALTEMP.I}
+{BESTSTATTEMP.I}
+{BESTMTRL.I}
+{MTRLTEMP.I}
+
+DEFINE VARIABLE sumantal AS INTEGER NO-UNDO.
+DEFINE VARIABLE nextvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE datvar2 AS DATE NO-UNDO.
+DEFINE VARIABLE nastsistdat AS DATE NO-UNDO.
+DEFINE VARIABLE sistdat AS DATE NO-UNDO.
+
+DEFINE TEMP-TABLE prev_temp    
+    FIELD ENR AS CHARACTER
+    FIELD BENAMNING AS CHARACTER
+    FIELD ENHET AS CHARACTER
+    FIELD PRIS AS DECIMAL       
+    FIELD ANTAL AS INTEGER     
+    FIELD BESTANT AS INTEGER    
+    FIELD LEVKOD AS CHARACTER 
+    FIELD BERLEV AS CHARACTER        
+    FIELD DBEST AS CHARACTER
+    FIELD DATUM AS DATE    
+    INDEX DATUM DATUM ASCENDING   
+    INDEX LEV ENR LEVKOD ASCENDING
+    INDEX ENR IS PRIMARY ENR ASCENDING. 
+ 
+DEFINE TEMP-TABLE next_temp    
+    FIELD ENR AS CHARACTER
+    FIELD BENAMNING AS CHARACTER
+    FIELD ENHET AS CHARACTER
+    FIELD PRIS AS DECIMAL       
+    FIELD ANTAL AS INTEGER     
+    FIELD BESTANT AS INTEGER    
+    FIELD LEVKOD AS CHARACTER 
+    FIELD BERLEV AS CHARACTER        
+    FIELD DBEST AS CHARACTER
+    FIELD DATUM AS DATE    
+    INDEX DATUM DATUM ASCENDING  
+    INDEX LEV ENR LEVKOD ASCENDING
+    INDEX ENR IS PRIMARY ENR ASCENDING.            
+    
+DEFINE TEMP-TABLE mtrl_temp    
+    FIELD ENR AS CHARACTER
+    FIELD BENAMNING AS CHARACTER
+    FIELD ENHET AS CHARACTER
+    FIELD PRIS AS DECIMAL       
+    FIELD ANTAL AS INTEGER     
+    FIELD BESTANT AS INTEGER    
+    FIELD LEVKOD AS CHARACTER 
+    FIELD BERLEV AS CHARACTER
+    FIELD DATUM AS DATE    
+    INDEX ENR IS PRIMARY ENR ASCENDING.
+    
+DEFINE TEMP-TABLE lin_temp    
+    FIELD ENR AS CHARACTER
+    FIELD BENAMNING AS CHARACTER
+    FIELD ENHET AS CHARACTER
+    FIELD PRIS AS INTEGER      
+    FIELD METER AS INTEGER
+    FIELD TOTMETER AS INTEGER
+    FIELD LEDARE AS INTEGER
+    FIELD UPPLAG AS INTEGER             
+    FIELD LEVKOD AS CHARACTER 
+    FIELD DATUM AS DATE
+    INDEX ENR IS PRIMARY ENR ASCENDING.        
+    
+DEFINE TEMP-TABLE lin_next    
+    FIELD ENR AS CHARACTER
+    FIELD BENAMNING AS CHARACTER
+    FIELD ENHET AS CHARACTER
+    FIELD PRIS AS DECIMAL       
+    FIELD ANTAL AS INTEGER     
+    FIELD BESTANT AS INTEGER    
+    FIELD LEVKOD AS CHARACTER 
+    FIELD BERLEV AS CHARACTER        
+    FIELD DBEST AS CHARACTER
+    FIELD DATUM AS DATE    
+    INDEX DATUM DATUM ASCENDING  
+    INDEX LEV ENR LEVKOD ASCENDING
+    INDEX ENR IS PRIMARY ENR ASCENDING.            
+    
+DEFINE TEMP-TABLE lin_prev    
+    FIELD ENR AS CHARACTER
+    FIELD BENAMNING AS CHARACTER
+    FIELD ENHET AS CHARACTER
+    FIELD PRIS AS DECIMAL       
+    FIELD ANTAL AS INTEGER     
+    FIELD BESTANT AS INTEGER    
+    FIELD LEVKOD AS CHARACTER 
+    FIELD BERLEV AS CHARACTER        
+    FIELD DBEST AS CHARACTER
+    FIELD DATUM AS DATE    
+    INDEX DATUM DATUM ASCENDING  
+    INDEX LEV ENR LEVKOD ASCENDING
+    INDEX ENR IS PRIMARY ENR ASCENDING. 
+
+DEFINE TEMP-TABLE depa_mtrl    
+    FIELD ENR AS CHARACTER
+    FIELD ANTAL AS INTEGER
+    INDEX ENR IS PRIMARY ENR ASCENDING.
+
+DEFINE BUFFER linbuff FOR lin_temp.
+DEFINE BUFFER ebestbuff FOR ebest_mtrl.
+{DATTABBER.I}
+
+DEFINE BUFFER levtbuff FOR LEVTRP.
+
+PROCEDURE status_UI :
+   DEFINE INPUT PARAMETER aonrv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omradevar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR bestatlevtemp.
+   EMPTY TEMP-TABLE bestatlevtemp NO-ERROR. 
+   FOR EACH BESTSTAT WHERE BESTSTAT.BERNR = INTEGER(aonrv) AND BESTSTAT.OMRADE = omradevar NO-LOCK,
+   EACH LEVERANTOR WHERE LEVERANTOR.LEVKOD = BESTSTAT.LEVKOD NO-LOCK.
+       CREATE bestatlevtemp.
+       BUFFER-COPY BESTSTAT TO bestatlevtemp.
+       BUFFER-COPY LEVERANTOR TO bestatlevtemp.    
+    END.
+    FOR EACH bestatlevtemp:
+       FIND FIRST LEVTRP WHERE LEVTRP.BERNR = INTEGER(aonrv) AND LEVTRP.OMRADE = omradevar AND LEVTRP.BESTNR = bestatlevtemp.BESTNR
+       NO-LOCK NO-ERROR.
+       IF AVAILABLE LEVTRP THEN bestatlevtemp.LEVNAMN = LEVTRP.BERBESTNR  + "    " +  bestatlevtemp.LEVNAMN.
+    END.
+END PROCEDURE.
+PROCEDURE datlev_UI :
+   DEFINE INPUT PARAMETER aonrv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omradevar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR dat_tab.
+   DEFINE VARIABLE bernrvar AS INTEGER NO-UNDO.
+   DEFINE VARIABLE nyttnr AS INTEGER NO-UNDO.
+   DEFINE VARIABLE lrow AS ROWID NO-UNDO.
+   FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = aonrv AND BEREDNING.OMRADE = omradevar
+   NO-LOCK NO-ERROR.
+   bernrvar = BEREDNING.BERNR.
+   nyttnr = 1.
+   FIND FIRST LEVTRP WHERE LEVTRP.BERNR = bernrvar AND
+   LEVTRP.OMRADE = omradevar AND SUBSTRING(LEVTRP.LEVERANS,1,5) = "DATUM" NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE LEVTRP THEN DO:
+      RETURN.
+   END.
+   FOR EACH dat_tab:
+      FIND FIRST LEVTRP WHERE LEVTRP.BERNR = bernrvar AND
+      LEVTRP.OMRADE = omradevar AND SUBSTRING(LEVTRP.LEVERANS,1,5) = "DATUM" EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE LEVTRP THEN DO:
+         lrow = ROWID(LEVTRP).
+         ASSIGN
+         LEVTRP.BESTNR = nyttnr
+         LEVTRP.LEVERANS = "".
+         ASSIGN
+         SUBSTRING(LEVTRP.LEVERANS,1,15) = STRING(INTEGER(dat_tab.DATUM))
+         SUBSTRING(LEVTRP.LEVERANS,20,15) = STRING(dat_tab.DELNR).
+      END.
+      ELSE DO:
+         FIND FIRST LEVTRP WHERE ROWID(LEVTRP) = lrow NO-LOCK NO-ERROR.
+         nyttnr = nyttnr + 1. 
+         CREATE levtbuff.
+         BUFFER-COPY LEVTRP TO levtbuff.
+         ASSIGN
+         levtbuff.BESTNR = nyttnr
+         levtbuff.LEVERANS = "".
+         ASSIGN 
+         SUBSTRING(levtbuff.LEVERANS,1,15) = STRING(INTEGER(dat_tab.DATUM))
+         SUBSTRING(levtbuff.LEVERANS,20,15) = STRING(dat_tab.DELNR).
+      END.
+   END.
+END PROCEDURE.
+
+
+PROCEDURE laddatemptab_UI:
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.            
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.          
+   DEFINE OUTPUT PARAMETER kalkrow AS ROWID NO-UNDO.               
+   DEFINE OUTPUT PARAMETER TABLE FOR bermtrltemp.                  
+   DEFINE OUTPUT PARAMETER TABLE FOR kskyddtemp.                   
+   DEFINE OUTPUT PARAMETER TABLE FOR berlinkabtemp.                
+   EMPTY TEMP-TABLE bermtrltemp NO-ERROR. 
+   EMPTY TEMP-TABLE kskyddtemp NO-ERROR. 
+   EMPTY TEMP-TABLE berlinkabtemp NO-ERROR. 
+   OPEN QUERY bq FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr AND 
+   BERMTRL.OMRADE = valomrade NO-LOCK.
+   GET FIRST bq NO-LOCK.
+   DO WHILE AVAILABLE(BERMTRL):
+      CREATE bermtrltemp.
+      BUFFER-COPY BERMTRL TO bermtrltemp.
+      GET NEXT bq NO-LOCK.
+   END.
+   CLOSE QUERY bq.
+   OPEN QUERY skyddq FOR EACH KSKYDD WHERE KSKYDD.AONR = valaonr AND 
+   KSKYDD.OMRADE = valomrade AND KSKYDD.BERED = TRUE NO-LOCK.
+   GET FIRST skyddq NO-LOCK.
+   DO WHILE AVAILABLE(KSKYDD):
+      CREATE kskyddtemp.
+      BUFFER-COPY KSKYDD TO kskyddtemp.
+      ASSIGN kskyddtemp.KSKYDDROW = ROWID(KSKYDD).
+      GET NEXT skyddq NO-LOCK.
+   END.
+   CLOSE QUERY skyddq.
+    OPEN QUERY nylinq FOR EACH BERLINKAB WHERE BERLINKAB.AONR = valaonr AND 
+    BERLINKAB.OMRADE = valomrade AND BERLINKAB.KORTKOD = ? USE-INDEX INKOP NO-LOCK.
+    GET FIRST nylinq NO-LOCK.
+    DO WHILE AVAILABLE(BERLINKAB):
+       CREATE berlinkabtemp.
+       BUFFER-COPY BERLINKAB TO berlinkabtemp.
+       GET NEXT nylinq NO-LOCK.
+    END.
+    CLOSE QUERY nylinq.
+
+   FIND FIRST BEREDNING WHERE BEREDNING.BERNR = INTEGER(valaonr) AND 
+   BEREDNING.OMRADE = valomrade NO-LOCK NO-ERROR.
+   IF AVAILABLE BEREDNING THEN DO:
+      kalkrow = ROWID(BEREDNING).
+   END.
+
+END PROCEDURE.
+
+PROCEDURE delete_UI:
+   DEFINE INPUT PARAMETER kalkrow AS ROWID NO-UNDO.
+   DEFINE INPUT PARAMETER datevar AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER klockansek AS INTEGER NO-UNDO.
+   FIND FIRST BEREDNING WHERE ROWID(BEREDNING) = kalkrow NO-LOCK NO-ERROR.
+   IF AVAILABLE BEREDNING THEN DO TRANSACTION:
+       /* fler best per dag          */
+      OPEN QUERY lq FOR EACH LEVTRP WHERE LEVTRP.OMRADE = BEREDNING.OMRADE AND
+      LEVTRP.BERNR = BEREDNING.BERNR NO-LOCK.
+      GET FIRST lq NO-LOCK.
+      DO WHILE AVAILABLE(LEVTRP):           
+         IF TRIM(SUBSTRING(LEVTRP.LEVERANS,1,15)) = STRING(INTEGER(datevar)) AND 
+            TRIM(SUBSTRING(LEVTRP.LEVERANS,20,15)) = STRING(klockansek)
+         THEN DO:
+            FOR EACH LEVTRP2 WHERE LEVTRP2.OMRADE = BEREDNING.OMRADE AND
+            LEVTRP2.BERNR = BEREDNING.BERNR AND LEVTRP2.DATUM = datevar AND LEVTRP2.BESTNR = LEVTRP.BESTNR 
+            USE-INDEX BERED EXCLUSIVE-LOCK.
+               DELETE LEVTRP2.              
+            END.            
+            GET CURRENT lq EXCLUSIVE-LOCK.
+            DELETE LEVTRP.
+         END.  
+         GET NEXT lq NO-LOCK.
+      END.          
+   END.  
+END PROCEDURE.
+
+
+PROCEDURE rensa_UI:
+   DEFINE VARIABLE aovar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delbest AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR dat_tab.
+   DEFINE OUTPUT PARAMETER felbest AS LOGICAL NO-UNDO.
+   felbest = FALSE.
+   IF delbest = FALSE THEN DO:
+      IF globforetag = "UMEA" THEN DO:
+         FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = valaonr AND BEREDNING.OMRADE = valomrade
+         NO-LOCK NO-ERROR.      
+         aovar = BEREDNING.AONR.
+         FOR EACH BEREDNING WHERE BEREDNING.AONR = aovar NO-LOCK:            
+            OPEN QUERY mtrlq FOR EACH BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+            BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = TRUE 
+            AND BERMTRL.KLAR = FALSE USE-INDEX INKOP NO-LOCK. 
+            GET FIRST mtrlq NO-LOCK.
+            DO WHILE AVAILABLE(BERMTRL):               
+               GET CURRENT mtrlq EXCLUSIVE-LOCK.
+               DELETE BERMTRL.                      
+               GET NEXT mtrlq NO-LOCK.
+            END. 
+            CLOSE QUERY mtrlq.              
+         END.
+      END.
+      ELSE DO:               
+         OPEN QUERY mtrlq FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr AND 
+         BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = TRUE 
+         AND BERMTRL.KLAR = FALSE USE-INDEX INKOP NO-LOCK. 
+         GET FIRST mtrlq NO-LOCK.
+         DO WHILE AVAILABLE(BERMTRL):
+            GET CURRENT mtrlq EXCLUSIVE-LOCK.
+            DELETE BERMTRL.       
+            GET NEXT mtrlq NO-LOCK.
+         END. 
+         CLOSE QUERY mtrlq.           
+      END.   
+   END.
+   ELSE DO:
+      ASSIGN
+      sistdat = ?
+      nastsistdat = ?.
+      FIND LAST dat_tab NO-LOCK NO-ERROR.
+      IF AVAILABLE dat_tab THEN DO:
+         sistdat = dat_tab.DATUM.
+      END.
+      FIND PREV dat_tab NO-LOCK NO-ERROR.
+      IF AVAILABLE dat_tab THEN DO:
+         nastsistdat = dat_tab.DATUM.
+      END.
+      FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = valaonr AND BEREDNING.OMRADE = valomrade
+      NO-LOCK NO-ERROR.      
+      aovar = BEREDNING.AONR.
+      IF globforetag = "UMEA" THEN DO:      
+         FOR EACH BEREDNING WHERE BEREDNING.AONR = aovar NO-LOCK:
+            RUN rensakoll_UI (OUTPUT felbest).
+            IF felbest = TRUE THEN RETURN.
+            RUN rensanu_UI.       
+         END.
+      END.
+      ELSE DO:
+         RUN rensakoll_UI (OUTPUT felbest).
+         IF felbest = TRUE THEN RETURN.
+         RUN rensanu_UI.               
+      END.
+   END.
+
+END PROCEDURE.
+
+PROCEDURE rensakoll_UI :
+   DEFINE OUTPUT PARAMETER felbest AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE hjdat AS DATE NO-UNDO.
+   DEFINE VARIABLE rensaok AS LOGICAL NO-UNDO.
+   FOR EACH BERVAL WHERE BERVAL.AONR = BEREDNING.BERAONR AND BERVAL.OMRADE = BEREDNING.OMRADE AND
+   BERVAL.ORT NE "" AND BERVAL.DELNR = 0 NO-LOCK:
+      hjdat = DATE(INTEGER(SUBSTRING(BERVAL.ORT,4,2)),INTEGER(SUBSTRING(BERVAL.ORT,7,2)),INTEGER("20" + SUBSTRING(BERVAL.ORT,1,2))).
+      rensaok = FALSE.
+      IF nastsistdat = ? THEN rensaok = TRUE.          /*det finns bra en post*/
+      ELSE IF hjdat < nastsistdat THEN rensaok = FALSE. /*det är en äldre post*/
+      ELSE IF hjdat > nastsistdat THEN rensaok = TRUE.  /*det är en post skapad efter förra beställningen*/
+      ELSE IF hjdat = nastsistdat THEN DO: 
+         IF hjdat = sistdat THEN rensaok = TRUE. /*det är en post skapad som tillhör förra beställningen men samma dag som sista*/
+         ELSE  rensaok = FALSE.   /*det är en post skapad som tillhör förra beställningen*/
+      END.
+      IF rensaok = TRUE THEN DO:
+         IF nastsistdat = sistdat THEN DO:
+            felbest = TRUE.
+            RETURN.            
+         END.
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE rensanu_UI :
+   DEFINE VARIABLE hjdat AS DATE NO-UNDO.
+   DEFINE VARIABLE rensaok AS LOGICAL NO-UNDO.
+   FOR EACH BERVAL WHERE BERVAL.AONR = BEREDNING.BERAONR AND BERVAL.OMRADE = BEREDNING.OMRADE AND
+   BERVAL.ORT NE "" EXCLUSIVE-LOCK:
+      hjdat = DATE(INTEGER(SUBSTRING(BERVAL.ORT,4,2)),INTEGER(SUBSTRING(BERVAL.ORT,7,2)),INTEGER("20" + SUBSTRING(BERVAL.ORT,1,2))).
+      IF hjdat = ? THEN.
+      ELSE DO:
+         rensaok = FALSE.
+         IF nastsistdat = ? THEN rensaok = TRUE.          /*det finns bra en post*/
+         ELSE IF hjdat < nastsistdat THEN rensaok = FALSE. /*det är en äldre post*/
+         ELSE IF hjdat > nastsistdat THEN rensaok = TRUE.  /*det är en post skapad efter förra beställningen*/
+         ELSE IF hjdat = nastsistdat THEN DO: 
+            IF hjdat = sistdat THEN rensaok = TRUE. /*det är en post skapad som tillhör förra beställningen men samma dag som sista*/
+            ELSE  rensaok = FALSE.   /*det är en post skapad som tillhör förra beställningen*/
+         END.
+         IF rensaok = TRUE THEN DO:
+            FIND FIRST BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+            BERMTRL.OMRADE = BERVAL.OMRADE AND BERMTRL.INKOP = TRUE AND BERMTRL.KLAR = TRUE AND
+            BERMTRL.DATUM = hjdat AND
+            BERMTRL.DELNR = BERVAL.DELNR 
+            NO-LOCK NO-ERROR. 
+            IF NOT AVAILABLE BERMTRL THEN DO:
+               FIND FIRST BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+               BERMTRL.OMRADE = BERVAL.OMRADE AND BERMTRL.INKOP = TRUE AND BERMTRL.KLAR = FALSE AND
+               BERMTRL.DATUM = hjdat AND
+               BERMTRL.DELNR = BERVAL.DELNR 
+               NO-LOCK NO-ERROR.
+               IF AVAILABLE BERMTRL THEN DO:
+                  FOR EACH BERUPP WHERE BERUPP.AONR = BEREDNING.BERAONR AND BERUPP.OMRADE = BEREDNING.OMRADE AND 
+                  BERUPP.ANTALRADER = INTEGER(BERMTRL.DATUM) AND BERUPP.DELNR = BERVAL.DELNR EXCLUSIVE-LOCK:            
+                    /* fler best per dag*/
+                     ASSIGN
+                     BERUPP.DELNR = 0
+                     BERUPP.ANTALRADER = 0.
+                  END.
+               END.
+               ASSIGN
+               BERVAL.DELNR = 0              
+               BERVAL.ORT = "".
+            END.
+         END.
+      END.
+   END.
+   OPEN QUERY mtrlq FOR EACH BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+   BERMTRL.OMRADE = BEREDNING.OMRADE AND BERMTRL.INKOP = TRUE 
+   AND BERMTRL.KLAR = FALSE USE-INDEX INKOP NO-LOCK. 
+   GET FIRST mtrlq NO-LOCK.
+   DO WHILE AVAILABLE(BERMTRL):
+      GET CURRENT mtrlq EXCLUSIVE-LOCK.
+      DELETE BERMTRL.       
+      GET NEXT mtrlq NO-LOCK.
+   END. 
+   CLOSE QUERY mtrlq.  
+END PROCEDURE.
+PROCEDURE kolldel_UI:
+   DEFINE VARIABLE aovar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER delbest AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER globforetag AS CHARACTER NO-UNDO.
+
+   FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = valaonr AND BEREDNING.OMRADE = valomrade
+   NO-LOCK NO-ERROR.
+   ASSIGN
+   delbest = FALSE
+   aovar = BEREDNING.AONR.
+   IF globforetag = "UMEA" THEN DO:   
+      FOR EACH BEREDNING WHERE BEREDNING.AONR = aovar NO-LOCK:
+         FIND FIRST BERVAL WHERE BERVAL.AONR = BEREDNING.BERAONR AND BERVAL.OMRADE = BEREDNING.OMRADE AND
+         BERVAL.ORT NE "" NO-LOCK NO-ERROR.   
+         IF AVAILABLE BERVAL THEN DO:
+            delbest = TRUE.
+            LEAVE.
+         END.
+         ELSE DO:
+            FIND FIRST BERUPP WHERE BERUPP.AONR = BEREDNING.BERAONR AND BERUPP.OMRADE = BEREDNING.OMRADE AND
+            BERUPP.ANTALRADER > 100 NO-LOCK NO-ERROR.
+            IF AVAILABLE BERUPP THEN DO:            
+               delbest = TRUE.
+               LEAVE.
+            END.
+         END.
+      END.
+   END.
+   ELSE DO:
+      FIND FIRST BERVAL WHERE BERVAL.AONR = BEREDNING.BERAONR AND BERVAL.OMRADE = BEREDNING.OMRADE AND
+      BERVAL.ORT NE "" NO-LOCK NO-ERROR.
+      IF AVAILABLE BERVAL THEN DO:
+         delbest = TRUE.
+         LEAVE.
+      END.
+      ELSE DO:
+         FIND FIRST BERUPP WHERE BERUPP.AONR = BEREDNING.BERAONR AND BERUPP.OMRADE = BEREDNING.OMRADE AND
+         BERUPP.ANTALRADER > 100 NO-LOCK NO-ERROR.
+         IF AVAILABLE BERUPP THEN DO:            
+            delbest = TRUE.
+            LEAVE.
+         END.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE kolldel2_UI:
+   DEFINE VARIABLE aovar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER delmer AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER globforetag AS CHARACTER NO-UNDO. 
+
+   FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = valaonr AND BEREDNING.OMRADE = valomrade
+   NO-LOCK NO-ERROR.
+   ASSIGN
+   delmer = FALSE
+   aovar = BEREDNING.AONR.
+   IF globforetag = "UMEA" THEN DO:   
+      FOR EACH BEREDNING WHERE BEREDNING.AONR = aovar NO-LOCK:
+         FIND FIRST BERVAL WHERE BERVAL.AONR = BEREDNING.BERAONR AND BERVAL.OMRADE = BEREDNING.OMRADE AND
+         BERVAL.ORT = "" AND BERVAL.KSKAP = FALSE NO-LOCK NO-ERROR.
+         IF AVAILABLE BERVAL THEN DO:
+            delmer = TRUE.
+            LEAVE.
+         END.
+      END.
+   END.
+   ELSE DO:
+      FIND FIRST BERVAL WHERE BERVAL.AONR = BEREDNING.BERAONR AND BERVAL.OMRADE = BEREDNING.OMRADE AND
+      BERVAL.ORT = "" AND BERVAL.KSKAP = FALSE NO-LOCK NO-ERROR.
+      IF AVAILABLE BERVAL THEN DO:
+         delmer = TRUE.
+         LEAVE.
+       END.
+   END.
+END PROCEDURE.
+
+PROCEDURE kolldel3_UI:             
+   DEFINE VARIABLE aovar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE ordning AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER datvar AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR kon_val.
+   DEFINE INPUT PARAMETER globforetag AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE kon_val NO-ERROR.   
+
+   FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = valaonr AND BEREDNING.OMRADE = valomrade
+   NO-LOCK NO-ERROR.
+   ASSIGN   
+   aovar = BEREDNING.AONR
+   ordning = 0.   
+   IF globforetag = "UMEA" THEN DO:   
+      FOR EACH BEREDNING WHERE BEREDNING.AONR = aovar NO-LOCK:
+         FOR EACH BERVAL WHERE BERVAL.AONR = BEREDNING.BERAONR AND BERVAL.OMRADE = BEREDNING.OMRADE AND
+         BERVAL.ORT = STRING(datvar) NO-LOCK:
+            FIND FIRST BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+            BERMTRL.OMRADE = BERVAL.OMRADE AND BERMTRL.INKOP = TRUE AND BERMTRL.KLAR = TRUE AND
+            BERMTRL.DATUM = datvar AND
+            BERMTRL.DELNR = BERVAL.DELNR 
+            NO-LOCK NO-ERROR. 
+            IF NOT AVAILABLE BERMTRL THEN DO:
+               CREATE kon_val.
+               ASSIGN           
+               kon_val.BERAONR = BERVAL.AONR
+               kon_val.OMRADE = BERVAL.OMRADE
+               kon_val.GRUPP = BERVAL.KONSKOD 
+               kon_val.F1 = BERVAL.KTYPKOD      
+               kon_val.NUM = BERVAL.NUM
+               kon_val.ORD = ordning + 1
+               /* fler best per dag*/
+               SUBSTRING(kon_val.ANMARK,1,15) = STRING(datvar)
+               SUBSTRING(kon_val.ANMARK,20,15) = STRING(BERVAL.DELNR).
+            END.
+         END.
+      END.
+      FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = valaonr AND BEREDNING.OMRADE = valomrade
+      NO-LOCK NO-ERROR.
+      FOR EACH BERUPP WHERE BERUPP.AONR = BEREDNING.BERAONR AND BERUPP.OMRADE = BEREDNING.OMRADE AND
+      BERUPP.ANTALRADER = INTEGER(datvar) NO-LOCK:
+         FIND FIRST BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+         BERMTRL.OMRADE = BERUPP.OMRADE AND BERMTRL.INKOP = TRUE AND BERMTRL.KLAR = TRUE AND
+         BERMTRL.DATUM = datvar AND
+         BERMTRL.DELNR = BERUPP.DELNR 
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE BERMTRL THEN DO:
+            CREATE kon_val.
+            ASSIGN 
+            kon_val.BERAONR = BERUPP.AONR
+            kon_val.OMRADE = BERUPP.OMRADE
+            kon_val.NUM = 10000 + BERUPP.UPPLAG
+            kon_val.GRUPP = 1000 
+            kon_val.F1 = "LIN/KAB"
+            kon_val.F2 = STRING(BERUPP.UPPLAG)
+            kon_val.EXTRA = "UPPLAG:" + STRING(BERUPP.UPPLAG)
+            kon_val.ORD = ordning + 1
+            /* fler best per dag*/
+            SUBSTRING(kon_val.ANMARK,1,15) = STRING(datvar)
+            SUBSTRING(kon_val.ANMARK,20,15) = STRING(BERUPP.DELNR).
+         END.
+      END.
+   END.
+   ELSE DO:
+      FOR EACH BERVAL WHERE BERVAL.AONR = BEREDNING.BERAONR AND BERVAL.OMRADE = BEREDNING.OMRADE AND
+      BERVAL.ORT = STRING(datvar) NO-LOCK:
+         FIND FIRST BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+         BERMTRL.OMRADE = BERVAL.OMRADE AND BERMTRL.INKOP = TRUE AND BERMTRL.KLAR = TRUE AND
+         BERMTRL.DATUM = datvar AND
+         BERMTRL.DELNR = BERVAL.DELNR 
+         NO-LOCK NO-ERROR. 
+         IF NOT AVAILABLE BERMTRL THEN DO:
+            CREATE kon_val.
+            ASSIGN 
+            kon_val.BERAONR = BERVAL.AONR
+            kon_val.OMRADE = BERVAL.OMRADE
+            kon_val.GRUPP = BERVAL.KONSKOD 
+            kon_val.F1 = BERVAL.KTYPKOD      
+            kon_val.NUM = BERVAL.NUM
+            kon_val.ORD = ordning + 1
+            /* fler best per dag*/
+            SUBSTRING(kon_val.ANMARK,1,15) = STRING(datvar)
+            SUBSTRING(kon_val.ANMARK,20,15) = STRING(BERVAL.DELNR).
+         END.         
+      END.
+      FOR EACH BERUPP WHERE BERUPP.AONR = BEREDNING.BERAONR AND BERUPP.OMRADE = BEREDNING.OMRADE AND
+      BERUPP.ANTALRADER = INTEGER(datvar) AND BERUPP.DELNR = BERUPP.DELNR            
+      NO-LOCK:
+         FIND FIRST BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+         BERMTRL.OMRADE = BERUPP.OMRADE AND BERMTRL.INKOP = TRUE AND BERMTRL.KLAR = TRUE AND
+         BERMTRL.DATUM = datvar AND
+         BERMTRL.DELNR = BERUPP.DELNR 
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE BERMTRL THEN DO:
+            CREATE kon_val.
+            ASSIGN 
+            kon_val.BERAONR = BERUPP.AONR
+            kon_val.OMRADE = BERUPP.OMRADE
+            kon_val.NUM = 10000 + BERUPP.UPPLAG
+            kon_val.GRUPP = 1000 
+            kon_val.F1 = "LIN/KAB"
+            kon_val.F2 = STRING(BERUPP.UPPLAG)
+            kon_val.EXTRA = "UPPLAG:" + STRING(BERUPP.UPPLAG)
+            kon_val.ORD = ordning + 1
+            /* fler best per dag*/
+            SUBSTRING(kon_val.ANMARK,1,15) = STRING(datvar)
+            SUBSTRING(kon_val.ANMARK,20,15) = STRING(BERUPP.DELNR).
+         END.
+      END.
+   END.     
+END PROCEDURE.
+
+PROCEDURE kolldel4_UI:             
+   DEFINE VARIABLE aovar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE ordning AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER datvar AS DATE NO-UNDO.   
+   DEFINE INPUT PARAMETER klockvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR kon_val.
+   DEFINE INPUT PARAMETER globforetag AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE kon_val NO-ERROR.   
+   /* Hämta kon_val för redan gjord delbeställning*/
+   FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = valaonr AND BEREDNING.OMRADE = valomrade
+   NO-LOCK NO-ERROR.
+   ASSIGN   
+   aovar = BEREDNING.AONR
+   ordning = 0.   
+   
+   FOR EACH BERVAL WHERE BERVAL.AONR = BEREDNING.BERAONR AND BERVAL.OMRADE = BEREDNING.OMRADE AND
+   BERVAL.ORT = STRING(datvar) AND BERVAL.DELNR = klockvar NO-LOCK:
+      FIND FIRST BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+      BERMTRL.OMRADE = BERVAL.OMRADE AND BERMTRL.INKOP = TRUE AND BERMTRL.KLAR = TRUE AND
+      BERMTRL.DATUM = datvar AND
+      BERMTRL.DELNR = BERVAL.DELNR 
+      NO-LOCK NO-ERROR. 
+      IF AVAILABLE BERMTRL THEN DO:
+         CREATE kon_val.
+         ASSIGN 
+         kon_val.BERAONR = BERVAL.AONR
+         kon_val.OMRADE = BERVAL.OMRADE
+         kon_val.GRUPP = BERVAL.KONSKOD 
+         kon_val.F1 = BERVAL.KTYPKOD      
+         kon_val.NUM = BERVAL.NUM
+         kon_val.ORD = ordning + 1
+         /* fler best per dag*/
+         SUBSTRING(kon_val.ANMARK,1,15) = STRING(datvar)
+         SUBSTRING(kon_val.ANMARK,20,15) = STRING(BERVAL.DELNR).
+      END.         
+   END.
+   FOR EACH BERUPP WHERE BERUPP.AONR = BEREDNING.BERAONR AND BERUPP.OMRADE = BEREDNING.OMRADE AND
+   BERUPP.ANTALRADER = INTEGER(datvar) AND BERUPP.DELNR = BERUPP.DELNR            
+   NO-LOCK:
+      FIND FIRST BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+      BERMTRL.OMRADE = BERUPP.OMRADE AND BERMTRL.INKOP = TRUE AND BERMTRL.KLAR = TRUE AND
+      BERMTRL.DATUM = datvar AND
+      BERMTRL.DELNR = BERUPP.DELNR 
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE BERMTRL THEN DO:
+         CREATE kon_val.
+         ASSIGN 
+         kon_val.BERAONR = BERUPP.AONR
+         kon_val.OMRADE = BERUPP.OMRADE
+         kon_val.NUM = 10000 + BERUPP.UPPLAG
+         kon_val.GRUPP = 1000 
+         kon_val.F1 = "LIN/KAB"
+         kon_val.F2 = STRING(BERUPP.UPPLAG)
+         kon_val.EXTRA = "UPPLAG:" + STRING(BERUPP.UPPLAG)
+         kon_val.ORD = ordning + 1
+         /* fler best per dag*/
+         SUBSTRING(kon_val.ANMARK,1,15) = STRING(datvar)
+         SUBSTRING(kon_val.ANMARK,20,15) = STRING(BERUPP.DELNR).
+      END.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE gammalume_UI:
+   DEFINE VARIABLE aovar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE extra AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER datvar AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER globforetag AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR ebest_mtrl.
+                            
+   DEFINE VARIABLE musz2 AS LOGICAL NO-UNDO.
+   
+   
+   FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = valaonr AND BEREDNING.OMRADE = valomrade
+   NO-LOCK NO-ERROR.
+   ASSIGN   
+   aovar = BEREDNING.AONR
+   extra = FALSE.   
+   IF globforetag = "UMEA" THEN DO:
+      FOR EACH BEREDNING WHERE BEREDNING.AONR = aovar NO-LOCK:      
+         RUN gammalume2_UI(INPUT valaonr,INPUT valomrade, INPUT datvar, INPUT globforetag).
+      END.
+   END.
+   ELSE DO:
+      RUN gammalume2_UI(INPUT valaonr,INPUT valomrade, INPUT datvar, INPUT globforetag).
+   END.              
+   
+   FIND LAST best_mtrl USE-INDEX DATUM NO-LOCK NO-ERROR.
+   IF AVAILABLE best_mtrl THEN DO:
+      datvar2 = best_mtrl.DATUM.
+      FOR EACH best_mtrl BREAK BY best_mtrl.LEVKOD BY best_mtrl.ENR BY best_mtrl.DBEST:                
+         ACCUMULATE best_mtrl.ANTAL (TOTAL BY best_mtrl.LEVKOD BY best_mtrl.ENR BY best_mtrl.DBEST).       
+         IF LAST-OF(best_mtrl.DBEST) THEN DO:
+            CREATE ebest_mtrl.
+            ASSIGN 
+            ebest_mtrl.ENR = best_mtrl.ENR
+            ebest_mtrl.BENAMNING = best_mtrl.BENAMNING 
+            ebest_mtrl.ENHET = best_mtrl.ENHET 
+            ebest_mtrl.LEVKOD = best_mtrl.LEVKOD
+            ebest_mtrl.PRIS = best_mtrl.PRIS
+            ebest_mtrl.OPRIS = best_mtrl.PRIS
+            ebest_mtrl.DATUM = datvar2
+            ebest_mtrl.DBEST = best_mtrl.DBEST
+            ebest_mtrl.ANTAL = (ACCUM TOTAL BY best_mtrl.DBEST best_mtrl.ANTAL).            
+         END.     
+      END.
+   END.
+   
+  /*enligt ture östberg på umeå energi skall det aldrig bli frågan om några returer.*/
+   FOR EACH ebest_mtrl WHERE ebest_mtrl.DBEST = "RETUR":
+      FIND FIRST ebestbuff WHERE ebestbuff.ENR = ebest_mtrl.ENR AND
+      ebestbuff.DBEST NE "RETUR" NO-LOCK NO-ERROR.
+      IF AVAILABLE ebestbuff THEN DO:
+         IF ebestbuff.ANTAL >= ebest_mtrl.ANTAL THEN DO:
+            ebestbuff.ANTAL = ebestbuff.ANTAL - ebest_mtrl.ANTAL.
+            DELETE ebest_mtrl.
+         END.
+         ELSE ebest_mtrl.ANTAL = ebest_mtrl.ANTAL - ebestbuff.ANTAL.
+      END.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE gammalume2_UI :
+   DEFINE VARIABLE extra AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE musz2 AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER datvar AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER globforetag AS CHARACTER NO-UNDO.
+
+   FIND FIRST BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+   BERMTRL.OMRADE = BEREDNING.OMRADE AND BERMTRL.INKOP = FALSE AND
+   BERMTRL.DATUM > datvar USE-INDEX DATUM NO-LOCK NO-ERROR.
+   IF AVAILABLE BERMTRL THEN DO:
+      EMPTY TEMP-TABLE prev_temp NO-ERROR. 
+      EMPTY TEMP-TABLE next_temp NO-ERROR. 
+      EMPTY TEMP-TABLE lin_prev NO-ERROR. 
+      EMPTY TEMP-TABLE lin_next NO-ERROR. 
+      EMPTY TEMP-TABLE mtrl_temp NO-ERROR. 
+      EMPTY TEMP-TABLE lin_temp NO-ERROR.         
+      extra = TRUE.                     
+      nextvar = TRUE.       
+      OPEN QUERY nyq FOR EACH BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+      BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE AND
+      BERMTRL.DATUM > datvar USE-INDEX DATUM NO-LOCK.
+      GET FIRST nyq NO-LOCK.
+      DO WHILE AVAILABLE(BERMTRL):
+         IF BERMTRL.ANTAL > 0 THEN DO:               
+            RUN mtrl_UI.
+         END.      
+         GET NEXT nyq NO-LOCK.
+      END.          
+      CLOSE QUERY nyq. 
+
+      OPEN QUERY skyddq FOR EACH KSKYDD WHERE KSKYDD.AONR = BEREDNING.BERAONR AND 
+      KSKYDD.OMRADE = valomrade AND KSKYDD.BERED = TRUE AND
+      KSKYDD.DATUM > datvar USE-INDEX OMR NO-LOCK.
+      GET FIRST skyddq NO-LOCK.
+      DO WHILE AVAILABLE(KSKYDD):             
+         RUN skydd_UI.           
+         GET NEXT skyddq NO-LOCK.
+      END.          
+      CLOSE QUERY skyddq.
+      RUN summa2_UI. 
+      nextvar = FALSE.   
+      FOR EACH mtrl_temp:
+         DELETE mtrl_temp.
+      END.   
+
+
+      FIND LAST BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+      BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE AND 
+      BERMTRL.DATUM <= datvar
+      USE-INDEX DATUM NO-LOCK NO-ERROR.
+      IF AVAILABLE BERMTRL THEN DO:
+         datvar2 = BERMTRL.DATUM.         
+         OPEN QUERY nyq FOR EACH BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+         BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE AND
+         BERMTRL.DATUM = datvar2 USE-INDEX DATUM NO-LOCK.
+         GET FIRST nyq NO-LOCK.
+         DO WHILE AVAILABLE(BERMTRL):
+            IF BERMTRL.ANTAL > 0 THEN DO:
+               RUN mtrl_UI.
+            END.      
+            GET NEXT nyq NO-LOCK.
+         END.          
+         CLOSE QUERY nyq.   
+         OPEN QUERY skyddq FOR EACH KSKYDD WHERE KSKYDD.AONR = BEREDNING.BERAONR AND 
+         KSKYDD.OMRADE = valomrade AND KSKYDD.BERED = TRUE AND
+         KSKYDD.DATUM = datvar2 USE-INDEX OMR NO-LOCK.
+         GET FIRST skyddq NO-LOCK.
+         DO WHILE AVAILABLE(KSKYDD):             
+            RUN skydd_UI.           
+            GET NEXT skyddq NO-LOCK.
+         END.          
+         CLOSE QUERY skyddq.
+         RUN summa2_UI. 
+      END.
+      nextvar = TRUE.
+      FOR EACH lin_temp:
+         DELETE lin_temp.
+      END.
+      OPEN QUERY nylinq FOR EACH BERLINKAB WHERE BERLINKAB.AONR = BEREDNING.BERAONR AND 
+      BERLINKAB.OMRADE = valomrade AND BERLINKAB.DATUM > datvar AND BERLINKAB.KORTKOD = ?
+      USE-INDEX INKOP NO-LOCK.
+      GET FIRST nylinq NO-LOCK.
+      DO WHILE AVAILABLE(BERLINKAB):
+         IF BERLINKAB.METER > 0 THEN DO:
+            RUN linor_UI.
+         END.      
+         GET NEXT nylinq NO-LOCK.
+      END.          
+      CLOSE QUERY nylinq.
+      RUN sumlin2_UI.  
+      nextvar = FALSE.
+      FOR EACH lin_temp:
+         DELETE lin_temp.
+      END.  
+      OPEN QUERY nylinq FOR EACH BERLINKAB WHERE BERLINKAB.AONR = BEREDNING.BERAONR AND 
+      BERLINKAB.OMRADE = valomrade AND BERLINKAB.DATUM = datvar2 AND 
+      BERLINKAB.KORTKOD = ?
+      USE-INDEX INKOP NO-LOCK.
+      GET FIRST nylinq NO-LOCK.
+      DO WHILE AVAILABLE(BERLINKAB):
+         IF BERLINKAB.METER > 0 THEN DO:
+            RUN linor_UI.
+         END.      
+         GET NEXT nylinq NO-LOCK.
+      END.          
+      CLOSE QUERY nylinq. 
+      RUN sumlin2_UI.       
+      FIND FIRST next_temp NO-ERROR.
+      IF AVAILABLE next_temp THEN DO:         
+         datvar2 = next_temp.DATUM.
+         FOR EACH next_temp:
+            FIND FIRST prev_temp WHERE prev_temp.ENR = next_temp.ENR AND
+            prev_temp.LEVKOD = next_temp.LEVKOD USE-INDEX LEV NO-ERROR.
+            IF AVAILABLE prev_temp THEN DO:
+               IF next_temp.ANTAL > prev_temp.ANTAL THEN DO:
+                  CREATE best_mtrl.
+                  ASSIGN                                 
+                  best_mtrl.ENR = next_temp.ENR
+                  best_mtrl.BENAMNING = next_temp.BENAMNING 
+                  best_mtrl.ENHET = next_temp.ENHET   
+                  best_mtrl.PRIS = next_temp.PRIS
+                  best_mtrl.LEVKOD = next_temp.LEVKOD   
+                  best_mtrl.PRIS = next_temp.PRIS
+                  best_mtrl.OPRIS = next_temp.PRIS
+                  best_mtrl.DATUM = datvar2                         
+                  best_mtrl.ANTAL = next_temp.ANTAL - prev_temp.ANTAL.                  
+               END.  
+               ELSE IF next_temp.ANTAL < prev_temp.ANTAL THEN DO:
+                  CREATE best_mtrl.
+                  ASSIGN                                 
+                  best_mtrl.ENR = next_temp.ENR
+                  best_mtrl.BENAMNING = next_temp.BENAMNING 
+                  best_mtrl.ENHET = next_temp.ENHET   
+                  best_mtrl.PRIS = next_temp.PRIS
+                  best_mtrl.LEVKOD = next_temp.LEVKOD   
+                  best_mtrl.PRIS = next_temp.PRIS 
+                  best_mtrl.OPRIS = next_temp.PRIS
+                  best_mtrl.DATUM = datvar2 
+                  best_mtrl.DBEST = "RETUR"                        
+                  best_mtrl.ANTAL = prev_temp.ANTAL - next_temp.ANTAL.                  
+               END.
+               ELSE DO: 
+                  musz2 = musz2.                 
+               END.                 
+               DELETE prev_temp.       
+            END.         
+            ELSE DO:  
+               CREATE best_mtrl.
+               ASSIGN                                 
+               best_mtrl.ENR = next_temp.ENR
+               best_mtrl.BENAMNING = next_temp.BENAMNING 
+               best_mtrl.ENHET = next_temp.ENHET   
+               best_mtrl.PRIS = next_temp.PRIS
+               best_mtrl.LEVKOD = next_temp.LEVKOD   
+               best_mtrl.PRIS = next_temp.PRIS  
+               best_mtrl.OPRIS = next_temp.PRIS
+               best_mtrl.DATUM = datvar2                         
+               best_mtrl.ANTAL = next_temp.ANTAL.               
+            END.
+         END.
+         FOR EACH prev_temp: 
+            CREATE best_mtrl.
+            ASSIGN                                 
+            best_mtrl.ENR = prev_temp.ENR
+            best_mtrl.BENAMNING = prev_temp.BENAMNING 
+            best_mtrl.ENHET = prev_temp.ENHET   
+            best_mtrl.PRIS = prev_temp.PRIS
+            best_mtrl.LEVKOD = prev_temp.LEVKOD   
+            best_mtrl.PRIS = prev_temp.PRIS 
+            best_mtrl.OPRIS = prev_temp.PRIS
+            best_mtrl.DATUM = datvar2 
+            best_mtrl.DBEST = "RETUR"                        
+            best_mtrl.ANTAL = prev_temp.ANTAL.            
+         END.               
+      END.                  
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE mtrl_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/  
+   CREATE mtrl_temp.
+   ASSIGN
+   mtrl_temp.ENR = BERMTRL.ENR
+   mtrl_temp.BENAMNING = BERMTRL.BENAMNING
+   mtrl_temp.ENHET = BERMTRL.ENHET         
+   mtrl_temp.PRIS = BERMTRL.PRIS
+   mtrl_temp.ANTAL = BERMTRL.ANTAL    
+   mtrl_temp.LEVKOD = BERMTRL.LEVKOD
+   mtrl_temp.DATUM = BERMTRL.DATUM.
+   IF globforetag = "ELPA" {GLOBVES.I} THEN DO:
+      IF BERMTRL.LEVKOD = "12" OR BERMTRL.LEVKOD = "13"  THEN DO:
+          mtrl_temp.LEVKOD = "16".
+      END.
+   END.
+   ELSE IF globforetag = "UMEA" THEN DO:
+      mtrl_temp.LEVKOD = "1".
+   END.
+END PROCEDURE.
+
+PROCEDURE skydd_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/  
+   CREATE mtrl_temp.
+   ASSIGN
+   mtrl_temp.ENR = KSKYDD.ENR
+   mtrl_temp.BENAMNING = KSKYDD.BENAMNING
+   mtrl_temp.ENHET = KSKYDD.ENHET         
+   mtrl_temp.PRIS = KSKYDD.PRIS
+   mtrl_temp.ANTAL = KSKYDD.ANTAL * KSKYDD.METER    
+   mtrl_temp.LEVKOD = KSKYDD.LEVKOD
+   mtrl_temp.DATUM = KSKYDD.DATUM.
+   IF globforetag = "ELPA" {GLOBVES.I} THEN DO:
+      IF KSKYDD.LEVKOD = "12" OR KSKYDD.LEVKOD = "13"  THEN mtrl_temp.LEVKOD = "16".
+   END.
+   ELSE IF globforetag = "UMEA" THEN DO:
+      mtrl_temp.LEVKOD = "1".
+   END.
+END PROCEDURE.
+
+PROCEDURE summa2_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/  
+   sumantal = 0.
+   FOR EACH mtrl_temp BREAK BY mtrl_temp.LEVKOD BY mtrl_temp.ENR:      
+   ACCUMULATE mtrl_temp.ANTAL (TOTAL BY mtrl_temp.LEVKOD BY mtrl_temp.ENR).       
+      IF LAST-OF(mtrl_temp.ENR) THEN DO: 
+         IF nextvar = TRUE THEN DO:
+            CREATE next_temp.
+            ASSIGN                                 
+            next_temp.ENR = mtrl_temp.ENR
+            next_temp.BENAMNING = mtrl_temp.BENAMNING 
+            next_temp.ENHET = mtrl_temp.ENHET   
+            next_temp.PRIS = mtrl_temp.PRIS
+            next_temp.LEVKOD = mtrl_temp.LEVKOD   
+            next_temp.PRIS = mtrl_temp.PRIS
+            next_temp.DATUM = mtrl_temp.DATUM                         
+            next_temp.ANTAL = (ACCUM TOTAL BY mtrl_temp.ENR mtrl_temp.ANTAL).            
+         END.
+         ELSE DO: 
+            CREATE prev_temp.
+            ASSIGN                                 
+            prev_temp.ENR = mtrl_temp.ENR
+            prev_temp.BENAMNING = mtrl_temp.BENAMNING 
+            prev_temp.ENHET = mtrl_temp.ENHET   
+            prev_temp.PRIS = mtrl_temp.PRIS
+            prev_temp.LEVKOD = mtrl_temp.LEVKOD   
+            prev_temp.PRIS = mtrl_temp.PRIS
+            prev_temp.DATUM = mtrl_temp.DATUM                         
+            prev_temp.ANTAL = (ACCUM TOTAL BY mtrl_temp.ENR mtrl_temp.ANTAL).            
+         END.      
+      END.     
+   END.
+END PROCEDURE.
+
+PROCEDURE linor_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/  
+   CREATE lin_temp.
+   ASSIGN
+   lin_temp.ENR = BERLINKAB.ENR
+   lin_temp.BENAMNING = BERLINKAB.BENAMNING
+   lin_temp.ENHET = BERLINKAB.ENHET         
+   lin_temp.PRIS = BERLINKAB.PRIS
+   lin_temp.METER = BERLINKAB.METER  
+   lin_temp.LEDARE = BERLINKAB.LEDARE
+   lin_temp.TOTMETER = BERLINKAB.TOTMETER     
+   lin_temp.LEVKOD = BERLINKAB.LEVKOD
+   lin_temp.UPPLAG = BERLINKAB.UPPLAG
+   lin_temp.DATUM = BERLINKAB.DATUM. 
+   IF globforetag = "ELPA" {GLOBVES.I} THEN DO:
+      IF BERLINKAB.LEVKOD = "12" OR BERLINKAB.LEVKOD = "13"  THEN lin_temp.LEVKOD = "16".
+   END.
+   ELSE IF globforetag = "UMEA" THEN DO:
+      lin_temp.LEVKOD = "1".
+   END.
+END PROCEDURE.
+
+PROCEDURE sumlin2_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/  
+   FOR EACH lin_temp WHERE lin_temp.TOTMETER > 0 AND
+   lin_temp.UPPLAG = ?:
+      DELETE lin_temp.
+   END.
+   FOR EACH lin_temp WHERE lin_temp.UPPLAG NE ? AND lin_temp.TOTMETER > 0:
+      FOR EACH linbuff WHERE linbuff.ENR = lin_temp.ENR AND 
+      linbuff.LEVKOD = lin_temp.LEVKOD AND linbuff.TOTMETER = 0:
+         DELETE linbuff.
+      END.
+   END. 
+   FOR EACH lin_temp WHERE lin_temp.UPPLAG = ?:
+      lin_temp.TOTMETER = lin_temp.METER * lin_temp.LEDARE.
+   END.              
+   sumantal = 0.
+   FOR EACH lin_temp BREAK BY lin_temp.LEVKOD BY lin_temp.ENR:      
+   ACCUMULATE lin_temp.TOTMETER (TOTAL BY lin_temp.LEVKOD BY lin_temp.ENR).       
+      IF LAST-OF(lin_temp.ENR) THEN DO:
+         IF nextvar = TRUE THEN DO:
+            CREATE next_temp.
+            ASSIGN                                 
+            next_temp.ENR = lin_temp.ENR
+            next_temp.BENAMNING = lin_temp.BENAMNING 
+            next_temp.ENHET = lin_temp.ENHET   
+            next_temp.PRIS = lin_temp.PRIS
+            next_temp.LEVKOD = lin_temp.LEVKOD   
+            next_temp.PRIS = lin_temp.PRIS
+            next_temp.DATUM = lin_temp.DATUM                         
+            next_temp.ANTAL = (ACCUM TOTAL BY lin_temp.ENR lin_temp.TOTMETER).            
+         END.
+         ELSE DO:
+            CREATE prev_temp.
+            ASSIGN                                 
+            prev_temp.ENR = lin_temp.ENR
+            prev_temp.BENAMNING = lin_temp.BENAMNING 
+            prev_temp.ENHET = lin_temp.ENHET   
+            prev_temp.PRIS = lin_temp.PRIS
+            prev_temp.LEVKOD = lin_temp.LEVKOD   
+            prev_temp.PRIS = lin_temp.PRIS
+            prev_temp.DATUM = lin_temp.DATUM                         
+            prev_temp.ANTAL = (ACCUM TOTAL BY lin_temp.ENR lin_temp.TOTMETER).            
+         END.   
+      END.     
+   END.
+END PROCEDURE.
+
+
+PROCEDURE laddadepsaldo_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR depa_mtrl.                   
+   EMPTY TEMP-TABLE depa_mtrl NO-ERROR.    
+   /*20090324 variablen depnr är inte definierad - hämta saldo oavsett lager*/
+   OPEN QUERY mtrlq FOR EACH MTRLDEP WHERE /*MTRLDEP.DEPNR = depnr 
+   AND*/ MTRLDEP.IBDATUM = ? /*AND MTRLDEP.LAGER = TRUE**/ USE-INDEX DEPNR NO-LOCK. 
+   GET FIRST mtrlq NO-LOCK.
+   DO WHILE AVAILABLE(MTRLDEP):
+      CREATE depa_mtrl.
+      ASSIGN        
+      depa_mtrl.ENR = MTRLDEP.ENR      
+      depa_mtrl.ANTAL = MTRLDEP.SALDO.      
+      GET NEXT mtrlq NO-LOCK. 
+   END.
+   CLOSE QUERY mtrlq.
+
+END PROCEDURE.
+/* 20090511 anders
+PROCEDURE rensa_UI:
+   DEFINE VARIABLE aovar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delbest AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR dat_tab.
+   DEFINE OUTPUT PARAMETER felbest AS LOGICAL NO-UNDO.
+   
+   IF delbest = FALSE THEN DO:
+      IF globforetag = "UMEA" THEN DO:
+         FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = valaonr AND BEREDNING.OMRADE = valomrade
+         NO-LOCK NO-ERROR.      
+         aovar = BEREDNING.AONR.
+         FOR EACH BEREDNING WHERE BEREDNING.AONR = aovar NO-LOCK:            
+            OPEN QUERY mtrlq FOR EACH BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+            BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = TRUE 
+            AND BERMTRL.KLAR = FALSE USE-INDEX INKOP NO-LOCK. 
+            GET FIRST mtrlq NO-LOCK.
+            DO WHILE AVAILABLE(BERMTRL):               
+               GET CURRENT mtrlq EXCLUSIVE-LOCK.
+               DELETE BERMTRL.                      
+               GET NEXT mtrlq NO-LOCK.
+            END. 
+            CLOSE QUERY mtrlq.              
+         END.
+      END.
+      ELSE DO:               
+         OPEN QUERY mtrlq FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr AND 
+         BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = TRUE 
+         AND BERMTRL.KLAR = FALSE USE-INDEX INKOP NO-LOCK. 
+         GET FIRST mtrlq NO-LOCK.
+         DO WHILE AVAILABLE(BERMTRL):
+            GET CURRENT mtrlq EXCLUSIVE-LOCK.
+            DELETE BERMTRL.       
+            GET NEXT mtrlq NO-LOCK.
+         END. 
+         CLOSE QUERY mtrlq.           
+      END.   
+   END.
+   ELSE DO:
+      FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = valaonr AND BEREDNING.OMRADE = valomrade
+      NO-LOCK NO-ERROR.      
+      aovar = BEREDNING.AONR.
+      IF globforetag = "UMEA" THEN DO:      
+         FOR EACH BEREDNING WHERE BEREDNING.AONR = aovar NO-LOCK:
+            RUN rensanu_UI.       
+         END.
+      END.
+      ELSE DO:
+         RUN rensanu_UI.               
+      END.
+   END.
+
+END PROCEDURE.
+
+PROCEDURE rensanu_UI :
+   DEFINE VARIABLE hjdat AS DATE NO-UNDO.
+   
+   FOR EACH BERVAL WHERE BERVAL.AONR = BEREDNING.BERAONR AND BERVAL.OMRADE = BEREDNING.OMRADE AND
+   BERVAL.ORT NE "" EXCLUSIVE-LOCK:
+      IF BERVAL.DELNR = 0 THEN.
+      ELSE DO:
+         hjdat = DATE(INTEGER(SUBSTRING(BERVAL.ORT,4,2)),INTEGER(SUBSTRING(BERVAL.ORT,7,2)),INTEGER("20" + SUBSTRING(BERVAL.ORT,1,2))).
+         IF hjdat = ? THEN.
+         ELSE DO:
+            FIND FIRST BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+            BERMTRL.OMRADE = BERVAL.OMRADE AND BERMTRL.INKOP = TRUE AND BERMTRL.KLAR = TRUE AND
+            BERMTRL.DATUM = hjdat AND
+            BERMTRL.DELNR = BERVAL.DELNR 
+            NO-LOCK NO-ERROR. 
+            IF NOT AVAILABLE BERMTRL THEN DO:
+               FIND FIRST BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+               BERMTRL.OMRADE = BERVAL.OMRADE AND BERMTRL.INKOP = TRUE AND BERMTRL.KLAR = FALSE AND
+               BERMTRL.DATUM = hjdat AND
+               BERMTRL.DELNR = BERVAL.DELNR 
+               NO-LOCK NO-ERROR.
+               IF AVAILABLE BERMTRL THEN DO:
+                  FOR EACH BERUPP WHERE BERUPP.AONR = BEREDNING.BERAONR AND BERUPP.OMRADE = BEREDNING.OMRADE AND 
+                  BERUPP.ANTALRADER = INTEGER(BERMTRL.DATUM) AND BERUPP.DELNR = BERVAL.DELNR EXCLUSIVE-LOCK:            
+                    /* fler best per dag*/
+                     ASSIGN
+                     BERUPP.DELNR = 0
+                     BERUPP.ANTALRADER = 0.
+                  END.
+               END.
+               ASSIGN
+               BERVAL.DELNR = 0              
+               BERVAL.ORT = "".
+            END.
+         END.
+      END.
+   END.
+   OPEN QUERY mtrlq FOR EACH BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+   BERMTRL.OMRADE = BEREDNING.OMRADE AND BERMTRL.INKOP = TRUE 
+   AND BERMTRL.KLAR = FALSE USE-INDEX INKOP NO-LOCK. 
+   GET FIRST mtrlq NO-LOCK.
+   DO WHILE AVAILABLE(BERMTRL):
+      GET CURRENT mtrlq EXCLUSIVE-LOCK.
+      DELETE BERMTRL.       
+      GET NEXT mtrlq NO-LOCK.
+   END. 
+   CLOSE QUERY mtrlq.  
+END PROCEDURE.
+*/

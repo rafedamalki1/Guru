@@ -1,0 +1,367 @@
+/*VISAUPPLAPP.P*/
+{STARTFORAPP.I}
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{ANMARKD.I}
+{KONVALTEMP.I} 
+{KONID.I}
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.          
+DEFINE VARIABLE valaonr AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE valdelnr AS INTEGER NO-UNDO. 
+DEFINE VARIABLE valomrade AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE valort AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE typval AS INTEGER NO-UNDO.  
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(130)" NO-UNDO. 
+DEFINE VARIABLE str2 AS CHARACTER FORMAT "X(130)" NO-UNDO.
+DEFINE VARIABLE str3 AS CHARACTER FORMAT "X(130)" NO-UNDO. 
+DEFINE VARIABLE totalt AS DECIMAL NO-UNDO.
+DEFINE VARIABLE konvar AS INTEGER NO-UNDO.  
+DEFINE VARIABLE sumpris AS DECIMAL NO-UNDO.    
+DEFINE VARIABLE totalsum AS DECIMAL NO-UNDO.
+DEFINE VARIABLE sumantal AS INTEGER NO-UNDO.
+DEFINE VARIABLE counter AS INTEGER NO-UNDO.  
+DEFINE TEMP-TABLE kombtemp NO-UNDO                  
+{KOMPTEMP.I}
+  
+DEFINE TEMP-TABLE lin_tab2 NO-UNDO 
+   FIELD ENR AS CHARACTER         
+   FIELD BENAMNING AS CHARACTER
+   FIELD METER AS INTEGER      
+   FIELD PRIS AS DECIMAL
+   FIELD ENHET AS CHARACTER   
+   FIELD TOTMETER AS INTEGER
+   FIELD UPPLAG AS INTEGER INITIAL "?"
+   FIELD LEVKOD AS CHARACTER       
+   INDEX ENR ENR ASCENDING 
+   INDEX UPP UPPLAG ASCENDING.     
+     
+DEFINE BUFFER konbuff FOR kon_val. 
+DEFINE BUFFER idbuff FOR kon_id.
+DEFINE BUFFER linbuff FOR lin_tab2.     
+{TIDUTTT.I}
+
+
+str=
+"=======================================================================================".      
+
+PROCEDURE skapalista_UI :
+   DEFINE INPUT PARAMETER valaonr2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER typval2 AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER musz2 AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR kombtemp.
+   DEFINE INPUT PARAMETER TABLE FOR kon_val.
+   DEFINE INPUT PARAMETER TABLE FOR kon_id.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   EMPTY TEMP-TABLE tidut NO-ERROR. 
+   ASSIGN
+   valaonr = valaonr2
+   valomrade = valomrade2
+   typval = typval2.
+   RUN huvud_UI.   
+   IF musz = FALSE THEN RUN rubrik_UI. 
+   musz2 = musz.
+END PROCEDURE.
+
+PROCEDURE skapalista2_UI :
+   DEFINE INPUT PARAMETER valaonr2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valdelnr2 AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade2 AS CHARACTER NO-UNDO.   
+   DEFINE INPUT PARAMETER valort2 AS CHARACTER NO-UNDO.   
+   DEFINE INPUT PARAMETER TABLE FOR lin_tab2.   
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   EMPTY TEMP-TABLE tidut NO-ERROR. 
+   ASSIGN
+   valaonr = valaonr2
+   valdelnr = valdelnr2
+   valomrade = valomrade2
+   valort = valort2.
+   RUN huvud2_UI.   
+   RUN summa_UI.    
+END PROCEDURE.
+
+PROCEDURE huvud_UI :
+
+     /*HUVUD*/ 
+   DO TRANSACTION:         
+      IF musz = TRUE THEN musz = musz.   
+      ELSE DO:
+         IF typval = 1 THEN DO:                   
+            CREATE tidut. 
+            ASSIGN        
+            SUBSTRING(tidut.UT,1) = "SAMMANSTÄLLNING UPPLAG - VALDA KONSTRUKTIONER"
+            SUBSTRING(tidut.UT,50) = STRING(TODAY)
+            SUBSTRING(tidut.UT,60) = STRING(TIME,"HH:MM:SS").                                                               
+            CREATE tidut.                  
+         END.
+         ELSE DO:
+            CREATE tidut. 
+            ASSIGN        
+            SUBSTRING(tidut.UT,1) = "SAMMANSTÄLLNING AV KOMBINATIONER"
+            SUBSTRING(tidut.UT,40) = STRING(TODAY)
+            SUBSTRING(tidut.UT,50) = STRING(TIME,"HH:MM:SS").                                                               
+            CREATE tidut.            
+         END.   
+      END.
+   END.                    
+END PROCEDURE.
+
+PROCEDURE rubrik_UI :
+
+   FIND FIRST ANNNAMN NO-LOCK NO-ERROR.
+   IF typval = 1 THEN DO: 
+      FOR EACH BERUPP WHERE BERUPP.AONR = valaonr AND 
+      BERUPP.OMRADE = valomrade USE-INDEX OMR NO-LOCK:
+         ASSIGN
+         str2 =
+"=============================================================================".                         
+         str =                                                                    
+"=========================.=========================.=========================".                                    
+         CREATE tidut. 
+         SUBSTRING(tidut.UT,1) = str2. 
+         CREATE tidut.                         
+         ASSIGN
+         SUBSTRING(tidut.UT,1) = "UPPLAG NR :" 
+         SUBSTRING(tidut.UT,12) = STRING(BERUPP.UPPLAG).
+         CREATE tidut.
+         ASSIGN 
+         SUBSTRING(tidut.UT,1) = "ADRESS    :"    
+         SUBSTRING(tidut.UT,12) = BERUPP.ADRESS.
+         FIND FIRST BERPUNKT  WHERE BERPUNKT.AONR = BERUPP.AONR AND BERPUNKT.OMRADE  = BERUPP.OMRADE  AND BERPUNKT.NUM = BERUPP.UPPLAG 
+         AND BERPUNKT.KONSTRUKTIONUPPLAG = FALSE
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE BERPUNKT THEN DO:
+            IF BERPUNKT.XKORD > 0 AND BERPUNKT.YKORD > 0 AND BERPUNKT.XKORDCH = "" AND BERPUNKT.YKORDCH = "" THEN DO:
+               CREATE tidut.
+               ASSIGN               
+               SUBSTRING(tidut.UT,1) = "X och Y   :".               
+               SUBSTRING(tidut.UT,12) = STRING( BERPUNKT.XKORD / 10000000 )  + " " + STRING( BERPUNKT.YKORD / 10000000 ).               
+            END.               
+            ELSE IF BERPUNKT.XKORDCH = "0" AND BERPUNKT.YKORDCH = "0" THEN.
+            ELSE DO:
+               CREATE tidut.               
+               SUBSTRING(tidut.UT,1) = "X och Y   :".               
+               SUBSTRING(tidut.UT,12) =  BERPUNKT.XKORDCH + " " + BERPUNKT.YKORDCH.               
+            END.
+         END.
+         
+         
+         IF BERUPP.ANMARK NE "" THEN DO:
+            RUN anm2_UI.
+         END.
+         CREATE tidut. 
+         SUBSTRING(tidut.UT,1) = str2. 
+         CREATE tidut.
+         FOR EACH kon_val WHERE kon_val.UPPLAG = BERUPP.UPPLAG AND 
+         kon_val.KSKAP = FALSE:  
+            ASSIGN
+            SUBSTRING(tidut.UT,1) = kon_val.F1. 
+            IF kon_val.ID = TRUE THEN DO:                   
+               FIND FIRST kon_id WHERE kon_id.NUM = kon_val.NUM 
+               USE-INDEX NUM NO-LOCK NO-ERROR.
+               IF Guru.Konstanter:globforetag = "SUND"  OR Guru.Konstanter:globforetag = "SNAT" THEN DO:
+                  IF kon_id.FRI2 NE ? THEN
+                  SUBSTRING(tidut.UT,11) = STRING(kon_id.FRI2).
+               END.
+               ELSE DO: 
+                  ASSIGN                               
+                  SUBSTRING(tidut.UT,11) = kon_id.FORNR 
+                  SUBSTRING(tidut.UT,22) = kon_id.LINNR
+                  SUBSTRING(tidut.UT,33) = kon_id.NATNR.
+                  IF kon_id.FRI1 NE ? THEN               
+                  SUBSTRING(tidut.UT,44) = STRING(kon_id.FRI1).
+                  IF kon_id.FRI2 NE ? THEN
+                  SUBSTRING(tidut.UT,55) = STRING(kon_id.FRI2). 
+               END.   
+            END.
+            CREATE tidut.   
+         END.                                       
+      END.         
+   END.                    
+   ELSE DO:  
+      ASSIGN
+      str2 =
+"=============================================================================".    
+      konvar = 0.  
+      FOR EACH kombtemp WHERE kombtemp.KOMB NE ? NO-LOCK:          
+         IF kombtemp.KOMB NE konvar THEN DO:
+            CREATE tidut. 
+            SUBSTRING(tidut.UT,1) = str2. 
+            CREATE tidut.
+            konvar = kombtemp.KOMB.
+         END. 
+         ASSIGN     
+         SUBSTRING(tidut.UT,1) = kombtemp.F1.
+         IF kombtemp.ID = TRUE THEN DO:      
+            IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" THEN DO:
+               IF kombtemp.FRI2 NE ? THEN
+               SUBSTRING(tidut.UT,11) = STRING(kombtemp.FRI2).
+            END.
+            ELSE DO:                     
+               ASSIGN
+               SUBSTRING(tidut.UT,11) = kombtemp.FORNR 
+               SUBSTRING(tidut.UT,22) = kombtemp.LINNR
+               SUBSTRING(tidut.UT,33) = kombtemp.NATNR.
+               IF kombtemp.FRI1 NE ? THEN                  
+               SUBSTRING(tidut.UT,44) = STRING(kombtemp.FRI1).
+               IF kombtemp.FRI2 NE ? THEN   
+               SUBSTRING(tidut.UT,55) = STRING(kombtemp.FRI2). 
+            END.   
+         END.   
+         CREATE tidut.           
+      END.
+   END.    
+END PROCEDURE.
+
+PROCEDURE rubrik2_UI :
+   CREATE tidut. 
+   ASSIGN  
+   SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:genk)
+   SUBSTRING(tidut.UT,13) = "BENÄMNING"
+   SUBSTRING(tidut.UT,54) = "LÄNGD".        
+   CREATE tidut. 
+   ASSIGN
+   str =
+"===========.========================================.=========="
+   str3 =
+"===============================================================" .  
+   SUBSTRING(tidut.UT,1) = str.                                                                                                        
+END PROCEDURE.
+
+PROCEDURE huvud2_UI :
+     /*HUVUD*/ 
+   DO TRANSACTION:         
+      IF musz = TRUE THEN musz = musz.   
+      ELSE DO:                   
+         CREATE tidut. 
+         ASSIGN        
+         SUBSTRING(tidut.UT,1) = "LISTA LINOR OCH KABLAR KOPPLADE TILL UPPLAG"
+         SUBSTRING(tidut.UT,45) = STRING(TODAY)
+         SUBSTRING(tidut.UT,55) = STRING(TIME,"HH:MM:SS").                                                               
+         CREATE tidut.     
+         CREATE tidut.    
+         ASSIGN                                                               
+         SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:gaonamnk) + ": " + valort.
+         CREATE tidut.  
+         SUBSTRING(tidut.UT,1) = "Beredning nr : " + valaonr.   
+         CREATE tidut.                    
+         str3 =
+"==========================================================================" .         
+         SUBSTRING(tidut.UT,1) = str3.    
+         CREATE tidut.                
+         CREATE tidut.
+         ASSIGN  
+         SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:genk)
+         SUBSTRING(tidut.UT,13) = "BENÄMNING"
+         SUBSTRING(tidut.UT,54) = "LÄNGD"
+         SUBSTRING(tidut.UT,65) = "TOT.LÄNGD".        
+         CREATE tidut. 
+         ASSIGN
+         str =
+"===========.========================================.==========.=========="
+         SUBSTRING(tidut.UT,1) = str.
+         CREATE tidut.
+         FOR EACH lin_tab2 WHERE lin_tab2.UPPLAG = ?:
+            ASSIGN  
+            SUBSTRING(tidut.UT,1) = lin_tab2.ENR
+            SUBSTRING(tidut.UT,13) = lin_tab2.BENAMNING
+            SUBSTRING(tidut.UT,54) = STRING(lin_tab2.METER)
+            SUBSTRING(tidut.UT,65) = STRING(lin_tab2.TOTMETER).        
+            CREATE tidut. 
+         END.               
+      END.
+   END.                    
+END PROCEDURE.
+
+PROCEDURE anm2_UI :
+   DEFINE VARIABLE nyanm AS CHARACTER NO-UNDO.
+   IF INDEX (BERUPP.ANMARK,"$") > 0 THEN nyanm = SUBSTRING(BERUPP.ANMARK,1,INDEX(BERUPP.ANMARK,"$") - 1).
+   ELSE nyanm = BERUPP.ANMARK.  
+   CREATE tidut.      
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "ANMÄRKNING"
+   retvar = 1
+   ednum = 1
+   ednum3 = LENGTH(nyanm)
+   retvar = INDEX(nyanm,CHR(10),ednum)
+   edtecken = 50
+   edtext = nyanm
+   tidtext = "".  
+   {ANMARK2.I}   
+END PROCEDURE.
+
+PROCEDURE anmark_UI :           
+   DEFINE INPUT PARAMETER anmark AS INTEGER NO-UNDO.
+   IF anmark = 1 THEN DO:                        
+      ASSIGN            
+      SUBSTRING(tidut.UT,11) = ":"   
+      SUBSTRING(tidut.UT,12) = SUBSTRING(edtext,ednum,edtecken).
+      CREATE tidut.
+   END.  
+   ELSE IF anmark = 2 THEN DO:                
+      ASSIGN            
+      SUBSTRING(tidut.UT,11) = ":"   
+      SUBSTRING(tidut.UT,12) = tidtext.
+      CREATE tidut.
+   END.   
+   ELSE IF anmark = 3 THEN DO:           
+      ASSIGN           
+      SUBSTRING(tidut.UT,11) = ":"    
+      SUBSTRING(tidut.UT,12) = SUBSTRING(edtext,1 + ednum2 * edtecken,edtecken).
+      CREATE tidut.
+   END.
+END PROCEDURE.
+
+
+PROCEDURE summa_UI :
+   OPEN QUERY berq FOR EACH BERUPP WHERE BERUPP.AONR = valaonr AND
+   BERUPP.OMRADE = valomrade USE-INDEX OMR NO-LOCK.
+   GET FIRST berq NO-LOCK.
+   DO WHILE AVAILABLE(BERUPP):
+      CREATE tidut. 
+      SUBSTRING(tidut.UT,1) = str3.
+      CREATE tidut.                                 
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = "UPPLAG NR:" 
+      SUBSTRING(tidut.UT,11) = STRING(BERUPP.UPPLAG)
+      SUBSTRING(tidut.UT,15) = "ADRESS:"
+      SUBSTRING(tidut.UT,22) = BERUPP.ADRESS. 
+      CREATE tidut. 
+      SUBSTRING(tidut.UT,1) = str3.
+      RUN rubrik2_UI.
+      sumpris = 0.    
+      FOR EACH lin_tab2 WHERE lin_tab2.UPPLAG = BERUPP.UPPLAG:        
+         CREATE tidut.
+         ASSIGN
+         SUBSTRING(tidut.UT,1) = lin_tab2.ENR
+         SUBSTRING(tidut.UT,13) = lin_tab2.BENAMNING 
+         SUBSTRING(tidut.UT,54) = STRING(lin_tab2.TOTMETER).       
+      END.       
+      CREATE tidut.  
+      GET NEXT berq NO-LOCK.   
+   END.                     
+   CLOSE QUERY berq.  
+   CREATE tidut. 
+   SUBSTRING(tidut.UT,1) = str3.
+   CREATE tidut.                                 
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "LINOR OCH KABLAR EJ KOPPLADE TILL NÅGOT UPPLAG".      
+   CREATE tidut. 
+   SUBSTRING(tidut.UT,1) = str3.
+   RUN rubrik2_UI.
+   sumpris = 0.  
+   FOR EACH lin_tab2:                         
+      counter = 0.
+      FOR EACH linbuff WHERE linbuff.ENR = lin_tab2.ENR AND linbuff.UPPLAG NE ?:
+         counter = counter + linbuff.TOTMETER.
+      END.
+      IF counter < lin_tab2.TOTMETER THEN DO:
+         CREATE tidut.
+         ASSIGN
+         SUBSTRING(tidut.UT,1) = lin_tab2.ENR
+         SUBSTRING(tidut.UT,13) = lin_tab2.BENAMNING 
+         SUBSTRING(tidut.UT,54) = STRING(counter). 
+      END.   
+   END.     
+END PROCEDURE.
+

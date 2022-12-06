@@ -1,0 +1,91 @@
+/* IMPKONU.P INLÄSNING AV SEMIKOLONFIL FÖR IMPORT AV KONSTRUKTION*/       
+DEFINE INPUT PARAMETER filnamn AS CHARACTER NO-UNDO.   
+DEFINE INPUT PARAMETER ktypval AS CHARACTER NO-UNDO. 
+
+DEFINE NEW SHARED VARIABLE imph AS HANDLE NO-UNDO.
+DEFINE VARIABLE messimport AS CHARACTER NO-UNDO.
+DEFINE VARIABLE okimp AS LOGICAL NO-UNDO.
+
+DEFINE TEMP-TABLE tidin
+   FIELD KTYPKOD            AS CHARACTER  
+   FIELD ENR                AS CHARACTER 
+   FIELD BENAMNING          AS CHARACTER 
+   FIELD ENHET              AS CHARACTER
+   FIELD LEVKOD             AS CHARACTER
+   FIELD ANTAL              AS INTEGER 
+   FIELD F1                 AS CHARACTER 
+   FIELD F2                 AS CHARACTER
+   FIELD F3                 AS CHARACTER
+   FIELD F4                 AS CHARACTER
+   FIELD F5                 AS CHARACTER   
+   FIELD LINKAB             AS CHARACTER
+   FIELD DIAMETER           AS INTEGER
+   FIELD MODULER            AS INTEGER
+   FIELD TYPBER             AS CHARACTER
+   FIELD DUMMY1             AS CHARACTER
+   FIELD DUMMY2             AS CHARACTER
+   FIELD DUMMY3             AS CHARACTER
+   FIELD FEL                AS LOGICAL INITIAL FALSE
+   FIELD LINKAB2            AS LOGICAL
+   FIELD TYPBER2            AS LOGICAL.   
+DEFINE TEMP-TABLE tidinfel NO-UNDO LIKE tidin.   
+
+DEFINE TEMP-TABLE infil
+   FIELD PROGNAMN AS CHARACTER FORMAT "X(78)" 
+   INDEX PRO IS PRIMARY PROGNAMN.
+DEFINE TEMP-TABLE intid
+   FIELD TIN AS CHARACTER FORMAT "X(78)" .
+{AMERICANEUROPEAN.I}
+IF Guru.Konstanter:appcon THEN DO:
+   RUN IMPKON2.P PERSISTENT SET imph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+END.
+ELSE DO:
+   RUN IMPKON2.P PERSISTENT SET imph.
+END.   
+EMPTY TEMP-TABLE intid NO-ERROR. 
+EMPTY TEMP-TABLE tidin NO-ERROR. 
+
+INPUT FROM VALUE(filnamn) NO-ECHO.
+REPEAT:
+   DO TRANSACTION: 
+      CREATE tidin.
+      ASSIGN.
+      IMPORT DELIMITER ";" tidin   NO-ERROR.
+   END.               
+END.
+
+FOR EACH tidin WHERE tidin.KTYPKOD = "":
+   DELETE tidin.
+END.  
+FOR EACH tidin WHERE tidin.KTYPKOD NE ktypval:
+   DELETE tidin.      
+END.   
+{muswait.i}      
+RUN skapaenrkoll_UI IN imph (INPUT ktypval, INPUT TABLE tidin,OUTPUT okimp, OUTPUT TABLE tidinfel).
+{musarrow.i}      
+FIND FIRST tidinfel NO-LOCK NO-ERROR.
+IF AVAILABLE tidinfel THEN DO:
+   MESSAGE "Det finns rader som ej kommer att importeras. Vill Ni se dessa?"
+   VIEW-AS ALERT-BOX
+   QUESTION BUTTONS YES-NO TITLE "Fel på rader" UPDATE svar AS LOGICAL.         
+   IF svar THEN DO:
+      RUN FELIMP.W (INPUT TABLE tidinfel, INPUT ktypval).
+   END.
+END.
+IF okimp = TRUE THEN DO:
+   MESSAGE "Vill Ni starta importen av " + ktypval + " ?"
+   VIEW-AS ALERT-BOX
+   QUESTION BUTTONS YES-NO TITLE "Starta import" UPDATE svar.         
+   IF svar THEN DO:
+      status-mus2 = SESSION:SET-WAIT-STATE("GENERAL").
+      RUN impstart_UI IN imph (OUTPUT messimport).
+      status-mus = SESSION:SET-WAIT-STATE("").     
+      MESSAGE "Import klar" VIEW-AS ALERT-BOX.
+   END.
+   ELSE  MESSAGE "Import avbruten" VIEW-AS ALERT-BOX.
+END.
+ELSE  MESSAGE "Det finns inga rader att importera" VIEW-AS ALERT-BOX.
+   
+IF VALID-HANDLE(imph) THEN DELETE PROCEDURE imph.
+{EUROPEANAMERICAN.I}
+                

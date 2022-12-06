@@ -1,0 +1,166 @@
+/*EXKABLUAPP3.P*/
+&Scoped-define SHARED  
+{MARKVAL.I}   
+{MARAG.I}       
+DEFINE BUFFER mahj FOR marag.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{EXTRADATA.I}
+
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fbeteck AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR markval .
+   DEFINE OUTPUT PARAMETER omravd AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER omromr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER aovar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER ortvar AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER fkommun AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER fvaker AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER vman AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER vadress AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER vpadress AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER vtelef AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER projl AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER arrendator AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER TABLE FOR marag.
+   
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   EMPTY TEMP-TABLE marag NO-ERROR. 
+   ASSIGN
+   omravd = 0
+   aovar = ?
+   delnrvar = ?
+   ortvar = ""
+   projl = "".
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = valvardnr NO-LOCK NO-ERROR.
+   IF AVAILABLE VARDERING THEN DO:      
+      ortvar = VARDERING.BENAMNING.
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = VARDERING.OMRADE NO-LOCK NO-ERROR.      
+      IF AVAILABLE OMRADETAB THEN DO:
+         ASSIGN
+         omromr = OMRADETAB.OMRADE
+         omravd = OMRADETAB.AVDELNINGNR.
+      END.
+   END.
+   FIND FIRST AOVARD WHERE AOVARD.VARDNR = valvardnr USE-INDEX VARDNR NO-LOCK NO-ERROR.
+   IF AVAILABLE AOVARD THEN DO:
+      ASSIGN aovar = AOVARD.AONR
+      delnrvar = AOVARD.DELNR.
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = AOVARD.AONR AND
+      AONRTAB.DELNR = AOVARD.DELNR NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB  THEN DO:
+         /*ortvar = AONRTAB.ORT.*/
+         FIND FIRST BESTTAB WHERE BESTTAB.BESTID = AONRTAB.BESTID NO-LOCK NO-ERROR.
+         IF AVAILABLE BESTTAB THEN DO:
+            projl = BESTTAB.BESTNAMN.
+         END.
+      END.
+   END.
+   arrendator = "".
+   FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = fbeteck NO-LOCK NO-ERROR.
+   IF AVAILABLE FASTIGHET THEN DO:   
+      fkommun = FASTIGHET.KOMMUN.
+      fvaker = FASTIGHET.VAKER.
+      IF FASTIGHET.ARRENDATOR = TRUE THEN DO:       
+         arrendator = SUBSTRING(FASTIGHET.ANAMN,1,30).  
+      END.
+   END.
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = valvardnr USE-INDEX VARDNR
+   NO-LOCK NO-ERROR.   
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = VARDERING.VARDANV USE-INDEX
+   PERSONALKOD NO-LOCK NO-ERROR.   
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "FASTLOPNR"                   
+   inextradatatemp.HUVUDCH = fbeteck.                    
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+   FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+   IF AVAILABLE extradatatemp THEN DO:            
+      FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = extradatatemp.SOKINT[1] NO-LOCK NO-ERROR.
+      IF AVAILABLE MARKAGARE  THEN DO:
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).
+         ASSIGN
+         vman = MARKAGARE.MARKAGARE
+         vadress = MARKAGARE.GATUADRESS
+         vpadress = (STRING(MARKAGARE.POSTNUMMER,"xxx xx") + " " + MARKAGARE.POSTADRESS).
+         vtelef = MARKAGARE.TELEFON .        
+      END.      
+   END.
+   IF AVAILABLE MARKAGARE THEN DO:
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "MARKAG"                   
+      inextradatatemp.HUVUDINT = MARKAGARE.MARKNR.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO:      
+         ASSIGN
+         vman = vman + " " + extradatatemp.SOKCHAR[3]
+         vtelef = vtelef + " " + extradatatemp.SOKCHAR[1].         
+      END. 
+   END.
+   
+   IF vman = "" THEN DO:
+      /*Om en ensam ägare lägg honom som kontaktperson*/
+      FIND FIRST MARKFAST WHERE MARKFAST.BETECKNING = fbeteck NO-LOCK NO-ERROR.
+      IF AVAILABLE MARKFAST THEN DO:
+         IF MARKFAST.PROCENT = 100 THEN DO:
+            FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = MARKFAST.MARKNR NO-LOCK NO-ERROR.
+            IF AVAILABLE MARKAGARE  THEN DO:  
+               Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).       
+               ASSIGN
+               vman = MARKAGARE.MARKAGARE
+               vadress = MARKAGARE.GATUADRESS
+               vpadress = (STRING(MARKAGARE.POSTNUMMER,"xxx xx") + " " + MARKAGARE.POSTADRESS).
+               vtelef = MARKAGARE.TELEFON .        
+            END.      
+
+         END.
+      END.
+
+   END.
+   
+   FOR EACH markval:
+      FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = markval.MARKNR NO-LOCK NO-ERROR.   
+      CREATE marag.
+      BUFFER-COPY markval TO marag.
+     
+      IF marag.PNR2 BEGINS "000" THEN.
+      ELSE DO:
+         marag.MARKAGARE = MARKAGARE.MARKAGARE.
+         marag.PNR2 = "0000000000".
+         CREATE mahj.
+         BUFFER-COPY marag TO mahj.
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "MARKAG"                   
+         inextradatatemp.HUVUDINT = MARKAGARE.MARKNR.                    
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+         FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+         IF AVAILABLE extradatatemp THEN DO:      
+            ASSIGN       
+            mahj.MARKAGARE = extradatatemp.SOKCHAR[3]
+            mahj.PERSONNUMMER = markval.PNR2
+            mahj.PNR2 = "0000000000".
+         END. 
+      END.
+      FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = markval.BETECKNING 
+      USE-INDEX FAST NO-LOCK NO-ERROR.
+      ASSIGN marag.KOMMUN = FASTIGHET.KOMMUN 
+      marag.SOCKEN = FASTIGHET.SOCKEN
+      marag.PAKER = FASTIGHET.PAKER
+      marag.VAKER = FASTIGHET.VAKER.  
+      IF AVAILABLE mahj THEN DO:
+         ASSIGN mahj.KOMMUN = FASTIGHET.KOMMUN 
+         mahj.SOCKEN = FASTIGHET.SOCKEN
+         mahj.PAKER = FASTIGHET.PAKER
+         mahj.VAKER = FASTIGHET.VAKER.  
+      END.
+   END.
+   Guru.GlobalaVariabler:GDPRtyp = "M". 
+   {GDPRLOGGCLIENT.I}
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.        
+   edataapph = ?.

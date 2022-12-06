@@ -1,0 +1,245 @@
+
+/*------------------------------------------------------------------------
+    File        : STARTDATASETAPPDS.p
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Wed Oct 22 10:20:54 CEST 2014
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+{KALKYLKAT.I}
+{KALKYLPRODATA.i}
+
+DEFINE QUERY KalkylQuery FOR KALKHUV.
+DEFINE DATA-SOURCE KalkhuvSrc FOR QUERY KalkylQuery KALKHUV KEYS (KALKNR,OMRADE).   /*keys unika nycklar*/
+DEFINE DATA-SOURCE NumSrc FOR KALKNUM KEYS (KALKNR,OMRADE,NUM).
+DEFINE DATA-SOURCE NumSubSrc FOR KALKNUMSUB KEYS (KALKNR,OMRADE,NUM,NUMSUBID).
+DEFINE DATA-SOURCE AonrSrc FOR KALKAONR KEYS (KALKNR,OMRADE,PLANNR,ARTAL).
+DEFINE DATA-SOURCE FaktSrc FOR KALKFAKTORER KEYS (KALKNR,OMRADE,KPID).
+DEFINE DATA-SOURCE EgnaSrc FOR KALKEGNAPRISER KEYS (KALKNR,OMRADE,KPID).
+DEFINE DATA-SOURCE MtrlSrc FOR KALKMTRL KEYS (KALKNR,OMRADE,MID).
+DEFINE DATA-SOURCE TidlSrc FOR KALKYLTIDLAGE KEYS (KALKNR,OMRADE,IDTIDLAG).
+
+DEFINE VARIABLE hKalkylDataSet   AS HANDLE     NO-UNDO.         /*handl till dataset*/
+hKalkylDataSet = DATASET KalkylDS:HANDLE.      /*koppla handel till dataset*/
+hKalkylDataSet:SET-CALLBACK-PROCEDURE ("AFTER-FILL", "postDataSetFillKalkylDS", THIS-PROCEDURE). 
+/*KalkylDS*/
+FUNCTION detachDataSetKalkylDS RETURNS logic (INPUT phDataSet AS HANDLE):
+  DEFINE VARIABLE iBuff AS INTEGER NO-UNDO.
+  DO iBuff = 1 TO DATASET KalkylDS:NUM-BUFFERS:
+    phDataSet:GET-BUFFER-HANDLE(iBuff):DETACH-DATA-SOURCE().
+  END.
+
+END FUNCTION. /* detachDataSet */
+
+PROCEDURE SparaProDataSetKalkylDS:
+   DEFINE INPUT PARAMETER DATASET FOR KalkylDS.
+   DEFINE VARIABLE ChDataSet AS HANDLE NO-UNDO.
+   DEFINE VARIABLE okreset AS LOGICAL NO-UNDO. 
+   
+   RUN attachKalkylDS.
+   ChDataSet = DATASET KalkylDS:HANDLE.
+   RUN SPARADATSET.p (INPUT ChDataSet).
+   okreset = detachDataSetKalkylDS(ChDataSet).
+   
+END PROCEDURE.
+
+PROCEDURE postDataSetFillKalkylDS :
+   DEFINE INPUT PARAMETER DATASET FOR KalkylDS.
+   DEFINE VARIABLE iBuff AS INTEGER NO-UNDO.
+   DEFINE VARIABLE kommandosortquery AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE dynbuffh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE dynok AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE dynqueh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE dynfalth AS HANDLE NO-UNDO.
+  
+   DO iBuff = 1 TO DATASET KalkylDS:NUM-BUFFERS:
+      dynbuffh = DATASET KalkylDS:GET-BUFFER-HANDLE(iBuff).
+      CREATE QUERY dynqueh.
+      dynqueh:SET-BUFFERS(dynbuffh).
+      kommandosortquery = "FOR EACH " + dynbuffh:TABLE + ".".    
+      dynok = dynqueh:QUERY-PREPARE(kommandosortquery).   
+      dynok = dynqueh:QUERY-OPEN() NO-ERROR.
+      REPEAT:
+         dynqueh:GET-NEXT(NO-LOCK).
+         IF dynqueh:QUERY-OFF-END THEN LEAVE.            
+         dynfalth = dynbuffh:BUFFER-FIELD("TTRECID").
+         dynfalth:BUFFER-VALUE = dynbuffh:RECID.                               
+      END.     
+   END.
+  
+END PROCEDURE.
+PROCEDURE attachKalkylDS: /*kopplar ihop temptabell med skarptababell.      */
+   hKalkylDataSet:GET-BUFFER-HANDLE("kalkhuvtt"):ATTACH-DATA-SOURCE(DATA-SOURCE KalkhuvSrc:HANDLE).
+   hKalkylDataSet:GET-BUFFER-HANDLE("kalknumtt"):ATTACH-DATA-SOURCE(DATA-SOURCE NumSrc:HANDLE).
+   hKalkylDataSet:GET-BUFFER-HANDLE("kalknumsubtt"):ATTACH-DATA-SOURCE(DATA-SOURCE NumsubSrc:HANDLE).
+   hKalkylDataSet:GET-BUFFER-HANDLE("kalkaonrTT"):ATTACH-DATA-SOURCE(DATA-SOURCE AonrSrc:HANDLE).
+   hKalkylDataSet:GET-BUFFER-HANDLE("kalkfaktorertt"):ATTACH-DATA-SOURCE(DATA-SOURCE FaktSrc:HANDLE).
+   hKalkylDataSet:GET-BUFFER-HANDLE("kalkegnaprisertt"):ATTACH-DATA-SOURCE(DATA-SOURCE EgnaSrc:HANDLE).
+   hKalkylDataSet:GET-BUFFER-HANDLE("kalktmtrlTT"):ATTACH-DATA-SOURCE(DATA-SOURCE MtrlSrc:HANDLE).
+   hKalkylDataSet:GET-BUFFER-HANDLE("kalkttidlageTT"):ATTACH-DATA-SOURCE(DATA-SOURCE TidlSrc:HANDLE).
+   /*
+   DATA-SOURCE NumSrc:HANDLE:PREFER-DATASET = TRUE.
+   DATA-SOURCE NumsubSrc:HANDLE:PREFER-DATASET = TRUE.
+   */
+END PROCEDURE.
+
+
+PROCEDURE LaddaKalkyl:
+   DEFINE INPUT PARAMETER KalkNrvar AS INTEGER.
+   DEFINE INPUT PARAMETER KalkOmr AS CHARACTER.  
+   DEFINE OUTPUT PARAMETER DATASET FOR KalkylDS.
+   DEFINE VARIABLE queryprep AS CHARACTER NO-UNDO.
+   
+   DATASET KalkylDS:EMPTY-DATASET().
+   IF KalkNrvar NE ? THEN DO:
+      queryprep = "FOR EACH KALKHUV WHERE KALKHUV.KALKNR = " + STRING(KalkNrvar) + 
+      " AND KALKHUV.OMRADE = " + "'" + KalkOmr + "'" + "  NO-LOCK". 
+      QUERY KalkylQuery:QUERY-PREPARE(queryprep).
+   END.   
+   RUN attachKalkylDS.
+   IF KalkNrvar NE ? THEN DATASET KalkylDS:FILL().
+  
+   
+   
+   detachDataSetKalkylDS(hKalkylDataSet).
+  
+END PROCEDURE.
+
+
+/*skapar kalkylnum*/ 
+PROCEDURE skapanumsub_UI :
+   DEFINE INPUT  PARAMETER subidvar AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER arbkodvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER lopkodvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR ekalknumsubtt.
+   EMPTY TEMP-TABLE ekalknumsubtt NO-ERROR. 
+   FOR EACH KALKYLLOPSUB WHERE KALKYLLOPSUB.KLOGSUBID = subidvar AND KALKYLLOPSUB.ARBKOD = arbkodvar AND 
+   KALKYLLOPSUB.LOPNR = lopkodvar NO-LOCK: 
+      CREATE ekalknumsubtt.  
+      BUFFER-COPY KALKYLLOPSUB TO ekalknumsubtt.      
+      FIND FIRST KALKYLPRISER  WHERE KALKYLPRISER.KPID = ekalknumsubtt.KPID AND
+      KALKYLPRISER.KLOGSUBID = KALKYLLOPSUB.KLOGSUBID NO-LOCK NO-ERROR.
+      IF AVAILABLE KALKYLPRISER THEN DO:
+         ASSIGN 
+         ekalknumsubtt.PRIS = KALKYLPRISER.PRIS
+         ekalknumsubtt.EGENPRISUPP = KALKYLPRISER.EGENPRISUPP 
+         ekalknumsubtt.EGENKODUPP = KALKYLPRISER.EGENKODUPP  
+         ekalknumsubtt.BENAMNING = KALKYLPRISER.BENAMNING.
+      END.  
+      ASSIGN         
+      ekalknumsubtt.FRIBENAMNING = ekalknumsubtt.BENAMNING         
+      ekalknumsubtt.FRIKOSTNAD = ekalknumsubtt.KOSTNAD
+      ekalknumsubtt.FRIPRIS = ekalknumsubtt.PRIS
+      ekalknumsubtt.FRITIMMAR = ekalknumsubtt.TIMMAR.
+   END.       
+       
+END PROCEDURE.
+PROCEDURE kphmt :
+  
+   DEFINE INPUT PARAMETER knr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER omr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkylprisertt.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkvisningtt.
+   EMPTY TEMP-TABLE kalkvisningtt NO-ERROR. 
+   EMPTY TEMP-TABLE kalkylprisertt NO-ERROR.
+   FIND FIRST KALKHUV WHERE  KALKHUV.KALKNR = knr AND KALKHUV.OMRADE = omr NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKHUV THEN RETURN.
+   FIND FIRST KALKYLKATALOG WHERE KALKYLKATALOG.KLOGID = KALKHUV.KLOGID NO-LOCK NO-ERROR.
+  
+   FOR EACH KALKYLKATALOGSUB WHERE KALKYLKATALOGSUB.KLOGID = KALKYLKATALOG.KLOGID AND KALKYLKATALOGSUB.AVSLUTAD = FALSE NO-LOCK:
+      FOR EACH KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID NO-LOCK:
+         CREATE kalkylprisertt.
+         BUFFER-COPY KALKYLPRISER TO kalkylprisertt.
+         kalkylprisertt.TTRECID = RECID(kalkylprisertt).
+         
+         FOR EACH KALKVISNING WHERE KALKVISNING.KVID = KALKYLPRISER.KVID NO-LOCK:
+            FIND FIRST kalkvisningtt WHERE kalkvisningtt.KVID = KALKYLPRISER.KVID NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE kalkvisningtt THEN DO:
+               CREATE kalkvisningtt.
+               BUFFER-COPY KALKVISNING TO kalkvisningtt.
+               kalkvisningtt.TTRECID = RECID(kalkvisningtt).
+            END.   
+         END.
+      END.         
+   END. 
+   /*
+      FOR EACH KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOG.HKLOGSUBID NO-LOCK:
+      CREATE kalkylprisertt.
+      BUFFER-COPY KALKYLPRISER TO kalkylprisertt.
+      kalkylprisertt.TTRECID = RECID(kalkylprisertt).
+      
+      FOR EACH KALKVISNING WHERE KALKVISNING.KVID = KALKYLPRISER.KVID NO-LOCK:
+         FIND FIRST kalkvisningtt WHERE kalkvisningtt.KVID = KALKYLPRISER.KVID NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE kalkvisningtt THEN DO:
+            CREATE kalkvisningtt.
+            BUFFER-COPY KALKVISNING TO kalkvisningtt.
+            kalkvisningtt.TTRECID = RECID(kalkvisningtt).
+         END.   
+      END.      
+   END.
+   */
+   FIND FIRST KALKFAKTORER WHERE KALKFAKTORER.KALKNR = knr AND KALKFAKTORER.OMRADE = omr NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKFAKTORER THEN DO TRANSACTION:
+      FOR EACH kalkylprisertt WHERE kalkylprisertt.KLOGSUBID = KALKYLKATALOG.HKLOGSUBID AND kalkylprisertt.EGENKODUPP = TRUE NO-LOCK:
+         CREATE KALKFAKTORER.
+         BUFFER-COPY kalkylprisertt TO KALKFAKTORER.
+         ASSIGN
+         KALKFAKTORER.KALKNR = knr
+         KALKFAKTORER.OMRADE = omr
+         KALKFAKTORER.FAKTOR = 1.0.
+      END.  
+      FOR EACH KALKYLKATALOGSUB WHERE KALKYLKATALOGSUB.KLOGID = KALKYLKATALOG.KLOGID AND KALKYLKATALOGSUB.AVSLUTAD = FALSE NO-LOCK,
+      EACH kalkylprisertt WHERE kalkylprisertt.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND kalkylprisertt.EGENKODUPP = TRUE NO-LOCK:
+         FIND FIRST KALKFAKTORER WHERE KALKFAKTORER.KALKNR = knr AND  KALKFAKTORER.OMRADE = omr AND 
+         KALKFAKTORER.BENAMNING = kalkylprisertt.BENAMNING
+         NO-LOCK NO-ERROR.  
+         IF NOT AVAILABLE KALKFAKTORER THEN DO:
+            CREATE KALKFAKTORER.
+            BUFFER-COPY kalkylprisertt TO KALKFAKTORER.
+            ASSIGN
+            KALKFAKTORER.KALKNR = knr
+            KALKFAKTORER.OMRADE = omr
+            KALKFAKTORER.FAKTOR = 1.0.
+         END.         
+      END.          
+   END.
+   FIND FIRST KALKEGNAPRISER WHERE KALKEGNAPRISER.KALKNR = knr AND KALKEGNAPRISER.OMRADE = omr NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKEGNAPRISER THEN DO TRANSACTION:
+      FOR EACH kalkylprisertt WHERE kalkylprisertt.KLOGSUBID = KALKYLKATALOG.HKLOGSUBID AND kalkylprisertt.EGENPRISUPP = TRUE NO-LOCK:
+         CREATE KALKEGNAPRISER.
+         BUFFER-COPY kalkylprisertt TO KALKEGNAPRISER.
+         ASSIGN
+         KALKEGNAPRISER.KALKNR = knr
+         KALKEGNAPRISER.OMRADE = omr.           
+      END.
+      
+      FOR EACH KALKYLKATALOGSUB WHERE KALKYLKATALOGSUB.KLOGID = KALKYLKATALOG.KLOGID AND KALKYLKATALOGSUB.AVSLUTAD = FALSE NO-LOCK,
+      EACH kalkylprisertt WHERE kalkylprisertt.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND kalkylprisertt.EGENPRISUPP = TRUE NO-LOCK:
+         FIND FIRST KALKEGNAPRISER WHERE KALKEGNAPRISER.KALKNR = knr AND  KALKEGNAPRISER.OMRADE = omr AND 
+         KALKEGNAPRISER.BENAMNING = kalkylprisertt.BENAMNING
+         NO-LOCK NO-ERROR.  
+         IF NOT AVAILABLE KALKEGNAPRISER THEN DO:
+            CREATE KALKEGNAPRISER.
+            BUFFER-COPY kalkylprisertt TO KALKEGNAPRISER.
+            ASSIGN
+            KALKEGNAPRISER.KALKNR = knr
+            KALKEGNAPRISER.OMRADE = omr.
+         END.         
+      END.
+      
+      
+      
+      
+      
+      
+      
+   END.
+
+END PROCEDURE.
+

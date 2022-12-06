@@ -1,0 +1,187 @@
+
+/*------------------------------------------------------------------------
+    File        : TRUMMAKLIENTDS.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Tue Jan 22 09:25:41 CET 2019
+    Notes       :
+  ----------------------------------------------------------------------*/
+{TRUMMADSH.I}
+{LAGERTRUM.I}
+
+
+
+/*KLIENT*/
+
+PROCEDURE laddaTrummaDs_UI :
+   DEFINE VARIABLE tdSetapph AS HANDLE NO-UNDO.   
+   IF Guru.Konstanter:appcon THEN DO:                           
+      RUN TRUMMADS.P  PERSISTENT SET tdSetapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT .
+   END.
+   ELSE DO:
+      RUN TRUMMADS.P  PERSISTENT SET tdSetapph.
+   END.
+   Guru.GlobalaVariabler:tdSetapph = tdSetapph.
+   RUN LaddaTrummaDS IN Guru.GlobalaVariabler:tdSetapph 
+   (INPUT " DEPNR  = " + STRING(Guru.GlobalaVariabler:GuruVdepnr), INPUT " DEPNR  = " + STRING(Guru.GlobalaVariabler:GuruVdepnr), OUTPUT DATASET-HANDLE TrummaDSout BIND,OUTPUT DATASET-HANDLE TrummaAoDSout BIND) .
+   
+   IF VALID-HANDLE(TrummaDSout) THEN Trummahbuff = TrummaDSout:GET-BUFFER-HANDLE(1).
+   IF VALID-HANDLE(TrummaAoDSout) THEN TrummaAohbuff = TrummaAoDSout:GET-BUFFER-HANDLE(1).
+   /*fIXAR TEMPTT*/
+   
+ 
+END PROCEDURE.
+PROCEDURE LaddaFalt_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR lagertrum.
+   DEFINE OUTPUT PARAMETER TABLE FOR aotrum.
+   DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE qh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE diranv AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE bsok AS CHARACTER NO-UNDO.
+   
+   EMPTY TEMP-TABLE lagertrum NO-ERROR. 
+   EMPTY TEMP-TABLE aotrum NO-ERROR. 
+   kommandoquery = "FOR EACH " + Trummahbuff:TABLE + " NO-LOCK". 
+   RUN CreateCustomQuery(INPUT Trummahbuff,INPUT kommandoquery,OUTPUT qh).
+   qH:GET-FIRST().
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      CREATE lagertrum.
+      BUFFER lagertrum:HANDLE:BUFFER-COPY(Trummahbuff).
+      qH:GET-NEXT().
+   END.
+   RUN CloseCustomQuery (INPUT qH).
+   kommandoquery = "FOR EACH " + TrummaAohbuff:TABLE + " NO-LOCK". 
+   RUN CreateCustomQuery(INPUT TrummaAohbuff,INPUT kommandoquery,OUTPUT qh).
+   qH:GET-FIRST().
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      CREATE aotrum.
+      BUFFER aotrum:HANDLE:BUFFER-COPY(TrummaAohbuff).
+      qH:GET-NEXT().
+   END.
+   RUN CloseCustomQuery (INPUT qH).
+     
+END PROCEDURE.
+PROCEDURE SparafaltTrumma_UI :
+   DEFINE INPUT PARAMETER TABLE FOR lagertrum.
+   DEFINE INPUT PARAMETER TABLE FOR aotrum.
+   DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE qh AS HANDLE NO-UNDO.
+   /*OM NÅGON UNDER ÄR ÄNDRAD SÄTT HUVUDPOSTEN TILL ÄNDRAD VAR KAN DETTA SKE ?*/   
+   RUN TrummaDSTrack_UI (TRUE).
+   FOR EACH lagertrum WHERE NO-LOCK:
+      Trummahbuff:FIND-FIRST("WHERE TRUMMANR = " + STRING(lagertrum.TRUMMANR) + " AND TRUMMA = " + QUOTER(lagertrum.TRUMMA)  ,NO-LOCK) NO-ERROR.
+      IF Trummahbuff:AVAILABLE THEN.
+      ELSE DO:
+         Trummahbuff:BUFFER-CREATE().
+      END.   
+      Trummahbuff:BUFFER-COPY(BUFFER lagertrum:HANDLE).
+      Trummahbuff:BUFFER-FIELD("TTRECID"):BUFFER-VALUE = Trummahbuff:RECID.
+         
+   END.
+   FOR EACH aotrum WHERE NO-LOCK:
+      TrummaAohbuff:FIND-FIRST("WHERE AONR = " + QUOTER(aotrum.AONR) + " AND DELNR = " + STRING(aotrum.DELNR) + " AND TRUMMANR = " + STRING(aotrum.TRUMMANR) +
+      " AND ENR = " + QUOTER(aotrum.ENR) ,NO-LOCK) NO-ERROR.
+      IF TrummaAohbuff:AVAILABLE THEN.
+      ELSE TrummaAohbuff:BUFFER-CREATE(). 
+      TrummaAohbuff:BUFFER-COPY(BUFFER aotrum:HANDLE).
+      TrummaAohbuff:BUFFER-FIELD("TTRECID"):BUFFER-VALUE = TrummaAohbuff:RECID.
+      
+   END.
+   kommandoquery = "FOR EACH " + Trummahbuff:TABLE + " NO-LOCK". 
+   RUN CreateCustomQuery(INPUT Trummahbuff,INPUT kommandoquery,OUTPUT qh).
+   qH:GET-FIRST().
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      FIND FIRST lagertrum  WHERE lagertrum.TRUMMANR = Trummahbuff:BUFFER-FIELD("TRUMMANR"):BUFFER-VALUE AND lagertrum.TRUMMA = Trummahbuff:BUFFER-FIELD("TRUMMA"):BUFFER-VALUE NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE lagertrum THEN Trummahbuff:BUFFER-DELETE().
+      qH:GET-NEXT().
+   END.
+   RUN CloseCustomQuery (INPUT qH).
+   kommandoquery = "FOR EACH " + TrummaAohbuff:TABLE + " NO-LOCK". 
+   RUN CreateCustomQuery(INPUT TrummaAohbuff,INPUT kommandoquery,OUTPUT qh).
+   qH:GET-FIRST().
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      FIND FIRST aotrum  WHERE aotrum.AONR = TrummaAohbuff:BUFFER-FIELD("AONR"):BUFFER-VALUE AND aotrum.DELNR = TrummaAohbuff:BUFFER-FIELD("DELNR"):BUFFER-VALUE AND 
+      aotrum.TRUMMANR = TrummaAohbuff:BUFFER-FIELD("TRUMMANR"):BUFFER-VALUE
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE aotrum THEN TrummaAohbuff:BUFFER-DELETE().
+      qH:GET-NEXT().
+   END.
+   RUN CloseCustomQuery (INPUT qH).
+   RUN TrummaDSTrack_UI (FALSE).
+   RUN SparaTrummaDs_UI.
+   
+   
+   
+END PROCEDURE.
+
+PROCEDURE SparaTrummaDs_UI :
+   DEFINE VARIABLE chTDS AS HANDLE NO-UNDO.
+   DEFINE VARIABLE chTaoDS AS HANDLE NO-UNDO.
+   
+   CREATE DATASET chTDS.
+   chTDS:CREATE-LIKE(TrummaDSout).
+   chTDS:GET-CHANGES(TrummaDSout).
+   /*
+       DEFINE VARIABLE SPARAXML AS CHARACTER NO-UNDO.
+      SPARAXML = "C:\CTest.xml". 
+      chTDS:WRITE-XML("FILE", SPARAXML).
+   */
+   RUN SparaDynDSstart_UI IN Guru.GlobalaVariabler:tdSetapph (INPUT "TrummaDS", INPUT DATASET-HANDLE chTDS).
+   chTDS:MERGE-CHANGES(TrummaDSout).
+  
+   CREATE DATASET chTaoDS.
+   chTaoDS:CREATE-LIKE(TrummaAoDSout).
+   chTaoDS:GET-CHANGES(TrummaAoDSout).
+     /*
+      SPARAXML = "C:\CTestao.xml". 
+      chTaoDS:WRITE-XML("FILE", SPARAXML).
+*/   
+   RUN SparaDynDSstart_UI IN Guru.GlobalaVariabler:tdSetapph (INPUT "TrummaAoDS", INPUT DATASET-HANDLE chTaoDS).
+   chTaoDS:MERGE-CHANGES(TrummaAoDSout).
+  
+         
+END PROCEDURE.
+
+PROCEDURE TrummaDSTrack_UI :
+   DEFINE INPUT PARAMETER onoff AS LOGICAL NO-UNDO.
+   IF NOT VALID-HANDLE(Trummahtt) THEN Trummahtt = Trummahbuff:TABLE-HANDLE.
+   Trummahtt:TRACKING-CHANGES = onoff.
+   IF NOT VALID-HANDLE(TrummaAohtt) THEN TrummaAohtt = TrummaAohbuff:TABLE-HANDLE.
+   TrummaAohtt:TRACKING-CHANGES = onoff.
+      
+END PROCEDURE.
+
+
+
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryH.
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+   
+PROCEDURE CloseCustomQuery:
+   DEFINE INPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CustomQueryh:QUERY-CLOSE()  NO-ERROR.
+   CustomQueryh = ?.
+END PROCEDURE.
+
+
+PROCEDURE AvsTrumma_UI :
+    DELETE PROCEDURE Guru.GlobalaVariabler:tdSetapph NO-ERROR.   
+    Guru.GlobalaVariabler:tdSetapph = ?.
+    
+    IF VALID-HANDLE(Trummahbuff) THEN DELETE OBJECT Trummahbuff  NO-ERROR.
+    IF VALID-HANDLE(TrummaAohbuff) THEN DELETE OBJECT TrummaAohbuff  NO-ERROR.
+    DELETE PROCEDURE Guru.GlobalaVariabler:ClienttdSetapph NO-ERROR.   
+    Guru.GlobalaVariabler:ClienttdSetapph = ?.
+    
+END PROCEDURE.

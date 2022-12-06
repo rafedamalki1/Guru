@@ -1,0 +1,57 @@
+DEFINE VARIABLE prognamndat AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamnque AS CHARACTER FORMAT "X(20)" NO-UNDO.                
+DEFINE VARIABLE words AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(132)" NO-UNDO.
+
+DEFINE TEMP-TABLE tidin
+   FIELD PROJ              AS CHARACTER             
+   FIELD ANST              AS CHARACTER  
+   FIELD SIGN              AS CHARACTER
+   INDEX ANST IS PRIMARY  PROJ ANST.  
+DEFINE TEMP-TABLE intid
+   FIELD ut AS CHARACTER FORMAT "X(78)" .
+kommando = SEARCH("quoter.exe").   
+prognamndat = "a:\p.d".
+prognamnque = "a:\p.q".
+OS-COMMAND SILENT VALUE(kommando) VALUE(prognamndat) > VALUE(prognamnque).
+INPUT FROM VALUE(prognamnque) NO-ECHO.
+   
+   REPEAT:
+      DO TRANSACTION: 
+         SET words VIEW-AS EDITOR INNER-CHARS 78 INNER-LINES 80 WITH FRAME DDD WIDTH 80.   
+         REPEAT:
+            IF INDEX(words,chr(9),1) = 0 THEN LEAVE.
+            words = REPLACE(words,chr(9),';').
+         END.
+         CREATE intid.   
+         ASSIGN intid.ut = words.   
+      END.
+   END.
+INPUT CLOSE.
+OUTPUT TO VALUE(prognamnque).
+   FOR EACH intid:      
+      PUT UNFORMATTED intid.ut skip.      
+   END.
+   OUTPUT CLOSE.
+   
+INPUT FROM VALUE(prognamnque) NO-ECHO.
+   
+   REPEAT:
+      DO TRANSACTION: 
+         CREATE tidin.
+         ASSIGN.
+         IMPORT DELIMITER ";" tidin   NO-ERROR.
+      END.               
+   END.
+INPUT CLOSE.   
+FOR EACH tidin NO-LOCK:            
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.ANSTNR = tidin.ANST NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO TRANSACTION:                        
+      CREATE PERSONALPROJEKT.
+      ASSIGN
+      PERSONALPROJEKT.PERSONALKOD = PERSONALTAB.PERSONALKOD
+      PERSONALPROJEKT.PROJEKTOR = tidin.PROJ
+      PERSONALPROJEKT.SIGN = tidin.SIGN.
+   END.
+ 
+END.

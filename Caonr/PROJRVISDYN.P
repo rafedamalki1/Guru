@@ -1,0 +1,175 @@
+/* PERSLARTVISDYN.P */
+{ALLDEF.I}
+{GLOBVAR2DEL1.I}
+{TIDSLAGTEMP.I}
+{WHANDLTEMP.I}
+DEFINE VARIABLE ordnr         AS INTEGER NO-UNDO.
+DEFINE VARIABLE C-WIN         AS HANDLE NO-UNDO.
+DEFINE VARIABLE Dialog-FRAME AS HANDLE NO-UNDO.   
+DEFINE VARIABLE projvisapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE pkodf AS LOGICAL.
+DEFINE VARIABLE arbartkodf AS LOGICAL.
+DEFINE VARIABLE anlnrf AS LOGICAL.
+ 
+DEFINE VARIABLE BTN_OK       AS HANDLE NO-UNDO.
+
+DEFINE TEMP-TABLE kbtemp
+   FIELD K1 AS CHARACTER
+   FIELD K2 AS CHARACTER
+   FIELD K3 AS CHARACTER
+   FIELD K4 AS CHARACTER
+   FIELD K5 AS CHARACTER.
+DEFINE TEMP-TABLE jurtemp
+   FIELD JUDID AS CHARACTER
+   FIELD NAMN AS CHARACTER
+   FIELD VIJUDID AS CHARACTER.
+
+DEFINE INPUT PARAMETER huvprogh      AS HANDLE NO-UNDO.
+DEFINE INPUT PARAMETER frm AS HANDLE NO-UNDO.
+
+DEFINE INPUT PARAMETER TABLE FOR whandltemp.
+
+
+FIND FIRST whandltemp WHERE NO-LOCK NO-ERROR.
+ordnr = 0.
+ASSIGN
+ordnr = ordnr + 1.
+RUN whout_UI (OUTPUT Dialog-FRAME).
+RUN whout_UI (OUTPUT BTN_OK).
+
+PROCEDURE whout_UI :
+   DEFINE OUTPUT PARAMETER wih AS HANDLE NO-UNDO.
+   wih = whandltemp.WF[ordnr].
+   ordnr = ordnr + 1.
+END PROCEDURE.
+framesizeh = frm.
+PROCEDURE skapabrw_UI : 
+   DEFINE INPUT  PARAMETER mdep AS INTEGER NO-UNDO. 
+   DEFINE INPUT  PARAMETER brvnr AS INTEGER NO-UNDO.  
+   DEFINE INPUT  PARAMETER tthandlez AS HANDLE NO-UNDO.
+   DEFINE VARIABLE brwantal AS INTEGER NO-UNDO.
+   DEFINE VARIABLE x-multi AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE y-multi AS DECIMAL NO-UNDO. 
+   DEFINE VARIABLE radvar AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE colvar AS DECIMAL NO-UNDO.
+   IF Guru.Konstanter:appcon THEN DO:      
+       RUN PROJRVISAPP.P PERSISTENT SET projvisapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+   END.
+   ELSE DO:      
+      RUN PROJRVISAPP.P PERSISTENT SET projvisapph.     
+   END.
+   IF brvnr = 1 OR brvnr = 2 THEN DO:
+      IF brvnr = 1 THEN DO:    
+         IF Guru.Konstanter:appcon THEN DO:
+            RUN KBHMT.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT
+            (INPUT 1,INPUT Guru.Konstanter:globforetag,OUTPUT TABLE kbtemp,OUTPUT TABLE jurtemp).
+         END.
+         ELSE DO:
+            RUN KBHMT.P
+            (INPUT 1,INPUT Guru.Konstanter:globforetag,OUTPUT TABLE kbtemp,OUTPUT TABLE jurtemp).
+         END.         
+         RUN hamtuppg_UI IN projvisapph (OUTPUT pkodf, OUTPUT arbartkodf , OUTPUT anlnrf).
+         RUN avsProjVis_UI IN projvisapph.
+         DELETE PROCEDURE projvisapph NO-ERROR. 
+         projvisapph = ?. 
+         FIND FIRST kbtemp NO-LOCK NO-ERROR.
+      END.
+      RUN musw IN huvprogh.
+      RUN DYNBRWINIT.P PERSISTENT SET brwproc[brvnr].
+      RUN newbrw_UI IN brwproc[brvnr] (INPUT THIS-PROCEDURE).
+      IF brvnr = 1 THEN DO:
+         RUN brwegenskap_UI IN brwproc[brvnr] (INPUT tthandlez,INPUT "BRW_VAONR", INPUT 124, INPUT 10, INPUT TRUE, INPUT TRUE, INPUT "Visa " + Guru.Konstanter:gaok, INPUT Dialog-FRAME).
+      END.
+      IF brvnr = 2 THEN DO:
+         RUN brwegenskap_UI IN brwproc[brvnr] (INPUT tthandlez,INPUT "BRW_VAONR", INPUT 124, INPUT 10, INPUT TRUE, INPUT TRUE, INPUT "Valda " + Guru.Konstanter:gaok + " utsöka på " + Guru.Konstanter:gtidll, INPUT Dialog-FRAME).
+      END.         
+      RUN getsizf_UI IN framesizeh (OUTPUT x-multi, OUTPUT y-multi).
+         /*                                     bredd     höjd     kol      rad*/      
+      RUN brwstorlek_UI IN brwproc[brvnr](INPUT 123, INPUT 26, INPUT 1.5, INPUT 1.9, INPUT x-multi, INPUT y-multi).
+      RUN fieldinit_UI IN brwproc[brvnr].
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "AONR", INPUT Guru.Konstanter:gaok, INPUT 8, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "DELNR", INPUT Guru.Konstanter:gdelnrk, INPUT 4, INPUT ">>>9", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "ORT", INPUT "Ort/Benämning", INPUT 20, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "OMRADE", INPUT Guru.Konstanter:gomrk, INPUT 5, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "OMRADENAMN", INPUT Guru.Konstanter:gomrl, INPUT 12, INPUT "x(256)", INPUT TRUE).   
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "BESTNAMN", INPUT Guru.Konstanter:gbestl, INPUT 10, INPUT "x(256)", INPUT TRUE).
+      IF brvnr = 1 THEN DO:
+         IF AVAILABLE kbtemp  THEN DO:
+            IF Guru.Konstanter:varforetypval[2] = 0 THEN DO:
+               IF kbtemp.K1 NE "" THEN RUN createfields_UI IN brwproc[brvnr] (INPUT "K1", INPUT CAPS(SUBSTRING(kbtemp.K1,1,1)) + LC(SUBSTRING(kbtemp.K1,2)), INPUT 6, INPUT "x(256)", INPUT TRUE).
+               IF kbtemp.K2 NE "" THEN RUN createfields_UI IN brwproc[brvnr] (INPUT "K2", INPUT CAPS(SUBSTRING(kbtemp.K2,1,1)) + LC(SUBSTRING(kbtemp.K2,2)), INPUT 6, INPUT "x(256)", INPUT TRUE).
+               IF kbtemp.K3 NE "" THEN RUN createfields_UI IN brwproc[brvnr] (INPUT "K3", INPUT CAPS(SUBSTRING(kbtemp.K3,1,1)) + LC(SUBSTRING(kbtemp.K3,2)), INPUT 6, INPUT "x(256)", INPUT TRUE).
+               IF kbtemp.K4 NE "" THEN RUN createfields_UI IN brwproc[brvnr] (INPUT "K4", INPUT CAPS(SUBSTRING(kbtemp.K4,1,1)) + LC(SUBSTRING(kbtemp.K4,2)), INPUT 6, INPUT "x(256)", INPUT TRUE).
+               IF kbtemp.K5 NE "" THEN RUN createfields_UI IN brwproc[brvnr] (INPUT "K5", INPUT CAPS(SUBSTRING(kbtemp.K5,1,1)) + LC(SUBSTRING(kbtemp.K5,2)), INPUT 6, INPUT "x(256)", INPUT TRUE).
+               IF kbtemp.K1 NE "" THEN RUN createfields_UI IN brwproc[brvnr] (INPUT "SATS%", INPUT "%", INPUT 3, INPUT ">>>9", INPUT TRUE).
+            END.   
+         END.
+      END.      
+      IF brvnr = 2 THEN DO:
+         RUN createfields_UI IN brwproc[brvnr] (INPUT "TIDLAGE", INPUT Guru.Konstanter:gtidll, INPUT 15, INPUT "x(256)", INPUT TRUE).
+         RUN createfields_UI IN brwproc[brvnr] (INPUT "AKTIVITET1", INPUT "Aktivitet", INPUT 15, INPUT "x(256)", INPUT TRUE).
+         RUN createfields_UI IN brwproc[brvnr] (INPUT "DAT1", INPUT "Datum", INPUT 15, INPUT "99/99/99", INPUT TRUE).
+         RUN createfields_UI IN brwproc[brvnr] (INPUT "ANVANDARE1", INPUT "Ändrad av", INPUT 15, INPUT "x(256)", INPUT TRUE).
+         RUN createfields_UI IN brwproc[brvnr] (INPUT "AKTIVITET2", INPUT "Aktivitet", INPUT 15, INPUT "x(256)", INPUT TRUE).
+         RUN createfields_UI IN brwproc[brvnr] (INPUT "DAT2", INPUT "Datum", INPUT 15, INPUT "99/99/99", INPUT TRUE).
+         RUN createfields_UI IN brwproc[brvnr] (INPUT "ANVANDARE2", INPUT "Ändrad av", INPUT 15, INPUT "x(256)", INPUT TRUE).
+      END.
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "PROJEKTOR", INPUT Guru.Konstanter:gprojl, INPUT 15, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "BEREDARE", INPUT Guru.Konstanter:gberel, INPUT 15, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "ARBANSVARIG", INPUT Guru.Konstanter:garbal, INPUT 15, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "AOUPPLAGT", INPUT "Upplagt", INPUT 15, INPUT "99/99/99", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "AONRAVDATUM", INPUT "Avslutat", INPUT 15, INPUT "99/99/99", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "REF", INPUT "Ref.nr best.", INPUT 10, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "REFKONTAKT", INPUT "Kontaktperson", INPUT 25, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "ARBUPPG", INPUT "Arbetsuppgift", INPUT 30, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "ANM", INPUT "Anm", INPUT 30, INPUT "x(256)", INPUT TRUE).
+      IF brvnr = 1 THEN DO:
+         IF pkodf = TRUE THEN DO: 
+            RUN createfields_UI IN brwproc[brvnr] (INPUT "PKOD", INPUT Guru.Konstanter:gpriok, INPUT 5, INPUT ">>9", INPUT TRUE).
+            RUN createfields_UI IN brwproc[brvnr] (INPUT "PKODNAMN", INPUT Guru.Konstanter:gpriol, INPUT 12, INPUT "x(256)", INPUT TRUE).
+         END.
+         IF arbartkodf = TRUE THEN DO:   
+            RUN createfields_UI IN brwproc[brvnr] (INPUT "ARBARTKOD", INPUT Guru.Konstanter:gartk, INPUT 6, INPUT ">>9", INPUT TRUE).
+            RUN createfields_UI IN brwproc[brvnr] (INPUT "ARBARTKODNAMN", INPUT Guru.Konstanter:gartl, INPUT 12, INPUT "x(256)", INPUT TRUE).
+         END.
+         IF anlnrf = TRUE THEN DO:   
+            RUN createfields_UI IN brwproc[brvnr] (INPUT "ANLNR", INPUT "Anl.nr", INPUT 6, INPUT "x(256)", INPUT TRUE).
+            RUN createfields_UI IN brwproc[brvnr] (INPUT "ANLNRBENAMNING", INPUT "Anl.namn", INPUT 12, INPUT "x(256)", INPUT TRUE).
+         END.
+      END.      
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "PRISTYP ", INPUT "Debitering", INPUT 10, INPUT "x(256)", INPUT TRUE).
+   END.   
+   ELSE IF brvnr = 3 THEN DO:            
+      RUN musw IN huvprogh.
+      RUN DYNBRWINIT.P PERSISTENT SET brwproc[brvnr].
+      RUN newbrw_UI IN brwproc[brvnr] (INPUT THIS-PROCEDURE).
+      RUN brwegenskap_UI IN brwproc[brvnr] (INPUT tthandlez,INPUT "BRW_VAONR", INPUT 124, INPUT 10, INPUT TRUE, INPUT TRUE, INPUT "Visa " + Guru.Konstanter:gaok + " med alla " + Guru.Konstanter:gtidll, INPUT Dialog-FRAME).      
+      RUN getsizf_UI IN framesizeh (OUTPUT x-multi, OUTPUT y-multi).
+         /*                                     bredd     höjd     kol      rad*/
+      
+      RUN brwstorlek_UI IN brwproc[brvnr](INPUT 123, INPUT 26, INPUT 1.5, INPUT 1.9, INPUT x-multi, INPUT y-multi).
+      RUN fieldinit_UI IN brwproc[brvnr].
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "AONR", INPUT Guru.Konstanter:gaok, INPUT 8, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "DELNR", INPUT Guru.Konstanter:gdelnrk, INPUT 4, INPUT ">>>9", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "ORT", INPUT "Ort/Benämning", INPUT 20, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "OMRADE", INPUT Guru.Konstanter:gomrk, INPUT 5, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "OMRADENAMN", INPUT Guru.Konstanter:gomrl, INPUT 12, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "TIDLAGE", INPUT Guru.Konstanter:gtidll, INPUT 15, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "AKTIVITET1", INPUT "Aktivitet", INPUT 15, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "DAT1", INPUT "Datum", INPUT 15, INPUT "99/99/99", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "ANVANDARE1", INPUT "Ändrad av", INPUT 15, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "AKTIVITET2", INPUT "Aktivitet", INPUT 15, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "DAT2", INPUT "Datum", INPUT 15, INPUT "99/99/99", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "ANVANDARE2", INPUT "Ändrad av", INPUT 15, INPUT "x(256)", INPUT TRUE).
+      RUN setcolindex_UI IN brwproc[3] (INPUT "AONR BY DELNR BY TIDLAGE").
+   END.       
+   RUN fieldslut_UI IN brwproc[brvnr].
+   RUN getantal_UI IN brwproc[brvnr].      
+   RUN musa IN huvprogh.
+END PROCEDURE.
+
+PROCEDURE avs_UI :
+   {BORTBRWPROC.I}
+END PROCEDURE.
+
+

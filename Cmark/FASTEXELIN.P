@@ -1,0 +1,1433 @@
+/*fastexcelin.p
+  FASTEXELIN.P*/
+{IMPFAST.I}
+DEFINE TEMP-TABLE sfasttemp
+   FIELD BETECKNING AS CHARACTER 
+   FIELD ANTFAST AS INTEGER.
+
+
+
+   
+
+
+DEFINE VARIABLE utskriv AS LOGICAL NO-UNDO.
+DEFINE VARIABLE spbeteckn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE spbetecknsa AS CHARACTER NO-UNDO.
+DEFINE VARIABLE innamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE rakn AS INTEGER NO-UNDO.
+DEFINE VARIABLE hjpers AS INTEGER NO-UNDO.
+DEFINE VARIABLE blankrak AS INTEGER NO-UNDO.
+DEFINE VARIABLE fastrak AS INTEGER NO-UNDO.
+DEFINE VARIABLE adel1 AS INTEGER NO-UNDO.
+DEFINE VARIABLE adel2 AS INTEGER NO-UNDO.
+
+
+{EXECLIN2.I}
+DEFINE INPUT PARAMETER vadgora AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER filnamn AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR fasttmp.
+DEFINE OUTPUT PARAMETER TABLE FOR marktmp.
+EMPTY TEMP-TABLE fasttmp NO-ERROR. 
+
+{AMERICANEUROPEAN.I}
+IF vadgora = 1 THEN DO:
+   /*Infotrader*/
+   RUN startin_UI.
+END.
+IF vadgora = 4 THEN DO:   
+  /* Infotrader nytt format 20180227  om det inte fungerar testa gamla med markägare på tre rader */   
+   RUN startinINFOTR_UI.
+END.   
+IF vadgora = 2 THEN DO:
+   /*TEKIS Sundsvall elnät*/
+    RUN startinTEKIS_UI.
+END.
+/*IF vadgora = 8 THEN DO:
+   /*TEKIS POWEt*/
+    RUN startinTEKISpowe_UI.
+END.*/
+IF vadgora = 9 THEN DO:
+   /*Visma Optiway POWE*/
+    RUN startinVismaPowe_UI.
+END.
+IF vadgora = 10 THEN DO:
+   /*EON WSP*/
+    RUN startinEON_UI.
+END.
+
+IF vadgora = 3 THEN DO:
+   /*TEKIS Umeå Energi*/
+    RUN startinTEKISume_UI.
+END.
+IF vadgora = 5 THEN DO:
+   /*Metria Tectel*/
+    RUN startinMetria_UI.
+END.
+IF vadgora = 11 THEN DO:
+   /*Metria Vattenfall ev andra*/
+    RUN startinMetria2_UI.
+END.
+IF vadgora = 6 OR vadgora = 7 THEN DO:
+   /*Metria utökad me samfällighet osv Tectel*/
+    RUN startinMetriaut_UI.
+END.
+IF vadgora = 12 THEN DO:
+   /*Guruimport format*/
+    RUN startinGuru_UI.
+END.    
+{EUROPEANAMERICAN.I}
+PROCEDURE startin_UI:
+   /*fastigheter flik 1*/
+   ASSIGN
+   startc = "A"
+   slutc = "B"
+   iRad = 2
+   blankrak = 0.    
+   RUN readexcelstart_UI (INPUT filnamn).
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      IF allacolumtext[1] NE "" THEN DO:
+         blankrak = 0.                        
+         CREATE fasttmp.
+         ASSIGN fasttmp.BETECKNING = TRIM(allacolumtext[1])
+         fasttmp.KOMMUN = TRIM(allacolumtext[2]).
+      END.      
+      ELSE DO:
+         IF blankrak > 10 THEN LEAVE.
+         blankrak = blankrak + 1.
+      END.   
+   END.
+   /*markägare flik2*/
+   
+   ASSIGN chWorkSheet = chExcelApplication:Sheets:ITEM(2) NO-ERROR.
+   ASSIGN
+   startc = "A"
+   slutc = "E"
+   iRad = 2
+   spbeteckn = ""
+   blankrak = 0.
+   ASSIGN iRadslut = chWorksheet:Cells:SpecialCells(11):ROW NO-ERROR.   
+   {EXCELFEL.I}
+   DO WHILE iRad <= iRadslut:      
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      {EXCELFEL.I}
+      IF allacolumtext[2] NE "" THEN DO:
+         blankrak = 0.                        
+         IF allacolumtext[2] = "" THEN allacolumtext[2] = spbeteckn .
+         IF allacolumtext[1] = "Lagf" THEN DO:         
+            hjpers = INTEGER(SUBSTRING(allacolumtext[5],1,6)) NO-ERROR.
+            IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+               allacolumtext[5] = "0000000000".
+               hjpers = INTEGER(allacolumtext[5]) NO-ERROR.
+            END.           
+            IF allacolumtext[5] = "" THEN allacolumtext[5] = "0000000000".
+            CREATE marktmp.
+            ASSIGN marktmp.BETECKNING = allacolumtext[2]            
+            marktmp.GATUADRESS = allacolumtext[3].
+            
+            IF LENGTH(allacolumtext[5]) > 11 THEN marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[5],3).
+            ELSE marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[5],1).
+            marktmp.PERSONNUMMER = REPLACE(marktmp.PERSONNUMMER,"-","").
+            ASSIGN
+            marktmp.ANDEL = allacolumtext[4].
+            
+            iRad = iRad - 1.
+            RUN readexcel_UI.
+            {EXCELFEL.I}
+            marktmp.MARKAGARE = allacolumtext[3].
+            iRad = iRad + 2.
+            RUN readexcel_UI.
+            {EXCELFEL.I}         
+            assign
+            marktmp.POSTNUMMER = SUBSTRING(allacolumtext[3],1,6)         
+            marktmp.POSTNUMMER = REPLACE(marktmp.POSTNUMMER," ","")
+            marktmp.POSTADRESS = SUBSTRING(allacolumtext[3],7).
+            
+            FIND FIRST fasttmp WHERE fasttmp.BETECKNING = marktmp.BETECKNING NO-ERROR.
+            IF NOT AVAILABLE fasttmp THEN DO:
+               /*DE HAR LAGT KOMMUN FÖRST I FÄLTET , TA BORT KOMMUN*/
+               marktmp.BETECKNING = TRIM(SUBSTRING(marktmp.BETECKNING,(INDEX(marktmp.BETECKNING," ") + 1))).
+               /*dummy för excelfel*/
+               FIND FIRST fasttmp NO-ERROR.
+            END.
+                                    
+         END.
+         spbeteckn = allacolumtext[2].         
+      END.
+      ELSE DO:
+         IF blankrak > 10 THEN LEAVE.
+         blankrak = blankrak + 1.    
+      END.           
+   END.
+   /*Om gamla formatet*/
+   FIND FIRST marktmp NO-ERROR.
+   IF NOT AVAILABLE marktmp THEN DO:
+      ASSIGN
+      startc = "A"
+      slutc = "I"
+      iRad = 2
+      spbeteckn = ""
+      blankrak = 0.
+      
+      ASSIGN iRadslut = chWorksheet:Cells:SpecialCells(11):ROW NO-ERROR.   
+      {EXCELFEL.I}
+      DO WHILE iRad <= iRadslut:
+         iRad = iRad + 1.
+         RUN readexcel_UI.
+         {EXCELFEL.I}
+         /* GAMLA format från Infotrader NYA FROM 20130315*/
+         IF allacolumtext[5] NE "" THEN DO:
+            blankrak = 0.                        
+            IF allacolumtext[2] = "" THEN allacolumtext[2] = spbeteckn .
+            IF allacolumtext[3] = "Lagf" THEN DO:         
+               hjpers = INTEGER(SUBSTRING(allacolumtext[9],1,6)) NO-ERROR.
+               IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+                  allacolumtext[9] = "0000000000".
+                  hjpers = INTEGER(allacolumtext[9]) NO-ERROR.
+               END.           
+               IF allacolumtext[9] = "" THEN allacolumtext[9] = "0000000000".
+               CREATE marktmp.
+               ASSIGN marktmp.BETECKNING = TRIM(allacolumtext[2])
+               marktmp.MARKAGARE = allacolumtext[5]
+               marktmp.GATUADRESS = allacolumtext[6]
+               marktmp.POSTNUMMER = SUBSTRING(allacolumtext[7],1,5)         
+               marktmp.POSTNUMMER = REPLACE(marktmp.POSTNUMMER," ","")
+               marktmp.POSTADRESS = SUBSTRING(allacolumtext[7],7).                    
+               IF LENGTH(allacolumtext[9]) > 11 THEN marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[9],3).
+               ELSE marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[9],1).
+               marktmp.PERSONNUMMER = REPLACE(marktmp.PERSONNUMMER,"-","").
+               ASSIGN
+               marktmp.ANDEL = allacolumtext[8].
+               
+            END.
+            spbeteckn = allacolumtext[2].
+         END.
+         ELSE DO  :
+            IF blankrak > 10 THEN LEAVE.
+            blankrak   = blankrak + 1.   
+         END.   
+            
+      END.                  
+   END.
+      
+   
+   FOR EACH marktmp :
+      RUN versaler_UI (INPUT-OUTPUT marktmp.MARKAGARE ).      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.GATUADRESS ).      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.POSTADRESS ).      
+   END.
+   FOR EACH fasttmp :
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.BETECKNING ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.KOMMUN ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.LAN ).      
+   END.
+   
+   RUN slutreadexcel_UI.        
+   {EXCELFEL.I}
+END PROCEDURE.
+
+PROCEDURE startinINFOTR_UI:
+   /*fastigheter flik 2*/
+   bladvar = 2.
+   ASSIGN
+   startc = "A"
+   slutc = "B"
+   iRad = 2
+   blankrak = 0.
+   ASSIGN chWorkSheet = chExcelApplication:Sheets:ITEM(2) NO-ERROR.    
+   RUN readexcelstartvflik_UI (INPUT filnamn, 2).
+   
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      IF allacolumtext[1] NE "" THEN DO:
+         blankrak = 0.                        
+         CREATE fasttmp.
+         ASSIGN fasttmp.BETECKNING = TRIM(allacolumtext[1])
+         fasttmp.KOMMUN = TRIM(allacolumtext[2]).
+      END.      
+      ELSE DO:
+         IF blankrak > 10 THEN LEAVE.
+         blankrak = blankrak + 1.
+      END.   
+   END.
+   /*markägare flik3*/
+   RELEASE OBJECT chWorksheet NO-ERROR.
+   ASSIGN chWorkSheet = chExcelApplication:Sheets:ITEM(3) NO-ERROR.
+   
+   ASSIGN
+   startc = "A"
+   slutc = "I"
+   iRad = 2
+   spbeteckn = ""
+   blankrak = 0.
+   
+   ASSIGN iRadslut = chWorksheet:Cells:SpecialCells(11):ROW NO-ERROR.   
+   {EXCELFEL.I}
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      {EXCELFEL.I}
+      /* GAMLA format från Infotrader NYA FROM 20130315*/
+      IF allacolumtext[5] NE "" THEN DO:
+         blankrak = 0.                        
+         IF allacolumtext[2] = "" THEN allacolumtext[2] = spbeteckn .
+         IF allacolumtext[3] = "Lagf" THEN DO:         
+            hjpers = INTEGER(SUBSTRING(allacolumtext[9],1,6)) NO-ERROR.
+            IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+               allacolumtext[9] = "0000000000".
+               hjpers = INTEGER(allacolumtext[9]) NO-ERROR.
+            END.           
+            IF allacolumtext[9] = "" THEN allacolumtext[9] = "0000000000".
+            CREATE marktmp.
+            ASSIGN marktmp.BETECKNING = TRIM(allacolumtext[2])
+            marktmp.MARKAGARE = allacolumtext[5]
+            marktmp.GATUADRESS = allacolumtext[6]
+            marktmp.POSTNUMMER = SUBSTRING(allacolumtext[7],1,5)         
+            marktmp.POSTNUMMER = REPLACE(marktmp.POSTNUMMER," ","")
+            marktmp.POSTADRESS = SUBSTRING(allacolumtext[7],7).                    
+            IF LENGTH(allacolumtext[9]) > 11 THEN marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[9],3).
+            ELSE marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[9],1).
+            marktmp.PERSONNUMMER = REPLACE(marktmp.PERSONNUMMER,"-","").
+            ASSIGN
+            marktmp.ANDEL = allacolumtext[8].
+            
+         END.
+         spbeteckn = allacolumtext[2].
+      END.
+      ELSE DO  :
+         IF blankrak > 10 THEN LEAVE.
+         blankrak   = blankrak + 1.   
+      END.   
+                 
+   END.
+   FIND FIRST marktmp NO-ERROR.
+   IF NOT AVAILABLE marktmp THEN DO:
+      /*om ingen markägare skapad testa om det är markägare på 3 rader istället*/
+      
+      ASSIGN
+      startc = "A"
+      slutc = "E"
+      iRad = 2
+      spbeteckn = ""
+      blankrak = 0.
+      ASSIGN iRadslut = chWorksheet:Cells:SpecialCells(11):ROW NO-ERROR.   
+      {EXCELFEL.I}
+      DO WHILE iRad <= iRadslut:      
+         iRad = iRad + 1.
+         RUN readexcel_UI.
+         {EXCELFEL.I}
+         IF allacolumtext[2] NE "" THEN DO:
+            blankrak = 0.                        
+            IF allacolumtext[2] = "" THEN allacolumtext[2] = spbeteckn .
+            IF allacolumtext[1] = "Lagf" THEN DO:         
+               hjpers = INTEGER(SUBSTRING(allacolumtext[5],1,6)) NO-ERROR.
+               IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+                  allacolumtext[5] = "0000000000".
+                  hjpers = INTEGER(allacolumtext[5]) NO-ERROR.
+               END.           
+               IF allacolumtext[5] = "" THEN allacolumtext[5] = "0000000000".
+               CREATE marktmp.
+               ASSIGN marktmp.BETECKNING = allacolumtext[2]            
+               marktmp.GATUADRESS = allacolumtext[3].
+               
+               IF LENGTH(allacolumtext[5]) > 11 THEN marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[5],3).
+               ELSE marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[5],1).
+               marktmp.PERSONNUMMER = REPLACE(marktmp.PERSONNUMMER,"-","").
+               ASSIGN
+               marktmp.ANDEL = allacolumtext[4].
+               
+               iRad = iRad - 1.
+               RUN readexcel_UI.
+               {EXCELFEL.I}
+               marktmp.MARKAGARE = allacolumtext[3].
+               iRad = iRad + 2.
+               RUN readexcel_UI.
+               {EXCELFEL.I}         
+               assign
+               marktmp.POSTNUMMER = SUBSTRING(allacolumtext[3],1,6)         
+               marktmp.POSTNUMMER = REPLACE(marktmp.POSTNUMMER," ","")
+               marktmp.POSTADRESS = SUBSTRING(allacolumtext[3],7).
+               
+               FIND FIRST fasttmp WHERE fasttmp.BETECKNING = marktmp.BETECKNING NO-ERROR.
+               IF NOT AVAILABLE fasttmp THEN DO:
+                  /*DE HAR LAGT KOMMUN FÖRST I FÄLTET , TA BORT KOMMUN*/
+                  marktmp.BETECKNING = TRIM(SUBSTRING(marktmp.BETECKNING,(INDEX(marktmp.BETECKNING," ") + 1))).
+                  /*dummy för excelfel*/
+                  FIND FIRST fasttmp NO-ERROR.
+               END.
+                                       
+            END.
+            spbeteckn = allacolumtext[2].         
+         END.
+         ELSE DO:
+            IF blankrak > 10 THEN LEAVE.
+            blankrak = blankrak + 1.    
+         END.           
+      END.         
+   END.
+   FOR EACH marktmp :
+      RUN versaler_UI (INPUT-OUTPUT marktmp.MARKAGARE ).      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.GATUADRESS ).      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.POSTADRESS ).      
+   END.
+   FOR EACH fasttmp :
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.BETECKNING ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.KOMMUN ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.LAN ).      
+   END.
+   
+   RELEASE OBJECT chWorksheet NO-ERROR.
+   RUN slutreadexcel_UI.        
+   {EXCELFEL.I}
+END PROCEDURE.
+
+
+PROCEDURE startinTEKIS_UI:
+   /*fastigheter flik 1*/
+   
+   ASSIGN
+   startc = "A"
+   slutc = "H"
+   iRad = 1
+   blankrak = 0    
+   spbeteckn = "".
+   RUN readexcelstart_UI (INPUT filnamn).
+   /*ASSIGN chWorkSheet = chExcelApplication:Sheets:ITEM(1) NO-ERROR.*/
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      IF allacolumtext[1] NE "" THEN DO:
+         blankrak = 0.
+         IF spbeteckn NE  TRIM(allacolumtext[1]) THEN DO:
+         /*FIND FIRST fasttmp WHERE fasttmp.BETECKNING = TRIM(allacolumtext[1]) NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE fasttmp THEN DO:*/
+                                          
+            CREATE fasttmp.
+            ASSIGN fasttmp.BETECKNING = TRIM(allacolumtext[1]).
+            IF allacolumtext[8] NE "" THEN fasttmp.KOMMUN = TRIM(allacolumtext[8]). 
+            ELSE fasttmp.KOMMUN = "Sundsvall".
+            IF fasttmp.KOMMUN BEGINS "Sundsvall" THEN fasttmp.KOMMUN = "Sundsvall".
+            ELSE IF fasttmp.KOMMUN BEGINS "Ånge" THEN fasttmp.KOMMUN = "Ånge".
+            ELSE IF fasttmp.KOMMUN BEGINS "Härnösand" THEN fasttmp.KOMMUN = "Härnösand".
+            ELSE IF fasttmp.KOMMUN BEGINS "Strömsund" THEN fasttmp.KOMMUN = "Strömsund".
+            ELSE IF fasttmp.KOMMUN BEGINS "Ragunda" THEN fasttmp.KOMMUN = "Ragunda".
+            ELSE IF fasttmp.KOMMUN BEGINS "Berg" THEN fasttmp.KOMMUN = "Berg".
+            ELSE IF fasttmp.KOMMUN BEGINS "Härjedalen" THEN fasttmp.KOMMUN = "Härjedalen".
+            ELSE fasttmp.KOMMUN = "Sundsvall".            
+         END.   
+      END.      
+      ELSE DO:
+         IF blankrak > 10 THEN LEAVE.
+         blankrak = blankrak + 1.
+      END.
+      spbeteckn = TRIM(allacolumtext[1]).   
+   END.
+   
+   
+   ASSIGN
+   startc = "A"
+   slutc = "G"
+   iRad = 1
+   spbeteckn = ""
+   blankrak = 0.
+   
+   ASSIGN iRadslut = chWorksheet:Cells:SpecialCells(11):ROW NO-ERROR.   
+   {EXCELFEL.I}
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      {EXCELFEL.I}
+      
+      IF allacolumtext[3] NE "" THEN DO:
+         blankrak = 0.                                          
+         hjpers = INTEGER(SUBSTRING(allacolumtext[7],1,8)) NO-ERROR.
+         IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+            allacolumtext[7] = "0000000000".
+            hjpers = INTEGER(allacolumtext[7]) NO-ERROR.
+         END.           
+         IF allacolumtext[7] = "" THEN allacolumtext[7] = "0000000000".
+         CREATE marktmp.
+         ASSIGN marktmp.BETECKNING = TRIM(allacolumtext[1])
+         marktmp.MARKAGARE = allacolumtext[3]
+         marktmp.GATUADRESS = allacolumtext[4]
+         marktmp.POSTNUMMER = allacolumtext[5]         
+         marktmp.POSTNUMMER = REPLACE(marktmp.POSTNUMMER," ","")
+         marktmp.POSTADRESS = allacolumtext[6].                    
+         IF LENGTH(allacolumtext[7]) > 11 THEN marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[7],3).
+         ELSE marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[7],1).
+         marktmp.PERSONNUMMER = REPLACE(marktmp.PERSONNUMMER,"-","").
+         ASSIGN
+         marktmp.ANDEL = allacolumtext[2].         
+         spbeteckn = allacolumtext[1].
+      END.
+      ELSE DO  :
+         IF blankrak > 10 THEN LEAVE.
+         blankrak   = blankrak + 1.   
+      END.   
+         
+   END.                  
+
+      
+   
+   FOR EACH marktmp :
+      /*RUN versaler_UI (INPUT-OUTPUT marktmp.MARKAGARE ).*/      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.GATUADRESS ).      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.POSTADRESS ).      
+   END.
+   FOR EACH fasttmp :
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.BETECKNING ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.KOMMUN ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.LAN ).      
+   END.
+   
+   RUN slutreadexcel_UI.        
+   {EXCELFEL.I}
+END PROCEDURE.
+
+PROCEDURE startinTEKISpowe_UI:
+   /*fastigheter flik 1*/
+   
+   ASSIGN
+   startc = "A"
+   slutc = "H"
+   iRad = 1
+   blankrak = 0    
+   spbeteckn = "".
+   RUN readexcelstart_UI (INPUT filnamn).
+   /*ASSIGN chWorkSheet = chExcelApplication:Sheets:ITEM(1) NO-ERROR.*/
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      IF allacolumtext[1] NE "" THEN DO:
+         blankrak = 0.
+         IF spbeteckn NE  TRIM(allacolumtext[1]) THEN DO:
+         /*FIND FIRST fasttmp WHERE fasttmp.BETECKNING = TRIM(allacolumtext[1]) NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE fasttmp THEN DO:*/
+                                          
+            CREATE fasttmp.
+            ASSIGN fasttmp.BETECKNING = TRIM(allacolumtext[1]).
+            IF allacolumtext[8] NE "" THEN fasttmp.KOMMUN = TRIM(allacolumtext[8]). 
+            /*ELSE fasttmp.KOMMUN = "Sundsvall".
+            IF fasttmp.KOMMUN BEGINS "Sundsvall" THEN fasttmp.KOMMUN = "Sundsvall".
+            ELSE IF fasttmp.KOMMUN BEGINS "Ånge" THEN fasttmp.KOMMUN = "Ånge".
+            ELSE IF fasttmp.KOMMUN BEGINS "Härnösand" THEN fasttmp.KOMMUN = "Härnösand".
+            ELSE IF fasttmp.KOMMUN BEGINS "Strömsund" THEN fasttmp.KOMMUN = "Strömsund".
+            ELSE IF fasttmp.KOMMUN BEGINS "Ragunda" THEN fasttmp.KOMMUN = "Ragunda".
+            ELSE IF fasttmp.KOMMUN BEGINS "Berg" THEN fasttmp.KOMMUN = "Berg".
+            ELSE IF fasttmp.KOMMUN BEGINS "Härjedalen" THEN fasttmp.KOMMUN = "Härjedalen".
+            ELSE fasttmp.KOMMUN = "Sundsvall".*/            
+         END.   
+      END.      
+      ELSE DO:
+         IF blankrak > 10 THEN LEAVE.
+         blankrak = blankrak + 1.
+      END.
+      spbeteckn = TRIM(allacolumtext[1]).   
+   END.
+   
+   
+   ASSIGN
+   startc = "A"
+   slutc = "G"
+   iRad = 1
+   spbeteckn = ""
+   blankrak = 0.
+   
+   ASSIGN iRadslut = chWorksheet:Cells:SpecialCells(11):ROW NO-ERROR.   
+   {EXCELFEL.I}
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      {EXCELFEL.I}
+      
+      IF allacolumtext[3] NE "" THEN DO:
+         blankrak = 0.                                          
+         hjpers = INTEGER(SUBSTRING(allacolumtext[7],1,8)) NO-ERROR.
+         IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+            allacolumtext[7] = "0000000000".
+            hjpers = INTEGER(allacolumtext[7]) NO-ERROR.
+         END.           
+         IF allacolumtext[7] = "" THEN allacolumtext[7] = "0000000000".
+         CREATE marktmp.
+         ASSIGN marktmp.BETECKNING = TRIM(allacolumtext[1])
+         marktmp.MARKAGARE = allacolumtext[3]
+         marktmp.GATUADRESS = allacolumtext[4]
+         marktmp.POSTNUMMER = allacolumtext[5]         
+         marktmp.POSTNUMMER = REPLACE(marktmp.POSTNUMMER," ","")
+         marktmp.POSTADRESS = allacolumtext[6].                    
+         IF LENGTH(allacolumtext[7]) > 11 THEN marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[7],3).
+         ELSE marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[7],1).
+         marktmp.PERSONNUMMER = REPLACE(marktmp.PERSONNUMMER,"-","").
+         ASSIGN
+         marktmp.ANDEL = allacolumtext[2].         
+         spbeteckn = allacolumtext[1].
+      END.
+      ELSE DO  :
+         IF blankrak > 10 THEN LEAVE.
+         blankrak   = blankrak + 1.   
+      END.   
+         
+   END.                  
+
+      
+   
+   FOR EACH marktmp :
+      /*RUN versaler_UI (INPUT-OUTPUT marktmp.MARKAGARE ).*/      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.GATUADRESS ).      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.POSTADRESS ).      
+   END.
+   FOR EACH fasttmp :
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.BETECKNING ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.KOMMUN ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.LAN ).      
+   END.
+   
+   RUN slutreadexcel_UI.        
+   {EXCELFEL.I}
+END PROCEDURE.
+
+PROCEDURE startinVismapowe_UI:
+   /*Visma Optiway*/
+   /*fastigheter flik 1*/
+   EMPTY TEMP-TABLE fasttmp  NO-ERROR.
+   EMPTY TEMP-TABLE marktmp NO-ERROR.  
+   ASSIGN
+   startc = "A"
+   slutc = "I"
+   iRad = 1
+   blankrak = 0    
+   spbeteckn = "".
+   RUN readexcelstart_UI (INPUT filnamn).
+   /*ASSIGN chWorkSheet = chExcelApplication:Sheets:ITEM(1) NO-ERROR.*/
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      IF allacolumtext[2] NE "" THEN DO:
+         blankrak = 0.
+         IF spbeteckn NE  TRIM(allacolumtext[2]) THEN DO:                                          
+            CREATE fasttmp.
+            ASSIGN fasttmp.BETECKNING = TRIM(allacolumtext[2]).
+            IF allacolumtext[1] NE "" THEN fasttmp.KOMMUN = TRIM(allacolumtext[1]).                         
+         END.   
+      END.      
+      ELSE DO:
+         IF blankrak > 10 THEN LEAVE.
+         blankrak = blankrak + 1.
+      END.
+      spbeteckn = TRIM(allacolumtext[2]).   
+   END.
+   DEBUGGER:SET-BREAK().
+   
+   ASSIGN
+   startc = "A"
+   slutc = "I"
+   iRad = 1
+   spbeteckn = ""
+   blankrak = 0.
+   
+   ASSIGN iRadslut = chWorksheet:Cells:SpecialCells(11):ROW NO-ERROR.   
+   {EXCELFEL.I}
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      {EXCELFEL.I}
+      
+      IF allacolumtext[4] NE "" THEN DO:
+         blankrak = 0.         
+         IF LENGTH(allacolumtext[9]) = 13 OR LENGTH(allacolumtext[3]) = 12 THEN DO:                  
+            hjpers = INTEGER(SUBSTRING(allacolumtext[9],1,8)) NO-ERROR.
+            IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+               allacolumtext[9] = "0000000000".
+               hjpers = INTEGER(allacolumtext[9]) NO-ERROR.
+            END.           
+            IF allacolumtext[9] = "" THEN allacolumtext[9] = "0000000000".
+         END.
+         ELSE IF LENGTH(allacolumtext[9]) = 11 OR LENGTH(allacolumtext[9]) = 10 THEN DO:                  
+            hjpers = INTEGER(SUBSTRING(allacolumtext[9],1,6)) NO-ERROR.
+            IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+               allacolumtext[9] = "0000000000".
+               hjpers = INTEGER(allacolumtext[9]) NO-ERROR.
+            END.           
+            IF allacolumtext[9] = "" THEN allacolumtext[9] = "0000000000".
+         END.
+                                                  
+         /*hjpers = INTEGER(SUBSTRING(allacolumtext[9],1,8)) NO-ERROR.
+         IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+            allacolumtext[9] = "0000000000".
+            hjpers = INTEGER(allacolumtext[9]) NO-ERROR.
+         END.           
+         IF allacolumtext[9] = "" THEN allacolumtext[7] = "0000000000".*/
+         CREATE marktmp.
+         ASSIGN marktmp.BETECKNING = TRIM(allacolumtext[2])
+         marktmp.MARKAGARE = allacolumtext[4]
+         marktmp.GATUADRESS = allacolumtext[6]         
+         marktmp.POSTNUMMER = SUBSTRING(allacolumtext[7],1,6)         
+         marktmp.POSTNUMMER = REPLACE(marktmp.POSTNUMMER," ","")
+         marktmp.POSTADRESS = TRIM(SUBSTRING(allacolumtext[7],7)).
+         
+            
+         IF LENGTH(allacolumtext[9]) > 11 THEN marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[9],3).
+         ELSE marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[9],1).
+         marktmp.PERSONNUMMER = REPLACE(marktmp.PERSONNUMMER,"-","").
+         ASSIGN
+         marktmp.ANDEL = allacolumtext[8].         
+         spbeteckn = allacolumtext[2].
+      END.
+      ELSE DO  :
+         IF blankrak > 10 THEN LEAVE.
+         blankrak   = blankrak + 1.   
+      END.   
+         
+   END.                  
+
+      
+   DEBUGGER:SET-BREAK().
+   FOR EACH marktmp :
+      /*RUN versaler_UI (INPUT-OUTPUT marktmp.MARKAGARE ).*/      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.GATUADRESS ).      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.POSTADRESS ).      
+   END.
+   FOR EACH fasttmp :
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.BETECKNING ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.KOMMUN ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.LAN ).      
+   END.
+   
+   RUN slutreadexcel_UI.        
+   {EXCELFEL.I}
+END PROCEDURE.
+
+PROCEDURE startinEON_UI:
+   /*EON*/
+   /*fastigheter flik 1*/
+   EMPTY TEMP-TABLE fasttmp  NO-ERROR.
+   EMPTY TEMP-TABLE marktmp NO-ERROR.  
+   ASSIGN
+   startc = "A"
+   slutc = "D"
+   iRad = 2
+   blankrak = 0    
+   spbeteckn = "".
+   RUN readexcelstart_UI (INPUT filnamn).
+   /*ASSIGN chWorkSheet = chExcelApplication:Sheets:ITEM(1) NO-ERROR.*/
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      IF allacolumtext[4] NE "" THEN DO:
+         blankrak = 0.
+         IF spbeteckn NE  TRIM(allacolumtext[4]) THEN DO:                                          
+            CREATE fasttmp.
+            ASSIGN fasttmp.BETECKNING = TRIM(allacolumtext[4]).
+            IF allacolumtext[3] NE "" THEN fasttmp.KOMMUN = TRIM(allacolumtext[3]).                         
+         END.   
+      END.      
+      ELSE DO:
+         IF blankrak > 10 THEN LEAVE.
+         blankrak = blankrak + 1.
+      END.
+      spbeteckn = TRIM(allacolumtext[4]).   
+   END.
+   DEBUGGER:SET-BREAK().
+   
+   ASSIGN
+   startc = "A"
+   slutc = "V"
+   iRad = 2
+   spbeteckn = ""
+   blankrak = 0.
+   
+   ASSIGN iRadslut = chWorksheet:Cells:SpecialCells(11):ROW NO-ERROR.   
+   {EXCELFEL.I}
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      {EXCELFEL.I}
+      
+      IF allacolumtext[11] NE "" THEN DO:
+         blankrak = 0.         
+         IF LENGTH(allacolumtext[7]) = 13 OR LENGTH(allacolumtext[7]) = 12 THEN DO:                  
+            hjpers = INTEGER(SUBSTRING(allacolumtext[7],1,8)) NO-ERROR.
+            IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+               allacolumtext[7] = "0000000000".
+               hjpers = INTEGER(allacolumtext[9]) NO-ERROR.
+            END.           
+            IF allacolumtext[7] = "" THEN allacolumtext[7] = "0000000000".
+         END.
+         ELSE IF LENGTH(allacolumtext[7]) = 11 OR LENGTH(allacolumtext[7]) = 10 THEN DO:                  
+            hjpers = INTEGER(SUBSTRING(allacolumtext[7],1,6)) NO-ERROR.
+            IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+               allacolumtext[7] = "0000000000".
+               hjpers = INTEGER(allacolumtext[7]) NO-ERROR.
+            END.           
+            IF allacolumtext[7] = "" THEN allacolumtext[7] = "0000000000".
+         END.
+         ELSE IF LENGTH(allacolumtext[7]) = 6 THEN DO:                  
+            hjpers = INTEGER(SUBSTRING(allacolumtext[7],1,6)) NO-ERROR.
+            IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+               allacolumtext[7] = "0000000000".
+               hjpers = INTEGER(allacolumtext[7]) NO-ERROR.
+            END.           
+            IF allacolumtext[7] = "" THEN allacolumtext[7] = "0000000000".
+         END.
+                                                  
+         /*hjpers = INTEGER(SUBSTRING(allacolumtext[9],1,8)) NO-ERROR.
+         IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+            allacolumtext[9] = "0000000000".
+            hjpers = INTEGER(allacolumtext[9]) NO-ERROR.
+         END.           
+         IF allacolumtext[9] = "" THEN allacolumtext[7] = "0000000000".*/
+         CREATE marktmp.
+         ASSIGN marktmp.BETECKNING = TRIM(allacolumtext[4])
+         marktmp.MARKAGARE = allacolumtext[11] + " " + allacolumtext[12]
+         marktmp.GATUADRESS = allacolumtext[14]         
+         marktmp.POSTNUMMER = SUBSTRING(allacolumtext[17],1,6)         
+         marktmp.POSTNUMMER = REPLACE(marktmp.POSTNUMMER," ","")
+         marktmp.POSTADRESS = TRIM(allacolumtext[18])
+         marktmp.TELEFONM = TRIM(allacolumtext[21])
+         marktmp.EPOST = TRIM(allacolumtext[22]).
+         
+          
+         IF LENGTH(allacolumtext[7]) > 11 THEN marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[7],3).
+         ELSE IF LENGTH(allacolumtext[7]) = 6 THEN marktmp.PERSONNUMMER = allacolumtext[7] + "0000" .
+         ELSE marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[7],1).
+         marktmp.PERSONNUMMER = REPLACE(marktmp.PERSONNUMMER,"-","").
+         
+         IF allacolumtext[6] = "100" THEN allacolumtext[6] = "1/1".
+         ELSE IF allacolumtext[6] = "80" THEN allacolumtext[6] = "4/5".         
+         ELSE IF allacolumtext[6] = "66" THEN allacolumtext[6] = "2/3".         
+         ELSE IF allacolumtext[6] = "60" THEN allacolumtext[6] = "3/5".         
+         ELSE IF allacolumtext[6] = "50" THEN allacolumtext[6] = "1/2".         
+         ELSE IF allacolumtext[6] = "40" THEN allacolumtext[6] = "2/5".         
+         ELSE IF allacolumtext[6] = "33" THEN allacolumtext[6] = "1/3".         
+         ELSE IF allacolumtext[6] = "34" THEN allacolumtext[6] = "1/3".   
+         ELSE IF allacolumtext[6] = "25" THEN allacolumtext[6] = "1/4".
+         ELSE IF allacolumtext[6] = "20" THEN allacolumtext[6] = "1/5".
+         ELSE IF allacolumtext[6] = "10" THEN allacolumtext[6]= "1/10".
+         ELSE allacolumtext[6] = STRING(allacolumtext[6]) + "/100".
+         
+         ASSIGN
+         marktmp.ANDEL = allacolumtext[6].         
+         spbeteckn = allacolumtext[4].
+      END.
+      ELSE DO  :
+         IF blankrak > 10 THEN LEAVE.
+         blankrak   = blankrak + 1.   
+      END.   
+         
+   END.                  
+
+      
+   DEBUGGER:SET-BREAK().
+   FOR EACH marktmp :
+      /*RUN versaler_UI (INPUT-OUTPUT marktmp.MARKAGARE ).*/      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.GATUADRESS ).      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.POSTADRESS ).      
+   END.
+   FOR EACH fasttmp :
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.BETECKNING ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.KOMMUN ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.LAN ).      
+   END.
+   
+   RUN slutreadexcel_UI.        
+   {EXCELFEL.I}
+END PROCEDURE.
+
+
+
+PROCEDURE startinTEKISume_UI:
+   /*fastigheter flik 1*/
+   
+   ASSIGN
+   startc = "A"
+   slutc = "J"
+   iRad = 1
+   blankrak = 0    
+   spbeteckn = "".
+   RUN readexcelstart_UI (INPUT filnamn).
+   /*ASSIGN chWorkSheet = chExcelApplication:Sheets:ITEM(1) NO-ERROR.*/
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      IF allacolumtext[1] NE "" THEN DO:
+         blankrak = 0.
+         IF spbeteckn NE  TRIM(allacolumtext[1]) THEN DO:
+         /*FIND FIRST fasttmp WHERE fasttmp.BETECKNING = TRIM(allacolumtext[1]) NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE fasttmp THEN DO:*/
+                                          
+            CREATE fasttmp.
+            ASSIGN fasttmp.BETECKNING = TRIM(allacolumtext[1]).
+            IF allacolumtext[10] NE "" THEN fasttmp.KOMMUN = TRIM(allacolumtext[10]). 
+            ELSE fasttmp.KOMMUN = "Umeå".
+         END.   
+      END.      
+      ELSE DO:
+         IF blankrak > 10 THEN LEAVE.
+         blankrak = blankrak + 1.
+      END.
+      spbeteckn = TRIM(allacolumtext[1]).   
+   END.
+   
+   
+   ASSIGN
+   startc = "A"
+   slutc = "J"
+   iRad = 1
+   spbeteckn = ""
+   blankrak = 0.
+   
+   ASSIGN iRadslut = chWorksheet:Cells:SpecialCells(11):ROW NO-ERROR.   
+   {EXCELFEL.I}
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      {EXCELFEL.I}
+      
+      IF allacolumtext[4] NE "" THEN DO:
+         blankrak = 0.                                          
+         hjpers = INTEGER(SUBSTRING(allacolumtext[9],1,8)) NO-ERROR.
+         IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+            allacolumtext[9] = "0000000000".
+            hjpers = INTEGER(allacolumtext[9]) NO-ERROR.
+         END.           
+         IF allacolumtext[9] = "" THEN allacolumtext[9] = "0000000000".
+         CREATE marktmp.
+         ASSIGN marktmp.BETECKNING = TRIM(allacolumtext[1])
+         marktmp.MARKAGARE = allacolumtext[4]
+         marktmp.GATUADRESS = allacolumtext[5]
+         marktmp.POSTNUMMER = allacolumtext[6]         
+         marktmp.POSTNUMMER = REPLACE(marktmp.POSTNUMMER," ","")
+         marktmp.POSTADRESS = allacolumtext[7].                    
+         IF LENGTH(allacolumtext[9]) > 11 THEN marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[9],3).
+         ELSE marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[9],1).
+         marktmp.PERSONNUMMER = REPLACE(marktmp.PERSONNUMMER,"-","").
+         ASSIGN
+         marktmp.ANDEL = allacolumtext[2].         
+         spbeteckn = allacolumtext[1].
+      END.
+      ELSE DO  :
+         IF blankrak > 10 THEN LEAVE.
+         blankrak   = blankrak + 1.   
+      END.   
+         
+   END.                  
+
+      
+   
+   FOR EACH marktmp :
+      /*RUN versaler_UI (INPUT-OUTPUT marktmp.MARKAGARE ).*/      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.GATUADRESS ).      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.POSTADRESS ).      
+   END.
+   FOR EACH fasttmp :
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.BETECKNING ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.KOMMUN ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.LAN ).      
+   END.
+   
+   RUN slutreadexcel_UI.        
+   {EXCELFEL.I}
+END PROCEDURE.
+
+PROCEDURE startinMetria_UI:
+   /*fastigheter flik 1*/
+   
+   ASSIGN
+   startc = "A"
+   slutc = "B"
+   iRad = 1
+   blankrak = 0    
+   spbeteckn = "".
+   RUN readexcelstart_UI (INPUT filnamn).
+   /*ASSIGN chWorkSheet = chExcelApplication:Sheets:ITEM(1) NO-ERROR.*/
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      IF allacolumtext[2] NE "" THEN DO:
+         blankrak = 0.
+         IF spbeteckn NE  TRIM(allacolumtext[2]) THEN DO:         
+                                                      
+            CREATE fasttmp.
+            fasttmp.BETECKNING = TRIM(SUBSTRING(allacolumtext[2],(INDEX(allacolumtext[2]," ") + 1))).
+            fasttmp.KOMMUN = TRIM(SUBSTRING(allacolumtext[2],1,(INDEX(allacolumtext[2]," ")))).
+         END.   
+      END.      
+      ELSE DO:
+         IF blankrak > 10 THEN LEAVE.
+         blankrak = blankrak + 1.
+      END.
+      spbeteckn = TRIM(allacolumtext[2]).   
+   END.
+      
+   ASSIGN
+   startc = "A"
+   slutc = "N"
+   iRad = 1
+   spbeteckn = ""
+   blankrak = 0.
+   
+   ASSIGN iRadslut = chWorksheet:Cells:SpecialCells(11):ROW NO-ERROR.   
+   {EXCELFEL.I}
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      {EXCELFEL.I}
+      
+      IF allacolumtext[8] NE "" THEN DO:
+         blankrak = 0.                        
+         IF LENGTH(allacolumtext[3]) = 13 OR LENGTH(allacolumtext[3]) = 12 THEN DO:                  
+            hjpers = INTEGER(SUBSTRING(allacolumtext[3],1,8)) NO-ERROR.
+            IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+               allacolumtext[3] = "0000000000".
+               hjpers = INTEGER(allacolumtext[3]) NO-ERROR.
+            END.           
+            IF allacolumtext[3] = "" THEN allacolumtext[3] = "0000000000".
+         END.
+         ELSE IF LENGTH(allacolumtext[3]) = 11 OR LENGTH(allacolumtext[3]) = 10 THEN DO:                  
+            hjpers = INTEGER(SUBSTRING(allacolumtext[3],1,6)) NO-ERROR.
+            IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+               allacolumtext[3] = "0000000000".
+               hjpers = INTEGER(allacolumtext[3]) NO-ERROR.
+            END.           
+            IF allacolumtext[3] = "" THEN allacolumtext[3] = "0000000000".
+         END.   
+         CREATE marktmp.
+         marktmp.BETECKNING = TRIM(SUBSTRING(allacolumtext[2],(INDEX(allacolumtext[2]," ") + 1))).
+         ASSIGN
+         marktmp.MARKAGARE = allacolumtext[8]
+         marktmp.GATUADRESS = allacolumtext[11]
+         marktmp.POSTNUMMER = allacolumtext[12]         
+         marktmp.POSTNUMMER = REPLACE(marktmp.POSTNUMMER," ","")
+         marktmp.POSTADRESS = allacolumtext[13].                    
+         IF LENGTH(allacolumtext[3]) > 11 THEN marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[3],3).
+         ELSE marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[3],1).
+         marktmp.PERSONNUMMER = REPLACE(marktmp.PERSONNUMMER,"-","").
+         ASSIGN
+         marktmp.ANDEL = allacolumtext[14].         
+         /*spbeteckn = allacolumtext[1].*/
+      END.
+      ELSE DO  :
+         IF blankrak > 10 THEN LEAVE.
+         blankrak   = blankrak + 1.   
+      END.   
+         
+   END.                  
+
+      
+   
+   FOR EACH marktmp :
+      /*RUN versaler_UI (INPUT-OUTPUT marktmp.MARKAGARE ).*/      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.GATUADRESS ).      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.POSTADRESS ).      
+   END.
+   FOR EACH fasttmp :
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.BETECKNING ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.KOMMUN ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.LAN ).      
+   END.
+   
+   RUN slutreadexcel_UI.        
+   {EXCELFEL.I}
+END PROCEDURE.
+
+PROCEDURE startinGuru_UI:
+   /*nytt format 2201196Lena*/
+   ASSIGN
+   startc = "A"
+   slutc = "B"
+   iRad = 1
+   blankrak = 0    
+   spbeteckn = "".
+   RUN readexcelstart_UI (INPUT filnamn).
+   
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      IF allacolumtext[1] NE "" THEN DO:
+         blankrak = 0.
+         IF spbeteckn NE  TRIM(allacolumtext[1]) THEN DO:         
+                                                      
+            /*ändrat från kommun beteckning i A till kommun i A och Beteckning i B
+            CREATE fasttmp.
+            fasttmp.BETECKNING = TRIM(SUBSTRING(allacolumtext[1],(INDEX(allacolumtext[1]," ") + 1))).
+            fasttmp.KOMMUN = TRIM(SUBSTRING(allacolumtext[1],1,(INDEX(allacolumtext[1]," ")))).*/
+            CREATE fasttmp.            
+            fasttmp.KOMMUN = TRIM(allacolumtext[1]).
+            fasttmp.BETECKNING = TRIM(allacolumtext[2]).
+         END.   
+      END.      
+      ELSE DO:
+         IF blankrak > 10 THEN LEAVE.
+         blankrak = blankrak + 1.
+      END.
+      spbeteckn = TRIM(allacolumtext[1]).   
+   END.
+      
+   ASSIGN
+   startc = "A"
+   slutc = "H"
+   iRad = 1
+   spbeteckn = ""
+   blankrak = 0.
+   
+   ASSIGN iRadslut = chWorksheet:Cells:SpecialCells(11):ROW NO-ERROR.   
+   {EXCELFEL.I}
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      {EXCELFEL.I}
+      
+      IF allacolumtext[3] NE "" THEN DO:
+         blankrak = 0.                        
+         IF LENGTH(allacolumtext[4]) = 13 OR LENGTH(allacolumtext[4]) = 12 THEN DO:                  
+            hjpers = INTEGER(SUBSTRING(allacolumtext[4],1,8)) NO-ERROR.
+            IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+               allacolumtext[4] = "0000000000".
+               hjpers = INTEGER(allacolumtext[4]) NO-ERROR.
+            END.           
+            IF allacolumtext[4] = "" THEN allacolumtext[4] = "0000000000".
+         END.
+         ELSE IF LENGTH(allacolumtext[4]) = 11 OR LENGTH(allacolumtext[4]) = 10 THEN DO:                  
+            hjpers = INTEGER(SUBSTRING(allacolumtext[4],1,6)) NO-ERROR.
+            IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+               allacolumtext[4] = "0000000000".
+               hjpers = INTEGER(allacolumtext[4]) NO-ERROR.
+            END.           
+            IF allacolumtext[4] = "" THEN allacolumtext[4] = "0000000000".
+         END.   
+         CREATE marktmp.
+         marktmp.BETECKNING = TRIM(allacolumtext[2]).
+         ASSIGN
+         marktmp.MARKAGARE = allacolumtext[3]
+         marktmp.GATUADRESS = allacolumtext[6]
+         marktmp.POSTNUMMER = allacolumtext[7]         
+         marktmp.POSTNUMMER = REPLACE(marktmp.POSTNUMMER," ","")
+         marktmp.POSTADRESS = allacolumtext[8].                    
+         IF LENGTH(allacolumtext[4]) > 11 THEN marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[4],3).
+         ELSE marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[3],1).
+         marktmp.PERSONNUMMER = REPLACE(marktmp.PERSONNUMMER,"-","").         
+         ASSIGN
+         marktmp.ANDEL = allacolumtext[5].                  
+      END.
+      ELSE DO  :
+         IF blankrak > 10 THEN LEAVE.
+         blankrak   = blankrak + 1.   
+      END.   
+         
+   END.                  
+       
+   FOR EACH marktmp :            
+      RUN versaler_UI (INPUT-OUTPUT marktmp.GATUADRESS ).      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.POSTADRESS ).      
+   END.
+   FOR EACH fasttmp :
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.BETECKNING ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.KOMMUN ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.LAN ).      
+   END.
+   
+   RUN slutreadexcel_UI.        
+   {EXCELFEL.I}
+END PROCEDURE.
+
+
+
+PROCEDURE startinMetria2_UI:
+   /*nytt format 210906Lena*/
+   ASSIGN
+   startc = "A"
+   slutc = "C"
+   iRad = 1
+   blankrak = 0    
+   spbeteckn = "".
+   RUN readexcelstart_UI (INPUT filnamn).
+   
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      IF allacolumtext[1] NE "" THEN DO:
+         blankrak = 0.
+         IF spbeteckn NE  TRIM(allacolumtext[1]) THEN DO:         
+                                                      
+            CREATE fasttmp.
+            fasttmp.BETECKNING = TRIM(SUBSTRING(allacolumtext[1],(INDEX(allacolumtext[1]," ") + 1))).
+            fasttmp.KOMMUN = TRIM(SUBSTRING(allacolumtext[1],1,(INDEX(allacolumtext[1]," ")))).
+         END.   
+      END.      
+      ELSE DO:
+         IF blankrak > 10 THEN LEAVE.
+         blankrak = blankrak + 1.
+      END.
+      spbeteckn = TRIM(allacolumtext[1]).   
+   END.
+      
+   ASSIGN
+   startc = "A"
+   slutc = "K"
+   iRad = 1
+   spbeteckn = ""
+   blankrak = 0.
+   
+   ASSIGN iRadslut = chWorksheet:Cells:SpecialCells(11):ROW NO-ERROR.   
+   {EXCELFEL.I}
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      {EXCELFEL.I}
+      
+      IF allacolumtext[2] NE "" THEN DO:
+         blankrak = 0.                        
+         IF LENGTH(allacolumtext[3]) = 13 OR LENGTH(allacolumtext[3]) = 12 THEN DO:                  
+            hjpers = INTEGER(SUBSTRING(allacolumtext[3],1,8)) NO-ERROR.
+            IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+               allacolumtext[3] = "0000000000".
+               hjpers = INTEGER(allacolumtext[3]) NO-ERROR.
+            END.           
+            IF allacolumtext[3] = "" THEN allacolumtext[3] = "0000000000".
+         END.
+         ELSE IF LENGTH(allacolumtext[3]) = 11 OR LENGTH(allacolumtext[3]) = 10 THEN DO:                  
+            hjpers = INTEGER(SUBSTRING(allacolumtext[3],1,6)) NO-ERROR.
+            IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+               allacolumtext[3] = "0000000000".
+               hjpers = INTEGER(allacolumtext[3]) NO-ERROR.
+            END.           
+            IF allacolumtext[3] = "" THEN allacolumtext[3] = "0000000000".
+         END.   
+         CREATE marktmp.
+         marktmp.BETECKNING = TRIM(SUBSTRING(allacolumtext[1],(INDEX(allacolumtext[1]," ") + 1))).
+         ASSIGN
+         marktmp.MARKAGARE = allacolumtext[2]
+         marktmp.GATUADRESS = allacolumtext[7]
+         marktmp.POSTNUMMER = allacolumtext[8]         
+         marktmp.POSTNUMMER = REPLACE(marktmp.POSTNUMMER," ","")
+         marktmp.POSTADRESS = allacolumtext[9].                    
+         IF LENGTH(allacolumtext[3]) > 11 THEN marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[3],3).
+         ELSE marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[3],1).
+         marktmp.PERSONNUMMER = REPLACE(marktmp.PERSONNUMMER,"-","").
+         /*marktmp.TELEFONM = TRIM(allacolumtext[]).*/
+         ASSIGN
+         marktmp.ANDEL = allacolumtext[4].         
+         /*spbeteckn = allacolumtext[1].*/
+      END.
+      ELSE DO  :
+         IF blankrak > 10 THEN LEAVE.
+         blankrak   = blankrak + 1.   
+      END.   
+         
+   END.                  
+        
+   FOR EACH marktmp :
+      /*RUN versaler_UI (INPUT-OUTPUT marktmp.MARKAGARE ).*/      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.GATUADRESS ).      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.POSTADRESS ).      
+   END.
+   FOR EACH fasttmp :
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.BETECKNING ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.KOMMUN ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.LAN ).      
+   END.
+   
+   RUN slutreadexcel_UI.        
+   {EXCELFEL.I}
+END PROCEDURE.
+
+
+PROCEDURE startinMetriaut_UI:
+   /*fastigheter flik 1*/
+   DEBUGGER:SET-BREAK().
+   ASSIGN
+   startc = "A"
+   slutc = "C"
+   iRad = 1
+   blankrak = 0    
+   spbeteckn = "".
+   RUN readexcelstart_UI (INPUT filnamn).
+   /*ASSIGN chWorkSheet = chExcelApplication:Sheets:ITEM(1) NO-ERROR.*/
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      IF allacolumtext[2] = "35A" OR allacolumtext[2] = ""  THEN DO:
+         IF allacolumtext[3] NE "" THEN DO:
+            blankrak = 0.
+            IF spbeteckn NE  TRIM(allacolumtext[3]) THEN DO:         
+                                                         
+               CREATE fasttmp.
+               fasttmp.BETECKNING = TRIM(SUBSTRING(allacolumtext[3],(INDEX(allacolumtext[3]," ") + 1))).
+               fasttmp.KOMMUN = TRIM(SUBSTRING(allacolumtext[3],1,(INDEX(allacolumtext[3]," ")))).
+            END.   
+         END.      
+         ELSE DO:
+            IF blankrak > 10 THEN LEAVE.
+            blankrak = blankrak + 1.
+         END.
+       END.  
+      spbeteckn = TRIM(allacolumtext[3]).   
+   END.
+   IF vadgora = 6 THEN slutc = "O".
+   IF vadgora = 7 THEN slutc = "AD".    
+   ASSIGN
+   startc = "A"
+   /*slutc = "O"
+   slutc = "AD"*/
+   iRad = 1
+   spbeteckn = ""
+   spbetecknsa = ""
+   blankrak = 0
+   fastrak = 1.
+   DEBUGGER:SET-BREAK().
+   EMPTY TEMP-TABLE sfasttemp NO-ERROR.    
+   ASSIGN iRadslut = chWorksheet:Cells:SpecialCells(11):ROW NO-ERROR.   
+   {EXCELFEL.I}
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      {EXCELFEL.I}
+      IF spbeteckn NE "" AND spbetecknsa NE "" THEN DO:
+         IF spbeteckn = TRIM(allacolumtext[3])  AND  spbetecknsa NE  TRIM(allacolumtext[18]) THEN fastrak = fastrak  + 1.
+         ELSE  IF spbeteckn = TRIM(allacolumtext[3]) AND spbetecknsa = TRIM(allacolumtext[18]) THEN.
+         ELSE DO:
+            IF spbeteckn NE "" THEN DO:
+               CREATE sfasttemp.               
+               sfasttemp.BETECKNING = TRIM(SUBSTRING(spbeteckn,(INDEX(spbeteckn," ") + 1))).
+               sfasttemp.ANTFAST = fastrak.
+            END.   
+            fastrak = 1.
+         END.
+      END.   
+      IF allacolumtext[2] = "35A" THEN DO:
+         IF allacolumtext[9] NE "" THEN DO:
+            blankrak = 0.                        
+            IF LENGTH(allacolumtext[4]) = 13 OR LENGTH(allacolumtext[4]) = 12 THEN DO:                  
+               hjpers = INTEGER(SUBSTRING(allacolumtext[4],1,8)) NO-ERROR.
+               IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+                  allacolumtext[4] = "0000000000".
+                  hjpers = INTEGER(allacolumtext[4]) NO-ERROR.
+               END.           
+               IF allacolumtext[4] = "" THEN allacolumtext[4] = "0000000000".
+            END.
+            ELSE IF LENGTH(allacolumtext[4]) = 11 OR LENGTH(allacolumtext[4]) = 10 THEN DO:                  
+               hjpers = INTEGER(SUBSTRING(allacolumtext[4],1,6)) NO-ERROR.
+               IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+                  allacolumtext[4] = "0000000000".
+                  hjpers = INTEGER(allacolumtext[4]) NO-ERROR.
+               END.           
+               IF allacolumtext[4] = "" THEN allacolumtext[4] = "0000000000".
+            END.   
+            CREATE marktmp.
+            marktmp.BETECKNING = TRIM(SUBSTRING(allacolumtext[3],(INDEX(allacolumtext[3]," ") + 1))).
+            ASSIGN
+            marktmp.MARKAGARE = allacolumtext[9]
+            marktmp.GATUADRESS = allacolumtext[13]
+            marktmp.POSTNUMMER = allacolumtext[14]         
+            marktmp.POSTNUMMER = REPLACE(marktmp.POSTNUMMER," ","")
+            marktmp.POSTADRESS = allacolumtext[15].                    
+            IF LENGTH(allacolumtext[4]) > 11 THEN marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[4],3).
+            ELSE marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[4],1).
+            marktmp.PERSONNUMMER = REPLACE(marktmp.PERSONNUMMER,"-","").
+            IF allacolumtext[10] =  "" THEN marktmp.ANDEL = "1/1". 
+            ELSE marktmp.ANDEL = allacolumtext[10].
+            spbetecknsa =  "".
+            spbeteckn = "".           
+                
+         END.
+      END.   
+      ELSE IF allacolumtext[2] = "" AND allacolumtext[24] NE "" THEN DO:
+         IF allacolumtext[17] = "35A" THEN DO:         
+            ASSIGN
+            blankrak = 0.                                    
+            IF LENGTH(allacolumtext[19]) = 13 OR LENGTH(allacolumtext[19]) = 12 THEN DO:                  
+               hjpers = INTEGER(SUBSTRING(allacolumtext[19],1,8)) NO-ERROR.
+               IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+                  allacolumtext[19] = "0000000000".
+                  hjpers = INTEGER(allacolumtext[19]) NO-ERROR.
+               END.           
+               IF allacolumtext[19] = "" THEN allacolumtext[19] = "0000000000".
+            END.
+            ELSE IF LENGTH(allacolumtext[19]) = 11 OR LENGTH(allacolumtext[19]) = 10 THEN DO:                  
+               hjpers = INTEGER(SUBSTRING(allacolumtext[19],1,6)) NO-ERROR.
+               IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+                  allacolumtext[19] = "0000000000".
+                  hjpers = INTEGER(allacolumtext[19]) NO-ERROR.
+               END.           
+               IF allacolumtext[19] = "" THEN allacolumtext[19] = "0000000000".
+            END.         
+               
+            CREATE marktmp.
+            marktmp.BETECKNING = TRIM(SUBSTRING(allacolumtext[3],(INDEX(allacolumtext[3]," ") + 1))).
+            ASSIGN
+            marktmp.MARKAGARE = allacolumtext[24]
+            marktmp.GATUADRESS = allacolumtext[28]
+            marktmp.POSTNUMMER = allacolumtext[29]         
+            marktmp.POSTNUMMER = REPLACE(marktmp.POSTNUMMER," ","")
+            marktmp.POSTADRESS = allacolumtext[30].                    
+            IF LENGTH(allacolumtext[19]) > 11 THEN marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[19],3).
+            ELSE marktmp.PERSONNUMMER = SUBSTRING(allacolumtext[19],1).
+            marktmp.PERSONNUMMER = REPLACE(marktmp.PERSONNUMMER,"-","").
+            IF allacolumtext[25] =  "" THEN marktmp.ANDEL = "1/1". 
+            ELSE marktmp.ANDEL = allacolumtext[25].                     
+            marktmp.LOPNR = "SA".         
+            spbetecknsa =  TRIM(allacolumtext[18]).
+            spbeteckn = TRIM(allacolumtext[3]).
+         END.   
+      END.
+      ELSE DO  :
+         IF blankrak > 10 THEN LEAVE.
+         blankrak   = blankrak + 1.   
+      END.   
+         
+   END.                
+   DEBUGGER:SET-BREAK().
+   /*SA = samfällighet eller gemensamhetsanläggning*/    
+   FOR EACH marktmp WHERE marktmp.LOPNR = "SA" BY marktmp.BETECKNING BY marktmp.lopnr:
+      FIND FIRST sfasttemp  WHERE sfasttemp.BETECKNING =  marktmp.BETECKNING NO-LOCK NO-ERROR.
+      IF AVAILABLE sfasttemp THEN DO:         
+         adel1 = INTEGER(SUBSTRING(marktmp.ANDEL,1,INDEX(marktmp.ANDEL,"/") - 1)) .
+         adel2 = INTEGER(SUBSTRING(marktmp.ANDEL,INDEX(marktmp.ANDEL,"/") + 1)) .
+         adel2 = adel2 * sfasttemp.ANTFAST.
+         marktmp.ANDEL = STRING(adel1) + "/" + STRING(adel2).
+       END.     
+   END.   
+      
+   
+   FOR EACH marktmp :
+      /*RUN versaler_UI (INPUT-OUTPUT marktmp.MARKAGARE ).*/      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.GATUADRESS ).      
+      RUN versaler_UI (INPUT-OUTPUT marktmp.POSTADRESS ).      
+   END.
+   FOR EACH fasttmp :
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.BETECKNING ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.KOMMUN ).      
+      RUN versaler_UI (INPUT-OUTPUT fasttmp.LAN ).      
+   END.
+   
+   RUN slutreadexcel_UI.        
+   {EXCELFEL.I}
+END PROCEDURE.
+
+
+
+PROCEDURE versaler_UI :
+   DEFINE INPUT-OUTPUT PARAMETER innamn AS CHARACTER NO-UNDO.      
+   innamn = CAPS(SUBSTRING(innamn,1,1)) + LC(SUBSTRING(innamn,2)).
+   RUN stor_UI (INPUT-OUTPUT innamn, INPUT " ").
+   RUN stor_UI (INPUT-OUTPUT innamn,INPUT "-").
+   RUN stor_UI (INPUT-OUTPUT innamn,INPUT "/").
+   RUN stor_UI (INPUT-OUTPUT innamn,INPUT ",").
+   
+END PROCEDURE.
+
+PROCEDURE stor_UI :
+   DEFINE INPUT-OUTPUT PARAMETER innamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER sok AS CHARACTER NO-UNDO.
+   rakn = 2.
+   REPEAT:
+     IF INDEX(innamn,sok,rakn) = 0 THEN LEAVE.
+      rakn = INDEX(innamn,sok,rakn).
+      rakn = rakn + 1.
+      SUBSTRING(innamn,rakn,1) = CAPS(SUBSTRING(innamn,rakn,1)).
+   END.
+END PROCEDURE.
+

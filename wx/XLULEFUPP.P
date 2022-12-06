@@ -1,0 +1,363 @@
+/*XLULEFUPP.P*/
+DEFINE NEW SHARED VARIABLE gvisatidpermanad AS LOGICAL NO-UNDO.
+
+DEFINE NEW SHARED VARIABLE appcon AS LOGICAL NO-UNDO.
+
+DEFINE NEW SHARED VARIABLE aonrrec AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE aonrrec2 AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE globanv LIKE ANVANDARE.ANVANDARE NO-UNDO.
+DEFINE NEW SHARED VARIABLE globlos LIKE ANVANDARE.AV-LOSEN NO-UNDO.
+DEFINE NEW SHARED VARIABLE globforetag LIKE FORETAG.FORETAG NO-UNDO.
+DEFINE NEW SHARED VARIABLE regvnr AS INTEGER FORMAT "999" NO-UNDO.
+DEFINE NEW SHARED VARIABLE regstart LIKE TIDREGITAB.START NO-UNDO. 
+DEFINE NEW SHARED VARIABLE regslut LIKE TIDREGITAB.SLUT NO-UNDO.
+DEFINE NEW SHARED VARIABLE regdagnamn AS CHARACTER FORMAT "X(3)" NO-UNDO.        
+DEFINE NEW SHARED VARIABLE regdatum AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE nytid AS DECIMAL FORMAT "99.99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE sekunder AS INTEGER FORMAT "-9999999" NO-UNDO.
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE frustarten AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE fruslutet AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE kaffestart AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE kaffeslut AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE lunchstarten AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE lunchslutet AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE regtotalt LIKE TIDREGITAB.TOTALT NO-UNDO.   
+DEFINE NEW SHARED VARIABLE regstartsek AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE regslutsek AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE fnytid AS DECIMAL FORMAT "-99.99" NO-UNDO.
+DEFINE VARIABLE fdatum AS DATE NO-UNDO.
+DEFINE TEMP-TABLE ftemp   
+   FIELD DATUM AS DATE
+   FIELD DAG AS CHARACTER
+   FIELD OSTART AS DECIMAL 
+   FIELD OSLUT AS DECIMAL
+   FIELD FSTART AS DECIMAL 
+   FIELD FSLUT AS DECIMAL 
+   FIELD MKFLEX AS INTEGER
+   FIELD MKTFLEX AS DECIMAL
+   FIELD TFLEX AS INTEGER
+   FIELD TOTFLEX AS DECIMAL
+   FIELD LFLEX AS DECIMAL
+   FIELD MFLEX AS DECIMAL
+   FIELD KFLEX AS DECIMAL.
+
+DEFINE TEMP-TABLE flexen
+   FIELD PLONTILLANTAL AS DECIMAL FORMAT "-999.99"
+   FIELD PDATUM LIKE TIDREGITAB.DATUM
+   FIELD PKOD LIKE PERSONALTAB.PERSONALKOD
+   INDEX PKOD IS PRIMARY PKOD ASCENDING.   
+DEFINE TEMP-TABLE flexsum
+   FIELD PLONTILLANTAL AS DECIMAL FORMAT "-999.99"
+   FIELD PLONTILLSEK AS INTEGER
+   FIELD PKOD LIKE PERSONALTAB.PERSONALKOD
+   INDEX PKOD IS PRIMARY PKOD ASCENDING.   
+
+DEFINE VARIABLE plflex AS DECIMAL NO-UNDO.
+DEFINE VARIABLE seku AS INTEGER NO-UNDO.
+DEFINE VARIABLE arrflex AS INTEGER NO-UNDO.
+DEFINE VARIABLE pkod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kolldatum AS DATE NO-UNDO.
+DEFINE VARIABLE lunorm AS INTEGER NO-UNDO.
+DEFINE VARIABLE lufl AS INTEGER NO-UNDO.
+&Scoped-define NEW NEW
+{TIDPERS.I}
+
+/*DEFINE INPUT PARAMETER TABLE FOR tidpers.  */
+EMPTY TEMP-TABLE TIDPERS NO-ERROR. 
+CREATE TIDPERS.
+ASSIGN TIDPERS.PERSONALKOD = "SÖG".
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.
+globforetag = FORETAG.FORETAG.
+
+RUN ejkordflexlul_UI.
+PROCEDURE ejkordflexlul_UI :   
+   OPEN QUERY pq FOR EACH tidpers USE-INDEX PERSONALKOD NO-LOCK.   
+   GET FIRST pq NO-LOCK.
+   DO WHILE AVAILABLE(tidpers):
+      persrec = RECID(tidpers).
+      EMPTY TEMP-TABLE ftemp NO-ERROR.             
+      FIND FIRST FLEXAVT WHERE FLEXAVT.PERSONALKOD = tidpers.PERSONALKOD 
+      USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.            
+      IF AVAILABLE FLEXAVT AND FLEXAVT.FLEXTID = TRUE THEN DO TRANSACTION:
+         /*FIND FIRST FLEXSALDO WHERE FLEXSALDO.PERSONALKOD = tidpers.PERSONALKOD 
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE FLEXSALDO THEN DO:
+            ASSIGN 
+            FLEXSALDO.EJKORDFLEX = 0.   
+         END.         */
+         IF globforetag = "LULE" THEN DO:   
+            OPEN QUERY tq FOR EACH TIDREGITAB WHERE
+            TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD
+            AND TIDLOG = TRUE AND TIDREGITAB.DATUM > 03/31/2005 
+            AND SUBSTRING(TIDREGITAB.VECKOKORD,10,9) = "" USE-INDEX PSTART NO-LOCK.  
+         END.
+         IF globforetag = "elpa" THEN DO:   
+            OPEN QUERY tq FOR EACH TIDREGITAB WHERE
+            TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD
+            AND TIDLOG = TRUE AND TIDREGITAB.DATUM > 12/31/2004 
+            AND SUBSTRING(TIDREGITAB.VECKOKORD,10,9) = "" USE-INDEX PSTART NO-LOCK.  
+         END.
+         IF globforetag = "LULE" OR  globforetag = "ELPA" THEN DO:            
+            fdatum = ?.
+            /*OPEN QUERY tidq FOR EACH TIDREGITAB WHERE
+            TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD
+            AND TIDLOG = TRUE AND TIDREGITAB.DATUM > 03/31/2005 
+            AND SUBSTRING(TIDREGITAB.VECKOKORD,10,9) = "" USE-INDEX PSTART NO-LOCK.    */
+            GET FIRST tq NO-LOCK.
+            DO WHILE AVAILABLE (TIDREGITAB):               
+               IF TIDREGITAB.TIDLOG = FALSE THEN musz = musz.
+               IF TIDREGITAB.OVERTIDUTTAG NE "F" THEN musz = musz.
+               ELSE IF TIDREGITAB.DATUM NE fdatum THEN DO:                                    
+                  regdatum = TIDREGITAB.DATUM.
+                  regvnr = TIDREGITAB.VECKONUMMER.
+                  pkod = tidpers.PERSONALKOD.
+                  RUN SLUTARBW.P 
+                  (INPUT-OUTPUT pkod,INPUT-OUTPUT regstart,INPUT-OUTPUT regslut, 
+                  INPUT-OUTPUT regvnr,INPUT-OUTPUT regdagnamn,INPUT-OUTPUT regdatum, 
+                  INPUT-OUTPUT regtotalt,INPUT-OUTPUT frustarten,INPUT-OUTPUT fruslutet, 
+                  INPUT-OUTPUT kaffestart,INPUT-OUTPUT kaffeslut,INPUT-OUTPUT lunchstarten,
+                  INPUT-OUTPUT lunchslutet,INPUT-OUTPUT nytid,INPUT-OUTPUT sekunder). 
+                  CREATE ftemp.
+                  ASSIGN
+                  ftemp.DAG = TIDREGITAB.DAG
+                  ftemp.DATUM = TIDREGITAB.DATUM
+                  ftemp.OSTART = regstart
+                  ftemp.OSLUT = regslut
+                  ftemp.FSTART = TIDREGITAB.START
+                  ftemp.FSLUT = TIDREGITAB.SLUT
+                  fdatum = TIDREGITAB.DATUM.
+               END.
+               ELSE DO:
+                  FIND FIRST ftemp WHERE FTEMP.DATUM = TIDREGITAB.DATUM NO-ERROR.                  
+                  ASSIGN
+                  ftemp.FSLUT = TIDREGITAB.SLUT.
+               END.
+               GET NEXT tq NO-LOCK.
+            END.            
+         END.
+         ASSIGN
+         kolldatum = ?
+         lufl = 0.
+         /*IF globforetag = "LULE" THEN DO:   
+            OPEN QUERY tq FOR EACH TIDREGITAB WHERE
+            TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD
+            AND TIDLOG = TRUE AND TIDREGITAB.DATUM > 03/31/2005 
+            AND SUBSTRING(TIDREGITAB.VECKOKORD,10,9) = "" USE-INDEX PSTART NO-LOCK.  
+         END.
+         IF globforetag = "elpa" THEN DO:   
+            OPEN QUERY tq FOR EACH TIDREGITAB WHERE
+            TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD
+            AND TIDLOG = TRUE AND TIDREGITAB.DATUM > 12/31/2004 
+            AND SUBSTRING(TIDREGITAB.VECKOKORD,10,9) = "" USE-INDEX PSTART NO-LOCK.  
+         END. */
+         GET FIRST tq NO-LOCK.
+         DO WHILE AVAILABLE(TIDREGITAB):            
+            regdatum = TIDREGITAB.DATUM.
+            regvnr = TIDREGITAB.VECKONUMMER.
+            pkod = tidpers.PERSONALKOD.
+            RUN SLUTARBW.P 
+            (INPUT-OUTPUT pkod,INPUT-OUTPUT regstart,INPUT-OUTPUT regslut, 
+            INPUT-OUTPUT regvnr,INPUT-OUTPUT regdagnamn,INPUT-OUTPUT regdatum, 
+            INPUT-OUTPUT regtotalt,INPUT-OUTPUT frustarten,INPUT-OUTPUT fruslutet, 
+            INPUT-OUTPUT kaffestart,INPUT-OUTPUT kaffeslut,INPUT-OUTPUT lunchstarten,
+            INPUT-OUTPUT lunchslutet,INPUT-OUTPUT nytid,INPUT-OUTPUT sekunder). 
+            musz = FALSE.
+            IF TIDREGITAB.AONR = "155" THEN DO:
+               IF TIDREGITAB.START GE regslut THEN musz = musz.
+               ELSE IF TIDREGITAB.SLUT LE regstart THEN musz = musz.
+               ELSE DO:               
+                  nytid = TIDREGITAB.TOTALT.
+                  RUN TIMSEK.P.           
+                  CREATE flexen.
+                  ASSIGN flexen.PKOD = tidpers.PERSONALKOD                 
+                  flexen.PLONTILLANTAL = (-1) * sekunder
+                  flexen.PDATUM = TIDREGITAB.DATUM.           
+               END.
+            END.
+            ELSE IF TIDREGITAB.OVERTIDUTTAG = "F" AND TIDREGITAB.LONTILLAGG = "" THEN DO:
+               IF TIDREGITAB.AONR = "155" THEN musz = musz.
+               ELSE IF regstart = regslut THEN musz = TRUE.
+               ELSE IF TIDREGITAB.START < regstart THEN musz = TRUE.                                                                                     
+               ELSE IF TIDREGITAB.SLUT > regslut THEN musz = TRUE.                                                             
+            END.  
+            IF musz = TRUE THEN DO:              
+               musz = FALSE.
+               IF TIDREGITAB.START < regstart THEN DO:
+                  IF TIDREGITAB.SLUT > regstart THEN DO:                          
+                     nytid = TIDREGITAB.START.
+                     RUN TIMSEK.P.
+                     seku = sekunder.
+                     nytid = regstart.
+                     RUN TIMSEK.P.
+                     sekunder = sekunder - seku.
+                     RUN SEKTIM.P.                   
+                     plflex = nytid.
+                  END.
+                  ELSE DO:                     
+                     plflex = TIDREGITAB.TOTALT.
+                  END.
+                  nytid = plflex.
+                  RUN TIMSEK.P.           
+                  CREATE flexen.
+                  ASSIGN flexen.PKOD = tidpers.PERSONALKOD
+                  flexen.PLONTILLANTAL = sekunder
+                  flexen.PDATUM = TIDREGITAB.DATUM.             
+               END.
+               IF TIDREGITAB.SLUT > regslut THEN DO:
+                  IF TIDREGITAB.START < regslut THEN DO:                  
+                     nytid = TIDREGITAB.SLUT.
+                     RUN TIMSEK.P.
+                     seku = sekunder.
+                     nytid = regslut.
+                     RUN TIMSEK.P.
+                     sekunder = seku - sekunder.
+                     RUN SEKTIM.P.                     
+                     plflex = nytid.
+                  END.
+                  ELSE DO:                      
+                      plflex = TIDREGITAB.TOTALT.
+                  END.                        
+                  nytid = plflex.
+                  RUN TIMSEK.P.           
+                  CREATE flexen.
+                  ASSIGN flexen.PKOD = tidpers.PERSONALKOD
+                  flexen.PLONTILLANTAL = sekunder
+                  flexen.PDATUM = TIDREGITAB.DATUM.             
+               END.               
+            END.                           
+            
+            IF kolldatum NE TIDREGITAB.DATUM THEN DO:
+               FIND FIRST ftemp WHERE ftemp.DATUM = TIDREGITAB.DATUM NO-LOCK NO-ERROR.
+               IF AVAILABLE ftemp THEN DO:
+                  /*räkna minusflex om det saknas registrering på morgonen*/
+                  IF ftemp.FSTART > ftemp.OSTART THEN DO:
+                     nytid = ftemp.FSTART.
+                     RUN TIMSEK.P.
+                     seku = sekunder.
+                     nytid = ftemp.OSTART.
+                     RUN TIMSEK.P.
+                     sekunder = sekunder - seku.                        
+                     CREATE flexen.
+                     ASSIGN flexen.PKOD = tidpers.PERSONALKOD
+                     flexen.PLONTILLANTAL = sekunder
+                     flexen.PDATUM = TIDREGITAB.DATUM.                                     
+                  END.
+               END.               
+            END.
+            
+            IF kolldatum NE TIDREGITAB.DATUM THEN DO:
+               FIND FIRST ftemp WHERE ftemp.DATUM = TIDREGITAB.DATUM NO-LOCK NO-ERROR.
+               IF AVAILABLE ftemp THEN DO:                                 
+                  /*räkna minusflex om det saknas registrering på kvällen*/
+                  IF ftemp.FSLUT < ftemp.OSLUT THEN DO:
+                     nytid = ftemp.FSLUT.
+                     RUN TIMSEK.P.
+                     seku = sekunder.
+                     nytid = ftemp.OSLUT.
+                     RUN TIMSEK.P.
+                     sekunder = seku - sekunder.
+                     CREATE flexen.
+                     ASSIGN flexen.PKOD = tidpers.PERSONALKOD
+                     flexen.PLONTILLANTAL = sekunder
+                     flexen.PDATUM = TIDREGITAB.DATUM.                                     
+                  END.
+               END.
+            END.            
+            musz = FALSE.            
+            IF kolldatum NE TIDREGITAB.DATUM THEN DO:
+                ASSIGN
+                lufl = 0
+                musz = TRUE.
+            END.
+            ELSE IF kolldatum = TIDREGITAB.DATUM AND lufl = 0 THEN musz = TRUE.                        
+            IF musz = TRUE THEN DO:
+               ASSIGN
+               musz = FALSE
+               regdatum = TIDREGITAB.DATUM
+               regvnr = TIDREGITAB.VECKONUMMER.
+               /*RUN SLFLARB.P.*/
+
+               pkod = TIDREGITAB.PERSONALKOD.
+               RUN SLFLARBW.P 
+               (INPUT-OUTPUT pkod,INPUT-OUTPUT regstart,INPUT-OUTPUT regslut, 
+               INPUT-OUTPUT regvnr,INPUT-OUTPUT regdagnamn,INPUT-OUTPUT regdatum, 
+               INPUT-OUTPUT regtotalt,INPUT-OUTPUT frustarten,INPUT-OUTPUT fruslutet, 
+               INPUT-OUTPUT kaffestart,INPUT-OUTPUT kaffeslut,INPUT-OUTPUT lunchstarten,
+               INPUT-OUTPUT lunchslutet,INPUT-OUTPUT nytid,INPUT-OUTPUT sekunder).
+
+               IF TIDREGITAB.START < regslut AND TIDREGITAB.SLUT > regstart THEN DO:                           
+                   nytid = lunchslutet.
+                   RUN TIMSEK.P.
+                   ASSIGN
+                   seku = sekunder
+                   nytid = lunchstarten.
+                   RUN TIMSEK.P.                                                     
+                   lunorm = (seku - sekunder) / 60.
+                   IF TIDREGITAB.LAGANTAL > 0 AND TIDREGITAB.LAGANTAL < lunorm THEN DO:                              
+                      ASSIGN
+                      sekunder = (lunorm - TIDREGITAB.LAGANTAL) * 60                         
+                      lufl = 1.
+                      CREATE flexen.
+                      ASSIGN flexen.PKOD = TIDREGITAB.PERSONALKOD
+                      flexen.PLONTILLANTAL = sekunder
+                      flexen.PDATUM = TIDREGITAB.DATUM.             
+                   END.
+                   IF TIDREGITAB.LAGANTAL > lunorm THEN DO:                              
+                      sekunder = (TIDREGITAB.LAGANTAL - lunorm ) * 60.                      
+                      ASSIGN                  
+                      lufl = 1.
+                      CREATE flexen.
+                      ASSIGN flexen.PKOD = TIDREGITAB.PERSONALKOD
+                      flexen.PLONTILLANTAL = (-1) * sekunder
+                      flexen.PDATUM = TIDREGITAB.DATUM.             
+                   END.                                           
+               END.
+            END.
+            kolldatum = TIDREGITAB.DATUM.
+         
+
+            GET NEXT tq NO-LOCK.
+         END. 
+      END.
+      GET NEXT pq NO-LOCK.
+   END.   
+   
+   arrflex = 0.
+   FOR EACH flexen BREAK BY flexen.PKOD:    
+      ACCUMULATE flexen.PLONTILLANTAL(TOTAL BY flexen.PKOD).       
+      IF LAST-OF(flexen.PKOD) THEN DO:
+         CREATE flexsum.                    
+         ASSIGN  
+         flexsum.PKOD =  flexen.PKOD
+         sekunder = (ACCUM TOTAL flexen.PLONTILLANTAL) - arrflex.
+         RUN FSEKTIM.P.
+         ASSIGN
+         flexsum.PLONTILLSEK = sekunder
+         flexsum.PLONTILLANTAL = fnytid.
+         arrflex = ACCUM TOTAL flexen.PLONTILLANTAL.             
+      END.
+   END.
+   OUTPUT TO C:\PROTEMP9\FLEXENSÖG.TXT.
+   FOR EACH FLEXEN:
+     EXPORT FLEXEN.
+   END.
+   OUTPUT CLOSE.
+   OUTPUT TO C:\PROTEMP9\FLEXSUMSÖG.TXT.
+   FOR EACH flexsum:
+     EXPORT flexsum.
+   END.
+   /*FOR EACH flexsum:            
+      DO TRANSACTION:
+         FIND FIRST FLEXSALDO WHERE FLEXSALDO.PERSONALKOD = flexsum.PKOD 
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE FLEXSALDO THEN DO:
+            CREATE FLEXSALDO.
+            ASSIGN FLEXSALDO.PERSONALKOD = flexsum.PKOD.
+         END.   
+         ASSIGN 
+         FLEXSALDO.EJKORDFLEX = flexsum.PLONTILLANTAL.
+      END.   
+   END.   */
+END PROCEDURE.

@@ -1,0 +1,378 @@
+/*
+     Filename: UTBER4PDF2.P
+*/
+&Scoped-define NEW 
+{GLOBVAR2DEL1.I}
+/*{EGENBEN.I}*/
+{REGVAR.I}
+{pdf_StartInc.i}
+{SOKDEF.I}
+{BILDBERTEMP.I}
+
+DEFINE NEW SHARED TEMP-TABLE tidut
+   FIELD UT AS CHARACTER FORMAT "X(132)".
+
+DEFINE INPUT PARAMETER TABLE FOR tidut.
+DEFINE SHARED VARIABLE valaonr AS CHARACTER NO-UNDO.
+DEFINE SHARED VARIABLE valdelnr AS INTEGER NO-UNDO.
+DEFINE SHARED VARIABLE valort AS CHARACTER NO-UNDO. 
+DEFINE SHARED VARIABLE valomrade AS CHARACTER NO-UNDO.
+DEFINE SHARED VARIABLE bryt AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE prisvar   AS INTEGER NO-UNDO.
+DEFINE VARIABLE filvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE startpos AS INTEGER NO-UNDO.
+DEFINE VARIABLE numkopp AS INTEGER NO-UNDO.
+DEFINE VARIABLE svar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE utberapph  AS HANDLE NO-UNDO.
+DEFINE VARIABLE utfil      AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sidrakn    AS INTEGER NO-UNDO.
+DEFINE VARIABLE logga      AS CHARACTER NO-UNDO.
+DEFINE VARIABLE Vitems     AS INTEGER NO-UNDO.
+DEFINE VARIABLE vline     AS INTEGER NO-UNDO.
+DEFINE VARIABLE Vrow       AS INTEGER NO-UNDO.
+DEFINE VARIABLE Vrow2       AS INTEGER NO-UNDO.
+DEFINE VARIABLE Vcat-desc  AS CHARACTER EXTENT 4 FORMAT "X(40)" NO-UNDO.
+DEFINE VARIABLE h       AS INTEGER NO-UNDO.
+DEFINE VARIABLE w       AS INTEGER NO-UNDO.
+DEFINE VARIABLE a          AS DECIMAL NO-UNDO.
+DEFINE VARIABLE mtrlrubrik AS LOGICAL NO-UNDO.
+DEFINE VARIABLE forsta     AS LOGICAL NO-UNDO.
+DEFINE VARIABLE spann AS LOGICAL NO-UNDO.
+
+/* FOR EACH tidut:                          */
+/*    tidut.UT = REPLACE(tidut.UT,":"," "). */
+/* END.                                     */
+
+ASSIGN
+mtrlrubrik = FALSE
+logga = ?
+forsta = FALSE
+spann = FALSE
+sidrakn = 1
+utfil = SESSION:TEMP-DIRECTORY + string(TIME) + "ber4.pdf".
+IF Guru.Konstanter:appcon THEN DO:
+   RUN UTBERAPP.P PERSISTENT SET utberapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT.
+END.
+ELSE DO:
+   RUN UTBERAPP.P PERSISTENT SET utberapph.
+END.
+EMPTY TEMP-table bildbertemp NO-ERROR.
+FIND FIRST tidut NO-LOCK NO-ERROR.
+IF AVAILABLE tidut THEN DO:
+   IF globforetag = "SUND" THEN DO:
+      IF SUBSTRING(tidut.UT,1,15) = "Materiel/Upplag" OR SUBSTRING(tidut.UT,1,13) = "Byggprotokoll" THEN DO: 
+         RUN bildberhmt_UI IN utberapph (INPUT valaonr,INPUT valomrade,OUTPUT table bildbertemp).
+         FIND FIRST bildbertemp NO-LOCK NO-ERROR.
+      END.
+   END.
+   ELSE IF globforetag = "UMEA" THEN DO:
+      IF SUBSTRING(tidut.UT,1,12) = "Satsläggning" OR SUBSTRING(tidut.UT,1,13) = "Byggprotokoll" THEN DO: 
+         RUN bildberhmt_UI IN utberapph (INPUT valaonr,INPUT valomrade,OUTPUT table bildbertemp).
+         FIND FIRST bildbertemp NO-LOCK NO-ERROR.
+      END.
+   END.
+   ELSE DO:
+      IF SUBSTRING(tidut.UT,1,15) = "Materiel/upplag" OR SUBSTRING(tidut.UT,1,13) = "Byggprotokoll" THEN DO: 
+         RUN bildberhmt_UI IN utberapph (INPUT valaonr,INPUT valomrade,OUTPUT table bildbertemp).
+         FIND FIRST bildbertemp NO-LOCK NO-ERROR.
+      END.
+   END.
+END.
+IF AVAILABLE bildbertemp THEN DO:
+   MESSAGE "Vill Ni se kopplade dokument och bilder i beredningen?"
+   VIEW-AS ALERT-BOX QUESTION BUTTONS YES-NO UPDATE svar.         
+   IF svar = FALSE THEN EMPTY TEMP-table bildbertemp NO-ERROR.
+END.
+
+IF globforetag = "cELPA" {GLOBVES.I} THEN DO:
+   logga = SEARCH("BILDER\vattenfall.jpg").   
+END.
+ELSE IF globforetag = "BORL" THEN DO:
+   logga = SEARCH("BILDER\borlange.jpg").   
+END.
+ELSE IF globforetag = "TRAS" THEN DO:
+   logga = SEARCH("BILDER\trassmans.jpg").   
+END.
+IF logga NE ? THEN globsids = globsids - 3.
+RUN startpdf_UI.
+RUN bilder_UI.
+RUN pdf_close IN h_PDFinc ("Spdf").
+RUN OPENDOC.P (utfil,"","Acrobat.exe",NO).
+
+PROCEDURE startpdf_UI:
+   FIND FIRST tidut NO-LOCK NO-ERROR.
+   IF AVAILABLE tidut THEN DO: 
+      RUN pdf_new IN h_PDFinc ("Spdf",utfil).
+      RUN pdf_set_LeftMargin IN h_PDFinc ("Spdf",40).
+      /* Dokument Information */ 
+      RUN pdf_set_info("Spdf","Author","Elpool i Umeå AB").
+      RUN pdf_set_info("Spdf","Subject","Byggprotokoll").
+      RUN pdf_set_info("Spdf","Title","Byggprotokoll").
+      RUN pdf_set_info("Spdf","Keywords","Beredning, Byggprotokoll").
+      RUN pdf_set_info("Spdf","Creator","PDFinclude").
+      RUN pdf_set_info("Spdf","Producer","UTBER4PDF2.P").
+      /*Skapa ny sida*/
+      RUN new_page.
+      FOR EACH tidut NO-LOCK:
+         IF tidut.UT = ? THEN NEXT.
+         vline = vline + 1.
+         IF mtrlrubrik = TRUE THEN DO:
+            RUN pdf_text_color IN h_PDFinc ("Spdf",0.0,0.0,0.0).
+            mtrlrubrik = FALSE.
+         END.
+         IF SUBSTRING(tidut.UT,132,1) = "$" THEN DO:
+            RUN new_page.
+         END.
+         ELSE IF vline >= globsids THEN DO:
+            RUN new_page.
+         END.
+         ELSE IF SUBSTRING(tidut.UT,1,5) = "*****" THEN DO:
+            RUN pdf_line IN h_PDFinc ("Spdf", pdf_LeftMargin("Spdf") , pdf_TextY("Spdf") + 8, pdf_PageWidth("Spdf") - 100 , pdf_TextY("Spdf") + 8, 1).
+            RUN pdf_set_font IN h_PDFinc ("Spdf","Courier",10.0).
+            RUN pdf_text_color IN h_PDFinc ("Spdf",0.0,0.0,0.0).
+         END.
+         ELSE IF SUBSTRING(tidut.UT,1,5) = "-----" THEN DO:
+            RUN pdf_line IN h_PDFinc ("Spdf", pdf_LeftMargin("Spdf") , pdf_TextY("Spdf") + 8, pdf_PageWidth("Spdf") - 100 , pdf_TextY("Spdf") + 8, 1).
+         END.
+         ELSE IF SUBSTRING(tidut.UT,43,18) = "Fri ID           :" 
+            OR SUBSTRING(tidut.UT,43,18) =   "Stolp nr         :" 
+            OR SUBSTRING(tidut.UT,43,18) =   "Skåp nr          :"
+            OR SUBSTRING(tidut.UT,43,18) =   "Lina/Alus nr     :"
+            OR SUBSTRING(tidut.UT,43,18) =   "Kabelnr          :"
+            OR SUBSTRING(tidut.UT,43,18) =   "Obj nr           :"
+            OR SUBSTRING(tidut.UT,43,18) =   "Byggnr           :" THEN DO:
+            IF spann = FALSE THEN DO:
+               IF globforetag = "CELPA" {GLOBVES.I} THEN DO:
+                  RUN pdf_set_font IN h_PDFinc ("Spdf","Courier-Bold",10.0).
+                  RUN pdf_text_color IN h_PDFinc ("Spdf",0.0,0.0,0.0).
+                  RUN pdf_text IN h_PDFinc ("Spdf", tidut.UT).
+                  RUN pdf_skip IN h_PDFinc ("Spdf").
+                  RUN pdf_set_font IN h_PDFinc ("Spdf","Courier",10.0).
+                  RUN pdf_text_color IN h_PDFinc ("Spdf",0.0,0.0,0.0).
+               END.
+               ELSE DO:
+                  RUN pdf_text IN h_PDFinc ("Spdf", tidut.UT).
+                  RUN pdf_skip IN h_PDFinc ("Spdf").
+               END.
+            END.
+            ELSE DO:
+               RUN pdf_text IN h_PDFinc ("Spdf", tidut.UT).
+               RUN pdf_skip IN h_PDFinc ("Spdf").
+            END.
+         END.
+         ELSE IF SUBSTRING(tidut.UT,1,28) = "Grupp nr                   :" 
+            OR SUBSTRING(tidut.UT,1,28) =   "Sektion/Sträcka            :"
+            OR SUBSTRING(tidut.UT,1,28) =   "Ledningsdel                :" THEN DO:
+            IF spann = FALSE THEN DO:
+               IF globforetag = "CELPA" {GLOBVES.I} THEN DO:
+                  RUN pdf_set_font IN h_PDFinc ("Spdf","Courier-Bold",10.0).
+                  RUN pdf_text_color IN h_PDFinc ("Spdf",0.0,0.0,0.0).
+                  RUN pdf_text IN h_PDFinc ("Spdf", tidut.UT).
+                  RUN pdf_skip IN h_PDFinc ("Spdf").
+                  RUN pdf_set_font IN h_PDFinc ("Spdf","Courier",10.0).
+                  RUN pdf_text_color IN h_PDFinc ("Spdf",0.0,0.0,0.0).
+               END.
+               ELSE DO:
+                  RUN pdf_text IN h_PDFinc ("Spdf", tidut.UT).
+                  RUN pdf_skip IN h_PDFinc ("Spdf").
+               END.              
+            END.
+            ELSE DO:
+               RUN pdf_text IN h_PDFinc ("Spdf", tidut.UT).
+               RUN pdf_skip IN h_PDFinc ("Spdf").
+            END.
+         END.
+         ELSE DO:
+            IF SUBSTRING(tidut.UT,1,10) = Guru.Konstanter:genk THEN DO:
+               RUN pdf_set_font IN h_PDFinc ("Spdf","Courier",10.0).
+               RUN pdf_text_color IN h_PDFinc ("Spdf",0.0,0.0,1.0).
+               RUN pdf_line IN h_PDFinc ("Spdf", pdf_LeftMargin("Spdf") , pdf_TextY("Spdf") + 8, pdf_PageWidth("Spdf") - 100 , pdf_TextY("Spdf") + 8, 1).
+               RUN pdf_line IN h_PDFinc ("Spdf", pdf_LeftMargin("Spdf") , pdf_TextY("Spdf") - 2, pdf_PageWidth("Spdf") - 100 , pdf_TextY("Spdf") - 2, 1).
+               mtrlrubrik = TRUE.
+            END.
+            RUN pdf_text IN h_PDFinc ("Spdf", tidut.UT).
+            RUN pdf_skip IN h_PDFinc ("Spdf").
+         END.
+         IF SUBSTRING(tidut.UT,1,16) = "Spann/kabellängd" THEN spann = TRUE.
+         ELSE spann = FALSE.
+      END.
+   END.  
+END.
+
+PROCEDURE bilder_UI:
+   IF AVAILABLE bildbertemp THEN DO:
+      FOR EACH bildbertemp NO-LOCK:
+         RUN pdf_new_page IN h_PDFinc ("Spdf").
+         sidrakn = sidrakn + 1.
+         RUN pdf_set_LeftMargin IN h_PDFinc ("Spdf",40).
+         RUN pdf_set_TopMargin IN h_PDFinc ("Spdf",40).
+         /*Sätt font*/
+         RUN pdf_set_font IN h_PDFinc ("Spdf","Courier",10.0).
+         RUN pdf_text_color IN h_PDFinc ("Spdf",0.0,0.0,0.0).
+         ASSIGN 
+         vline = 0 
+         Vrow = pdf_PageHeight("Spdf") - pdf_TopMargin("Spdf"). 
+         EMPTY TEMP-TABLE valsoktemp NO-ERROR. 
+         RUN htmkonval_UI IN utberapph (INPUT valaonr,INPUT valomrade,INPUT bildbertemp.NUM,OUTPUT TABLE valsoktemp).
+         FIND FIRST valsoktemp NO-LOCK NO-ERROR.
+         IF AVAILABLE valsoktemp THEN DO:
+            IF bildbertemp.FILNAMN NE "" THEN DO:
+               FILE-INFO:FILE-NAME = bildbertemp.FILNAMN.
+               IF SEARCH(FILE-INFO:FULL-PATHNAME) = ? THEN DO:
+                  numkopp = numkopp + 1.
+                  NEXT.
+               END. 
+   
+               /*Maska fram filnamnet*/
+               bildbertemp.FILNAMN = REPLACE(bildbertemp.FILNAMN,"\","/").
+               startpos = INDEX(bildbertemp.FILNAMN,".",LENGTH(bildbertemp.FILNAMN) - 5).
+               DEFINE VARIABLE pos AS INTEGER NO-UNDO.
+               DEFINE VARIABLE pos2 AS INTEGER NO-UNDO.
+               pos = 0.
+               REPEAT :
+                  pos2 = pos.
+                  pos = pos + 1.
+                  pos = INDEX(bildbertemp.FILNAMN,"/",pos).                                        
+                  IF pos = 0 THEN LEAVE.
+               END.
+               pos = pos2 + 1.
+               IF pos GE 0 THEN filvar = SUBSTRING(bildbertemp.FILNAMN,pos,LENGTH(bildbertemp.FILNAMN)).
+               ELSE filvar = bildbertemp.FILNAMN.
+               /* */
+
+               IF SUBSTRING(bildbertemp.FILNAMN,startpos,LENGTH(bildbertemp.FILNAMN)) = ".gif" OR
+               SUBSTRING(bildbertemp.FILNAMN,startpos,LENGTH(bildbertemp.FILNAMN)) = ".jpg" OR
+               SUBSTRING(bildbertemp.FILNAMN,startpos,LENGTH(bildbertemp.FILNAMN)) = ".jpeg" OR
+               SUBSTRING(bildbertemp.FILNAMN,startpos,LENGTH(bildbertemp.FILNAMN)) = ".bmp" THEN DO:
+                  RUN pdf_text IN h_PDFinc ("Spdf", filvar + " (se bild nedan) är kopplad till:").
+                  RUN pdf_skip IN h_PDFinc ("Spdf").                  
+               END.
+               ELSE DO:
+                  RUN pdf_text IN h_PDFinc ("Spdf", filvar + " (se länk nedan) är kopplad till:").
+                  RUN pdf_skip IN h_PDFinc ("Spdf").                                               
+               END.
+               IF valsoktemp.SOKCHAR[2] NE "" THEN DO:
+                  RUN pdf_text IN h_PDFinc ("Spdf", valsoktemp.SOKCHAR[6] + ": " + valsoktemp.SOKCHAR[2]).
+                  RUN pdf_skip IN h_PDFinc ("Spdf").       
+               END.
+               IF valsoktemp.SOKCHAR[3] NE "" THEN DO:
+                  RUN pdf_text IN h_PDFinc ("Spdf", valsoktemp.SOKCHAR[7] + ": " + valsoktemp.SOKCHAR[3]).
+                  RUN pdf_skip IN h_PDFinc ("Spdf").               
+               END.
+               IF valsoktemp.SOKCHAR[4] NE "" THEN DO:
+                  RUN pdf_text IN h_PDFinc ("Spdf", valsoktemp.SOKCHAR[8] + ": " + valsoktemp.SOKCHAR[4]).
+                  RUN pdf_skip IN h_PDFinc ("Spdf").                            
+               END.
+               IF valsoktemp.SOKINT[1] NE ? THEN DO:
+                  RUN pdf_text IN h_PDFinc ("Spdf", valsoktemp.SOKCHAR[9] + ": " + STRING(valsoktemp.SOKINT[1])).
+                  RUN pdf_skip IN h_PDFinc ("Spdf").                                           
+               END.
+               IF valsoktemp.SOKINT[2] NE ? THEN DO:
+                  RUN pdf_text IN h_PDFinc ("Spdf", valsoktemp.SOKCHAR[10] + ": " + STRING(valsoktemp.SOKINT[2])).
+                  RUN pdf_skip IN h_PDFinc ("Spdf").               
+               END.
+               IF valsoktemp.SOKCHAR[5] NE "" THEN DO:
+                  RUN pdf_text IN h_PDFinc ("Spdf", "Fri ID: " + valsoktemp.SOKCHAR[5]).
+                  RUN pdf_skip IN h_PDFinc ("Spdf").               
+               END.
+               IF valsoktemp.SOKCHAR[1] NE "" THEN DO:
+                  RUN pdf_text IN h_PDFinc ("Spdf", "Konstruktion: " + valsoktemp.SOKCHAR[1]).
+                  RUN pdf_skip IN h_PDFinc ("Spdf").                             
+               END.
+               IF SUBSTRING(bildbertemp.FILNAMN,startpos,LENGTH(bildbertemp.FILNAMN)) = ".gif" OR
+               SUBSTRING(bildbertemp.FILNAMN,startpos,LENGTH(bildbertemp.FILNAMN)) = ".jpg" OR
+               SUBSTRING(bildbertemp.FILNAMN,startpos,LENGTH(bildbertemp.FILNAMN)) = ".jpeg" OR
+               SUBSTRING(bildbertemp.FILNAMN,startpos,LENGTH(bildbertemp.FILNAMN)) = ".bmp" THEN DO:
+                  IF SUBSTRING(bildbertemp.FILNAMN,startpos,LENGTH(bildbertemp.FILNAMN)) = ".jpg" OR
+                  SUBSTRING(bildbertemp.FILNAMN,startpos,LENGTH(bildbertemp.FILNAMN)) = ".jpeg" THEN DO:
+                     RUN pdf_new IN h_PDFinc ("Spdf",utfil).
+                     RUN pdf_load_image IN h_PDFinc ("Spdf","ProSysLogo",bildbertemp.FILNAMN).
+                     h = pdf_ImageDim ("Spdf","ProSysLogo","HEIGHT").
+                     w = pdf_ImageDim ("Spdf","ProSysLogo","WIDTH").
+                     IF w > 620 THEN DO:
+                        a = 620 / w.
+                        h = a * h.
+                        w = a * w.            
+                     END.
+                     RUN pdf_place_image IN h_PDFinc ("Spdf","ProSysLogo",pdf_LeftMargin("Spdf"), pdf_TopMargin("Spdf"),w,h).
+                     RUN pdf_skipn IN h_PDFinc ("Spdf",3).
+                     vline = 3.
+                  END.
+                  ELSE DO:
+                     RUN pdf_place_image IN h_PDFinc ("Spdf","ProSysLogo",pdf_LeftMargin("Spdf"), pdf_TopMargin("Spdf"),w,h).
+                     RUN pdf_skipn IN h_PDFinc ("Spdf",3).
+                     vline = 3.                     
+                  END.             
+               END.
+               ELSE DO:
+                  RUN pdf_text IN h_PDFinc ("Spdf", bildbertemp.FILNAMN).
+                  RUN pdf_skip IN h_PDFinc ("Spdf").                                               
+               END.            
+            END.
+         END.        
+      END.
+      IF numkopp NE 0 THEN DO:
+         IF numkopp = 1 THEN DO:
+            MESSAGE numkopp "st kopplat dokument eller bild gick ej att visa!" VIEW-AS ALERT-BOX.
+         END.
+         ELSE DO:
+            MESSAGE  numkopp  "st kopplade dokument eller bilder gick ej att visa!" VIEW-AS ALERT-BOX.
+         END.                        
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE new_page.
+   RUN pdf_new_page IN h_PDFinc ("Spdf").
+   RUN pdf_set_LeftMargin IN h_PDFinc ("Spdf",40).
+   RUN pdf_set_TopMargin IN h_PDFinc ("Spdf",40).
+   /*Sätt font*/
+   RUN pdf_set_font IN h_PDFinc ("Spdf","Courier",10.0).
+   RUN pdf_text_color IN h_PDFinc ("Spdf",0.0,0.0,0.0).
+   ASSIGN 
+   vline = 0 
+   Vrow = pdf_PageHeight("Spdf") - pdf_TopMargin("Spdf"). 
+   IF forsta = TRUE THEN DO:
+      RUN pdf_text_align IN h_PDFinc ("Spdf","Sid " + STRING(sidrakn),"CENTER",pdf_PageWidth("Spdf") - 35,pdf_PageHeight("Spdf") - 15).
+      RUN pdf_skip IN h_PDFinc ("Spdf").
+   END.
+   /*Init. logga*/
+   IF forsta = FALSE THEN DO:
+      IF logga NE ? THEN DO:
+         RUN pdf_load_image IN h_PDFinc ("Spdf","ProSysLogo",logga).
+         h = pdf_ImageDim ("Spdf","ProSysLogo","HEIGHT").
+         w = pdf_ImageDim ("Spdf","ProSysLogo","WIDTH").
+         IF h > 30 THEN DO:
+            a = 30 / h.
+            h = a * h.
+            w = a * w.            
+         END.
+         RUN pdf_place_image IN h_PDFinc ("Spdf","ProSysLogo",pdf_LeftMargin("Spdf"), pdf_TopMargin("Spdf"),w,h).
+         RUN pdf_skipn IN h_PDFinc ("Spdf",3).
+         vline = 3.
+      END.
+      forsta = TRUE.
+   END.
+   ELSE DO:
+      /*Placera ut logga överst på varje sida*/
+      IF logga NE ? THEN DO:
+         RUN pdf_place_image IN h_PDFinc ("Spdf","ProSysLogo",pdf_LeftMargin("Spdf"), pdf_TopMargin("Spdf"),w,h).
+         RUN pdf_skipn IN h_PDFinc ("Spdf",3).
+         vline = 3.
+      END.
+      IF SUBSTRING(tidut.UT,1,5) = "*****" THEN DO:
+         RUN pdf_text IN h_PDFinc ("Spdf","").
+         RUN pdf_skip IN h_PDFinc ("Spdf").
+      END.
+      ELSE DO:
+         RUN pdf_text IN h_PDFinc ("Spdf", tidut.UT).
+         RUN pdf_skip IN h_PDFinc ("Spdf").
+      END.
+   END.
+   sidrakn = sidrakn + 1.
+END PROCEDURE.
+
+/* DEFINE VARIABLE com AS CHARACTER NO-UNDO. */
+/* com = "del " + utfil.                     */
+/* OS-COMMAND SILENT VALUE(com).             */
+

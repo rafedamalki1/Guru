@@ -1,0 +1,510 @@
+DEFINE NEW SHARED VARIABLE nytid AS DECIMAL FORMAT "99.99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE sekunder AS INTEGER FORMAT "-9999999" NO-UNDO.        
+DEFINE VARIABLE manad AS INTEGER NO-UNDO.  
+DEFINE VARIABLE manad2 AS INTEGER NO-UNDO. 
+DEFINE VARIABLE typdatum AS DATE NO-UNDO.  
+DEFINE VARIABLE kontokod LIKE EKRAPPRESULT.EKOSTNADSSLAG NO-UNDO. 
+DEFINE VARIABLE kontokode LIKE EKRAPPRESULT.EKOSTNADSSLAG NO-UNDO. 
+DEFINE VARIABLE prognamn AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(140)" NO-UNDO. 
+DEFINE VARIABLE ekrid AS RECID EXTENT 50 NO-UNDO.   
+DEFINE VARIABLE timtid AS DECIMAL FORMAT "99.99" NO-UNDO. 
+DEFINE VARIABLE multi AS DECIMAL FORMAT "99.99" NO-UNDO.
+DEFINE VARIABLE berkostnad AS DECIMAL FORMAT "99.99" NO-UNDO.
+DEFINE VARIABLE totpristim AS DECIMAL FORMAT "99.99" NO-UNDO.
+DEFINE VARIABLE reskod LIKE TIDREGITAB.LONTILLAGG NO-UNDO. 
+DEFINE VARIABLE resantal LIKE TIDREGITAB.LONTILLANTAL NO-UNDO.
+DEFINE VARIABLE resbelopp LIKE EKRAPPRESULT.ELONBELOPP NO-UNDO. 
+DEFINE VARIABLE ovkod LIKE TIDREGITAB.OVERTIDTILL NO-UNDO. 
+DEFINE VARIABLE ovantal LIKE TIDREGITAB.OVERANTAL NO-UNDO.
+DEFINE VARIABLE ovbelopp LIKE EKRAPPRESULT.EOVERBELOPP NO-UNDO. 
+DEFINE VARIABLE trakod LIKE TIDREGITAB.TRAKTKOD NO-UNDO. 
+DEFINE VARIABLE traantal LIKE TIDREGITAB.TRAKTANTAL NO-UNDO.
+DEFINE VARIABLE trabelopp LIKE EKRAPPRESULT.ETRAKTBELOPP NO-UNDO. 
+DEFINE VARIABLE lonkod LIKE TIDREGITAB.LONTILLAGG NO-UNDO. 
+DEFINE VARIABLE lonantal LIKE TIDREGITAB.LONTILLANTAL NO-UNDO.
+DEFINE VARIABLE lonbelopp LIKE EKRAPPRESULT.ELONBELOPP NO-UNDO. 
+DEFINE VARIABLE berkod LIKE TIDREGITAB.BEREDSKAP NO-UNDO. 
+DEFINE VARIABLE bbantal LIKE TIDREGITAB.BERANTAL NO-UNDO.
+DEFINE VARIABLE berbelopp LIKE EKRAPPRESULT.EBERBELOPP NO-UNDO.
+DEFINE VARIABLE pkod LIKE PERSONALTAB.PERSONALKOD NO-UNDO.
+DEFINE VARIABLE typover LIKE EKRAPPRESULT.ERESULTENH NO-UNDO. 
+DEFINE VARIABLE kodanst LIKE ANSTFORMTAB.KOD NO-UNDO.
+DEFINE TEMP-TABLE ekoforst    
+   FIELD KOD LIKE ANSTFORMTAB.KOD
+   FIELD ENY LIKE EKRAPPRESULT.ENY 
+   FIELD EPERSONALKOD LIKE EKRAPPRESULT.EPERSONALKOD 
+   FIELD EPROJEKT LIKE EKRAPPRESULT.EPROJEKT 
+   FIELD EORG LIKE EKRAPPRESULT.EORG  
+   FIELD EGEO LIKE EKRAPPRESULT.EGEO  
+   FIELD EVERDATUM AS DATE
+   FIELD EOVERJA LIKE EKRAPPRESULT.EOVERJA
+   FIELD ERESULTENH LIKE EKRAPPRESULT.ERESULTENH 
+   FIELD EBELOPP LIKE  EKRAPPRESULT.EBELOPP 
+   FIELD EANTAL LIKE EKRAPPRESULT.EANTAL 
+   FIELD ETIMMAR LIKE EKRAPPRESULT.EANTAL 	       
+   FIELD ELONTILLAGG LIKE EKRAPPRESULT.ELONTILLAGG 
+   FIELD ELONTILLANTAL LIKE EKRAPPRESULT.ELONTILLANTAL    
+   FIELD ELONBELOPP LIKE EKRAPPRESULT.ELONBELOPP  
+   FIELD PRIS LIKE SUMTIDDAG.PRIS  
+   FIELD PRISI LIKE SUMTIDDAG.PRISI       
+   INDEX PERSORG IS PRIMARY EPERSONALKOD EORG EGEO EPROJEKT ASCENDING.
+DEFINE TEMP-TABLE temp1 
+   FIELD PERSONALKOD LIKE SUMTIDDAG.PERSONALKOD 
+   FIELD KOD LIKE ANSTFORMTAB.KOD
+   FIELD OMRADE LIKE SUMTIDDAG.OMRADE 
+   FIELD GEOMRADE LIKE SUMTIDDAG.GEOMRADE   
+   FIELD AONR LIKE SUMTIDDAG.AONR
+   FIELD DATUM AS DATE 
+   FIELD PRIS LIKE SUMTIDDAG.PRIS 
+   FIELD PRISI LIKE SUMTIDDAG.PRISI
+   INDEX PERSAONR IS PRIMARY DATUM PERSONALKOD OMRADE AONR PRIS PRISI
+   INDEX PERSONALKOD PERSONALKOD.             
+DEFINE TEMP-TABLE eko
+   FIELD EDEBKRED LIKE EKRAPPRESULT.EDEBKRED
+   FIELD ENY LIKE EKRAPPRESULT.ENY       
+   FIELD EVERDATUM AS DATE  
+   FIELD EPROJEKT LIKE EKRAPPRESULT.EPROJEKT 
+   FIELD EORG LIKE EKRAPPRESULT.EORG 
+   FIELD EKOSTNADSSLAG LIKE EKRAPPRESULT.EKOSTNADSSLAG    
+   FIELD EBELOPP LIKE  EKRAPPRESULT.EBELOPP 
+   FIELD EANTAL  LIKE EKRAPPRESULT.EANTAL                
+   FIELD ELONTILLAGG LIKE EKRAPPRESULT.ELONTILLAGG 
+   FIELD ELONTILLANTAL LIKE EKRAPPRESULT.ELONTILLANTAL    
+   FIELD ELONBELOPP LIKE EKRAPPRESULT.ELONBELOPP  
+   INDEX ORG IS PRIMARY EVERDATUM EORG EPROJEKT EKOSTNADSSLAG ASCENDING.   
+DEFINE BUFFER eko2 FOR eko.
+DEFINE QUERY sq FOR SUMTIDDAG SCROLLING. 
+DEFINE QUERY pq FOR PERSONALTAB SCROLLING.     
+DEFINE QUERY bq FOR BORTPERS SCROLLING.  
+UPDATE manad2 with frame cc.
+manad = manad2.
+REPEAT:
+   OPEN QUERY sq FOR EACH SUMTIDDAG WHERE YEAR(SUMTIDDAG.DATUM) = 1997 AND 
+   MONTH(SUMTIDDAG.DATUM) = manad AND SUMTIDDAG.OMRADE NE SUMTIDDAG.GEOMRADE AND
+   SUMTIDDAG.VECKOKORD NE ""  USE-INDEX GEORGAONR NO-LOCK INDEXED-REPOSITION.  
+   GET FIRST sq NO-LOCK.
+   DO WHILE AVAILABLE(SUMTIDDAG):
+      IF SUMTIDDAG.PRISTYP = "FRNVARO." THEN manad = manad.
+      ELSE IF SUMTIDDAG.DATUM > 11/02/97 THEN manad = manad.   
+      ELSE IF SUMTIDDAG.AONR = "800000" THEN manad = manad.  
+      ELSE IF MONTH(SUMTIDDAG.DATUM) = 10 AND SUMTIDDAG.AONR = "800190" THEN manad = manad.
+      ELSE DO TRANSACTION:         
+         FIND FIRST temp1 WHERE temp1.PERSONALKOD = SUMTIDDAG.PERSONALKOD AND          
+         temp1.AONR = SUMTIDDAG.AONR AND 
+         temp1.OMRADE = SUMTIDDAG.OMRADE AND
+         temp1.DATUM = SUMTIDDAG.DATUM          
+         USE-INDEX PERSAONR NO-ERROR.
+         IF NOT AVAILABLE temp1 THEN CREATE temp1.
+         ASSIGN
+         temp1.PERSONALKOD = SUMTIDDAG.PERSONALKOD 
+         temp1.AONR = SUMTIDDAG.AONR         
+         temp1.DATUM = SUMTIDDAG.DATUM
+         temp1.OMRADE = SUMTIDDAG.OMRADE 
+         temp1.GEOMRADE = SUMTIDDAG.GEOMRADE.
+         IF SUMTIDDAG.PRIS ne 0 THEN DO:
+            temp1.PRIS = SUMTIDDAG.PRIS. 
+         END. 
+         IF SUMTIDDAG.PRISI ne 0 THEN DO:  
+            temp1.PRISI = SUMTIDDAG.PRISI.
+         END.                           
+      END.
+      GET NEXT sq NO-LOCK.
+   END.
+   manad = manad + 1.
+   IF manad > manad2 THEN LEAVE.       
+END.                     
+manad = manad2.
+OPEN QUERY pq FOR EACH PERSONALTAB USE-INDEX PERSONALKOD NO-LOCK INDEXED-REPOSITION.
+GET FIRST pq NO-LOCK.
+DO WHILE AVAILABLE(PERSONALTAB):     
+   FIND FIRST ANSTFORMTAB WHERE
+   ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+   USE-INDEX ANSTF NO-LOCK NO-ERROR.   
+   FOR EACH temp1 WHERE temp1.PERSONALKOD = PERSONALTAB.PERSONALKOD USE-INDEX PERSONALKOD:       
+      ASSIGN
+      temp1.KOD = ANSTFORMTAB.KOD.
+   END. 
+   GET NEXT pq NO-LOCK.         
+END.                                                
+OPEN QUERY bq FOR EACH BORTPERS USE-INDEX PERSONALKOD NO-LOCK INDEXED-REPOSITION.
+GET FIRST bq NO-LOCK.
+DO WHILE AVAILABLE(BORTPERS):     
+   FIND FIRST ANSTFORMTAB WHERE
+   ANSTFORMTAB.ANSTALLNING = BORTPERS.ANSTALLNING
+   USE-INDEX ANSTF NO-LOCK NO-ERROR.   
+   FOR EACH temp1 WHERE temp1.PERSONALKOD = BORTPERS.PERSONALKOD USE-INDEX PERSONALKOD:       
+      ASSIGN
+      temp1.KOD = ANSTFORMTAB.KOD.
+   END. 
+   GET NEXT bq NO-LOCK.         
+END.      
+FOR EACH temp1:
+   OPEN QUERY tq FOR EACH TIDREGITAB WHERE TIDREGITAB.DATUM = temp1.DATUM AND  
+   TIDREGITAB.PERSONALKOD = temp1.PERSONALKOD AND TIDREGITAB.AONR = temp1.AONR AND 
+   TIDREGITAB.TIDLOG = TRUE
+   USE-INDEX PSTART NO-LOCK.
+   GET FIRST tq NO-LOCK. 
+   DO WHILE AVAILABLE(TIDREGITAB):
+      RUN eko_UI.
+      GET NEXT tq NO-LOCK. 
+   END.
+END.
+RUN eko2_UI.
+manad = manad2.            
+REPEAT:                      
+   prognamn = "/eko1/guru/wtid/ba/GURUBA" + STRING(manad). 
+   RUN ut_UI.
+   manad = manad + 1.         
+   IF manad > manad2 THEN LEAVE.  
+END.                             
+PROCEDURE eko_UI:       
+   typdatum = DATE(manad,01,1997).
+   FIND FIRST ekoforst WHERE
+   ekoforst.ENY = FALSE AND
+   ekoforst.EPERSONALKOD = TIDREGITAB.PERSONALKOD AND 
+   ekoforst.EORG = temp1.OMRADE AND 
+   ekoforst.EGEO = temp1.GEOMRADE AND
+   ekoforst.EPROJEKT = TIDREGITAB.AONR AND         
+   ekoforst.EVERDATUM = typdatum AND        
+   ekoforst.PRIS = temp1.PRIS AND 
+   ekoforst.PRISI = temp1.PRISI
+   USE-INDEX PERSORG NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE ekoforst THEN DO TRANSACTION:
+      CREATE ekoforst.
+      ASSIGN   
+      ekoforst.KOD = temp1.KOD
+      ekoforst.ENY = FALSE
+      ekoforst.EPERSONALKOD = TIDREGITAB.PERSONALKOD
+      ekoforst.EPROJEKT = TIDREGITAB.AONR  
+      ekoforst.EORG = temp1.OMRADE  
+      ekoforst.EGEO = temp1.GEOMRADE 
+      ekoforst.EVERDATUM = typdatum
+      ekoforst.PRIS = temp1.PRIS 
+      ekoforst.PRISI = temp1.PRISI.
+   END.                                             
+   ekrid[1] = RECID(ekoforst).
+   /*RESTID*/                         
+   IF TIDREGITAB.PRISTYP = 'RESTID...' AND TIDREGITAB.LONTILLAGG NE " " 
+   THEN DO TRANSACTION: 
+      manad = manad.	    	    	                         	      	       
+   END.	    
+   ELSE DO:
+      /*TIDREGISTRERING*/	          	       
+      /*TIMMAR OCH PENNGAR*/  
+      DO TRANSACTION:
+         FIND ekoforst WHERE RECID(ekoforst) = ekrid[1]
+         EXCLUSIVE-LOCK NO-ERROR.                                    
+         ASSIGN ekoforst.EOVERJA = FALSE. 
+         IF TIDREGITAB.OKOD1 NE " " THEN ASSIGN ekoforst.EOVERJA = TRUE.
+         ELSE IF TIDREGITAB.OKOD2 NE " " THEN ASSIGN ekoforst.EOVERJA = TRUE.
+         ELSE IF TIDREGITAB.OKOD3 NE " " THEN ASSIGN ekoforst.EOVERJA = TRUE.
+	 IF ekoforst.EOVERJA = FALSE AND TIDREGITAB.TOTALT > 0 THEN DO:		  
+	    nytid = TIDREGITAB.TOTALT.
+	    RUN TIMSEK.P.
+	    timtid = (sekunder / 3600).
+	    ASSIGN ekoforst.EBELOPP = ekoforst.EBELOPP + (TIDREGITAB.PRIS * timtid)              
+            ekoforst.ETIMMAR = ekoforst.ETIMMAR + timtid
+	    ekoforst.EANTAL = ekoforst.EANTAL + timtid.
+         END.
+      END.
+      DO TRANSACTION:   
+         /*™VERTIDTILLŽGG*/
+         /*™VERTIDS KOD FR BELOPPET ENKEL™TID OCH KVAL™TID * ANTAL*/	       
+	 FIND ekoforst WHERE RECID(ekoforst) = ekrid[1]
+	 EXCLUSIVE-LOCK NO-ERROR.   
+	 ASSIGN
+	 ovbelopp = 0                    
+	 ovkod = ""
+         ovantal = 0.
+	 IF TIDREGITAB.OKOD1 NE " " THEN DO: 
+	    ASSIGN
+	    ovkod = TIDREGITAB.OKOD1
+	    nytid = TIDREGITAB.OANT1.
+	    RUN TIMSEK.P.
+            ovantal = (sekunder / 3600). 
+            RUN over_UI.	                  
+            nytid = TIDREGITAB.TOTALT.
+	    RUN TIMSEK.P.		  
+	    ASSIGN ekoforst.EANTAL = ekoforst.EANTAL + (sekunder / 3600).		  	    
+         END.	  
+	 FIND ekoforst WHERE RECID(ekoforst) = ekrid[1]
+	 EXCLUSIVE-LOCK NO-ERROR.   
+	 ASSIGN
+	 ovbelopp = 0                    
+	 ovkod = ""
+         ovantal = 0.
+	 IF TIDREGITAB.OKOD2 NE " " THEN DO: 
+	    ASSIGN
+	    ovkod = TIDREGITAB.OKOD2
+	    nytid = TIDREGITAB.OANT2.
+	    RUN TIMSEK.P.
+            ovantal = (sekunder / 3600).	                  RUN over_UI.   
+            nytid = TIDREGITAB.TOTALT.
+	    RUN TIMSEK.P.		  
+	    ASSIGN ekoforst.EANTAL = ekoforst.EANTAL + (sekunder / 3600). 		  
+	 END.                 
+	 FIND ekoforst WHERE RECID(ekoforst) = ekrid[1]
+	 EXCLUSIVE-LOCK NO-ERROR. 
+	 ASSIGN
+	 ovbelopp = 0
+	 ovkod = ""
+         ovantal = 0.
+	 IF TIDREGITAB.OKOD3 NE " " THEN DO: 
+	    ASSIGN
+	    ovkod = TIDREGITAB.OKOD3
+	    nytid = TIDREGITAB.OANT3.
+	    RUN TIMSEK.P.
+            ovantal = (sekunder / 3600).
+            RUN over_UI.	                  nytid = TIDREGITAB.TOTALT.
+	    RUN TIMSEK.P.		  
+	    ASSIGN ekoforst.EANTAL = ekoforst.EANTAL + (sekunder / 3600).    		  
+         END.           
+      END.
+   END.	
+END PROCEDURE.
+PROCEDURE eko2_UI:
+   FOR EACH ekoforst:
+      /*TIMMAR OCH PENNGAR*/
+      IF ekoforst.EBELOPP = 0 THEN DO:
+         manad = manad.
+      END.                                   
+      ELSE DO:
+      IF ekoforst.KOD = 'T' OR ekoforst.KOD = 'T1' THEN DO:
+         IF ekoforst.EORG NE ekoforst.EGEO THEN DO:
+            kontokod = "9401".
+            kontokode = "9220".
+         END.
+         ELSE DO:
+            kontokod = "9220".
+         END.  
+      END.
+      ELSE DO:
+         IF ekoforst.EORG NE ekoforst.EGEO THEN DO:
+            kontokod = "9401".
+            kontokode = "9010".
+         END.
+         ELSE DO:
+            kontokod = "9010".            
+         END.                         
+      END.    
+      RUN tim_UI.      
+   END.                                  
+END.
+END PROCEDURE.
+PROCEDURE over_UI:
+   multi = 0.
+   IF ovkod = "370" THEN multi = 0.       /*DESSA KODER FINNS I N2.P OCH AUREG.P*/
+   ELSE IF ovkod = "371" THEN multi = 0.5.
+   ELSE IF ovkod = "372" THEN multi = 1.0.  
+   ELSE IF ovkod = "375" THEN multi = 0.  
+   ELSE IF ovkod = "376" THEN multi = 0.5.  
+   ELSE IF ovkod = "377" THEN multi = 1.0.          
+   ELSE IF ovkod = "380" THEN multi = 0.   
+   ELSE IF ovkod = "334" THEN multi = 0.  
+   ELSE IF ovkod = "381" THEN multi = 0.457.                   /*137/94*/
+   ELSE IF ovkod = "382" THEN multi = 0.903.                   /*137/72*/
+   ELSE IF ovkod = "385" THEN multi = 1.0. 
+   ELSE IF ovkod = "386" THEN multi = 0.457.                   /*137/94*/
+   ELSE IF ovkod = "387" THEN multi = 0.903.                   /*137/72*/
+   ELSE IF ovkod = "320" THEN multi = 0.
+   ELSE IF ovkod = "321" THEN multi = 0.5.
+   ELSE IF ovkod = "322" THEN multi = 0.75.  
+   ELSE IF ovkod = "323" THEN multi = 1.0.  
+   ELSE IF ovkod = "324" THEN multi = 1.5.   
+   ELSE IF ovkod = "325" THEN multi = 0.
+   ELSE IF ovkod = "326" THEN multi = 0.5.
+   ELSE IF ovkod = "327" THEN multi = 0.75.  
+   ELSE IF ovkod = "328" THEN multi = 1.0.  
+   ELSE IF ovkod = "329" THEN multi = 1.5.      
+   ELSE IF ovkod = "330" THEN multi = 0.5. 
+   ELSE IF ovkod = "331" THEN multi = 0.75. 
+   ELSE IF ovkod = "332" THEN multi = 1.0. 
+   ELSE IF ovkod = "333" THEN multi = 1.5. 
+   ELSE IF ovkod = "335" THEN multi = 0.5. 
+   ELSE IF ovkod = "336" THEN multi = 0.75. 
+   ELSE IF ovkod = "337" THEN multi = 1.0. 
+   ELSE IF ovkod = "338" THEN multi = 1.5.    
+   ELSE IF ovkod = "435" THEN multi = 0.5.   
+   ELSE IF ovkod = "436" THEN multi = 0.75.   
+   ELSE IF ovkod = "437" THEN multi = 1.0.   
+   ELSE IF ovkod = "438" THEN multi = 1.5.                    
+   ELSE IF ovkod = "450" THEN multi = 0.254.                     /*137/540*/
+   ELSE IF ovkod = "451" THEN multi = 0.457.                     /*137/300*/
+   ELSE IF ovkod = "452" THEN multi = 0.913.                     /*137/150*/
+   ELSE RETURN.  
+   typover = "OVE".  
+   ovbelopp = (TIDREGITAB.PRIS + (TIDREGITAB.PRIS * multi)) * ovantal.
+   IF TIDREGITAB.PRIS = 0 AND TIDREGITAB.TIDLOG = FALSE THEN DO:
+      FIND FIRST TIMKOSTNADSTAB 
+      WHERE TIMKOSTNADSTAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+      TIMKOSTNADSTAB.PRISTYP = 'TOT.PRIS.' USE-INDEX PRISPERS NO-LOCK NO-ERROR.   
+      ovbelopp = (TIMKOSTNADSTAB.PRISA + (TIMKOSTNADSTAB.PRISA * multi)) * ovantal.
+   END.   
+   IF ekoforst.ELONTILLAGG = ovkod OR ekoforst.ELONTILLAGG = "" THEN DO:
+      manad = manad.
+   END.                                   
+   ELSE DO:
+      FIND FIRST ekoforst WHERE
+      ekoforst.ENY = FALSE AND
+      ekoforst.EPERSONALKOD = TIDREGITAB.PERSONALKOD AND
+      ekoforst.EORG = temp1.OMRADE AND 
+      ekoforst.EGEO = temp1.GEOMRADE AND 
+      ekoforst.EVERDATUM = typdatum AND
+      ekoforst.EPROJEKT = TIDREGITAB.AONR AND
+      ekoforst.ELONTILLAG = ovkod AND  
+      ekoforst.PRIS = temp1.PRIS AND
+      ekoforst.PRISI = temp1.PRISI
+      USE-INDEX PERSORG EXCLUSIVE-LOCK NO-ERROR.  
+      IF NOT AVAILABLE ekoforst THEN DO:
+         CREATE ekoforst.
+      END.
+   END.   
+   ASSIGN 
+   ekoforst.ENY = FALSE
+   ekoforst.ERESULTENH = typover
+   ekoforst.EPERSONALKOD = TIDREGITAB.PERSONALKOD 
+   ekoforst.EPROJEKT = TIDREGITAB.AONR 
+   ekoforst.EORG = temp1.OMRADE  
+   ekoforst.EGEO = temp1.GEOMRADE      
+   ekoforst.EVERDATUM = typdatum
+   ekoforst.ELONTILLAGG = ovkod
+   ekoforst.ELONTILLANTAL = ekoforst.ELONTILLANTAL + ovantal  
+   ekoforst.ELONBELOPP = ekoforst.ELONBELOPP + ovbelopp
+   ekoforst.PRIS = temp1.PRIS 
+   ekoforst.PRISI = temp1.PRISI. 	                  
+END PROCEDURE.
+
+PROCEDURE tim_UI:
+   DO TRANSACTION:                      
+      FIND FIRST eko WHERE
+      eko.ENY = TRUE AND      
+      eko.EORG = ekoforst.EGEO AND       
+      eko.EVERDATUM = ekoforst.EVERDATUM AND
+      eko.EPROJEKT = ekoforst.EPROJEKT AND
+      eko.EKOSTNADSSLAG = kontokod
+      USE-INDEX ORG EXCLUSIVE-LOCK NO-ERROR.  
+      IF NOT AVAILABLE eko THEN DO:
+         CREATE eko.
+      END.    
+      ASSIGN         
+      eko.EDEBKRED = TRUE 
+      eko.ENY = TRUE       
+      eko.EORG = ekoforst.EGEO            
+      eko.EVERDATUM = ekoforst.EVERDATUM
+      eko.EPROJEKT = ekoforst.EPROJEKT 
+      eko.EKOSTNADSSLAG = kontokod.
+      IF kontokod = "9401" THEN DO:    /*EJ SAMMA ORG*/                        
+         /*MELLAN*/
+         ASSIGN eko.EANTAL = 0        
+         eko.EBELOPP =          
+         eko.EBELOPP + (ekoforst.PRISI * ekoforst.ETIMMAR - ekoforst.EBELOPP). 
+         /*KREDIT MELLAN*/
+         FIND FIRST eko2 WHERE
+         eko2.ENY = TRUE AND         
+         eko2.EORG = ekoforst.EORG AND          
+         eko2.EVERDATUM = ekoforst.EVERDATUM AND
+         eko2.EPROJEKT = ekoforst.EPROJEKT AND
+         eko2.EKOSTNADSSLAG = "9461"
+         USE-INDEX ORG EXCLUSIVE-LOCK NO-ERROR.  
+         IF NOT AVAILABLE eko2 THEN DO:
+            CREATE eko2.
+         END.    
+         ASSIGN            
+         eko2.EDEBKRED = FALSE 
+         eko2.ENY = TRUE          
+         eko2.EORG = ekoforst.EORG           
+         eko2.EVERDATUM = ekoforst.EVERDATUM
+         eko2.EPROJEKT = ekoforst.EPROJEKT 
+         eko2.EKOSTNADSSLAG = "9461"
+         eko2.EANTAL = 0         
+         eko2.EBELOPP =          
+         eko2.EBELOPP + (ekoforst.PRISI * ekoforst.ETIMMAR - ekoforst.EBELOPP).  
+         /*SUMMA*/
+         FIND FIRST eko2 WHERE
+         eko2.ENY = TRUE AND         
+         eko2.EORG = ekoforst.EGEO AND          
+         eko2.EVERDATUM = ekoforst.EVERDATUM AND
+         eko2.EPROJEKT = ekoforst.EPROJEKT AND
+         eko2.EKOSTNADSSLAG = "9411"
+         USE-INDEX ORG EXCLUSIVE-LOCK NO-ERROR.  
+         IF NOT AVAILABLE eko2 THEN DO:
+            CREATE eko2.
+         END.    
+         ASSIGN            
+         eko2.EDEBKRED = TRUE 
+         eko2.ENY = TRUE          
+         eko2.EORG = ekoforst.EGEO          
+         eko2.EVERDATUM = ekoforst.EVERDATUM
+         eko2.EPROJEKT = ekoforst.EPROJEKT 
+         eko2.EKOSTNADSSLAG = "9411"
+         eko2.EANTAL = 0                   
+         eko2.EBELOPP = eko2.EBELOPP + ekoforst.PRISI * ekoforst.ETIMMAR.
+         /*KREDIT SUMMA*/
+         FIND FIRST eko2 WHERE
+         eko2.ENY = TRUE AND         
+         eko2.EORG = ekoforst.EORG AND          
+         eko2.EVERDATUM = ekoforst.EVERDATUM AND  /*DENNA SAKNADES*/
+         eko2.EPROJEKT = ekoforst.EPROJEKT AND
+         eko2.EKOSTNADSSLAG = "9471"
+         USE-INDEX ORG EXCLUSIVE-LOCK NO-ERROR.  
+         IF NOT AVAILABLE eko2 THEN DO:
+            CREATE eko2.
+         END.    
+         ASSIGN            
+         eko2.EDEBKRED = FALSE 
+         eko2.ENY = TRUE          
+         eko2.EORG = ekoforst.EORG          
+         eko2.EVERDATUM = ekoforst.EVERDATUM
+         eko2.EPROJEKT = ekoforst.EPROJEKT 
+         eko2.EKOSTNADSSLAG = "9471"
+         eko2.EANTAL = 0                   
+         eko2.EBELOPP = eko2.EBELOPP + ekoforst.PRISI * ekoforst.ETIMMAR.             
+      END.                                        
+   END.
+END PROCEDURE.         
+PROCEDURE ut_UI.    
+   OUTPUT TO VALUE(prognamn).
+   typdatum = DATE(manad,01,1997).
+   FOR EACH eko  USE-INDEX ORG NO-LOCK:      
+      str = "".                                                
+      SUBSTRING(str,4,7) = "0000000".  
+      SUBSTRING(str,11,2) = "00".                                   
+      SUBSTRING(str,13,42) = "GURU".  
+      SUBSTRING(str,47,3) = SUBSTRING(eko.EORG,1,3).  
+      SUBSTRING(str,50,6) = SUBSTRING(eko.EPROJEKT,1,6).
+      SUBSTRING(str,40,4) = SUBSTRING(eko.EKOSTNADSSLAG,1,4).
+      SUBSTRING(str,100,6) = STRING(typdatum,"999999").      
+      IF eko.EBELOPP >= 0 THEN DO:                         
+         SUBSTRING(str,106,15) = STRING(eko.EBELOPP * 100,"999999999999999").  
+         SUBSTRING(str,121,1) = "+".
+      END.
+      ELSE DO:                                                       
+         SUBSTRING(str,106,15) = STRING(eko.EBELOPP * -100,"999999999999999"). 
+         SUBSTRING(str,121,1) = "-".
+      END.      
+      IF eko.EDEBKRED = TRUE /*DEBET*/ THEN DO:   
+         SUBSTRING(str,122,1) = "1".
+      END.
+      ELSE DO:
+         SUBSTRING(str,122,1) = "2".
+      END.                          
+      IF eko.EANTAL >= 0 THEN DO:                       
+         SUBSTRING(str,123,15) = STRING(eko.EANTAL * 100,"999999999999999").  
+         SUBSTRING(str,138,1) = "+".
+      END.
+      ELSE DO:
+         SUBSTRING(str,123,15) = STRING(eko.EANTAL * -100,"999999999999999"). 
+         SUBSTRING(str,138,1) = "-".
+      END.    
+      IF eko.EDEBKRED = TRUE /*DEBET*/ THEN DO:   
+         SUBSTRING(str,139,1) = "1".
+      END.
+      ELSE DO:
+         SUBSTRING(str,139,1) = "2".
+      END.   
+      PUT UNFORMATTED str AT 1
+      SKIP.   
+   END.  
+   OUTPUT CLOSE.
+END PROCEDURE.

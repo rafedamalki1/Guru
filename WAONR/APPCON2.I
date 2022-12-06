@@ -1,0 +1,3 @@
+
+/*APPCON2.I*/
+CHR(73) + CHR(110) + CHR(80) + CHR(97) + CHR(115) + CHR(115) + CHR(119) + CHR(100)   

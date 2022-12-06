@@ -1,0 +1,5 @@
+/*r-nextp1.p */
+DEF VAR a AS CHAR.
+DEF VAR b AS CHAR.
+NEXT-PROMPT b.
+UPDATE a b.

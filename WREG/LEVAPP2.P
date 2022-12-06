@@ -1,0 +1,226 @@
+/*LEVAPP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{LEVTEMP.I}
+{LEVTEMPORDNINGFUNC.I}
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(86)" NO-UNDO.    
+DEFINE VARIABLE str1 AS CHARACTER FORMAT "X(86)" NO-UNDO.
+
+{TIDUTTTNEW.I} 
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+{DYNHMT.I}
+PROCEDURE levspara_UI :                         
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.           
+   DEFINE INPUT PARAMETER TABLE FOR levtemp.             
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.             
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   
+   FIND FIRST levtemp NO-ERROR. 
+   RUN namnkoll_UI (INPUT vem,INPUT levtemp.LEVKOD,OUTPUT TABLE felmeddtemp).                   .     
+   FIND FIRST felmeddtemp NO-ERROR.
+   IF AVAILABLE felmeddtemp THEN RETURN.   
+   DO TRANSACTION:
+      FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = levtemp.LEVKOD EXCLUSIVE-LOCK NO-ERROR.    
+      IF NOT AVAILABLE LEVERANTOR THEN CREATE LEVERANTOR.
+      BUFFER-COPY levtemp TO LEVERANTOR.
+   END.
+   RELEASE LEVERANTOR NO-ERROR.       
+END PROCEDURE.
+
+PROCEDURE hlevkoll_UI :                         
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.           
+   DEFINE INPUT PARAMETER FILL-IN-LEVSTAT AS LOGICAL NO-UNDO. 
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.             
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   FIND LEVERANTOR WHERE LEVERANTOR.LEVKOD = vem NO-LOCK NO-ERROR.
+   FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+   IF AVAILABLE HUVUDLEV THEN DO: 
+      IF HUVUDLEV.LEVKOD NE LEVERANTOR.LEVKOD THEN DO:
+         FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = HUVUDLEV.LEVKOD NO-LOCK NO-ERROR.
+         CREATE felmeddtemp.  
+         ASSIGN               
+         felmeddtemp.FELMEDD = "Status huvudleverantör kommer att tas bort för " + LEVERANTOR.LEVNAMN.
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE namnkoll_UI :                         
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vemsok AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.      
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   IF vem = ? THEN DO:
+      FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = vemsok NO-LOCK NO-ERROR.
+      IF AVAILABLE LEVERANTOR THEN DO:
+         CREATE felmeddtemp.
+         ASSIGN
+         felmeddtemp.FELMEDD = "Det finns redan en leverantör med denna beteckning.".
+         RETURN.
+      END.      
+   END.
+END PROCEDURE.
+PROCEDURE huvlev_UI:
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER hlev AS LOGICAL NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER FILL-IN-LEVSTAT AS LOGICAL NO-UNDO. 
+
+   IF hlev = FALSE THEN DO:   
+      /*MAINBLOCK*/
+      FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+      IF AVAILABLE HUVUDLEV THEN DO: 
+         FIND LEVERANTOR WHERE LEVERANTOR.LEVKOD = vem NO-LOCK NO-ERROR.
+         IF LEVERANTOR.LEVKOD NE HUVUDLEV.LEVKOD THEN DO:
+            FILL-IN-LEVSTAT = FALSE.
+         END.
+         ELSE DO:
+            FILL-IN-LEVSTAT = TRUE.
+         END.
+      END.
+      ELSE DO:      
+         FILL-IN-LEVSTAT = FALSE.
+      END.
+   END.
+   ELSE DO TRANSACTION: 
+      /*BTN_OK*/
+      IF FILL-IN-LEVSTAT = TRUE THEN DO: 
+         FIND LEVERANTOR WHERE LEVERANTOR.LEVKOD = vem NO-LOCK NO-ERROR.
+         FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE HUVUDLEV THEN DO:       
+            HUVUDLEV.LEVKOD = LEVERANTOR.LEVKOD.
+         END.
+         ELSE DO:
+            CREATE HUVUDLEV.
+            ASSIGN   
+            HUVUDLEV.LEVKOD = LEVERANTOR.LEVKOD
+            HUVUDLEV.DEP-NR = 999.   
+         END.   
+      END.
+      ELSE DO: 
+         FIND LEVERANTOR WHERE LEVERANTOR.LEVKOD = vem NO-LOCK NO-ERROR.
+         FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE HUVUDLEV THEN DO:
+            IF HUVUDLEV.LEVKOD = LEVERANTOR.LEVKOD THEN DO:
+               DELETE HUVUDLEV.
+            END.
+            ELSE DO:
+               HUVUDLEV.LEVKOD = HUVUDLEV.LEVKOD.
+            END.
+         END.               
+      END.
+   END.
+   RELEASE HUVUDLEV NO-ERROR.          
+END PROCEDURE.
+
+PROCEDURE levhmt_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR levtemp.   
+   EMPTY TEMP-TABLE levtemp NO-ERROR.    
+   ASSIGN
+   nytab      = "levtemp"
+   orginaltab = "LEVERANTOR". 
+   kommandoquery = "LEVERANTOR.BORTTAG = FALSE".
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+   /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE levtemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.
+   FOR EACH levtemp :
+      {LEVTEMPORDNING.I}
+   END.    
+END PROCEDURE.
+PROCEDURE hamtaen_UI:
+   
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR levtemp.     
+   EMPTY TEMP-TABLE levtemp NO-ERROR.    
+   IF vem = ? THEN DO:
+      CREATE levtemp.
+      FOR EACH levtemp :
+         {LEVTEMPORDNING.I}
+      END.
+      RETURN.
+   END.
+   
+   ASSIGN
+   nytab      = "levtemp"
+   orginaltab = "LEVERANTOR".
+   /*IF vemid = "" THEN kommandoquery = "BESTTAB.VIBESTID = " + '"' + vem + '"'.
+   ELSE 
+   */
+   kommandoquery = "LEVERANTOR.LEVKOD = " + "'" + vem + "'".
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+   /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE levtemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.
+   FOR EACH levtemp :
+      {LEVTEMPORDNING.I}
+   END.
+END PROCEDURE.
+PROCEDURE levbort_UI:
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.      
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = vem NO-LOCK NO-ERROR.
+   orginaltab = "MTRL".
+   kommandoquery = "MTRL.LEVKOD = " + '"' + LEVERANTOR.LEVKOD + '"'.
+   RUN and_UI.
+   kommandoquery = kommandoquery + " MTRL.KALKNR = 0".
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+   RUN dyndelete_UI (INPUT FALSE).
+   orginaltab = "HUVUDLEV".
+   kommandoquery = "HUVUDLEV.LEVKOD = " + '"' + LEVERANTOR.LEVKOD + '"'.
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+   RUN dyndelete_UI (INPUT FALSE).
+   orginaltab = "MTRLMALL".
+   kommandoquery = "MTRLMALL.LEVKOD = " + '"' + LEVERANTOR.LEVKOD + '"'.
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+   RUN dyndelete_UI (INPUT FALSE).
+   DO TRANSACTION:
+      FIND CURRENT LEVERANTOR EXCLUSIVE-LOCK NO-ERROR.
+      ASSIGN
+      LEVERANTOR.BORTTAG = TRUE. 
+   END.   
+   RELEASE LEVERANTOR NO-ERROR.
+   RUN objdelete_UI.
+END PROCEDURE.
+PROCEDURE visaalla_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.   
+   EMPTY TEMP-TABLE tidut NO-ERROR.    
+   str = "====.=========================.============.=========".
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "LEVERANTÖRSREGISTER"
+   SUBSTRING(tidut.UT,30) = STRING(TODAY).
+   CREATE tidut.
+   CREATE tidut.                              
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "ID"
+   SUBSTRING(tidut.UT,6) = "LEVERANTÖR"                               
+   SUBSTRING(tidut.UT,32) = "TELEFON" 
+   SUBSTRING(tidut.UT,45) = "BORTTAGEN".     
+   CREATE tidut.
+   ASSIGN tidut.UT = str.  
+   OPEN QUERY levq FOR EACH LEVERANTOR USE-INDEX LEV NO-LOCK.
+   GET FIRST levq NO-LOCK.
+   DO WHILE AVAILABLE(LEVERANTOR):
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = LEVERANTOR.LEVKOD  
+      SUBSTRING(tidut.UT,6) = LEVERANTOR.LEVNAMN 
+      SUBSTRING(tidut.UT,32) = LEVERANTOR.LEVTEL 
+      SUBSTRING(tidut.UT,45) = STRING(LEVERANTOR.BORTTAG, "JA/NEJ").
+      CREATE tidut. 
+      SUBSTRING(tidut.UT,6) = LEVERANTOR.LEVADR.
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,6) = LEVERANTOR.LEVPNR
+      SUBSTRING(tidut.UT,14) = LEVERANTOR.LEVORT.
+      CREATE tidut.
+      ASSIGN tidut.UT = str.  
+      GET NEXT levq NO-LOCK.    
+   END.   
+   CLOSE QUERY levq.
+END PROCEDURE.

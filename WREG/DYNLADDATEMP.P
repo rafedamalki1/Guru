@@ -1,0 +1,103 @@
+/*
+     Filename: DYNLADDATEMP.P
+      Created: 03.08.0029 14:45ELPAO     
+     Modified: 
+*/
+
+
+{LEVTEMPORDNINGFUNC.I}
+/*********************  PARAMETERS *************************/
+DEFINE INPUT-OUTPUT PARAMETER TABLE-HANDLE tthtemp.
+DEFINE INPUT PARAMETER orgtabchtemp AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER orgfragatemp AS CHARACTER NO-UNDO.
+
+/*********************  VARIABLES **************************/
+DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tempbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE orgbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE queh AS HANDLE NO-UNDO.
+
+
+/*********************    CODE    *************************/
+
+/* Genom att skapa en procedure som körs internt, kan man köra denna fil både 
+   persistent och vanligt. */
+
+IF VALID-HANDLE(tthtemp) THEN DO:
+   RUN laddatemp_UI (INPUT-OUTPUT TABLE-HANDLE tthtemp, INPUT orgtabchtemp,INPUT orgfragatemp).
+   DELETE OBJECT tthtemp.
+END.
+PROCEDURE laddatemp_UI:
+   DEFINE INPUT-OUTPUT PARAMETER TABLE-HANDLE tth.
+   DEFINE INPUT PARAMETER orgtabch AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER orgfraga AS CHARACTER NO-UNDO.
+   /* Tar reda på default-buffer för temp-tabellen, skapa buffer för skarp 
+      tabell och skapar en Query */
+   IF NOT VALID-HANDLE(tth) THEN DO:
+      OUTPUT TO dynladdafel.txt APPEND.
+      PUT TODAY orgtabch orgfraga  SKIP.
+      OUTPUT CLOSE.
+      RETURN.
+   END.
+   tempbufh = tth:DEFAULT-BUFFER-HANDLE.
+   CREATE BUFFER orgbufh FOR TABLE orgtabch. 
+   CREATE QUERY queh.
+    
+   /* Kollar så att table-handle inte hör till en skarp tabell */
+   IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.
+   /*
+   tempbufh:EMPTY-TEMP-TABLE ( ) NO-ERROR.
+   */
+   /* Kopplar Queryn till temp-tabellens buffer */
+   queh:SET-BUFFERS(tempbufh).
+   kommandoquery = "FOR EACH " + tempbufh:TABLE + " NO-LOCK.".
+   queh:QUERY-PREPARE(kommandoquery).
+   queh:QUERY-OPEN().
+   queh:GET-FIRST(NO-LOCK).
+   DO WHILE queh:QUERY-OFF-END = FALSE:
+      /* Tar bort alla poster som finns i temp-tabellen */
+      DO TRANSACTION:
+         queh:GET-CURRENT(EXCLUSIVE-LOCK).
+         tempbufh:BUFFER-DELETE().
+      END.
+      queh:GET-NEXT(NO-LOCK).
+   END.
+   queh:QUERY-CLOSE.
+   IF orgfraga = ? THEN RETURN.
+   /* Kopplar queryn till den skarpa tabellens buffer */
+   queh:SET-BUFFERS(orgbufh).
+   kommandoquery = "FOR EACH " + orgbufh:TABLE + orgfraga + " NO-LOCK.".
+   queh:QUERY-PREPARE(kommandoquery).
+   queh:QUERY-OPEN().
+   queh:GET-FIRST(NO-LOCK).
+   DO WHILE queh:QUERY-OFF-END = FALSE:
+      /* Kopierar all data från skarp- till temp-tabell*/
+      tempbufh:BUFFER-CREATE().
+      tempbufh:BUFFER-COPY(orgbufh).
+      IF orgbufh:TABLE = "KONSTRUKTION" THEN RUN konin_UI.
+      IF orgbufh:TABLE = "LEVERANTOR" THEN RUN levordning_UI.
+      queh:GET-NEXT(NO-LOCK).
+   END.
+   queh:QUERY-CLOSE.
+   DELETE OBJECT tth.
+   DELETE OBJECT queh.
+   DELETE OBJECT orgbufh.
+   orgbufh = ?.
+   tth = ?. 
+   queh = ?.
+END PROCEDURE.
+PROCEDURE levordning_UI :
+   tempbufh:BUFFER-FIELD("ORDNING"):BUFFER-VALUE = LevOrdFunk(tempbufh:BUFFER-FIELD("LEVKOD"):BUFFER-VALUE).
+   
+END PROCEDURE.
+PROCEDURE konin_UI :
+   DEFINE VARIABLE fieldh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE dbfalt AS CHARACTER NO-UNDO.
+   fieldh = orgbufh:BUFFER-FIELD("KTYPKOD").
+   dbfalt = fieldh:BUFFER-VALUE.
+   FIND FIRST BERBILD WHERE BERBILD.KTYPKOD = dbfalt NO-LOCK NO-ERROR.
+   IF AVAILABLE BERBILD THEN DO:
+      fieldh = tempbufh:BUFFER-FIELD("BILD").
+       fieldh:BUFFER-VALUE = "B".
+   END.   
+END PROCEDURE.

@@ -1,0 +1,52 @@
+/*XGODKOLL.P*/
+/* KOLLA ALLTID ATT ALLA TIDSEDLAR ÄR GODKÄNDA TILL OCH MED sldat*/
+DEFINE NEW SHARED VARIABLE regvnr AS INTEGER FORMAT "999" NO-UNDO.
+DEFINE NEW SHARED VARIABLE regdatum AS DATE NO-UNDO.
+DEFINE VARIABLE sldat AS DATE NO-UNDO.
+DEFINE VARIABLE datkoll AS DATE NO-UNDO.
+sldat = 03/21/99.
+OPEN QUERY pq FOR EACH PERSONALTAB USE-INDEX PERSONALKOD NO-LOCK.
+GET FIRST pq NO-LOCK.
+DO WHILE AVAILABLE(PERSONALTAB):
+   MESSAGE PERSONALTAB.PERSONALKOD.
+   FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+   USE-INDEX PSTART NO-LOCK NO-ERROR.
+   IF AVAILABLE TIDREGITAB THEN DO:        
+      datkoll = TIDREGITAB.DATUM.      
+      IF MONTH(datkoll) = 12 THEN DO:
+         datkoll = DATE(12,31,YEAR(datkoll)).
+      END.
+      ELSE DO:   
+         datkoll = DATE((MONTH(datkoll) + 1),01,YEAR(datkoll)) - 1.
+      END.      
+      REPEAT:         
+         IF MONTH(datkoll) = MONTH(sldat) AND YEAR(datkoll) = YEAR(sldat) 
+         THEN datkoll = sldat.      
+         IF datkoll > sldat THEN LEAVE.
+         DO TRANSACTION:
+            regdatum = datkoll.               
+            RUN REGVEC.P.            
+            CREATE GODKOLL.
+            ASSIGN
+            GODKOLL.ANVANDARE = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)
+            GODKOLL.DATUM = datkoll             
+            GODKOLL.DATAR = YEAR(datkoll)
+            GODKOLL.DATMAN = MONTH(datkoll)
+            GODKOLL.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            GODKOLL.VECKONUMMER = regvnr.
+            IF datkoll = sldat THEN GODKOLL.KLAR = FALSE.
+            ELSE GODKOLL.KLAR = TRUE.
+         END.
+         IF MONTH(datkoll) = 12 THEN DO:
+            datkoll = DATE(01,31,YEAR(datkoll) + 1).
+         END.
+         ELSE IF MONTH(datkoll) = 11 THEN DO:
+            datkoll = DATE(12,31,YEAR(datkoll)).
+         END.
+         ELSE DO:   
+            datkoll = DATE((MONTH(datkoll) + 2),01,YEAR(datkoll)) - 1.
+         END.            
+      END.
+   END.  
+   GET NEXT pq NO-LOCK.
+END.   

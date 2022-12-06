@@ -1,0 +1,138 @@
+/*KPRISAPP.P*/      
+
+DEFINE TEMP-TABLE tidin2   
+   FIELD ENR                AS CHARACTER FORMAT "X(11)"
+   FIELD BENAMNING          AS CHARACTER FORMAT "X(40)" 
+   FIELD PRIS               AS DECIMAL FORMAT ">>>>>9.99"   
+   INDEX ENR IS PRIMARY ENR.
+
+   
+DEFINE INPUT PARAMETER TABLE FOR tidin2.   
+DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.   
+{INKKOLL3.I}
+{DYNPOSTFINNS.I}
+DEFINE VARIABLE musz AS LOGICAL     NO-UNDO.
+DEFINE VARIABLE fragavar AS CHARACTER   NO-UNDO.
+FOR EACH tidin2 NO-LOCK:                                
+   DO TRANSACTION:                                 
+      FIND FIRST MTRL WHERE MTRL.ENR = tidin2.ENR AND
+      MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV EXCLUSIVE-LOCK NO-ERROR.                     
+      IF AVAILABLE MTRL THEN DO:
+         ASSIGN
+         MTRL.BENAMNING = tidin2.BENAMNING 
+         MTRL.NPRIS = tidin2.PRIS
+         MTRL.BPRIS = tidin2.PRIS.
+         {MTRLCREATE.I} 
+      END.
+      ELSE DO:
+         CREATE MTRL.
+         ASSIGN
+         MTRL.ENR = tidin2.ENR
+         MTRL.BENAMNING = tidin2.BENAMNING 
+         MTRL.NPRIS = tidin2.PRIS
+         MTRL.BPRIS = tidin2.PRIS
+         MTRL.LEVKOD = leverant
+         MTRL.KALKNR = 0
+         MTRL.ENHET = "M".
+         {MTRLCREATE.I} 
+      END.
+   END.   
+   OPEN QUERY mq FOR EACH MTRLBER WHERE MTRLBER.ENR = tidin2.ENR AND
+   MTRLBER.LEVKOD = leverant NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST mq EXCLUSIVE-LOCK.   
+      IF AVAILABLE MTRLBER THEN DO:
+         ASSIGN
+         MTRLBER.BENAMNING = tidin2.BENAMNING 
+         MTRLBER.PRIS = tidin2.PRIS.
+      END.
+   END.            
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT mq EXCLUSIVE-LOCK.
+         IF AVAILABLE MTRLBER THEN DO:
+            ASSIGN
+            MTRLBER.BENAMNING = tidin2.BENAMNING 
+            MTRLBER.PRIS = tidin2.PRIS.
+         END.
+         ELSE LEAVE.
+      END.
+   END. 
+   CLOSE QUERY mq.                       
+END.   
+OPEN QUERY bq FOR EACH BEREDNING NO-LOCK.
+GET FIRST bq NO-LOCK.
+DO WHILE AVAILABLE(BEREDNING):
+   FIND FIRST BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND
+   BERMTRL.OMRADE = BEREDNING.OMRADE AND BERMTRL.INKOP = TRUE
+   NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE BERMTRL THEN DO:
+      musz = FALSE.
+      IF inkopkollvar = TRUE THEN DO:               
+         fragavar = "INKMTRL.BERNR = " + STRING(BEREDNING.BERNR) + " AND INKMTRL.OMRADE = '" + BEREDNING.OMRADE + "'".  
+         RUN finnspostdyn_UI (INPUT "INKMTRL",INPUT fragavar,OUTPUT musz).
+         
+      END.
+      IF musz = TRUE THEN musz = FALSE.
+      ELSE DO:
+         OPEN QUERY m2q FOR EACH BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND
+         BERMTRL.OMRADE = BEREDNING.OMRADE AND BERMTRL.LEVKOD = leverant NO-LOCK.
+         DO TRANSACTION:
+            GET FIRST m2q EXCLUSIVE-LOCK.
+            IF AVAILABLE BERMTRL THEN DO:
+               FIND FIRST tidin2 WHERE tidin2.ENR = BERMTRL.ENR USE-INDEX ENR
+               NO-LOCK NO-ERROR.
+               IF AVAILABLE tidin2 THEN DO:
+                  ASSIGN
+                  BERMTRL.PRIS = tidin2.PRIS.
+               END.
+            END.
+         END.
+         REPEAT:
+            DO TRANSACTION:
+               GET NEXT m2q EXCLUSIVE-LOCK.
+               IF AVAILABLE BERMTRL THEN DO:
+                  FIND FIRST tidin2 WHERE tidin2.ENR = BERMTRL.ENR USE-INDEX ENR
+                  NO-LOCK NO-ERROR.
+                  IF AVAILABLE tidin2 THEN DO:
+                     ASSIGN
+                     BERMTRL.PRIS = tidin2.PRIS.
+                  END.
+               END.
+               ELSE LEAVE.
+            END.
+         END.  
+         CLOSE QUERY m2q.
+         OPEN QUERY m3q FOR EACH BERLINKAB WHERE BERLINKAB.AONR = BEREDNING.BERAONR AND
+         BERLINKAB.OMRADE = BEREDNING.OMRADE AND BERLINKAB.LEVKOD = leverant NO-LOCK.
+         DO TRANSACTION:
+            GET FIRST m3q EXCLUSIVE-LOCK.
+            IF AVAILABLE BERLINKAB THEN DO:
+               FIND FIRST tidin2 WHERE tidin2.ENR = BERLINKAB.ENR USE-INDEX ENR
+               NO-LOCK NO-ERROR.
+               IF AVAILABLE tidin2 THEN DO:
+                  ASSIGN
+                  BERLINKAB.PRIS = tidin2.PRIS.
+               END.
+            END.
+         END.
+         REPEAT:
+            DO TRANSACTION:
+               GET NEXT m3q EXCLUSIVE-LOCK.
+               IF AVAILABLE BERLINKAB THEN DO:
+                  FIND FIRST tidin2 WHERE tidin2.ENR = BERLINKAB.ENR USE-INDEX ENR
+                  NO-LOCK NO-ERROR.
+                  IF AVAILABLE tidin2 THEN DO:
+                     ASSIGN
+                     BERLINKAB.PRIS = tidin2.PRIS.
+                  END.
+               END.
+               ELSE LEAVE.
+            END.
+         END.
+         CLOSE QUERY m3q.
+      END.          
+   END.
+   GET NEXT bq NO-LOCK.
+END.
+CLOSE QUERY bq.   

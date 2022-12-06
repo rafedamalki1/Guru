@@ -1,0 +1,367 @@
+/*FLAKOMPAP.P*/
+&Scoped-define NEW NEW
+{TIDPERS.I}
+{TIDUTTTNEW.I}
+DEFINE TEMP-TABLE namntemp
+   FIELD EFTERNAMN AS CHARACTER
+   FIELD FORNAMN AS CHARACTER  
+   FIELD NAMN AS CHARACTER  
+   FIELD NTEXT AS CHARACTER
+   FIELD REGIS AS CHARACTER  
+   FIELD DATUM AS DATE
+   FIELD ALLVAL AS INTEGER
+   FIELD MANADVAR AS INTEGER.     
+DEFINE TEMP-TABLE godpers       
+   FIELD TIDSGODK AS CHARACTER.
+DEFINE TEMP-TABLE omrpers       
+   FIELD OMRADE AS CHARACTER.
+DEFINE TEMP-TABLE ansvpers       
+   FIELD ANSVARIGTIDR AS CHARACTER.
+DEFINE TEMP-TABLE ftid
+   FIELD PERSONALKOD AS CHARACTER  
+   FIELD FORNAMN AS CHARACTER 
+   FIELD EFTERNAMN AS CHARACTER 
+   FIELD DATUM AS DATE  
+   FIELD START AS DECIMAL
+   FIELD SLUT AS DECIMAL
+   FIELD TOTALT AS DECIMAL      
+   INDEX PERSONALKOD IS PRIMARY PERSONALKOD DATUM ASCENDING.
+
+DEFINE TEMP-TABLE ftidsum
+   FIELD PERSONALKOD AS CHARACTER  
+   FIELD TOTALT AS DECIMAL      
+   INDEX PERSONALKOD IS PRIMARY PERSONALKOD ASCENDING.
+
+DEFINE INPUT PARAMETER RAD_ALLVAL AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER manad AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER tomdat AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER listtext AS CHARACTER FORMAT "X(40)" NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR tidpers.
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR namntemp.
+DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+
+DEFINE NEW SHARED VARIABLE fnytid AS DECIMAL FORMAT "-99.99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE nytid AS DECIMAL FORMAT "99.99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE sekunder AS INTEGER FORMAT "-9999999" NO-UNDO.
+
+DEFINE VARIABLE ingsaldo AS DECIMAL FORMAT "-999.99" NO-UNDO.
+DEFINE VARIABLE ftot AS DECIMAL FORMAT "-999.99" NO-UNDO.
+DEFINE VARIABLE mtot AS DECIMAL FORMAT "-999.99" NO-UNDO.
+DEFINE VARIABLE isaldo AS INTEGER FORMAT "-9999999" NO-UNDO.
+DEFINE VARIABLE hjdat AS DATE NO-UNDO.
+DEFINE VARIABLE splus AS INTEGER FORMAT "-9999999" NO-UNDO.
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(140)" NO-UNDO.
+DEFINE VARIABLE manadnr AS INTEGER FORMAT "99" NO-UNDO. 
+DEFINE VARIABLE vpers AS CHARACTER NO-UNDO.
+DEFINE VARIABLE vomr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE pkod AS CHARACTER NO-UNDO.
+
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+FIND FIRST namntemp NO-ERROR.
+RUN tolk_UI.
+{GDPRLOGGCLIENT.I}
+PROCEDURE tolk_UI :
+   RUN skapaflex_UI.  
+END PROCEDURE.
+
+PROCEDURE huvud_UI :
+     /*HUVUD*/ 
+   FIND FIRST tidpers USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.      
+   IF RAD_ALLVAL = 2 THEN DO:
+      namntemp.REGIS = Guru.Konstanter:gomrk + ":".
+      FIND CURRENT omrpers NO-LOCK NO-ERROR.            
+      IF AVAILABLE omrpers  THEN DO:
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = omrpers.OMRADE USE-INDEX OMR NO-LOCK NO-ERROR.
+         ASSIGN
+         namntemp.NAMN = OMRADETAB.NAMN.
+      END.
+   END.
+   IF RAD_ALLVAL = 3 THEN DO:
+      namntemp.REGIS = "Alla".
+   END.
+    IF RAD_ALLVAL = 4 THEN DO:
+      namntemp.REGIS = "".
+   END.
+   IF RAD_ALLVAL = 5 THEN namntemp.REGIS = "Markerade enheter".   
+   IF RAD_ALLVAL = 6 THEN DO:
+      namntemp.REGIS = "Godkännare:".
+      FIND CURRENT godpers NO-LOCK NO-ERROR.            
+      IF AVAILABLE godpers  THEN DO:         
+         FIND FIRST GODKANNARTAB WHERE GODKANNARTAB.PERSONALKOD = godpers.TIDSGODK NO-LOCK NO-ERROR.
+         IF AVAILABLE GODKANNARTAB  THEN DO:
+            ASSIGN      
+            namntemp.FORNAMN = GODKANNARTAB.FORNAMN + " " + GODKANNARTAB.EFTERNAMN + "  " + GODKANNARTAB.PERSONALKOD.   
+            Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + GODKANNARTAB.PERSONALKOD.
+    
+         END.
+      END.
+   END.
+   CREATE tidut.    
+   ASSIGN
+   SUBSTRING(tidut.UT,4) = listtext + ": " + STRING(YEAR(tomdat))
+   
+   SUBSTRING(tidut.UT,60) = STRING(TODAY)
+   SUBSTRING(tidut.UT,70) = STRING(TIME,"HH:MM:SS").
+   CREATE tidut. 
+   ASSIGN
+   SUBSTRING(tidut.UT,4) = "=============================================" .   
+   
+   CREATE tidut.    
+   ASSIGN
+   SUBSTRING(tidut.UT,5) = namntemp.REGIS.
+   IF RAD_ALLVAL = 1 THEN ASSIGN SUBSTRING(tidut.UT,25) = namntemp.FORNAMN.
+   IF RAD_ALLVAL = 2 THEN ASSIGN SUBSTRING(tidut.UT,25) = namntemp.NAMN.
+   IF RAD_ALLVAL = 6 THEN ASSIGN SUBSTRING(tidut.UT,25) = namntemp.FORNAMN.
+   CREATE tidut.
+   CREATE tidut.    
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "Enhet"
+   SUBSTRING(tidut.UT,9) = "Förnamn"
+   SUBSTRING(tidut.UT,19) = "Efternamn"
+   SUBSTRING(tidut.UT,35) = "Datum"
+   SUBSTRING(tidut.UT,44) = "Start"
+   SUBSTRING(tidut.UT,55) = "Slut"
+   SUBSTRING(tidut.UT,61) = "Tid"
+   SUBSTRING(tidut.UT,68) = Guru.Konstanter:gaok     
+   
+   str =                                                                                                                            
+"=======.=========.===============.========.==========.=====.======.====================".             
+   CREATE tidut.                  
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = str.   
+END PROCEDURE.
+
+PROCEDURE skapaflex_UI :   
+   IF RAD_ALLVAL = 3 OR RAD_ALLVAL = 4 OR RAD_ALLVAL = 5 THEN DO:  
+      OPEN QUERY flgam FOR EACH tidpers USE-INDEX PERSONALKOD NO-LOCK,
+      EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD 
+      AND TIDREGITAB.AONR = valaonr AND YEAR(TIDREGITAB.DATUM) = YEAR(tomdat) NO-LOCK. 
+      GET FIRST flgam NO-LOCK.
+      DO WHILE AVAILABLE(TIDREGITAB):        
+         CREATE ftid.
+         ASSIGN
+         ftid.PERSONALKOD = tidpers.PERSONALKOD
+         ftid .FORNAMN = tidpers.FORNAMN
+         ftid.EFTERNAMN = tidpers.EFTERNAMN
+         ftid.DATUM = TIDREGITAB.DATUM
+         ftid.TOTALT = TIDREGITAB.TOTALT         
+         ftid.START = TIDREGITAB.START          
+         ftid.SLUT = TIDREGITAB.SLUT. 
+               
+         GET NEXT flgam NO-LOCK.
+      END.              
+      CLOSE QUERY flgam.   
+      CREATE tidut.      
+      RUN huvud_UI. 
+      FIND FIRST ftid NO-LOCK NO-ERROR.
+      IF AVAILABLE ftid THEN DO:       
+         RUN skapaut_UI.
+      END.
+   END.
+   ELSE DO:      
+      FOR EACH tidpers:
+         FIND FIRST godpers WHERE godpers.tidsgodk = SUBSTRING(tidpers.ANSVARIGTIDR,7,5)
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE godpers THEN DO:            
+            CREATE godpers.
+            ASSIGN godpers.TIDSGODK = SUBSTRING(tidpers.ANSVARIGTIDR,7,5).
+         END.
+         FIND FIRST ansvpers WHERE ansvpers.ansvarigtidr = SUBSTRING(tidpers.ANSVARIGTIDR,1,5)
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE ansvpers THEN DO:
+            CREATE ansvpers.
+            ASSIGN ansvpers.ANSVARIGTIDR = SUBSTRING(tidpers.ANSVARIGTIDR,1,5).
+         END.
+         FIND FIRST omrpers WHERE omrpers.OMRADE = tidpers.OMRADE NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE omrpers THEN DO:
+            CREATE omrpers.
+            ASSIGN omrpers.OMRADE = tidpers.OMRADE.
+         END.
+      END.
+      IF RAD_ALLVAL = 6 THEN DO:
+      
+         FIND FIRST godpers NO-LOCK NO-ERROR.
+         vpers = godpers.TIDSGODK.
+         
+         REPEAT:
+            FIND FIRST tidpers WHERE SUBSTRING(tidpers.ANSVARIGTIDR,7,5) = godpers.TIDSGODK USE-INDEX PERSONALKOD NO-LOCK NO-ERROR. 
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = SUBSTRING(tidpers.ANSVARIGTIDR,7,5)
+            USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.                                                     
+            OPEN QUERY flgam FOR EACH tidpers WHERE SUBSTRING(tidpers.ANSVARIGTIDR,7,5) = vpers USE-INDEX PERSONALKOD NO-LOCK,
+            EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD 
+            AND TIDREGITAB.AONR = valaonr AND YEAR(TIDREGITAB.DATUM) = YEAR(tomdat) NO-LOCK.                
+            GET FIRST flgam NO-LOCK.
+            DO WHILE AVAILABLE(TIDREGITAB):        
+               CREATE ftid.
+               ASSIGN
+               ftid.PERSONALKOD = tidpers.PERSONALKOD
+               ftid .FORNAMN = tidpers.FORNAMN
+               ftid.EFTERNAMN = tidpers.EFTERNAMN
+               ftid.DATUM = TIDREGITAB.DATUM
+               ftid.TOTALT = TIDREGITAB.TOTALT               
+               ftid.START = TIDREGITAB.START          
+               ftid.SLUT = TIDREGITAB.SLUT.         
+               GET NEXT flgam NO-LOCK.
+            END.              
+            CLOSE QUERY flgam.    
+            
+            FIND FIRST tidpers WHERE SUBSTRING(tidpers.ANSVARIGTIDR,7,5) = godpers.TIDSGODK USE-INDEX PERSONALKOD NO-LOCK NO-ERROR. 
+            CREATE tidut.                           
+            RUN huvud_UI.              
+            FIND FIRST ftid NO-LOCK NO-ERROR.
+            IF AVAILABLE ftid THEN DO:                           
+               RUN skapaut_UI.
+            END.
+            FIND NEXT godpers NO-LOCK NO-ERROR.            
+            IF NOT AVAILABLE godpers THEN LEAVE.
+            ELSE vpers = godpers.TIDSGODK.
+         END.    
+      END.
+      ELSE IF RAD_ALLVAL = 1 THEN DO:
+      
+         FIND FIRST ansvpers NO-LOCK NO-ERROR.
+         
+         REPEAT:
+            FIND FIRST tidpers WHERE SUBSTRING(tidpers.ANSVARIGTIDR,1,5) = ansvpers.ANSVARIGTIDR USE-INDEX PERSONALKOD NO-LOCK NO-ERROR. 
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = SUBSTRING(tidpers.ANSVARIGTIDR,1,5)
+            USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+            vpers = PERSONALTAB.PERSONALKOD.            
+            OPEN QUERY flgam FOR EACH tidpers WHERE SUBSTRING(tidpers.ANSVARIGTIDR,1,5) = vpers USE-INDEX PERSONALKOD NO-LOCK,
+            EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD 
+            AND TIDREGITAB.AONR = valaonr AND YEAR(TIDREGITAB.DATUM) = YEAR(tomdat) NO-LOCK.                
+            GET FIRST flgam NO-LOCK.
+            DO WHILE AVAILABLE(TIDREGITAB):        
+               CREATE ftid.
+               ASSIGN
+               ftid.PERSONALKOD = tidpers.PERSONALKOD
+               ftid .FORNAMN = tidpers.FORNAMN
+               ftid.EFTERNAMN = tidpers.EFTERNAMN
+               ftid.DATUM = TIDREGITAB.DATUM
+               ftid.TOTALT = TIDREGITAB.TOTALT               
+               ftid.START = TIDREGITAB.START          
+               ftid.SLUT = TIDREGITAB.SLUT.         
+               GET NEXT flgam NO-LOCK.
+            END.              
+            CLOSE QUERY flgam.                                                         
+            FIND FIRST tidpers WHERE SUBSTRING(tidpers.ANSVARIGTIDR,1,5) = ansvpers.ANSVARIGTIDR USE-INDEX PERSONALKOD NO-LOCK NO-ERROR. 
+            CREATE tidut.                            
+            RUN huvud_UI.  
+            FIND FIRST ftid NO-LOCK NO-ERROR.
+            IF AVAILABLE ftid  THEN DO:                              
+               RUN skapaut_UI.
+            END.
+            FIND NEXT ansvpers NO-LOCK NO-ERROR.            
+            IF NOT AVAILABLE ansvpers THEN LEAVE.
+            ELSE vpers = ansvpers.ANSVARIGTIDR.         
+         END.    
+      END.
+      ELSE IF RAD_ALLVAL = 2 THEN DO:         
+         FIND FIRST omrpers NO-LOCK NO-ERROR.              
+         REPEAT:
+            FIND FIRST tidpers WHERE tidpers.OMRADE = omrpers.omrade USE-INDEX PERSONALKOD NO-LOCK NO-ERROR. 
+            FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = tidpers.OMRADE
+            USE-INDEX OMR NO-LOCK NO-ERROR.
+            vomr = OMRADETAB.OMRADE.            
+            OPEN QUERY flgam FOR EACH tidpers WHERE tidpers.OMRADE = vomr USE-INDEX PERSONALKOD NO-LOCK,
+            EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD 
+            AND TIDREGITAB.AONR = valaonr AND YEAR(TIDREGITAB.DATUM) = YEAR(tomdat) NO-LOCK.                
+            GET FIRST flgam NO-LOCK.
+            DO WHILE AVAILABLE(TIDREGITAB):        
+               CREATE ftid.
+               ASSIGN
+               ftid.PERSONALKOD = tidpers.PERSONALKOD
+               ftid .FORNAMN = tidpers.FORNAMN
+               ftid.EFTERNAMN = tidpers.EFTERNAMN
+               ftid.DATUM = TIDREGITAB.DATUM
+               ftid.TOTALT = TIDREGITAB.TOTALT               
+               ftid.START = TIDREGITAB.START          
+               ftid.SLUT = TIDREGITAB.SLUT.         
+               GET NEXT flgam NO-LOCK.
+            END.              
+            CLOSE QUERY flgam.                                                         
+            CREATE tidut.                  
+            RUN huvud_UI.              
+            FIND FIRST ftid NO-LOCK NO-ERROR.
+            IF AVAILABLE ftid THEN DO:                           
+               RUN skapaut_UI.
+            END.
+            FIND NEXT omrpers NO-LOCK NO-ERROR.            
+            IF NOT AVAILABLE omrpers THEN LEAVE.            
+            ELSE vomr = tidpers.OMRADE.
+         END.    
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE skapaut_UI :
+   FOR EACH ftid USE-INDEX PERSONALKOD: 
+      ftid.TOTALT = klock100(ftid.TOTALT).
+   END.   
+   FOR EACH ftid BREAK BY ftid.PERSONALKOD:   
+      ACCUMULATE ftid.TOTALT (TOTAL BY ftid.PERSONALKOD).
+      IF LAST-OF(ftid.PERSONALKOD) THEN DO:      
+         CREATE ftidsum.
+         ASSIGN
+         ftidsum.PERSONALKOD = ftid.PERSONALKOD
+         ftidsum.TOTALT = (ACCUM TOTAL BY ftid.PERSONALKOD ftid.TOTALT).
+      END.
+   END.
+   pkod = "".
+   FOR EACH ftid USE-INDEX PERSONALKOD: 
+      IF pkod NE ftid.PERSONALKOD AND pkod NE "" THEN DO:
+         FIND FIRST ftidsum WHERE ftidsum.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+         IF AVAILABLE ftidsum THEN DO:
+            CREATE tidut.                  
+            ASSIGN
+            SUBSTRING(tidut.UT,1) = str.   
+            CREATE tidut. 
+            ASSIGN
+            SUBSTRING(tidut.UT,1) = ftidsum.PERSONALKOD
+            SUBSTRING(tidut.UT,61) = STRING(ftidsum.TOTALT,">9.99").
+            CREATE tidut. 
+         END.
+      END.
+      CREATE tidut. 
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = ftid.PERSONALKOD
+      SUBSTRING(tidut.UT,9) = ftid.FORNAMN
+      SUBSTRING(tidut.UT,19) = ftid.EFTERNAMN
+      SUBSTRING(tidut.UT,35) = STRING(ftid.DATUM)          
+      SUBSTRING(tidut.UT,44) = STRING(ftid.START,">9.99")
+      SUBSTRING(tidut.UT,55) = STRING(ftid.SLUT,">9.99")
+      SUBSTRING(tidut.UT,61) = STRING(ftid.TOTALT,">9.99")
+      SUBSTRING(tidut.UT,68) = SUBSTRING(valaonr,1,6).
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + ftid.PERSONALKOD.
+      pkod = ftid.PERSONALKOD.
+      DELETE ftid.
+   END.            
+   FIND FIRST ftidsum WHERE ftidsum.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+   IF AVAILABLE ftidsum THEN DO:
+      CREATE tidut.                  
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = str.   
+      CREATE tidut. 
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = ftidsum.PERSONALKOD
+      SUBSTRING(tidut.UT,61) = STRING(ftidsum.TOTALT,">9.99").
+      CREATE tidut. 
+   END.
+   CREATE tidut. 
+   ASSIGN 
+   tidut.UT = str.
+   CREATE tidut. 
+   ASSIGN SUBSTRING(tidut.UT,132) = "$".       
+END PROCEDURE.
+
+

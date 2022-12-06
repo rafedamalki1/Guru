@@ -1,0 +1,183 @@
+
+/*------------------------------------------------------------------------
+    File        : 
+    Purpose     : SPRINGKONTROLL.P 
+
+    Syntax      :KÖRS FRÅN AppSpringDbCon.P OCH  AppDarwinPlusDbCon.P
+
+     
+    Description :kör en massa kontroller mot   LOSENKOLLWEB.p
+
+    Author(s)   : 
+    Created     : Thu Oct 20 14:50:09 CEST 2016
+    Notes       :
+  ----------------------------------------------------------------------*/
+DEFINE INPUT PARAMETER app_server_info AS CHARACTER {AppServerInfoExtent.i}. 
+DEFINE INPUT  PARAMETER varforetypval51 AS INTEGER NO-UNDO.
+DEFINE OUTPUT PARAMETER springfel AS CHARACTER  NO-UNDO.
+DEFINE OUTPUT PARAMETER alltOk AS LOGICAL NO-UNDO.
+DEFINE VARIABLE meddelandevar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE felNr AS INTEGER NO-UNDO.
+DEFINE VARIABLE losenwebh AS HANDLE NO-UNDO.
+
+{AppSpringSetInfo.I} 
+ {SPRINGKONTROLLINFO.i}
+DEBUGGER:SET-BREAK().
+RUN LOSENKOLLWEB.P PERSISTENT SET losenwebh.    
+RUN AppSpringSet_UI  IN losenwebh (INPUT app_server_info).
+ 
+/*laddar klientens macadress*/
+RUN MacAddStart_UI IN losenwebh (INPUT app_server_info[4]).
+/*laddar klientdatorns namn*/ 
+RUN ComputerNameStart_UI IN losenwebh (INPUT app_server_info[9]).
+IF app_server_info[16] = CHR(65) + CHR(112) + CHR(112) + CHR(97) + CHR(116)  THEN DO:
+   /* OM DU KÖR MED APPSERVER VITLISTA 
+   sätter undantag från spärrar eller tvärt om beroende på företag om appserver*/
+   RUN VitlistningStart_UI IN losenwebh (OUTPUT alltOk,OUTPUT meddelandevar).
+   springfel = meddelandevar.
+   IF alltOk = FALSE THEN DO:
+      RUN avs_UI.
+      RETURN. 
+   END.
+END.
+/*  VITLISTA 
+RUN VitlistningStart_UI IN losenwebh (OUTPUT alltOk,OUTPUT meddelandevar).
+*/
+
+alltOk = FALSE.
+/* MaxIpUserCheck_UI koll så att max inte överskrids för ip mac datoranv guruanv*/ 
+RUN MaxIpUserCheck_UI IN losenwebh (INPUT  app_server_info[3],INPUT app_server_info[5],INPUT app_server_info[6],OUTPUT alltOk,OUTPUT meddelandevar).
+springfel = meddelandevar.
+IF alltOk = FALSE THEN DO:
+   RUN avs_UI.
+   RETURN. 
+END.
+/*för att app_server_info[5] ska sökas som Guruanv*/
+RUN MaxIpUserCheck_UI IN losenwebh (INPUT  app_server_info[3],INPUT app_server_info[5],INPUT app_server_info[5],OUTPUT alltOk,OUTPUT meddelandevar).
+springfel = meddelandevar.
+IF alltOk = FALSE THEN DO:
+   RUN avs_UI.
+   RETURN. 
+END.
+
+IF app_server_info[6] = "" THEN DO:
+   alltOk = FALSE.
+   RUN avs_UI.
+   RETURN. 
+END.    
+/* om mac ska gälla*/
+
+/*skickar ett nytt lösen via mail LÄGGER ÄVEN UT TEXT I LOGGFILEN returmail.txt*/
+IF app_server_info[14] = "Rmail" THEN DO:
+   RUN ReturMail_UI IN losenwebh (INPUT app_server_info[5],INPUT app_server_info[6], OUTPUT meddelandevar, OUTPUT alltOk).
+   springfel = meddelandevar.
+   RUN avs_UI.
+   RETURN.
+END.
+IF app_server_info[7] = "" THEN DO:
+   /* tar bort blanka macadresser kollar datoranvändare och macadd finns att lösen är enligt reglerna*/ 
+   IF app_server_info[6] = "" THEN RUN MacKontroll_UI IN losenwebh (INPUT app_server_info[5], INPUT app_server_info[4], OUTPUT alltOk,OUTPUT meddelandevar).
+   ELSE RUN MacKontroll_UI IN losenwebh (INPUT app_server_info[6], INPUT app_server_info[4], OUTPUT alltOk,OUTPUT meddelandevar).
+   springfel = meddelandevar.
+   IF alltOk = FALSE THEN DO:
+      RUN avs_UI.
+      RETURN. 
+   END.
+END.
+/*obs! meddelandevar = "QUIT". obs! om MAN tillfälligt måste stoppa användare i guru eller något annat, men INTE alla  
+ Guru.Konstanter:AppSpringSet[5]  = datoruser           
+*/
+RUN StoppVillkor_UI IN losenwebh (INPUT Guru.Konstanter:AppSpringSet[5], OUTPUT alltOk,OUTPUT meddelandevar).
+springfel = meddelandevar.
+IF alltOk = FALSE THEN DO:
+   RUN avs_UI.
+   RETURN. 
+END.
+/*obs! meddelandevar = "QUIT". obs! om MAN tillfälligt måste stoppa användare i guru eller något annat, men INTE alla  
+ Guru.Konstanter:AppSpringSet[6]  = GuruAnvandare
+*/
+RUN StoppVillkor_UI IN losenwebh (INPUT Guru.Konstanter:AppSpringSet[6], OUTPUT alltOk,OUTPUT meddelandevar).
+springfel = meddelandevar.
+IF alltOk = FALSE THEN DO:
+   RUN avs_UI.
+   RETURN. 
+END.
+/*har anget lösenord eller måste ange lösen*/
+IF varforetypval51 = 1 OR app_server_info[7] NE "" THEN DO: 
+  /*    
+  är användaren spärrad via datum,antal försök räknas upp räknar upp,  är lösenordet rätt om rätt så tas antal försök bort
+  skriver även till loggfil INFELOG.TXT
+  */ 
+   RUN RattLosen_UI IN losenwebh (INPUT app_server_info[3],INPUT app_server_info[5],INPUT app_server_info[6], INPUT app_server_info[7], OUTPUT alltOk,OUTPUT meddelandevar).
+   springfel = meddelandevar.
+   IF alltOk = FALSE THEN DO: 
+      RUN avs_UI.
+      RETURN. 
+   END.
+   /*kollar att ditt nya lösen sätts rätt gäller även ny upplägg av users */
+   RUN losenReglerKoll_UI IN losenwebh (INPUT app_server_info[6],INPUT-OUTPUT app_server_info[7],INPUT app_server_info[8], OUTPUT felNr, OUTPUT alltOk,OUTPUT meddelandevar).
+   springfel = meddelandevar.
+   IF alltOk = FALSE THEN DO:
+      RUN avs_UI.
+      RETURN.
+   END.   
+
+   /*får du komma in*/  
+   RUN RattLosen_UI IN losenwebh (INPUT app_server_info[3],INPUT app_server_info[5],INPUT app_server_info[6], INPUT app_server_info[7], OUTPUT alltOk,OUTPUT meddelandevar).
+   springfel = meddelandevar.
+   IF alltOk = FALSE THEN DO:
+      RUN avs_UI.
+      RETURN. 
+   END.
+    
+END.
+   
+ELSE DO:
+   /*automatisk inloggnong via   Guru.Konstanter:AppSpringSet[6]  = GuruAnvandare
+          reset av antal försök
+           Guru.Konstanter:AppSpringSet[3]  = Computer_LanIP
+           Guru.Konstanter:AppSpringSet[5]  = datoruser
+           Guru.Konstanter:AppSpringSet[6]  = GuruAnvandare
+   */
+   
+   RUN AutoSpringLogin_UI IN losenwebh (INPUT app_server_info[3],INPUT app_server_info[5],INPUT app_server_info[6],OUTPUT alltOk,OUTPUT meddelandevar).
+   springfel = meddelandevar.
+   
+   IF alltOk = FALSE THEN DO:
+      /* UPPRÄKNAR inträffar om du inte har rätt user i databasen*/ 
+      /*antal försök räknas upp räknar upp*/
+      RUN AntalIpUserCheck_UI IN losenwebh (INPUT Guru.Konstanter:AppSpringSet[3] ,INPUT app_server_info[5],INPUT Guru.Konstanter:AppSpringSet[6] ).
+      RUN avs_UI.
+      RETURN. 
+   END.
+END.
+IF alltOk = TRUE THEN DO:
+   IF app_server_info[6] = "" THEN app_server_info[6] = app_server_info[5].
+   
+   /*Anders Olsson Elpool i Umeå AB  13 sep 2019 14:56:16 
+   Mac sätts bara om datoruser = GuruAnvandare
+   */
+   IF Guru.Konstanter:AppSpringSet[5] = app_server_info[6] THEN RUN MacSett_UI IN losenwebh (INPUT app_server_info[6], INPUT app_server_info[4]).
+   /*Så att alla styrevar sätts*/
+   RUN avs_UI.
+   Guru.Konstanter:globanv = app_server_info[6].
+END.   
+ELSE DO:
+   /*inträffar aldrig! ersätts av UPPRÄKNAR*/ 
+   meddelandevar = {LOSENKOLLFEL8.I}.
+   springfel = meddelandevar. 
+   RUN avs_UI.
+END. 
+
+PROCEDURE avs_UI :
+   IF VALID-HANDLE(losenwebh) THEN DELETE PROCEDURE losenwebh NO-ERROR.
+   losenwebh = ?.
+
+END PROCEDURE.
+
+
+
+
+
+
+

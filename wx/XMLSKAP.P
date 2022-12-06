@@ -1,0 +1,91 @@
+/*XMLSKAP.P*/
+
+/* Declarations */
+DEFINE VARIABLE hDoc AS HANDLE NO-UNDO.
+DEFINE VARIABLE hRoot AS HANDLE NO-UNDO.
+DEFINE VARIABLE hRow AS HANDLE NO-UNDO.
+DEFINE VARIABLE hField AS HANDLE NO-UNDO.
+DEFINE VARIABLE hText AS HANDLE NO-UNDO.
+DEFINE VARIABLE hBuf AS HANDLE NO-UNDO.
+DEFINE VARIABLE hDBFld AS HANDLE NO-UNDO.
+DEFINE VARIABLE tth AS HANDLE NO-UNDO.
+DEFINE VARIABLE appq AS HANDLE NO-UNDO.
+DEFINE VARIABLE eBh AS HANDLE NO-UNDO.
+DEFINE VARIABLE tmpq AS CHARACTER NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE num AS INTEGER NO-UNDO.
+/* Create the objects we need. */
+CREATE X-DOCUMENT hDoc.
+CREATE X-NODEREF hRoot.
+CREATE X-NODEREF hRow.
+CREATE X-NODEREF hField.
+CREATE X-NODEREF hText.
+
+
+DEFINE TEMP-TABLE afiltemp NO-UNDO
+   FIELD NAME AS CHARACTER
+   FIELD allaao AS LOGICAL.
+
+/* Fill in your temp-table */
+tth = TEMP-TABLE afiltemp:HANDLE.
+hBuf = tth:DEFAULT-BUFFER-HANDLE.
+num = 0.
+REPEAT:
+   IF num = 50 THEN LEAVE.
+   hBuf:BUFFER-CREATE().
+   eBh = hBuf:BUFFER-FIELD("NAME").
+   eBh:BUFFER-VALUE = "AA".
+   eBh = hBuf:BUFFER-FIELD("NAME").
+   eBh:BUFFER-VALUE = YES.
+   num = num + 1.
+   
+END.
+IF VALID-HANDLE(eBh) THEN DELETE PROCEDURE eBh NO-ERROR.
+
+
+/* Skapa root node. */
+hDoc:CREATE-NODE (hRoot, hBuf:NAME, "ELEMENT").
+hDoc:APPEND-CHILD (hRoot).
+
+/*Skapa query*/
+CREATE QUERY appq.
+appq:SET-BUFFERS(hBuf).
+tmpq = "FOR EACH " + hBuf:TABLE + " NO-LOCK.".
+appq:QUERY-PREPARE(tmpq).
+appq:QUERY-OPEN().
+appq:GET-FIRST(NO-LOCK).
+DO WHILE appq:QUERY-OFF-END = FALSE:
+   /* Skapa rad node för tabell. */
+   hDoc:CREATE-NODE (hRow, hBuf:TABLE, "ELEMENT").
+   hRoot:APPEND-CHILD (hRow).
+
+   /* Om attribut, sätt dessa här. */
+/*    hRow:SET-ATTRIBUTE ("Allaao", STRING(allaao)). */
+
+   /* Lägg till fälten som element. */
+   REPEAT i = 1 TO hBuf:NUM-FIELDS:
+      hDBFld = hBuf:BUFFER-FIELD (i).
+      
+      /* Om vi har satt attribut, hoppa över */
+/*       IF hDBFld:NAME = "allaao" THEN NEXT. */
+
+      /* Skapa element med fältnamn som tag. */     
+      hDoc:CREATE-NODE (hField, hDBFld:NAME, "ELEMENT").
+      hRow:APPEND-CHILD (hField).
+      /* Skapa nytt fält, nästa row child. */
+      hDoc:CREATE-NODE (hText, "", "TEXT").
+      /* Node som håller värde. */
+      hField:APPEND-CHILD (hText).
+      /* Lägg till text (data) till fältet */
+      hText:NODE-VALUE = STRING (hDBFld:BUFFER-VALUE).
+   END.
+   appq:GET-NEXT(NO-LOCK).
+END.
+/* Skriv XML node träd till xml fil. */
+hDoc:SAVE ("file", SESSION:TEMP-DIRECTORY + hBuf:NAME + ".xml").
+/* Ta bort alla objekt. */
+DELETE OBJECT hDoc.
+DELETE OBJECT hRoot.
+DELETE OBJECT hRow.
+DELETE OBJECT hField.
+DELETE OBJECT hText.

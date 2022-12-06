@@ -1,0 +1,76 @@
+/*STARTKALKBER.P*/
+{GLOBVAR2DEL1.I}
+{EXTRATAB.I}
+
+DEFINE INPUT PARAMETER nyber AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER kalkomr AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER kalknr AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER beromr AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER bernr AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER klktext AS CHARACTER NO-UNDO.
+
+DEFINE VARIABLE nyberapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE fbestapph AS HANDLE NO-UNDO.                      /*EXTRATABHMT*/
+IF Guru.Konstanter:appcon THEN DO:
+   RUN EXTRATABHMT.P PERSISTENT SET fbestapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT.
+END.
+ELSE DO:
+   RUN EXTRATABHMT.P PERSISTENT SET fbestapph.
+END.             
+            
+{BERTEMPTAB.I} 
+DEFINE TEMP-TABLE extravalbertemp NO-UNDO LIKE valberedningtemp.
+IF nyber = TRUE THEN DO:
+   IF Guru.Konstanter:appcon THEN DO:
+      RUN NYBERAPP.P PERSISTENT SET nyberapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT (INPUT Guru.Konstanter:varforetypchar[48]). 
+   END.
+   ELSE DO:
+      RUN NYBERAPP.P PERSISTENT SET nyberapph (INPUT Guru.Konstanter:varforetypchar[48]).
+   END. 
+   RUN reg_UI.
+   FIND FIRST felmeddtemp NO-LOCK NO-ERROR.
+   IF AVAILABLE felmeddtemp THEN DO:
+      MESSAGE felmeddtemp.FELMEDD VIEW-AS ALERT-BOX TITLE "Meddelande". 
+      RETURN.
+   END.
+   EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+   /*KALKYL-BEREDNING SUNDSVALL*/
+   CREATE inextrakopptemp.          
+   ASSIGN
+   inextrakopptemp.PROGRAM = "KALKBER"                   
+   inextrakopptemp.KOPPLACHAR1 = kalkomr
+   inextrakopptemp.KOPPLAINT1 = kalknr
+   inextrakopptemp.KOPPLACHAR2 = beromr
+   inextrakopptemp.KOPPLAINT2 =  bernr.
+   RUN extraspar_UI IN fbestapph (INPUT TABLE inextrakopptemp).
+   EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+   RUN kalkbereda_UI IN Guru.SharedVariable:btnberh (INPUT beromr, INPUT bernr).
+END.
+ELSE DO:
+   RUN kalkbereda_UI IN Guru.SharedVariable:btnberh (INPUT beromr, INPUT bernr).   
+END.
+IF VALID-HANDLE(nyberapph) THEN DELETE PROCEDURE nyberapph NO-ERROR.
+IF VALID-HANDLE(fbestapph) THEN DELETE PROCEDURE fbestapph NO-ERROR.
+
+PROCEDURE reg_UI :
+   DEFINE VARIABLE valaonr AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE valdelnr AS INTEGER NO-UNDO.
+   DEFINE VARIABLE valort AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE katvar AS INTEGER NO-UNDO.
+   
+   valaonr = ?.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   RUN nyomr_UI IN nyberapph (INPUT kalkomr,INPUT "NYA",OUTPUT bernr).
+   IF bernr = 0 THEN DO: 
+      CREATE felmeddtemp.
+      felmeddtemp.FELMEDD = "Koppling till beredning ej möjlig på detta " + Guru.Konstanter:gomrk.
+      felmeddtemp.VAL = 1.
+   END.
+   RUN reg_UI IN nyberapph (INPUT kalkomr,INPUT "NYAKB",INPUT-OUTPUT valaonr,
+                            INPUT-OUTPUT valdelnr,INPUT-OUTPUT beromr,INPUT-OUTPUT bernr,
+                            INPUT Guru.Konstanter:globanv,INPUT bernr,
+                            INPUT klktext,INPUT FALSE,
+                            INPUT-OUTPUT TABLE extravalbertemp,
+                            OUTPUT valort,OUTPUT katvar,OUTPUT TABLE felmeddtemp).
+   EMPTY TEMP-TABLE extravalbertemp NO-ERROR. 
+END PROCEDURE.

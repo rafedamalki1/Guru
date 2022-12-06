@@ -1,0 +1,40 @@
+/*OMRTEMPC.I*/
+DEFINE {&STATIC} TEMP-TABLE omrtemp NO-UNDO
+   FIELD ANVANDARE AS CHARACTER
+   FIELD PANDRA AS LOGICAL
+   FIELD AVDELNINGNR AS INTEGER
+   FIELD OMRADE AS CHARACTER
+   FIELD NAMN AS CHARACTER
+   FIELD KALKYLSIST AS INTEGER
+   FIELD KALKYLINT1 AS INTEGER
+   FIELD KALKYLINT2 AS INTEGER
+   FIELD TTRECID AS RECID
+   INDEX OMR IS PRIMARY OMRADE
+   INDEX OMRNAMN NAMN.
+DEFINE {&STATIC} TEMP-TABLE Borttagnaomrtemp NO-UNDO LIKE omrtemp.
+ DEFINE {&STATIC} TEMP-TABLE bestkundalltclass NO-UNDO
+   FIELD ADRESS                    AS CHARACTER              FORMAT "X(25)"
+   FIELD AOKUND                    AS LOGICAL                FORMAT "Ja/Nej" INITIAL TRUE
+   FIELD BESTID                    AS CHARACTER              FORMAT "X(6)"
+   FIELD BESTNAMN                  AS CHARACTER              FORMAT "X(16)"
+   FIELD FAKADRESS                 AS CHARACTER              FORMAT "X(25)"
+   FIELD FAKORT                    AS CHARACTER              FORMAT "X(15)"
+   FIELD FAKPNR                    AS CHARACTER              FORMAT "XXX XX"
+   FIELD FAXNR                     AS CHARACTER              FORMAT "X(11)"
+   FIELD KONTAKT                   AS CHARACTER              FORMAT "X(25)"
+   FIELD KUNDPRISF                 AS DECIMAL                FORMAT ">>9.99"  INITIAL 1
+   FIELD LEVADRESS                 AS CHARACTER              FORMAT "X(25)"
+   FIELD LEVORT                    AS CHARACTER              FORMAT "X(15)"
+   FIELD LEVPNR                    AS CHARACTER              FORMAT "XXX XX"
+   FIELD ORT                       AS CHARACTER              FORMAT "X(15)"
+   FIELD PNR                       AS CHARACTER              FORMAT "XXX XX"
+   FIELD TEL                       AS CHARACTER              FORMAT "X(11)"
+   FIELD VIBESTID                  AS CHARACTER              FORMAT "X(6)"
+   FIELD AVDELNING                 AS CHARACTER
+   FIELD EPOST                     AS CHARACTER
+   FIELD TTRECID AS RECID
+   INDEX BESTID IS PRIMARY BESTID
+   INDEX VIBESTID VIBESTID
+   INDEX BESTNAMN BESTNAMN
+   INDEX AVDELNING AVDELNING.
+   

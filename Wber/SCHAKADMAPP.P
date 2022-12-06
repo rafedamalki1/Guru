@@ -1,0 +1,451 @@
+/*SCHAKADMAPP.P*/
+{STARTFORAPP.I}
+{SCADMIN.I}
+{EXTRADATA.I}
+{PTEMP.I}
+{LOPTEMP.I}
+DEFINE VARIABLE exdatahmth AS HANDLE NO-UNDO.
+
+/*kalkår*/
+DEFINE VARIABLE katnrartal AS INTEGER NO-UNDO.
+katnrartal = INTEGER(STRING(TODAY,"99999999")).
+
+PROCEDURE ytforhand_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR temphandkopp.
+      FOR EACH HDHANDELSE NO-LOCK:
+         CREATE temphandkopp.
+         BUFFER-COPY HDHANDELSE TO temphandkopp.
+         temphandkopp.typ = HDHANDELSE.SORTCHAR.
+      END.
+
+      FOR EACH YTBELAGG NO-LOCK:
+         CREATE temphandkopp.
+         BUFFER-COPY YTBELAGG TO temphandkopp.
+         ASSIGN
+         temphandkopp.BENAMNING = YTBELAGG.YTBELAGG
+         temphandkopp.typ = "y".
+      END.
+
+      FOR EACH FORLAGG NO-LOCK:
+         CREATE temphandkopp.
+         BUFFER-COPY FORLAGG TO temphandkopp.
+         /*OBS SKA VARA OMVÄND ORDNING*/
+         ASSIGN
+         temphandkopp.FORLAGG = FORLAGG.BENAMNING
+         temphandkopp.BENAMNING = FORLAGG.FORLAGG
+         temphandkopp.typ = "f".      
+      END.
+
+END PROCEDURE.
+
+
+/*TA BORT ENSKILD KOPPLAD KOD FRÅN HÄNDELSE*/
+PROCEDURE kkidbort_UI :
+   DEFINE INPUT PARAMETER typvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER idvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER kkidvar AS INTEGER NO-UNDO.
+
+   DO TRANSACTION:
+      FIND HDKKOPP WHERE HDKKOPP.ID = idvar AND HDKKOPP.TYP = typvar AND HDKKOPP.KKID = kkidvar NO-ERROR.
+      IF AVAILABLE HDKKOPP THEN DO:
+         DELETE HDKKOPP.
+      END.
+   END.
+END PROCEDURE.
+
+
+
+
+/*SPARA KKOPPAR */
+PROCEDURE sparakopp_UI :
+   DEFINE INPUT PARAMETER TABLE FOR tempkkopp.
+   FOR EACH tempkkopp:
+      FIND FIRST HDKKOPP WHERE HDKKOPP.LOPNR = tempkkopp.LOPNR AND HDKKOPP.ARBKOD = tempkkopp.ARBKOD AND 
+      HDKKOPP.ID = tempkkopp.ID AND HDKKOPP.TYP = tempkkopp.TYP NO-ERROR.
+      IF NOT AVAILABLE HDKKOPP THEN CREATE HDKKOPP.
+      BUFFER-COPY tempkkopp TO HDKKOPP.        
+   END.     
+END PROCEDURE.
+
+
+PROCEDURE hittamaxkkid_UI :
+   DEFINE INPUT PARAMETER typvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER idvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER kkmax AS INTEGER NO-UNDO.
+   DO TRANSACTION:
+      FIND LAST HDKKOPP WHERE HDKKOPP.ID = idvar AND HDKKOPP.TYP = typvar USE-INDEX kkid NO-ERROR.
+      IF AVAILABLE HDKKOPP THEN kkmax = HDKKOPP.KKID.
+      ELSE kkmax = 0.
+   END.
+
+END PROCEDURE.
+
+PROCEDURE laddakkoppTYP_UI :
+   DEFINE INPUT  PARAMETER htyp AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER idvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempkkopp.
+
+   EMPTY TEMP-TABLE tempkkopp NO-ERROR.
+
+   DO TRANSACTION:
+      FOR EACH HDKKOPP WHERE HDKKOPP.TYP = htyp AND HDKKOPP.ID = idvar NO-LOCK:
+         CREATE tempkkopp.
+         BUFFER-COPY HDKKOPP TO tempkkopp.
+      END.
+   END.
+   /*fixa benämning*/
+   
+   FOR EACH tempkkopp NO-LOCK:
+      FIND LAST KALKYLLOPPOSTER WHERE KALKYLLOPPOSTER.ARBKOD = tempkkopp.ARBKOD AND KALKYLLOPPOSTER.LOPNR = tempkkopp.LOPNR USE-INDEX LOPNR NO-LOCK NO-ERROR.
+      IF AVAILABLE KALKYLLOPPOSTER THEN ASSIGN tempkkopp.BENAMNING = KALKYLLOPPOSTER.BENAMNING.
+          
+   END.
+
+END PROCEDURE.
+/*kopplade koder till id BRW*/
+PROCEDURE laddakkopp_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR tempkkopp.
+
+   EMPTY TEMP-TABLE tempkkopp NO-ERROR.
+
+   DO TRANSACTION:
+      FOR EACH HDKKOPP NO-LOCK:
+         CREATE tempkkopp.
+         BUFFER-COPY HDKKOPP TO tempkkopp.
+      END.
+   END.
+   /*fixa benämning*/
+   
+   FOR EACH tempkkopp NO-LOCK:
+      FIND LAST KALKYLLOPPOSTER WHERE KALKYLLOPPOSTER.ARBKOD = tempkkopp.ARBKOD AND KALKYLLOPPOSTER.LOPNR = tempkkopp.LOPNR USE-INDEX LOPNR NO-LOCK NO-ERROR.
+      IF AVAILABLE KALKYLLOPPOSTER THEN ASSIGN tempkkopp.BENAMNING = KALKYLLOPPOSTER.BENAMNING.
+          
+   END.
+
+END PROCEDURE.
+
+
+/*ladda senaste katalogen*/
+PROCEDURE arbkod_UI:
+   DEFINE INPUT PARAMETER kalktyp AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR ptemp.
+   DEFINE VARIABLE katyear AS INTEGER NO-UNDO.
+   DEFINE VARIABLE tempvar AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE ptemp NO-ERROR. 
+    
+      FIND LAST EBRPRIS USE-INDEX AR.
+      IF AVAILABLE EBRPRIS THEN DO:
+         katyear = EBRPRIS.ARTAL.
+      END.
+         
+      IF kalktyp = 2 THEN DO:
+         FIND FIRST P2 WHERE P2.KATAR = katyear NO-LOCK NO-ERROR.
+         IF AVAILABLE P2 THEN DO:
+         FOR EACH P2 WHERE P2.KATAR = katyear NO-LOCK:
+            CREATE ptemp.
+            BUFFER-COPY P2 TO ptemp.
+            {PKODREGION.I}
+            ptemp.TYP = 2.
+         END.
+      END.
+   
+      END.
+      ELSE IF kalktyp = 3 THEN DO:
+         FIND FIRST P3 WHERE P3.KATAR = katyear NO-LOCK NO-ERROR.
+         IF AVAILABLE P3 THEN DO:
+            FOR EACH P3 WHERE P3.KATAR = katyear NO-LOCK:
+               CREATE ptemp.
+               BUFFER-COPY P3 TO ptemp.
+               ptemp.TYP = 3.
+            END.
+         END.
+      END.
+   
+   
+END PROCEDURE.
+
+PROCEDURE lopnr_UI:
+   DEFINE INPUT PARAMETER kalktyp AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR loptemp.
+   
+   DEFINE VARIABLE katyear AS INTEGER NO-UNDO.
+   
+   EMPTY TEMP-TABLE loptemp NO-ERROR. 
+    
+      FIND LAST EBRPRIS USE-INDEX AR.
+      IF AVAILABLE EBRPRIS THEN DO:
+         katyear = EBRPRIS.ARTAL.
+      END.
+      IF kalktyp = 2 THEN DO:
+         FOR EACH LOP2 WHERE LOP2.KATAR = katyear NO-LOCK:
+            CREATE loptemp.
+            BUFFER-COPY LOP2 TO loptemp.
+            loptemp.TYP = 2.
+         END.
+      END.
+      ELSE IF kalktyp = 3 THEN DO:
+         FOR EACH LOP3 WHERE LOP3.KATAR = katyear NO-LOCK:                 
+            CREATE loptemp.
+            BUFFER-COPY LOP3 TO loptemp.
+            loptemp.TYP = 3.
+         END.
+      END.
+    
+   
+END PROCEDURE.
+
+
+
+PROCEDURE ladda_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR tempforlagg.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempsamforlagg.
+   /*DEFINE OUTPUT PARAMETER TABLE FOR kskyddtemp.*/
+   DEFINE OUTPUT PARAMETER TABLE FOR tempytbelagg.
+   EMPTY TEMP-TABLE tempforlagg NO-ERROR. 
+   OPEN QUERY fq FOR EACH FORLAGG NO-LOCK.
+   GET FIRST fq NO-LOCK.
+   DO WHILE AVAILABLE(FORLAGG):
+      CREATE tempforlagg.
+      BUFFER-COPY FORLAGG TO tempforlagg.
+      GET NEXT fq NO-LOCK.
+   END.
+   CLOSE QUERY fq.
+   EMPTY TEMP-TABLE tempsamforlagg NO-ERROR. 
+   OPEN QUERY sq FOR EACH SAMFORLAGG NO-LOCK.
+   GET FIRST sq NO-LOCK.
+   DO WHILE AVAILABLE(SAMFORLAGG):
+      CREATE tempsamforlagg.
+      BUFFER-COPY SAMFORLAGG TO tempsamforlagg.
+      GET NEXT sq NO-LOCK.
+   END.
+   CLOSE QUERY sq.
+   EMPTY TEMP-TABLE tempytbelagg NO-ERROR. 
+   OPEN QUERY yq FOR EACH YTBELAGG NO-LOCK.
+   GET FIRST yq NO-LOCK.
+   DO WHILE AVAILABLE(YTBELAGG):
+      CREATE tempytbelagg.
+      BUFFER-COPY YTBELAGG TO tempytbelagg.
+      GET NEXT yq NO-LOCK.
+   END.
+   CLOSE QUERY yq.
+END PROCEDURE.
+
+PROCEDURE orduppdat_UI :
+   DEFINE INPUT PARAMETER vad AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER nid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER nord AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER gid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER gord AS INTEGER NO-UNDO.
+   IF vad = 1 THEN DO:
+      DO TRANSACTION:
+         FIND FIRST YTBELAGG WHERE YTBELAGG.ID = nid EXCLUSIVE-LOCK NO-ERROR.
+         YTBELAGG.ORDNING = nord.
+         FIND FIRST YTBELAGG WHERE YTBELAGG.ID = gid EXCLUSIVE-LOCK NO-ERROR.
+         YTBELAGG.ORDNING = gord.
+      END.
+   END.
+   IF vad = 2 THEN DO:
+      DO TRANSACTION:
+         FIND FIRST FORLAGG WHERE FORLAGG.ID = nid EXCLUSIVE-LOCK NO-ERROR.
+         FORLAGG.ORDNING = nord.
+         FIND FIRST FORLAGG WHERE FORLAGG.ID = gid EXCLUSIVE-LOCK NO-ERROR.
+         FORLAGG.ORDNING = gord.
+      END.
+   END.
+   IF vad = 3 THEN DO:
+      DO TRANSACTION:
+         FIND FIRST HDHANDELSE WHERE HDHANDELSE.ID = nid EXCLUSIVE-LOCK NO-ERROR.
+         HDHANDELSE.ORDNING = nord.
+         FIND FIRST HDHANDELSE WHERE HDHANDELSE.ID = gid EXCLUSIVE-LOCK NO-ERROR.
+         HDHANDELSE.ORDNING = gord.
+      END.
+   END.
+   RELEASE YTBELAGG NO-ERROR.
+   RELEASE FORLAGG NO-ERROR.
+   RELEASE HDHANDELSE NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE bortforlagg_UI :   
+   DEFINE INPUT  PARAMETER idvar AS INTEGER    NO-UNDO.
+   DO TRANSACTION:
+      FIND FORLAGG WHERE FORLAGG.ID = idvar EXCLUSIVE-LOCK NO-ERROR.       
+      IF AVAILABLE FORLAGG THEN DO:
+         DELETE FORLAGG. 
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE bortytbelagg_UI :   
+   DEFINE INPUT  PARAMETER idvar AS INTEGER    NO-UNDO.
+   DO TRANSACTION:
+      FIND YTBELAGG WHERE YTBELAGG.ID = idvar EXCLUSIVE-LOCK NO-ERROR.      
+      IF AVAILABLE YTBELAGG THEN DO:
+         DELETE YTBELAGG.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE borthandelse_UI :
+   DEFINE INPUT PARAMETER idvar AS INTEGER NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST HDHANDELSE WHERE HDHANDELSE.ID = idvar EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE HDHANDELSE THEN DO:
+         ASSIGN HDHANDELSE.BORT = TRUE.      
+         FOR EACH HDKKOPP WHERE HDKKOPP.TYP = HDHANDELSE.SORTCHAR AND HDKKOPP.ID = HDHANDELSE.ID EXCLUSIVE-LOCK:
+            DELETE HDKKOPP.
+         END.
+      END.
+   END.
+   
+   
+END PROCEDURE.
+
+      
+PROCEDURE nykabel_UI :
+   DEFINE INPUT PARAMETER kabid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER kabel AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER diameter AS DECIMAL NO-UNDO.
+     
+      /*extradata
+      tempkabel.KABEL = extradatatemp.HUVUDCH.
+      tempkabel.DIAMETER = extradatatemp.SOKINT[1].
+      tempkabel.KABID = extradatatemp.HUVUDINT.
+      tempkabel.BORTTAGEN = extradatatemp.SOKLOG[1].
+      */
+      /*CREATE EXTRADATA.
+      inextradatatemp.HUVUDCH = KABEL.
+      inextradatatemp.SOKINT[1] = DIAMETER.
+      inextradatatemp.HUVUDINT = KABID.
+      inextradatatemp.SOKLOG[1] = FALSE.*/
+   RUN EXTRADATAHMT.P PERSISTENT SET exdatahmth.  
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "KABLAR"  
+   inextradatatemp.HUVUDCH = kabel
+   inextradatatemp.HUVUDINT = kabid
+   inextradatatemp.SOKINT[1] = diameter
+   inextradatatemp.SOKLOG[1] = FALSE.
+   
+   RUN extraspar_UI IN exdatahmth (INPUT TABLE inextradatatemp).
+   
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   IF VALID-HANDLE(exdatahmth) THEN DELETE PROCEDURE exdatahmth NO-ERROR.   
+   
+   RELEASE EXTRADATA.
+
+END PROCEDURE.
+
+PROCEDURE hamten_UI :
+   DEFINE INPUT PARAMETER kabel AS CHARACTER NO-UNDO.
+   RUN EXTRADATAHMT.P PERSISTENT SET exdatahmth.  
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   
+   DEFINE OUTPUT PARAMETER TABLE FOR tempkabel.
+   EMPTY TEMP-TABLE tempkabel NO-ERROR. 
+
+   CREATE inextradatatemp.
+   ASSIGN
+   inextradatatemp.PROGRAM = "KABLAR"                   
+   inextradatatemp.HUVUDCH = kabel
+   inextradatatemp.HUVUDINT = ?. 
+
+   RUN etabhamt_UI IN exdatahmth (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp).
+
+   CREATE tempkabel.
+   FOR EACH extradatatemp WHERE NO-LOCK:
+      tempkabel.KABEL = kabel.
+      tempkabel.KABID = extradatatemp.HUVUDINT.
+      tempkabel.DIAMETER = extradatatemp.SOKINT[1].
+   END.   
+   FIND FIRST tempkabel WHERE NO-LOCK NO-ERROR.
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   IF VALID-HANDLE(exdatahmth) THEN DELETE PROCEDURE exdatahmth NO-ERROR.
+END PROCEDURE.
+
+
+/* uppdaterar bortagen = true eller false om man skickar med bort = true så tas det bort och tvärt om.*/
+PROCEDURE bortkabel_UI :
+   DEFINE INPUT PARAMETER kabel AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kabid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER bort AS LOGICAL NO-UNDO.
+   /*bort / in var*/
+   RUN EXTRADATAHMT.P PERSISTENT SET exdatahmth.  
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   
+   IF kabel = ? THEN DO:
+      ASSIGN
+      inextradatatemp.PROGRAM = "KABLAR"                   
+      inextradatatemp.HUVUDCH = ?
+      inextradatatemp.HUVUDINT = kabid. 
+   END.
+   ELSE IF kabid = ? THEN DO:
+      ASSIGN
+      inextradatatemp.PROGRAM = "KABLAR"                   
+      inextradatatemp.HUVUDCH = kabel
+      inextradatatemp.HUVUDINT = ?. 
+
+   END.
+
+   RUN etabhamt_UI IN exdatahmth (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+   FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+   
+   IF bort = TRUE THEN DO:
+      IF AVAILABLE extradatatemp THEN DO:
+         ASSIGN
+         extradatatemp.SOKLOG[1] = TRUE. /* Borttagen = true */
+      
+         RUN extraspar_UI IN exdatahmth (INPUT TABLE extradatatemp).
+      END.
+   END.
+   ELSE IF bort = FALSE THEN DO:
+      IF AVAILABLE extradatatemp THEN DO:
+      ASSIGN
+      extradatatemp.SOKLOG[1] = FALSE. /* Borttagen = false */
+      
+      RUN extraspar_UI IN exdatahmth (INPUT TABLE extradatatemp).
+      END.
+   END.
+
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   IF VALID-HANDLE(exdatahmth) THEN DELETE PROCEDURE exdatahmth NO-ERROR.   
+   
+   RELEASE EXTRADATA.
+
+END PROCEDURE.
+
+
+/* kollar om en kabel med benämningen redan finns */
+PROCEDURE hittakab_UI :
+   DEFINE INPUT PARAMETER kabel AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER kabelfinns AS LOGICAL NO-UNDO.
+   
+   RUN EXTRADATAHMT.P PERSISTENT SET exdatahmth.  
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "KABLAR"                   
+   inextradatatemp.HUVUDCH = kabel
+   inextradatatemp.HUVUDINT = ?.
+   
+   RUN finnsextra_UI IN exdatahmth (INPUT TABLE inextradatatemp,OUTPUT kabelfinns).
+     
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   IF VALID-HANDLE(exdatahmth) THEN DELETE PROCEDURE exdatahmth NO-ERROR.   
+
+   RELEASE EXTRADATA NO-ERROR.
+   
+END PROCEDURE.
+
+
+
+
+
+

@@ -1,0 +1,188 @@
+DEFINE VARIABLE datvar1 AS DATE NO-UNDO.
+DEFINE VARIABLE datvar2 AS DATE NO-UNDO.
+DEFINE VARIABLE kolldat AS DATE NO-UNDO.
+DEFINE TEMP-TABLE ptemp 
+FIELD PERSONALKOD AS CHARACTER 
+FIELD NAMN AS CHARACTER 
+FIELD SISTVDAT AS DATE
+FIELD STARTGDAT AS DATE
+FIELD SISTGDAT AS DATE
+FIELD STARTFDAT AS DATE
+FIELD SISTFDAT AS DATE
+FIELD STARTEJDAT AS DATE
+FIELD SISTEJDAT AS DATE.
+
+&Scoped-define NEW NEW
+{TIDPERS.I}
+
+DEFINE BUFFER tidbuff FOR TIDREGITAB.
+DEFINE BUFFER tidbuff2 FOR TIDREGITAB.
+DEFINE BUFFER tidbuff3 FOR TIDREGITAB.
+DEFINE INPUT PARAMETER TABLE FOR tidpers.
+DEFINE OUTPUT PARAMETER TABLE FOR ptemp.
+
+
+FOR EACH tidpers NO-LOCK:
+   FIND PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = tidpers.PERSONALKOD NO-LOCK NO-ERROR. 
+   datvar1 = ?.
+   datvar2 = ?.      
+   CREATE ptemp.
+   ASSIGN ptemp.PERSONALKOD = tidpers.PERSONALKOD
+   ptemp.NAMN = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN.
+   ASSIGN
+   ptemp.sistvdat = ?
+   ptemp.startgdat = ?
+   ptemp.sistfdat = ?
+   ptemp.startfdat = ?
+   ptemp.sistfdat = ? .            
+   /* föregående körning */
+   FIND LAST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD AND TIDREGITAB.VECKOKORD NE ""
+   USE-INDEX PKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE TIDREGITAB THEN DO:      
+      datvar1 = TIDREGITAB.DATUM.
+      FIND LAST tidbuff WHERE tidbuff.PERSONALKOD = tidpers.PERSONALKOD AND
+      MONTH(tidbuff.DATUM) = MONTH(TIDREGITAB.DATUM) AND tidbuff.DATUM GE TIDREGITAB.DATUM AND tidbuff.VECKOKORD = ""
+      USE-INDEX PKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE tidbuff THEN DO:
+         ptemp.sistvdat = TIDREGITAB.DATUM.                        
+      END.
+      ELSE DO:
+         FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = tidpers.PERSONALKOD AND GODKOLL.DATAR = YEAR(TIDREGITAB.DATUM) AND
+         GODKOLL.DATMAN = MONTH(TIDREGITAB.DATUM) NO-LOCK NO-ERROR.
+         IF AVAILABLE GODKOLL THEN DO:
+            ptemp.sistvdat = GODKOLL.DATUM.                        
+         END.
+      END.                 
+   END.
+   /*godkänd tid */
+   FIND LAST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD AND TIDREGITAB.VECKOKORD = ""
+   AND TIDREGITAB.GODKAND BEGINS "G" USE-INDEX PKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE TIDREGITAB THEN DO:      
+      ptemp.sistgdat = TIDREGITAB.DATUM.                        
+      datvar1 = TIDREGITAB.DATUM.
+      FIND LAST tidbuff WHERE tidbuff.PERSONALKOD = tidpers.PERSONALKOD AND 
+      MONTH(tidbuff.DATUM) = MONTH(TIDREGITAB.DATUM) AND tidbuff.DATUM GE TIDREGITAB.DATUM AND
+      tidbuff.VECKOKORD NE "" USE-INDEX PKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE tidbuff THEN DO:
+         FIND FIRST tidbuff2 WHERE tidbuff2.PERSONALKOD = tidpers.PERSONALKOD AND tidbuff2.VECKOKORD = ""
+         AND tidbuff2.GODKAND BEGINS "G"
+         AND MONTH(tidbuff2.DATUM) = MONTH(TIDREGITAB.DATUM) USE-INDEX PKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE tidbuff2 THEN DO:
+            ptemp.startgdat = tidbuff2.DATUM.
+         END.
+      END.
+      ELSE DO:         
+         FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = tidpers.PERSONALKOD AND GODKOLL.DATAR = YEAR(TIDREGITAB.DATUM) AND
+         GODKOLL.DATMAN = MONTH(TIDREGITAB.DATUM) NO-LOCK NO-ERROR.
+         IF AVAILABLE GODKOLL THEN DO:          
+            ptemp.startgdat = DATE(MONTH(GODKOLL.DATUM),01,YEAR(GODKOLL.DATUM)).
+            ptemp.sistgdat = GODKOLL.DATUM.                        
+            IF GODKOLL.KLAR = TRUE THEN DO:
+               FIND FIRST tidbuff2 WHERE tidbuff2.PERSONALKOD = tidpers.PERSONALKOD AND tidbuff2.VECKOKORD = ""
+               AND tidbuff2.GODKAND BEGINS "F"
+               AND MONTH(tidbuff2.DATUM) = MONTH(TIDREGITAB.DATUM) USE-INDEX PKOD NO-LOCK NO-ERROR.
+               IF AVAILABLE tidbuff2 THEN DO:
+                  ptemp.sistgdat = TIDREGITAB.DATUM.                        
+               END.
+            END.
+         END.
+
+      END.
+      FIND FIRST tidbuff WHERE tidbuff.PERSONALKOD = tidpers.PERSONALKOD AND tidbuff.VECKOKORD = ""
+      AND tidbuff.GODKAND BEGINS "G" USE-INDEX PKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE tidbuff THEN DO:
+         IF MONTH(tidbuff.DATUM) NE MONTH(TIDREGITAB.DATUM) THEN DO:
+            FIND LAST tidbuff3 WHERE tidbuff3.PERSONALKOD = tidpers.PERSONALKOD AND 
+            MONTH(tidbuff3.DATUM) = MONTH(tidbuff.DATUM) AND tidbuff3.DATUM GE tidbuff.DATUM AND
+            tidbuff3.VECKOKORD NE "" USE-INDEX PKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE tidbuff3 THEN DO:
+               FIND FIRST tidbuff2 WHERE tidbuff2.PERSONALKOD = tidpers.PERSONALKOD AND tidbuff2.VECKOKORD = ""
+               AND tidbuff2.GODKAND BEGINS "G"
+               AND MONTH(tidbuff2.DATUM) = MONTH(tidbuff.DATUM) USE-INDEX PKOD NO-LOCK NO-ERROR.
+               IF AVAILABLE tidbuff2 THEN DO:
+                  ptemp.startgdat = tidbuff2.DATUM.
+               END.
+            END.
+            ELSE DO:         
+               FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = tidpers.PERSONALKOD AND GODKOLL.DATAR = YEAR(tidbuff.DATUM) AND
+               GODKOLL.DATMAN = MONTH(tidbuff.DATUM) NO-LOCK NO-ERROR.
+               IF AVAILABLE GODKOLL THEN DO:          
+                  ptemp.startgdat = DATE(MONTH(GODKOLL.DATUM),01,YEAR(GODKOLL.DATUM)).                                          
+               END.
+            END.
+         END.            
+      END.                           
+   END.
+
+
+   /*färdig tid */
+   FIND LAST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD AND TIDREGITAB.VECKOKORD = ""
+   AND TIDREGITAB.GODKAND BEGINS "F" USE-INDEX PKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE TIDREGITAB THEN DO:      
+      datvar1 = TIDREGITAB.DATUM.
+      ptemp.sistfdat = TIDREGITAB.DATUM.
+      FIND LAST tidbuff WHERE tidbuff.PERSONALKOD = tidpers.PERSONALKOD AND 
+      MONTH(tidbuff.DATUM) = MONTH(TIDREGITAB.DATUM) AND tidbuff.DATUM GE TIDREGITAB.DATUM AND
+      tidbuff.GODKAND BEGINS "G" USE-INDEX PKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE tidbuff THEN DO:
+         FIND FIRST tidbuff2 WHERE tidbuff2.PERSONALKOD = tidpers.PERSONALKOD AND tidbuff2.VECKOKORD = ""
+         AND tidbuff2.GODKAND BEGINS "F"
+         AND MONTH(tidbuff2.DATUM) = MONTH(TIDREGITAB.DATUM) USE-INDEX PKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE tidbuff2 THEN DO:
+            ptemp.startfdat = tidbuff2.DATUM.
+         END.
+      END.
+      ELSE DO:         
+         FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = tidpers.PERSONALKOD AND GODKOLL.DATAR = YEAR(TIDREGITAB.DATUM) AND
+         GODKOLL.DATMAN = MONTH(TIDREGITAB.DATUM) NO-LOCK NO-ERROR.
+         IF AVAILABLE GODKOLL THEN DO:          
+            ptemp.startfdat = DATE(MONTH(GODKOLL.DATUM),01,YEAR(GODKOLL.DATUM)).
+            ptemp.sistfdat = GODKOLL.DATUM.                        
+         END.
+      END.
+      FIND FIRST tidbuff WHERE tidbuff.PERSONALKOD = tidpers.PERSONALKOD AND tidbuff.VECKOKORD = ""
+      AND tidbuff.GODKAND BEGINS "F" USE-INDEX PKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE tidbuff THEN DO:
+         IF MONTH(tidbuff.DATUM) NE MONTH(TIDREGITAB.DATUM) THEN DO:
+            FIND LAST tidbuff3 WHERE tidbuff3.PERSONALKOD = tidpers.PERSONALKOD AND 
+            MONTH(tidbuff3.DATUM) = MONTH(tidbuff.DATUM) AND tidbuff3.DATUM GE tidbuff.DATUM AND
+            tidbuff3.GODKAND BEGINS "G" USE-INDEX PKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE tidbuff3 THEN DO:
+               FIND FIRST tidbuff2 WHERE tidbuff2.PERSONALKOD = tidpers.PERSONALKOD AND tidbuff2.VECKOKORD = ""
+               AND tidbuff2.GODKAND BEGINS "F"
+               AND MONTH(tidbuff2.DATUM) = MONTH(tidbuff.DATUM) USE-INDEX PKOD NO-LOCK NO-ERROR.
+               IF AVAILABLE tidbuff2 THEN DO:
+                  ptemp.startfdat = tidbuff2.DATUM.
+               END.
+            END.
+            ELSE DO:         
+               FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = tidpers.PERSONALKOD AND GODKOLL.DATAR = YEAR(tidbuff.DATUM) AND
+               GODKOLL.DATMAN = MONTH(tidbuff.DATUM) NO-LOCK NO-ERROR.
+               IF AVAILABLE GODKOLL THEN DO:          
+                  ptemp.startfdat = DATE(MONTH(GODKOLL.DATUM),01,YEAR(GODKOLL.DATUM)).                     
+               END.
+            END.
+         END.
+      END.                           
+   END.
+
+   /*Ej färdig tid eller ej skriven*/
+   FIND LAST INTERNFAKTKOLL USE-INDEX VDATUM NO-LOCK.
+   IF MONTH(INTERNFAKTKOLL.VDATUM) = 12  THEN kolldat = DATE(02,01,YEAR(INTERNFAKTKOLL.VDATUM)) - 1. 
+   ELSE IF MONTH(INTERNFAKTKOLL.VDATUM) = 11  THEN kolldat = DATE(01,01,YEAR(INTERNFAKTKOLL.VDATUM)) - 1.  
+   ELSE kolldat = DATE(MONTH(INTERNFAKTKOLL.VDATUM) + 2,01,YEAR(INTERNFAKTKOLL.VDATUM)) - 1. 
+   IF ptemp.sistfdat NE ? THEN DO:
+      IF kolldat > ptemp.sistfdat THEN DO:
+         ASSIGN
+         ptemp.startejdat = ptemp.sistfdat + 1
+         ptemp.sistejdat = kolldat.                        
+      END.
+   END.
+   ELSE DO:
+      ASSIGN
+      ptemp.startejdat = ptemp.sistgdat + 1
+      ptemp.sistejdat = kolldat.                        
+   END.
+END.
+
+

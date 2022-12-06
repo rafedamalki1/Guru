@@ -1,0 +1,270 @@
+
+/*------------------------------------------------------------------------
+    File        : SFTPELPOOLGURU.P
+    Purpose     : 
+
+    Syntax      :C:\delad\pro116\dlc\bin\prowin.exe -ininame C:\delad\PRO116\GURU\OE116s.ini -pf C:\delad\PRO116\GURU\RENSAZIP.pf -assemblies C:\DELAD\PRO116\wrk_oemgmt\GURU11
+
+    Description : C:\pro116\dlc\bin\prowin.exe  -ininame C:\PRO116\GURU\OE116s.ini -pf C:\PRO116\GURU\ZIPGURU.pf -assemblies C:\PRO116\wrk_oemgmt\GURU11
+
+    Author(s)   : D:\curl-7.77.0-win64-mingw\bin\curl -k "sftp://31.216.227.29/Guruzip/GURUL210831.zip" --user "elplo:Jaggillarskidor&5419" -T "d:\Tillberget\GURUL210831.zip" --ftp-create-dirs
+    Created     : Thu Aug 12 14:03:58 CEST 2021
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+
+/*Rensaelpoolkopior.p*/
+/*se även Rensawww2.p */
+{AMERICANEUROPEAN.I}
+{VALDBDEF.I}
+DEFINE VARIABLE weekdaynr AS INTEGER NO-UNDO.
+DEFINE VARIABLE outdatornamnkor AS CHARACTER NO-UNDO.
+DEFINE TEMP-TABLE felmeddftptemp 
+   FIELD FELMEDD AS CHARACTER
+   FIELD VAL AS INTEGER.
+DEFINE TEMP-TABLE filtemp NO-UNDO
+   FIELD KOPDIR AS CHARACTER
+   FIELD KOPFIL AS CHARACTER
+   FIELD MODDATE AS DATE
+   FIELD NEWNAME  AS CHARACTER
+   INDEX MODDATE MODDATE. 
+     
+DEFINE VARIABLE dbfilename AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dbflytta AS CHARACTER NO-UNDO.
+DEFINE VARIABLE prognamnque AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE prognamnque2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dbkopianamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dbkopianamn2 AS CHARACTER NO-UNDO.
+
+
+DEFINE VARIABLE datoruser AS CHARACTER NO-UNDO.
+DEFINE VARIABLE outdatornamn AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE regvnr AS INTEGER FORMAT "999" NO-UNDO.
+DEFINE NEW SHARED VARIABLE regdatum AS DATE NO-UNDO.
+DEFINE VARIABLE cvnr AS CHARACTER NO-UNDO.
+
+
+
+
+RUN INLOAPI.P (OUTPUT datoruser, OUTPUT outdatornamn).
+
+outdatornamnkor = "PC122".
+IF outdatornamn = outdatornamnkor THEN DO:
+   prognamnque = "c:\delad\PRO11S\autotid.txt". 
+   prognamnque2 = "C:\delad\PRO11S\autotidkop.txt".
+END.
+ELSE DO:
+   prognamnque = "C:\Pro116\Guru\autotid.txt". 
+   prognamnque2 = "C:\Pro116\Guru\autotidkop.txt".
+END.  
+RUN ut_UI (INPUT datoruser).  
+regdatum = TODAY.
+weekdaynr = WEEKDAY(TODAY). 
+
+
+
+RUN  REGVEC.P.
+cvnr = "V" + SUBSTRING(STRING(regvnr,"999"),2,2).
+IF DAY(TODAY) = 28 THEN DO:
+   OS-COPY VALUE(prognamnque) VALUE(prognamnque2).
+   RUN ut_UI (INPUT "Tömd").
+END.
+
+RUN ut_UI (INPUT "START SFTPELPOOLGURU ").
+
+RUN ut_UI (INPUT outdatornamn + " " + outdatornamnkor).
+
+IF outdatornamn = outdatornamnkor THEN DO:
+   IF WEEKDAY(TODAY) = weekdaynr THEN DO:
+      RUN AUTOELPSALJ_UI.
+      RUN ut_UI (INPUT "dbklar").
+   END.   
+      
+END.   
+IF WEEKDAY(TODAY) = weekdaynr THEN DO.
+   RUN ZIPGURUMAPP_UI.
+   RUN ut_UI (INPUT "ZIPPKLAR").
+END.  
+
+IF outdatornamn = outdatornamnkor THEN  RUN BCKTILLBERGET_UI.
+
+RUN ut_UI (INPUT "SLUT SFTPELPOOLGURU").
+
+
+
+{EUROPEANAMERICAN.I}
+QUIT.
+
+PROCEDURE AUTOELPSALJ_UI :
+   DEFINE VARIABLE dbnamn AS CHARACTER NO-UNDO.
+   dbkopianamn = "st".
+   IF WEEKDAY(TODAY) = 1 THEN dbkopianamn = dbkopianamn + "son".
+   ELSE IF WEEKDAY(TODAY) = 2 THEN dbkopianamn = dbkopianamn + "mon".
+   ELSE IF WEEKDAY(TODAY) = 3 THEN dbkopianamn = dbkopianamn + "tis".
+   ELSE IF WEEKDAY(TODAY) = 4 THEN dbkopianamn = dbkopianamn + "ons".
+   ELSE IF WEEKDAY(TODAY) = 5 THEN dbkopianamn = dbkopianamn + "tor".
+   ELSE IF WEEKDAY(TODAY) = 6 THEN dbkopianamn = dbkopianamn + "fre".
+   ELSE IF WEEKDAY(TODAY) = 7 THEN dbkopianamn = dbkopianamn + "lor".
+   IF DAY(TODAY) = 1 THEN DO:
+      dbkopianamn = "st".
+      dbkopianamn = dbkopianamn + STRING(MONTH(TODAY)).
+   END.
+   dbkopianamn = dbkopianamn + ".bck".
+   dbnamn = dbkopianamn.
+   dbkopianamn2 = dbkopianamn.
+   dbflytta = dbkopianamn.
+   dbkopianamn = "c:\delad\pro11s\dbkopia\" + dbkopianamn.
+   dbkopianamn2 = "D:\delad\pro11s\dbkopia\" + dbkopianamn2.
+   
+   {VALDBELPSALJ.I}
+   prognamnque = "c:\delad\PRO11S\autotid.txt". 
+   prognamnque2 = "C:\delad\PRO11S\autotidkop.txt".
+   OPEN QUERY vq FOR EACH valdbtemp WHERE valdbtemp.DBNAMN NE "UTBI" NO-LOCK.
+   GET FIRST vq NO-LOCK.
+   DO WHILE AVAILABLE(valdbtemp): 
+      {AppSprinSet.I}
+      dbfilename = valdbtemp.DBNAMN.
+      RUN ut_UI (INPUT "Sälj connect").
+      RUN val_UI.
+      IF CONNECTED(LDBNAME(1)) THEN DO:       
+        /* IF prognamn NE "" THEN SAVE CACHE COMPLETE VALUE(LDBNAME(1)) TO VALUE(prognamn).*/
+         RUN ALIASSATT.P.
+      END.  
+      {DBBACKAI.I}
+      OS-RENAME VALUE(dbkopianamn) VALUE(dbkopianamn2).
+      RUN ut_UI (INPUT "Sälj ftpstart").
+      RUN ftpWWW2_UI (dbkopianamn2, dbnamn). 
+      GET NEXT vq NO-LOCK.
+   END.
+END PROCEDURE.
+
+
+PROCEDURE val_UI :
+   CONNECT VALUE(valdbtemp.DBCON) NO-ERROR.         
+END PROCEDURE.
+
+
+PROCEDURE ZIPGURUMAPP_UI :
+   IF outdatornamn = outdatornamnkor THEN DO:
+      RUN ut_UI (INPUT " Zip Anders startar").
+      RUN zippaALLT (INPUT "d:\Tillberget\", INPUT "GURUA" + STRING(TODAY,"999999") + ".zip", INPUT "C:\delad\pro116\GuruAnders").
+   END.
+   ELSE DO:
+      RUN ut_UI (INPUT " Zip Lena startar").
+      RUN zippaALLT (INPUT "d:\Tillberget\", INPUT "GURUL" + STRING(TODAY,"999999") + ".zip", INPUT "\\PC218\Pro116\GuruLena").
+   END.   
+END PROCEDURE.
+
+PROCEDURE zippaALLT :
+   DEFINE INPUT  PARAMETER ziptill AS CHARACTER NO-UNDO. 
+   DEFINE INPUT  PARAMETER zipNamn  AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER zipfiler  AS CHARACTER NO-UNDO.        
+   DEFINE VARIABLE zippfil AS CLASS Modules.Global.ZipElpool NO-UNDO.
+   DEFINE VARIABLE wzzip AS CHARACTER NO-UNDO.    
+   DEFINE VARIABLE FtpResult AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE prognamn AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE prognamn2 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE FtpNet AS Helpers.FtpNet.
+   
+   zippfil = NEW Modules.Global.ZipElpool().
+   zippfil:MakeZip(zipfiler, ziptill +  zipNamn).
+   RUN ut_UI (INPUT " ZipFtp startar"). 
+   RUN ftpWWW2_UI (ziptill + zipNamn, zipNamn). 
+END PROCEDURE.
+
+
+PROCEDURE ftpWWW2_UI:
+   DEFINE INPUT  PARAMETER ftpfile AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER ftpNamn AS CHARACTER NO-UNDO.
+   RUN FTPSFILESTART.p (INPUT "Tillberget", INPUT ftpfile, INPUT ftpNamn).
+   RUN ut_UI (INPUT "FTP klar-" + ftpNamn).
+   
+END PROCEDURE.
+
+
+PROCEDURE BCKTILLBERGET_UI :
+   IF WEEKDAY(TODAY) = weekdaynr THEN DO:
+      RUN ut_UI (INPUT " Tillberget backup").
+      RUN backuppkoll_UI (INPUT "\\PC112\BckPC122\PC122c\",INPUT "pc122c" + cvnr)   .  /*Sökväg till de filer*/
+      RUN backuppkoll_UI (INPUT "\\PC112\BckServer05\Server05c\",INPUT "server05" + cvnr).
+      RUN backuppkoll_UI (INPUT "\\PC112\BckPC218\PC218c\",INPUT "pc218c" + cvnr).
+      RUN BackFlytt_UI.
+   END.
+END PROCEDURE.
+
+PROCEDURE BackFlytt_UI :
+   DEFINE VARIABLE ftpdir AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE dirlist AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE serverwtidir AS CHARACTER NO-UNDO.
+   /*flyttar*/
+   FOR EACH filtemp WHERE NO-LOCK:
+      dirlist = filtemp.KOPDIR + filtemp.KOPFIL.
+      serverwtidir = "\\SERVER05\ftp\TillBerget\" + filtemp.NEWNAME.
+      IF outdatornamn = "SERVER05" THEN serverwtidir = "C:\inetpub\ftproot\TillBerget\" + filtemp.NEWNAME. 
+     
+      OS-COPY VALUE(dirlist) VALUE(serverwtidir). 
+     
+      RUN ut_UI (INPUT dirlist + " TillBerget klar " + serverwtidir). 
+      /*
+      ftpdir = 'robocopy "' + dirlist + '" "' + serverwtidir.
+      ftpdir = 'robocopy "' + dirlist + '" "' + serverwtidir + '" *.* /E'.
+      OS-COPY VALUE(dirlist) VALUE(serverwtidir).  
+      
+      OS-COMMAND SILENT VALUE(ftpdir).
+      */
+   END.
+END PROCEDURE.
+PROCEDURE backuppkoll_UI :
+   DEFINE INPUT  PARAMETER  searchdir AS CHARACTER NO-UNDO. 
+   DEFINE INPUT  PARAMETER ftpname AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE kolldat AS DATE NO-UNDO. 
+   DEFINE VARIABLE filnamn AS CHARACTER FORMAT "x(70)" LABEL "File" NO-UNDO.
+   DEFINE VARIABLE attrlist AS CHARACTER FORMAT "x(6)" LABEL "Attributes" NO-UNDO.
+   DEFINE VARIABLE kolldatvar AS CHARACTER NO-UNDO.
+   
+   kolldat = ?.
+   INPUT FROM OS-DIR(searchdir) NO-ECHO.
+   REPEAT:
+      SET filnamn ^ attrlist.
+      /*Kolla om filnamnet börjar på 'c' och om filen är en mapp.*/
+      IF filnamn MATCHES "*.MRIMG" THEN DO: 
+         FILE-INFO:FILE-NAME = searchdir + filnamn.
+         /*
+         kolldatvar = STRING(FILE-INFO:FILE-MOD-DATE).
+         */
+         IF kolldat = ? THEN DO: 
+            kolldat = FILE-INFO:FILE-MOD-DATE.
+            FIND FIRST filtemp WHERE filtemp.KOPDIR = searchdir NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE filtemp THEN DO:
+               CREATE filtemp.
+            END.   
+            ASSIGN
+            filtemp.KOPDIR = searchdir
+            filtemp.KOPFIL = filnamn.
+            filtemp.NEWNAME = ftpname + ".MRIMG".
+         END.    
+         IF kolldat < FILE-INFO:FILE-MOD-DATE THEN  DO:
+            kolldat = FILE-INFO:FILE-MOD-DATE.
+            FIND FIRST filtemp WHERE filtemp.KOPDIR = searchdir NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE filtemp THEN DO:
+               CREATE filtemp.
+            END.   
+            ASSIGN
+            filtemp.KOPDIR = searchdir
+            filtemp.KOPFIL = filnamn.
+            filtemp.NEWNAME = ftpname + ".MRIMG".        
+         END.                      
+      END.
+   END. 
+   INPUT CLOSE.
+   RUN ut_UI (INPUT "Backupp filer " + searchdir).
+   
+END PROCEDURE.
+
+ PROCEDURE ut_UI:
+   DEFINE INPUT PARAMETER uttxt AS CHARACTER FORMAT "X(20)" NO-UNDO.
+   OUTPUT TO VALUE(prognamnque) APPEND.
+   PUT UNFORMATTED uttxt " " TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+   OUTPUT CLOSE.
+END PROCEDURE.
+

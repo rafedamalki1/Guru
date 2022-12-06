@@ -1,0 +1,495 @@
+/*
+               KSV Editor
+    Copyright: (C) 2000-2003 Serguey Klimoff (bulkl0DD)
+     Filename: G:\PRO9S\WX\XMISVEKON.P
+      Comment: <comment>
+   Parameters:
+         Uses:
+      Used by:
+      Created: 2009.04.08 15:07 ELPAO   
+     Modified: 2009.08.26 13:37 ELPAO    
+     Modified: 2009.11.18 09:41 ELPAO    
+     Modified: 2009.12.15 10:03 ELPAO    
+     Modified: 2010.02.09 10:37 ELPAO    
+     Modified:   
+*/
+
+/*FRÅGOR :
+SPOLBILEN - ska den över till ekonomi?
+mertid - över som normaltid
+rättningar - hur ska de skickas?
+*/
+
+{LESAMMAN.I}                                
+DEFINE INPUT PARAMETER vkdatum AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER korvar AS CHARACTER NO-UNDO.
+RUN sammut_UI (INPUT 1).
+
+DEFINE TEMP-TABLE tidut
+   FIELD UT AS CHARACTER FORMAT "X(132)".
+
+DEFINE TEMP-TABLE Projectreport NO-UNDO
+   FIELD ProjectCode AS CHARACTER
+   FIELD ResourceCode AS CHARACTER    
+   FIELD ArticleCode AS CHARACTER
+   FIELD ArticleCaption AS CHARACTER
+   FIELD Quantity AS DECIMAL
+   FIELD Price AS DECIMAL
+   FIELD InvoicingStatus AS INTEGER
+   FIELD DATE AS DATE   
+   INDEX PNR ResourceCode DATE ProjectCode.
+
+
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+globforetag = FORETAG.FORETAG.
+
+
+DEFINE VARIABLE dynxml AS HANDLE NO-UNDO.
+DEFINE VARIABLE expimpapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE okand AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kodanst AS CHARACTER NO-UNDO.
+DEFINE VARIABLE ovekoll AS LOGICAL NO-UNDO.
+DEFINE VARIABLE dirnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dirspar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE akodn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE akode AS CHARACTER NO-UNDO.
+DEFINE VARIABLE akodk AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hjinvo AS INTEGER NO-UNDO.
+
+/*DEFINE INPUT PARAMETER leverantz AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER filnamnz AS CHARACTER NO-UNDO.*/
+DEFINE TEMP-TABLE tempnamn NO-UNDO
+   FIELD NAMNH AS HANDLE
+   FIELD TORGTH AS HANDLE
+   FIELD NODTAB AS CHARACTER.
+
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+FUNCTION klock60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ) :
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) * 60 / 100 ).   /* Function return value. */
+
+END FUNCTION.
+
+
+okand = FALSE.
+SESSION:NUMERIC-FORMAT = "european".
+/*RUN UTXMLDYN.P PERSISTENT SET dynxml (INPUT okand).*/
+
+/*sparfilnamn = SESSION:TEMP-DIRECTORY + Guru.Konstanter:globanv + "\".
+{SESSIONTEMPDIR.I}
+IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN sparfilnamn = webclienttempdir.
+OS-CREATE-DIR VALUE(sparfilnamn) NO-ERROR.*/
+
+OPEN QUERY persq 
+FOR EACH PERSONALTAB WHERE PERSONALTAB.PERSONNUMMER = "4711289373" AND  PERSONALTAB.BRAVO = TRUE USE-INDEX PERSONALKOD NO-LOCK.
+GET FIRST persq NO-LOCK.
+DO WHILE AVAILABLE(PERSONALTAB):      
+   
+   FIND FIRST ANSTFORMTAB WHERE
+   ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+   USE-INDEX ANSTF NO-LOCK NO-ERROR.
+   kodanst = ANSTFORMTAB.KOD.
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+   FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+   IF AVDELNING.AVDELNINGNR = 10 OR AVDELNING.AVDELNINGNR = 20 THEN DO:
+      ASSIGN
+      akodn = "PROD0"
+      akode = "PROD1"
+      akodk = "PROD2".
+   END.
+   ELSE IF AVDELNING.AVDELNINGNR = 30 THEN DO:
+      IF OMRADETAB.OMRADE = "30a" OR OMRADETAB.OMRADE = "30b" OR OMRADETAB.OMRADE = "30d" THEN DO:      
+         ASSIGN
+         akodn = "MK0"
+         akode = "MK1"
+         akodk = "MK2".
+      END.
+      ELSE IF OMRADETAB.OMRADE = "30c"  THEN DO:
+         ASSIGN
+         akodn = "ALYS0"
+         akode = "ALYS1"
+         akodk = "ALYS2".
+      END.
+      ELSE DO:
+          ASSIGN
+         akodn = "MK0"
+         akode = "MK1"
+         akodk = "MK2".
+      END.      
+   END.
+   ELSE IF AVDELNING.AVDELNINGNR = 40 THEN DO:
+      IF OMRADETAB.OMRADE = "40a" OR OMRADETAB.OMRADE = "40b" OR OMRADETAB.OMRADE = "40c" OR OMRADETAB.OMRADE = "40d"  THEN DO:
+         ASSIGN
+         akodn = "ADM0"
+         akode = "ADM1"
+         akodk = "ADM2".
+      END.
+      ELSE IF OMRADETAB.OMRADE = "40e" OR OMRADETAB.OMRADE = "40f"  THEN DO:
+         ASSIGN
+         akodn = "KUND0"
+         akode = "KUND1"
+         akodk = "KUND2".
+      END.
+      ELSE IF OMRADETAB.OMRADE = "40g"  THEN DO:
+         ASSIGN
+         akodn = "MAVL0"
+         akode = "MAVL1"
+         akodk = "MAVL2".
+      END.
+      ELSE DO:      
+         ASSIGN
+         akodn = "ADM0"
+         akode = "ADM1"
+         akodk = "ADM2".
+      END.
+   END.
+   ELSE IF AVDELNING.AVDELNINGNR = 50 THEN DO:
+      IF OMRADETAB.OMRADE = "50a" THEN DO:
+         ASSIGN
+         akodn = "LG0"
+         akode = "LG1"
+         akodk = "LG2".
+      END.      
+      ELSE DO:      
+         ASSIGN
+         akodn = "LG0"
+         akode = "LG1"
+         akodk = "LG2".
+      END.
+   END.
+   ELSE DO:
+      ASSIGN
+      akodn = "PROD0"
+      akode = "PROD1"
+      akodk = "PROD2".
+   END.
+   /*IF PERSONALTAB.PERSMASK = FALSE THEN DO:
+      /*bara spolbilen*/
+      ASSIGN
+      akodn = "SBSHF"
+      akode = "SBSHF"
+      akodk = "SBSHF".
+   END.*/
+   /*MESSAGE PERSONALTAB.PERSONALKOD akodn akodE akodK VIEW-AS ALERT-BOX.*/
+   OPEN QUERY tidq FOR EACH TIDREGITAB WHERE
+   TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+   TIDREGITAB.GODKAND BEGINS "G" AND TIDREGITAB.VECKOKORD = korvar AND
+   TIDREGITAB.PRISTYP NE "FRÅNVARO." AND TIDREGITAB.PRISTYP NE "RESTID..." AND TIDREGITAB.DATUM <= vkdatum
+   AND TIDREGITAB.TIDLOG = TRUE USE-INDEX PSTART NO-LOCK. 
+   GET FIRST tidq NO-LOCK.
+   DO WHILE AVAILABLE(TIDREGITAB):
+      hjinvo = 0.
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = TIDREGITAB.AONR AND AONRTAB.DELNR = TIDREGITAB.DELNR NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DO:
+         IF AONRTAB.OMRADE = AONRTAB.BESTID THEN.
+         ELSE hjinvo = 1.         
+      END.
+      CREATE Projectreport.
+      /*IF INTEGER(SUBSTRING(PERSONALTAB.PERSONNUMMER,1,2)) < 20 THEN Projectreport.ResourceCode = "20" + PERSONALTAB.PERSONNUMMER.
+      ELSE Projectreport.ResourceCode = "19" + PERSONALTAB.PERSONNUMMER.*/
+
+      ASSIGN 
+      Projectreport.ResourceCode = PERSONALTAB.PERSONNUMMER
+      Projectreport.ProjectCode = TIDREGITAB.AONR      
+      Projectreport.DATE = TIDREGITAB.DATUM.
+      Projectreport.Quantity = klock100(TIDREGITAB.TOTALT).
+      Projectreport.ArticleCode = akodn.
+      ProjectReport.InvoicingStatus = hjinvo.
+      ovekoll = FALSE.
+      
+      IF TIDREGITAB.OKOD1 NE " " THEN DO: 
+         FIND FIRST OVERKOD WHERE OVERKOD.KOD = kodanst AND
+         OVERKOD.OVERTIDTILL = TIDREGITAB.OKOD1 USE-INDEX OVER NO-LOCK NO-ERROR.
+         IF AVAILABLE OVERKOD THEN DO:
+            IF OVERKOD.OVERTIDUTTAG = "M" THEN.
+            ELSE DO:            
+               IF TIDREGITAB.TOTALT < TIDREGITAB.OANT1 THEN DO:
+                  Projectreport.Quantity = klock100(TIDREGITAB.TOTALT).
+               END.
+               ELSE Projectreport.Quantity = klock100(TIDREGITAB.OANT1).
+               IF OVERKOD.ENKEL = "ENKE" THEN Projectreport.ArticleCode = akode.
+               IF OVERKOD.ENKEL = "KVAL" THEN Projectreport.ArticleCode = akodk.
+               ovekoll = TRUE.
+            END.
+         END.
+         
+      END.          
+      IF TIDREGITAB.OKOD2 NE " " THEN DO: 
+         FIND FIRST OVERKOD WHERE OVERKOD.KOD = kodanst AND
+         OVERKOD.OVERTIDTILL = TIDREGITAB.OKOD2 USE-INDEX OVER NO-LOCK NO-ERROR.
+         IF AVAILABLE OVERKOD THEN DO:
+            IF OVERKOD.OVERTIDUTTAG = "M" THEN.
+            ELSE DO:            
+               IF ovekoll = TRUE THEN DO:
+                  CREATE Projectreport.
+                  /*IF INTEGER(SUBSTRING(PERSONALTAB.PERSONNUMMER,1,2)) < 20 THEN Projectreport.ResourceCode = "20" + PERSONALTAB.PERSONNUMMER.
+                  ELSE Projectreport.ResourceCode = "19" + PERSONALTAB.PERSONNUMMER.*/
+                  ASSIGN 
+                  Projectreport.ResourceCode = PERSONALTAB.PERSONNUMMER
+                  Projectreport.ProjectCode = TIDREGITAB.AONR
+                  /*Projectreport.DELNR = TIDREGITAB.DELNR*/
+                  Projectreport.DATE = TIDREGITAB.DATUM
+                  ProjectReport.InvoicingStatus = hjinvo.
+               END.
+               IF  klock100(TIDREGITAB.TOTALT) < ( klock100(TIDREGITAB.OANT1) +  klock100(TIDREGITAB.OANT2))  THEN DO:
+                  Projectreport.Quantity = klock100(TIDREGITAB.TOTALT) - klock100(TIDREGITAB.OANT1).
+               END.
+               ELSE Projectreport.Quantity = klock100(TIDREGITAB.OANT2).
+               IF OVERKOD.ENKEL = "ENKE" THEN Projectreport.ArticleCode = akode.
+               IF OVERKOD.ENKEL = "KVAL" THEN Projectreport.ArticleCode = akodk.
+               IF Projectreport.Quantity LE 0 THEN DELETE Projectreport.
+               ovekoll = TRUE.
+            END.
+         END.
+      
+      END.                
+      IF TIDREGITAB.OKOD3 NE " " THEN DO: 
+         FIND FIRST OVERKOD WHERE OVERKOD.KOD = kodanst AND
+         OVERKOD.OVERTIDTILL = TIDREGITAB.OKOD3 USE-INDEX OVER NO-LOCK NO-ERROR.
+         IF AVAILABLE OVERKOD THEN DO:
+            IF OVERKOD.OVERTIDUTTAG = "M" THEN.
+            ELSE DO:            
+               IF ovekoll = TRUE THEN DO:
+                  CREATE Projectreport.
+                  /*IF INTEGER(SUBSTRING(PERSONALTAB.PERSONNUMMER,1,2)) < 20 THEN Projectreport.ResourceCode = "20" + PERSONALTAB.PERSONNUMMER.
+                  ELSE Projectreport.ResourceCode = "19" + PERSONALTAB.PERSONNUMMER.*/
+                  ASSIGN 
+                  Projectreport.ResourceCode = PERSONALTAB.PERSONNUMMER
+                  Projectreport.ProjectCode = TIDREGITAB.AONR
+                  /*Projectreport.DELNR = TIDREGITAB.DELNR*/
+                  Projectreport.DATE = TIDREGITAB.DATUM
+                  ProjectReport.InvoicingStatus = hjinvo.
+               END.
+               IF  klock100(TIDREGITAB.TOTALT) < ( klock100(TIDREGITAB.OANT1) +  klock100(TIDREGITAB.OANT2) + klock100(TIDREGITAB.OANT3))  THEN DO:
+                  Projectreport.Quantity = klock100(TIDREGITAB.TOTALT) - klock100(TIDREGITAB.OANT1 - klock100(TIDREGITAB.OANT2)).
+               END.
+               Projectreport.Quantity = klock100(TIDREGITAB.OANT3).
+               IF OVERKOD.ENKEL = "ENKE" THEN Projectreport.ArticleCode = akode.
+               IF OVERKOD.ENKEL = "KVAL" THEN Projectreport.ArticleCode = akodk.
+               ovekoll = TRUE.
+            END.
+         END.
+         
+      END.                
+      GET NEXT tidq NO-LOCK.    
+      
+   END. 
+
+
+   /*Bilar*/
+   OPEN QUERY bilq FOR EACH TIDREGITAB WHERE
+   TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+   TIDREGITAB.GODKAND BEGINS "G" AND TIDREGITAB.VECKOKORD = korvar AND
+   TIDREGITAB.DATUM <= vkdatum AND TIDREGITAB.LONTILLAGG = "SBSHF" USE-INDEX PSTART NO-LOCK. 
+   GET FIRST bilq NO-LOCK.
+   DO WHILE AVAILABLE(TIDREGITAB):
+      hjinvo = 0.
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = TIDREGITAB.AONR AND AONRTAB.DELNR = TIDREGITAB.DELNR NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DO:
+         IF AONRTAB.OMRADE = AONRTAB.BESTID THEN.
+         ELSE hjinvo = 1.         
+      END.
+      CREATE Projectreport.
+      /*IF INTEGER(SUBSTRING(PERSONALTAB.PERSONNUMMER,1,2)) < 20 THEN Projectreport.ResourceCode = "20" + PERSONALTAB.PERSONNUMMER.
+      ELSE Projectreport.ResourceCode = "19" + PERSONALTAB.PERSONNUMMER.*/
+      ASSIGN 
+      Projectreport.ResourceCode = PERSONALTAB.PERSONNUMMER
+      Projectreport.ProjectCode = TIDREGITAB.AONR      
+      Projectreport.DATE = TIDREGITAB.DATUM.
+      Projectreport.Quantity = klock100(TIDREGITAB.LONTILLANTAL).
+      Projectreport.ArticleCode = "SBSHF".
+      ProjectReport.InvoicingStatus = hjinvo.
+      GET NEXT bilq NO-LOCK.    
+      
+   END. 
+
+   IF korvar = "" THEN DO: 
+      OPEN QUERY tidfq FOR EACH TIDFEL WHERE
+      TIDFEL.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+      TIDFEL.SKICKA = TRUE AND TIDFEL.FELKORD = korvar AND
+      TIDFEL.DATUM <= vkdatum AND TIDFEL.PRISTYP NE "FRÅNVARO." AND TIDFEL.PRISTYP NE "RESTID..." NO-LOCK. 
+   END.
+   ELSE DO:
+      OPEN QUERY tidfq FOR EACH TIDFEL WHERE
+      TIDFEL.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+      TIDFEL.SKICKA = FALSE AND TIDFEL.FELKORD = korvar AND
+      TIDFEL.DATUM <= vkdatum AND TIDFEL.PRISTYP NE "FRÅNVARO." AND TIDFEL.PRISTYP NE "RESTID..." NO-LOCK. 
+   END.
+   GET FIRST tidfq NO-LOCK.
+   DO WHILE AVAILABLE(TIDFEL):
+      hjinvo = 0.
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = TIDFEL.AONR AND AONRTAB.DELNR = TIDFEL.DELNR NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DO:
+         IF AONRTAB.OMRADE = AONRTAB.BESTID THEN.
+         ELSE hjinvo = 1.         
+      END.
+      IF TIDFEL.TIDLOG = TRUE THEN DO:
+         CREATE Projectreport.
+         /*IF INTEGER(SUBSTRING(PERSONALTAB.PERSONNUMMER,1,2)) < 20 THEN Projectreport.ResourceCode = "20" + PERSONALTAB.PERSONNUMMER.
+         ELSE Projectreport.ResourceCode = "19" + PERSONALTAB.PERSONNUMMER.*/
+         ASSIGN 
+         Projectreport.ResourceCode = PERSONALTAB.PERSONNUMMER
+         Projectreport.ProjectCode = TIDFEL.AONR      
+         Projectreport.DATE = TIDFEL.DATUM.
+         Projectreport.Quantity = klock100(TIDFEL.TOTALT).
+         Projectreport.ArticleCode = akodn.
+         ProjectReport.InvoicingStatus = hjinvo.
+         IF TIDFEL.DEBET = FALSE THEN Projectreport.Quantity = Projectreport.Quantity * (-1).
+         ovekoll = FALSE.
+         /*MESSAGE "S" Projectreport.ResourceCode Projectreport.ProjectCode Projectreport.DATE Projectreport.Quantity  Projectreport.ArticleCode  VIEW-AS ALERT-BOX.*/
+         
+         IF TIDFEL.OKOD1 NE " " THEN DO: 
+            FIND FIRST OVERKOD WHERE OVERKOD.KOD = kodanst AND
+            OVERKOD.OVERTIDTILL = TIDFEL.OKOD1 USE-INDEX OVER NO-LOCK NO-ERROR.
+            IF AVAILABLE OVERKOD THEN DO:
+               IF OVERKOD.OVERTIDUTTAG = "M" THEN.
+               ELSE DO:            
+                  IF TIDFEL.TOTALT < TIDFEL.OANT1 THEN DO:
+                     Projectreport.Quantity = klock100(TIDFEL.TOTALT).               
+                  END.
+                  ELSE Projectreport.Quantity = klock100(TIDFEL.OANT1).
+                  IF TIDFEL.DEBET = FALSE THEN Projectreport.Quantity = Projectreport.Quantity * (-1).
+                  IF OVERKOD.ENKEL = "ENKE" THEN Projectreport.ArticleCode = akode.
+                  IF OVERKOD.ENKEL = "KVAL" THEN Projectreport.ArticleCode = akodk.
+                  ovekoll = TRUE.
+               END.
+            END.
+            
+         END.          
+         IF TIDFEL.OKOD2 NE " " THEN DO: 
+            FIND FIRST OVERKOD WHERE OVERKOD.KOD = kodanst AND
+            OVERKOD.OVERTIDTILL = TIDFEL.OKOD2 USE-INDEX OVER NO-LOCK NO-ERROR.
+            IF AVAILABLE OVERKOD THEN DO:
+               IF OVERKOD.OVERTIDUTTAG = "M" THEN.
+               ELSE DO:            
+                  IF ovekoll = TRUE THEN DO:
+                     CREATE Projectreport.
+                     /*IF INTEGER(SUBSTRING(PERSONALTAB.PERSONNUMMER,1,2)) < 20 THEN Projectreport.ResourceCode = "20" + PERSONALTAB.PERSONNUMMER.
+                     ELSE Projectreport.ResourceCode = "19" + PERSONALTAB.PERSONNUMMER.*/
+                     ASSIGN 
+                     Projectreport.ResourceCode = PERSONALTAB.PERSONNUMMER
+                     Projectreport.ProjectCode = TIDFEL.AONR               
+                     Projectreport.DATE = TIDFEL.DATUM
+                     ProjectReport.InvoicingStatus = hjinvo.
+                  END.
+                  IF  klock100(TIDFEL.TOTALT) < ( klock100(TIDFEL.OANT1) +  klock100(TIDFEL.OANT2))  THEN DO:
+                     Projectreport.Quantity = klock100(TIDFEL.TOTALT) - klock100(TIDFEL.OANT1).
+                  END.
+                  ELSE Projectreport.Quantity = klock100(TIDFEL.OANT2).
+                  IF TIDFEL.DEBET = FALSE THEN Projectreport.Quantity = Projectreport.Quantity * (-1).
+                  IF OVERKOD.ENKEL = "ENKE" THEN Projectreport.ArticleCode = akode.
+                  IF OVERKOD.ENKEL = "KVAL" THEN Projectreport.ArticleCode = akodk.
+                  IF Projectreport.Quantity LE 0 THEN DELETE Projectreport.
+                  ovekoll = TRUE.
+               END.
+            END.
+            
+         END.                
+         IF TIDFEL.OKOD3 NE " " THEN DO: 
+            FIND FIRST OVERKOD WHERE OVERKOD.KOD = kodanst AND
+            OVERKOD.OVERTIDTILL = TIDFEL.OKOD3 USE-INDEX OVER NO-LOCK NO-ERROR.
+            IF AVAILABLE OVERKOD THEN DO:
+               IF OVERKOD.OVERTIDUTTAG = "M" THEN.
+               ELSE DO:            
+                  IF ovekoll = TRUE THEN DO:
+                     CREATE Projectreport.
+                     /*IF INTEGER(SUBSTRING(PERSONALTAB.PERSONNUMMER,1,2)) < 20 THEN Projectreport.ResourceCode = "20" + PERSONALTAB.PERSONNUMMER.
+                     ELSE Projectreport.ResourceCode = "19" + PERSONALTAB.PERSONNUMMER.*/
+                     ASSIGN 
+                     Projectreport.ResourceCode = PERSONALTAB.PERSONNUMMER
+                     Projectreport.ProjectCode = TIDFEL.AONR               
+                     Projectreport.DATE = TIDFEL.DATUM
+                     ProjectReport.InvoicingStatus = hjinvo.
+                  END.
+                  IF  klock100(TIDFEL.TOTALT) < ( klock100(TIDFEL.OANT1) +  klock100(TIDFEL.OANT2) + klock100(TIDFEL.OANT3))  THEN DO:
+                     Projectreport.Quantity = klock100(TIDFEL.TOTALT) - klock100(TIDFEL.OANT1 - klock100(TIDFEL.OANT2)).
+                  END.
+                  ELSE Projectreport.Quantity = klock100(TIDFEL.OANT3).
+                  IF TIDFEL.DEBET = FALSE THEN Projectreport.Quantity = Projectreport.Quantity * (-1).
+                  IF OVERKOD.ENKEL = "ENKE" THEN Projectreport.ArticleCode = akode.
+                  IF OVERKOD.ENKEL = "KVAL" THEN Projectreport.ArticleCode = akodk.
+                  ovekoll = TRUE.
+               END.
+            END.
+            
+         END.
+      END.
+      IF TIDFEL.LONTILLAGG = "SBSHF" THEN DO:
+         CREATE Projectreport.
+         /*IF INTEGER(SUBSTRING(PERSONALTAB.PERSONNUMMER,1,2)) < 20 THEN Projectreport.ResourceCode = "20" + PERSONALTAB.PERSONNUMMER.
+         ELSE Projectreport.ResourceCode = "19" + PERSONALTAB.PERSONNUMMER.*/
+         ASSIGN 
+         Projectreport.ResourceCode = PERSONALTAB.PERSONNUMMER
+         Projectreport.ProjectCode = TIDFEL.AONR      
+         Projectreport.DATE = TIDFEL.DATUM.
+         Projectreport.Quantity = klock100(TIDFEL.LONTILLANTAL).
+         Projectreport.ArticleCode = "SBSHF".
+         ProjectReport.InvoicingStatus = hjinvo.
+         IF TIDFEL.DEBET = FALSE THEN Projectreport.Quantity = Projectreport.Quantity * (-1).         
+      END.                      
+      GET NEXT tidfq NO-LOCK.    
+      
+   END. 
+
+
+   GET NEXT persq NO-LOCK.
+END.
+DEBUGGER:SET-BREAK().
+IF globforetag = "elpa" THEN DO:
+   dirnamn = "G:\pro9s\korning\" + "ekoMSV" + STRING(TODAY,"99999999") + ".xml". 
+   dirspar = "G:\pro9s\korning\korkopia\" + "ekoMSV" + STRING(TODAY,"99999999") + ".xml". 
+END.
+IF globforetag = "MISV" THEN DO:
+   /*dirnamn = "G:\pro9s\korning\" + "ekoMSV" + STRING(TODAY,"99999999") + ".xml". 
+   dirspar = "G:\pro9s\korning\korkopia\" + "ekoMSV" + STRING(TODAY,"99999999") + ".xml". */
+   dirnamn = "C:\elpool\delad\pro10s\export\ekonomi\" + "ekoMSV" + STRING(TODAY,"99999999") + ".xml". 
+   dirspar = "C:\elpool\delad\pro10s\backexport\" + "ekoMSV" + STRING(TODAY,"99999999") + ".xml". 
+END.
+      
+
+CREATE tidut.
+ASSIGN SUBSTRING(tidut.UT,1) = '<?xml version="1.0" encoding="ISO-8859-1" standalone="yes"?>'.
+CREATE tidut.
+ASSIGN SUBSTRING(tidut.UT,1) = "<SummarumProjectReport>".
+FOR EACH Projectreport :
+   /*MESSAGE "UT" Projectreport.ResourceCode Projectreport.ProjectCode Projectreport.DATE Projectreport.Quantity  Projectreport.ArticleCode  VIEW-AS ALERT-BOX.*/
+   CREATE tidut.
+   ASSIGN SUBSTRING(tidut.UT,1) = /*'<ProjectReport ProjectCode="' + ProjectReport.ProjectCode + '"  ResourceCode="' + ProjectReport.ResourceCode + '" ArticleCode="' + ProjectReport.ArticleCode + '" ArticleCaption="' + ProjectReport.ArticleCaption + '" Quantity="'+ STRING(ProjectReport.Quantity)   + '" InvoicingStatus="' + STRING(ProjectReport.InvoicingStatus).     */
+    '<ProjectReport ProjectCode="' + ProjectReport.ProjectCode + '"  ResourceCode="' + ProjectReport.ResourceCode + '" ArticleCode="' + ProjectReport.ArticleCode + '" Quantity="'+ STRING(ProjectReport.Quantity)  + '" InvoicingStatus="' + STRING(ProjectReport.InvoicingStatus) + '" Date="' + STRING(ProjectReport.DATE,"9999-99-99") + '"/>'. 
+/*<ProjectReport ProjectCode="20001"  PartProjectCode="09-11220" ResourceCode="51524" ArticleCode="M-01" ArticleCaption="Material 1" Quantity="11,5" Price="200,50" InvoicingStatus="1" Date="2010-01-01" */
+END.
+
+CREATE tidut.
+ASSIGN SUBSTRING(tidut.UT,1) = "</SummarumProjectReport>".
+
+OUTPUT TO VALUE(dirnamn).
+
+FOR EACH tidut:                                                              
+   PUT UNFORMATTED                                                           
+   TRIM(tidut.UT).
+END.                                                                         
+
+OUTPUT CLOSE.
+SESSION:NUMERIC-FORMAT = "AMERICAN".
+
+OS-COPY VALUE(dirnamn) VALUE(dirspar).
+
+RUN sammut_UI (INPUT 2).
+

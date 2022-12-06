@@ -1,0 +1,183 @@
+/*OBEORDLISTEJGOD.P*/
+{STARTFORAPP.I}
+{OTIDBEORD.I}
+{PERSOTB.I}   
+DEFINE TEMP-TABLE eposttemp NO-UNDO
+   FIELD EPOST AS CHARACTER
+   FIELD MEDD AS CHARACTER
+   INDEX EPOST EPOST.
+DEFINE VARIABLE vpers AS CHARACTER NO-UNDO.
+DEFINE VARIABLE otbeordapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE aonrrec AS RECID NO-UNDO.
+DEFINE VARIABLE skick AS LOGICAL NO-UNDO.
+DEFINE VARIABLE efel AS CHARACTER FORMAT "X(30)" NO-UNDO.
+DEFINE VARIABLE servervar AS CHARACTER LABEL "Smtp Server" NO-UNDO.
+DEFINE VARIABLE franvar AS CHARACTER NO-UNDO.
+{SMTPDEF3.I}
+{AMERICANEUROPEAN.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT FORETAG.FORETAG).
+IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "MISV" THEN DO:
+   ASSIGN
+   franvar = "NOREPLY"
+   servervar = CHR(49) + CHR(55) + CHR(50) + CHR(46) + CHR(49) + CHR(54) + CHR(46) + CHR(50) + CHR(53) + CHR(52) + CHR(46) + CHR(50) + CHR(50) + CHR(50).
+   /*servervar = "130.1.27.253".
+   servervar = "172.16.79.249".*/
+END.
+ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+   {SMTPFRANELPOOL.I}
+END.
+ELSE DO:
+   ASSIGN
+   franvar = "elpool.ume@elpool.se"
+   servervar = CHR(115) + CHR(109) + CHR(116) + CHR(112) + CHR(46) + CHR(116) + CHR(101) + CHR(108) + CHR(101) + CHR(99) + CHR(111) + CHR(109) + CHR(51) + CHR(46) + CHR(110) + CHR(101) + CHR(116) .
+END.               
+OPEN QUERY tq FOR EACH TIDREGITAB WHERE TIDREGITAB.VECKOKORD = "" AND  SUBSTRING(TIDREGITAB.RESMAL,159,6) NE "" AND TIDREGITAB.TIDLOG = TRUE
+AND TIDREGITAB.DATUM GE 10/01/2020 NO-LOCK. 
+GET FIRST tq NO-LOCK.
+DO WHILE AVAILABLE(TIDREGITAB):      
+   IF  TIDREGITAB.OKOD1 = "" AND TIDREGITAB.OKOD2 = "" AND TIDREGITAB.OKOD3 = "" THEN.
+   ELSE IF TIDREGITAB.LAGBAS = FALSE THEN DO:         
+      CREATE persotb.
+      ASSIGN
+      persotb.PERSONALKOD = TIDREGITAB.PERSONALKOD
+      persotb.DATUM = TIDREGITAB.DATUM
+      persotb.START = TIDREGITAB.START
+      persotb.SLUT = TIDREGITAB.SLUT
+      persotb.TOTALT = TIDREGITAB.TOTALT
+      persotb.AONR = TIDREGITAB.AONR
+      persotb.DELNR = TIDREGITAB.DELNR
+      persotb.GODKAND       = TIDREGITAB.GODKAND
+      persotb.OTB = SUBSTRING(TIDREGITAB.RESMAL,159,6)
+      persotb.KOMMENTAR = SUBSTRING(TIDREGITAB.RESMAL,1,158)
+      persotb.GODKAND = TIDREGITAB.GODKAND.
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = SUBSTRING(TIDREGITAB.RESMAL,159,6)  NO-LOCK NO-ERROR.
+      ASSIGN  persotb.OTBNAMN    = SUBSTRING(PERSONALTAB.FORNAMN,1,1) + "." + PERSONALTAB.EFTERNAMN.
+      
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = TIDREGITAB.PERSONALKOD  NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN DO:
+         ASSIGN
+         persotb.FORNAMN = PERSONALTAB.FORNAMN
+         persotb.EFTERNAMN = PERSONALTAB.EFTERNAMN
+         persotb.GODKANNARE = PERSONALTAB.TIDSGODK.
+      END.
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = persotb.GODKANNARE  NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN DO:
+         ASSIGN
+         persotb.GNAMN = SUBSTRING(PERSONALTAB.FORNAMN,1,1) + "." + PERSONALTAB.EFTERNAMN.
+      END.   
+      
+   END.      
+   GET NEXT tq NO-LOCK.
+END.
+RUN OVERTIDBRDAPP.P PERSISTENT SET otbeordapph.   
+RUN othmt_UI IN otbeordapph (OUTPUT TABLE otidbeordtemp).
+
+EMPTY TEMP-TABLE eposttemp NO-ERROR. 
+FOR EACH otidbeordtemp,
+EACH persotb WHERE persotb.OTB = otidbeordtemp.PERSONALKOD USE-INDEX OTB2.
+   IF otidbeordtemp.PERSONALKOD = persotb.GODKANNARE THEN franvar = franvar.
+   ELSE DO:   
+      FIND FIRST eposttemp WHERE eposttemp.EPOST = otidbeordtemp.EPOST AND eposttemp.MEDD  BEGINS  " OBS! EJ"  AND 
+      LENGTH(eposttemp.MEDD,"CHARACTER") < 30000 NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE eposttemp THEN DO:
+         CREATE eposttemp.
+         eposttemp.EPOST = otidbeordtemp.EPOST.
+         eposttemp.MEDD = " OBS! EJ ordinarie tidsedelgodkännare" + CHR(10) +
+                          " Ej godkänd övertid beordrad av: " + otidbeordtemp.FORNAMN + " " + otidbeordtemp.EFTERNAMN + CHR(10)
+                        + " ========================================================================== " + CHR(10).
+                               
+      END.
+      eposttemp.MEDD = eposttemp.MEDD + persotb.PERSONALKOD  + " " + SUBSTRING(persotb.FORNAMN,1,1) + "." + persotb.EFTERNAMN +  " " + STRING(persotb.DATUM,"9999/99/99") + " " + STRING(persotb.START,">9.99")  + " " + STRING(persotb.SLUT,">9.99")  + " " + STRING(persotb.TOTALT,">9.99") +
+      " timmar " + persotb.AONR + " " + STRING(persotb.DELNR,">99") +  " Godkännare: " + STRING(persotb.GODKANNARE) + " " +  CHR(10) + persotb.KOMMENTAR  + CHR(10) + CHR(10).         
+   END.
+   IF AVAILABLE eposttemp THEN Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + eposttemp.EPOST + "," +  eposttemp.MEDD .
+   
+END.
+FOR EACH otidbeordtemp,
+EACH persotb WHERE persotb.OTB = otidbeordtemp.PERSONALKOD USE-INDEX OTB2.
+   IF otidbeordtemp.PERSONALKOD = persotb.GODKANNARE THEN DO:
+      
+      FIND FIRST eposttemp WHERE eposttemp.EPOST = otidbeordtemp.EPOST AND eposttemp.MEDD  BEGINS  " OBS! Ordinarie" AND 
+      LENGTH(eposttemp.MEDD,"CHARACTER") < 30000 NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE eposttemp THEN DO:
+         CREATE eposttemp.
+         eposttemp.EPOST = otidbeordtemp.EPOST.
+         eposttemp.MEDD = " OBS! Ordinarie tidsedelgodkännare" + CHR(10) +
+                          " Ej godkänd övertid beordrad av: " + otidbeordtemp.FORNAMN + " " + otidbeordtemp.EFTERNAMN + CHR(10)
+                        + " ========================================================================== " + CHR(10).
+                               
+      END.
+      eposttemp.MEDD = eposttemp.MEDD + persotb.PERSONALKOD  + " " + SUBSTRING(persotb.FORNAMN,1,1) + "." + persotb.EFTERNAMN +  " " + STRING(persotb.DATUM,"9999/99/99") + " " + STRING(persotb.START,">9.99")  + " " + STRING(persotb.SLUT,">9.99")  + " " + STRING(persotb.TOTALT,">9.99") +
+      " timmar " + persotb.AONR + " " + STRING(persotb.DELNR,">99") +   CHR(10) + persotb.KOMMENTAR  + CHR(10) + CHR(10).         
+   END.
+   IF AVAILABLE eposttemp THEN Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + eposttemp.EPOST + "," +  eposttemp.MEDD .
+   
+END.
+Guru.GlobalaVariabler:GDPRtyp = "EP". 
+{GDPRLOGGCLIENT.I}   
+RUN emedd_UI.
+
+IF VALID-HANDLE(otbeordapph) THEN DO:
+    RUN borthandle_UI IN otbeordapph.
+    DELETE PROCEDURE otbeordapph NO-ERROR.
+    otbeordapph = ?.
+END.
+{EUROPEANAMERICAN.I}
+PROCEDURE emedd_UI.
+   DEFINE VARIABLE ctillvar AS CHARACTER LABEL "Kopia" NO-UNDO.
+   ctillvar  = "".   
+   FOR EACH eposttemp:  
+      FIND FIRST otidbeordtemp WHERE otidbeordtemp.EPOST = eposttemp.EPOST  NO-LOCK NO-ERROR.         
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = otidbeordtemp.PERSONALKOD NO-LOCK NO-ERROR.
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+      FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+      FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+      IF AVAILABLE JURPERS THEN DO:         
+      END.
+      ASSIGN 
+      mailhub             = servervar     
+      EmailTo             = eposttemp.EPOST 
+      EmailFrom           = franvar
+      EmailCC             = ctillvar
+      Attachmentstyp      = ""
+      LocalFiles          = ""
+      Subject             = "Övertidslista" 
+      Bodysmtp            = eposttemp.MEDD
+      MIMEHeader          = "type=text/plain/html:charset=iso-8859-1:filetype=ascii"
+      BodyType            = "".
+      IF Guru.Konstanter:globforetag = "sund"  THEN EmailFrom = "webguru@sundsvallenergi.se".
+      IF Guru.Konstanter:globforetag = "SNAT" THEN EmailFrom = "@guru.sundsvallelnat.se".
+      IF Guru.Konstanter:globforetag = "MISV" THEN EmailFrom = "webguru@mittsverigevatten.se".
+      RUN smtpmail_UI (INPUT FALSE).
+      IF oSuccessful = TRUE THEN DO TRANSACTION:
+         oSuccessful = FALSE.               
+      END.      
+      ELSE DO:
+         IF Guru.Konstanter:globforetag = "SUND"  THEN DO:
+            OUTPUT TO D:\delad\server\pro10s\EXPORT\lon\obeordfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " franvar SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+            /*SNATBERGET*/
+            OUTPUT TO D:\delad\pro10s\EXPORT\lonelnat\obeordfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " franvar SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "MISV" THEN DO:
+            IF TODAY >= 05/01/2022 THEN OUTPUT TO D:\elpool\delad\pro10s\EXPORT\lon\obeordfel.txt APPEND.
+            ELSE OUTPUT TO C:\elpool\delad\pro10s\EXPORT\lon\obeordfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " franvar SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "ELPA" THEN DO:
+            OUTPUT TO c:\protemp9\obeordfel.txt APPEND.            
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " franvar SKIP.
+         END.
+         OUTPUT CLOSE.
+         
+      END.
+   END.     
+END PROCEDURE.  
+
+ 
+   

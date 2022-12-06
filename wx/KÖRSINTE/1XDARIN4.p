@@ -1,0 +1,15 @@
+/*1XDARIN4.p*/
+{AMERICANEUROPEAN.I}
+OUTPUT TO f:\elpnj\darwin\sven\sydkraft\GRLED.txt 
+CONVERT TARGET "iso8859-1" SOURCE "iso8859-1" 
+NO-ECHO.
+FOR EACH LEDNINGSDATA no-lock:
+    PUT UNFORMATTED 
+       LEDNINGSDATA.foret-id ";" LEDNINGSDATA.distr-id ";" LEDNINGSDATA.arsta ";"
+       LEDNINGSDATA.kod-id ";" LEDNINGSDATA.station1 ";" LEDNINGSDATA.station2 ";"
+       LEDNINGSDATA.luftledn ";" LEDNINGSDATA.blandat ";" LEDNINGSDATA.markledn ";" 
+       LEDNINGSDATA.totalt ";" LEDNINGSDATA.post 
+    SKIP.
+END.
+OUTPUT CLOSE.
+{EUROPEANAMERICAN.I}

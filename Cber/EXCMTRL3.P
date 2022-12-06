@@ -1,0 +1,94 @@
+/*EXCMTRL3.P*/
+/*UTLÄSNING AV MTRL KOPPLAT TILL KONSTRUKTIONER TILL EXCEL*/   
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 0.
+DEFINE VARIABLE cColumn                 AS CHARACTER.
+DEFINE VARIABLE efarg AS INTEGER NO-UNDO.
+DEFINE VARIABLE nettoh AS HANDLE NO-UNDO.
+{GLOBVAR2DEL1.I}
+{EXECLIN.I}
+&Scoped-define NEW
+&Scoped-define SHARED 
+{MTRLTEMP.I}
+DEFINE NEW SHARED TEMP-TABLE mtrl_temp 
+   {MTRLTEMPTT.I}
+DEFINE INPUT PARAMETER levvar AS LOGICAL.
+DEFINE INPUT PARAMETER ersatte AS LOGICAL.
+DEFINE INPUT PARAMETER lkod AS CHARACTER.
+   IF Guru.Konstanter:appcon THEN DO:
+      RUN NETTOMARK.P PERSISTENT SET nettoh ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+   END.
+   ELSE DO:
+      RUN NETTOMARK.P PERSISTENT SET nettoh.
+   END. 
+   CREATE "Excel.Application" chExcelApplication.
+   chExcelApplication:Visible = TRUE.
+   chWorkbook = chExcelApplication:Workbooks:Add().
+   chWorkSheet = chExcelApplication:Sheets:Item(1).
+   chWorkSheet:Columns("A"):ColumnWidth = 11 NO-ERROR.
+   chWorkSheet:Columns("B"):ColumnWidth = 40 NO-ERROR.
+   chWorkSheet:Columns("C"):ColumnWidth = 6 NO-ERROR.
+   chWorkSheet:Columns("D"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("E"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("F"):ColumnWidth = 12 NO-ERROR.
+   
+   chWorkSheet:Range("A1:P1"):Font:Bold = TRUE NO-ERROR.
+
+   chWorkSheet:Range("A1"):Value = Guru.Konstanter:genk NO-ERROR.
+   chWorkSheet:Range("B1"):Value = "BENÄMNING" NO-ERROR.
+   chWorkSheet:Range("C1"):Value = "ENHET" NO-ERROR.
+   chWorkSheet:Range("D1"):Value = "PRIS" NO-ERROR.
+   IF levvar = TRUE THEN DO:
+      chWorkSheet:Range("E1"):Value = "LEVERANTÖR" NO-ERROR.
+   END.
+   IF ersatte = TRUE THEN DO:
+      chWorkSheet:Range("F1"):Value = "ÖVERSÄTTNING" NO-ERROR.
+   END.
+   chWorkSheet:Range("A:A"):NumberFormat = "@" NO-ERROR.
+   {EXCELFEL.I}      
+   EMPTY TEMP-TABLE mtrl_temp NO-ERROR.    
+   IF Guru.Konstanter:appcon THEN DO:                           
+      RUN SPECSOL3.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+      (INPUT levvar,INPUT ersatte,INPUT lkod, OUTPUT TABLE mtrl_temp).
+   END.
+   ELSE DO:
+      RUN SPECSOL3.P
+      (INPUT levvar,INPUT ersatte,INPUT lkod, OUTPUT TABLE mtrl_temp).
+   END.     
+   IF Guru.Konstanter:varforetypval[29] = 1  THEN DO:                 
+      RUN kallnettomark_UI IN nettoh (INPUT TABLE mtrl_temp, OUTPUT TABLE kmtrltemp ).            
+   END.
+   RUN profexcelfarg_UI (INPUT Guru.Konstanter:varforetypval[28], OUTPUT efarg).   
+   iColumn = 2.
+   FOR EACH mtrl_temp USE-INDEX ENR:
+      iColumn = iColumn + 1.
+      cColumn = STRING(iColumn).
+      cRange = "A" + cColumn.
+      chWorkSheet:Range(cRange):Value = mtrl_temp.ENR NO-ERROR.      
+      FIND FIRST kmtrltemp WHERE kmtrltemp.LEVKOD = mtrl_temp.LEVKOD AND kmtrltemp.ENR = mtrl_temp.ENR NO-LOCK NO-ERROR.
+      IF AVAILABLE kmtrltemp THEN DO:                                   
+         cRange2 = cRange + ":" + cRange.
+         chCell = chWorkSheet:Range(cRange2) NO-ERROR.
+         chCell:Interior:ColorIndex = efarg NO-ERROR.       
+      END.  
+      cRange = "B" + cColumn.
+      chWorkSheet:Range(cRange):Value = SUBSTRING(mtrl_temp.BENAMNING,1,40) NO-ERROR.
+      cRange = "C" + cColumn.
+      chWorkSheet:Range(cRange):Value = mtrl_temp.ENHET NO-ERROR.
+      cRange = "D" + cColumn.
+      chWorkSheet:Range(cRange):Value = mtrl_temp.PRIS NO-ERROR.
+      IF levvar = TRUE THEN DO:
+         cRange = "E" + cColumn.
+         chWorkSheet:Range(cRange):Value = mtrl_temp.FORNR NO-ERROR.
+      END.
+      IF mtrl_temp.LINNR = "ERSATT" OR mtrl_temp.LINNR = "SAMMA ENR" THEN DO:
+         cRange = "F" + cColumn.
+         chWorkSheet:Range(cRange):Value = mtrl_temp.LINNR NO-ERROR.          
+      END.
+      {EXCELFEL.I}      
+   END.   
+   RELEASE OBJECT chExcelApplication NO-ERROR.      
+   RELEASE OBJECT chWorkbook NO-ERROR.
+   RELEASE OBJECT chWorksheet NO-ERROR.
+   
+   IF VALID-HANDLE(nettoh) THEN DELETE PROCEDURE nettoh NO-ERROR.   
+   {EXCELFEL.I}      

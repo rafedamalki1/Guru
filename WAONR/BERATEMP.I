@@ -1,0 +1,23 @@
+/*BERATEMP.I
+               KSV Editor
+    Copyright: (C) 2000-2001 Serguey Klimoff (bulkl0DD)
+     Filename: BERATEMP.I
+      Comment: <comment>
+   Parameters:
+         Uses:
+      Used by:
+      Created: 2009.04.15 14:32 ELPAO   
+     Modified: 2009.04.15 14:51 ELPAO    
+     Modified: 
+*/
+
+DEFINE {&NEW} SHARED TEMP-TABLE beratemp 
+   FIELD EFTERNAMN   AS CHARACTER
+   FIELD FORNAMN      AS CHARACTER
+   FIELD PERSONALKOD  AS CHARACTER
+   FIELD EPOST        AS CHARACTER
+   FIELD TELEFON      AS CHARACTER
+   FIELD OMRADE AS CHARACTER
+   INDEX PERS IS PRIMARY PERSONALKOD
+   INDEX FORNAMN FORNAMN PERSONALKOD
+   INDEX EFTERNAMN EFTERNAMN PERSONALKOD.

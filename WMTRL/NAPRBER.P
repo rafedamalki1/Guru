@@ -1,0 +1,140 @@
+/*NAPRBER.P UPPDATERAR PRISER FÖR TABELLER SOM ANVÄNDS I BEREDNING*/
+
+DEFINE VARIABLE leverant LIKE LEVERANTOR.LEVKOD NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{TIDUTTT.I}
+{EXTRADATA.I}
+RUN EXTRADATAHMT.P PERSISTENT SET edataapph.  
+{INKKOLL3.I}
+{DYNPOSTFINNS.I}
+DEFINE VARIABLE musz AS LOGICAL     NO-UNDO.
+DEFINE VARIABLE fragavar AS CHARACTER   NO-UNDO.
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+CREATE inextradatatemp.          
+ASSIGN
+inextradatatemp.PROGRAM = "INLKAT"
+inextradatatemp.HUVUDCH = ?.
+                    
+RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+FOR EACH extradatatemp WHERE extradatatemp.SOKLOG[1] =  TRUE:
+   leverant = extradatatemp.HUVUDCH.
+   /*Uppdatera priser i adm.bered. för vald lev.*/
+   RUN BERKOLL2.P (INPUT leverant, INPUT-OUTPUT TABLE tidut).
+   /*Uppdatera satsers priser i bered. för vald lev.*/
+   RUN PRISUPP6.P (INPUT leverant, INPUT Guru.Konstanter:globforetag).
+   OPEN QUERY bq FOR EACH BEREDNING  NO-LOCK.
+   GET FIRST bq NO-LOCK.
+   DO WHILE AVAILABLE(BEREDNING):
+      FIND FIRST BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND
+      BERMTRL.OMRADE = BEREDNING.OMRADE AND BERMTRL.INKOP = TRUE
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BERMTRL THEN DO:
+         musz = FALSE.
+         IF inkopkollvar = TRUE THEN DO:               
+            fragavar = "INKMTRL.BERNR = " + STRING(BEREDNING.BERNR) + " AND INKMTRL.OMRADE = '" + BEREDNING.OMRADE + "'".  
+            RUN finnspostdyn_UI (INPUT "INKMTRL",INPUT fragavar,OUTPUT musz).
+         END.
+         IF musz = TRUE THEN musz = FALSE.
+         ELSE DO:
+            OPEN QUERY m2q FOR EACH BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND
+            BERMTRL.OMRADE = BEREDNING.OMRADE AND BERMTRL.LEVKOD = leverant NO-LOCK.
+            DO TRANSACTION:
+               GET FIRST m2q EXCLUSIVE-LOCK.
+               IF AVAILABLE BERMTRL THEN DO:               
+                  FIND FIRST MTRL WHERE MTRL.ENR = BERMTRL.ENR AND 
+                  MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+                  NO-LOCK NO-ERROR.
+                  IF AVAILABLE MTRL THEN DO:
+                     ASSIGN
+                     BERMTRL.PRIS = MTRL.NPRIS.
+                  END.      
+                  IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+                     /* om enr borttaget ur 12 uppdatera med leverantör 1 och pris från 1*/
+                     IF leverant = "12" THEN DO: 
+                        IF NOT AVAILABLE MTRL THEN DO:
+                           FIND FIRST MTRL WHERE MTRL.ENR = BERMTRL.ENR AND 
+                           MTRL.LEVKOD = "1" AND MTRL.KALKNR = 0 USE-INDEX LEV NO-LOCK NO-ERROR.
+                           IF AVAILABLE MTRL THEN DO:
+                              ASSIGN
+                              BERMTRL.LEVKOD = "1"
+                              BERMTRL.PRIS = MTRL.NPRIS.
+                           END.      
+                        END.
+                     END.
+                  END.   
+               END.
+            END.
+            REPEAT:
+               DO TRANSACTION:
+                  GET NEXT m2q EXCLUSIVE-LOCK.
+                  IF AVAILABLE BERMTRL THEN DO:                  
+                     FIND FIRST MTRL WHERE MTRL.ENR = BERMTRL.ENR AND 
+                     MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+                     NO-LOCK NO-ERROR.
+                     IF AVAILABLE MTRL THEN DO:
+                        ASSIGN
+                        BERMTRL.PRIS = MTRL.NPRIS.
+                     END.                       
+                     IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+                        /* om enr borttaget ur 12 uppdatera med leverantör 1 och pris från 1*/
+                        IF leverant = "12" THEN DO: 
+                           IF NOT AVAILABLE MTRL THEN DO:
+                              FIND FIRST MTRL WHERE MTRL.ENR = BERMTRL.ENR AND 
+                              MTRL.LEVKOD = "1" AND MTRL.KALKNR = 0 USE-INDEX LEV NO-LOCK NO-ERROR.
+                              IF AVAILABLE MTRL THEN DO:
+                                 ASSIGN
+                                 BERMTRL.LEVKOD = "1"
+                                 BERMTRL.PRIS = MTRL.NPRIS.
+                              END.      
+                           END.
+                        END.
+                     END.   
+                  END.
+                  ELSE LEAVE.
+               END.
+            END.  
+            CLOSE QUERY m2q.
+            RELEASE BERMTRL NO-ERROR.             
+         END.                    
+      END.
+      GET NEXT bq NO-LOCK.
+   END.
+   CLOSE QUERY bq.
+   extradatatemp.SOKLOG[1] =  FALSE.
+   RUN extraspar_UI IN edataapph (INPUT TABLE extradatatemp). 
+   {AMERICANEUROPEAN.I}      
+   IF  
+   Guru.Konstanter:globforetag = "VAST"   THEN DO:
+      OUTPUT TO e:\delad\pro9\guru\koll.txt APPEND.
+      PUT "NAPRBER.P uppdatering bered. klart. " leverant  substring(Guru.Konstanter:globforetag,1,10)  string(TODAY) STRING(TIME,"HH:MM:SS") SKIP.
+      OUTPUT CLOSE.
+   END. 
+   ELSE IF Guru.Konstanter:globforetag = "FORS" THEN DO:
+      OUTPUT TO C:\DELAD\PRO9\GURU\koll.txt APPEND.
+      PUT "NAPRBER.P uppdatering bered. klart. " leverant  substring(Guru.Konstanter:globforetag,1,10) string(TODAY)  STRING(TIME,"HH:MM:SS") SKIP.
+      OUTPUT CLOSE.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "krin" THEN DO:
+      OUTPUT TO C:\DELAD\PRO9\GURU\koll.txt APPEND.
+      PUT "NAPRBER.P uppdatering bered. klart. " leverant  substring(Guru.Konstanter:globforetag,1,10)  string(TODAY) STRING(TIME,"HH:MM:SS") SKIP.
+      OUTPUT CLOSE.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "GKAL" THEN DO:
+      OUTPUT TO D:\DELAD\klient\PRO9\koll.txt APPEND.
+      PUT "NAPRBER.P uppdatering bered. klart. " leverant  substring(Guru.Konstanter:globforetag,1,10)  string(TODAY) STRING(TIME,"HH:MM:SS") SKIP.
+      OUTPUT CLOSE.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "GRAN" THEN DO:
+      OUTPUT TO d:\elpool\delad\pro9\wrk\koll.txt APPEND.
+      PUT "NAPRBER.P uppdatering bered. klart. " leverant  substring(Guru.Konstanter:globforetag,1,10)  string(TODAY) STRING(TIME,"HH:MM:SS") SKIP.
+      OUTPUT CLOSE.
+   END.
+   
+   {EUROPEANAMERICAN.I}
+END.
+

@@ -1,0 +1,4 @@
+/*FULLBREDD.I*/
+   TOG_BREDD = INPUT TOG_BREDD.
+   IF TOG_BREDD = TRUE THEN RUN fullbredd_UI IN brwproc[1](INPUT FRAME {&FRAME-NAME}:HANDLE).
+   ELSE RUN orgbredd_UI IN brwproc[1].

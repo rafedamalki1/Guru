@@ -1,0 +1,1989 @@
+/*EXFASTFOR.P*/
+      
+
+DEFINE VARIABLE markag AS INTEGER NO-UNDO.
+DEFINE VARIABLE extrarader AS INTEGER NO-UNDO.
+DEFINE VARIABLE extrarader2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE extram AS INTEGER NO-UNDO.
+DEFINE VARIABLE emg AS INTEGER NO-UNDO.
+DEFINE VARIABLE uColumn  AS INTEGER INITIAL 0.
+DEFINE VARIABLE fnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE bytcol AS LOGICAL NO-UNDO.
+DEFINE VARIABLE bytacol AS CHARACTER NO-UNDO.
+DEFINE VARIABLE bytccol AS CHARACTER NO-UNDO.
+DEFINE VARIABLE bytgcol AS CHARACTER NO-UNDO.
+DEFINE VARIABLE radrakn AS INTEGER NO-UNDO.
+DEFINE VARIABLE vman AS CHARACTER NO-UNDO.
+DEFINE VARIABLE fastvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lelitt AS CHARACTER NO-UNDO.
+DEFINE VARIABLE pnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE pled AS CHARACTER NO-UNDO.
+DEFINE VARIABLE fastrakn AS INTEGER NO-UNDO.
+DEFINE VARIABLE strad AS INTEGER NO-UNDO.
+DEFINE VARIABLE slrad AS INTEGER NO-UNDO.
+DEFINE VARIABLE bgfarg AS INTEGER NO-UNDO.
+DEFINE VARIABLE bgfarg2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE vardman AS CHARACTER NO-UNDO.
+DEFINE VARIABLE vardtel AS CHARACTER NO-UNDO.
+DEFINE VARIABLE vort AS CHARACTER NO-UNDO.
+DEFINE VARIABLE felfil AS CHARACTER NO-UNDO.
+DEFINE VARIABLE pnr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE pben AS CHARACTER NO-UNDO.
+DEFINE VARIABLE mrakn AS INTEGER NO-UNDO.
+ 
+DEFINE VARIABLE vepost AS CHARACTER NO-UNDO.
+
+DEFINE TEMP-TABLE uppfoltemp   
+   FIELD FORETAG AS CHARACTER
+   FIELD ANVANDARE AS CHARACTER  
+   FIELD ALLAMA AS LOGICAL
+   FIELD VALVARD AS CHARACTER
+   FIELD FORSTA AS LOGICAL
+   FIELD STAMP AS LOGICAL.  
+{TIDUTTT.I}
+{FASTFORTEMP.I}
+
+      
+   DEFINE BUFFER fastforbuff FOR  fastfortemp.  
+{SUMTEMP.I}
+{MAGA.I}
+
+{FASTEXTRA.I}        
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE kommando2 AS CHARACTER FORMAT "X(20)" NO-UNDO.
+
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 0.
+DEFINE VARIABLE cColumn                 AS CHARACTER.
+DEFINE VARIABLE pristext                AS CHARACTER.
+DEFINE VARIABLE valvardnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE omravd AS INTEGER NO-UNDO.
+DEFINE VARIABLE aovar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE delnrvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE ortvar AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE fkommun AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE fvaker AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE textvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE intvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE sumfast AS INTEGER NO-UNDO.
+DEFINE VARIABLE sumfasttot AS INTEGER NO-UNDO.
+DEFINE VARIABLE sumrot AS INTEGER NO-UNDO.
+DEFINE VARIABLE hjintr AS INTEGER NO-UNDO.
+DEFINE VARIABLE skprotapph AS HANDLE NO-UNDO.
+
+DEFINE INPUT PARAMETER ponr AS CHARACTER FORMAT "X(12)" NO-UNDO.
+DEFINE INPUT PARAMETER vart AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER aodelnr AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER spmall AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER fildir AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER skrivutmall AS LOGICAL NO-UNDO.
+/**/
+
+
+{GLOBVAR2DEL1.I}
+&Scoped-define SHARED SHARED  
+{MARKVAL.I}                         
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{BLOB.I}
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE blobproch AS HANDLE NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{EXTRADATA.I}
+{EXECLIN.I}
+DEFINE BUFFER markvalbuff FOR markval.
+DEFINE BUFFER fastfbuff FOR fastfortemp.
+
+
+/*sammanfoga celler i excel borde göras för samma fastighet : MergeCells = True 
+XEXCELBLAD.P kommentar till cell  chWorkSheet:Range(cRange):addcomment("Det här är en kommentar").   */
+EMPTY TEMP-TABLE fastfortemp NO-ERROR. 
+   
+IF Guru.Konstanter:appcon THEN DO:
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+END.
+ELSE DO:
+  RUN EXTRADATAHMT.P PERSISTENT SET edataapph.  
+END.
+IF Guru.Konstanter:appcon THEN DO:
+   RUN SKAPPROTOU7.P PERSISTENT SET skprotapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+END.
+ELSE DO:
+   RUN SKAPPROTOU7.P PERSISTENT SET skprotapph.
+END.
+FIND FIRST markval NO-LOCK NO-ERROR.  
+IF Guru.Konstanter:appcon THEN DO:                           
+   RUN EXFASTFORAPPN2.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+   (INPUT TABLE markval,OUTPUT TABLE fastfortemp,OUTPUT ortvar, OUTPUT vman).
+END.
+ELSE DO:
+   RUN EXFASTFORAPPN2.P 
+   (INPUT TABLE markval,OUTPUT TABLE fastfortemp,OUTPUT ortvar, OUTPUT vman).
+END.   
+IF ponr NE ? AND ponr NE ""  THEN DO:
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "NATPROJ"                   
+   inextradatatemp.HUVUDCH = ponr.                    
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+   FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+   IF AVAILABLE extradatatemp THEN DO:      
+      ASSIGN       
+      lelitt = extradatatemp.SOKCHAR[1] 
+      pnamn = extradatatemp.SOKCHAR[2] 
+      pled = extradatatemp.SOKCHAR[3]. 
+   END.   
+END.   
+
+
+IF vart = 1 THEN DO:    
+   fnamn = "Fastförtte.xls".
+      
+END.
+IF vart = 8 THEN DO:    
+   fnamn = "Fastfört.xlsx".        
+END.
+IF vart = 2 THEN DO:    
+   fnamn = "Fastförtallmän.xls".   
+END.
+IF vart = 5  THEN DO: 
+   IF Guru.Konstanter:globforetag = "VAST" THEN fnamn = "Fastförteon.xls".
+   ELSE fnamn = "Fastförteonte.xls".   
+END.
+IF vart = 6 THEN DO:    
+   fnamn = "FastTectel.xlsx".   
+END.
+IF vart = 11 THEN DO:    
+   fnamn = "FastLuleå.xlsx".   
+END.
+IF vart = 9 THEN DO:    
+   fnamn = "FastEllevio.xlsx".   
+END.
+IF vart = 70  THEN DO: 
+   fnamn = "Utbetalning3.xlsx".
+END.
+IF vart = 71  THEN DO: 
+   fnamn = "Utbetalning10.xlsx".
+END.
+IF vart = 72  THEN DO: 
+   fnamn = "UtbetTectel.xlsx".
+END.
+
+IF Guru.Konstanter:appcon THEN RUN FINNSTABELL.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT (INPUT "BLOBINFO", OUTPUT bloblog).
+ELSE RUN FINNSTABELL.P (INPUT "BLOBINFO", OUTPUT bloblog).
+IF bloblog = TRUE THEN DO:
+   {FINNSDYNBLOB.I}
+   DEFINE VARIABLE resid AS INTEGER NO-UNDO.   
+   RUN blobfil_UI IN blobproch (INPUT fnamn, OUTPUT resid).   
+   IF resid = ? THEN DO:
+      kommando = SEARCH(fnamn).     
+   END.
+   ELSE DO:
+      FIND FIRST blobinfotemp WHERE blobinfotemp.ID = resid NO-LOCK NO-ERROR.
+      RUN blobopen_UI IN blobproch (INPUT blobinfotemp.FILNAMN, OUTPUT kommando).     
+   END.
+   RUN deleteproc_UI IN blobproch.
+END.
+ELSE kommando = SEARCH(fnamn).   
+IF kommando = ? THEN DO:
+   MESSAGE "Hittade inte " fnamn VIEW-AS ALERT-BOX.
+   RETURN.       
+END.  
+kommando2 = SESSION:TEMP-DIRECTORY + Guru.Konstanter:globanv + "\".
+{SESSIONTEMPDIR.I}
+IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN kommando2 = webclienttempdir.
+OS-CREATE-DIR VALUE(kommando2) NO-ERROR.
+IF spmall = TRUE AND fildir NE "" THEN DO:
+      kommando2 = fildir  + "\".
+END.
+
+IF Guru.GlobalaVariabler:plusaonr = "" OR Guru.GlobalaVariabler:plusaonr = ? THEN DO:
+   kommando2 = kommando2 + fnamn.
+END.
+ELSE DO:
+   kommando2 = kommando2 + TRIM (Guru.GlobalaVariabler:plusaonr) + TRIM(STRING(Guru.GlobalaVariabler:plusdnr,Guru.Konstanter:varforetypchar[1])) + fnamn.
+END.
+
+OS-COPY VALUE(kommando) VALUE(kommando2).
+kommando = kommando2.
+
+   CREATE "Excel.Application" chExcelApplication.
+   chExcelApplication:Visible = TRUE.
+   IF spmall = TRUE THEN chExcelApplication:Visible = FALSE.
+   ELSE IF  skrivutmall = TRUE THEN chExcelApplication:Visible = FALSE.
+   
+   {OPENEXCEL.I}
+   chWorkbook = chExcelApplication:Workbooks:OPEN(kommando).
+  
+   chWorkSheet = chExcelApplication:Sheets:Item(1) NO-ERROR.
+   EMPTY TEMP-TABLE felfastextra NO-ERROR. 
+   bgfarg = 36.
+   
+   DO:   
+      EMPTY TEMP-TABLE fastextra NO-ERROR. 
+      /*bgfarg = 36.*/
+      FOR EACH fastfortemp NO-LOCK:
+         FIND FIRST fastextra WHERE fastextra.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE fastextra THEN DO:
+            CREATE fastextra.
+            ASSIGN
+            fastextra.VARDNR = fastfortemp.VARDNR
+            fastextra.BETECKNING = fastfortemp.BETECKNING.
+         END.
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "VARDFAST"     
+         inextradatatemp.HUVUDINT = fastfortemp.VARDNR
+         inextradatatemp.HUVUDCH = fastfortemp.BETECKNING.         
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+         FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+         IF AVAILABLE extradatatemp THEN DO:      
+            ASSIGN
+            fastextra.CH1 = extradatatemp.SOKCH[1]
+            fastextra.CH2 = extradatatemp.SOKCH[2]
+            fastextra.CH3 = extradatatemp.SOKCH[3]
+            fastextra.CH4 = extradatatemp.SOKCH[4]
+            fastextra.CH5 = extradatatemp.SOKCH[5]
+            fastextra.CH6 = extradatatemp.SOKCH[6]
+            fastextra.CH7 = extradatatemp.SOKCH[7]
+            fastextra.CH8 = extradatatemp.SOKCH[8]
+            fastextra.CH9 = extradatatemp.SOKCH[9]
+            fastextra.CH10 = extradatatemp.SOKCH[10].            
+         END.                  
+         
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "VARDFAST2"     
+         inextradatatemp.HUVUDINT = fastfortemp.VARDNR
+         inextradatatemp.HUVUDCH = fastfortemp.BETECKNING.
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+         FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+         IF AVAILABLE extradatatemp THEN DO:      
+            ASSIGN
+            fastextra.CH11 = extradatatemp.SOKCH[1]  
+            
+            fastextra.CH14 = extradatatemp.SOKCH[2]                     /*KEWA VÄRDERING KLAR*/
+            fastextra.CH15 =  extradatatemp.SOKCH[3]                     /*KEWA ROTPOST*/
+            fastextra.CH16 = extradatatemp.SOKCH[4]                    /*KEWA TILL NÄTÄGAREN*/
+                   
+            fastextra.LG1 = extradatatemp.SOKLOG[1]        
+            fastextra.LG2 = extradatatemp.SOKLOG[2]
+            fastextra.LG3 = extradatatemp.SOKLOG[3]
+            fastextra.INT1 = extradatatemp.SOKINT[1]        
+            fastextra.INT2 = extradatatemp.SOKINT[2]
+            fastextra.INT3 = extradatatemp.SOKINT[3].
+         END.
+      END.
+      IF vart = 70 OR vart = 71 OR vart = 72 THEN DO:
+         
+         FOR EACH fastfortemp :
+            FIND FIRST felfastextra  WHERE felfastextra.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.
+            FIND FIRST fastextra WHERE fastextra.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.
+            IF fastextra.INT1 = 0 AND fastextra.INT2 = 0 THEN.
+            ELSE IF fastextra.LG1 = FALSE AND fastextra.LG2 = FALSE THEN DO:
+               IF NOT AVAILABLE felfastextra  THEN DO:               
+                  CREATE felfastextra.
+                  BUFFER-COPY fastextra  TO felfastextra .
+               END.   
+               DELETE fastfortemp.
+            END.    
+         END.   
+      END.             
+   END.
+   EMPTY TEMP-TABLE sumtemp NO-ERROR. 
+   CREATE uppfoltemp.
+   ASSIGN
+   uppfoltemp.FORETAG = Guru.Konstanter:globforetag   
+   uppfoltemp.ALLAMA = FALSE
+   uppfoltemp.VALVARD = ""
+   uppfoltemp.FORSTA = TRUE
+   uppfoltemp.STAMP = FALSE.
+            
+   FIND FIRST fastfortemp USE-INDEX ORDNING NO-LOCK NO-ERROR.
+   FIND FIRST markval WHERE markval.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.  
+   IF AVAILABLE markval THEN DO:                  
+      /*)MESSAGE markval.beteckning  markval.vardnr
+      VIEW-AS ALERT-BOX.*/
+      RUN markupp_UI IN skprotapph
+      (INPUT "" ,INPUT markval.BETECKNING,INPUT markval.MARKREC,INPUT TABLE uppfoltemp,INPUT TABLE markval,INPUT TABLE maga,OUTPUT TABLE sumtemp).
+      RUN vardman4_UI IN skprotapph (INPUT markval.VARDNR , OUTPUT vardman, OUTPUT vardtel,output vepost, OUTPUT vort ).
+      RUN hmtvaonr_UI IN skprotapph (INPUT markval.VARDNR , OUTPUT pnr, OUTPUT dnr, OUTPUT pben ).
+      
+   END.
+   FIND FIRST fastfortemp USE-INDEX ORDNING NO-LOCK NO-ERROR.
+   IF vart = 1 OR vart = 2 OR vart = 5 THEN DO:
+      IF ponr NE ? THEN DO:
+         ASSIGN
+         iColumn = 4
+         cColumn = STRING(iColumn)
+         cRange = "E" + cColumn.
+          RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT ponr).                  
+      END.         
+      {EXCELFEL.I}                      
+      IF pnamn NE "" THEN DO:
+         ASSIGN
+         iColumn = 4
+         cColumn = STRING(iColumn)
+         cRange = "K" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT pnamn).              
+      END.
+      IF pled NE "" THEN DO:         
+         ASSIGN
+         iColumn = 8
+         cColumn = STRING(iColumn)
+         cRange = "L" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT pled).               
+      END.
+      /*END.*/
+      {EXCELFEL.I}
+      ASSIGN
+      iColumn = 7
+      cColumn = STRING(iColumn)
+      cRange = "C" + cColumn.
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT vman).         
+      ASSIGN
+      iColumn = 4
+      cColumn = STRING(iColumn).
+      IF Guru.Konstanter:globforetag = "VAST" OR Guru.Konstanter:globforetag = "VELD" OR Guru.Konstanter:globforetag = "cELPA" THEN DO: 
+         IF vart = 1 OR vart = 2 OR vart = 5   THEN cRange = "K" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT ortvar).               
+      END.
+      {EXCELFEL.I}
+   END.
+   IF vart = 8  THEN DO:
+      IF ponr NE ? THEN DO:
+         ASSIGN
+         iColumn = 2
+         cColumn = STRING(iColumn)
+         cRange = "C" + cColumn.
+          RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT ponr).                  
+      END.         
+      {EXCELFEL.I}                      
+      IF pnamn NE "" THEN DO:
+         ASSIGN
+         iColumn = 2
+         cColumn = STRING(iColumn)
+         cRange = "M" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT pnamn).              
+      END.
+      IF pled NE "" THEN DO:         
+         ASSIGN
+         iColumn = 4
+         cColumn = STRING(iColumn)
+         cRange = "M" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT pled).               
+      END.      
+      {EXCELFEL.I}
+      ASSIGN
+      iColumn = 3
+      cColumn = STRING(iColumn)
+      cRange = "C" + cColumn.
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT vman).         
+      
+      {EXCELFEL.I}
+   END.
+   IF vart = 11 THEN DO:      
+      IF ponr NE ? AND ponr NE "" THEN DO:
+         ASSIGN
+         iColumn = 2
+         cColumn = STRING(iColumn)
+         cRange = "A" + cColumn.
+         IF ponr NE ? THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "P-nr : " + ponr).
+         ELSE RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "P-nr : " + ponr).                                 
+         {EXCELFEL.I}                      
+         
+         ASSIGN
+         iColumn = 2
+         cColumn = STRING(iColumn)
+         cRange = "C" + cColumn.
+         IF pnamn NE "" THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "Benämning: " + pnamn).
+         ELSE RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "Benämning:").              
+         
+         /*IF pled NE "" THEN DO:         
+            ASSIGN
+            iColumn = 4
+            cColumn = STRING(iColumn)
+            cRange = "M" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT pled).               
+         END.*/
+      END.  
+      ELSE IF pnr NE ? and pnr NE "" THEN DO:         
+         ASSIGN
+         iColumn = 2
+         cColumn = STRING(iColumn)
+         cRange = "A" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "P-nr : " + pnr + STRING(dnr,"999" )).         
+         {EXCELFEL.I}
+         ASSIGN
+         iColumn = 2
+         cColumn = STRING(iColumn)
+         cRange = "C" + cColumn.                       
+         IF pben NE "" THEN  RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "Benämning: " + pben).              
+         ELSE RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "Benämning:" ).   
+                        
+      END.         
+      ELSE DO:
+         ASSIGN
+         iColumn = 2
+         cColumn = STRING(iColumn)
+         cRange = "A" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "P-nr : ").         
+         {EXCELFEL.I}
+         ASSIGN
+         iColumn = 2
+         cColumn = STRING(iColumn)
+         cRange = "C" + cColumn.                                              
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "Benämning:" ).
+         
+      END.        
+   END.
+   IF vart = 9 THEN DO:
+      ASSIGN
+      iColumn = 2
+      cColumn = STRING(iColumn)
+      cRange = "A" + cColumn.      
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(TODAY,("9999-99-99"))).
+      IF ponr NE ? THEN DO:
+         ASSIGN
+         iColumn = 3
+         cColumn = STRING(iColumn)
+         cRange = "B" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT ponr).                  
+      END.         
+      {EXCELFEL.I}  
+      
+      IF lelitt NE "" THEN DO:
+         ASSIGN
+         iColumn = 4
+         cColumn = STRING(iColumn)
+         cRange = "B" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT lelitt).
+      END.                             
+      IF pled NE "" THEN DO:         
+         ASSIGN
+         iColumn = 5
+         cColumn = STRING(iColumn)
+         cRange = "B" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT pled).               
+      END.      
+      {EXCELFEL.I}
+      ASSIGN
+      iColumn = 6
+      cColumn = STRING(iColumn)
+      cRange = "B" + cColumn.
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT vman).               
+      {EXCELFEL.I}
+      FIND FIRST fastfortemp  NO-LOCK NO-ERROR.
+      ASSIGN
+      iColumn = 4
+      cColumn = STRING(iColumn)
+      cRange = "D" + cColumn.
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.KOMMUN).
+   END.
+   IF vart = 6 THEN DO:
+      IF ponr NE ? THEN DO:
+         ASSIGN
+         iColumn = 2    /*ändrat från 3 ponr = NIS-nr 20181030*/
+         cColumn = STRING(iColumn)
+         cRange = "C" + cColumn.
+          RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT ponr).                  
+      END.         
+      {EXCELFEL.I}                      
+      IF pnamn NE "" THEN DO:
+         ASSIGN
+         iColumn = 1
+         cColumn = STRING(iColumn)
+         cRange = "C" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT pnamn).              
+      END.
+      {EXCELFEL.I}      
+   END.
+  
+   IF vart = 70 OR vart = 71 THEN DO:               
+      IF ponr NE ? THEN DO:         
+         ASSIGN
+         iColumn = 5 /* 6*/
+         cColumn = STRING(iColumn)
+         cRange = "C" + cColumn.        
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT ponr).                      
+      END.
+      ELSE IF aovar NE ? THEN DO:
+         ASSIGN
+         iColumn = 5  /*6*/
+         cColumn = STRING(iColumn)
+         cRange = "C" + cColumn.        
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT aovar).
+      END.   
+      IF vort NE ? THEN DO:         
+         ASSIGN
+         iColumn = 2 /*3*/
+         cColumn = STRING(iColumn)
+         cRange = "C" + cColumn.        
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT vort).            
+      END.
+      IF vardman NE "" THEN DO:
+         ASSIGN
+         iColumn = 3    /*4*/
+         cColumn = STRING(iColumn)
+         cRange = "K" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT vardman).
+      END.   
+      IF vardtel NE "" THEN DO:
+         ASSIGN
+         iColumn =  4    /*5*/
+         cColumn = STRING(iColumn)
+         cRange = "K" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(vardtel)).
+      END.   
+         
+      IF vepost NE "" THEN DO:
+         ASSIGN
+         iColumn = 5   /*6*/
+         cColumn = STRING(iColumn)
+         cRange = "K" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT vepost).
+      END.
+      
+      {EXCELFEL.I}
+      
+      ASSIGN
+      iColumn =  2  /*3*/
+      cColumn = STRING(iColumn)
+      cRange = "K" + cColumn.
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(TODAY,("9999-99-99")) ).      
+      {EXCELFEL.I}            
+      ASSIGN
+      iColumn = 4
+      cColumn = STRING(iColumn).
+      /*IF Guru.Konstanter:globforetag = "VAST" OR Guru.Konstanter:globforetag = "VELD" OR Guru.Konstanter:globforetag = "cELPA" THEN DO: 
+         IF vart = 1 OR vart = 2 OR vart = 5   THEN cRange = "K" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT ortvar).               
+      END.*/
+      {EXCELFEL.I}
+   END.
+   IF vart = 72 THEN DO:       
+              
+      IF ponr NE ? THEN DO:         
+         ASSIGN
+         iColumn = 2   /*ändrat från 3 ponr = NIS-nr 20181030*/
+         cColumn = STRING(iColumn)
+         cRange = "B" + cColumn.        
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT ponr).                      
+      END.         
+      IF pnamn NE ? THEN DO:         
+         ASSIGN
+         iColumn = 1
+         cColumn = STRING(iColumn)
+         cRange = "B" + cColumn.        
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT pnamn).            
+      END.      
+      {EXCELFEL.I}
+   END.
+   IF vart = 70 OR vart = 71 THEN radrakn = 10 .
+   ELSE IF vart = 1 OR vart = 2 OR vart = 5 THEN radrakn = 11.
+   ELSE IF vart = 8 THEN radrakn = 6.
+   ELSE IF vart = 11 THEN DO:
+       radrakn = 4.
+       mrakn = 0.
+   END.       
+   ELSE IF vart = 6 THEN radrakn = 8.
+   ELSE IF vart = 9 THEN radrakn = 10.
+   ELSE IF vart = 72 THEN radrakn = 7.
+   ELSE radrakn = 11 .
+                  
+   ASSIGN
+   fastvar = ""
+   fastrakn = 0
+   strad = 0
+   slrad = 0.
+   
+   FOR EACH fastfortemp :
+      FIND FIRST fastforbuff WHERE fastforbuff.BETECKNING = fastfortemp.BETECKNING AND fastforbuff.MARKNR = fastfortemp.MARKNR AND fastforbuff.VARDNR NE fastfortemp.VARDNR  NO-ERROR.
+      IF AVAILABLE fastforbuff THEN DO:
+         /* om samma fastighet förekommer på flera delnr ska fastigheten bara ut 1 gång , men med hela summan*/
+         DELETE fastfortemp.
+      END.   
+   END.
+   /*DUMMY*/
+   FIND FIRST fastfortemp NO-ERROR.
+   FOR EACH fastfortemp USE-INDEX ORDNING NO-LOCK.
+      
+      {EXCELFEL.I}
+      
+      IF fastvar NE fastfortemp.BETECKNING THEN DO: 
+         IF vart = 1 OR vart = 2 OR vart = 5 OR vart = 6 /*OR vart = 8*/ THEN DO:
+            IF Guru.Konstanter:globforetag = "VAST" OR Guru.Konstanter:globforetag = "VELD"  THEN DO:         
+               IF fastvar NE "" THEN DO:
+                  slrad = radrakn.
+                  RUN extrafaltf_UI.        
+               END.
+            END.
+            ELSE DO:                  
+               IF fastvar NE "" THEN DO:
+                  slrad = radrakn.
+                  RUN extrafalt_UI.
+                         
+               END.
+            END.
+         END.   
+                     
+         fastrakn = fastrakn + 1.         
+      END.
+         
+      IF vart = 1 OR vart = 2 OR vart = 5 THEN DO:
+         IF fastvar NE fastfortemp.BETECKNING AND SUBSTRING(fastfortemp.ANAMN,1,30) NE "" THEN DO:                                
+            ASSIGN                  
+            radrakn = (radrakn + 1)
+            iColumn = radrakn
+            cColumn = STRING(iColumn)
+            strad = radrakn .   
+            ASSIGN
+            cRange = "E" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "A").            
+            cRange = "F" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT SUBSTRING(fastfortemp.ANAMN,1,30)).                                 
+            ASSIGN            
+            cRange = "K" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.AADRESS).               
+            cRange = "L" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.APONR).               
+            cRange = "M" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.APADRESS).               
+            cRange = "N" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.ATELEFON).                           
+            DEBUGGER:SET-BREAK().                                                    
+            cRange = "B" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.KOMMUN).               
+            cRange = "C" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.BETECKNING).                                      
+         END.               
+         ELSE IF fastvar NE fastfortemp.BETECKNING  THEN DO:                                
+            strad = radrakn + 1.       
+         END.
+            
+         ASSIGN
+         radrakn = (radrakn + 1)
+         iColumn = radrakn
+         cColumn = STRING(iColumn).      
+         FIND FIRST fastextra WHERE fastextra.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.                                            
+         ASSIGN
+         sumfast = 0
+         sumfasttot = 0.
+         FIND FIRST sumtemp WHERE /*sumtemp.VARDNR = fastfortemp.VARDNR AND*/ sumtemp.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.
+         IF AVAILABLE sumtemp THEN DO:               
+            
+            IF AVAILABLE fastfortemp THEN DO:
+               IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA. 
+               ELSE sumfast = sumtemp.SUMMA * fastfortemp.INTE1 / fastfortemp.INTE2 .                  
+            END.
+            ELSE sumfast = sumtemp.SUMMA. 
+            sumfasttot = sumtemp.SUMMA.                                    
+         END.
+            
+         IF Guru.Konstanter:globforetag = "pica" OR Guru.Konstanter:globforetag = "sweo" OR Guru.Konstanter:globforetag = "TECT" OR Guru.Konstanter:globforetag = "snat"  OR Guru.Konstanter:globforetag = "SKEL"  THEN DO:
+            /*vill inte ha sammanfogade rader längre , bara färgade*/         
+            cRange = "A" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastrakn).            
+            cRange = "B" + cColumn.           
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.KOMMUN).            
+            cRange = "C" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.BETECKNING).            
+            IF vart = 1 OR vart = 2 OR vart = 5 THEN DO:            
+               cRange = "U" + cColumn.
+               RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastrakn).               
+               cRange = "V" + cColumn.
+               RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.BETECKNING).                       
+            END.
+            
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH2.
+            ELSE textvar = "".                                          
+            cRange = "Y" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).                                                   
+            textvar = "".                                   
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH3.            
+            cRange = "Z" + cColumn.
+            IF Guru.Konstanter:globforetag = "tect" THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT DATE(textvar)).
+            ELSE RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).                                                            
+            textvar = "".   
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH4.                                                            
+            cRange = "AA" + cColumn.
+            IF Guru.Konstanter:globforetag = "tect" THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT DATE(textvar)).
+            ELSE RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).                                                                                                        
+            /* Inskr. sökt CH7 och Inskr.nr CH8 används istället till Bankkonto och banknamn */
+            /*om bankkonto/namn inskrivet på markägare så går det före att det står på fastigheten i extra uppgifter lena 20140428*/
+            IF fastfortemp.MBANKKONTO NE "" THEN textvar = fastfortemp.MBANKKONTO.
+            ELSE DO:
+               IF AVAILABLE fastextra THEN textvar = fastextra.CH7.
+               ELSE textvar = "".
+            END.                                             
+            cRange = "O" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).                                                              
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH9.
+            ELSE textvar = "".                                             
+            cRange = "AF" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).                                                                                          
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH10.
+            ELSE textvar = "".                              
+            IF textvar NE "" THEN DO:                     
+               cRange = "AF" + STRING(strad).
+               chWorkSheet:Range(cRange):clearcomments() NO-ERROR.   
+               chWorkSheet:Range(cRange):addcomment(textvar) NO-ERROR.                                             
+            END.
+         END.                        
+         ASSIGN         
+         cRange = "D" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.CHE2).         
+         cRange = "E" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "M").         
+         cRange = "F" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.MARKAGARE).         
+         cRange = "G" + cColumn.
+         chWorkSheet:Range(cRange):Font:NAME = "ARIAL" NO-ERROR.
+         chWorkSheet:Range(cRange):Font:SIZE = 10 NO-ERROR.      
+         {EXCELFEL.I}
+         /*andel*/         
+         IF Guru.Konstanter:varforetypval[22] = 1  THEN DO:
+            chWorkSheet:Range(cRange):NumberFormat = "@" NO-ERROR.
+            chWorkSheet:Range(cRange):Value = fastfortemp.CHE1 NO-ERROR.
+         END.
+         ELSE chWorkSheet:Range(cRange):Value = fastfortemp.PROCENT NO-ERROR.                                               
+         ASSIGN
+         cRange = "J" + cColumn.            
+         IF fastfortemp.PNR2 = "" OR fastfortemp.PNR2 BEGINS "000000" THEN DO:
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(fastfortemp.PERSONNUMMER,"999999-9999")).                  
+         END.
+         ELSE DO: 
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(fastfortemp.PERSONNUMMER,"999999-9999")+ " " + STRING(fastfortemp.PNR2,"999999-9999")).               
+         END.
+         ASSIGN
+         cRange = "K" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.GATUADRESS).            
+         cRange = "L" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.POSTNUMMER).                       
+         cRange = "M" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.POSTADRESS).                       
+         cRange = "N" + cColumn.                        
+         IF fastfortemp.TELEFON NE "" THEN DO:
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.TELEFON).               
+         END.   
+         ELSE RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.MOBIL).                                        
+         IF Guru.Konstanter:globforetag = "VAST" OR Guru.Konstanter:globforetag = "VELD"  THEN DO:                              
+            cRange = "X" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(sumfast)).                                                            
+         END.
+         ELSE DO:                                          
+            cRange = "P" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(sumfast)).                                               
+         END.                              
+         {EXCELFEL.I}
+         DEBUGGER:SET-BREAK().      
+         /*om ej sammanfogad*/                  
+         ASSIGN            
+         cRange = "B" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.KOMMUN).            
+         cRange = "C" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.BETECKNING).                     
+      END.
+      
+      IF vart = 8 THEN DO:
+         IF fastvar NE fastfortemp.BETECKNING AND SUBSTRING(fastfortemp.ANAMN,1,30) NE "" THEN DO:                                
+            ASSIGN                  
+            radrakn = (radrakn + 1)
+            iColumn = radrakn
+            cColumn = STRING(iColumn)
+            strad = radrakn .   
+            ASSIGN
+            cRange = "F" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "A").            
+            cRange = "G" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT SUBSTRING(fastfortemp.ANAMN,1,30)).                                 
+            ASSIGN            
+            cRange = "L" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.AADRESS).               
+            cRange = "M" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.APONR).               
+            cRange = "N" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.APADRESS).               
+            cRange = "O" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.ATELEFON).                           
+            DEBUGGER:SET-BREAK().                                                    
+            cRange = "B" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.KOMMUN).               
+            cRange = "C" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.BETECKNING).                                      
+         END.               
+         ELSE IF fastvar NE fastfortemp.BETECKNING  THEN DO:                                
+            strad = radrakn + 1.       
+         END.
+            
+         ASSIGN
+         radrakn = (radrakn + 1)
+         iColumn = radrakn
+         cColumn = STRING(iColumn).      
+         FIND FIRST fastextra WHERE fastextra.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.                                            
+         ASSIGN
+         sumfast = 0
+         sumfasttot = 0.
+         FIND FIRST sumtemp WHERE /*sumtemp.VARDNR = fastfortemp.VARDNR AND*/ sumtemp.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.
+         IF AVAILABLE sumtemp THEN DO:               
+            
+            IF AVAILABLE fastfortemp THEN DO:
+               /*lägg till rev. Fast belopp rev enbart om det bara är rev*/
+               IF sumtemp.REVERS > 0 THEN DO:
+                  IF sumtemp.revfb = 0 AND sumtemp.GRUNDERS = 0 THEN DO:
+                     /*storskog- rev redan tillagt*/
+                     IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA. 
+                     ELSE sumfast = sumtemp.SUMMA * fastfortemp.INTE1 / fastfortemp.INTE2 .
+                  END.   
+                  ELSE DO:
+                     IF sumtemp.SUMMA = 0 THEN DO:
+                        IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA +  sumtemp.revsum. 
+                        ELSE sumfast = (sumtemp.SUMMA + sumtemp.revsum) * fastfortemp.INTE1 / fastfortemp.INTE2 .
+                     END.   
+                     ELSE DO:
+                        IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA +  sumtemp.REVERS. 
+                        ELSE sumfast = (sumtemp.SUMMA + sumtemp.REVERS) * fastfortemp.INTE1 / fastfortemp.INTE2 .
+                     END.
+                  END.      
+               END.
+               ELSE DO:
+                  IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA. 
+                  ELSE sumfast = sumtemp.SUMMA * fastfortemp.INTE1 / fastfortemp.INTE2 .
+               END.                        
+            END.
+            ELSE sumfast = sumtemp.SUMMA. 
+            sumfasttot = sumtemp.SUMMA.                                    
+         END.
+            
+         IF Guru.Konstanter:globforetag = "pica" OR Guru.Konstanter:globforetag = "sweo" OR Guru.Konstanter:globforetag = "TECT" OR Guru.Konstanter:globforetag = "snat"  OR Guru.Konstanter:globforetag = "SKEL"  THEN DO:
+            /*vill inte ha sammanfogade rader längre , bara färgade*/         
+                        
+            cRange = "B" + cColumn.           
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.KOMMUN).            
+            cRange = "C" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.BETECKNING).            
+                        
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH2.
+            ELSE textvar = "".                                          
+            cRange = "Z" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).
+            /*ch3 = skickat*/                                                   
+            textvar = "".                                   
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH3.            
+            cRange = "V" + cColumn.
+            IF Guru.Konstanter:globforetag = "tect" THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT DATE(textvar)).
+            ELSE RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).
+            /*ch4 = mottaget*/                                                            
+            textvar = "".               
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH4.                                                            
+            cRange = "W" + cColumn.
+            IF Guru.Konstanter:globforetag = "tect" THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT DATE(textvar)).
+            ELSE RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).                                                                                                        
+            /* Inskr. sökt CH7 och Inskr.nr CH8 används istället till Bankkonto och banknamn */
+            /*om bankkonto/namn inskrivet på markägare så går det före att det står på fastigheten i extra uppgifter lena 20140428*/
+            IF fastfortemp.MBANKKONTO NE "" THEN textvar = fastfortemp.MBANKKONTO.
+            ELSE DO:
+               IF AVAILABLE fastextra THEN textvar = fastextra.CH7.
+               ELSE textvar = "".
+            END.                                                     
+            cRange = "P" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).
+            /*CH9 = anmärkning*/                                                              
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH9.
+            ELSE textvar = "".                                                         
+            cRange = "AB" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).
+            
+            /*ch10 = kommentar
+            vattenfalls mall låst för att lägga in comment*/                                                                                          
+            /*IF AVAILABLE fastextra THEN textvar = fastextra.CH10.
+            ELSE textvar = "".                              
+            IF textvar NE "" THEN DO:                     
+               cRange = "AB" + STRING(strad).
+               chWorkSheet:Range(cRange):clearcomments() NO-ERROR.   
+               chWorkSheet:Range(cRange):addcomment(textvar) NO-ERROR.                                             
+            END.*/
+         END.
+         DEBUGGER:SET-BREAK().                        
+         ASSIGN         
+         cRange = "D" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.CHE2).         
+         cRange = "E" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "M").         
+         cRange = "G" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.MARKAGARE).         
+         cRange = "H" + cColumn.
+         chWorkSheet:Range(cRange):Font:NAME = "ARIAL" NO-ERROR.
+         chWorkSheet:Range(cRange):Font:SIZE = 10 NO-ERROR.      
+       
+         /*andel*/         
+         IF Guru.Konstanter:varforetypval[22] = 1  THEN DO:
+            chWorkSheet:Range(cRange):NumberFormat = "@" NO-ERROR.
+            chWorkSheet:Range(cRange):Value = fastfortemp.CHE1 NO-ERROR.
+         END.
+         ELSE chWorkSheet:Range(cRange):Value = fastfortemp.PROCENT NO-ERROR.                                               
+         ASSIGN
+         cRange = "K" + cColumn.            
+         IF fastfortemp.PNR2 = "" OR fastfortemp.PNR2 BEGINS "000000" THEN DO:
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(fastfortemp.PERSONNUMMER,"999999-9999")).                  
+         END.
+         ELSE DO: 
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(fastfortemp.PERSONNUMMER,"999999-9999")+ " " + STRING(fastfortemp.PNR2,"999999-9999")).               
+         END.
+         ASSIGN
+         cRange = "L" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.GATUADRESS).            
+         cRange = "M" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.POSTNUMMER).                       
+         cRange = "N" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.POSTADRESS).                       
+         cRange = "O" + cColumn.                        
+         IF fastfortemp.TELEFON NE "" THEN DO:
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.TELEFON).               
+         END.   
+         ELSE RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.MOBIL).                                                                               
+         cRange = "Y" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(sumfast)).                                                            
+         
+         
+         {EXCELFEL.I}
+         DEBUGGER:SET-BREAK().      
+         /*om ej sammanfogad*/                  
+         ASSIGN            
+         cRange = "B" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.KOMMUN).            
+         cRange = "C" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.BETECKNING).                     
+      END.
+     
+      IF vart = 11 THEN DO:                        
+         IF fastvar NE fastfortemp.BETECKNING  THEN DO:                                
+            strad = radrakn + 1.       
+         END.            
+         ASSIGN
+         radrakn = (radrakn + 1)
+         mrakn = mrakn + 1
+         iColumn = radrakn
+         cColumn = STRING(iColumn).      
+         FIND FIRST fastextra WHERE fastextra.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.                                            
+         ASSIGN
+         sumfast = 0
+         sumfasttot = 0.
+         FIND FIRST sumtemp WHERE /*sumtemp.VARDNR = fastfortemp.VARDNR AND*/ sumtemp.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.
+         IF AVAILABLE sumtemp THEN DO:                           
+            IF AVAILABLE fastfortemp THEN DO:
+               /*lägg till rev. Fast belopp rev enbart om det bara är rev*/
+               IF sumtemp.REVERS > 0 THEN DO:
+                  IF sumtemp.revfb = 0 AND sumtemp.GRUNDERS = 0 THEN DO:
+                     /*storskog- rev redan tillagt*/
+                     IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA. 
+                     ELSE sumfast = sumtemp.SUMMA * fastfortemp.INTE1 / fastfortemp.INTE2 .
+                  END.   
+                  ELSE DO:
+                     IF sumtemp.SUMMA = 0 THEN DO:
+                        IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA +  sumtemp.revsum. 
+                        ELSE sumfast = (sumtemp.SUMMA + sumtemp.revsum) * fastfortemp.INTE1 / fastfortemp.INTE2 .
+                     END.   
+                     ELSE DO:
+                        IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA +  sumtemp.REVERS. 
+                        ELSE sumfast = (sumtemp.SUMMA + sumtemp.REVERS) * fastfortemp.INTE1 / fastfortemp.INTE2 .
+                     END.
+                  END.      
+               END.
+               ELSE DO:
+                  IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA. 
+                  ELSE sumfast = sumtemp.SUMMA * fastfortemp.INTE1 / fastfortemp.INTE2 .
+               END.                        
+            END.
+            ELSE sumfast = sumtemp.SUMMA. 
+            sumfasttot = sumtemp.SUMMA.                                    
+         END.
+         cRange = "A" + cColumn.           
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT mrakn).               
+         cRange = "B" + cColumn.           
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.KOMMUN + " " + fastfortemp.BETECKNING).            
+                     
+         /*IF AVAILABLE fastextra THEN textvar = fastextra.CH2.
+         ELSE textvar = "".                                          
+         cRange = "Z" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).
+         /*ch3 = skickat*/                                                   
+         textvar = "".                                   
+         IF AVAILABLE fastextra THEN textvar = fastextra.CH3.            
+         cRange = "V" + cColumn.
+         IF Guru.Konstanter:globforetag = "tect" THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT DATE(textvar)).
+         ELSE RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).
+         /*ch4 = mottaget*/                                                            
+         textvar = "".               
+         IF AVAILABLE fastextra THEN textvar = fastextra.CH4.                                                            
+         cRange = "W" + cColumn.
+         IF Guru.Konstanter:globforetag = "tect" THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT DATE(textvar)).
+         ELSE RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).                                                                                                        
+         /* Inskr. sökt CH7 och Inskr.nr CH8 används istället till Bankkonto och banknamn */
+         /*om bankkonto/namn inskrivet på markägare så går det före att det står på fastigheten i extra uppgifter lena 20140428*/
+         IF fastfortemp.MBANKKONTO NE "" THEN textvar = fastfortemp.MBANKKONTO.
+         ELSE DO:
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH7.
+            ELSE textvar = "".
+         END.                                                     
+         cRange = "P" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).
+         /*CH9 = anmärkning*/                                                              
+         IF AVAILABLE fastextra THEN textvar = fastextra.CH9.
+         ELSE textvar = "".                                                         
+         cRange = "AB" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).
+         
+         /*ch10 = kommentar
+         vattenfalls mall låst för att lägga in comment*/                                                                                          
+         /*IF AVAILABLE fastextra THEN textvar = fastextra.CH10.
+         ELSE textvar = "".                              
+         IF textvar NE "" THEN DO:                     
+            cRange = "AB" + STRING(strad).
+            chWorkSheet:Range(cRange):clearcomments() NO-ERROR.   
+            chWorkSheet:Range(cRange):addcomment(textvar) NO-ERROR.                                             
+         END.*/
+       */
+         DEBUGGER:SET-BREAK().                        
+         ASSIGN
+         cRange = "C" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.MARKAGARE). 
+         ASSIGN
+         cRange = "D" + cColumn.            
+         IF fastfortemp.PNR2 = "" OR fastfortemp.PNR2 BEGINS "000000" THEN DO:
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(fastfortemp.PERSONNUMMER,"999999-9999")).                  
+         END.
+         ELSE DO: 
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(fastfortemp.PERSONNUMMER,"999999-9999")+ " " + STRING(fastfortemp.PNR2,"999999-9999")).               
+         END.                 
+         /*cRange = "D" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.CHE2).*/         
+                  
+         cRange = "E" + cColumn.
+         chWorkSheet:Range(cRange):Font:NAME = "ARIAL" NO-ERROR.
+         chWorkSheet:Range(cRange):Font:SIZE = 10 NO-ERROR.             
+         /*andel*/         
+         IF Guru.Konstanter:varforetypval[22] = 1  THEN DO:
+            chWorkSheet:Range(cRange):NumberFormat = "@" NO-ERROR.
+            chWorkSheet:Range(cRange):Value = fastfortemp.CHE1 NO-ERROR.
+         END.
+         ELSE chWorkSheet:Range(cRange):Value = fastfortemp.PROCENT NO-ERROR.                                               
+         cRange = "F" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "LF").
+         ASSIGN
+         cRange = "G" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.GATUADRESS).            
+         cRange = "H" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.POSTNUMMER).                       
+         cRange = "I" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.POSTADRESS).                       
+         cRange = "K" + cColumn.                        
+         IF fastfortemp.TELEFON NE "" THEN DO:
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.TELEFON).               
+         END.   
+         ELSE RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.MOBIL).
+         cRange = "L" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.EPOST).
+                                                                                        
+         cRange = "W" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(sumfast)).                                                            
+         
+         {EXCELFEL.I}
+         DEBUGGER:SET-BREAK().      
+         /*om ej sammanfogad*/                  
+         /*ASSIGN            
+         cRange = "B" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.KOMMUN).            
+         cRange = "C" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.BETECKNING).*/                     
+      END.
+      
+      IF vart = 9 THEN DO:
+         /*IF fastvar NE fastfortemp.BETECKNING AND SUBSTRING(fastfortemp.ANAMN,1,30) NE "" THEN DO:                                
+            ASSIGN                  
+            radrakn = (radrakn + 1)
+            iColumn = radrakn
+            cColumn = STRING(iColumn)
+            strad = radrakn .   
+            ASSIGN
+            cRange = "F" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "A").            
+            cRange = "G" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT SUBSTRING(fastfortemp.ANAMN,1,30)).                                 
+            ASSIGN            
+            cRange = "L" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.AADRESS).               
+            cRange = "M" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.APONR).               
+            cRange = "N" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.APADRESS).               
+            cRange = "O" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.ATELEFON).                           
+            DEBUGGER:SET-BREAK().                                                    
+            cRange = "B" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.KOMMUN).               
+            cRange = "C" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.BETECKNING).                                      
+         END.               
+         ELSE*/ 
+         IF fastvar NE fastfortemp.BETECKNING  THEN DO:                                
+            strad = radrakn + 1.       
+         END.
+            
+         ASSIGN
+         radrakn = (radrakn + 1)
+         iColumn = radrakn
+         cColumn = STRING(iColumn).      
+         FIND FIRST fastextra WHERE fastextra.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.                                            
+         ASSIGN
+         sumfast = 0
+         sumfasttot = 0.
+         FIND FIRST sumtemp WHERE /*sumtemp.VARDNR = fastfortemp.VARDNR AND*/ sumtemp.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.
+         IF AVAILABLE sumtemp THEN DO:               
+            /*sumfast = sumtemp.SUMMA * fastfortemp.PROCENT / 100.*/
+            IF AVAILABLE fastfortemp THEN DO:
+               IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA. 
+               ELSE sumfast = sumtemp.SUMMA * fastfortemp.INTE1 / fastfortemp.INTE2 .                  
+            END.
+            ELSE sumfast = sumtemp.SUMMA. 
+            sumfasttot = sumtemp.SUMMA.                                    
+         END.
+         DO:   
+         /*IF Guru.Konstanter:globforetag = "pica" OR Guru.Konstanter:globforetag = "sweo" OR Guru.Konstanter:globforetag = "TECT" OR Guru.Konstanter:globforetag = "snat"  OR Guru.Konstanter:globforetag = "SKEL"  THEN DO:*/
+            /*vill inte ha sammanfogade rader längre , bara färgade*/         
+            cRange = "A" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastrakn).            
+            cRange = "B" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.BETECKNING).            
+            
+           /* IF AVAILABLE fastextra THEN textvar = fastextra.CH2.
+            ELSE textvar = "".                                          
+            cRange = "Z" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).*/
+            /*ch3 = skickat*/                                                   
+            textvar = "".                                   
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH3.            
+            cRange = "H" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(DATE(textvar),"9999-99-99")).
+                      
+            /*ch4 = mottaget*/                                                            
+            textvar = "".               
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH4.                                                            
+            cRange = "I" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(DATE(textvar),"9999-99-99")).
+            cRange = "L" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(DATE(textvar),"9999-99-99")).                                                                                                                     
+            /*/* Inskr. sökt CH7 och Inskr.nr CH8 används istället till Bankkonto och banknamn */
+            /*om bankkonto/namn inskrivet på markägare så går det före att det står på fastigheten i extra uppgifter lena 20140428*/
+            IF fastfortemp.MBANKKONTO NE "" THEN textvar = fastfortemp.MBANKKONTO.
+            ELSE DO:
+               IF AVAILABLE fastextra THEN textvar = fastextra.CH7.
+               ELSE textvar = "".
+            END.                                                     
+            cRange = "P" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).*/
+            /*CH9 = anmärkning*/                                                              
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH9.
+            ELSE textvar = "".                                                         
+            cRange = "G" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).
+            /*
+            /*ch10 = kommentar
+            vattenfalls mall låst för att lägga in comment*/                                                                                          
+            /*IF AVAILABLE fastextra THEN textvar = fastextra.CH10.
+            ELSE textvar = "".                              
+            IF textvar NE "" THEN DO:                     
+               cRange = "AB" + STRING(strad).
+               chWorkSheet:Range(cRange):clearcomments() NO-ERROR.   
+               chWorkSheet:Range(cRange):addcomment(textvar) NO-ERROR.                                             
+            END.*/
+            */
+         END.
+         DEBUGGER:SET-BREAK().                        
+         /*ASSIGN         
+         cRange = "D" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.CHE2).         
+         cRange = "E" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "M").*/         
+         cRange = "C" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.MARKAGARE).         
+         cRange = "E" + cColumn.
+         chWorkSheet:Range(cRange):Font:NAME = "ARIAL" NO-ERROR.
+         chWorkSheet:Range(cRange):Font:SIZE = 10 NO-ERROR.      
+       
+         /*andel*/         
+         IF Guru.Konstanter:varforetypval[22] = 1  THEN DO:
+            chWorkSheet:Range(cRange):NumberFormat = "@" NO-ERROR.
+            chWorkSheet:Range(cRange):Value = fastfortemp.CHE1 NO-ERROR.
+         END.
+         ELSE chWorkSheet:Range(cRange):Value = fastfortemp.PROCENT NO-ERROR.                                               
+         ASSIGN
+         cRange = "D" + cColumn.            
+         IF fastfortemp.PNR2 = "" OR fastfortemp.PNR2 BEGINS "000000" THEN DO:
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(fastfortemp.PERSONNUMMER,"999999-9999")).                  
+         END.
+         ELSE DO: 
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(fastfortemp.PERSONNUMMER,"999999-9999")+ " " + STRING(fastfortemp.PNR2,"999999-9999")).               
+         END.
+         ASSIGN
+         cRange = "F" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.GATUADRESS + " " + fastfortemp.POSTNUMMER + " " + fastfortemp.POSTADRESS).            
+         /*cRange = "M" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.POSTNUMMER).                       
+         cRange = "N" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.POSTADRESS).*/                       
+         /*cRange = "O" + cColumn.                        
+         IF fastfortemp.TELEFON NE "" THEN DO:
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.TELEFON).               
+         END.   
+         ELSE RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.MOBIL).*/                                                                               
+         cRange = "Y" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(sumfast)).                                                            
+         
+         
+         {EXCELFEL.I}
+         DEBUGGER:SET-BREAK().      
+         /*om ej sammanfogad*/                  
+        /* ASSIGN            
+         cRange = "B" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.KOMMUN).            
+         cRange = "C" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.BETECKNING).*/                     
+      END.
+
+      IF vart = 6 THEN DO:
+         IF fastvar NE fastfortemp.BETECKNING  THEN DO:                                
+            strad = radrakn + 1.       
+         END.
+                     
+         ASSIGN
+         radrakn = (radrakn + 2)
+         iColumn = radrakn
+         cColumn = STRING(iColumn).
+                         
+         chWorkSheet:Rows(iColumn):SELECT NO-ERROR.
+         chWorkSheet:Rows(iColumn):ENTIREROW NO-ERROR.
+         chWorkSheet:Rows(iColumn):INSERT NO-ERROR.
+         ASSIGN
+         radrakn = (radrakn - 1)
+         iColumn = radrakn
+         cColumn = STRING(iColumn).      
+         FIND FIRST fastextra WHERE fastextra.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.                                            
+         ASSIGN
+         sumfast = 0
+         sumfasttot = 0
+         sumrot = 0.
+         DEBUGGER:SET-BREAK().
+         FIND FIRST sumtemp WHERE /*sumtemp.VARDNR = fastfortemp.VARDNR AND*/ sumtemp.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.
+         IF AVAILABLE sumtemp THEN DO:
+                                    
+            IF AVAILABLE fastfortemp THEN DO:
+               /*MESSAGE "G" sumtemp.GRUNDERS "RE" sumtemp.REVERS "RFB" sumtemp.revfb "T" sumtemp.TILLAGG "P" sumtemp.PASLAG "S" sumtemp.SUMMA
+               VIEW-AS ALERT-BOX.*/
+               /*lägg till rev. Fast belopp rev enbart om det bara är rev*/
+               IF sumtemp.REVERS > 0 THEN DO:
+                  IF sumtemp.revfb = 0 AND sumtemp.GRUNDERS = 0 THEN DO:
+                     /*storskog- rev redan tillagt*/
+                     IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA. 
+                     ELSE sumfast = sumtemp.SUMMA * fastfortemp.INTE1 / fastfortemp.INTE2 .
+                  END.   
+                  ELSE DO:
+                     IF sumtemp.SUMMA = 0 THEN DO:
+                        IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA +  sumtemp.revsum. 
+                        ELSE sumfast = (sumtemp.SUMMA + sumtemp.revsum) * fastfortemp.INTE1 / fastfortemp.INTE2 .
+                     END.   
+                     ELSE DO:
+                        IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA +  sumtemp.REVERS. 
+                        ELSE sumfast = (sumtemp.SUMMA + sumtemp.REVERS) * fastfortemp.INTE1 / fastfortemp.INTE2 .
+                     END.
+                  END.      
+               END.
+               ELSE DO:
+                  IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA. 
+                  ELSE sumfast = sumtemp.SUMMA * fastfortemp.INTE1 / fastfortemp.INTE2 .
+               END.
+               
+                                 
+            END.
+            ELSE sumfast = sumtemp.SUMMA. 
+            sumfasttot = sumtemp.SUMMA.                                    
+         END.
+         
+         /*vill inte ha sammanfogade rader längre , bara färgade*/         
+         cRange = "A" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastrakn).            
+         cRange = "B" + cColumn.           
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.KOMMUN).            
+         cRange = "C" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.BETECKNING).            
+         
+         /*IF AVAILABLE fastextra THEN textvar = fastextra.CH2.
+         ELSE textvar = "".                                     
+         cRange = "Y" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).*/                          
+         
+         textvar = "".                                   
+         IF AVAILABLE fastextra THEN textvar = fastextra.CH5.         
+         cRange = "Q" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT DATE(textvar)).
+         textvar = "".                                   
+         IF AVAILABLE fastextra THEN textvar = fastextra.CH11.         
+         cRange = "T" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT DATE(textvar)).
+         textvar = "".                                   
+         IF AVAILABLE fastextra THEN textvar = fastextra.CH5.                  
+         cRange = "Q" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT DATE(textvar)).
+         
+         textvar = "".                                   
+         IF AVAILABLE fastextra THEN textvar = STRING(fastextra.LG1,"J/N" ).         
+         cRange = "U" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).
+         textvar = "".                                   
+         IF AVAILABLE fastextra THEN textvar = STRING(fastextra.LG2,"J/N").         
+         cRange = "V" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).
+         
+         IF AVAILABLE fastextra THEN DO:
+            sumrot = fastextra.INT1.                        
+            IF AVAILABLE fastfortemp THEN DO:
+               IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN. 
+               ELSE sumrot = fastextra.INT1 * fastfortemp.INTE1 / fastfortemp.INTE2 .                  
+            END.
+         END.
+         textvar = "".   
+         IF AVAILABLE fastextra  THEN DO:
+            IF fastextra.LG1 = TRUE THEN DO:
+               textvar = STRING(sumrot).         
+               cRange = "N" + cColumn.
+               RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).
+               IF fastextra.LG3 = TRUE THEN DO:  
+                  /*momsregistrerad  Lena 20210621*/    
+                  textvar = "".
+                  textvar = STRING(sumrot * 0.25).         
+                  cRange = "O" + cColumn.
+                  RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).
+                  textvar = "".
+                  textvar = STRING(sumfast + sumrot + (sumrot * 0.25) ).
+                  cRange = "P" + cColumn.
+                  RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(textvar)).
+               END.
+               ELSE DO:
+                  /*ej momsregistrerad Lena 20210621*/
+                  textvar = "".
+                  textvar = STRING(sumfast + sumrot ).
+                  cRange = "P" + cColumn.
+                  RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(textvar)).
+               END.      
+            END.
+            ELSE DO:
+               textvar = "".
+               textvar = STRING(sumfast).
+               cRange = "P" + cColumn.
+               RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(textvar)).
+            END.   
+         END.   
+                       
+         textvar = "".                                   
+         IF AVAILABLE fastextra THEN textvar = fastextra.CH3.         
+         cRange = "R" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT DATE(textvar)).
+                                   
+                               
+         textvar = "".   
+         IF AVAILABLE fastextra THEN textvar = fastextra.CH4.                                                          
+         cRange = "S" + cColumn.
+         IF Guru.Konstanter:globforetag = "tect" THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT DATE(textvar)).
+         ELSE RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).                                                      
+         /* Inskr. sökt CH7 och Inskr.nr CH8 används istället till Bankkonto och banknamn */
+         /*om bankkonto/namn inskrivet på markägare så går det före att det står på fastigheten i extra uppgifter lena 20140428*/
+         IF fastfortemp.MBANKKONTO NE "" THEN textvar = fastfortemp.MBANKKONTO.
+         ELSE DO:
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH7.
+            ELSE textvar = "".
+         END.                                          
+         cRange = "K" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).
+         IF fastfortemp.MBANKNAMN NE "" THEN textvar = fastfortemp.MBANKNAMN.
+         ELSE DO:
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH8.
+            ELSE textvar = "".
+         END.                                          
+         cRange = "L" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).
+                      
+         IF AVAILABLE fastextra THEN textvar = fastextra.CH9.
+         ELSE textvar = "".                                             
+         cRange = "W" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).                                                                                          
+         IF AVAILABLE fastextra THEN textvar = fastextra.CH10.
+         ELSE textvar = "".                              
+         IF textvar NE "" THEN DO:                     
+            cRange = "W" + STRING(strad).
+            chWorkSheet:Range(cRange):clearcomments() NO-ERROR.   
+            chWorkSheet:Range(cRange):addcomment(textvar) NO-ERROR.                                             
+         END.
+      
+                        
+         /*ASSIGN         
+         cRange = "D" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.CHE2).         
+         cRange = "E" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT "M").         */
+         cRange = "D" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.MARKAGARE).         
+         cRange = "E" + cColumn.
+         chWorkSheet:Range(cRange):Font:NAME = "ARIAL" NO-ERROR.
+         chWorkSheet:Range(cRange):Font:SIZE = 10 NO-ERROR.      
+         {EXCELFEL.I}
+         /*andel*/         
+         
+         chWorkSheet:Range(cRange):NumberFormat = "@" NO-ERROR.
+         chWorkSheet:Range(cRange):Value = fastfortemp.CHE1 NO-ERROR.         
+         ASSIGN
+         cRange = "F" + cColumn.            
+         IF fastfortemp.PNR2 = "" OR fastfortemp.PNR2 BEGINS "000000" THEN DO:
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(fastfortemp.PERSONNUMMER,"999999-9999")).                  
+         END.
+         ELSE DO: 
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(fastfortemp.PERSONNUMMER,"999999-9999")+ " " + STRING(fastfortemp.PNR2,"999999-9999")).               
+         END.
+         ASSIGN
+         cRange = "G" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.GATUADRESS).            
+         cRange = "H" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.POSTNUMMER).                       
+         cRange = "I" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.POSTADRESS).                       
+         cRange = "J" + cColumn.                        
+         IF fastfortemp.TELEFON NE "" THEN DO:
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.TELEFON).               
+         END.   
+         ELSE DO:
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.MOBIL).               
+         END.                                  
+         cRange = "M" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(sumfast)).
+                                                        
+         
+         {EXCELFEL.I}
+         
+      END.
+   
+      IF vart = 70 OR vart = 71 THEN DO:         
+         ASSIGN
+         sumfast = 0
+         sumfasttot = 0
+         intvar = 0.
+         FIND FIRST sumtemp WHERE /*sumtemp.VARDNR = fastfortemp.VARDNR AND*/ sumtemp.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.
+         IF AVAILABLE sumtemp THEN DO:               
+            /*sumfast = sumtemp.SUMMA * fastfortemp.PROCENT / 100.*/
+            IF AVAILABLE fastfortemp THEN DO:
+               IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA. 
+               ELSE sumfast = sumtemp.SUMMA * fastfortemp.INTE1 / fastfortemp.INTE2 .                  
+            END.
+            ELSE sumfast = sumtemp.SUMMA. 
+            sumfasttot = sumtemp.SUMMA.                                    
+         END.
+         ASSIGN
+         radrakn = (radrakn + 1)
+         iColumn = radrakn
+         cColumn = STRING(iColumn).
+               
+         FIND FIRST fastextra WHERE fastextra.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.            
+         cRange = "B" + cColumn.
+          RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.BETECKNING).         
+         cRange = "C" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.MARKAGARE).                 
+         /* Inskr. sökt CH7 och Inskr.nr CH8 används istället till Bankkonto och banknamn */
+         /*om bankkonto/namn inskrivet på markägare så går det före att det står på fastigheten i extra uppgifter lena 20140428*/
+         IF fastfortemp.MBANKKONTO NE "" THEN textvar = fastfortemp.MBANKKONTO.
+         ELSE DO:
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH7.
+            ELSE textvar = "".
+         END.
+         cRange = "D" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).                                                                        
+         IF fastfortemp.MBANKNAMN NE "" THEN textvar = fastfortemp.MBANKNAMN.
+         ELSE DO:
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH8.
+            ELSE textvar = "".
+         END.                                             
+         cRange = "E" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).         
+         cRange = "F" + cColumn.
+         chWorkSheet:Range(cRange):Font:NAME = "ARIAL" NO-ERROR.
+         chWorkSheet:Range(cRange):Font:SIZE = 10 NO-ERROR.      
+         {EXCELFEL.I}
+         /*andel*/         
+         IF Guru.Konstanter:varforetypval[22] = 1  THEN DO:
+            chWorkSheet:Range(cRange):NumberFormat = "@" NO-ERROR.
+            chWorkSheet:Range(cRange):Value = fastfortemp.CHE1 NO-ERROR.
+         END.
+         ELSE DO:
+            chWorkSheet:Range(cRange):Value = fastfortemp.PROCENT NO-ERROR.
+         END.
+         IF AVAILABLE fastextra THEN DO:                         
+            IF fastextra.LG1 = TRUE THEN DO:                           
+               intvar = fastextra.INT1.
+               IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN . 
+               ELSE intvar = intvar * fastfortemp.INTE1 / fastfortemp.INTE2 .                              
+               cRange = "J" + cColumn.
+               IF intvar NE 0 THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT intvar ).
+               /*borttaget 20180307 Lena enligt Susanne Lindahl Sweco
+               cRange = "I" + cColumn.
+               IF intvar NE 0 THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT intvar * 0.25).*/
+            END.
+            IF fastextra.LG2 = TRUE THEN DO:                    
+               /*intvar = fastextra.INT2.*/
+               intvar = fastextra.INT1.         
+               IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN . 
+               ELSE intvar = intvar * fastfortemp.INTE1 / fastfortemp.INTE2 .
+               /*
+               borttaget 20180307 Lena enligt Susanne Lindahl Sweco
+               cRange = "I" + cColumn.
+               IF intvar NE 0 THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT intvar * 0.25).*/         
+            END.
+            /*intvar = fastextra.INT3.         
+            IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN . 
+            ELSE intvar = intvar * fastfortemp.INTE1 / fastfortemp.INTE2 .
+            cRange = "H" + cColumn.
+            IF intvar NE 0 THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 14,FALSE, INPUT 0,INPUT intvar).*/
+                  
+         END.
+         /*Intrångsersättning från extra uppgifter ska ut istället för den räknade .
+         Behövs om det går över årsskiftet så att det ej blir uppräknat belopp automatiskt Lena 20150305*/
+        
+         cRange = "H" + cColumn.         
+         intvar = INTEGER(fastextra.ch5) NO-ERROR.
+         IF intvar > 0 THEN DO:
+            IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN . 
+            ELSE intvar = intvar * fastfortemp.INTE1 / fastfortemp.INTE2 .
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(intvar)).
+         END.   
+         ELSE DO:
+            /*sumfast är redan per andel*/
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(sumfast)).
+         END.       
+         {EXCELFEL.I}
+         
+      END.
+      
+      IF vart = 72 THEN DO:
+         DEBUGGER:SET-BREAK().
+         /*tectel utbet*/         
+         ASSIGN
+         sumfast = 0
+         sumfasttot = 0
+         intvar = 0.         
+         DEBUGGER:SET-BREAK().
+         FIND FIRST sumtemp WHERE  sumtemp.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.
+         IF AVAILABLE sumtemp THEN DO:    
+                            
+            IF AVAILABLE fastfortemp THEN DO:
+               /*lägg till rev. Fast belopp rev enbart om det bara är rev*/
+               IF sumtemp.REVERS > 0 THEN DO:
+                  IF sumtemp.revfb = 0 AND sumtemp.GRUNDERS = 0 THEN DO:
+                     /*storskog- rev redan tillagt*/
+                     IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA. 
+                     ELSE sumfast = sumtemp.SUMMA * fastfortemp.INTE1 / fastfortemp.INTE2 .
+                  END.   
+                  ELSE DO:
+                     IF sumtemp.SUMMA = 0 THEN DO:
+                        IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA +  sumtemp.revsum. 
+                        ELSE sumfast = (sumtemp.SUMMA + sumtemp.revsum) * fastfortemp.INTE1 / fastfortemp.INTE2 .
+                     END.   
+                     ELSE DO:
+                        IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA +  sumtemp.REVERS. 
+                        ELSE sumfast = (sumtemp.SUMMA + sumtemp.REVERS) * fastfortemp.INTE1 / fastfortemp.INTE2 .
+                     END.
+                  END.      
+               END.
+               ELSE DO:
+                  IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN sumfast = sumtemp.SUMMA. 
+                  ELSE sumfast = sumtemp.SUMMA * fastfortemp.INTE1 / fastfortemp.INTE2 .
+               END.
+                                 
+            END.
+            ELSE sumfast = sumtemp.SUMMA. 
+            sumfasttot = sumtemp.SUMMA.                                    
+         END.
+         ASSIGN
+         radrakn = (radrakn + 2)
+         iColumn = radrakn
+         cColumn = STRING(iColumn).
+                  
+         chWorkSheet:Rows(iColumn):SELECT NO-ERROR.
+         chWorkSheet:Rows(iColumn):ENTIREROW NO-ERROR.
+         chWorkSheet:Rows(iColumn):INSERT NO-ERROR.
+         assign
+         radrakn = (radrakn - 1)
+         iColumn = radrakn
+         cColumn = STRING(iColumn).
+               
+         FIND FIRST fastextra WHERE fastextra.BETECKNING = fastfortemp.BETECKNING NO-LOCK NO-ERROR.            
+         cRange = "A" + cColumn.
+          RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.BETECKNING).         
+         cRange = "B" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT fastfortemp.MARKAGARE).                 
+         /* Inskr. sökt CH7 och Inskr.nr CH8 används istället till Bankkonto och banknamn */
+         /*om bankkonto/namn inskrivet på markägare så går det före att det står på fastigheten i extra uppgifter lena 20140428*/
+         IF fastfortemp.MBANKKONTO NE "" THEN textvar = fastfortemp.MBANKKONTO.
+         ELSE DO:
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH7.
+            ELSE textvar = "".
+         END.
+         cRange = "C" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).                                                                        
+         IF fastfortemp.MBANKNAMN NE "" THEN textvar = fastfortemp.MBANKNAMN.
+         ELSE DO:
+            IF AVAILABLE fastextra THEN textvar = fastextra.CH8.
+            ELSE textvar = "".
+         END.                                             
+         cRange = "D" + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).         
+         cRange = "E" + cColumn.
+         chWorkSheet:Range(cRange):Font:NAME = "ARIAL" NO-ERROR.
+         chWorkSheet:Range(cRange):Font:SIZE = 10 NO-ERROR.      
+         {EXCELFEL.I}
+         /*andel*/                  
+         chWorkSheet:Range(cRange):NumberFormat = "@" NO-ERROR.
+         chWorkSheet:Range(cRange):Value = fastfortemp.CHE1 NO-ERROR.
+               
+         IF AVAILABLE fastextra THEN DO:             
+            IF fastextra.LG1 = TRUE THEN DO:                           
+               intvar = fastextra.INT1.
+               IF fastfortemp.INTE2 = 0 OR fastfortemp.INTE1 = 0 THEN . 
+               ELSE intvar = intvar * fastfortemp.INTE1 / fastfortemp.INTE2 .                              
+               cRange = "G" + cColumn.
+               IF intvar NE 0 THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT intvar ).     
+               IF fastextra.LG3 = TRUE THEN DO:  
+                  /*momsregistrerad  Lena 20210621*/                          
+                  cRange = "H" + cColumn.
+                  IF intvar NE 0 THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT intvar * 0.25).
+                  cRange = "I" + cColumn.
+                  IF intvar NE 0 THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT (intvar + (intvar * 0.25))).
+               END.   
+               ELSE DO:
+                  /*ej momsregistrerad Lena 20210621*/
+                  cRange = "I" + cColumn.
+                  IF intvar NE 0 THEN RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT intvar).                  
+               END.   
+            END.
+            IF fastextra.CH5 NE "" THEN DO:            
+               textvar = fastextra.CH5.
+               cRange = "K" + cColumn.
+               RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT DATE(textvar)).
+            END.
+                                               
+            IF fastextra.CH11 NE "" THEN DO:   
+               textvar = fastextra.CH11.      
+               cRange = "L" + cColumn.
+               RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT DATE(textvar)).
+            END.   
+            IF fastextra.CH10 NE "" THEN DO:            
+               textvar = fastextra.CH10.
+               cRange = "M" + cColumn.
+               RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).
+            END.            
+         END.                                             
+      
+         
+         /*Intrångsersättning från extra uppgifter ska ut istället för den räknade .
+         Behövs om det går över årsskiftet så att det ej blir uppräknat belopp automatiskt Lena 20150305*/
+
+         cRange = "F" + cColumn.                  
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(sumfast)).
+         
+         IF fastextra.LG3 = TRUE THEN DO:  
+            /*momsregistrerad  Lena 20210621*/
+            cRange = "J" + cColumn.                  
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(sumfast + (intvar + (intvar * 0.25)))).
+         END.
+         ELSE DO:     
+            cRange = "J" + cColumn.                  
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT STRING(sumfast + (intvar ))).
+         END.       
+         {EXCELFEL.I}
+         
+      END.
+         
+      fastvar = fastfortemp.BETECKNING.
+                  
+   END.
+   IF vart = 1 OR vart = 2 OR vart = 5 OR vart = 6 THEN DO:
+      IF Guru.Konstanter:globforetag = "VAST" OR Guru.Konstanter:globforetag = "VELD"  THEN DO:         
+         IF fastvar NE "" THEN DO:
+            slrad = radrakn.
+            RUN extrafaltf_UI.         
+         END.
+      END.
+      ELSE DO:
+               
+         IF fastvar NE "" THEN DO:
+            slrad = radrakn.
+            RUN extrafalt_UI.         
+         END.
+      END.
+      
+   END.   
+   IF spmall = TRUE OR skrivutmall = TRUE THEN DO:
+            
+      chExcelApplication:displayalerts = FALSE.      
+      chWorkbook:SaveAs(kommando,,,,,,,,,).  
+      chExcelApplication:displayalerts = TRUE.
+      IF skrivutmall = TRUE THEN DO:                        
+         chWorkSheet = chExcelApplication:Sheets:ITEM(1) NO-ERROR.
+         chWorkSheet:SELECT NO-ERROR.     
+         chExcelApplication:ScreenUpdating = FALSE.
+         chWorkSheet:PrintOut(,,,,STRING(SESSION:PRINTER-NAME),,,).                      
+      END.
+                        
+      RELEASE OBJECT chWorksheetRange NO-ERROR.             
+      /*RELEASE OBJECT cActiveCell NO-ERROR.*/      
+      RELEASE OBJECT chWorksheet NO-ERROR.                  
+      NO-RETURN-VALUE chWorkbook:CLOSE().
+      NO-RETURN-VALUE chExcelApplication:QUIT().
+      RELEASE OBJECT chWorkbook NO-ERROR.    
+      RELEASE OBJECT chExcelApplication NO-ERROR.           
+/*      RELEASE OBJECT chWindow NO-ERROR.*/                  
+                        
+   END.             
+   
+   RELEASE OBJECT chWorksheetRange NO-ERROR.
+   RELEASE OBJECT chCell NO-ERROR.
+   RELEASE OBJECT chWorksheet NO-ERROR.  
+   RELEASE OBJECT chWorkbook NO-ERROR.
+   RELEASE OBJECT chExcelApplication NO-ERROR.   
+   
+   IF VALID-HANDLE(blobproch) THEN DELETE PROCEDURE blobproch NO-ERROR.   
+   IF VALID-HANDLE(skprotapph) THEN DELETE PROCEDURE skprotapph.
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.
+
+   {EXCELFEL.I}   
+   
+   FIND FIRST felfastextra NO-ERROR.
+   IF AVAILABLE felfastextra THEN DO:
+      felfil = SESSION:TEMP-DIR + STRING(TIME) + ".txt". 
+      {AMERICANEUROPEAN.I}      
+      OUTPUT TO VALUE(felfil).
+      PUT "Dessa fastigheter har inte tagit ställning till Försäljning eller Tillvaratagande och kommer ej med i listan. Var god och kontrollera.!" AT 6.         
+      PUT SKIP.         
+      PUT SKIP.         
+      FOR EACH felfastextra:           
+         PUT "Fastighet:" FORMAT "X(10)" AT 1 felfastextra.BETECKNING FORMAT "X(30)"  AT 12.  
+         PUT SKIP.
+      END.
+      OUTPUT CLOSE.
+      {EUROPEANAMERICAN.I}
+      RUN OPENDOC.P (felfil,"","",NO).         
+   END.
+
+PROCEDURE sammanfogarad_UI: 
+   DEFINE INPUT PARAMETER kolumn AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER startrad AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER kolumn2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER slutrad AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER beteck AS CHARACTER NO-UNDO.
+   DEBUGGER:SET-BREAK().
+   IF kolumn = kolumn2 THEN DO:   
+      cRange = kolumn + STRING(startrad) + ":" + kolumn + STRING(slutrad).
+      chWorksheetRange = chWorkSheet:Range(cRange) NO-ERROR.
+      /*chWorksheetRange:Interior:ColorIndex = 34.*/
+      chWorksheetRange:WrapText = TRUE NO-ERROR.
+      chWorksheetRange:Orientation = 0 NO-ERROR.
+      chWorksheetRange:AddIndent = FALSE NO-ERROR.
+      chWorksheetRange:ShrinkToFit = FALSE NO-ERROR.
+      chWorksheetRange:MergeCells = TRUE NO-ERROR.
+      IF vart = 1 AND  kolumn = "AF" THEN.
+      ELSE IF vart = 5 AND  kolumn = "AF" THEN.
+      ELSE IF vart = 2 AND  kolumn = "AF" THEN.        
+      ELSE chWorksheetRange:NumberFormat = "@" NO-ERROR.
+      IF beteck NE "" THEN DO:      
+         ASSIGN
+         chWorkSheet:Range(cRange):Font:NAME = "ARIAL" NO-ERROR.
+         chWorkSheet:Range(cRange):Font:SIZE = 10 NO-ERROR.
+         chWorkSheet:Range(cRange):Value = beteck NO-ERROR.                  
+      END.
+      RELEASE OBJECT chWorksheetRange NO-ERROR.
+   END.
+   ELSE DO:      
+      
+      IF bgfarg = 36 THEN bgfarg = 37.
+      ELSE IF bgfarg = 37 THEN bgfarg = 36.
+      cRange = kolumn + STRING(startrad) + ":" + kolumn2 + STRING(slutrad).
+      chCell = chWorkSheet:Range(cRange) NO-ERROR.
+      chCell:Interior:ColorIndex = bgfarg NO-ERROR.
+      RELEASE OBJECT chCell NO-ERROR.
+      /*    chCell:Interior:ColorIndex = 37. /*Ljusblå*/ */
+/*    chCell:Interior:ColorIndex = 36. /*Ljusgul*/ */
+   END.
+   
+   {EXCELFEL.I}
+
+END PROCEDURE.
+PROCEDURE sammanfogarad2_UI: 
+   DEFINE INPUT PARAMETER kolumn AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER startrad AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER kolumn2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER slutrad AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER beteck AS CHARACTER NO-UNDO.
+   /*GRÖN sätts på  alla som ej har blank i mottaget*/
+   bgfarg2 = 4.       
+   cRange = kolumn + STRING(startrad) + ":" + kolumn2 + STRING(slutrad).
+   chCell = chWorkSheet:Range(cRange) NO-ERROR.
+   chCell:Interior:ColorIndex = bgfarg2 NO-ERROR.
+   RELEASE OBJECT chCell NO-ERROR.
+      /*    chCell:Interior:ColorIndex = 37. /*Ljusblå*/ */
+/*    chCell:Interior:ColorIndex = 36. /*Ljusgul*/ */
+   
+   
+   {EXCELFEL.I}
+
+END PROCEDURE.
+
+PROCEDURE extrafalt_UI:
+   
+   FIND FIRST fastextra WHERE fastextra.BETECKNING = fastvar NO-LOCK NO-ERROR.   
+   FIND FIRST fastfbuff WHERE fastfbuff.BETECKNING = fastvar NO-LOCK NO-ERROR.   
+   IF Guru.Konstanter:globforetag = "cUMEA" OR Guru.Konstanter:globforetag = "cUMBR" OR Guru.Konstanter:globforetag = "sweo" OR Guru.Konstanter:globforetag = "TECT" OR Guru.Konstanter:globforetag = "snat"  OR Guru.Konstanter:globforetag = "SKEL"  THEN DO:
+      /*vill ej ha sammanfogade rader , bara färgade*/
+       IF vart = 1 OR vart = 2 OR vart = 5 THEN DO:                              
+         RUN sammanfogarad_UI ("A", strad,"AF", slrad,"").
+         textvar = "".   
+         IF AVAILABLE fastextra THEN DO:
+            IF fastextra.CH4 NE "" THEN textvar = fastextra.CH4.
+            IF fastextra.CH5 NE "" THEN textvar = fastextra.CH5.
+         END.                                                                                                   
+         IF textvar NE "" THEN RUN sammanfogarad2_UI ("A", strad,"AF", slrad,textvar).
+         textvar = "".  
+         IF AVAILABLE fastextra THEN textvar = fastextra.CH5.                                       
+         IF vart = 1 OR vart = 2 OR vart = 5 THEN DO:
+            IF Guru.Konstanter:globforetag = "tect" THEN RUN sammanfogarad_UI ("AB", strad,"AB", slrad, DATE(textvar)).
+            ELSE RUN sammanfogarad_UI ("AB", strad,"AB", slrad,textvar).                                          
+         END.   
+         IF sumfasttot > 0 THEN textvar = STRING(sumfasttot).
+         ELSE textvar = "".       
+         IF vart = 1 OR vart = 2  OR vart = 5 THEN RUN sammanfogarad_UI ("AC", strad,"AC", slrad,textvar).     
+         {EXCELFEL.I}
+         
+         IF AVAILABLE fastextra THEN textvar = fastextra.CH1.         
+         ELSE textvar = "".                              
+         IF vart = 1 OR vart = 2 OR vart = 5 THEN DO:
+            cRange = "X" + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,FALSE, INPUT 0,INPUT textvar).                                          
+         END.                  
+                                                   
+      END.
+      IF vart = 6  THEN DO:          
+                             
+         RUN sammanfogarad_UI ("A", strad,"W", slrad,"").
+         textvar = "".   
+         
+         IF AVAILABLE fastextra THEN DO:
+            IF fastextra.CH4 NE "" THEN textvar = fastextra.CH4.
+            IF fastextra.CH5 NE "" THEN textvar = fastextra.CH5.
+         END.                                                                                                            
+         IF textvar NE "" THEN RUN sammanfogarad2_UI ("A", strad,"W", slrad,textvar).                                                                    
+      END.           
+   END.
+   ELSE DO:   
+      IF vart = 1  OR vart = 5 THEN DO:
+         RUN sammanfogarad_UI ("A", strad,"A", slrad,fastrakn).                  
+         RUN sammanfogarad_UI ("B", strad,"B", slrad,fastfbuff.KOMMUN).                  
+         RUN sammanfogarad_UI ("C", strad,"C", slrad,fastfbuff.BETECKNING).
+      END.                 
+      IF vart = 1 OR vart = 2 OR vart = 5 THEN DO:   
+         RUN sammanfogarad_UI ("U", strad,"U", slrad,fastrakn).                  
+         RUN sammanfogarad_UI ("V", strad,"V", slrad,fastfbuff.BETECKNING).                  
+         RUN sammanfogarad_UI ("A", strad,"AF", slrad,"").                  
+      END.              
+      {EXCELFEL.I}
+      IF AVAILABLE fastextra THEN textvar = fastextra.CH1.
+      ELSE textvar = "".                              
+      IF vart = 1 OR vart = 2 OR vart = 5 THEN RUN sammanfogarad_UI ("X", strad,"X", slrad,textvar).                  
+      
+      IF AVAILABLE fastextra THEN textvar = fastextra.CH2.
+      ELSE textvar = "".                              
+      IF vart = 1 OR vart = 2 OR vart = 5 THEN RUN sammanfogarad_UI ("Y", strad,"Y", slrad,textvar).                  
+      IF AVAILABLE fastextra THEN textvar = fastextra.CH3.
+      ELSE textvar = "".                              
+      IF vart = 1 OR vart = 2 OR vart = 5 THEN RUN sammanfogarad_UI ("Z", strad,"Z", slrad,textvar).                                    
+   
+      IF AVAILABLE fastextra THEN textvar = fastextra.CH4.
+      ELSE textvar = "".                              
+      IF vart = 1 OR vart = 2 OR vart = 5 THEN DO:       
+         RUN sammanfogarad_UI ("AA", strad,"AA", slrad,textvar). 
+         textvar = "".   
+         IF AVAILABLE fastextra THEN DO:
+            IF fastextra.CH4 NE "" THEN textvar = fastextra.CH4.
+            IF fastextra.CH5 NE "" THEN textvar = fastextra.CH5.
+         END.                 
+         IF textvar NE "" THEN RUN sammanfogarad2_UI ("A", strad,"AF", slrad,textvar).            
+      END.        
+      IF AVAILABLE fastextra THEN textvar = fastextra.CH5.
+      ELSE textvar = "".                              
+      
+      IF vart = 1 OR vart = 2 OR vart = 5 THEN DO:
+         IF Guru.Konstanter:globforetag = "tect" THEN RUN sammanfogarad_UI ("AB", strad,"AB", slrad, DATE(textvar)).
+         ELSE RUN sammanfogarad_UI ("AB", strad,"AB", slrad,textvar).                                          
+      END.                                          
+      IF sumfasttot > 0 THEN textvar = STRING(sumfasttot).
+      ELSE textvar = "".       
+      IF vart = 1 OR vart = 2 OR vart = 5 THEN RUN sammanfogarad_UI ("AC", strad,"AC", slrad,textvar).                  
+      /* Inskr. sökt CH7 och Inskr.nr CH8 används istället till Bankkonto och banknamn */
+      
+      /*om bankkonto/namn inskrivet på markägare så går det före att det står på fastigheten i extra uppgifter lena 20140428*/
+      IF fastfbuff.MBANKKONTO NE "" THEN textvar = fastfbuff.MBANKKONTO.
+      ELSE DO:
+         IF AVAILABLE fastextra THEN textvar = fastextra.CH7.
+         ELSE textvar = "".
+      END.                                    
+      IF vart = 1 OR vart = 2 OR vart = 5 THEN RUN sammanfogarad_UI ("O", strad,"O", slrad,textvar).                     
+      IF AVAILABLE fastextra THEN textvar = fastextra.CH9.
+      ELSE textvar = "".                                 
+      IF vart = 1 OR vart = 2 OR vart = 5 THEN RUN sammanfogarad_UI ("AF", strad,"AF", slrad,textvar).                                          
+      IF AVAILABLE fastextra THEN textvar = fastextra.CH10.
+      ELSE textvar = "".                              
+      IF textvar NE "" THEN DO:      
+         IF vart = 1 OR vart = 2 OR vart = 5 THEN cRange = "AF" + STRING(strad).
+         ELSE cRange = "AA" + STRING(strad) .
+         chWorkSheet:Range(cRange):clearcomments() NO-ERROR.   
+         chWorkSheet:Range(cRange):addcomment(textvar) NO-ERROR.
+      END.
+   END.      
+   {EXCELFEL.I}
+END PROCEDURE.
+
+PROCEDURE extrafaltf_UI:  
+   
+   RUN sammanfogarad_UI ("A", strad,"AA", slrad,"").                  
+   
+END PROCEDURE.
+
+PROCEDURE utexcel_UI :
+   DEFINE INPUT PARAMETER typsnitt AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER storlek AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER varbold AS LOGICAL   NO-UNDO.   
+    /*DEFINE INPUT PARAMETER varhojd AS INTEGER   NO-UNDO.*/
+   DEFINE INPUT PARAMETER varfarg AS INTEGER   NO-UNDO.   
+   DEFINE INPUT PARAMETER varde AS CHARACTER NO-UNDO.
+   IF varde = "" THEN RETURN.
+   IF varde = ? THEN RETURN.
+   ASSIGN
+   chWorkSheet:Range(cRange):Font:NAME = typsnitt NO-ERROR.
+   chWorkSheet:Range(cRange):Font:SIZE = storlek  NO-ERROR.
+   chWorkSheet:Range(cRangefont):FONT:Bold = varbold NO-ERROR.
+   /*chWorkSheet:Range(cRangefont):RowHeight = varhojd NO-ERROR.*/
+   IF varfarg NE 0 THEN chWorkSheet:Range(cRangefont):FONT:ColorIndex = varfarg NO-ERROR.
+   chWorkSheet:Range(cRange):Value = varde NO-ERROR.  
+   {EXCELFEL.I}
+END PROCEDURE.
+
+

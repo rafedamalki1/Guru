@@ -1,0 +1,493 @@
+/*dyntt.p*/
+DEFINE VARIABLE dynselh AS HANDLE NO-UNDO.
+DEFINE VARIABLE dynloadh AS HANDLE NO-UNDO.
+DEFINE VARIABLE tth AS HANDLE NO-UNDO.
+DEFINE VARIABLE tthtmp AS HANDLE NO-UNDO.
+DEFINE VARIABLE dynbrwh AS HANDLE NO-UNDO.
+DEFINE VARIABLE dynbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE dynbufhtmp AS HANDLE NO-UNDO.
+DEFINE VARIABLE dynqueh AS HANDLE NO-UNDO.
+DEFINE VARIABLE tmpcolh AS HANDLE NO-UNDO.
+DEFINE VARIABLE efieldh AS HANDLE NO-UNDO.
+DEFINE VARIABLE q AS HANDLE NO-UNDO.
+DEFINE VARIABLE qtmp AS HANDLE NO-UNDO.
+DEFINE VARIABLE tmpquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE openquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE ttname AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tabname AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dynok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE brwrow AS ROWID NO-UNDO.
+DEFINE VARIABLE lastbrwrow AS ROWID NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE j AS INTEGER NO-UNDO.
+DEFINE VARIABLE k AS INTEGER NO-UNDO.
+DEFINE VARIABLE efield AS CHARACTER NO-UNDO.
+DEFINE VARIABLE colwidth AS INTEGER NO-UNDO.
+DEFINE VARIABLE brwnum AS INTEGER NO-UNDO.
+DEFINE VARIABLE dynfrmh AS HANDLE NO-UNDO.
+DEFINE VARIABLE btn_brw1 AS HANDLE NO-UNDO.
+DEFINE VARIABLE btn_brw2 AS HANDLE NO-UNDO.
+DEFINE VARIABLE btn_brw3 AS HANDLE NO-UNDO.
+DEFINE VARIABLE btn_brw4 AS HANDLE NO-UNDO.
+DEFINE VARIABLE btn_brw5 AS HANDLE NO-UNDO.
+DEFINE VARIABLE rec_brw AS HANDLE NO-UNDO.
+DEFINE VARIABLE fsok1 AS HANDLE NO-UNDO.
+DEFINE VARIABLE text_brw AS HANDLE NO-UNDO.
+DEFINE VARIABLE brwname AS CHARACTER NO-UNDO.
+DEFINE VARIABLE btntotwidth AS INTEGER NO-UNDO.
+DEFINE VARIABLE num AS INTEGER NO-UNDO.
+DEFINE VARIABLE sattcol AS INTEGER NO-UNDO.
+DEFINE VARIABLE sattrow AS INTEGER NO-UNDO.
+
+DEFINE TEMP-TABLE tt NO-UNDO
+      FIELD aa AS CHARACTER
+      FIELD bb AS ROWID.
+
+DEFINE TEMP-TABLE valsoktemp NO-UNDO
+   FIELD SOKVAL AS INTEGER 
+   FIELD SOKCHAR AS CHARACTER EXTENT 10
+   FIELD SOKDATE AS DATE EXTENT 10
+   FIELD SOKINT AS INTEGER EXTENT 10
+   FIELD SOKDECI AS DECIMAL EXTENT 10
+   FIELD SOKLOG AS LOGICAL EXTENT 10.
+
+
+DEFINE INPUT PARAMETER brwh AS HANDLE.
+DEFINE INPUT PARAMETER frm AS HANDLE NO-UNDO.
+DELETE WIDGET-POOL "dynpool" NO-ERROR.
+CREATE WIDGET-POOL "dynpool" NO-ERROR.
+dynfrmh = frm.
+IF brwh = ? THEN RUN brwsetup_UI.
+ELSE dynbrwh = brwh.
+RUN DYNAPPTT.P PERSISTENT SET dynloadh.
+RETURN.
+
+PROCEDURE widgets_UI :
+   DEF VAR vh AS WIDGET-HANDLE NO-UNDO.
+   DEF VAR cWidget AS CHAR NO-UNDO.
+   DEFINE VARIABLE brwname AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE dyncurcolh AS HANDLE NO-UNDO.
+   brwname = "".
+   vh = dynfrmh.
+   vh = vh:FIRST-CHILD. /* field-group */
+   vh = vh:FIRST-CHILD. /* first widget in field-group*/
+   ok-lus:
+   REPEAT:
+/*       IF LOOKUP(vh:TYPE,"{&WIDGET-TYPES}") > 0 THEN DO: */
+      IF LOOKUP(vh:TYPE,"BROWSE") > 0 THEN DO:
+         brwname = vh:TYPE.
+         LEAVE ok-lus.
+      END.
+      vh=vh:NEXT-SIBLING. /* volgend widget */
+      IF NOT VALID-HANDLE(vh) THEN LEAVE ok-lus.
+   END.
+   IF brwname NE "" THEN DO:
+      dynbrwh = vh:HANDLE.
+      IF dynbrwh:NAME = "BRW_MTRL" THEN DO:
+         dynbrwh:FONT = 6.
+      END.
+      dyncurcolh = dynbrwh:FIRST-COLUMN.
+/*       MESSAGE dyncurcolh:NAME. */
+   END.
+   dyncurcolh = ?.
+END PROCEDURE.
+
+PROCEDURE createsel_UI :
+   CREATE SELECTION-LIST dynselh
+   ASSIGN 
+   WIDTH-CHARS      = 20
+   HEIGHT-CHARS     = 3
+   COLUMN     = 20
+   ROW        = 1
+   BGCOLOR    = 3
+   FRAME      = dynfrmh
+   SENSITIVE  = TRUE.   
+   dynselh:ADD-FIRST("Selection List").
+   dynselh:ADD-LAST("Last Post").
+
+END PROCEDURE.
+
+PROCEDURE brwsetup_UI :
+   CREATE BROWSE dynbrwh
+   ASSIGN 
+   WIDTH      = 50
+   HEIGHT     = 10
+   EXPANDABLE = YES 
+   COLUMN     = 7
+   ROW        = 4
+   FRAME      = dynfrmh
+   READ-ONLY  = FALSE
+   ROW-MARKERS = FALSE
+   SENSITIVE  = TRUE
+   ALLOW-COLUMN-SEARCHING = TRUE
+   COLUMN-RESIZABLE       = TRUE. 
+END PROCEDURE.
+
+
+/*Browse will be filled with numrows number*/
+PROCEDURE createbrw_UI.
+   DEFINE INPUT PARAMETER numrows AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER brwfields AS CHARACTER NO-UNDO.   
+   DEFINE INPUT PARAMETER exbrwfields AS CHARACTER NO-UNDO. 
+/*    DEFINE INPUT PARAMETER exttfields AS CHARACTER NO-UNDO.  */
+/*    DEFINE INPUT PARAMETER newttfields AS CHARACTER NO-UNDO. */
+/*    DEFINE INPUT PARAMETER ttindex AS CHARACTER NO-UNDO.     */
+   DEFINE INPUT PARAMETER ttname AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER tabname AS CHARACTER NO-UNDO.
+   brwnum = numrows.
+/*    RUN ttdynload_UI IN dynloadh (INPUT numrows,INPUT brwfields,INPUT exttfields,             */
+/*                                  INPUT newttfields,INPUT ttindex,INPUT ttname,INPUT tabname, */
+/*                                  OUTPUT TABLE-HANDLE tth).                                   */
+   CREATE tt.
+   ASSIGN
+      tt.aa = "Test"
+      tt.bb = ROWID(tt).
+/*    MESSAGE STRING(tt.bb) VIEW-AS ALERT-BOX. */
+
+   RUN ttdynload_UI IN dynloadh (INPUT numrows,INPUT ttname,INPUT tabname,
+                                 OUTPUT TABLE-HANDLE tth,INPUT-OUTPUT TABLE tt).
+   FIND FIRST tt WHERE NO-LOCK NO-ERROR.
+/*    MESSAGE STRING(tt.bb) VIEW-AS ALERT-BOX. */
+
+   dynbufh = tth:DEFAULT-BUFFER-HANDLE.
+   CREATE QUERY dynqueh.
+   dynqueh:SET-BUFFERS(dynbufh).
+   dynbufh = dynqueh:GET-BUFFER-HANDLE. 
+   tmpquery = "FOR EACH " + dynbufh:TABLE + " NO-LOCK.".
+   dynqueh:QUERY-PREPARE(tmpquery).
+   dynbrwh:QUERY = dynqueh.   
+   openquery = tmpquery.
+   IF brwfields = "" THEN DO:
+      dynbrwh:ADD-COLUMNS-FROM(dynbufh,exbrwfields). 
+   END.
+   ELSE DO:
+      ASSIGN
+      i = 1
+      j = 0.
+      REPEAT:
+         IF INDEX(brwfields,",",i) = 0 THEN LEAVE.
+         i = INDEX(brwfields,",",i) + 1.
+         j = j + 1.
+      END.
+      ASSIGN
+      j = j + 1
+      k = 1
+      i = 1.
+      REPEAT:
+         efield = ENTRY(k,brwfields,",") NO-ERROR.
+         efieldh = dynbufh:BUFFER-FIELD(efield).
+         dynbrwh:ADD-LIKE-COLUMN(efieldh,i).
+         tmpcolh = dynbrwh:GET-BROWSE-COLUMN(i).
+         tmpcolh:LABEL = efieldh:NAME.
+         IF tmpcolh:LABEL = "BENAMNING" THEN DO:
+            tmpcolh:WIDTH-CHARS = 30.
+         END.
+/*          IF ENTRY(k + 1,brwfields,",") NE "?" THEN DO:      */
+/*             colwidth = INTEGER(ENTRY(k + 1,brwfields,",")). */
+/*             tmpcolh:WIDTH-CHARS = colwidth.                 */
+/*          END.                                               */
+         ELSE DO:
+            colwidth = efieldh:WIDTH-CHARS.
+            tmpcolh:WIDTH-CHARS = colwidth.
+         END.
+         tmpcolh:COLUMN-READ-ONLY = FALSE.
+         ASSIGN
+         k = k + 2
+         i = i + 1. 
+         IF k > j THEN LEAVE.               
+      END.              
+   END.
+   dynbrwh:ALLOW-COLUMN-SEARCHING = TRUE.
+   dynbrwh:COLUMN-RESIZABLE = TRUE.
+   dynbrwh:COLUMN-SCROLLING = TRUE.
+   dynbrwh:READ-ONLY = FALSE.
+   dynbrwh:SENSITIVE = TRUE.
+   dynbrwh:MULTIPLE = YES.
+   dynbrwh:EXPANDABLE = TRUE.
+   dynbrwh:MAX-DATA-GUESS = 100.
+   dynqueh:QUERY-PREPARE(openquery).
+   dynqueh:QUERY-OPEN().   
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE realbrwsetup_UI :
+   DEFINE INPUT PARAMETER scrollvar AS LOGICAL NO-UNDO.
+   dynbrwh:SCROLLBAR-VERTICAL = scrollvar.
+END PROCEDURE.
+
+/*Trigger off-end in browse*/
+PROCEDURE ttfillnext_UI : 
+   dynqueh:GET-LAST(NO-LOCK).
+   brwrow = dynbufh:ROWID.
+   lastbrwrow = brwrow.
+   dynqueh:REPOSITION-TO-ROWID(lastbrwrow) NO-ERROR.  
+   RUN ttfill_UI IN dynloadh (OUTPUT TABLE-HANDLE tthtmp).
+   /*Load temp-table in browse*/
+   dynbufhtmp = tthtmp:DEFAULT-BUFFER-HANDLE.
+   CREATE QUERY qtmp.
+   qtmp:SET-BUFFERS(dynbufhtmp).
+   tmpquery = "FOR EACH " + dynbufhtmp:TABLE + " NO-LOCK.".
+   qtmp:QUERY-PREPARE(tmpquery).
+   qtmp:QUERY-OPEN().
+   qtmp:GET-FIRST(NO-LOCK).
+   DO WHILE qtmp:QUERY-OFF-END = FALSE:
+      dynbufh:BUFFER-CREATE.
+      dynbufh:BUFFER-COPY(dynbufhtmp).
+      qtmp:GET-NEXT(NO-LOCK).
+   END.
+   qtmp:QUERY-CLOSE.
+   qtmp = ?.
+   dynqueh:QUERY-OPEN(). 
+   dynqueh:GET-LAST(NO-LOCK).
+   dynbrwh:MAX-DATA-GUESS = dynqueh:NUM-RESULTS.
+   dynqueh:REPOSITION-TO-ROWID(lastbrwrow) NO-ERROR.  
+   dynbrwh:SELECT-FOCUSED-ROW() NO-ERROR.
+   RETURN.
+END PROCEDURE.
+
+/*Set Triggers*/
+PROCEDURE settriggerproc_UI :
+   DEFINE INPUT PARAMETER val AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER procname AS CHARACTER NO-UNDO.
+   IF val = 1 THEN DO:
+      ON START-SEARCH OF dynbrwh PERSISTENT RUN VALUE(procname) IN SOURCE-PROCEDURE.
+   END.
+   ELSE IF val = 2 THEN DO:
+      ON ANY-PRINTABLE OF dynbrwh PERSISTENT RUN VALUE(procname) IN SOURCE-PROCEDURE.
+   END.   
+   ELSE IF val = 3 THEN DO:
+      ON ROW-DISPLAY OF dynbrwh PERSISTENT RUN VALUE(procname) IN SOURCE-PROCEDURE.
+   END.   
+   ELSE IF val = 4 THEN DO:
+      ON CHOOSE OF dynbrwh PERSISTENT RUN VALUE(procname) IN SOURCE-PROCEDURE.
+   END.
+   ELSE IF val = 5 THEN DO:
+      ON "right-mouse-click" OF dynbrwh PERSISTENT RUN VALUE(procname) IN SOURCE-PROCEDURE.      
+   END.
+   ELSE IF val = 6 THEN DO:
+      ON OFF-END OF dynbrwh PERSISTENT RUN VALUE(procname) IN SOURCE-PROCEDURE.
+   END.
+
+   RETURN.
+END PROCEDURE.
+
+/*Release procedure*/
+PROCEDURE releaseh_UI :
+   RUN releaseh_UI IN dynloadh.
+   IF VALID-HANDLE(dynloadh) THEN DELETE PROCEDURE dynloadh NO-ERROR.
+   IF VALID-HANDLE(dynqueh) THEN DO:
+      dynqueh:QUERY-CLOSE.
+      DELETE OBJECT dynqueh NO-ERROR.
+      DELETE OBJECT q NO-ERROR.
+      DELETE OBJECT dynbufh NO-ERROR.
+      DELETE OBJECT dynbufhtmp NO-ERROR.
+      DELETE OBJECT btn_brw1 NO-ERROR.
+      DELETE OBJECT btn_brw2 NO-ERROR.
+      DELETE OBJECT btn_brw3 NO-ERROR.
+      DELETE OBJECT btn_brw4 NO-ERROR.
+      DELETE OBJECT rec_brw NO-ERROR.
+      DELETE OBJECT fsok1 NO-ERROR.
+      DELETE OBJECT text_brw NO-ERROR.
+      DELETE OBJECT dynbrwh NO-ERROR.  
+      DELETE WIDGET-POOL "dynpool" NO-ERROR. 
+   
+      ASSIGN
+      dynqueh = ?
+      q = ?
+      dynbufh = ?
+      dynbufhtmp = ?.  
+   END.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE brwmenu :
+   DEFINE INPUT PARAMETER namevar AS CHARACTER NO-UNDO.
+   ASSIGN
+   btntotwidth = 0
+   i = 1
+   num = 0 
+   sattrow = dynbrwh:ROW.
+   IF namevar NE "" THEN DO:
+      REPEAT:
+         IF INDEX(namevar,",",i) = 0 THEN LEAVE.
+         i = INDEX(namevar,",",i) + 1.
+         num = num + 1.
+      END.
+      num = num + 1.
+      i = 1.
+      REPEAT:
+         brwname = ENTRY(i,namevar,",").
+         IF i = 1 THEN DO:
+            CREATE BUTTON btn_brw1 IN WIDGET-POOL "dynpool"
+            ASSIGN
+            FRAME = dynfrmh
+            ROW = dynbrwh:ROW - 1
+            COLUMN = dynbrwh:COLUMN + 1
+            FLAT-BUTTON = FALSE
+            SENSITIVE = TRUE
+            VISIBLE = TRUE
+            FONT = 1
+            LABEL = brwname
+            HEIGHT-CHARS = 0.85
+            WIDTH-CHARS= 8
+            TRIGGERS:
+               ON CHOOSE PERSISTENT RUN btnleft IN THIS-PROCEDURE (INPUT btn_brw1:LABEL + " är tryckt").
+               ON "right-mouse-click" PERSISTENT RUN btnright IN THIS-PROCEDURE (INPUT btn_brw1:LABEL + " är högertryckt").
+            END TRIGGERS.
+            ASSIGN
+            sattcol = btn_brw1:FRAME-COL
+            sattcol = sattcol + btn_brw1:WIDTH - 0.5
+            btntotwidth = btntotwidth + btn_brw1:WIDTH-CHARS.
+/*             btn_brw1:LOAD-IMAGE-UP("BILDER/next-u.bmp"). */
+         END.
+         IF i = 2 THEN DO:
+            CREATE BUTTON btn_brw2 IN WIDGET-POOL "dynpool"
+            ASSIGN
+            FRAME = dynfrmh
+            ROW = dynbrwh:ROW - 1
+            COLUMN = sattcol
+            FLAT-BUTTON = FALSE
+            SENSITIVE = TRUE
+            VISIBLE = TRUE
+            FONT = 1
+            LABEL = brwname
+            HEIGHT-CHARS = 0.85  
+            WIDTH-CHARS= 8    
+            TRIGGERS:
+               ON CHOOSE PERSISTENT RUN btnleft IN THIS-PROCEDURE (INPUT btn_brw2:LABEL + " är tryckt").
+               ON "right-mouse-click" PERSISTENT RUN btnright IN THIS-PROCEDURE (INPUT btn_brw2:LABEL + " är högertryckt").
+            END TRIGGERS.
+            ASSIGN
+            sattcol = btn_brw2:FRAME-COL
+            sattcol = sattcol + btn_brw2:WIDTH - 0.5
+            btntotwidth = btntotwidth + btn_brw2:WIDTH-CHARS.   
+         END.
+         IF i = 3 THEN DO:
+            CREATE BUTTON btn_brw3 IN WIDGET-POOL "dynpool"
+            ASSIGN
+            FRAME = dynfrmh
+            ROW = dynbrwh:ROW - 1
+            COLUMN = sattcol
+            FLAT-BUTTON = FALSE
+            SENSITIVE = TRUE
+            VISIBLE = TRUE
+            FONT = 1
+            LABEL = brwname
+            HEIGHT-CHARS = 0.85  
+            WIDTH-CHARS= 8    
+            TRIGGERS:
+               ON CHOOSE PERSISTENT RUN btnleft IN THIS-PROCEDURE (INPUT btn_brw3:LABEL + " är tryckt").
+               ON "right-mouse-click" PERSISTENT RUN btnright IN THIS-PROCEDURE (INPUT btn_brw3:LABEL + " är högertryckt").
+            END TRIGGERS.
+            ASSIGN
+            sattcol = btn_brw3:FRAME-COL
+            sattcol = sattcol + btn_brw3:WIDTH - 0.5
+            btntotwidth = btntotwidth + btn_brw3:WIDTH-CHARS.   
+         END.
+         IF i = 4 THEN DO:
+            CREATE BUTTON btn_brw4 IN WIDGET-POOL "dynpool"
+            ASSIGN
+            FRAME = dynfrmh
+            ROW = dynbrwh:ROW - 1
+            COLUMN = sattcol
+            FLAT-BUTTON = FALSE
+            SENSITIVE = TRUE
+            VISIBLE = TRUE
+            FONT = 1
+            LABEL = brwname
+            HEIGHT-CHARS = 0.85  
+            WIDTH-CHARS= 8    
+            TRIGGERS:
+               ON CHOOSE PERSISTENT RUN btnleft IN THIS-PROCEDURE (INPUT btn_brw4:LABEL + " är tryckt").
+               ON "right-mouse-click" PERSISTENT RUN btnright IN THIS-PROCEDURE (INPUT btn_brw4:LABEL + " är högertryckt").
+            END TRIGGERS.
+            ASSIGN
+            sattcol = btn_brw4:FRAME-COL
+            sattcol = sattcol + btn_brw4:WIDTH - 0.5
+            btntotwidth = btntotwidth + btn_brw4:WIDTH-CHARS.   
+         END.
+         IF i = 5 THEN DO:
+            CREATE FILL-IN fsok1 IN WIDGET-POOL "dynpool"
+            ASSIGN
+            FRAME = dynfrmh
+            ROW = dynbrwh:ROW - 1
+            COLUMN = sattcol + 1
+            SENSITIVE = TRUE
+            VISIBLE = TRUE
+            SCREEN-VALUE = "Sök här.."
+            FONT = 1
+            HEIGHT-CHARS = 0.85  
+            WIDTH-CHARS= 12    
+            TRIGGERS:
+               ON "MOUSE-SELECT-DBLCLICK" PERSISTENT RUN sok IN THIS-PROCEDURE (INPUT "Sökning gjord").               
+               ON "RETURN" PERSISTENT RUN sok IN THIS-PROCEDURE (INPUT "Sökning gjord").               
+            END TRIGGERS.
+            ASSIGN
+            sattcol = fsok1:FRAME-COL
+            sattcol = sattcol + fsok1:WIDTH
+            btntotwidth = btntotwidth + fsok1:WIDTH-CHARS.   
+         END.
+         ASSIGN
+         i = i + 1.
+         IF i > num THEN LEAVE.
+      END.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE brwmenurec :
+   CREATE RECTANGLE rec_brw IN WIDGET-POOL "dynpool"
+   ASSIGN 
+   FRAME = dynfrmh
+   ROW = dynbrwh:ROW - 1.5
+   COLUMN = dynbrwh:COLUMN
+   BGCOLOR = 8
+   SENSITIVE = TRUE
+   HIDDEN = FALSE
+   HEIGHT-CHARS = 1.5
+   WIDTH-CHARS = btntotwidth + 3
+   VISIBLE = TRUE
+   EDGE-PIXELS = 2
+   GRAPHIC-EDGE = TRUE.
+   
+   CREATE TEXT text_brw IN WIDGET-POOL "dynpool"
+   ASSIGN 
+   FRAME = dynfrmh
+   ROW = dynbrwh:ROW - 1.7
+   COLUMN = dynbrwh:COLUMN + 2
+   BGCOLOR = 8
+   FONT = 1
+   SENSITIVE = TRUE
+   SCREEN-VALUE = "  Menu"
+   HIDDEN = FALSE
+   HEIGHT-CHARS = 0.5
+   WIDTH-CHARS = 5
+   VISIBLE = TRUE.
+END PROCEDURE.
+
+PROCEDURE btnleft :
+   DEFINE INPUT PARAMETER charvar AS CHARACTER NO-UNDO.
+   MESSAGE charvar VIEW-AS ALERT-BOX.
+END PROCEDURE.
+                    
+PROCEDURE btnright :
+   DEFINE INPUT PARAMETER charvar AS CHARACTER NO-UNDO.
+   MESSAGE charvar VIEW-AS ALERT-BOX.
+END PROCEDURE.
+
+PROCEDURE sok :
+   DEFINE INPUT PARAMETER charvar AS CHARACTER NO-UNDO.
+   MESSAGE fsok1:SCREEN-VALUE VIEW-AS ALERT-BOX.
+END PROCEDURE.
+
+PROCEDURE disconnect_UI :
+   DELETE OBJECT btn_brw1 NO-ERROR.
+   DELETE OBJECT btn_brw2 NO-ERROR.
+   DELETE OBJECT btn_brw3 NO-ERROR.
+   DELETE OBJECT btn_brw4 NO-ERROR.
+   DELETE OBJECT rec_brw NO-ERROR.
+   DELETE OBJECT fsok1 NO-ERROR.
+   DELETE OBJECT text_brw NO-ERROR.
+   DELETE OBJECT dynbrwh NO-ERROR.  
+   DELETE WIDGET-POOL "dynpool" NO-ERROR. 
+END PROCEDURE.

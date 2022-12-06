@@ -1,0 +1,9 @@
+/*PROVAG.P*/
+
+
+ 
+
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{PROVAG.I}

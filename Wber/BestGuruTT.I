@@ -1,0 +1,109 @@
+
+/*------------------------------------------------------------------------
+    File        : BestGuruTT.I
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Wed Jan 24 16:23:09 CET 2018
+    Notes       :
+  ----------------------------------------------------------------------*/
+DEFINE VARIABLE GuruOrderbuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE GuruBestallarebuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE GuruLevAdressbuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE GuruUpplagbuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE GuruKonstruktionbuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE GuruMtrlbuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE GuruKonstruktionOnebuffh AS HANDLE NO-UNDO.
+DEFINE TEMP-TABLE GuruOrder NO-UNDO   
+   FIELD ID  AS INTEGER XML-NODE-TYPE  "HIDDEN"
+   FIELD TypOrder AS CHARACTER
+   FIELD AOnr AS CHARACTER 
+   FIELD Delnr AS INTEGER
+   FIELD SekvensID AS CHARACTER
+   FIELD MessageType AS CHARACTER XML-NODE-NAME "Uppdragstyp" 
+   FIELD LevID AS CHARACTER
+   FIELD OrderNumber AS CHARACTER 
+   FIELD OrderDatum AS CHARACTER
+   FIELD OrderMarking AS CHARACTER
+   FIELD Ort AS CHARACTER
+   FIELD OrderText AS CHARACTER
+   FIELD Kontakt AS CHARACTER
+   FIELD Benamning AS CHARACTER
+   FIELD Referens AS CHARACTER
+   INDEX ID ID.
+DEFINE TEMP-TABLE GuruBestallare NO-UNDO
+   FIELD ID AS INTEGER XML-NODE-TYPE  "HIDDEN"
+   FIELD Foretag AS CHARACTER
+   FIELD KundNr AS CHARACTER
+   FIELD Kontakt AS CHARACTER
+   FIELD Tele AS CHARACTER
+   FIELD MobTele AS CHARACTER
+   FIELD Epost AS CHARACTER
+   INDEX ID ID.   
+DEFINE TEMP-TABLE GuruLevAdress NO-UNDO
+   FIELD ID AS INTEGER XML-NODE-TYPE  "HIDDEN"
+   FIELD Foretag AS CHARACTER
+   FIELD Adress AS CHARACTER
+   FIELD Postnr AS CHARACTER
+   FIELD Ort AS CHARACTER
+   FIELD Land AS CHARACTER
+   FIELD UpplagNr AS INTEGER
+   INDEX ID ID UpplagNr.
+
+DEFINE TEMP-TABLE GuruUpplag NO-UNDO
+   FIELD ID AS INTEGER XML-NODE-TYPE  "HIDDEN"
+   FIELD UpplagNr AS INTEGER
+   FIELD Adress AS CHARACTER
+   FIELD POSTNR AS CHARACTER
+   FIELD ORT  AS CHARACTER
+   FIELD UpplagText AS CHARACTER
+   FIELD Xkoordinat AS CHARACTER
+   FIELD Ykoordinat AS CHARACTER
+   INDEX ID ID UpplagNr. 
+/*ENDAST ONENORDIC*/   
+DEFINE TEMP-TABLE GuruKonstruktionOne NO-UNDO XML-NODE-NAME "GuruKonstruktion"
+   FIELD ID AS INTEGER  XML-NODE-TYPE  "HIDDEN" 
+   FIELD KonstruktionsNr AS INTEGER
+   FIELD KonstruktionsId AS CHARACTER
+   FIELD KonText AS CHARACTER
+   FIELD UpplagNr AS INTEGER 
+   INDEX ID UpplagNr KonstruktionsNr.
+/*ENDAST ONENORDIC*/   
+/*ÖVRIGA*/      
+DEFINE TEMP-TABLE GuruKonstruktion NO-UNDO XML-NODE-NAME "GuruKonstruktion"
+   FIELD ID AS INTEGER  XML-NODE-TYPE  "HIDDEN" 
+   FIELD UpplagNr AS INTEGER
+   FIELD KId AS INTEGER 
+   FIELD KonstruktionsNr AS INTEGER
+   FIELD KonstruktionsId AS CHARACTER
+   FIELD KonText AS CHARACTER
+   INDEX ID UpplagNr KId KonstruktionsNr.   
+ /*ÖVRIGA*/  
+   
+   
+DEFINE TEMP-TABLE GuruMtrl NO-UNDO
+   FIELD ID AS INTEGER   XML-NODE-TYPE  "HIDDEN"
+   FIELD UpplagNr AS INTEGER
+   FIELD KId AS INTEGER XML-NODE-TYPE  "HIDDEN"
+   FIELD KonstruktionsNr AS INTEGER
+   FIELD Artikel AS CHARACTER
+   FIELD Benamning AS CHARACTER
+   FIELD Antal AS DECIMAL
+   FIELD Enhet AS CHARACTER
+   FIELD Pris AS DECIMAL
+   FIELD Levdatum AS CHARACTER
+   FIELD ArtikelText AS CHARACTER
+   INDEX ID UpplagNr ARTIKEL.     
+   
+GuruOrderbuffh        = TEMP-TABLE  GuruOrder:DEFAULT-BUFFER-HANDLE.   
+GuruBestallarebuffh   = TEMP-TABLE  GuruBestallare:DEFAULT-BUFFER-HANDLE.   
+GuruLevAdressbuffh    = TEMP-TABLE  GuruLevAdress:DEFAULT-BUFFER-HANDLE.   
+GuruUpplagbuffh       = TEMP-TABLE  GuruUpplag:DEFAULT-BUFFER-HANDLE.   
+GuruKonstruktionbuffh = TEMP-TABLE  GuruKonstruktion:DEFAULT-BUFFER-HANDLE.  
+GuruKonstruktionOnebuffh = TEMP-TABLE  GuruKonstruktionOne:DEFAULT-BUFFER-HANDLE.   
+GuruMtrlbuffh         = TEMP-TABLE  GuruMtrl:DEFAULT-BUFFER-HANDLE.   
+   

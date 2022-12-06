@@ -1,0 +1,238 @@
+
+/*------------------------------------------------------------------------
+    File        : kalkdyn.p
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Tue Dec 15 10:16:16 CET 2015
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+DEFINE  TEMP-TABLE kalknumanvegentt NO-UNDO
+  /* BEFORE-TABLE kalknumanvegenttbef*/
+   FIELD ANVANDARE AS CHARACTER
+   FIELD KLOGSUBID AS INTEGER
+   FIELD ARBKOD AS CHARACTER
+   FIELD LOPNR AS INTEGER    
+   FIELD NUM AS INTEGER
+   FIELD MATRIS AS INTEGER 
+   FIELD BENAMNING AS CHARACTER
+   FIELD ANTAL AS DECIMAL  LABEL "Antal"  DECIMALS 6  /*OBS MÅNGA DECIMALER*/
+   FIELD ENHET AS CHARACTER
+   FIELD KOMMENTAR AS CHARACTER
+   FIELD ANMARKNING AS CHARACTER
+   FIELD TTRECID AS RECID
+   FIELD TYPKALK AS INTEGER 
+   FIELD TOTKOST AS DECIMAL   DECIMALS 4 /*OBS MÅNGA DECIMALER*/  
+   FIELD MARKNING AS CHARACTER
+   FIELD MARKSUB AS CHARACTER
+   FIELD RISK AS DECIMAL  DECIMALS 4
+   FIELD VINST AS DECIMAL  DECIMALS 4
+   FIELD FRITOTKOST AS DECIMAL DECIMALS 4
+   INDEX ANV ANVANDARE 
+   INDEX MATRIS ANVANDARE MATRIS
+   INDEX KLOGSUBID KLOGSUBID
+   INDEX ARBKOD IS PRIMARY ARBKOD LOPNR NUM
+   INDEX NUM NUM.
+
+DEFINE TEMP-TABLE kalknumanvegensubtt NO-UNDO
+ /*  BEFORE-TABLE kalknumanvegenttsubbef*/
+   FIELD ANVANDARE AS CHARACTER
+   FIELD NUM AS INTEGER 
+   FIELD NUMSUBID AS INTEGER  
+   FIELD KPID AS INTEGER
+   FIELD TIMMAR AS DECIMAL     DECIMALS 10
+   FIELD KOSTNAD AS DECIMAL         DECIMALS 4                                
+   FIELD BENAMNING AS CHARACTER
+   FIELD PRIS AS DECIMAL      DECIMALS 10
+   FIELD MARKNING AS CHARACTER
+   FIELD MARKSUB AS CHARACTER
+   FIELD FRITIMMAR AS DECIMAL   DECIMALS 10 
+   FIELD FRIKOSTNAD AS DECIMAL   DECIMALS 10
+   FIELD FRIBENAMNING AS CHARACTER
+   FIELD AVRUND AS DECIMAL     DECIMALS 10
+   FIELD FRIAVRUND AS DECIMAL     DECIMALS 10
+   FIELD FRIPRIS AS DECIMAL       DECIMALS 10
+   FIELD TTRECID AS RECID
+   FIELD EGENPRISUPP AS LOGICAL
+   FIELD EGENKODUPP AS LOGICAL
+   INDEX NUM NUM NUMSUBID
+   INDEX BENAMNING IS PRIMARY BENAMNING.
+   
+DEFINE VARIABLE kalknumanvegenttbuffh AS HANDLE NO-UNDO.
+kalknumanvegenttbuffh = TEMP-TABLE kalknumanvegentt:HANDLE:DEFAULT-BUFFER-HANDLE.
+
+DEFINE VARIABLE kalknumanvegensubttbuffh AS HANDLE NO-UNDO.
+kalknumanvegensubttbuffh = TEMP-TABLE kalknumanvegensubtt:HANDLE:DEFAULT-BUFFER-HANDLE.
+DEFINE VARIABLE kalknumanvegenTEMPH AS HANDLE NO-UNDO.
+   CREATE TEMP-TABLE kalknumanvegenTEMPH.
+   kalknumanvegenTEMPH:CREATE-LIKE(kalknumanvegenttbuffh).
+   kalknumanvegenTEMPH:TEMP-TABLE-PREPARE("ekalknumanvegentt").
+
+DEFINE VARIABLE kalknumanvegenTEMPtestH AS HANDLE NO-UNDO.
+   CREATE TEMP-TABLE kalknumanvegenTEMPtestH.
+   kalknumanvegenTEMPtestH:CREATE-LIKE(kalknumanvegenTEMPH).
+   kalknumanvegenTEMPtestH:TEMP-TABLE-PREPARE("ddekalknumanvegentt").
+
+   
+DEFINE VARIABLE kalknumanvegensubTEMPH AS HANDLE NO-UNDO.
+   CREATE TEMP-TABLE kalknumanvegensubTEMPH .
+   
+   kalknumanvegensubTEMPH:CREATE-LIKE(kalknumanvegensubttbuffh).
+   kalknumanvegensubTEMPH:TEMP-TABLE-PREPARE("ekalknumanvegensub"). 
+
+DEFINE VARIABLE anvegenTTh AS HANDLE NO-UNDO.  
+DEFINE VARIABLE anvegensubTTh AS HANDLE NO-UNDO.  
+  
+  anvegenTTh = kalknumanvegenTEMPH:DEFAULT-BUFFER-HANDLE. 
+  anvegensubTTh = kalknumanvegensubTEMPH:DEFAULT-BUFFER-HANDLE. 
+    
+     
+
+/*KalkylAnvEgenDS*/
+DEFINE VARIABLE KalkylAnvEgenDS AS HANDLE NO-UNDO.
+DEFINE VARIABLE cTargetType     AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cFile           AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lFormatted      AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE cEncoding       AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cSchemaLocation AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lWriteSchema    AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE lMinSchema      AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE lRetOK          AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE dyndamicDSh AS HANDLE NO-UNDO.
+DEFINE VARIABLE qH       AS HANDLE    NO-UNDO.
+DEFINE VARIABLE queryvar AS CHARACTER NO-UNDO.
+RUN DynamicDataSet.p PERSISTENT SET dyndamicDSh.
+{DataSetVariable.I}
+
+antaltab = 2.
+pcBuffers[1] = STRING(anvegenTTh). 
+pcBuffers[2] = STRING(anvegensubTTh).
+pcRelFields[1] = "ANVANDARE,ANVANDARE,NUM,NUM".
+pcSources[1] = "KALKNUMANVEGEN".
+pcSources[2] = "KALKNUMANVEGENSUB".
+pcSourceKeys[1] = "ANVANDARE,NUM".
+pcSourceKeys[2] = "ANVANDARE,NUM,NUMSUBID".
+pcKeyValue[1] = "KALKNUMANVEGEN.ANVANDARE = 'ELPAO'".
+RUN DefAndLoadDs_UI IN dyndamicDSh 
+     ({DataSetInput.I} OUTPUT DATASET-HANDLE KalkylAnvEgenDS BIND).
+ 
+   kalknumanvegenTEMPH:TRACKING-CHANGES = TRUE.
+   
+   queryvar = "FOR EACH " + anvegenTTh:TABLE + " NO-LOCK".
+   RUN CreateCustomQuery(INPUT anvegenTTh,INPUT queryvar,OUTPUT qh).
+   qH:GET-FIRST(NO-LOCK).
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      DO TRANSACTION:
+         DISPLAY 
+         anvegenTTh:BUFFER-FIELD("ANVANDARE"):BUFFER-VALUE
+         anvegenTTh:BUFFER-FIELD("KLOGSUBID"):BUFFER-VALUE .    
+         anvegenTTh:BUFFER-FIELD("KLOGSUBID"):BUFFER-VALUE = anvegenTTh:BUFFER-FIELD("KLOGSUBID"):BUFFER-VALUE + 3.   
+      END.
+      qH:GET-NEXT(NO-LOCK).
+   END.
+   
+   queryvar = "FOR EACH " + anvegensubTTh:TABLE + " NO-LOCK".
+   RUN CreateCustomQuery(INPUT anvegensubTTh,INPUT queryvar,OUTPUT qh).
+   qH:GET-FIRST(NO-LOCK).
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      DO TRANSACTION:
+         DISPLAY 
+         anvegensubTTh:BUFFER-FIELD("EGENKODUPP"):BUFFER-VALUE
+         anvegensubTTh:BUFFER-FIELD("num"):BUFFER-VALUE 
+         anvegensubTTh:BUFFER-FIELD("numsubid"):BUFFER-VALUE. 
+       
+      END.
+      qH:GET-NEXT(NO-LOCK).
+   END.
+   
+   RUN CloseCustomQuery(INPUT qH).
+
+
+
+
+RUN ChDsSave_UI.
+
+PROCEDURE ChDsSave_UI :
+   DEFINE VARIABLE hDSChanges AS HANDLE NO-UNDO.
+   anvegenTTh:TRACKING-CHANGES = FALSE.
+   
+   CREATE DATASET hDSChanges.
+   hDSChanges:CREATE-LIKE (KalkylAnvEgenDS).
+   hDSChanges:GET-CHANGES (KalkylAnvEgenDS).
+   
+   
+   DEFINE VARIABLE SPARAXML AS CHARACTER NO-UNDO.
+      SPARAXML = "C:\CTest.xml". 
+      hDSChanges:WRITE-XML("FILE", SPARAXML). 
+  
+   
+   
+   DEFINE VARIABLE iBuff AS INTEGER NO-UNDO.
+   RUN SPARADATSET.p (INPUT hDSChanges).
+   DO iBuff = 1 TO KalkylAnvEgenDS:NUM-BUFFERS:
+      hDSChanges:GET-BUFFER-HANDLE(iBuff):DETACH-DATA-SOURCE().
+   END.
+
+   
+   
+   hDSChanges:MERGE-CHANGES(KalkylAnvEgenDS).
+    kalknumanvegenTEMPH:TRACKING-CHANGES = TRUE.
+ kalknumanvegensubTEMPH:TRACKING-CHANGES = TRUE.
+
+           
+  
+END PROCEDURE.
+
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh.
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+
+PROCEDURE CloseCustomQuery:
+   DEFINE INPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CustomQueryh:QUERY-CLOSE() NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE dstest_UI :
+   DEFINE VARIABLE dsTEMPH AS HANDLE NO-UNDO.
+   DEFINE VARIABLE dsTTh AS HANDLE NO-UNDO.
+   CREATE TEMP-TABLE dsTEMPH.
+   dsTEMPH:ADD-NEW-FIELD("enr","character").
+   dsTEMPH:ADD-NEW-FIELD("antal","character").
+   dsTEMPH:TEMP-TABLE-PREPARE("ekalknumanvegentt").
+   dsTTh = dsTEMPH:DEFAULT-BUFFER-HANDLE.
+   DEFINE VARIABLE DSChanges AS HANDLE NO-UNDO. 
+   CREATE DATASET DSChanges.
+   DSChanges:ADD-BUFFER(dsTTh).
+   dsTEMPH:TRACKING-CHANGES = TRUE.
+   dsTTh:BUFFER-CREATE().
+   dsTTh:BUFFER-FIELD("enr"):BUFFER-VALUE = "33".
+   DEFINE VARIABLE hDSChanges AS HANDLE NO-UNDO.
+   dsTEMPH:TRACKING-CHANGES = FALSE.
+   DEFINE VARIABLE hBeforeBuff AS HANDLE NO-UNDO.
+   
+    hBeforeBuff = dsTTh:BEFORE-BUFFER.
+   MESSAGE hBeforeBuff:NAME 
+   VIEW-AS ALERT-BOX.
+   CREATE DATASET hDSChanges.
+   hDSChanges:CREATE-LIKE (DSChanges).
+   hDSChanges:GET-CHANGES (DSChanges).
+   
+   
+   DEFINE VARIABLE SPARAXML AS CHARACTER NO-UNDO.
+      SPARAXML = "C:\CTest.xml". 
+      hDSChanges:WRITE-XML("FILE", SPARAXML). 
+  
+   
+  
+END PROCEDURE.

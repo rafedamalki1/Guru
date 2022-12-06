@@ -1,0 +1,234 @@
+/*KOPDAPP.P*/
+{APP.I}
+{TIDAPPDEF.I}
+DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO. 
+DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO. 
+DEFINE INPUT PARAMETER frandat AS DATE NO-UNDO. 
+DEFINE INPUT PARAMETER FILL-IN-STARTDAT AS DATE NO-UNDO. 
+DEFINE INPUT PARAMETER FILL-IN-STOPPDAT AS DATE NO-UNDO.  
+DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.      
+DEFINE VARIABLE regdatumspar AS DATE NO-UNDO.
+DEFINE VARIABLE maxarbkort AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE seku AS INTEGER NO-UNDO.
+DEFINE VARIABLE frregstart AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE frregslut AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE vaonr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE vdelnr AS INTEGER NO-UNDO.
+DEFINE BUFFER tidbuff10 FOR TIDREGITAB.
+
+
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+END FUNCTION.
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+
+FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+
+FIND FIRST FLEXAVT WHERE FLEXAVT.PERSONALKOD = PERSONALTAB.PERSONALKOD 
+USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+IF AVAILABLE FLEXAVT THEN DO:
+   FIND FIRST FLEXTID WHERE FLEXTID.PERSONALKOD = pkod AND FLEXTID.DATUM = frandat NO-LOCK NO-ERROR.
+   IF AVAILABLE FLEXTID THEN DO:
+      IF FLEXTID.AUTO = "PERI" THEN.
+      ELSE DO:
+         CREATE felmeddtemp.  
+         felmeddtemp.felmedd = "Det går bara att kopiera dagar som har inte innebär plus eller minusflex." .
+         RETURN.                     
+      END.
+   END.
+END.   
+ASSIGN
+persrec = RECID(PERSONALTAB).
+OPEN QUERY kopq FOR EACH tidbuff10 WHERE tidbuff10.PERSONALKOD = PERSONALTAB.PERSONALKOD AND tidbuff10.DATUM = frandat
+AND tidbuff10.TIDLOG = TRUE NO-LOCK.
+regdatum = frandat.   
+RUN REGVEC.P.
+RUN SLUTARB.P.
+ASSIGN
+frregstart = regstart
+frregslut = regslut.
+
+IF frregstart = frregslut  THEN DO:
+   CREATE felmeddtemp.  
+   felmeddtemp.felmedd = "Det går bara att kopiera dagar med ordinarie arbetstid" .
+   RETURN.                     
+END.
+/* arbetstidsförkortning*/
+IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV"  OR Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "LULE" THEN DO:      
+   GET FIRST kopq NO-LOCK.
+   DO WHILE AVAILABLE(tidbuff10):                
+      IF tidbuff10.AONR = "160" AND tidbuff10.DELNR = 0  THEN DO:
+         CREATE felmeddtemp.  
+         felmeddtemp.felmedd = "Använd ändra för " + Guru.Konstanter:gaok + " " + tidbuff10.AONR  + " Arbetstidförkortning ." .
+         RETURN.                     
+      END.
+      IF tidbuff10.AONR = "155"  THEN DO:
+         CREATE felmeddtemp.  
+         felmeddtemp.felmedd = "Använd ändra för " + Guru.Konstanter:gaok + " " + tidbuff10.AONR  + " flexuttag ." .
+         RETURN.                     
+      END.
+      GET NEXT kopq NO-LOCK.
+   END.
+END.
+ASSIGN
+regdatum = FILL-IN-STARTDAT.   
+REPEAT:
+   RUN REGVEC.P.
+   RUN SLUTARB.P.
+   RUN REGDAG.P.   
+   IF frregstart  = regstart AND frregslut = regslut AND regslut NE regstart THEN DO:      
+      RUN TIDSTART.P.         
+      IF musz = TRUE THEN DO:
+         musz = FALSE.
+         RETURN.
+      END.
+      IF musz = FALSE THEN DO:
+         RUN TIDSLUT.P.
+         IF musz = TRUE THEN DO:
+            musz = FALSE.
+            RETURN.
+         END.
+      END.         
+      GET FIRST kopq NO-LOCK.
+      DO WHILE AVAILABLE(tidbuff10):                
+         IF tidbuff10.PRISTYP = "RESTID..." THEN musz = musz .
+         ELSE DO TRANSACTION:                           
+            CREATE TIDREGITAB.                      
+            tidtabrec = RECID(TIDREGITAB).
+            BUFFER-COPY tidbuff10 TO TIDREGITAB.
+            ASSIGN 
+            SUBSTRING(TIDREGITAB.PROGRAM,1,158) = "KOPIDAG" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv                          
+            TIDREGITAB.DAG = regdagnamn
+            TIDREGITAB.VECKONUMMER = regvnr
+            TIDREGITAB.DATUM = regdatum
+            TIDREGITAB.GODKAND = ""
+            TIDREGITAB.VECKOKORD = "".                                                       
+            vaonr = TIDREGITAB.AONR.
+            vdelnr = TIDREGITAB.DELNR.
+         END.
+         IF tidbuff10.PRISTYP = "RESTID..." THEN musz = musz .
+         ELSE DO:         
+            IF musz = TRUE THEN DO TRANSACTION:
+               DELETE TIDREGITAB.
+               musz = FALSE.
+            END.
+            ELSE DO:                   
+               RELEASE TIDREGITAB NO-ERROR.            
+               RUN nytolk_UI.         
+            END.
+         END.
+         GET NEXT kopq NO-LOCK.
+      END.      
+   END.
+   
+   IF FLEXAVT.FLEXTID = TRUE THEN DO TRANSACTION:                   
+      IF frregstart  = regstart AND frregslut = regslut AND regslut NE regstart THEN DO:      
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = vaonr AND AONRTAB.DELNR = vdelnr
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE AONRTAB THEN DO:
+            FIND FIRST FLEXTID WHERE FLEXTID.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+            FLEXTID.DATUM = regdatum AND FLEXTID.KNAPP = "In" /*AND FLEXTID.AUTO = "PERI"*/ 
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF NOT AVAILABLE FLEXTID THEN DO:            
+               CREATE FLEXTID.
+               ASSIGN
+               FLEXTID.AUTO = "PERI"
+               FLEXTID.DATUM = regdatum
+               FLEXTID.PERSONALKOD = PERSONALTAB.PERSONALKOD
+               FLEXTID.TID = regstart
+               FLEXTID.KNAPP = "In"
+               FLEXTID.KOM = TRUE
+               FLEXTID.GICK = FALSE.
+            END.
+      
+            ASSIGN   
+            FLEXTID.AONR = vaonr
+            FLEXTID.DELNR = vdelnr
+            FLEXTID.ORSAK = AONRTAB.ORT.
+            FIND FIRST FLEXTID WHERE FLEXTID.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+            FLEXTID.DATUM = regdatum AND FLEXTID.KNAPP = "Ut" /*AND FLEXTID.AUTO = "PERI"*/ 
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF NOT AVAILABLE FLEXTID THEN DO:
+               CREATE FLEXTID.
+               ASSIGN
+               FLEXTID.AUTO = "PERI"
+               FLEXTID.DATUM = regdatum
+               FLEXTID.PERSONALKOD = PERSONALTAB.PERSONALKOD
+               FLEXTID.TID = regslut
+               FLEXTID.KNAPP = "Ut"
+               FLEXTID.KOM = FALSE
+               FLEXTID.GICK = TRUE.
+            END.
+            ASSIGN   
+            FLEXTID.AONR = vaonr
+            FLEXTID.DELNR = vdelnr
+            FLEXTID.ORSAK = AONRTAB.ORT.
+            regdatum = regdatum.
+            FIND FIRST FLEXDAG WHERE FLEXDAG.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+            FLEXDAG.DATUM = regdatum USE-INDEX FLEX EXCLUSIVE-LOCK NO-ERROR.     
+            IF NOT AVAILABLE FLEXDAG THEN DO:
+               CREATE FLEXDAG.
+               ASSIGN FLEXDAG.PERSONALKOD = PERSONALTAB.PERSONALKOD
+               FLEXDAG.KONTROLL = "Ejkontroll".
+            END.         
+            ASSIGN
+            FLEXDAG.KONTROLL = "Kontroll"
+            FLEXDAG.DATUM = regdatum
+            FLEXDAG.START = regstart
+            FLEXDAG.SLUT = regslut
+            FLEXDAG.TOTALT = nytid
+            FLEXDAG.PLUS = 0
+            FLEXDAG.FELMED = ""
+            FLEXDAG.FELOK = TRUE.
+         END.
+      END.
+   END.                  
+   
+
+   regdatum = regdatum + 1.
+   IF regdatum > FILL-IN-STOPPDAT THEN LEAVE. 
+END.   
+OPEN QUERY felq FOR EACH FELTEXT WHERE FELTEXT.ANVANDARE = Guru.Konstanter:globanv AND 
+FELTEXT.EMOTAGET = FALSE
+USE-INDEX FELTEXT NO-LOCK.
+DO TRANSACTION:
+   GET FIRST felq EXCLUSIVE-LOCK.
+   IF NOT AVAILABLE FELTEXT THEN RETURN.
+   CREATE felmeddtemp.
+   felmeddtemp.FELMEDD = FELTEXT.
+   ASSIGN FELTEXT.EMOTAGET = TRUE.
+END.    
+REPEAT:
+   DO TRANSACTION:
+      GET NEXT felq EXCLUSIVE-LOCK.
+      IF NOT AVAILABLE FELTEXT THEN LEAVE.
+      CREATE felmeddtemp.
+      felmeddtemp.FELMEDD = FELTEXT.
+      ASSIGN FELTEXT.EMOTAGET = TRUE.
+   END.    
+END.
+RELEASE FELTEXT NO-ERROR.
+RELEASE FLEXDAG NO-ERROR.
+RELEASE FLEXTID NO-ERROR.
+PROCEDURE nytolk_UI :
+   EMPTY TEMP-TABLE tidapptemp NO-ERROR.    
+   CREATE tidapptemp.
+   ASSIGN
+   tidapptemp.FORETAG = Guru.Konstanter:globforetag
+   tidapptemp.ANVANDARE = Guru.Konstanter:globanv
+   tidapptemp.RECPERS = persrec
+   tidapptemp.RECTID = tidtabrec
+   tidapptemp.DATUM = regdatum.              
+   
+   {TIDUPPIN.I}
+   musz = FALSE.   
+   
+END PROCEDURE.

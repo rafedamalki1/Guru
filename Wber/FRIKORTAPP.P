@@ -1,0 +1,608 @@
+/*FRIKORTAPP.P*/
+{STARTFORAPP.I}
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{APPARAT.I}
+{KONSTRMTRL.I}
+{BERSKAP.I}
+{MARKGRUPP.I}
+{EXTRATAB.I} 
+{MTRLTEMP.I}
+{KORTTMP.I}
+
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+
+PROCEDURE laddaapparat_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR apparattemp.
+   EMPTY TEMP-TABLE apparattemp NO-ERROR. 
+   OPEN QUERY sq FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = 0 AND KONSTVAL.BB = "anslutningsdon"
+   NO-LOCK.
+   GET FIRST sq NO-LOCK.
+   DO WHILE AVAILABLE(KONSTVAL):
+      FIND FIRST apparattemp WHERE apparattemp.BENAMNING = KONSTVAL.BENAMNING NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE apparattemp THEN DO:
+         CREATE apparattemp.
+         ASSIGN
+         apparattemp.BENAMNING = KONSTVAL.BENAMNING.
+      END.
+      GET NEXT sq NO-LOCK.
+   END.
+   CLOSE QUERY sq.
+   
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE laddaskylt_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR emtrltemp.
+   EMPTY TEMP-TABLE emtrltemp NO-ERROR. 
+   
+   IF  Guru.Konstanter:globforetag = "NAEK"  THEN DO:
+      FOR EACH MTRL WHERE MTRL.LEVKOD = "7" AND MTRL.KALKNR = 0 NO-LOCK:
+         IF MTRL.ENR = "A101" OR MTRL.ENR = "A102" OR MTRL.ENR = "A104" OR MTRL.ENR = "A105" OR MTRL.ENR = "A107" THEN DO:      
+            CREATE emtrltemp.
+            BUFFER-COPY MTRL TO emtrltemp.
+         END.
+      END.
+   END.   
+   IF Guru.Konstanter:globforetag = "GRAN"  THEN DO:
+      FOR EACH MTRL WHERE MTRL.LEVKOD = "24834" AND MTRL.KALKNR = 0 NO-LOCK:
+         IF MTRL.ENR = "A101" OR MTRL.ENR = "A102" OR MTRL.ENR = "A104" OR MTRL.ENR = "A105" OR MTRL.ENR = "A107" THEN DO:      
+            CREATE emtrltemp.
+            BUFFER-COPY MTRL TO emtrltemp.
+         END.
+      END.
+   END.
+   IF Guru.Konstanter:globforetag = "FORS"  THEN DO:
+      FOR EACH MTRL WHERE MTRL.LEVKOD = "71" AND MTRL.KALKNR = 0 NO-LOCK:
+         IF MTRL.ENR = "A200" OR MTRL.ENR = "A201" OR MTRL.ENR = "A202" OR MTRL.ENR = "A204" OR MTRL.ENR = "A203" THEN DO:      
+            CREATE emtrltemp.
+            BUFFER-COPY MTRL TO emtrltemp.
+         END.
+      END.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE berskaphmt_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR berskaptemp.
+   EMPTY TEMP-TABLE berskaptemp NO-ERROR. 
+   FOR EACH BERSKAP NO-LOCK.
+      {BerskapDubbStopp.I}
+   END.
+
+END PROCEDURE.
+
+PROCEDURE markstngrhmt_UI:
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omradevar AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER TABLE FOR markgrupp. 
+   EMPTY TEMP-TABLE markgrupp NO-ERROR. 
+   
+   RUN Markstationhmt_UI (INPUT aonrvar, INPUT omradevar).
+   FIND FIRST markgrupp WHERE NO-LOCK NO-ERROR.
+   IF AVAILABLE markgrupp THEN RETURN. 
+   
+   RUN EXTRATABHMT.P PERSISTENT SET edataapph.                  
+   EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+   CREATE inextrakopptemp.          
+   ASSIGN
+   inextrakopptemp.PROGRAM = "MARKSTN"     /*fixat till MARKSTATIONIBEREDNING*/              
+   inextrakopptemp.KOPPLACHAR1 = aonrvar               
+   inextrakopptemp.KOPPLAINT1 = ?
+   inextrakopptemp.KOPPLACHAR2 = omradevar            
+   inextrakopptemp.KOPPLAINT2 =  ?.
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextrakopptemp, OUTPUT TABLE extrakopptemp). 
+   FOR EACH extrakopptemp:
+      CREATE markgrupp.
+      ASSIGN
+      markgrupp.AONR      = extrakopptemp.KOPPLACHAR1
+      markgrupp.OMRADE      = extrakopptemp.KOPPLACHAR2
+      markgrupp.NUM         = extrakopptemp.SOKINT[1]
+      markgrupp.KABNR         = extrakopptemp.SOKINT[2]
+      markgrupp.GRUPP         = extrakopptemp.SOKCHAR[1].
+      markgrupp.ARTNR         = extrakopptemp.SOKCHAR[2].
+      markgrupp.ABONNENT         = extrakopptemp.SOKCHAR[3].
+      
+   END.   
+   EMPTY TEMP-TABLE extrakopptemp NO-ERROR. 
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+   edataapph = ?. 
+END PROCEDURE.
+
+{Markstationhmt.i}
+
+PROCEDURE markstngrspar_UI:
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omradevar AS CHARACTER NO-UNDO.   
+   DEFINE INPUT PARAMETER TABLE FOR markgrupp.      
+   RUN FINNSTABELL.P (INPUT "EXTRAKOPPLINGAR", OUTPUT bloblog).
+   IF bloblog = FALSE THEN RETURN.
+   RUN EXTRATABHMT.P PERSISTENT SET edataapph.                         
+   EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+   CREATE inextrakopptemp.          
+   ASSIGN
+   inextrakopptemp.PROGRAM = "MARKSTN"       /*fixat till MARKSTATIONIBEREDNING*/            
+   inextrakopptemp.KOPPLACHAR1 = aonrvar               
+   inextrakopptemp.KOPPLAINT1 = ?
+   inextrakopptemp.KOPPLACHAR2 = omradevar            
+   inextrakopptemp.KOPPLAINT2 =  ?.   
+   /*rensa sparade*/
+   RUN exbort_UI IN edataapph (INPUT TABLE inextrakopptemp). 
+   EMPTY TEMP-TABLE inextrakopptemp NO-ERROR.   
+   OPEN QUERY markq FOR EACH markgrupp.
+   GET FIRST markq.   
+   DO WHILE AVAILABLE(markgrupp):       
+      CREATE inextrakopptemp.
+      ASSIGN
+      inextrakopptemp.PROGRAM = "MARKSTN"            /*fixat till MARKSTATIONIBEREDNING*/       
+      inextrakopptemp.KOPPLACHAR1 = aonrvar      
+      inextrakopptemp.KOPPLACHAR2 = omradevar      
+      inextrakopptemp.KOPPLAINT1 = ?  
+      inextrakopptemp.KOPPLAINT2 =  ?  
+      inextrakopptemp.SOKINT[1] = markgrupp.NUM
+      inextrakopptemp.SOKINT[2] = markgrupp.KABNR
+      inextrakopptemp.SOKCHAR[1] = markgrupp.GRUPP
+      inextrakopptemp.SOKCHAR[2] = markgrupp.ARTNR
+      inextrakopptemp.SOKCHAR[3] = markgrupp.ABONNENT.                  
+      GET NEXT markq.
+   END.   
+   RELEASE inextrakopptemp.      
+   /*skapa spara */
+   RUN sparaextra_UI IN edataapph (INPUT TABLE inextrakopptemp).           
+   EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.
+   edataapph = ?. 
+END PROCEDURE.
+
+PROCEDURE skapkort_UI:
+   DEFINE INPUT PARAMETER kort AS CHARACTER NO-UNDO.
+   CREATE korttmp.
+   korttmp.KORT = kort.   
+END PROCEDURE.
+
+PROCEDURE korthmt_UI:
+   DEFINE INPUT PARAMETER vad AS INTEGER  NO-UNDO.
+   DEFINE INPUT PARAMETER globforetag AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER grupp AS INTEGER  NO-UNDO.   
+   DEFINE OUTPUT PARAMETER visadkm AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR korttmp. 
+   EMPTY TEMP-TABLE korttmp NO-ERROR.
+   /* 1= frikortm.w
+      2 = valkortu.w main
+      3 = valkortu.w vc brw*/
+   visadkm = "Kabelskåpskort Allmän".
+   IF vad = 1 THEN DO:
+      IF grupp = 0 THEN DO:
+         RUN skapkort_UI (INPUT "Kabelskåpskort Allmän" ).        
+      END.
+   END.      
+   ELSE IF vad = 2 THEN DO:
+      RUN skapkort_UI (INPUT "Kabelskåpskort Allmän" ).
+   END.   
+   IF Guru.Konstanter:globforetag = "ELPA" THEN DO:
+      IF vad = 1 THEN DO:         
+         IF grupp = 0 THEN DO:
+            RUN vattksk_UI.                        
+            RUN skapkort_UI (INPUT "Kabelskåpskort Fortum EO" ).
+            RUN skapkort_UI (INPUT "Kabelskåpskort Kraftringen" ).
+            
+            visadkm = "Kabelskåpskort Vattenfall".                           
+         END.
+         ELSE IF grupp = 12 OR grupp = 30 OR grupp = 33 OR grupp = 38 THEN DO:
+            RUN allmstn_UI.
+            RUN vattstn_UI.            
+            /*RUN skapkort_UI (INPUT "Nätstationskort EON" ). släck 20201113 Lena - ser hemsk ut*/
+            visadkm = "SS2 utan frånskiljare Vattenfall".       
+         END.
+         ELSE IF grupp = 35  THEN DO:
+            RUN skapkort_UI (INPUT "Markstationskort Allmän" ).
+            visadkm = "Markstationskort Allmän".                 
+         END.
+      END.
+      ELSE IF vad = 2 THEN DO:
+         RUN vattksk_UI.         
+         RUN skapkort_UI (INPUT "Kabelskåpskort Fortum EO" ).
+         
+         RUN allmstn_UI.
+         RUN vattstn_UI.         
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort Vattenfall".                                    
+         ELSE IF grupp = 12 OR grupp = 30 OR grupp = 33 OR grupp = 38 THEN visadkm = "SS2 utan frånskiljare Vattenfall".                
+         ELSE IF grupp = 35  THEN visadkm = "Markstationskort Allmän".                                  
+      END.   
+      ELSE IF vad = 3 THEN DO:
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort Vattenfall".                                    
+         ELSE IF grupp = 12 OR grupp = 30 OR grupp = 33 OR grupp = 38 THEN visadkm = "SS2 utan frånskiljare Vattenfall".                
+         ELSE IF grupp = 35  THEN visadkm = "Markstationskort Allmän".
+      END.            
+   END.
+   IF Guru.Konstanter:globforetag = "VAST"  THEN DO:
+      IF vad = 1 THEN DO:         
+         IF grupp = 0 THEN DO:
+            RUN vattksk_UI.            
+            RUN skapkort_UI (INPUT "Kabelskåpskort Ellevio" ).            
+            visadkm = "Kabelskåpskort Vattenfall".                    
+         END.
+         ELSE IF grupp = 12 OR grupp = 30 OR grupp = 33 OR grupp = 38 THEN DO:
+            RUN allmstn_UI.
+            RUN vattstn_UI.
+            RUN elleviostn_UI.            
+            visadkm = "SS2 utan frånskiljare Vattenfall".                          
+         END.
+      END.
+      ELSE IF vad = 2 THEN DO:
+         RUN vattksk_UI.         
+         RUN skapkort_UI (INPUT "Kabelskåpskort Ellevio" ).         
+         RUN allmstn_UI.
+         RUN vattstn_UI.
+         RUN elleviostn_UI.         
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort Vattenfall".                             
+         ELSE IF grupp = 12 OR grupp = 30 OR grupp = 33 OR grupp = 38 THEN  visadkm = "SS2 utan frånskiljare Vattenfall".                                   
+      END.
+      ELSE IF vad = 3 THEN DO:
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort Vattenfall".                                    
+         ELSE IF grupp = 12 OR grupp = 30 OR grupp = 33 OR grupp = 38 THEN  visadkm = "SS2 utan frånskiljare Vattenfall".
+      END.                        
+   END.         
+      
+   IF  Guru.Konstanter:globforetag = "REJI" OR Guru.Konstanter:globforetag = "ELPC"  OR Guru.Konstanter:globforetag = "sbkr"  THEN DO:
+      IF vad = 1 THEN DO:         
+         IF grupp = 0 THEN DO:
+            RUN vattksk_UI.            
+            visadkm = "Kabelskåpskort Vattenfall".              
+         END.              
+         IF grupp = 33 OR grupp = 34 OR grupp = 35 OR grupp = 36 OR grupp = 37 THEN DO:
+            RUN allmstn_UI.
+            RUN vattstn_UI.            
+            visadkm = "SS2 utan frånskiljare Vattenfall".                                              
+         END.
+      END.                   
+      ELSE IF vad = 2 THEN DO:
+         RUN vattksk_UI.         
+         RUN allmstn_UI.
+         RUN vattstn_UI.         
+         IF grupp = 0  THEN visadkm = "Kabelskåpskort Vattenfall".                                     
+         IF grupp = 33 OR grupp = 34 OR grupp = 35 OR grupp = 36 OR grupp = 37 THEN visadkm = "SS2 utan frånskiljare Vattenfall".     
+                                                             
+      END.
+      ELSE IF vad = 3 THEN DO:
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort Vattenfall".                                    
+         IF grupp = 33 OR grupp = 34 OR grupp = 35 OR grupp = 36 OR grupp = 37  THEN visadkm = "SS2 utan frånskiljare Vattenfall".
+          
+      END.   
+   END.         
+   IF Guru.Konstanter:globforetag = "GRAN"  OR Guru.Konstanter:globforetag = "cELPA" THEN DO:
+      IF vad = 1 THEN DO:         
+         IF grupp = 0 THEN DO:         
+            RUN skapkort_UI (INPUT "Kabelskåpskort One" ).    
+            RUN vattksk_UI.     
+            visadkm = "Kabelskåpskort One".            
+         END.
+         ELSE DO:
+            RUN skapkort_UI (INPUT "Markstationskort Allmän" ).
+            RUN vattstn_UI.
+            visadkm = "Markstationskort Allmän".         
+         END.
+      END.
+      ELSE IF vad = 2 THEN DO:
+         RUN skapkort_UI (INPUT "Kabelskåpskort One" ).
+         RUN vattksk_UI.
+         RUN skapkort_UI (INPUT "Markstationskort Allmän" ).
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort One".                     
+         ELSE visadkm = "Markstationskort Allmän".                  
+      END.   
+      ELSE IF vad = 3 THEN DO:
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort One".                     
+         ELSE visadkm = "Markstationskort Allmän".
+      END.                              
+   END.
+   IF Guru.Konstanter:globforetag = "ELKB" OR Guru.Konstanter:globforetag = "SKEK" OR Guru.Konstanter:globforetag = "NAEK" OR Guru.Konstanter:globforetag = "CPOMA" THEN DO:
+      IF vad = 1 THEN DO:         
+         IF grupp = 0 THEN DO:
+            RUN skapkort_UI (INPUT "Kabelskåpskort One" ).
+            visadkm = "Kabelskåpskort Allmän".           
+         END.      
+         ELSE DO:
+            RUN skapkort_UI (INPUT "Markstationskort Allmän" ).
+            visadkm = "Markstationskort Allmän".         
+         END.
+      END.              
+      ELSE IF vad = 2 THEN DO:
+         RUN skapkort_UI (INPUT "Kabelskåpskort One" ).
+         RUN skapkort_UI (INPUT "Markstationskort Allmän" ).
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort Allmän".                         
+         ELSE  visadkm = "Markstationskort Allmän".                  
+      END.   
+      ELSE IF vad = 3 THEN DO:
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort One".                     
+         ELSE visadkm = "Markstationskort Allmän".
+      END.               
+   END.
+   IF Guru.Konstanter:globforetag = "EKSK" OR Guru.Konstanter:globforetag = "SSEL" THEN DO:
+      IF vad = 1 THEN DO:         
+         IF grupp = 0 THEN DO:
+            RUN skapkort_UI (INPUT "Kabelskåpskort One" ).
+            RUN vattksk_UI.            
+            visadkm = "Kabelskåpskort Allmän".           
+         END.      
+         ELSE DO:
+            RUN skapkort_UI (INPUT "Markstationskort Allmän" ).
+            visadkm = "Markstationskort Allmän".         
+         END.
+      END.              
+      ELSE IF vad = 2 THEN DO:
+         RUN skapkort_UI (INPUT "Kabelskåpskort One" ).
+         RUN vattksk_UI.         
+         RUN skapkort_UI (INPUT "Markstationskort Allmän" ).
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort Allmän".                         
+         ELSE  visadkm = "Markstationskort Allmän".                  
+      END.   
+      ELSE IF vad = 3 THEN DO:
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort One".                     
+         ELSE visadkm = "Markstationskort Allmän".
+      END.               
+   END.
+   IF Guru.Konstanter:globforetag = "LIMO" THEN DO:
+      IF vad = 1 THEN DO:         
+         IF grupp = 0 THEN DO:
+            RUN skapkort_UI (INPUT "Kabelskåpskort Linjemontage" ).
+            visadkm = "Kabelskåpskort Linjemontage".           
+         END.      
+         ELSE DO:
+            RUN skapkort_UI (INPUT "Markstationskort Allmän" ).
+            visadkm = "Markstationskort Allmän".         
+         END.
+      END.              
+      ELSE IF vad = 2 THEN DO:
+         RUN skapkort_UI (INPUT "Kabelskåpskort Linjemontage" ).
+         RUN skapkort_UI (INPUT "Markstationskort Allmän" ).
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort Linjemontage".                         
+         ELSE  visadkm = "Markstationskort Allmän".                  
+      END.   
+      ELSE IF vad = 3 THEN DO:
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort Linjemontage".                     
+         ELSE visadkm = "Markstationskort Allmän".
+      END.               
+   END.
+   IF Guru.Konstanter:globforetag = "C4EN" THEN DO:
+      IF vad = 1 THEN DO:         
+         IF grupp = 0 THEN DO:
+            RUN skapkort_UI (INPUT "Kabelskåpskort C4Elnät" ).
+            visadkm = "Kabelskåpskort C4Elnät".           
+         END.      
+         ELSE DO:
+            RUN skapkort_UI (INPUT "Markstationskort Allmän" ).
+            visadkm = "Markstationskort Allmän".         
+         END.
+      END.              
+      ELSE IF vad = 2 THEN DO:
+         RUN skapkort_UI (INPUT "Kabelskåpskort C4Elnät" ).
+         RUN skapkort_UI (INPUT "Markstationskort Allmän" ).
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort C4Elnät".                         
+         ELSE  visadkm = "Markstationskort Allmän".                  
+      END.   
+      ELSE IF vad = 3 THEN DO:
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort C4Elnät".                     
+         ELSE visadkm = "Markstationskort Allmän".
+      END.               
+   END.
+   
+   IF Guru.Konstanter:globforetag = "KRIN" THEN DO:
+      
+      IF vad = 1 THEN DO:         
+         IF grupp = 0 THEN DO:
+            RUN skapkort_UI (INPUT "Kabelskåpskort Kraftringen2" ).
+            /*RUN skapkort_UI (INPUT "Kabelskåpskort Kraftringen" ).*/
+            visadkm = "Kabelskåpskort Kraftringen2".           
+         END.      
+         ELSE DO:
+            RUN skapkort_UI (INPUT "Markstationskort Allmän" ).
+            /*RUN skapkort_UI (INPUT "Markstationskort Kraftringen" ).*/
+            visadkm = "Markstationskort Allmän".         
+         END.
+      END.              
+      ELSE IF vad = 2 THEN DO:
+         RUN skapkort_UI (INPUT "Kabelskåpskort Kraftringen2" ).
+         /*RUN skapkort_UI (INPUT "Kabelskåpskort Kraftringen" ).
+         RUN skapkort_UI (INPUT "Markstationskort Kraftringen" ).*/
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort Kraftringen2".                         
+         ELSE  visadkm = "Markstationskort Allmän".                  
+      END.   
+      ELSE IF vad = 3 THEN DO:
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort Kraftringen2".                     
+         ELSE visadkm = "Markstationskort Allmän".
+      END.               
+   END.
+   IF Guru.Konstanter:globforetag = "ELTE" OR Guru.Konstanter:globforetag = "ETSA" OR Guru.Konstanter:globforetag = "HANA" OR Guru.Konstanter:globforetag = "SWEO" OR Guru.Konstanter:globforetag = "HJEL" OR Guru.Konstanter:globforetag = "JSBF"
+   OR Guru.Konstanter:globforetag = "LAKL" OR Guru.Konstanter:globforetag = "AFCO" OR Guru.Konstanter:globforetag = "PPKO" OR Guru.Konstanter:globforetag = "GETB" OR Guru.Konstanter:globforetag = "KEWA" OR Guru.Konstanter:globforetag = "DUTA" OR Guru.Konstanter:globforetag = "POLA"
+   OR Guru.Konstanter:globforetag = "KNOR" OR Guru.Konstanter:globforetag = "KRAF" OR Guru.Konstanter:globforetag = "SKEK"   OR Guru.Konstanter:globforetag = "RAMB" OR Guru.Konstanter:globforetag = "TOSE" OR Guru.Konstanter:globforetag = "wiga"
+   OR Guru.Konstanter:globforetag = "WSP" OR Guru.Konstanter:globforetag = "ELBA" OR Guru.Konstanter:globforetag = "UPPL" OR Guru.Konstanter:globforetag = "NOSS" OR Guru.Konstanter:globforetag = "TECT" OR Guru.Konstanter:globforetag = "MINI"  OR Guru.Konstanter:globforetag = "JAMT"
+   OR Guru.Konstanter:globforetag = "SKOL" OR Guru.Konstanter:globforetag = "TECM"
+   
+   OR Guru.Konstanter:globforetag = "LAPP" OR Guru.Konstanter:globforetag = "SKOK" OR Guru.Konstanter:globforetag = "KEKR" OR Guru.Konstanter:globforetag = "LABE"
+   OR Guru.Konstanter:globforetag = "ESKO"  OR Guru.Konstanter:globforetag = "GREL" OR 
+   Guru.Konstanter:globforetag = "ATS" OR Guru.Konstanter:globforetag = "ENKA"  OR Guru.Konstanter:globforetag = "POFO" OR Guru.Konstanter:globforetag = "ROJO"  OR Guru.Konstanter:globforetag = "NELK" OR Guru.Konstanter:globforetag = "PSNK"  OR Guru.Konstanter:globforetag = "SVEA"
+   OR Guru.Konstanter:globforetag = "PC2U" OR Guru.Konstanter:globforetag = "GULL" OR Guru.Konstanter:globforetag = "SVAR" OR Guru.Konstanter:globforetag = "VINN"  OR Guru.Konstanter:globforetag = "SKAN"
+   OR Guru.Konstanter:globforetag = "SVKK"  THEN DO:
+         
+      IF vad = 1 THEN DO:         
+         IF grupp = 0 THEN DO:        
+            RUN vattksk_UI.                               
+            visadkm = "Kabelskåpskort Allmän".
+         END.
+         ELSE DO:
+            RUN allmstn_UI.
+            IF Guru.Konstanter:globforetag = "SWEO" OR Guru.Konstanter:globforetag = "TOSE" OR Guru.Konstanter:globforetag = "wiga" OR Guru.Konstanter:globforetag = "wSP" OR Guru.Konstanter:globforetag = "SKOK" OR Guru.Konstanter:globforetag = "SVAR"
+            OR Guru.Konstanter:globforetag = "SKAN"  THEN DO:              
+               RUN vattstn_UI.               
+            END.   
+            visadkm = "Markstationskort Allmän".                                                                         
+         END.               
+      END.
+      ELSE IF vad = 2 THEN DO:
+         RUN vattksk_UI.         
+         RUN allmstn_UI.
+         IF Guru.Konstanter:globforetag = "SWEO" OR Guru.Konstanter:globforetag = "TOSE" OR Guru.Konstanter:globforetag = "wiga" OR Guru.Konstanter:globforetag = "wSP" OR Guru.Konstanter:globforetag = "SKOK" OR Guru.Konstanter:globforetag = "SVAR"
+         OR Guru.Konstanter:globforetag = "SKAN" THEN DO:            
+            RUN vattstn_UI.            
+         END.
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort Allmän".         
+         ELSE visadkm = "Markstationskort Allmän".                  
+      END.
+      ELSE IF vad = 3 THEN DO:
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort Allmän".         
+         ELSE visadkm = "Markstationskort Allmän".
+      END.                                 
+   END.
+   IF Guru.Konstanter:globforetag = "FORS"  OR Guru.Konstanter:globforetag = "ORBI" THEN DO:
+      IF vad = 1 THEN DO:         
+         IF grupp = 0 THEN DO:         
+            RUN skapkort_UI (INPUT "Kabelskåpskort Fortum EON" ).
+            RUN skapkort_UI (INPUT "Kabelskåpskort Ellevio" ).
+            RUN vattksk_UI.                      
+            IF Guru.Konstanter:globforetag = "FORS" THEN DO:
+               visadkm = "Kabelskåpskort Fortum EON".            
+            END. 
+            ELSE DO:
+               visadkm = "Kabelskåpskort Allmän".            
+            END.                             
+         END.      
+         ELSE IF grupp = 33 OR grupp = 37  THEN DO:
+            RUN allmstn_UI.
+            RUN vattstn_UI.                        
+            visadkm = "Markstationskort Allmän".                  
+         END.
+         
+      END.
+      ELSE IF vad = 2 THEN DO:
+         RUN skapkort_UI (INPUT "Kabelskåpskort Fortum EON" ).
+         RUN skapkort_UI (INPUT "Kabelskåpskort Ellevio" ).
+         RUN vattksk_UI.                 
+         RUN skapkort_UI (INPUT "Markstationskort Ellevio" ).
+         /*RUN skapkort_UI (INPUT "Nätstationskort EON" ). släck 20201113 Lena - ser hemsk ut*/
+         RUN allmstn_UI.
+         RUN vattstn_UI.
+         
+         IF grupp = 0 THEN DO:                               
+            IF Guru.Konstanter:globforetag = "FORS" THEN DO:
+               visadkm = "Kabelskåpskort Fortum EON".            
+            END. 
+            ELSE DO:
+               visadkm = "Kabelskåpskort Allmän".            
+            END.                             
+         END.      
+         ELSE IF grupp = 33  THEN DO:            
+            visadkm = "Markstationskort Allmän".                  
+         END.
+      END.
+      ELSE IF vad = 3 THEN DO:
+         IF grupp = 0 THEN DO:                               
+            IF Guru.Konstanter:globforetag = "FORS" THEN DO:
+               visadkm = "Kabelskåpskort Fortum EON".            
+            END. 
+            ELSE DO:
+               visadkm = "Kabelskåpskort Allmän".            
+            END.                             
+         END.      
+         ELSE IF grupp = 33  THEN DO:            
+            visadkm = "Markstationskort Allmän".                  
+         END.
+      END.                  
+     
+                    
+   END.
+   
+   IF Guru.Konstanter:globforetag = "POWE" OR Guru.Konstanter:globforetag = "PFBK"  THEN DO:
+      IF vad = 1 THEN DO:                  
+         IF grupp = 0 THEN DO:                     
+            RUN skapkort_UI (INPUT "Kabelskåpskort Ellevio" ).
+            RUN vattksk_UI.                              
+            visadkm = "Kabelskåpskort Allmän".                                                     
+         END.      
+         ELSE DO:
+            RUN allmstn_UI.
+            RUN vattstn_UI.                    
+            visadkm = "Markstationskort Allmän".                  
+         END.
+         
+      END.
+      ELSE IF vad = 2 THEN DO:         
+         RUN skapkort_UI (INPUT "Kabelskåpskort Ellevio" ).
+         RUN vattksk_UI.         
+         RUN allmstn_UI.
+         RUN vattstn_UI.                 
+         IF grupp = 0 THEN DO:                                           
+            visadkm = "Kabelskåpskort Allmän".                                                     
+         END.      
+         ELSE DO:            
+            visadkm = "Markstationskort Allmän".                  
+         END.
+      END.
+      ELSE IF vad = 3 THEN DO:
+         IF grupp = 0 THEN DO:                                           
+            visadkm = "Kabelskåpskort Allmän".                                                    
+         END.      
+         ELSE DO:            
+            visadkm = "Markstationskort Allmän".                  
+         END.
+      END.                                      
+   END.         
+   IF Guru.Konstanter:globforetag = "YSEN" OR Guru.Konstanter:globforetag = "POMA" OR Guru.Konstanter:globforetag = "MOLN" OR Guru.Konstanter:globforetag = "PITE" OR Guru.Konstanter:globforetag = "KASA" OR Guru.Konstanter:globforetag = "PENO"
+   OR Guru.Konstanter:globforetag = "AKEA" OR Guru.Konstanter:globforetag = "snat" OR Guru.Konstanter:globforetag = "ZVEN" OR Guru.Konstanter:globforetag = "SKYN" THEN DO:
+      /*ENBART ALLMÄNNA KORT*/      
+      IF vad = 1 THEN DO:         
+         IF grupp = 0 THEN DO:                           
+            visadkm = "Kabelskåpskort Allmän".            
+         END.
+         ELSE DO:
+            RUN skapkort_UI (INPUT "Markstationskort Allmän" ).
+            visadkm = "Markstationskort Allmän".         
+         END.
+      END.
+      ELSE IF vad = 2 THEN DO:         
+         RUN skapkort_UI (INPUT "Markstationskort Allmän" ).
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort Allmän".                     
+         ELSE visadkm = "Markstationskort Allmän".                  
+      END.   
+      ELSE IF vad = 3 THEN DO:
+         IF grupp = 0 THEN visadkm = "Kabelskåpskort Allmän".                     
+         ELSE visadkm = "Markstationskort Allmän".
+      END.                              
+   END.
+       
+END PROCEDURE.
+
+PROCEDURE vattstn_UI :
+   
+   RUN skapkort_UI (INPUT "SS2 utan frånskiljare Vattenfall" ).
+   RUN skapkort_UI (INPUT "SS2 med frånskiljare Vattenfall" ).   
+   RUN skapkort_UI (INPUT "ABB Nstn Vattenfall" ).
+   RUN skapkort_UI (INPUT "Magnifix Vattenfall" ).
+   RUN skapkort_UI (INPUT "Xiria Vattenfall" ).
+   RUN skapkort_UI (INPUT "unerRing Vattenfall" ).
+   RUN skapkort_UI (INPUT "Hsp Luftisolerade Lastfrånskiljare Vattenfall" ).
+   /*RUN skapkort_UI (INPUT "Nätstationskort EON" ). släck 20201113 Lena - ser hemsk ut*/
+   RUN skapkort_UI (INPUT "Kopplingsstn HSP Xiria_ NAL Vattenfall" ).
+   RUN skapkort_UI (INPUT "Kopplingsstn Magnifix_ Kopplingsskåp Vattenfall" ).   
+END PROCEDURE.
+PROCEDURE allmstn_UI :
+   RUN skapkort_UI (INPUT "Markstationskort Allmän" ).   
+END PROCEDURE.
+PROCEDURE elleviostn_UI :      
+   RUN skapkort_UI (INPUT "Markstationskort Ellevio" ).   
+END PROCEDURE.
+
+PROCEDURE vattksk_UI :    
+   RUN skapkort_UI (INPUT "Kabelskåpskort Vattenfall" ).   
+   RUN skapkort_UI (INPUT "Stolpstationskort Vattenfall" ). 
+END PROCEDURE.
+PROCEDURE skyltlt_UI:
+ DEFINE OUTPUT  PARAMETER skyltlev AS CHARACTER NO-UNDO.
+   skyltlev = "7".
+   IF Guru.Konstanter:globforetag = "gran" THEN DO: 
+      skyltlev = "24834".
+      
+   END.   
+   IF Guru.Konstanter:globforetag = "fors" THEN skyltlev = "71".
+   
+END PROCEDURE.

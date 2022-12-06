@@ -1,0 +1,143 @@
+/*MTRKADMAPP.P*/
+{MTRLTAB.I}
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{ANVTEMPS.I}
+/*{MTRLTEMP.I}
+{SPECMTRLTEMP.I}*/
+{MTRLMALLTEMP.I}
+{LEVTEMP.I}
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(86)" NO-UNDO.    
+DEFINE VARIABLE str1 AS CHARACTER FORMAT "X(86)" NO-UNDO.
+
+{TIDUTTTNEW.I}  
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+{DYNHMT.I}
+
+PROCEDURE mtrlmallhmt_UI:                         
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrlmalltemp.
+   OPEN QUERY mtrlq FOR EACH MTRLMALL  NO-LOCK. 
+   GET FIRST mtrlq NO-LOCK.
+   DO WHILE AVAILABLE(MTRLMALL): 
+      CREATE mtrlmalltemp.
+      ASSIGN      
+      mtrlmalltemp.LEVKOD = MTRLMALL.LEVKOD
+      mtrlmalltemp.BEN1   = MTRLMALL.BEN1  
+      mtrlmalltemp.BEN2   = MTRLMALL.BEN2  
+      mtrlmalltemp.BPRIS1 = MTRLMALL.BPRIS1
+      mtrlmalltemp.BPRIS2 = MTRLMALL.BPRIS2
+      mtrlmalltemp.ENH1   = MTRLMALL.ENH1  
+      mtrlmalltemp.ENH2   = MTRLMALL.ENH2         
+      mtrlmalltemp.ENR1   = MTRLMALL.ENR1  
+      mtrlmalltemp.ENR2   = MTRLMALL.ENR2    
+      mtrlmalltemp.NPRIS1 = MTRLMALL.NPRIS1
+      mtrlmalltemp.NPRIS2 = MTRLMALL.NPRIS2.                    
+      
+      GET NEXT mtrlq NO-LOCK. 
+   END.
+   CLOSE QUERY mtrlq.     
+END PROCEDURE.     
+
+PROCEDURE levhmt_UI:     
+   DEFINE OUTPUT PARAMETER TABLE FOR levtemp.           
+   EMPTY TEMP-TABLE levtemp NO-ERROR.    
+  
+   ASSIGN
+   nytab      = "levtemp"
+   orginaltab = "LEVERANTOR". 
+   kommandoquery = "LEVERANTOR.BORTTAG = FALSE".
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+   /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE levtemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.
+END PROCEDURE.
+
+PROCEDURE namnhmt_UI:        
+DEFINE INPUT PARAMETER anv1 AS CHARACTER.
+DEFINE INPUT PARAMETER anv2 AS CHARACTER.
+DEFINE OUTPUT PARAMETER namn AS CHARACTER.
+DEFINE OUTPUT PARAMETER namn2 AS CHARACTER.
+   FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = anv1 NO-LOCK NO-ERROR.
+   IF AVAILABLE ANVANDARE THEN DO:
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN DO:
+         namn = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN.
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+      END.
+   END.
+   FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = anv2 NO-LOCK NO-ERROR.
+   IF AVAILABLE ANVANDARE THEN DO:
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN DO:
+         namn2 = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN.
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+      END.
+      
+   END.
+   
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+PROCEDURE bortmtrl_UI:     
+DEFINE INPUT PARAMETER valev AS CHARACTER.
+   OPEN QUERY mtrlq FOR EACH MTRL WHERE MTRL.KALKNR = 0 AND MTRL.LEVKOD = valev NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST mtrlq EXCLUSIVE-LOCK.
+      IF AVAILABLE MTRL THEN DO:
+         DELETE MTRL.
+         GET NEXT mtrlq EXCLUSIVE-LOCK.
+      END.
+   END.
+   DO WHILE AVAILABLE(MTRL):
+      DO TRANSACTION:
+         DELETE MTRL.
+         GET NEXT mtrlq EXCLUSIVE-LOCK.
+      END.
+   END.
+   CLOSE QUERY mtrlq.
+     
+END PROCEDURE.
+
+
+PROCEDURE nykatalog_UI:          
+   DEFINE INPUT PARAMETER valfil AS CHARACTER.
+   {AMERICANEUROPEAN.I}
+   INPUT FROM VALUE(valfil) convert target "iso8859-1" source "iso8859-1".       
+   DEFINE INPUT PARAMETER satte AS LOGICAL NO-UNDO.
+   DO TRANSACTION:
+      REPEAT:
+         
+         CREATE MTRL.
+         ASSIGN.
+         IMPORT MTRL.
+         IF satte = TRUE THEN DO:
+            IF MTRL.ENR NE "" THEN DO:         
+               MTRL.enr = "E" + MTRL.enr.
+            END.
+         END.
+         {MTRLCREATE.I}
+      END.   
+   END.
+   RELEASE  MTRL NO-ERROR.    
+   FOR EACH MTRL WHERE MTRL.ENR = "":
+      DELETE MTRL.
+   END.
+   {EUROPEANAMERICAN.I}
+END PROCEDURE.
+
+
+PROCEDURE nykatalogapp_UI :
+   DEFINE INPUT PARAMETER TABLE FOR mtrltemp.
+   FOR EACH mtrltemp:
+      CREATE MTRL.
+      BUFFER-COPY mtrltemp TO MTRL.
+   END.
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR. 
+END PROCEDURE.

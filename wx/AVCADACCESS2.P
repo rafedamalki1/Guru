@@ -1,0 +1,540 @@
+/*
+               KSV Editor
+    Copyright: (C) 2000-2001 Serguey Klimoff (bulkl0DD)
+     Filename: AVCADACCESS2.P
+      Comment: <comment>
+   Parameters:
+         Uses:
+      Used by:
+      Created: 2007.12.03 14:04 ELPAO   
+     Modified: 2007.12.27 10:48 ELPAO    
+     Modified: 
+*/
+
+
+DEF VAR hAccess       AS COM-HANDLE NO-UNDO.
+DEF VAR hCurrdb       AS COM-HANDLE NO-UNDO.
+DEF VAR hTable        AS COM-HANDLE NO-UNDO.
+DEF VAR hfield        AS COM-HANDLE NO-UNDO.
+DEF VAR l-database    AS CHAR       NO-UNDO INIT "C:\Program\SIBSQL\AvCad\Dbf\AvCadx.mdb".
+DEF VAR l-textformat  AS INT        NO-UNDO INIT 10.
+DEF VAR l-fieldLength AS INT        NO-UNDO INIT 40.
+DEF VAR l-Result      AS LOG        NO-UNDO.
+DEFINE VARIABLE num AS INTEGER NO-UNDO.
+DEFINE VARIABLE ordernummer AS INTEGER NO-UNDO.
+DEFINE VARIABLE surint AS INTEGER NO-UNDO.
+DEFINE VARIABLE com AS CHARACTER NO-UNDO.
+DEFINE VARIABLE st AS INTEGER NO-UNDO.
+DEFINE VARIABLE sl AS INTEGER NO-UNDO.
+DEFINE VARIABLE path AS CHARACTER.
+
+DEFINE TEMP-TABLE tt_order 
+   FIELD ORDERNUM    AS INTEGER
+   FIELD NAMN        AS CHARACTER
+   INDEX ORDERNUM ORDERNUM.
+
+DEFINE TEMP-TABLE tt_pole 
+   FIELD SURID    AS INTEGER
+   FIELD POLEID    AS INTEGER
+   FIELD STRUID   AS CHARACTER
+   FIELD POLENAMN AS CHARACTER
+   FIELD TEXID AS CHARACTER
+   FIELD POLECLAS AS CHARACTER
+   INDEX POLEID POLEID.
+
+DEFINE TEMP-TABLE tt_struct 
+   FIELD STRUID AS INTEGER
+   FIELD STRUNAMN AS CHARACTER
+   FIELD STRUTYPE AS INTEGER
+   FIELD STRUCLASS AS INTEGER
+   FIELD STOLPTYP AS CHARACTER
+   INDEX STRUID STRUID.
+
+DEFINE TEMP-TABLE tt_segment
+   FIELD SURID    AS INTEGER
+   FIELD CABID    AS INTEGER
+   FIELD FR       AS INTEGER
+   FIELD TI       AS INTEGER
+   FIELD LIN      AS CHARACTER
+   FIELD SEGTEXT  AS CHARACTER
+   INDEX SURID SURID.
+
+
+DEFINE TEMP-TABLE tt_cab
+   FIELD CABID   AS INTEGER
+   FIELD CABNAME AS CHARACTER
+   FIELD CABTYPE AS INTEGER
+   INDEX CABID CABID.
+
+LOAD "Software\SIB Elkraft & Data AB" BASE-KEY "HKEY_CURRENT_USER".
+USE "Software\SIB Elkraft & Data AB".
+GET-KEY-VALUE SECTION "AvCad 4" KEY "Databas" VALUE l-database.
+UNLOAD "Software\SIB Elkraft & Data AB".
+st = INDEX(l-database,"c:\",1).
+l-database = SUBSTRING(l-database,st,LENGTH(l-database)).
+sl = INDEX(l-database,"AvCad.mdb",1).
+sl = sl + 8.
+l-database = SUBSTRING(l-database,1,sl).
+path = SEARCH(l-database).
+IF path = ? THEN DO:
+   LOAD "Software\SIB Elkraft & Data AB" BASE-KEY "HKEY_CURRENT_USER".
+   USE "Software\SIB Elkraft & Data AB".
+   GET-KEY-VALUE SECTION "AvCad 4" KEY "Databas" VALUE l-database.
+   UNLOAD "Software\SIB Elkraft & Data AB".
+   st = INDEX(l-database,"c:\",1).
+   l-database = SUBSTRING(l-database,st,LENGTH(l-database)).
+   sl = INDEX(l-database,"AVCADSQL.mdf",1).
+   sl = sl + 11.
+   l-database = SUBSTRING(l-database,1,sl).
+   path = SEARCH(l-database).
+END.
+
+IF path NE ? THEN DO:
+   CREATE "Access.Application" hAccess CONNECT TO l-database.
+   hAccess:VISIBLE = NO.
+   hCurrdb    = hAccess:CurrentDb.
+END.
+
+PROCEDURE getorders_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR tt_order.
+   /** Connect to ORDERS Table  **/
+   htable = hCurrdb:openrecordset("ORDERS",2,,).
+   num = 1.
+   DO WHILE NOT htable:eof():
+      CREATE tt_order.
+      ASSIGN
+      tt_order.ordernum = htable:FIELDS("Id"):VALUE
+      tt_order.namn  = htable:FIELDS("Ordername"):VALUE.   
+      htable:movenext().
+      num = num + 1.
+   END.
+   RELEASE OBJECT htable NO-ERROR.
+   htable = ?.  
+END.
+
+PROCEDURE main_UI:
+   DEFINE INPUT PARAMETER idnum AS INTEGER NO-UNDO.
+   /** Connect to SURVEY Table  **/               
+   htable = hCurrdb:openrecordset("SURVEY",2,,).
+   com = "OrderID = " + STRING(idnum).
+   htable:findfirst(com).
+   IF htable:nomatch THEN DO:
+      BELL.
+      MESSAGE "Survey not found" VIEW-AS ALERT-BOX ERROR.
+      RELEASE OBJECT htable NO-ERROR.
+      htable = ?.
+      RETURN.
+   END.
+   ELSE do:
+      ASSIGN
+      surint = htable:FIELDS("Idnumber"):VALUE.
+      RELEASE OBJECT htable NO-ERROR.
+      htable = ?.
+      RUN pole_UI.
+      FOR EACH tt_pole:
+         RUN strukt_UI.
+      END. 
+      RUN segment_UI.
+      FIND FIRST tt_segment NO-LOCK NO-ERROR.
+      RUN cab_UI.
+      FOR EACH tt_cab:
+         MESSAGE tt_cab.CABNAME VIEW-AS ALERT-BOX.
+      END.
+   END.
+END.
+
+PROCEDURE pole_UI:
+   /** Connect to POLE Table  **/                  
+   htable = hCurrdb:openrecordset("POLE",2,,).
+   com = "SurveyId = " + STRING(surint).
+   htable:findfirst(com).
+   IF htable:nomatch THEN DO:
+      BELL.
+      MESSAGE "No poles found" VIEW-AS ALERT-BOX ERROR.
+      RELEASE OBJECT htable NO-ERROR.
+      htable = ?.
+      RETURN.
+   END.
+   ELSE DO:
+      REPEAT:
+         CREATE tt_pole.
+         ASSIGN
+         tt_pole.SURID = htable:FIELDS("SurveyId"):VALUE
+         tt_pole.POLENAMN = htable:FIELDS("PoleName"):VALUE
+         tt_pole.POLEID = htable:FIELDS("Id"):VALUE
+         tt_pole.STRUID = htable:FIELDS("StructId"):VALUE
+         tt_pole.TEXID = htable:FIELDS("TextID"):VALUE
+         tt_pole.POLECLAS = htable:FIELDS("PoleClass"):VALUE.
+         htable:findnext(com).
+         IF htable:nomatch THEN DO:
+            RELEASE OBJECT htable NO-ERROR.
+            htable = ?.
+            LEAVE.
+         END.          
+      END.      
+   END.
+   RELEASE OBJECT htable NO-ERROR.
+   htable = ?.
+
+END PROCEDURE.
+
+PROCEDURE segment_UI:
+   /** Connect to SEGMENTS Table  **/                  
+   htable = hCurrdb:openrecordset("SEGMENTS",2,,).
+   com = "SurveyId = " + STRING(surint).
+   htable:findfirst(com).
+   IF htable:nomatch THEN DO:
+      BELL.
+      MESSAGE "No poles found" VIEW-AS ALERT-BOX ERROR.
+      RELEASE OBJECT htable NO-ERROR.
+      htable = ?.
+      RETURN.
+   END.
+   ELSE DO:
+      REPEAT:
+         CREATE tt_segment.
+         ASSIGN
+         tt_segment.SURID    = htable:FIELDS("SurveyId"):VALUE
+         tt_segment.CABID    = htable:FIELDS("CableId"):VALUE 
+         tt_segment.FR       = htable:FIELDS("Fran"):VALUE       
+         tt_segment.TI       = htable:FIELDS("Till"):VALUE       
+         tt_segment.LIN      = htable:FIELDS("Lina"):VALUE      
+         tt_segment.SEGTEXT      = htable:FIELDS("Text"):VALUE      
+         .                                        
+         htable:findnext(com).
+         IF htable:nomatch THEN DO:
+            RELEASE OBJECT htable NO-ERROR.
+            htable = ?.
+            LEAVE.
+         END.          
+      END.      
+   END.
+   RELEASE OBJECT htable NO-ERROR.
+   htable = ?.
+
+END PROCEDURE.
+
+PROCEDURE cab_UI:
+   /** Connect to CABLE Table  **/                  
+   htable = hCurrdb:openrecordset("CABLE",2,,).
+   IF AVAILABLE tt_segment THEN DO:
+      DEFINE VARIABLE str AS CHARACTER NO-UNDO.
+      str = tt_segment.LIN.
+      com = "name = " + "'" + str + "'".
+      htable:findfirst(com).
+      IF htable:nomatch THEN DO:
+         BELL.
+         MESSAGE "No structs found" VIEW-AS ALERT-BOX ERROR.
+         RELEASE OBJECT htable NO-ERROR.
+         htable = ?.
+         RETURN.
+      END.
+      ELSE DO:
+         REPEAT:
+            CREATE tt_cab.
+            ASSIGN
+            tt_cab.CABID = htable:FIELDS("Id"):VALUE
+            tt_cab.CABNAME = htable:FIELDS("name"):VALUE
+            tt_cab.CABTYPE = htable:FIELDS("type"):VALUE.
+            htable:findnext(com).
+            IF htable:nomatch THEN DO:
+               RELEASE OBJECT htable NO-ERROR.
+               htable = ?.
+               LEAVE.
+            END.          
+         END.      
+      END.
+   END.
+   RELEASE OBJECT htable NO-ERROR.
+   htable = ?.
+
+END PROCEDURE.
+
+PROCEDURE strukt_UI:
+   /** Connect to STRUCT Table  **/                  
+   htable = hCurrdb:openrecordset("STRUCT",2,,).
+   IF AVAILABLE tt_pole THEN DO:
+      DEFINE VARIABLE str AS CHARACTER NO-UNDO.
+      str = tt_pole.STRUID.
+      com = "namn = " + "'" + str + "'".
+      htable:findfirst(com).
+      IF htable:nomatch THEN DO:
+         BELL.
+         MESSAGE "No structs found" VIEW-AS ALERT-BOX ERROR.
+         RELEASE OBJECT htable NO-ERROR.
+         htable = ?.
+         RETURN.
+      END.
+      ELSE DO:
+         REPEAT:
+            CREATE tt_struct.
+            ASSIGN
+            tt_struct.STRUID = htable:FIELDS("Id"):VALUE
+            tt_struct.STRUNAMN = htable:FIELDS("namn"):VALUE
+            tt_struct.STRUTYPE = htable:FIELDS("type"):VALUE
+            tt_struct.STRUCLASS = htable:FIELDS("class"):VALUE.
+            IF tt_struct.STRUTYPE = 0 THEN tt_struct.STOLPTYP = "Raklinjestolpe".
+            ELSE IF tt_struct.STRUTYPE = 1 THEN tt_struct.STOLPTYP = "Vinkelstolpe".     
+            ELSE IF tt_struct.STRUTYPE = 2 THEN tt_struct.STOLPTYP = "Avgreningsstolpe". 
+            ELSE IF tt_struct.STRUTYPE = 3 THEN tt_struct.STOLPTYP = "Ändstolpe".        
+            ELSE IF tt_struct.STRUTYPE = 4 THEN tt_struct.STOLPTYP = "Avgreningsstolpe".               
+            htable:findnext(com).
+            IF htable:nomatch THEN DO:
+               RELEASE OBJECT htable NO-ERROR.
+               htable = ?.
+               LEAVE.
+            END.          
+         END.      
+      END.
+   END.
+   RELEASE OBJECT htable NO-ERROR.
+   htable = ?.
+
+END PROCEDURE.
+
+/*    RUN close_UI.                                    */
+/*                                                     */
+/*    /** Connect to STRUCT Table - innehåller namn på konstruktionen **/            */
+/*    htable = hCurrdb:openrecordset("STRUCT",2,,).                                  */
+/*    num = 1.                                                                       */
+/*    DO WHILE NOT htable:eof():                                                     */
+/*       char1 = htable:FIELDS("namn"):VALUE.                                        */
+/*       IF char1 = keychar1 THEN DO:                                                */
+/*          ASSIGN                                                                   */
+/*          int1 = htable:FIELDS("Id"):VALUE                                         */
+/*          int2 = htable:FIELDS("type"):VALUE                                       */
+/*          char1 = htable:FIELDS("namn"):VALUE                                      */
+/*             .                                                                     */
+/*          IF int2 = 0 THEN char2 = "Raklinjestolpe".                               */
+/*          ELSE IF int2 = 1 THEN char2 = "Vinkelstolpe".                            */
+/*          ELSE IF int2 = 2 THEN char2 = "Avgreningsstolpe".                        */
+/*          ELSE IF int2 = 3 THEN char2 = "Ändstolpe".                               */
+/*          ELSE IF int2 = 4 THEN char2 = "Avgreningsstolpe".                        */
+/*                                                                                   */
+/*                                                                                   */
+/*          DISPLAY int1 int2 char1 char2  WITH DOWN WIDTH 60 TITLE "STRUCT".        */
+/*          DOWN.                                                                    */
+/*       END.                                                                        */
+/*       htable:movenext().                                                          */
+/*       num = num + 1.                                                              */
+/*    END.                                                                           */
+/*    RELEASE OBJECT htable NO-ERROR.                                                */
+/*    htable = ?.                                                                    */
+/*                                                                                   */
+/*                                                                                   */
+/*    /** Connect to SEGMENTS Table  **/                                             */
+/*    htable = hCurrdb:openrecordset("SEGMENTS",2,,).                                */
+/*    num = 1.                                                                       */
+/*    DO WHILE NOT htable:eof():                                                     */
+/*       int1 = htable:FIELDS("SurveyId"):VALUE.                                     */
+/*       IF int1 = keyint1 THEN DO:                                                  */
+/*          ASSIGN                                                                   */
+/*          keyint3 = htable:FIELDS("CableId"):VALUE                                 */
+/*          int1 = htable:FIELDS("SurveyId"):VALUE                                   */
+/*          int2 = htable:FIELDS("Fran"):VALUE                                       */
+/*          int3 = htable:FIELDS("Till"):VALUE                                       */
+/*          char1 = htable:FIELDS("Lina"):VALUE                                      */
+/*          char2 = htable:FIELDS("Text"):VALUE                                      */
+/*          .                                                                        */
+/*          DISPLAY int1 int2 int3 char1 char2  WITH DOWN WIDTH 60 TITLE "SEGMENTS". */
+/*          DOWN.                                                                    */
+/*       END.                                                                        */
+/*       htable:movenext().                                                          */
+/*       num = num + 1.                                                              */
+/*    END.                                                                           */
+/*    RELEASE OBJECT htable NO-ERROR.                                                */
+/*    htable = ?.                                                                    */
+/*                                                                                   */
+/*                                                                                   */
+/*    /*    /** Connect to CABLEDAT Table **/                                     */ */
+/*    htable = hCurrdb:openrecordset("CABLEDAT",2,,).                                */
+/*    num = 1.                                                                       */
+/*    DO WHILE NOT htable:eof():                                                     */
+/*       int1 = htable:FIELDS("CableId"):VALUE.                                      */
+/*       IF int1 = keyint3 THEN DO:                                                  */
+/*          ASSIGN                                                                   */
+/*          keyint4 = htable:FIELDS("Id"):VALUE                                      */
+/*          int1 = htable:FIELDS("CableId"):VALUE                                    */
+/*          int2 = htable:FIELDS("Area"):VALUE                                       */
+/*          char1 = htable:FIELDS("AREACLASS"):VALUE                                 */
+/*          .                                                                        */
+/*          DISPLAY int1 int2 char1  WITH DOWN WIDTH 90 TITLE "CABLEDAT".            */
+/*          DOWN.                                                                    */
+/*       END.                                                                        */
+/*       htable:movenext().                                                          */
+/*       num = num + 1.                                                              */
+/*    END.                                                                           */
+/*    RELEASE OBJECT htable NO-ERROR.                                                */
+/*    htable = ?.                                                                    */
+/*                                                                                   */
+/*    /** Connect to CABLE Table - innehåller typ av lina **/                        */
+/*    htable = hCurrdb:openrecordset("CABLE",2,,).                                   */
+/*    num = 1.                                                                       */
+/*    DO WHILE NOT htable:eof():                                                     */
+/*       int1 = htable:FIELDS("Id"):VALUE.                                           */
+/*       IF int1 = keyint4 THEN DO:                                                  */
+/*          ASSIGN                                                                   */
+/*          int1 = htable:FIELDS("Id"):VALUE                                         */
+/*          int2 = htable:FIELDS("type"):VALUE                                       */
+/*          char1 = htable:FIELDS("name"):VALUE                                      */
+/*             .                                                                     */
+/*          DISPLAY int1 int2 char1  WITH DOWN WIDTH 90 TITLE "CABLE".               */
+/*          DOWN.                                                                    */
+/*       END.                                                                        */
+/*       htable:movenext().                                                          */
+/*       num = num + 1.                                                              */
+/*    END.                                                                           */
+/*    RELEASE OBJECT htable NO-ERROR.                                                */
+/*    htable = ?.                                                                    */
+
+
+/*    /** Connect to CABLEMAT Table - innehåller kabelinfo**/     */
+/*    htable = hCurrdb:openrecordset("CABLEMAT",2,,).             */
+/*    num = 1.                                                    */
+/*    DO WHILE NOT htable:eof() AND num < 100:                    */
+/*       ASSIGN                                                   */
+/*       int1 = htable:FIELDS("Id"):VALUE                         */
+/*       char1 = htable:FIELDS("Name"):VALUE                      */
+/*       .                                                        */
+/*       DISPLAY int1 char1  WITH DOWN WIDTH 90 TITLE "CABLEMAT". */
+/*       DOWN.                                                    */
+/*       htable:movenext().                                       */
+/*       num = num + 1.                                           */
+/*    END.                                                        */
+/*    RELEASE OBJECT htable NO-ERROR.                             */
+/*    htable = ?.                                                 */
+   
+PROCEDURE close_UI :
+   hAccess:CloseCurrentDatabase().
+   RELEASE OBJECT hfield NO-ERROR.
+   hfield = ?.
+   RELEASE OBJECT htable NO-ERROR.
+   htable = ?.
+   RELEASE OBJECT hCurrdb NO-ERROR.
+   hCurrdb = ?.
+   hAccess:QUIT(2).
+   RELEASE OBJECT hAccess NO-ERROR.
+   hAccess = ?.
+END PROCEDURE.
+
+
+
+/***********************************************************************
+Recordset objects have the following methods:
+movefirst
+movelast
+movenext
+moveprevious
+findfirst
+findlast
+findnext
+findprevious
+addnew
+edit
+update
+.... etc
+************************************************************************/
+
+/*********************************************************************** 
+Reading records - Loop through first 10 records in the table 
+Each field is an entry in the recordset's fields collection.
+For some reason, this is very slow.
+************************************************************************/
+/* DO WHILE NOT lh-table:eof() AND li-cnt < 10:          */
+/*    ASSIGN                                             */
+/*    lc-custcode = lh-table:FIELDS("NR"):VALUE          */
+/*    lc-company = lh-table:FIELDS("KLASS"):VALUE.       */
+/*                                                       */
+/*    DISPLAY lc-custcode lc-company WITH DOWN WIDTH 90. */
+/*    DOWN.                                              */
+/*                                                       */
+/*    lh-table:movenext().                               */
+/*    li-cnt = li-cnt + 1.                               */
+/* END.                                                  */
+/*
+/***********************************************************************
+Add a new record 
+1. Add the record
+2. Set the field values
+3. Write the changes back 
+************************************************************************/ 
+lh-table:AddNew
+ASSIGN
+lh-table:FIELDS("OMRADE"):VALUE = "TMP" 
+lh-table:FIELDS("BENAMNING"):VALUE = "Test Company".
+lh-table:UPDATE(,).
+
+/***********************************************************************
+Find a record. 
+The findfirst/last/next/previous methods all work on dynaset type
+recordsets
+only.
+They each take a string parameter, which is an SQL where clause.
+The nomatch propertie can be tested to see if find was successful.
+************************************************************************/ 
+lh-table:findfirst("OMRADE = 'TMP'").
+IF lh-table:nomatch
+THEN DO:
+   BELL.
+   MESSAGE "Customer not found" VIEW-AS ALERT-BOX ERROR.
+END.
+
+/***********************************************************************
+Update a record.
+1. Lock the record (using the Edit method)
+2. Change the values of the fields
+3. Write the changes back (using the Update method)
+************************************************************************/
+ELSE DO:
+   lh-table:edit.
+   lh-table:FIELDS("BENAMNING"):VALUE = "Fred Flinstone".
+   lh-table:UPDATE(,).
+
+/***********************************************************************
+Finally, delete the record using the delete method.
+
+************************************************************************/
+   lh-table:DELETE.
+END.
+
+*/
+
+
+
+
+
+/*
+DEFINE {&NEW} {&SHARED} TEMP-TABLE kon_val NO-UNDO                         
+   FIELD BERAONR AS CHARACTER
+   FIELD OMRADE AS CHARACTER 
+   FIELD NUM         AS INTEGER FORMAT ">>>9"
+   FIELD GRUPP       AS INTEGER
+   FIELD F1          AS CHARACTER FORMAT "X(10)"              Konstruktioner
+   FIELD F2          AS CHARACTER FORMAT "X(10)"              Huvudledning
+   FIELD F3          AS CHARACTER FORMAT "X(10)"              Avgrening
+   FIELD F4          AS CHARACTER FORMAT "X(10)"              Förankringar
+   FIELD F5          AS CHARACTER FORMAT "X(10)"              Jordlina
+   FIELD F6          AS CHARACTER FORMAT "X(10)"              Övrigt
+   FIELD ID          AS LOGICAL FORMAT "Ja/Nej" INITIAL NO
+   FIELD UPPLAG      AS INTEGER FORMAT ">>" INITIAL ?
+   FIELD KSKAP       AS LOGICAL INITIAL NO
+   FIELD TYP         AS INTEGER FORMAT ">" INITIAL 0 
+   FIELD SKAPNUM     AS INTEGER FORMAT ">>>9"
+   FIELD ANMARK      AS CHARACTER FORMAT "X(8)"
+   FIELD ID2         AS CHARACTER FORMAT "X(10)"
+   FIELD EXTRA       AS CHARACTER FORMAT "X(1)"
+   FIELD EXTRA1      AS CHARACTER 
+   FIELD EXTRA2      AS CHARACTER   
+   FIELD ORD         AS INTEGER
+   FIELD ANDRAD      AS CHARACTER
+   FIELD MTRLFINNS   AS CHARACTER
+   FIELD KALKFINNS   AS CHARACTER
+   INDEX NUM IS PRIMARY NUM ASCENDING
+   INDEX NUM2 NUM SKAPNUM ASCENDING
+   INDEX ORD ORD ASCENDING
+   INDEX ANDRAD ANDRAD
+   INDEX MTRLFINNS MTRLFINNS
+   INDEX KALKFINNS KALKFINNS.
+   */
+
+   /*Kolla vadupp_UI i bervalsw.p som kör nykabstart_UI och i den BERHMTKONMTRL.P*/

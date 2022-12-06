@@ -1,0 +1,9 @@
+DEFINE INPUT PARAMETER sConnect AS CHAR NO-UNDO.
+DEFINE INPUT PARAMETER sLogical AS CHAR NO-UNDO.
+
+
+CONNECT VALUE(sConnect + " -ld " + sLogical).
+
+
+
+

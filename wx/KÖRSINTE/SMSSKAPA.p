@@ -1,0 +1,60 @@
+/*SMSSKAPA.P*/
+DEFINE VARIABLE words AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE melvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE sokfil AS CHARACTER NO-UNDO.
+
+DEFINE TEMP-TABLE tidin
+   FIELD TIN AS CHARACTER FORMAT "X(256)".
+      
+DEFINE TEMP-TABLE tele_temp 
+   FIELD DATUM AS DATE FORMAT "9999/99/99"
+   FIELD TID AS CHARACTER FORMAT "X(8)"  
+   FIELD TELNR AS CHARACTER FORMAT "X(12)"
+   FIELD MED AS CHARACTER FORMAT "X(160)"   
+   FIELD NAMN AS CHARACTER FORMAT "X(40)".      
+   
+DEFINE INPUT PARAMETER infil AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER dlcvar AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER wtidvar AS CHARACTER NO-UNDO.       
+    
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tele_temp.
+{AMERICANEUROPEAN.I}
+   FOR EACH tidin:
+      DELETE tidin.
+   END.
+   sokfil = SEARCH("QUOTER.EXE").
+   IF sokfil = ? THEN DO:
+      RETURN. 
+   END.
+   ELSE DO:
+      dlcvar = sokfil.
+   END.
+   ASSIGN
+   wtidvar = SESSION:TEMP-DIRECTORY
+   wtidvar = wtidvar + "in_sms_tel.q".                 
+   OS-COMMAND SILENT VALUE(dlcvar)
+   VALUE(infil) > VALUE(wtidvar).           
+   INPUT FROM VALUE(wtidvar) NO-ECHO
+   CONVERT TARGET "iso8859-1" SOURCE "ibm850" NO-ECHO.
+   /*iso8859-1 swedish-7-bit ibm850"*/
+   REPEAT:
+      SET words VIEW-AS EDITOR INNER-CHARS 50 INNER-LINES 3 WITH FRAME DDD WIDTH 80.
+      CREATE tidin. 
+      ASSIGN tidin.TIN = words.
+   END.
+   INPUT CLOSE. 
+   OUTPUT TO VALUE(wtidvar).
+   FOR EACH tidin:          
+      PUT UNFORMATTED tidin.TIN SKIP.     
+   END.
+   OUTPUT CLOSE.
+   INPUT FROM VALUE(wtidvar) NO-ECHO.
+   REPEAT:
+      DO TRANSACTION: 
+         CREATE tele_temp.
+         ASSIGN.
+         IMPORT DELIMITER ";" tele_temp   NO-ERROR.
+      END.               
+   END.    
+   OS-DELETE VALUE(wtidvar).
+{EUROPEANAMERICAN.I}

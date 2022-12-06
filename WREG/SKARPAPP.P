@@ -1,0 +1,182 @@
+/*
+     Filename: SKARPAPP.P
+      Created: 2003.09.30 12:44ELPAO     
+     Modified: 
+*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+{SKARPTEMP.I}
+&Scoped-define NEW 
+{EXTRATAB.I}  
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+{EXTRADATA.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+
+
+
+/**************************************** SKARPNR.W ****************************************/
+
+
+PROCEDURE laddaskarp_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR nrprefistemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR nrstyrtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR faktskarptemp.   
+   
+   FOR EACH NRPREFISERIE:
+      CREATE nrprefistemp.     
+      BUFFER-COPY NRPREFISERIE TO nrprefistemp.
+   END.
+   FOR EACH NRSTYRSERIE:
+      CREATE nrstyrtemp.
+      BUFFER-COPY NRSTYRSERIE TO nrstyrtemp.
+      nrstyrtemp.ORGINALNRTEXT = nrstyrtemp.NRTEXT.
+   END.
+   FOR EACH FAKTSKARP:
+      CREATE faktskarptemp.
+      BUFFER-COPY FAKTSKARP TO faktskarptemp.
+      faktskarptemp.FAKTREC = RECID(FAKTSKARP).
+   END.               
+   IF Guru.Konstanter:varforetypval[18] = 1 THEN DO: 
+      RUN FINNSTABELL.P (INPUT "EXTRADATA", OUTPUT bloblog).
+      IF bloblog = FALSE THEN RETURN.
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+      FOR EACH nrprefistemp NO-LOCK:   
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "JURPERSNRSERIE"                   
+         inextradatatemp.HUVUDINT = nrprefistemp.IDNRP.                    
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+         FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+         IF AVAILABLE extradatatemp THEN DO:   
+            nrprefistemp.JUDID = extradatatemp.SOKCHAR[1].         
+            FIND FIRST JURPERS WHERE JURPERS.JUDID = nrprefistemp.JUDID  NO-LOCK NO-ERROR.
+            IF AVAILABLE JURPERS THEN DO:
+               nrprefistemp.VIJUDID = JURPERS.VIJUDID.
+            END.         
+         END.  
+      END.
+      IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+      edataapph = ?.
+   END.
+END PROCEDURE.
+
+PROCEDURE skapaserie_UI:
+   DEFINE INPUT PARAMETER val AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER nyttid AS INTEGER NO-UNDO.
+
+   IF val = 2 THEN DO:
+      FIND LAST NRPREFISERIE USE-INDEX IDNRP NO-LOCK NO-ERROR.
+      IF AVAILABLE NRPREFISERIE THEN nyttid = NRPREFISERIE.IDNRP + 1.
+      ELSE nyttid = 1.
+      CREATE NRPREFISERIE.
+      NRPREFISERIE.IDNRP = nyttid.
+      RELEASE NRPREFISERIE.
+   END.
+   ELSE IF val = 3 THEN DO:
+      FIND LAST NRSTYRSERIE USE-INDEX IDNRS NO-LOCK NO-ERROR.
+      IF AVAILABLE NRSTYRSERIE THEN nyttid = NRSTYRSERIE.IDNRS + 1.
+      ELSE nyttid = 1.
+      CREATE NRSTYRSERIE.
+      NRSTYRSERIE.IDNRS = nyttid.
+      RELEASE NRSTYRSERIE.
+   END.
+END PROCEDURE.
+
+PROCEDURE sparaserie_UI:
+   DEFINE INPUT PARAMETER TABLE FOR nrprefistemp.
+   DEFINE INPUT PARAMETER TABLE FOR nrstyrtemp.
+      
+   FOR EACH nrprefistemp NO-LOCK.
+      FIND FIRST NRPREFISERIE WHERE NRPREFISERIE.IDNRP = nrprefistemp.IDNRP EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE NRPREFISERIE THEN DO:
+         BUFFER-COPY nrprefistemp TO NRPREFISERIE.
+      END.
+   END.
+   FOR EACH nrstyrtemp NO-LOCK.
+      FIND FIRST NRSTYRSERIE WHERE NRSTYRSERIE.IDNRS = nrstyrtemp.IDNRS EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE NRSTYRSERIE THEN DO:
+         BUFFER-COPY nrstyrtemp TO NRSTYRSERIE.
+      END.
+   END.
+   IF AVAILABLE NRPREFISERIE THEN RELEASE NRPREFISERIE.
+   IF AVAILABLE NRSTYRSERIE THEN RELEASE NRSTYRSERIE.   
+END PROCEDURE.
+
+PROCEDURE tabortserie_UI:
+   DEFINE INPUT PARAMETER val AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER valid AS INTEGER NO-UNDO.
+   
+   IF val = 2 THEN DO:
+      FIND FIRST NRPREFISERIE WHERE NRPREFISERIE.IDNRP = valid EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE NRPREFISERIE THEN DELETE NRPREFISERIE.      
+      RUN FINNSTABELL.P (INPUT "EXTRADATA", OUTPUT bloblog).
+      IF bloblog = FALSE THEN RETURN.
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "JURPERSNRSERIE"                   
+      inextradatatemp.HUVUDINT = valid.      
+      RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).              
+      IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.
+      edataapph = ?.
+   END.
+   ELSE IF val = 3 THEN DO:
+      FIND FIRST NRSTYRSERIE WHERE NRSTYRSERIE.IDNRS = valid EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE NRSTYRSERIE THEN DELETE NRSTYRSERIE.
+   END.
+END PROCEDURE.
+
+PROCEDURE spnrsjur_UI:
+      DEFINE INPUT PARAMETER vidnrp AS INTEGER NO-UNDO.
+      DEFINE INPUT PARAMETER juid AS CHARACTER NO-UNDO.      
+      RUN FINNSTABELL.P (INPUT "EXTRADATA", OUTPUT bloblog).   
+      IF bloblog = FALSE THEN RETURN.
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "JURPERSNRSERIE"                   
+      inextradatatemp.HUVUDINT = vidnrp
+      inextradatatemp.SOKCH[1] = juid.    
+      RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).           
+      IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.         
+      edataapph = ?.
+END PROCEDURE.
+
+PROCEDURE tabortfaktskarp_UI:
+   DEFINE INPUT PARAMETER valrec AS RECID NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST FAKTSKARP WHERE RECID(FAKTSKARP) = valrec EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE FAKTSKARP THEN DELETE FAKTSKARP.      
+   END.
+END PROCEDURE.
+
+/**************************************** SKARPNY.W ****************************************/
+
+PROCEDURE skapafaktskarp_UI:
+   DEFINE OUTPUT PARAMETER valrec AS RECID NO-UNDO.
+   CREATE FAKTSKARP.
+   valrec = RECID(FAKTSKARP).
+   RELEASE FAKTSKARP.
+END PROCEDURE.
+
+PROCEDURE sparafaktskarp_UI:
+   DEFINE INPUT PARAMETER valrec AS RECID NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR faktskarptemp.  
+
+   FIND FIRST faktskarptemp WHERE faktskarptemp.FAKTREC = valrec NO-LOCK NO-ERROR.
+   IF AVAILABLE faktskarptemp THEN DO:
+      FIND FIRST FAKTSKARP WHERE RECID(FAKTSKARP) = valrec EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE FAKTSKARP THEN DO:
+         BUFFER-COPY faktskarptemp TO FAKTSKARP.
+      END.
+   END.
+   RELEASE FAKTSKARP.
+END PROCEDURE.

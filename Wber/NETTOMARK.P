@@ -1,0 +1,1066 @@
+/*NETTOMARK.P*/
+/*FÖR ATT MARKERA NETTOPRISER FÖR ATT JMFÖRA PRISER*/
+{ENRJMF.I}
+{STARTFORAPP.I}
+{LEVTEMPc.I}
+{MTRLTEMP.I}
+{LISTMTRL.I}      
+{SMTRL.I} 
+{KONSTRMTRL.I}
+{BERSTOLP.I}
+{LEVERANT.I} /* uppföljningslista mtrl */
+{INKTEMP.I}
+
+{JMFPRISTT.I}
+
+
+DEFINE TEMP-TABLE mtrl_temp 
+   {MTRLTEMPTT.I}  
+
+DEFINE TEMP-TABLE list_mtrl2 
+   {LISTMTRLTT.I}
+
+DEFINE TEMP-TABLE skap_mtrl
+   FIELD KTYPKOD AS CHARACTER
+   FIELD KOD AS CHARACTER  
+   FIELD ENR AS CHARACTER 
+   FIELD BENAMNING AS CHARACTER 
+   FIELD ENHET AS CHARACTER 
+   FIELD ANTAL AS INTEGER
+   FIELD PRIS AS DECIMAL
+   FIELD LEVKOD AS CHARACTER
+   FIELD MODUL AS INTEGER.
+
+DEFINE TEMP-TABLE sats_mtrl
+   FIELD KOD AS CHARACTER
+   FIELD ENR AS CHARACTER 
+   FIELD BENAMNING AS CHARACTER LABEL "Benämning"
+   FIELD ENHET AS CHARACTER LABEL "Enhet" 
+   FIELD ANTAL AS INTEGER LABEL "Antal"
+   FIELD PRIS AS DECIMAL LABEL "Pris"
+   FIELD LEVKOD AS CHARACTER.
+DEFINE TEMP-TABLE kalkbest_mtrl
+    FIELD KALKNR AS INTEGER
+    FIELD ENR AS CHARACTER
+    FIELD BENAMNING AS CHARACTER
+    FIELD ENHET AS CHARACTER
+    FIELD NPRIS AS DECIMAL
+    FIELD BPRIS AS DECIMAL
+    FIELD KPRIS AS DECIMAL
+    FIELD SUMMA AS DECIMAL
+    FIELD BERKVANT AS DECIMAL
+    FIELD BESTANT AS DECIMAL
+    FIELD LEVKOD AS CHARACTER
+    FIELD BERLEV AS CHARACTER
+    FIELD MARK AS LOGICAL.
+DEFINE TEMP-TABLE visamtrl NO-UNDO
+      FIELD ENR AS CHARACTER FORMAT "x(11)" LABEL "Enr"    
+      FIELD BENAMNING AS CHARACTER FORMAT "x(40)" LABEL "Benämning"   
+      FIELD ENHET AS CHARACTER FORMAT "x(5)" LABEL "Enhet" 
+      FIELD ANTAL AS INTEGER FORMAT ">>>>>9" LABEL "Antal"
+      FIELD LEVKOD AS CHARACTER
+      INDEX ENR IS PRIMARY ENR ASCENDING.
+DEFINE TEMP-TABLE  evisamtrl NO-UNDO LIKE visamtrl.  /*kopia för att märka nettopris */
+DEFINE VARIABLE NettoDynTable AS CHARACTER NO-UNDO.
+DEFINE VARIABLE jmfLevantorTTh AS HANDLE NO-UNDO.
+DEFINE VARIABLE jmfLevantorBuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE Utbyttabbuffh AS HANDLE NO-UNDO.
+NettoDynTable = "NettoDynTable" + STRING(TIME). 
+CREATE WIDGET-POOL NettoDynTable NO-ERROR.
+
+DEFINE VARIABLE enrjmfbuff AS HANDLE NO-UNDO.
+FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+/*HÄMTAR ENR SOM SKA BLI MARKERAD*/
+PROCEDURE enrhmt_UI:
+   DEFINE INPUT  PARAMETER levvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR kmtrltemp.
+   EMPTY TEMP-TABLE kmtrltemp NO-ERROR. 
+   FIND FIRST MTRL WHERE MTRL.LEVKOD = levvar AND MTRL.ENR = enrvar AND MTRL.KALKNR = 0
+   AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+   IF AVAILABLE  MTRL THEN DO:                                           
+      CREATE kmtrltemp.
+      BUFFER-COPY MTRL TO kmtrltemp. 
+   END.   
+   FIND FIRST MTRL WHERE MTRL.LEVKOD = levvar AND MTRL.ENR = enrvar AND MTRL.KALKNR = 0
+   AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+   IF AVAILABLE  MTRL THEN DO:                       
+      CREATE kmtrltemp.
+      BUFFER-COPY MTRL TO kmtrltemp.            
+   END.
+END PROCEDURE.
+PROCEDURE HuvudLev_UI :
+   DEFINE OUTPUT PARAMETER lid AS CHARACTER NO-UNDO.
+   FIND FIRST HUVUDLEV WHERE HUVUDLEV.Dep-Nr = 999 NO-LOCK NO-ERROR.
+   IF AVAILABLE HUVUDLEV THEN lid = HUVUDLEV.LEVKOD.
+      
+END PROCEDURE.
+     
+/*TABEL FÖR LEVERANTÖR SOM SKA VARA MED I PRISJMF*/
+PROCEDURE AnvJmfLevCreate_UI :
+   
+   CREATE TEMP-TABLE jmfLevantorTTh IN WIDGET-POOL NettoDynTable.
+   jmfLevantorTTh:CREATE-LIKE("levtemp").
+   jmfLevantorTTh:ADD-NEW-FIELD("TTRECID","RECID").
+   jmfLevantorTTh:ADD-NEW-FIELD("ORDNING","INTEGER").
+   jmfLevantorTTh:TEMP-TABLE-PREPARE("JmfLev").
+   jmfLevantorBuffh = jmfLevantorTTh:DEFAULT-BUFFER-HANDLE.
+END PROCEDURE.
+
+
+/*FRÅN MtrlJmfPrisDb.cls 
+HÄMTAR RÄTT LEVERANTÖRER VILKA SOM SKA VARA MARKERADE OCH HÄMTAR PRIS PER ENR /LEV VIA ERSÄTTNING i jmfMtrl_UI*/
+PROCEDURE jmfpris_UI :
+   /*
+   DEFINE INPUT  PARAMETER LevkodtabInkfalth AS HANDLE NO-UNDO.
+   */
+   DEFINE INPUT-OUTPUT PARAMETER TABLE-HANDLE enrjmftth.
+   DEFINE OUTPUT PARAMETER TABLE FOR rubrikTT.
+   DEFINE OUTPUT PARAMETER TABLE FOR jmfenrTT.
+   DEFINE OUTPUT PARAMETER TABLE-HANDLE jmfLevantorTThout .
+   DEFINE VARIABLE max4 AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE jmfenrTT  NO-ERROR. 
+   EMPTY TEMP-TABLE rubrikTT NO-ERROR.
+   IF VALID-HANDLE(jmfLevantorTTh) THEN.
+   ELSE RUN AnvJmfLevCreate_UI.
+   jmfLevantorBuffh:EMPTY-TEMP-TABLE() NO-ERROR.
+   jmfLevantorTThout = jmfLevantorTTh.
+   enrjmfbuff = enrjmftth:DEFAULT-BUFFER-HANDLE.
+   
+   
+   FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "INLKAT" AND EXTRADATA.SOKLOG[2] = TRUE  NO-LOCK BY EXTRADATA.SOKINT[1]:
+      FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = EXTRADATA.HUVUDCH NO-LOCK NO-ERROR.
+      IF AVAILABLE LEVERANTOR THEN DO:
+         jmfLevantorBuffh:BUFFER-CREATE.
+         jmfLevantorBuffh:BUFFER-COPY(BUFFER LEVERANTOR:HANDLE).
+         jmfLevantorBuffh:BUFFER-FIELD("ORDNING"):BUFFER-VALUE = EXTRADATA.SOKINT[1] .
+         jmfLevantorBuffh:BUFFER-FIELD("TTRECID"):BUFFER-VALUE =jmfLevantorBuffh:RECID .  
+         FIND FIRST rubrikTT WHERE rubrikTT.LEVKOD = LEVERANTOR.LEVKOD NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE rubrikTT THEN DO:
+            IF max4 < 4 THEN DO:
+               max4 = max4 + 1.
+               CREATE rubrikTT.
+               ASSIGN 
+               rubrikTT.ORDNING = max4
+               rubrikTT.LEVKOD  = LEVERANTOR.LEVKOD
+               rubrikTT.LEVNAMN = LEVERANTOR.LEVNAMN.
+            END.
+         END.   
+      END.
+   END.
+   RUN jmfMtrl_UI.
+  
+      
+END PROCEDURE.
+/*FRÅN MtrlJmfPrisDb.cls 
+ny HÄMTning PRIS PER ENR /LEV VIA ERSÄTTNING i jmfMtrl_UI*/
+PROCEDURE jmfprisIgen_UI :
+   /*
+   DEFINE INPUT  PARAMETER LevkodtabInkfalth AS HANDLE NO-UNDO.
+   */
+   DEFINE INPUT-OUTPUT PARAMETER TABLE-HANDLE enrjmftth.
+   DEFINE INPUT PARAMETER TABLE FOR rubrikTT.
+   DEFINE OUTPUT PARAMETER TABLE FOR jmfenrTT.
+
+   EMPTY TEMP-TABLE jmfenrTT  NO-ERROR. 
+   DEFINE VARIABLE enrjmfbuff AS HANDLE NO-UNDO.
+      
+   enrjmfbuff = enrjmftth:DEFAULT-BUFFER-HANDLE.
+   RUN jmfMtrl_UI.
+   
+   
+   
+END PROCEDURE.
+
+
+   
+
+/*HÄMTAR PRIS PER ENR /LEV VIA ERSÄTTNING*/
+PROCEDURE jmfMtrl_UI :
+   DEFINE VARIABLE NyttEnr AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE qh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE levpris AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE enrlevkod AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+   /*
+   DEFINE VARIABLE OO AS INTEGER NO-UNDO.
+   */
+   jmfLevantorBuffh:FIND-FIRST("WHERE  ",NO-LOCK) NO-ERROR.
+   IF jmfLevantorBuffh:AVAILABLE THEN.
+   ELSE RETURN.
+   DEBUGGER:SET-BREAK().
+   kommandoquery = "FOR EACH " + enrjmfbuff:TABLE + " NO-LOCK BY ORDNING BY LEVKOD". 
+   RUN CreateCustomQuery(INPUT enrjmfbuff,INPUT kommandoquery,OUTPUT qh).
+  /*
+   qH:GET-FIRST().
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      OO = enrjmfbuff:BUFFER-FIELD("ORDNING"):BUFFER-VALUE.
+      
+      qH:GET-NEXT(). 
+   END.
+   */
+   qH:GET-FIRST().
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+     /* 
+      OO = enrjmfbuff:BUFFER-FIELD("ORDNING"):BUFFER-VALUE.
+      */
+      FIND FIRST MTRL  WHERE MTRL.Enr = enrjmfbuff:BUFFER-FIELD("ENR"):BUFFER-VALUE AND  MTRL.KALKNR = 0 AND
+      MTRL.LEVKOD = enrjmfbuff:BUFFER-FIELD("InputLEVKOD"):BUFFER-VALUE  NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN enrjmfbuff:BUFFER-FIELD("InputBENAMNING"):BUFFER-VALUE = MTRL.Benamning.
+      IF enrjmfbuff:BUFFER-FIELD("LEVKOD"):BUFFER-VALUE NE enrlevkod THEN DO:
+         enrlevkod = enrjmfbuff:BUFFER-FIELD("LEVKOD"):BUFFER-VALUE. 
+         jmfLevantorBuffh:BUFFER-RELEASE( ). 
+         jmfLevantorBuffh:FIND-FIRST("WHERE LEVKOD = " + QUOTER(enrlevkod) ,NO-LOCK) NO-ERROR.
+      END.
+      
+      IF jmfLevantorBuffh:AVAILABLE THEN DO:
+         FOR EACH rubrikTT BY rubrikTT.LEVKOD:
+            levpris = 0.
+            
+            RUN ErsattEnr_UI (INPUT enrjmfbuff:BUFFER-FIELD("LEVKOD"):BUFFER-VALUE, INPUT RubrikTT.LEVKOD, INPUT enrjmfbuff:BUFFER-FIELD("ENR"):BUFFER-VALUE, OUTPUT NyttEnr). 
+            IF jmfLevantorBuffh:BUFFER-FIELD("LEVKOD"):BUFFER-VALUE NE RubrikTT.LEVKOD THEN DO:
+               jmfLevantorBuffh:BUFFER-RELEASE( ). 
+               jmfLevantorBuffh:FIND-FIRST("WHERE LEVKOD = " + QUOTER(RubrikTT.LEVKOD) ,NO-LOCK) NO-ERROR.
+            END.   
+            IF jmfLevantorBuffh:AVAILABLE THEN  DO:
+               
+               FIND FIRST MTRL  WHERE MTRL.Enr = NyttEnr AND  MTRL.KALKNR = 0 AND
+               MTRL.LEVKOD = RubrikTT.LEVKOD  NO-LOCK NO-ERROR.
+               IF AVAILABLE MTRL THEN DO: 
+                  levpris = MTRL.NPRIS.
+                  FIND FIRST jmfenrTT WHERE jmfenrTT.ENR = MTRL.Enr AND jmfenrTT.LEVKOD = rubrikTT.LEVKOD 
+                  NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE jmfenrTT THEN DO:
+                     IF Guru.Konstanter:globforetag = "GRAN" AND  jmfLevantorBuffh:BUFFER-FIELD("LEVNAMN"):BUFFER-VALUE  BEGINS "SELGA" THEN levpris = levpris * 0.9375.
+                     CREATE jmfenrTT.
+                     ASSIGN
+                     jmfenrTT.ENR          = enrjmfbuff:BUFFER-FIELD("ENR"):BUFFER-VALUE
+                     jmfenrTT.ENRLEV       = MTRL.Enr
+                     jmfenrTT.BENAMNING    = MTRL.Benamning
+                     jmfenrTT.ENHET        = MTRL.ENHET
+                     jmfenrTT.LEVKOD       = rubrikTT.LEVKOD
+                     jmfenrTT.PRIS         = levpris.
+                  END.   
+               END. 
+               ELSE DO:
+                  FIND FIRST jmfenrTT WHERE jmfenrTT.ENR = NyttEnr AND jmfenrTT.LEVKOD = rubrikTT.LEVKOD 
+                  NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE jmfenrTT THEN DO:
+                     IF Guru.Konstanter:globforetag = "GRAN" AND jmfLevantorBuffh:BUFFER-FIELD("LEVNAMN"):BUFFER-VALUE BEGINS "SELGA" THEN levpris = levpris * 0.9375.
+                     CREATE jmfenrTT.
+                     ASSIGN
+                     jmfenrTT.ENR           = enrjmfbuff:BUFFER-FIELD("ENR"):BUFFER-VALUE
+                     jmfenrTT.ENRLEV        = NyttEnr
+                     jmfenrTT.BENAMNING     = "Saknas i katalogen"
+                     jmfenrTT.ENHET         = "ST"
+                     jmfenrTT.LEVKOD        = rubrikTT.LEVKOD
+                     jmfenrTT.PRIS          = 0.
+                  END.   
+               END.
+            END.
+         END.
+      END.
+      ELSE  enrjmfbuff:BUFFER-DELETE().       
+      qH:GET-NEXT(). 
+   END.
+  
+END PROCEDURE.
+/*Från beredningen*/
+PROCEDURE JmfMtrBer_UI :
+   DEFINE INPUT PARAMETER valaonr LIKE AONRTAB.AONR NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade LIKE AONRTAB.OMRADE NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR enrjmf.
+   EMPTY TEMP-TABLE enrjmf NO-ERROR. 
+   /*Anders Olsson Elpool i Umeå AB  1 jun 2022 13:09:11 
+   VILKA LEVERANTÖRER SKA VARA MED VID PRISJMF 
+   */
+  
+   FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "INLKAT" AND EXTRADATA.SOKLOG[2] = TRUE  NO-LOCK BY EXTRADATA.SOKINT[1]:
+      OPEN QUERY mtrlprisq FOR EACH BERMTRL WHERE BERMTRL.LEVKOD = EXTRADATA.HUVUDCH AND BERMTRL.AONR = valaonr AND
+      BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE  NO-LOCK.
+      GET FIRST mtrlprisq NO-LOCK.
+      DO WHILE AVAILABLE(BERMTRL): 
+         FIND FIRST enrjmf WHERE enrjmf.ENR = BERMTRL.ENR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE enrjmf THEN DO:
+            CREATE enrjmf.
+            ASSIGN
+            enrjmf.ENR = BERMTRL.ENR
+            enrjmf.LEVKOD = BERMTRL.LEVKOD
+            enrjmf.INPUTLEVKOD = BERMTRL.LEVKOD.
+         END.
+         enrjmf.ANTAL = enrjmf.ANTAL + BERMTRL.ANTAL.
+         GET NEXT mtrlprisq NO-LOCK.
+      END.    
+   END.
+   
+   FOR EACH enrjmf WHERE NO-LOCK:
+      IF Guru.Konstanter:globforetag = "sund" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "ORBI" OR Guru.Konstanter:globforetag = "celpa" THEN DO:            
+         IF SUBSTRING(enrjmf.ENR,1,1) NE "E" THEN enrjmf.ENR = "E" + enrjmf.ENR.
+      END.
+      IF enrjmf.antal = 0 THEN DELETE enrjmf.
+   END.
+
+END PROCEDURE.
+
+/*HÄMTAR ENR SOM SKA BLI MARKERADe*/
+PROCEDURE nettomark_UI :
+   /*bervalsw.p kopimtrlu.w kskapm.p skapmatrl.p*/
+   DEFINE INPUT PARAMETER TABLE FOR list_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR kmtrltemp.
+   EMPTY TEMP-TABLE kmtrltemp NO-ERROR. 
+   /*NETTO*/   
+   FOR EACH list_mtrl NO-LOCK:            
+      FIND FIRST ikmtrltemp WHERE ikmtrltemp.LEVKOD = list_mtrl.LEVKOD AND ikmtrltemp.ENR = list_mtrl.ENR AND ikmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ikmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = list_mtrl.LEVKOD AND MTRL.ENR = list_mtrl.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:                       
+            CREATE ikmtrltemp.
+            BUFFER-COPY MTRL TO ikmtrltemp.            
+            CREATE kmtrltemp.
+            BUFFER-COPY MTRL TO kmtrltemp.            
+         END.
+         ELSE DO:        
+            /*variant 2 nettomärkning*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = list_mtrl.LEVKOD AND MTRL.ENR = list_mtrl.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                       
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.            
+               CREATE kmtrltemp.
+               BUFFER-COPY MTRL TO kmtrltemp.            
+            END.
+         END.         
+         IF Guru.Konstanter:varforetypval[37] NE 0 THEN DO:
+            FIND FIRST ANSVARIGTAB WHERE ANSVARIGTAB.PERSONALKOD = list_mtrl.ENR AND ANSVARIGTAB.OMREGTID = 1 NO-LOCK NO-ERROR.
+            IF AVAILABLE ANSVARIGTAB THEN DO:
+               IF ANSVARIGTAB.EFTERNAMN NE "" THEN DO:
+                  IF AVAILABLE ikmtrltemp THEN DO:
+                     ikmtrltemp.OFFERT = TRUE.    
+                     IF AVAILABLE kmtrltemp THEN DO: 
+                        ASSIGN
+                        kmtrltemp.OFFERT = TRUE
+                        kmtrltemp.BENAMNING = ANSVARIGTAB.EFTERNAMN.
+                     END.
+                  END.
+                  ELSE DO:                  
+                     FIND FIRST MTRL WHERE MTRL.LEVKOD = list_mtrl.LEVKOD AND MTRL.ENR = list_mtrl.ENR AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                     IF AVAILABLE  MTRL THEN DO:                       
+                        CREATE ikmtrltemp.
+                        BUFFER-COPY MTRL TO ikmtrltemp.            
+                        ikmtrltemp.OFFERT = TRUE.    
+                        CREATE kmtrltemp.
+                        BUFFER-COPY MTRL TO kmtrltemp.            
+                        ASSIGN
+                        kmtrltemp.OFFERT = TRUE    
+                        kmtrltemp.BENAMNING = ANSVARIGTAB.EFTERNAMN.
+                     END.
+                  END.
+               END.
+                   
+            END.
+         END.
+      END.
+   END.   
+END PROCEDURE.
+/*ersättninglkistan*/
+PROCEDURE ErsattEnr_UI :
+   DEFINE INPUT  PARAMETER inlev AS CHARACTER NO-UNDO.  /*Orginal lev*/
+   DEFINE INPUT  PARAMETER erlev AS CHARACTER NO-UNDO.  /* byt lev*/
+   DEFINE INPUT  PARAMETER inenr AS CHARACTER NO-UNDO.  /*orgEnr*/
+   DEFINE OUTPUT PARAMETER erenr AS CHARACTER NO-UNDO.  /*nytt enr*/
+   erenr = inenr.
+   CREATE BUFFER Utbyttabbuffh FOR TABLE "UTBYTESLISTA".
+   Utbyttabbuffh:FIND-FIRST("WHERE UID = " + STRING(0) + " AND ORGLEVKOD = " + QUOTER(inlev)  + " AND ORGENR = " + QUOTER(inenr)  + " AND BYTTILLLEVKOD = " + QUOTER(erlev),NO-LOCK) NO-ERROR.
+   IF Utbyttabbuffh:AVAILABLE THEN DO:
+      erenr = Utbyttabbuffh:BUFFER-FIELD("BYTTILLENR"):BUFFER-VALUE. 
+   END.   
+END PROCEDURE.
+
+
+PROCEDURE stpbnettomark_UI :
+   
+   DEFINE INPUT  PARAMETER BerValdNr AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER BerValdaOmr AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER fargning AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR berstolptemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR kmtrltemp.
+   DEFINE OUTPUT PARAMETER vlistnr AS INTEGER NO-UNDO.
+   DEFINE VARIABLE ValdBerLev AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE kmtrltemp NO-ERROR. 
+   /*NETTO*/   
+   {UTBBEREDNINGUID.I}
+   ValdBerLev = beredningh:BUFFER-FIELD("LEVKOD"):BUFFER-VALUE.
+   FOR EACH berstolptemp:
+      berstolptemp.LISTAKUNDLEV = FALSE.
+   END.
+   vlistnr = listnr.
+   FIND FIRST UTBYTESLNAMN WHERE UTBYTESLNAMN.UID = listnr NO-LOCK NO-ERROR.
+   FOR EACH berstolptemp WHERE berstolptemp.LISTAKUNDLEV = FALSE NO-LOCK BY berstolptemp.ENR:  
+      IF listnr = 0 THEN.
+      ELSE DO:   
+         FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = listnr AND UTBYTESLISTA.BYTTILLENR = berstolptemp.ENR NO-LOCK NO-ERROR.
+         IF AVAILABLE UTBYTESLISTA THEN DO:
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = UTBYTESLISTA.BYTTILLLEVKOD AND MTRL.ENR =  UTBYTESLISTA.BYTTILLENR AND MTRL.KALKNR = 0
+            NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE MTRL THEN DO:
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = berstolptemp.LEVKOD AND MTRL.ENR =  UTBYTESLISTA.BYTTILLENR AND MTRL.KALKNR = 0
+               NO-LOCK NO-ERROR.
+            END.
+            IF AVAILABLE MTRL THEN DO:  
+               ASSIGN
+               berstolptemp.ENR       = MTRL.ENR
+               berstolptemp.BENAMNING = MTRL.BENAMNING
+               berstolptemp.ENHET     = MTRL.ENHET
+               berstolptemp.PRIS      = MTRL.NPRIS
+               berstolptemp.LEVKOD    = MTRL.LEVKOD.
+               berstolptemp.LISTAKUNDLEV = TRUE.
+               berstolptemp.UID = UTBYTESLNAMN.UID.
+               berstolptemp.UIDCH = UTBYTESLNAMN.UNAMN.
+            END.   
+         END. 
+      END.
+      IF fargning = 1 THEN DO:          
+         FIND FIRST ikmtrltemp WHERE ikmtrltemp.LEVKOD = berstolptemp.LEVKOD AND ikmtrltemp.ENR = berstolptemp.ENR AND ikmtrltemp.KALKNR = 0
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE ikmtrltemp THEN DO:      
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = berstolptemp.LEVKOD AND MTRL.ENR = berstolptemp.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                       
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.            
+               CREATE kmtrltemp.
+               BUFFER-COPY MTRL TO kmtrltemp.            
+            END.
+            ELSE DO:         
+               /*variant 2 nettomärkning*/
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = berstolptemp.LEVKOD AND MTRL.ENR = berstolptemp.ENR AND MTRL.KALKNR = 0
+               AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+               IF AVAILABLE  MTRL THEN DO:                       
+                  CREATE ikmtrltemp.
+                  BUFFER-COPY MTRL TO ikmtrltemp.            
+                  CREATE kmtrltemp.
+                  BUFFER-COPY MTRL TO kmtrltemp.            
+               END.            
+            END.
+            IF Guru.Konstanter:varforetypval[37] NE 0 THEN DO:
+               FIND FIRST ANSVARIGTAB WHERE ANSVARIGTAB.PERSONALKOD = berstolptemp.ENR AND ANSVARIGTAB.OMREGTID = 1 NO-LOCK NO-ERROR.
+               IF AVAILABLE ANSVARIGTAB THEN DO:
+                  IF ANSVARIGTAB.EFTERNAMN NE "" THEN DO:
+                     IF AVAILABLE ikmtrltemp THEN DO:
+                        ikmtrltemp.OFFERT = TRUE.    
+                        IF AVAILABLE kmtrltemp THEN DO: 
+                           ASSIGN
+                           kmtrltemp.OFFERT = TRUE
+                           kmtrltemp.BENAMNING = ANSVARIGTAB.EFTERNAMN.
+                        END.
+                     END.
+                     ELSE DO:                  
+                        FIND FIRST MTRL WHERE MTRL.LEVKOD = berstolptemp.LEVKOD AND MTRL.ENR = berstolptemp.ENR AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                        IF AVAILABLE  MTRL THEN DO:                       
+                           CREATE ikmtrltemp.
+                           BUFFER-COPY MTRL TO ikmtrltemp.            
+                           ikmtrltemp.OFFERT = TRUE.    
+                           CREATE kmtrltemp.
+                           BUFFER-COPY MTRL TO kmtrltemp.            
+                           ASSIGN
+                           kmtrltemp.OFFERT = TRUE    
+                           kmtrltemp.BENAMNING = ANSVARIGTAB.EFTERNAMN.
+                        END.
+                     END.
+                  END.
+               END.
+            END.
+         END.
+      END.
+      berstolptemp.LISTAKUNDLEV = TRUE.
+   END.   
+END PROCEDURE.
+
+
+PROCEDURE linettomark_UI :
+   /*kopimtrlu.w*/
+   DEFINE INPUT PARAMETER TABLE FOR list_mtrl2.
+   DEFINE OUTPUT PARAMETER TABLE FOR kmtrltemp.
+   EMPTY TEMP-TABLE kmtrltemp NO-ERROR. 
+   /*NETTO*/   
+   FOR EACH list_mtrl2 NO-LOCK:            
+      FIND FIRST ikmtrltemp WHERE ikmtrltemp.LEVKOD = list_mtrl2.LEVKOD AND ikmtrltemp.ENR = list_mtrl2.ENR AND ikmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ikmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = list_mtrl2.LEVKOD AND MTRL.ENR = list_mtrl2.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:                       
+            CREATE ikmtrltemp.
+            BUFFER-COPY MTRL TO ikmtrltemp.            
+            CREATE kmtrltemp.
+            BUFFER-COPY MTRL TO kmtrltemp.            
+         END.
+         ELSE DO:         
+            /*variant 2 nettomärkning*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = list_mtrl2.LEVKOD AND MTRL.ENR = list_mtrl2.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                       
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.            
+               CREATE kmtrltemp.
+               BUFFER-COPY MTRL TO kmtrltemp.            
+            END.
+         END.
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE linettomark2_UI :
+   /*kopimtrlu.w*/
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR kmtrltemp.
+   EMPTY TEMP-TABLE kmtrltemp NO-ERROR. 
+   /*NETTO*/   
+   FOR EACH spec_mtrl NO-LOCK:            
+      FIND FIRST ikmtrltemp WHERE ikmtrltemp.LEVKOD = spec_mtrl.LEVKOD AND ikmtrltemp.ENR = spec_mtrl.ENR AND ikmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ikmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = spec_mtrl.LEVKOD AND MTRL.ENR = spec_mtrl.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:                       
+            CREATE ikmtrltemp.
+            BUFFER-COPY MTRL TO ikmtrltemp.            
+            CREATE kmtrltemp.
+            BUFFER-COPY MTRL TO kmtrltemp.            
+         END.
+         ELSE DO:         
+            /*variant 2 nettomärkning*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = spec_mtrl.LEVKOD AND MTRL.ENR = spec_mtrl.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                       
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.            
+               CREATE kmtrltemp.
+               BUFFER-COPY MTRL TO kmtrltemp.            
+            END.
+         END.
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE mtmenymark_UI :
+   /*mtrlmeny.p*/
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR kmtrltemp.
+   EMPTY TEMP-TABLE kmtrltemp NO-ERROR. 
+   /*NETTO*/   
+   FOR EACH spec_mtrl NO-LOCK:            
+      FIND FIRST ikmtrltemp WHERE ikmtrltemp.LEVKOD = spec_mtrl.LEVKOD AND ikmtrltemp.ENR = spec_mtrl.ENR AND ikmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ikmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = spec_mtrl.LEVKOD AND MTRL.ENR = spec_mtrl.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:                       
+            CREATE ikmtrltemp.
+            BUFFER-COPY MTRL TO ikmtrltemp.            
+            CREATE kmtrltemp.
+            BUFFER-COPY MTRL TO kmtrltemp.            
+         END.
+         ELSE DO:         
+            /*variant 2 nettomärkning*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = spec_mtrl.LEVKOD AND MTRL.ENR = spec_mtrl.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                       
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.            
+               CREATE kmtrltemp.
+               BUFFER-COPY MTRL TO kmtrltemp.            
+            END.
+         END.
+      END.
+   END.   
+END PROCEDURE.
+
+
+PROCEDURE kallnettomark_UI :
+   /*EXCMTRL3.P*/
+   DEFINE INPUT PARAMETER TABLE FOR  mtrl_temp.
+   DEFINE OUTPUT PARAMETER TABLE FOR kmtrltemp.
+   EMPTY TEMP-TABLE kmtrltemp NO-ERROR. 
+   /*NETTO*/   
+   FOR EACH mtrl_temp NO-LOCK:            
+      FIND FIRST ikmtrltemp WHERE ikmtrltemp.LEVKOD = mtrl_temp.LEVKOD AND ikmtrltemp.ENR = mtrl_temp.ENR AND ikmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ikmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = mtrl_temp.LEVKOD AND MTRL.ENR = mtrl_temp.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:                       
+            CREATE ikmtrltemp.
+            BUFFER-COPY MTRL TO ikmtrltemp.            
+            CREATE kmtrltemp.
+            BUFFER-COPY MTRL TO kmtrltemp.            
+         END.
+         ELSE DO:         
+            /*variant 2 nettomärkning*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = mtrl_temp.LEVKOD AND MTRL.ENR = mtrl_temp.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                       
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.            
+               CREATE kmtrltemp.
+               BUFFER-COPY MTRL TO kmtrltemp.            
+            END.
+         END.
+      END.
+   END.   
+END PROCEDURE.
+
+/*PROCEDURE innettomark_UI :
+   /*berinkopu.w körs inte längre */
+   DEFINE INPUT PARAMETER TABLE FOR best_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR ikmtrltemp.
+   /*NETTO*/
+   EMPTY TEMP-TABLE ikmtrltemp NO-ERROR. 
+   FOR EACH best_mtrl NO-LOCK:            
+      FIND FIRST ikmtrltemp WHERE ikmtrltemp.LEVKOD = best_mtrl.LEVKOD AND ikmtrltemp.ENR = best_mtrl.ENR AND ikmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ikmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = best_mtrl.LEVKOD AND MTRL.ENR = best_mtrl.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:                        
+            CREATE ikmtrltemp.
+            BUFFER-COPY MTRL TO ikmtrltemp.            
+         END.
+         ELSE DO:         
+            /*variant 2 nettomärkning*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = best_mtrl.LEVKOD AND MTRL.ENR = best_mtrl.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                        
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.            
+            END.
+         END.
+      END.
+   END.   
+END PROCEDURE.*/
+
+PROCEDURE inkinnettomark_UI :
+   /*inkkopm.p*/
+   DEFINE INPUT PARAMETER TABLE FOR inkber_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR ikmtrltemp.
+   /*NETTO*/
+   EMPTY TEMP-TABLE ikmtrltemp NO-ERROR. 
+   FOR EACH inkber_mtrl NO-LOCK:            
+      FIND FIRST ikmtrltemp WHERE ikmtrltemp.LEVKOD = inkber_mtrl.LEVKODINK AND ikmtrltemp.ENR = inkber_mtrl.ENR AND ikmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ikmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = inkber_mtrl.LEVKODINK AND MTRL.ENR = inkber_mtrl.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:                        
+            CREATE ikmtrltemp.
+            BUFFER-COPY MTRL TO ikmtrltemp. 
+            ikmtrltemp.LEVKOD = inkber_mtrl.LEVKODINK.           
+         END.
+         ELSE DO:         
+            /*variant 2 nettomärkning*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = inkber_mtrl.LEVKODINK AND MTRL.ENR = inkber_mtrl.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                        
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.        
+               ikmtrltemp.LEVKOD = inkber_mtrl.LEVKODINK.    
+            END.
+         END.
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE inkinnettomarkmtrl_UI :
+   /*inkkopm.p*/
+   DEFINE INPUT PARAMETER TABLE FOR mtrltemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR ikmtrltemp.
+   /*NETTO*/
+   EMPTY TEMP-TABLE ikmtrltemp NO-ERROR. 
+   FOR EACH mtrltemp NO-LOCK:            
+      FIND FIRST ikmtrltemp WHERE ikmtrltemp.LEVKOD = mtrltemp.LEVKOD AND ikmtrltemp.ENR = mtrltemp.ENR AND ikmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ikmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = mtrltemp.LEVKOD AND MTRL.ENR = mtrltemp.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:                        
+            CREATE ikmtrltemp.
+            BUFFER-COPY MTRL TO ikmtrltemp.                    
+         END.
+         ELSE DO:         
+            /*variant 2 nettomärkning*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = mtrltemp.LEVKOD AND MTRL.ENR = mtrltemp.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                        
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.        
+                 
+            END.
+         END.
+      END.
+   END.   
+END PROCEDURE.
+
+
+
+PROCEDURE kalknettomark_UI :
+   /*mtrlber2.w  KÖRS EJ*/
+   DEFINE INPUT PARAMETER TABLE FOR kalkbest_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR ikmtrltemp.
+   /*NETTO*/
+   EMPTY TEMP-TABLE ikmtrltemp NO-ERROR. 
+   FOR EACH kalkbest_mtrl NO-LOCK:            
+      FIND FIRST ikmtrltemp WHERE ikmtrltemp.LEVKOD = kalkbest_mtrl.LEVKOD AND ikmtrltemp.ENR = kalkbest_mtrl.ENR AND ikmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ikmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = kalkbest_mtrl.LEVKOD AND MTRL.ENR = kalkbest_mtrl.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:                        
+            CREATE ikmtrltemp.
+            BUFFER-COPY MTRL TO ikmtrltemp.            
+         END.
+         ELSE DO:         
+            /*variant 2 nettomärkning*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = kalkbest_mtrl.LEVKOD AND MTRL.ENR = kalkbest_mtrl.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                        
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.            
+            END.
+         END.
+      END.
+   END.   
+END PROCEDURE.
+
+
+PROCEDURE adnettomark_UI :
+   /*konmtrlu.w*/
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR ikmtrltemp.
+   /*NETTO*/   
+   FOR EACH spec_mtrl NO-LOCK:            
+      FIND FIRST ikmtrltemp WHERE ikmtrltemp.LEVKOD = spec_mtrl.LEVKOD AND ikmtrltemp.ENR = spec_mtrl.ENR AND ikmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ikmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = spec_mtrl.LEVKOD AND MTRL.ENR = spec_mtrl.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:                        
+            CREATE ikmtrltemp.
+            BUFFER-COPY MTRL TO ikmtrltemp.            
+         END.
+         ELSE DO:         
+            /*variant 2 nettomärkning*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = spec_mtrl.LEVKOD AND MTRL.ENR = spec_mtrl.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                        
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.            
+            END.
+         END.
+      END.
+   END.   
+END PROCEDURE.
+PROCEDURE depnettomark_UI :
+   /*MTRLBESTV.w*/
+   DEFINE INPUT PARAMETER TABLE FOR mtrldeptemp.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR ikmtrltemp.
+      
+   /*NETTO*/   
+   FOR EACH mtrldeptemp NO-LOCK:            
+      FIND FIRST ikmtrltemp WHERE ikmtrltemp.LEVKOD = mtrldeptemp.LEVKOD AND ikmtrltemp.ENR = mtrldeptemp.ENR AND ikmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ikmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = mtrldeptemp.LEVKOD AND MTRL.ENR = mtrldeptemp.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:                        
+            CREATE ikmtrltemp.
+            BUFFER-COPY MTRL TO ikmtrltemp.            
+         END.
+         ELSE DO:         
+            /*variant 2 nettomärkning*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = mtrldeptemp.LEVKOD AND MTRL.ENR = mtrldeptemp.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                        
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.            
+            END.
+         END.
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE mbnettomark_UI :
+   /*konmtrlu.w mtxtilly.w*/
+   DEFINE INPUT PARAMETER TABLE FOR mtrlbertemp.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR ikmtrltemp.
+   /*NETTO*/   
+   FOR EACH mtrlbertemp NO-LOCK:            
+      FIND FIRST ikmtrltemp WHERE ikmtrltemp.LEVKOD = mtrlbertemp.LEVKOD AND ikmtrltemp.ENR = mtrlbertemp.ENR AND ikmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ikmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = mtrlbertemp.LEVKOD AND MTRL.ENR = mtrlbertemp.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:                        
+            CREATE ikmtrltemp.
+            BUFFER-COPY MTRL TO ikmtrltemp.            
+         END.
+         ELSE DO:         
+            /*variant 2 nettomärkning*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = mtrlbertemp.LEVKOD AND MTRL.ENR = mtrlbertemp.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                        
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.            
+            END.
+         END.
+      END.
+   END.   
+END PROCEDURE.
+   
+
+PROCEDURE listnettomark_UI :
+   /*berxtillyu.w*/
+   DEFINE INPUT PARAMETER TABLE FOR list_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR ikmtrltemp.
+   EMPTY TEMP-TABLE ikmtrltemp NO-ERROR. 
+   /*NETTO*/   
+   FOR EACH list_mtrl NO-LOCK:            
+      FIND FIRST eikmtrltemp WHERE eikmtrltemp.LEVKOD = list_mtrl.LEVKOD AND eikmtrltemp.ENR = list_mtrl.ENR AND eikmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.      
+      IF NOT AVAILABLE eikmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = list_mtrl.LEVKOD AND MTRL.ENR = list_mtrl.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:                   
+            CREATE eikmtrltemp.
+            BUFFER-COPY MTRL TO eikmtrltemp.            
+            CREATE ikmtrltemp.
+            BUFFER-COPY MTRL TO ikmtrltemp.            
+         END.
+         ELSE DO:         
+            /*variant 2 nettomärkning*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = list_mtrl.LEVKOD AND MTRL.ENR = list_mtrl.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                   
+               CREATE eikmtrltemp.
+               BUFFER-COPY MTRL TO eikmtrltemp.            
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.            
+            END.
+         END.
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE ksknettomark_UI :
+   /*skapandu.w*/
+   DEFINE INPUT PARAMETER TABLE FOR skap_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR ikmtrltemp.
+   EMPTY TEMP-TABLE ikmtrltemp NO-ERROR. 
+   /*NETTO*/   
+   FOR EACH skap_mtrl NO-LOCK:            
+      FIND FIRST eikmtrltemp WHERE eikmtrltemp.LEVKOD = skap_mtrl.LEVKOD AND eikmtrltemp.ENR = skap_mtrl.ENR AND eikmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.      
+      IF NOT AVAILABLE eikmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = skap_mtrl.LEVKOD AND MTRL.ENR = skap_mtrl.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:                   
+            CREATE eikmtrltemp.
+            BUFFER-COPY MTRL TO eikmtrltemp.            
+            CREATE ikmtrltemp.
+            BUFFER-COPY MTRL TO ikmtrltemp.            
+         END.
+         ELSE DO:         
+            /*variant 2 nettomärkning*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = skap_mtrl.LEVKOD AND MTRL.ENR = skap_mtrl.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                   
+               CREATE eikmtrltemp.
+               BUFFER-COPY MTRL TO eikmtrltemp.            
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.            
+            END.
+         END.
+         
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE stpnettomark_UI :
+   /*skapandu.w*/
+   DEFINE INPUT PARAMETER TABLE FOR berstolptemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR ikmtrltemp.
+   EMPTY TEMP-TABLE ikmtrltemp NO-ERROR. 
+   /*NETTO*/   
+   FOR EACH berstolptemp NO-LOCK:            
+      FIND FIRST eikmtrltemp WHERE eikmtrltemp.LEVKOD = berstolptemp.LEVKOD AND eikmtrltemp.ENR = berstolptemp.ENR AND eikmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.      
+      IF NOT AVAILABLE eikmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = berstolptemp.LEVKOD AND MTRL.ENR = berstolptemp.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:                   
+            CREATE eikmtrltemp.
+            BUFFER-COPY MTRL TO eikmtrltemp.            
+            CREATE ikmtrltemp.
+            BUFFER-COPY MTRL TO ikmtrltemp.            
+         END.
+         ELSE DO:         
+            /*variant 2 nettomärkning*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = berstolptemp.LEVKOD AND MTRL.ENR = berstolptemp.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                   
+               CREATE eikmtrltemp.
+               BUFFER-COPY MTRL TO eikmtrltemp.            
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.            
+            END.
+         END.
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE satsnettomark_UI :
+   /*skapandu.w*/
+   DEFINE INPUT PARAMETER TABLE FOR sats_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR ikmtrltemp.
+   EMPTY TEMP-TABLE ikmtrltemp NO-ERROR. 
+   /*NETTO*/   
+   FOR EACH sats_mtrl NO-LOCK:            
+      FIND FIRST eikmtrltemp WHERE eikmtrltemp.LEVKOD = sats_mtrl.LEVKOD AND eikmtrltemp.ENR = sats_mtrl.ENR AND eikmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.      
+      IF NOT AVAILABLE eikmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = sats_mtrl.LEVKOD AND MTRL.ENR = sats_mtrl.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:                   
+            CREATE eikmtrltemp.
+            BUFFER-COPY MTRL TO eikmtrltemp.            
+            CREATE ikmtrltemp.
+            BUFFER-COPY MTRL TO ikmtrltemp.            
+         END.
+         ELSE DO:         
+            /*variant 2 nettomärkning*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = sats_mtrl.LEVKOD AND MTRL.ENR = sats_mtrl.ENR AND MTRL.KALKNR = 0
+            AND MTRL.KUND = ?   NO-LOCK NO-ERROR.
+            IF AVAILABLE  MTRL THEN DO:                   
+               CREATE eikmtrltemp.
+               BUFFER-COPY MTRL TO eikmtrltemp.            
+               CREATE ikmtrltemp.
+               BUFFER-COPY MTRL TO ikmtrltemp.            
+            END.
+         END.
+      END.
+   END.   
+END PROCEDURE.
+
+
+
+PROCEDURE uppnettomark_UI :
+   /*MKUURVALB.W*/
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tempbermtrl.
+   FOR EACH tempbermtrl NO-LOCK:            
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = tempbermtrl.LEVKOD AND MTRL.ENR = tempbermtrl.ENR AND MTRL.KALKNR = 0 AND MTRL.KUND = TRUE NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:                        
+         ASSIGN
+         tempbermtrl.RABATT = TRUE.
+      END.      
+      ELSE DO:
+         /*FÄRG2*/
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = tempbermtrl.LEVKOD AND MTRL.ENR = tempbermtrl.ENR AND MTRL.KALKNR = 0 AND MTRL.KUND = ? NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRL THEN DO:                        
+            ASSIGN  tempbermtrl.RABATT = ?.
+         END.
+         ELSE ASSIGN  tempbermtrl.RABATT = FALSE.
+      END.
+            
+      
+      IF tempbermtrl.LEVKOD = "0" AND tempbermtrl.RABATT = FALSE THEN DO:
+         FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+         IF AVAILABLE HUVUDLEV THEN DO:              
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = HUVUDLEV.LEVKOD AND MTRL.ENR = tempbermtrl.ENR AND MTRL.KALKNR = 0 AND MTRL.KUND = TRUE NO-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:                        
+               ASSIGN tempbermtrl.RABATT = TRUE.
+            END.                        
+         END.         
+      END.   
+   END.   
+END PROCEDURE.
+
+PROCEDURE visnettomark_UI :
+   /*bervisamtrl.w */
+   DEFINE INPUT PARAMETER TABLE FOR visamtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR evisamtrl.
+   EMPTY TEMP-TABLE evisamtrl NO-ERROR. 
+   /*NETTO*/   
+   FOR EACH visamtrl NO-LOCK:                  
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = visamtrl.LEVKOD AND MTRL.ENR = visamtrl.ENR AND MTRL.KALKNR = 0
+      AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+      IF AVAILABLE  MTRL THEN DO:                       
+         CREATE evisamtrl.
+         BUFFER-COPY MTRL TO evisamtrl.                        
+      END.      
+   END.   
+END PROCEDURE.
+
+PROCEDURE rensakalkbefb_UI :
+   DEFINE INPUT PARAMETER valaonr LIKE AONRTAB.AONR NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade LIKE AONRTAB.OMRADE NO-UNDO.         
+   DEFINE VARIABLE logresult AS LOGICAL NO-UNDO.
+   /*KALKBEFB*/
+   RUN FINNSTABELL.P (INPUT "KALKBEFB", OUTPUT logresult).
+   IF logresult = FALSE  THEN RETURN.
+   IF logresult = TRUE THEN DO:
+      RUN KALKBKOLL.P (INPUT 1,INPUT valaonr, INPUT valomrade, INPUT "", INPUT 0 ).      
+   END.
+END PROCEDURE.
+
+PROCEDURE enrensakalkbefb_UI :
+   DEFINE INPUT PARAMETER valaonr LIKE AONRTAB.AONR NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade LIKE AONRTAB.OMRADE NO-UNDO.         
+   DEFINE INPUT PARAMETER akod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER lnr AS INTEGER NO-UNDO.         
+   
+   
+   DEFINE VARIABLE logresult AS LOGICAL NO-UNDO.
+   /*KALKBEFB*/
+   RUN FINNSTABELL.P (INPUT "KALKBEFB", OUTPUT logresult).
+   IF logresult = FALSE  THEN RETURN.
+   IF logresult = TRUE THEN DO:
+      RUN KALKBKOLL.P (INPUT 2,INPUT valaonr, INPUT valomrade, INPUT akod, INPUT lnr ).            
+   END.
+
+END PROCEDURE.
+
+PROCEDURE kommentar_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR ekmtrltemp.
+
+   FIND FIRST ekmtrltemp NO-ERROR.
+   FIND FIRST ANSVARIGTAB WHERE ANSVARIGTAB.PERSONALKOD = ekmtrltemp.ENR AND ANSVARIGTAB.OMREGTID = 1 NO-LOCK NO-ERROR.
+   IF AVAILABLE ANSVARIGTAB THEN DO:      
+      ASSIGN
+      ekmtrltemp.OFFERT = TRUE
+      ekmtrltemp.BENAMNING = ANSVARIGTAB.EFTERNAMN.      
+   END.          
+END PROCEDURE.
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh IN WIDGET-POOL NettoDynTable.
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+   
+PROCEDURE CloseCustomQuery:
+   DEFINE INPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CustomQueryh:QUERY-CLOSE()  NO-ERROR.
+   CustomQueryh = ?.
+END PROCEDURE.
+
+             
+               
+               
+               

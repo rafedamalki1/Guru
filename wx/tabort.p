@@ -1,0 +1,44 @@
+   /*
+   FOR EACH BLOBINFO WHERE BLOBINFO.ID = 77,
+EACH   BLOBDATA WHERE BLOBDATA.ID = BLOBINFO.ID:
+   IF BLOBDATA.DATA MATCHES raw("*CREATE WIDGET-POOL*") THEN
+   DISP BLOBINFO.ID FILNAMN SEKVENS.
+END.
+/*LENGTH(MEDDELANDE.MEDD,"CHARACTER") < 30000*/
+*/
+DEFINE VARIABLE progque AS CHARACTER NO-UNDO.
+DEFINE VARIABLE rrakn AS INTEGER NO-UNDO.
+DEFINE VARIABLE words AS CHARACTER NO-UNDO.
+DEFINE TEMP-TABLE tidin
+   FIELD RAD AS INTEGER
+   FIELD TIN AS CHARACTER FORMAT "X(64)"
+   INDEX RAD RAD.
+
+progque = "C:\delad\gg\LAPP\Ahlsell Hela.xml".
+
+/*
+progque = "C:\delad\gg\LAPP\Ahlsell Frekventa.xml".
+*/
+INPUT FROM VALUE(progque) NO-ECHO.
+rrakn = 0.
+REPEAT:
+   CREATE tidin.   
+   rrakn = rrakn + 1.
+   tidin.RAD = rrakn.
+   /*CHR(11)**/
+   /*
+   IMPORT DELIMITER "" tidin.TIN.
+     */
+   IMPORT DELIMITER ">" tidin.TIN.
+    tidin.TIN =  tidin.TIN + ">".
+END.
+INPUT CLOSE.  
+
+progque = "C:\delad\gg\LAPP\X.xml".
+OUTPUT TO VALUE(progque) NO-ECHO.
+   FOR EACH tidin:
+      PUT UNFORMATTED tidin.TIN.
+   END.
+OUTPUT CLOSE.
+EMPTY TEMP-TABLE tidin NO-ERROR. 
+

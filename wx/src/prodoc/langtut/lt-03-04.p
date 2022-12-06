@@ -1,0 +1,16 @@
+DEFINE VARIABLE Field1 AS CHARACTER INITIAL "Hello!" VIEW-AS TEXT.
+DEFINE BUTTON btn-Exit LABEL "Exit".
+DEFINE BUTTON btn-Data LABEL "Display Data".
+
+ENABLE SKIP(2) btn-Data SKIP(2) btn-Exit SKIP(2)
+    WITH SIDE-LABELS NO-BOX THREE-D.
+
+ON CHOOSE of btn-Data
+DO:
+    DISPLAY Field1.
+END.
+
+WAIT-FOR CHOOSE OF btn-Exit.
+
+
+

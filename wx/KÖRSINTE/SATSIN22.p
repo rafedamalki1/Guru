@@ -1,0 +1,73 @@
+/*INLÄSNING AV ELEKTROSKANDIAS SATSREGISTER*/      
+
+DEFINE TEMP-TABLE tidin 
+   FIELD SATSNR             AS CHARACTER FORMAT "X(11)" 
+   FIELD BENAMNING          AS CHARACTER FORMAT "X(40)"
+   FIELD ANTAL              AS INTEGER FORMAT ">>>"  
+   FIELD ENR                AS CHARACTER FORMAT "X(11)" 
+   FIELD BENAMNING2         AS CHARACTER FORMAT "X(40)"   
+   INDEX SATS IS PRIMARY SATSNR.
+
+   
+DEFINE INPUT PARAMETER TABLE FOR tidin.   
+DEFINE INPUT PARAMETER leverant LIKE LEVERANTOR.LEVKOD NO-UNDO.   
+
+FOR EACH tidin NO-LOCK:                                   
+   DO TRANSACTION:                        
+      FIND FIRST SATS WHERE SATS.KOD = SUBSTRING(tidin.SATSNR,1,11) AND 
+      SATS.SATS = TRUE AND SATS.LEVKOD = leverant NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE SATS THEN DO:
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = leverant AND MTRL.ENR = TRIM(tidin.SATSNR)AND 
+         MTRL.KALKNR = 0 USE-INDEX LEV NO-LOCK NO-ERROR.            
+         CREATE SATS.
+         ASSIGN      
+         SATS.KOD = SUBSTRING(tidin.SATSNR,1,11)
+         SATS.LEVKOD = leverant         
+         SATS.ENR = SUBSTRING(tidin.SATSNR,1,11)
+         SATS.BENAMNING = SUBSTRING(tidin.BENAMNING,1,40)         
+         SATS.SATS = TRUE.        
+         IF AVAILABLE MTRL THEN DO:
+            ASSIGN
+            SATS.BENAMNING = MTRL.BENAMNING
+            SATS.ENHET = MTRL.ENHET
+            SATS.PRIS = MTRL.NPRIS.
+         END.             
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = leverant AND MTRL.ENR = TRIM(tidin.ENR)
+         AND MTRL.KALKNR = 0 USE-INDEX LEV NO-LOCK NO-ERROR.
+         CREATE SATS.
+         ASSIGN      
+         SATS.KOD = SUBSTRING(tidin.SATSNR,1,11)
+         SATS.LEVKOD = leverant         
+         SATS.ENR2 = SUBSTRING(tidin.ENR,1,11)
+         SATS.BENAMNING2 = SUBSTRING(tidin.BENAMNING2,1,40)         
+         SATS.SATS = FALSE
+         SATS.ANTAL = tidin.ANTAL. 
+         IF AVAILABLE MTRL THEN DO:
+            ASSIGN
+            SATS.BENAMNING2 = MTRL.BENAMNING
+            SATS.ENHET2 = MTRL.ENHET
+            SATS.PRIS2 = MTRL.NPRIS.
+         END.         
+      END.
+      ELSE DO:
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = leverant AND MTRL.ENR = TRIM(tidin.ENR)
+         AND MTRL.KALKNR = 0 USE-INDEX LEV NO-LOCK NO-ERROR.            
+         CREATE SATS.
+         ASSIGN      
+         SATS.KOD = SUBSTRING(tidin.SATSNR,1,11)
+         SATS.LEVKOD = leverant         
+         SATS.ENR2 = SUBSTRING(tidin.ENR,1,11)
+         SATS.BENAMNING2 = SUBSTRING(tidin.BENAMNING2,1,40)         
+         SATS.SATS = FALSE
+         SATS.ANTAL = tidin.ANTAL.
+         IF AVAILABLE MTRL THEN DO:
+            ASSIGN
+            SATS.BENAMNING2 = MTRL.BENAMNING
+            SATS.ENHET2 = MTRL.ENHET
+            SATS.PRIS2 = MTRL.NPRIS.
+         END. 
+      END.
+   END.
+END.
+
+                

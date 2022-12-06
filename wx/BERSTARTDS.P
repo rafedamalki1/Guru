@@ -1,0 +1,94 @@
+
+/*------------------------------------------------------------------------
+    File        : BERSTARTDS.P
+    Purpose     : körs inte
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Thu Sep 15 12:55:58 CEST 2016
+    Notes       :
+  ----------------------------------------------------------------------*/
+&Scoped-define NEW NEW   
+&Scoped-define SHARED SHARED 
+{KONVALTEMP.I}
+DEFINE VARIABLE globanv AS CHARACTER NO-UNDO.
+DEFINE VARIABLE globanv2 AS CHARACTER NO-UNDO.  
+DEFINE VARIABLE berloadsaveh AS HANDLE NO-UNDO.
+DEFINE VARIABLE singel AS LOGICAL NO-UNDO.
+DEFINE VARIABLE vad AS CHARACTER NO-UNDO.
+DEFINE VARIABLE stoppasnabbsbar AS LOGICAL NO-UNDO.
+
+DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE qh AS HANDLE NO-UNDO.
+DEFINE VARIABLE BerDS AS HANDLE NO-UNDO.
+DEFINE VARIABLE Konvalbuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE Konvaltth AS HANDLE NO-UNDO.
+{VARFORETYP.I}
+varforetypchar[48] = "classer".
+globanv2 = Guru.Konstanter:globanv.
+IF Guru.SharedVariable:singel = TRUE  THEN DO:
+   SUBSTRING(globanv2,132,1) = "1".
+END.
+RUN NEJKOMBALLTVDS.p PERSISTENT SET berloadsaveh (INPUT varforetypchar[48],globanv2).
+vad = "BERVAL.AONR = '" + STRING(1132) + "'" /*AND BERVAL.OMRADE = '0910'"*/ .  
+RUN laddaBerDS_UI IN berloadsaveh (INPUT vad, OUTPUT DATASET-HANDLE BerDS BIND ).
+IF VALID-HANDLE(BerDS) THEN DO:
+   EMPTY TEMP-TABLE kon_val NO-ERROR.
+   Konvalbuffh = BerDS:GET-BUFFER-HANDLE(1).
+   kommandoquery = "FOR EACH " + Konvalbuffh:TABLE + " NO-LOCK". 
+   RUN CreateCustomQuery(INPUT Konvalbuffh,INPUT kommandoquery,OUTPUT qh).
+   qH:GET-FIRST().
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      CREATE kon_val.
+      BUFFER kon_val:HANDLE:BUFFER-COPY(Konvalbuffh).
+      kon_val.GRUPP = Konvalbuffh:BUFFER-FIELD("KONSKOD"):BUFFER-VALUE.  
+      kon_val.F1 = Konvalbuffh:BUFFER-FIELD("KTYPKOD"):BUFFER-VALUE. 
+      qH:GET-NEXT().
+   END.
+   RUN BerDSTracking_UI (INPUT TRUE).
+    
+END.
+FOR EACH kon_val WHERE NO-LOCK:
+   DISPLAY kon_val.GRUPP kon_val.F1 kon_val.F2 kon_val.F3 kon_val.F5 kon_val.F6 WITH FRAME CC DOWN.
+   DOWN 1 WITH FRAME CC.
+END.
+PROCEDURE BerDSTracking_UI:
+   DEFINE INPUT  PARAMETER onoff AS LOGICAL NO-UNDO.
+   IF onoff = TRUE THEN stoppasnabbsbar = FALSE.
+   ELSE stoppasnabbsbar = TRUE.
+   IF NOT VALID-HANDLE(Konvaltth) THEN Konvaltth = Konvalbuffh:TABLE-HANDLE.
+   Konvaltth:TRACKING-CHANGES = onoff.
+   
+   
+END PROCEDURE.
+PROCEDURE BerDSSpar:
+    Konvalbuffh:BUFFER-COPY(BUFFER kon_val:HANDLE).
+    DEFINE VARIABLE chDS AS HANDLE NO-UNDO.
+    RUN BerDSTracking_UI (INPUT FALSE).
+    CREATE DATASET chDS.
+    chDS:CREATE-LIKE(BerDS).
+    chDS:GET-CHANGES(BerDS).
+    RUN SparaDynDSstart_UI IN berloadsaveh (INPUT "BerDS", INPUT DATASET-HANDLE chDS).
+  
+    chDS:MERGE-CHANGES(BerDS).
+    RUN BerDSTracking_UI(INPUT TRUE).
+END PROCEDURE.
+
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh IN WIDGET-POOL "DynTable".
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+   
+PROCEDURE CloseCustomQuery:
+   DEFINE INPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CustomQueryh:QUERY-CLOSE()  NO-ERROR.
+   CustomQueryh = ?.
+END PROCEDURE.

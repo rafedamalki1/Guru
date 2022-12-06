@@ -1,0 +1,1205 @@
+ /*G:\DELAD\PRO9\GURU\SULOHOGIA.P*/
+{LESAMMAN.I}  
+DEFINE INPUT PARAMETER kordatum AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER koranv LIKE ANVANDARE.ANVANDARE NO-UNDO.
+DEFINE INPUT PARAMETER gkorvar AS CHARACTER NO-UNDO.
+RUN sammut_UI (INPUT 1).
+&Scoped-define NEW   
+&Scoped-define SHARED 
+{LONEDEF.I}
+DEFINE NEW SHARED VARIABLE fnytid AS DECIMAL FORMAT "-99.99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE vkdatum AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE regvnr AS INTEGER FORMAT "999" NO-UNDO.     
+DEFINE NEW SHARED VARIABLE regdatum AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE regstart LIKE TIDREGITAB.START NO-UNDO. 
+DEFINE NEW SHARED VARIABLE regslut LIKE TIDREGITAB.SLUT NO-UNDO.
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE regdagnamn AS CHARACTER FORMAT "X(3)" NO-UNDO.        
+DEFINE NEW SHARED VARIABLE regtotalt LIKE TIDREGITAB.TOTALT NO-UNDO.
+DEFINE NEW SHARED VARIABLE frustarten AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE fruslutet AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE kaffestart AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE kaffeslut AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE lunchstarten AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE lunchslutet AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE nytid AS DECIMAL FORMAT "99.99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE sekunder AS INTEGER NO-UNDO.    
+DEFINE NEW SHARED VARIABLE korvar AS CHARACTER NO-UNDO.
+
+DEFINE VARIABLE antal LIKE TIDREGITAB.LONTILLANTAL NO-UNDO.   /*LÖN*/
+DEFINE VARIABLE antalet LIKE PHJALP.PPAR8 NO-UNDO.   /*LÖN*/
+DEFINE VARIABLE personal LIKE PERSONALTAB.PERSONALKOD.      /*LÖN*/
+DEFINE VARIABLE pnr LIKE PERSONALTAB.PERSONNUMMER.      /*LÖN*/
+DEFINE VARIABLE vecknr LIKE TIDREGITAB.VECKONUMMER.      /*LÖN*/
+DEFINE VARIABLE overrapp1 AS CHARACTER FORMAT "X(250)".      /*LÖN*/
+DEFINE VARIABLE rapphj1 AS CHARACTER FORMAT "X(9)".      /*HJÄLP ANTAL*/
+DEFINE VARIABLE rapphj2 AS CHARACTER FORMAT "X(11)".      /*HJÄLP belopp*/
+DEFINE VARIABLE datrapphj1 AS DATE FORMAT "999999".      /*HJÄLP datum*/
+DEFINE VARIABLE rec AS RECID.
+DEFINE VARIABLE para AS LOGICAL NO-UNDO.
+DEFINE VARIABLE avtal1 LIKE PERSONALTAB.ANSTALLNING NO-UNDO.
+DEFINE VARIABLE avtal LIKE ANSTFORMTAB.KOD NO-UNDO.  
+DEFINE VARIABLE oversum AS INTEGER NO-UNDO. 
+DEFINE VARIABLE total AS INTEGER NO-UNDO.
+DEFINE VARIABLE oa1 AS INTEGER NO-UNDO.
+DEFINE VARIABLE oa2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE oa3 AS INTEGER NO-UNDO.
+DEFINE VARIABLE t2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE t3 AS INTEGER NO-UNDO.
+DEFINE VARIABLE bryt AS LOGICAL NO-UNDO.
+DEFINE VARIABLE nod AS LOGICAL NO-UNDO.
+DEFINE VARIABLE seku AS INTEGER NO-UNDO.
+DEFINE VARIABLE anstperson LIKE PERSONALTAB.PERSONNUMMER NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE prognamn AS CHARACTER FORMAT "X(41)" NO-UNDO.
+DEFINE VARIABLE prognamn5 AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE prognamn3 AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE prognamn4 AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE filut AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lonfil AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lorsak AS CHARACTER NO-UNDO.
+DEFINE VARIABLE stdat  AS DATE NO-UNDO.
+DEFINE VARIABLE sldat AS DATE NO-UNDO.
+DEFINE VARIABLE rgr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lonant AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lonkr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE berkrav AS LOGICAL NO-UNDO.
+DEFINE VARIABLE bedat AS DATE NO-UNDO.
+DEFINE VARIABLE beredant AS DECIMAL NO-UNDO.
+DEFINE VARIABLE sumoverk AS DECIMAL NO-UNDO.
+DEFINE VARIABLE sumovertot AS DECIMAL NO-UNDO.
+
+DEFINE BUFFER tidbuff FOR TIDREGITAB.
+DEFINE TEMP-TABLE pa90filen
+   FIELD PPERSONNUMMER AS CHARACTER FORMAT "X(10)"
+   FIELD PNR AS CHARACTER FORMAT "X(10)"
+   FIELD PDATUMET AS CHARACTER FORMAT "X(6)"
+   FIELD MANAD AS INTEGER
+   FIELD UTDATUM AS DATE
+   FIELD PTILLAGG LIKE TIDREGITAB.LONTILLAGG
+   FIELD PTI  AS DECIMAL
+   FIELD PANTAL AS DECIMAL
+   FIELD PKR AS DECIMAL
+   FIELD PKOD LIKE ANSTFORMTAB.KOD
+   FIELD POMR LIKE PERSONALTAB.OMRADE
+   FIELD ORSAK AS CHARACTER
+   FIELD VIJUDID AS CHARACTER
+   FIELD PSORT AS CHARACTER FORMAT "XX"
+   FIELD AONR AS CHARACTER
+   FIELD DELNR AS INTEGER
+   INDEX PPERSKOD IS PRIMARY PPERSONNUMMER PTILLAGG.
+   
+/*DEFINE OUTPUT PARAMETER TABLE FOR lonefil.   */
+DEFINE BUFFER r3buff FOR lonefil.
+DEFINE BUFFER lonebuff FOR lonefil.
+
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+{AMERICANEUROPEAN.I}
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+IF Guru.Konstanter:globforetag = "GKAL" THEN prognamn5 = "d:\DELAD\server\PRO9S\gkal\".   
+   
+ELSE IF Guru.Konstanter:globforetag = "ELPA" THEN prognamn5 = "\\pc112\delad\pro9s\korning\".
+
+EMPTY TEMP-TABLE lonefil NO-ERROR.    
+
+ASSIGN
+vkdatum = kordatum
+korvar = gkorvar.
+
+OPEN QUERY pq FOR EACH PERSONALTAB WHERE PERSONALTAB.PERSMASK = TRUE
+AND PERSONALTAB.BRAVO = TRUE
+USE-INDEX PERSONALKOD NO-LOCK.
+GET FIRST pq NO-LOCK.
+DO WHILE AVAILABLE(PERSONALTAB):
+   /*ASSIGN 
+   sumoverk = 0
+   sumovertot = 0.
+   RUN overkoll_UI.
+   sumovertot = sumoverk.*/      
+   personal = PERSONALTAB.PERSONALKOD.
+   avtal1 = PERSONALTAB.ANSTALLNING.
+   FIND FIRST ANSTFORMTAB WHERE ANSTFORMTAB.ANSTALLNING = avtal1
+   USE-INDEX ANSTF NO-LOCK NO-ERROR.
+   avtal = ANSTFORMTAB.KOD.
+   FIND FIRST UTRYCKNING WHERE UTRYCKNING.KOD = avtal USE-INDEX UT
+   NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE UTRYCKNING THEN para = FALSE.
+   ELSE para = UTRYCKNING.PARA8.
+   anstperson = "".
+   bedat = ?.
+   OPEN QUERY tq FOR EACH TIDREGITAB WHERE
+   TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+   TIDREGITAB.GODKAND BEGINS "G" AND TIDREGITAB.VECKOKORD = korvar AND
+   TIDREGITAB.DATUM <= vkdatum
+   USE-INDEX PSTART NO-LOCK.   
+   GET FIRST tq NO-LOCK.
+   DO WHILE AVAILABLE(TIDREGITAB):
+      IF (TIDREGITAB.TRAKTKOD = " "  OR TIDREGITAB.TRAKTANTAL = 0) AND
+      (TIDREGITAB.LONTILLAGG = " "  OR TIDREGITAB.LONTILLANTAL = 0) AND
+      (TIDREGITAB.OKOD1 = " " OR TIDREGITAB.OANT1 = 0) AND
+      (TIDREGITAB.OKOD2 = " " OR TIDREGITAB.OANT2 = 0) AND
+      (TIDREGITAB.OKOD3 = " " OR TIDREGITAB.OANT3 = 0) AND
+      (TIDREGITAB.BEREDSKAP = " " OR TIDREGITAB.BERANTAL = 0)
+      THEN DO:
+         IF (TIDREGITAB.OVERTIDTILL = "TIMANSTÄLLD" OR TIDREGITAB.OVERTIDTILL = "SÄVSJÖ TIMANSTÄLLD") AND TIDREGITAB.TOTALT > 0 THEN DO:                                                                     
+	         IF TIDREGITAB.PRISTYP = "FRÅNVARO." THEN nytid = nytid.
+	         ELSE DO:
+   	         CREATE lonefil.
+   	         ASSIGN lonefil.PPERSONNUMMER = PERSONALTAB.PERSONNUMMER
+   	         lonefil.PLONTILLAGG = "020"
+   	         lonefil.PLONTILLANTAL = TIDREGITAB.TOTALT
+   	         lonefil.PDATUM = TIDREGITAB.DATUM
+   	         lonefil.PVECKONUMMER = TIDREGITAB.VECKONUMMER
+   	         lonefil.AONR = TIDREGITAB.AONR
+   	         lonefil.DELNR = TIDREGITAB.DELNR
+   	         lonefil.MANAD = MONTH(TIDREGITAB.DATUM)
+   	         lonefil.PAVTAL = avtal
+               lonefil.PSORT = "TI"
+               lonefil.NAMN = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN.               
+               lonefil.PLONTILLANTAL = klock100(lonefil.PLONTILLANTAL).
+	         END.    
+         END.
+      END.
+      ELSE DO :    
+	     IF TIDREGITAB.LONTILLAGG NE " " AND TIDREGITAB.LONTILLANTAL NE 0 THEN DO TRANSACTION:	                
+   	     CREATE lonefil.
+   	     ASSIGN lonefil.PPERSONNUMMER = PERSONALTAB.PERSONNUMMER
+   	     lonefil.PLONTILLAGG = TIDREGITAB.LONTILLAGG
+   	     lonefil.PLONTILLANTAL = TIDREGITAB.LONTILLANTAL
+   	     lonefil.PDATUM = TIDREGITAB.DATUM
+   	     lonefil.PVECKONUMMER = TIDREGITAB.VECKONUMMER
+   	     lonefil.AONR = TIDREGITAB.AONR
+           lonefil.DELNR = TIDREGITAB.DELNR
+           lonefil.MANAD = MONTH(TIDREGITAB.DATUM)
+           lonefil.PAVTAL = avtal
+           lonefil.NAMN = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN
+           lonefil.RESMAL = TIDREGITAB.RESMAL.
+           FIND FIRST LONTILL WHERE LONTILL.LONTILLAGG = lonefil.PLONTILLAGG
+           AND LONTILL.KOD = lonefil.PAVTAL USE-INDEX LON NO-LOCK NO-ERROR.       
+           IF AVAILABLE LONTILL THEN DO:              
+              ASSIGN lonefil.PSORT = LONTILL.ENHET.
+              IF LONTILL.ENHET = "TI" THEN DO:                 
+                 lonefil.PLONTILLANTAL = klock100(lonefil.PLONTILLANTAL).
+                 /* ej avrundning  kalmar
+                 IF lonefil.PLONTILLAGG = "4506" OR lonefil.PLONTILLAGG = "4574" OR lonefil.PLONTILLAGG = "0237" THEN DO: 
+                    IF ( lonefil.PLONTILLANTAL - TRUNCATE(lonefil.PLONTILLANTAL,0)) GE 0 AND ( lonefil.PLONTILLANTAL - TRUNCATE(lonefil.PLONTILLANTAL,0)) < 0.26 THEN lonefil.PLONTILLANTAL = TRUNCATE(lonefil.PLONTILLANTAL,0).
+                    ELSE IF ( lonefil.PLONTILLANTAL - TRUNCATE(lonefil.PLONTILLANTAL,0)) GE 0.26  AND ( lonefil.PLONTILLANTAL - TRUNCATE(lonefil.PLONTILLANTAL,0)) < 0.76 THEN lonefil.PLONTILLANTAL = TRUNCATE(lonefil.PLONTILLANTAL,0) + 0.50.
+                    ELSE  IF ( lonefil.PLONTILLANTAL - TRUNCATE(lonefil.PLONTILLANTAL,0)) GE 0.76  THEN lonefil.PLONTILLANTAL = TRUNCATE(lonefil.PLONTILLANTAL,0) + 1.                  
+                 END.*/
+                 /*IF lonefil.PLONTILLAGG = "4105" OR lonefil.PLONTILLAGG = "4106" OR lonefil.PLONTILLAGG = "4107" THEN DO:
+                    IF ( lonefil.PLONTILLANTAL - TRUNCATE(lonefil.PLONTILLANTAL,0)) > 0 AND ( lonefil.PLONTILLANTAL - TRUNCATE(lonefil.PLONTILLANTAL,0)) < 0.50 THEN lonefil.PLONTILLANTAL = TRUNCATE(lonefil.PLONTILLANTAL,0) + 0.50.         
+                    ELSE IF ( lonefil.PLONTILLANTAL - TRUNCATE(lonefil.PLONTILLANTAL,0)) > 0.50  THEN lonefil.PLONTILLANTAL = TRUNCATE(lonefil.PLONTILLANTAL,0) + 1.
+                 END.*/
+              END.              
+              /*IF lonefil.PLONTILLAGG = "0116" THEN DO: 
+                 IF LONTILL.ENHET = "ST" THEN DO:                 
+                    ASSIGN 
+                    lonefil.PSORT = "KR"
+                    lonefil.PLONTILLANTAL = lonefil.PLONTILLANTAL * LONTILL.ERSATTNING.
+                 END.
+              END.
+              IF lonefil.PLONTILLAGG = "0117" THEN DO:            
+                 IF LONTILL.ENHET = "ST" THEN DO:                 
+                    ASSIGN 
+                    lonefil.PSORT = "KR"
+                    lonefil.PLONTILLANTAL = lonefil.PLONTILLANTAL * LONTILL.ERSATTNING.
+                 END.
+              END.
+              */              
+              /*Utlägg - kronor ska ut i antalskolumnen för att lönepersonalen ska kunna checka
+              att kvitto finns innan utbetalning görs
+              812-8319
+              820-8700
+              821-821
+              822-822
+              823-823
+              825-8259
+              831-8101
+              832-6990
+              */
+             /* IF lonefil.PLONTILLAGG = "8319" THEN DO: 
+                 IF LONTILL.ENHET = "KR" THEN ASSIGN lonefil.PSORT = "ST".                                     
+              END.
+              IF lonefil.PLONTILLAGG = "8700" THEN DO: 
+                 IF LONTILL.ENHET = "KR" THEN ASSIGN lonefil.PSORT = "ST".                                     
+              END.
+              IF lonefil.PLONTILLAGG = "821" THEN DO: 
+                 IF LONTILL.ENHET = "KR" THEN ASSIGN lonefil.PSORT = "ST".                                     
+              END.
+              IF lonefil.PLONTILLAGG = "822" THEN DO: 
+                 IF LONTILL.ENHET = "KR" THEN ASSIGN lonefil.PSORT = "ST".                                     
+              END.
+              IF lonefil.PLONTILLAGG = "823" THEN DO: 
+                 IF LONTILL.ENHET = "KR" THEN ASSIGN lonefil.PSORT = "ST".                                     
+              END.
+              IF lonefil.PLONTILLAGG = "8259" THEN DO: 
+                 IF LONTILL.ENHET = "KR" THEN ASSIGN lonefil.PSORT = "ST".                                     
+              END.
+              IF lonefil.PLONTILLAGG = "8101" THEN DO: 
+                 IF LONTILL.ENHET = "KR" THEN ASSIGN lonefil.PSORT = "ST".                                     
+              END.
+              IF lonefil.PLONTILLAGG = "6990" THEN DO: 
+                 IF LONTILL.ENHET = "KR" THEN ASSIGN lonefil.PSORT = "ST".                                     
+              END.*/              
+              
+           END.
+   	  END.          
+        IF TIDREGITAB.OANT1 NE 0 OR TIDREGITAB.OANT2 NE 0 OR TIDREGITAB.OANT3 NE 0
+   	  THEN DO TRANSACTION:                       
+           /*Övertid-beredskap*/
+           berkrav = FALSE.
+           FOR EACH tidbuff WHERE tidbuff.PERSONALKOD = TIDREGITAB.PERSONALKOD AND
+           tidbuff.DATUM = TIDREGITAB.DATUM AND tidbuff.BEREDSKAP NE "" USE-INDEX PSTART NO-LOCK:
+              IF TIDREGITAB.START GE tidbuff.BEREDSKAPSTART AND
+              TIDREGITAB.START < tidbuff.BEREDSKAPSLUT THEN berkrav = TRUE.
+           END.                   
+   	     nytid = TIDREGITAB.OANT1.
+   	     RUN TIMSEK.P.
+   	     oa1 = sekunder.  
+   	     nytid = TIDREGITAB.OANT2.
+   	     RUN TIMSEK.P. 
+   	     oa2 = sekunder.
+   	     oversum = oa1 + sekunder.
+   	     nytid = TIDREGITAB.OANT3.
+   	     RUN TIMSEK.P.
+   	     oa3 = sekunder.
+   	     oversum = oversum + sekunder.
+   	     nytid = TIDREGITAB.TOTALT.
+   	     RUN TIMSEK.P.
+   	     total = sekunder.  
+   	     /*IF TIDREGITAB.OVERAUTO = FALSE  THEN DO:  */
+           DO:           
+   	        IF OKOD1 NE "" THEN DO:
+   	           CREATE lonefil.
+   	           ASSIGN lonefil.PPERSONNUMMER = PERSONALTAB.PERSONNUMMER
+   	           lonefil.POVERTIDTILL = TIDREGITAB.OKOD1
+   	           lonefil.POVERANTAL = TIDREGITAB.OANT1
+   	           lonefil.PDATUM = TIDREGITAB.DATUM
+   	           lonefil.PVECKONUMMER = TIDREGITAB.VECKONUMMER
+   	           lonefil.AONR = TIDREGITAB.AONR
+                 lonefil.DELNR = TIDREGITAB.DELNR
+                 lonefil.MANAD = MONTH(TIDREGITAB.DATUM)
+                 lonefil.PAVTAL = avtal
+                 lonefil.TID = TRUE
+                 lonefil.START = TIDREGITAB.OST1
+                 lonefil.SLUT = TIDREGITAB.OSL1
+                 lonefil.PSORT = "TI"
+                 lonefil.NAMN = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN.
+                 lonefil.POVERANTAL = klock100(lonefil.POVERANTAL).
+                 IF berkrav = TRUE THEN lonefil.BERKOLL = TRUE.
+                 /*/*ny lart efter 200 övertidstimmar*/                 
+                 sumovertot = sumovertot + lonefil.POVERANTAL.
+                 IF sumoverk ge 200 THEN lonefil.OVEKOLL = TRUE.
+                 ELSE IF sumovertot > 200 THEN DO:
+                    CREATE lonebuff.
+                    BUFFER-COPY lonefil TO lonebuff.                    
+                    lonefil.POVERANTAL = sumovertot - 200.
+                    lonefil.OVEKOLL = TRUE.
+                    lonebuff.POVERANTAL = lonebuff.POVERANTAL - (sumovertot - 200).
+                 END.*/                                     
+   	        END.    
+   	        IF OKOD2 NE "" THEN DO:
+   	           CREATE lonefil.
+   	           ASSIGN lonefil.PPERSONNUMMER = PERSONALTAB.PERSONNUMMER
+   	           lonefil.POVERTIDTILL = TIDREGITAB.OKOD2
+   	           lonefil.POVERANTAL = TIDREGITAB.OANT2
+   	           lonefil.PDATUM = TIDREGITAB.DATUM
+   	           lonefil.PVECKONUMMER = TIDREGITAB.VECKONUMMER
+   	           lonefil.AONR = TIDREGITAB.AONR
+   	           lonefil.DELNR = TIDREGITAB.DELNR
+   	           lonefil.MANAD = MONTH(TIDREGITAB.DATUM)
+   	           lonefil.PAVTAL = avtal
+                 lonefil.TID = TRUE
+                 lonefil.START = TIDREGITAB.OST2
+                 lonefil.SLUT = TIDREGITAB.OSL2
+                 lonefil.PSORT = "TI"
+                 lonefil.NAMN = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN.
+                 lonefil.POVERANTAL = klock100(lonefil.POVERANTAL).
+                 IF berkrav = TRUE THEN lonefil.BERKOLL = TRUE.
+                 /*/*ny lart efter 200 övertidstimmar*/                 
+                 sumovertot = sumovertot + lonefil.POVERANTAL.
+                 IF sumoverk ge 200 THEN lonefil.OVEKOLL = TRUE.
+                 ELSE IF sumovertot > 200 THEN DO:
+                    CREATE lonebuff.
+                    BUFFER-COPY lonefil TO lonebuff.                    
+                    lonefil.POVERANTAL = sumovertot - 200.
+                    lonefil.OVEKOLL = TRUE.
+                    lonebuff.POVERANTAL = lonebuff.POVERANTAL - (sumovertot - 200).
+                 END.*/                                  
+   	        END.   
+   	        IF OKOD3 NE "" THEN DO:
+   	           CREATE lonefil.
+   	           ASSIGN lonefil.PPERSONNUMMER = PERSONALTAB.PERSONNUMMER
+   	           lonefil.POVERTIDTILL = TIDREGITAB.OKOD3
+   	           lonefil.POVERANTAL = TIDREGITAB.OANT3
+   	           lonefil.PDATUM = TIDREGITAB.DATUM
+   	           lonefil.PVECKONUMMER = TIDREGITAB.VECKONUMMER
+   	           lonefil.AONR = TIDREGITAB.AONR
+   	           lonefil.DELNR = TIDREGITAB.DELNR
+   	           lonefil.MANAD = MONTH(TIDREGITAB.DATUM)
+   	           lonefil.PAVTAL = avtal
+                 lonefil.TID = TRUE                 
+                 lonefil.START = TIDREGITAB.OST3
+                 lonefil.SLUT = TIDREGITAB.OSL3
+                 lonefil.PSORT = "TI"
+                 lonefil.NAMN = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN.
+                 lonefil.POVERANTAL = klock100(lonefil.POVERANTAL).
+                 IF berkrav = TRUE THEN lonefil.BERKOLL = TRUE.
+                 /*/*ny lart efter 200 övertidstimmar*/                 
+                 sumovertot = sumovertot + lonefil.POVERANTAL.
+                 IF sumoverk ge 200 THEN lonefil.OVEKOLL = TRUE.
+                 ELSE IF sumovertot > 200 THEN DO:
+                    CREATE lonebuff.
+                    BUFFER-COPY lonefil TO lonebuff.                    
+                    lonefil.POVERANTAL = sumovertot - 200.
+                    lonefil.OVEKOLL = TRUE.
+                    lonebuff.POVERANTAL = lonebuff.POVERANTAL - (sumovertot - 200).
+                 END.*/                                  
+   	        END.                                    
+   	     END.
+        END.
+        IF TIDREGITAB.TRAKTKOD NE " " AND TIDREGITAB.TRAKTANTAL NE 0
+   	  THEN DO TRANSACTION:
+   	     CREATE lonefil.
+   	     ASSIGN lonefil.PPERSONNUMMER = PERSONALTAB.PERSONNUMMER
+   	     lonefil.PTRAKTKOD = TIDREGITAB.TRAKTKOD
+   	     lonefil.PTRAKTANTAL = TIDREGITAB.TRAKTANTAL
+   	     lonefil.PDATUM = TIDREGITAB.DATUM
+   	     lonefil.PVECKONUMMER = TIDREGITAB.VECKONUMMER
+   	     lonefil.AONR = TIDREGITAB.AONR
+           lonefil.DELNR = TIDREGITAB.DELNR
+           lonefil.MANAD = MONTH(TIDREGITAB.DATUM)
+           lonefil.PAVTAL = PERSONALTAB.TRAAVTAL
+           lonefil.TID = FALSE
+           lonefil.PSORT = "ST"
+           lonefil.NAMN = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN.
+   	  END.
+   	  IF TIDREGITAB.BEREDSKAP NE " " AND TIDREGITAB.BERANTAL NE 0
+   	  THEN DO TRANSACTION:
+   	     CREATE lonefil.
+   	     ASSIGN lonefil.PPERSONNUMMER = PERSONALTAB.PERSONNUMMER
+   	     lonefil.PBEREDSKAP = TIDREGITAB.BEREDSKAP
+   	     lonefil.PBERANTAL = TIDREGITAB.BERANTAL
+   	     lonefil.PDATUM = TIDREGITAB.DATUM
+   	     lonefil.PVECKONUMMER = TIDREGITAB.VECKONUMMER
+   	     lonefil.AONR = TIDREGITAB.AONR
+           lonefil.DELNR = TIDREGITAB.DELNR
+           lonefil.MANAD = MONTH(TIDREGITAB.DATUM)
+           lonefil.PAVTAL = PERSONALTAB.BEREDSKAPSAVTAL
+           lonefil.START = TIDREGITAB.BEREDSKAPSTART
+           lonefil.SLUT = TIDREGITAB.BEREDSKAPSLUT
+           lonefil.TID = TRUE           
+           lonefil.NAMN = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN.           
+           lonefil.PBERANTAL = klock100(lonefil.PBERANTAL).
+           FIND FIRST BERKOD WHERE BERKOD.BEREDSKAPSAVTAL = PERSONALTAB.BEREDSKAPSAVTAL AND
+           BERKOD.BEREDSKAP = lonefil.PBEREDSKAP USE-INDEX BERE NO-LOCK NO-ERROR.  
+           IF AVAILABLE BERKOD AND BERKOD.ENHET = "TI" THEN DO:
+              ASSIGN lonefil.PSORT = "TI".
+           END.
+           ELSE ASSIGN lonefil.PSORT = "st".           
+           
+           
+   	  END.                    
+        IF (TIDREGITAB.OVERTIDTILL = "TIMANSTÄLLD" OR TIDREGITAB.OVERTIDTILL = "SÄVSJÖ TIMANSTÄLLD") AND TIDREGITAB.TOTALT > 0 THEN DO:                                                                     
+	         IF TIDREGITAB.PRISTYP = "FRÅNVARO." THEN nytid = nytid.
+	         ELSE DO:
+   	         CREATE lonefil.
+   	         ASSIGN lonefil.PPERSONNUMMER = PERSONALTAB.PERSONNUMMER
+   	         lonefil.PLONTILLAGG = "020"
+   	         lonefil.PLONTILLANTAL = TIDREGITAB.TOTALT
+   	         lonefil.PDATUM = TIDREGITAB.DATUM
+   	         lonefil.PVECKONUMMER = TIDREGITAB.VECKONUMMER
+   	         lonefil.AONR = TIDREGITAB.AONR
+   	         lonefil.DELNR = TIDREGITAB.DELNR
+   	         lonefil.MANAD = MONTH(TIDREGITAB.DATUM)
+   	         lonefil.PAVTAL = avtal
+               lonefil.PSORT = "TI"
+               lonefil.NAMN = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN.
+               lonefil.PLONTILLANTAL = klock100(lonefil.PLONTILLANTAL).               
+	         END.    
+         END.
+      END.
+      GET NEXT tq.
+   END.
+   GET NEXT pq.
+END.
+FOR EACH lonefil WHERE lonefil.PPERSONNUMMER = " ":
+  DELETE lonefil.
+END.
+
+
+    
+/*FOR EACH lonefil  WHERE lonefil.PBEREDSKAP = "4444":
+   ASSIGN lonefil.PBEREDSKAP = "5856".
+END.
+FOR EACH lonefil  WHERE lonefil.PLONTILLAGG = "0117":
+   ASSIGN lonefil.PLONTILLAGG = "0116".
+END.
+FOR EACH lonefil  WHERE lonefil.PLONTILLAGG = "5896":
+   ASSIGN lonefil.PLONTILLAGG = "5899".
+END.
+FOR EACH lonefil  WHERE lonefil.PLONTILLAGG = "5897":
+   ASSIGN lonefil.PLONTILLAGG = "5899".
+END.
+FOR EACH lonefil  WHERE lonefil.PLONTILLAGG = "5898":
+   ASSIGN lonefil.PLONTILLAGG = "5899".
+END.*/
+
+
+FOR EACH lonefil where lonefil.PLONTILLAGG = "781":
+   /*Ta bort kostförmån lart 781 vilart 881 för endags och flerdygnförrättning. 
+   Lönesystemet genererar automatiskt
+   Skicka kostförmån bara för utlandsresa lart 742 vilart 845 */
+   FIND FIRST lonebuff WHERE lonebuff.PPERSONNUMMER = lonefil.PPERSONNUMMER AND lonebuff.PDATUM = lonefil.PDATUM
+   AND lonebuff.PLONTILLAGG = "742" NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE lonebuff THEN DO:
+      DELETE lonefil.
+   END.
+END.       
+   
+
+/*ppar8 för att avgöra vilka poster som är uppdaterade med VILART, 
+problem att översättning sker två gånger annars*/
+FOR EACH lonefil where lonefil.PLONTILLAGG NE "" :
+   IF lonefil.PPAR8 = 1 THEN .
+   ELSE DO:
+      FIND FIRST LONTILL WHERE LONTILL.LONTILLAGG = lonefil.PLONTILLAGG
+      AND LONTILL.KOD = lonefil.PAVTAL USE-INDEX LON NO-LOCK NO-ERROR.
+      IF AVAILABLE LONTILL AND SUBSTRING(LONTILL.TYPKOD,1,3) = "BIL" THEN DELETE lonefil.
+      ELSE IF NOT AVAILABLE LONTILL THEN DO:
+         FIND FIRST LONTILL WHERE LONTILL.LONTILLAGG = lonefil.PLONTILLAGG USE-INDEX LON NO-LOCK NO-ERROR.
+         IF AVAILABLE LONTILL AND SUBSTRING(LONTILL.TYPKOD,1,3) = "BIL" THEN DELETE lonefil.
+         ELSE IF AVAILABLE LONTILL THEN DO:
+            /*ny översättning 
+            ASSIGN lonefil.PLONTILLAGG = LONTILL.VILART.*/
+            ASSIGN lonefil.PPAR8 = 1.
+            /*lonefil.ERSATTNING = LONTILL.ERSATTNING.
+            se högre upp lonefil.PSORT = LONTILL.ENHET.          */
+         END.
+      END.
+      ELSE IF AVAILABLE LONTILL THEN DO:
+         /*ny översättning 
+         ASSIGN lonefil.PLONTILLAGG = LONTILL.VILART.*/
+         ASSIGN lonefil.PPAR8 = 1.
+         /*lonefil.ERSATTNING = LONTILL.ERSATTNING.
+         se högre upp lonefil.PSORT = LONTILL.ENHET.          */
+      END.
+      /*ny översättning 2013 */
+      /*Grund- Hogia*/
+      IF lonefil.PLONTILLAGG =  "262" THEN lonefil.PLONTILLAGG = "771".
+      IF lonefil.PLONTILLAGG = "261"  THEN lonefil.PLONTILLAGG = "770".
+      IF lonefil.PLONTILLAGG =  "781" THEN lonefil.PLONTILLAGG = "881".
+      IF lonefil.PLONTILLAGG =  "753" THEN lonefil.PLONTILLAGG = "800".
+      IF lonefil.PLONTILLAGG =  "727" THEN lonefil.PLONTILLAGG = "879".
+      IF lonefil.PLONTILLAGG =  "790" THEN lonefil.PLONTILLAGG = "839".   
+      IF lonefil.PLONTILLAGG = "711"  THEN lonefil.PLONTILLAGG = "790".
+      IF lonefil.PLONTILLAGG = "710"  THEN lonefil.PLONTILLAGG = "791" .
+      IF lonefil.PLONTILLAGG = "764"  THEN lonefil.PLONTILLAGG = "825".
+      IF lonefil.PLONTILLAGG = "723"  THEN lonefil.PLONTILLAGG = "848".
+      IF lonefil.PLONTILLAGG = "720"  THEN lonefil.PLONTILLAGG = "842".
+      IF lonefil.PLONTILLAGG = "724"  THEN lonefil.PLONTILLAGG = "849".
+      IF lonefil.PLONTILLAGG = "721"  THEN lonefil.PLONTILLAGG = "843".
+      IF lonefil.PLONTILLAGG = "742"  THEN lonefil.PLONTILLAGG = "845".
+      
+      IF lonefil.PLONTILLAGG = "020"  THEN lonefil.PLONTILLAGG = "010".
+      IF lonefil.PLONTILLAGG = "242"  THEN lonefil.PLONTILLAGG = "310".
+      IF lonefil.PLONTILLAGG = "243"  THEN lonefil.PLONTILLAGG = "311".
+      IF lonefil.PLONTILLAGG = "244"  THEN lonefil.PLONTILLAGG = "312".
+      IF lonefil.PLONTILLAGG = "vasj"  THEN lonefil.PLONTILLAGG = "410".
+      IF lonefil.PLONTILLAGG = "vesj"  THEN lonefil.PLONTILLAGG = "411".
+      IF lonefil.PLONTILLAGG = "stsj"  THEN lonefil.PLONTILLAGG = "412".
+      IF lonefil.PLONTILLAGG = "atl"  THEN lonefil.PLONTILLAGG = "400".
+      IF lonefil.PLONTILLAGG = "mutl"  THEN lonefil.PLONTILLAGG = "844".
+      IF lonefil.PLONTILLAGG = "släp"  THEN lonefil.PLONTILLAGG = "811".
+      
+                            
+      
+   END.
+END.
+FOR EACH lonefil where lonefil.POVERTIDTILL NE "" :
+   IF lonefil.PPAR8 = 1 THEN .
+   ELSE DO:           
+      /*ny översättning 2013 */
+      /*Grund- Hogia*/ 
+      IF lonefil.POVERTIDTILL = "212"  THEN lonefil.POVERTIDTILL = "215".
+      IF lonefil.POVERTIDTILL = "213"  THEN lonefil.POVERTIDTILL = "210".
+      IF lonefil.POVERTIDTILL = "214"  THEN lonefil.POVERTIDTILL = "211".
+      IF lonefil.POVERTIDTILL = "230"  THEN lonefil.POVERTIDTILL = "850".
+      IF lonefil.POVERTIDTILL = "231"  THEN lonefil.POVERTIDTILL = "851".
+      IF lonefil.POVERTIDTILL = "233"  THEN lonefil.POVERTIDTILL = "852".
+      ASSIGN lonefil.PPAR8 = 1.
+   END.   
+END.
+FOR EACH lonefil where lonefil.PBEREDSKAP NE "" :
+   IF lonefil.PPAR8 = 1 THEN .
+   ELSE DO:
+      FIND FIRST BERKOD WHERE BERKOD.BEREDSKAP = lonefil.PBEREDSKAP 
+      AND BERKOD.BEREDSKAPSAVTAL = lonefil.PAVTAL USE-INDEX BERE NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BERKOD THEN DO:
+         FIND FIRST BERKOD WHERE BERKOD.BEREDSKAP = lonefil.PBEREDSKAP USE-INDEX BERE NO-LOCK NO-ERROR.
+      END.
+      IF AVAILABLE BERKOD THEN DO:
+         /*ny översättning 
+         ASSIGN lonefil.PBEREDSKAP = BERKOD.VILART.*/
+         ASSIGN lonefil.PPAR8 = 1.      
+      END.
+      /*ny översättning 2013 */
+      /*Grund- Hogia*/
+      IF lonefil.PBEREDSKAP = "391"  THEN lonefil.PBEREDSKAP = "325".
+      IF lonefil.PBEREDSKAP = "393"  THEN lonefil.PBEREDSKAP = "326".
+      IF lonefil.PBEREDSKAP = "394"  THEN lonefil.PBEREDSKAP = "327".
+      IF lonefil.PBEREDSKAP = "bhsj"  THEN lonefil.PBEREDSKAP = "486".
+      IF lonefil.PBEREDSKAP = "bssj"  THEN lonefil.PBEREDSKAP = "487".
+      IF lonefil.PBEREDSKAP = "bvsj"  THEN lonefil.PBEREDSKAP = "485".   
+   END.
+END.
+FOR EACH lonefil where lonefil.PTRAKTKOD NE "" :
+   IF lonefil.PPAR8 = 1 THEN .
+   ELSE DO:
+      FIND FIRST TRAKTATAB WHERE TRAKTATAB.TRAKTKOD = lonefil.PTRAKTKOD
+      AND TRAKTATAB.TRAAVTAL = lonefil.PAVTAL USE-INDEX TRAAV NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE TRAKTATAB  THEN DO:
+         FIND FIRST TRAKTATAB WHERE TRAKTATAB.TRAKTKOD = lonefil.PTRAKTKOD USE-INDEX TRAAV NO-LOCK NO-ERROR.
+      END.
+      IF AVAILABLE TRAKTATAB THEN DO: 
+         /*ny översättning
+         ASSIGN lonefil.PTRAKTKOD = TRAKTATAB.VILART.*/
+         ASSIGN lonefil.PPAR8 = 1.
+         /*lonefil.ERSATTNING = TRAKTATAB.ERSATTNING.  */
+      END.
+      /*ny översättning 2013 */
+      /*Grund- Hogia*/               
+      IF lonefil.PTRAKTKOD = "700"  THEN lonefil.PTRAKTKOD = "781".
+      IF lonefil.PTRAKTKOD = "701"  THEN lonefil.PTRAKTKOD = "780".
+      IF lonefil.PTRAKTKOD = "712"  THEN lonefil.PTRAKTKOD = "840".
+      IF lonefil.PTRAKTKOD = "713"  THEN lonefil.PTRAKTKOD = "841".
+      IF lonefil.PTRAKTKOD = "716"  THEN lonefil.PTRAKTKOD = "846".
+    
+   END.   
+END.
+
+
+
+
+FOR EACH lonefil :
+   lonefil.MANAD = MONTH(lonefil.PDATUM).   
+END.
+
+FOR EACH lonefil BREAK BY lonefil.PPERSONNUMMER BY lonefil.PLONTILLAGG BY lonefil.MANAD:  
+   ACCUMULATE lonefil.PLONTILLANTAL (TOTAL BY lonefil.PPERSONNUMMER BY lonefil.PLONTILLAGG BY lonefil.MANAD).
+   IF LAST-OF(lonefil.MANAD) THEN DO:
+      IF lonefil.PLONTILLAGG NE "" THEN DO:      
+         CREATE pa90filen.         
+         ASSIGN
+         pa90filen.PPERSONNUMMER = lonefil.PPERSONNUMMER      
+         pa90filen.UTDATUM = lonefil.PDATUM
+         pa90filen.MANAD = lonefil.MANAD
+         pa90filen.PTILLAGG = lonefil.PLONTILLAGG
+         pa90filen.PSORT = lonefil.PSORT
+         /*pa90filen.POMR = lonefil.POMR*/
+         /*pa90filen.ORSAK = "LÖNE"*/
+         pa90filen.PANTAL = (ACCUM TOTAL BY lonefil.MANAD  lonefil.PLONTILLANTAL).
+         /*RUN orsak_UI (INPUT pa90filen.PTILLAGG, OUTPUT lorsak).
+         ASSIGN pa90filen.ORSAK = lorsak.                         */
+
+         /* avrundning på ob till jämna halvtimmar per löneart- ej kalmar*/
+         /*IF pa90filen.PTILLAGG = "310" OR pa90filen.PTILLAGG = "311" OR pa90filen.PTILLAGG = "312" THEN DO:
+           IF ( pa90filen.PANTAL  - TRUNCATE(pa90filen.PANTAL ,0)) > 0 AND ( pa90filen.PANTAL  - TRUNCATE(pa90filen.PANTAL ,0)) < 0.50 THEN pa90filen.PANTAL = TRUNCATE(pa90filen.PANTAL ,0) + 0.50.         
+           ELSE IF ( pa90filen.PANTAL  - TRUNCATE(pa90filen.PANTAL ,0)) > 0.50  THEN pa90filen.PANTAL  = TRUNCATE(pa90filen.PANTAL ,0) + 1.
+         END.*/
+      END.     
+   END.   
+END.
+FOR EACH lonefil BREAK BY lonefil.PPERSONNUMMER BY lonefil.POVERTIDTILL BY lonefil.MANAD :     
+   ACCUMULATE lonefil.POVERANTAL (TOTAL BY lonefil.PPERSONNUMMER BY lonefil.POVERTIDTILL BY lonefil.MANAD).    
+   IF LAST-OF(lonefil.MANAD) THEN DO:
+      IF lonefil.POVERTIDTILL NE "" THEN DO:      
+         CREATE pa90filen.         
+         ASSIGN
+         pa90filen.PPERSONNUMMER = lonefil.PPERSONNUMMER
+         pa90filen.UTDATUM = lonefil.PDATUM
+         pa90filen.MANAD = lonefil.MANAD
+         pa90filen.PTILLAGG = lonefil.POVERTIDTILL
+         pa90filen.PSORT = lonefil.PSORT
+         /*pa90filen.POMR = lonefil.POMR*/
+         /*pa90filen.ORSAK = "ÖTID"*/
+         pa90filen.PANTAL = (ACCUM TOTAL BY  lonefil.MANAD lonefil.POVERANTAL).
+         /*RUN orsak_UI (INPUT pa90filen.PTILLAGG, OUTPUT lorsak).
+         ASSIGN pa90filen.ORSAK = lorsak.                         */
+         /*avrundning övertid- ej kalmar
+         0 - 0.124 = 0
+         0.125 - 0.374 = 0.25
+         0.375 - 0.624 = 0.50
+         0.625 - 0.874 = 0.75
+         0.875 - 0.99  = 1      */
+         
+         /*IF ( pa90filen.PANTAL - TRUNCATE(pa90filen.PANTAL,0)) > 0 AND ( pa90filen.PANTAL - TRUNCATE(pa90filen.PANTAL,0)) < 0.125 THEN pa90filen.PANTAL = TRUNCATE(pa90filen.PANTAL,0).
+         ELSE IF ( pa90filen.PANTAL - TRUNCATE(pa90filen.PANTAL,0)) GE 0.125 AND ( pa90filen.PANTAL - TRUNCATE(pa90filen.PANTAL,0)) < 0.375 THEN pa90filen.PANTAL = TRUNCATE(pa90filen.PANTAL,0) + 0.25.
+         ELSE IF ( pa90filen.PANTAL - TRUNCATE(pa90filen.PANTAL,0)) GE 0.375 AND ( pa90filen.PANTAL - TRUNCATE(pa90filen.PANTAL,0)) < 0.625 THEN pa90filen.PANTAL = TRUNCATE(pa90filen.PANTAL,0) + 0.5.
+         ELSE IF ( pa90filen.PANTAL - TRUNCATE(pa90filen.PANTAL,0)) GE 0.625 AND ( pa90filen.PANTAL - TRUNCATE(pa90filen.PANTAL,0)) < 0.875 THEN pa90filen.PANTAL = TRUNCATE(pa90filen.PANTAL,0) + 0.75.                  
+         ELSE IF ( pa90filen.PANTAL - TRUNCATE(pa90filen.PANTAL,0)) GE 0.875 AND ( pa90filen.PANTAL - TRUNCATE(pa90filen.PANTAL,0)) < 0.99 THEN pa90filen.PANTAL = TRUNCATE(pa90filen.PANTAL,0) + 1.*/                  
+         IF pa90filen.PANTAL = 0 THEN DELETE pa90filen.
+      END.     
+   END.   
+END.
+FOR EACH lonefil BREAK BY lonefil.PPERSONNUMMER BY lonefil.PTRAKTKOD BY lonefil.MANAD :     
+   ACCUMULATE lonefil.PTRAKTANTAL (TOTAL BY lonefil.PPERSONNUMMER BY lonefil.PTRAKTKOD BY lonefil.MANAD).    
+   IF LAST-OF(lonefil.MANAD) THEN DO:
+      IF lonefil.PTRAKTKOD NE "" THEN DO:      
+         CREATE pa90filen.         
+         ASSIGN
+         pa90filen.PPERSONNUMMER = lonefil.PPERSONNUMMER
+         pa90filen.UTDATUM = lonefil.PDATUM
+         pa90filen.MANAD = lonefil.MANAD
+         pa90filen.PTILLAGG = lonefil.PTRAKTKOD
+         pa90filen.PSORT = lonefil.PSORT
+         /*pa90filen.POMR = lonefil.POMR*/
+         /*pa90filen.ORSAK = "TRAKT"*/
+         pa90filen.PANTAL = (ACCUM TOTAL BY  lonefil.MANAD lonefil.PTRAKTANTAL).
+         /*RUN orsak_UI (INPUT pa90filen.PTILLAGG, OUTPUT lorsak).
+         ASSIGN pa90filen.ORSAK = lorsak.*/
+
+      END.      
+   END.   
+END.
+FOR EACH lonefil BREAK BY lonefil.PPERSONNUMMER BY lonefil.PBEREDSKAP BY lonefil.MANAD BY lonefil.AONR BY lonefil.DELNR :     
+   ACCUMULATE lonefil.PBERANTAL (TOTAL BY lonefil.PPERSONNUMMER BY lonefil.PBEREDSKAP BY lonefil.MANAD BY lonefil.AONR BY lonefil.DELNR).    
+   IF LAST-OF(lonefil.DELNR) THEN DO:
+      IF lonefil.PBEREDSKAP NE "" THEN DO:      
+         CREATE pa90filen.         
+         ASSIGN
+         pa90filen.PPERSONNUMMER = lonefil.PPERSONNUMMER
+         pa90filen.UTDATUM = lonefil.PDATUM
+         pa90filen.MANAD = lonefil.MANAD
+         pa90filen.PTILLAGG = lonefil.PBEREDSKAP
+         pa90filen.PSORT = lonefil.PSORT
+         /*pa90filen.POMR = lonefil.POMR*/
+         pa90filen.ORSAK = "BERE"
+         pa90filen.AONR = lonefil.AONR
+         pa90filen.DELNR = lonefil.DELNR
+         pa90filen.PANTAL = (ACCUM TOTAL BY  lonefil.DELNR lonefil.PBERANTAL).
+         /*RUN orsak_UI (INPUT pa90filen.PTILLAGG, OUTPUT lorsak).
+         ASSIGN pa90filen.ORSAK = lorsak.*/
+
+      END.      
+   END.   
+END.
+
+
+FOR EACH pa90filen:
+   /*FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pa90filen.PPERSONNUMMER NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      pa90filen.PPERSONNUMMER =  SUBSTRING(STRING(PERSONALTAB.PERSONNUMMER),1 ,6) + SUBSTRING(STRING(PERSONALTAB.PERSONNUMMER),7 ,4).
+   END.*/
+   IF pa90filen.PSORT = "KR"  THEN DO:
+      ASSIGN
+      pa90filen.PKR = pa90filen.PANTAL 
+      pa90filen.PANTAL = 0.
+   END.
+END.
+
+
+IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+   FOR EACH pa90filen:         
+      
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE AND PERSONALTAB.PERSONNUMMER = pa90filen.PPERSONNUMMER NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE PERSONALTAB THEN DO:
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONNUMMER = pa90filen.PPERSONNUMMER NO-LOCK NO-ERROR.
+      END.
+      
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+      FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+      FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+      IF AVAILABLE JURPERS THEN DO:
+         ASSIGN pa90filen.VIJUDID = JURPERS.VIJUDID.
+      END.
+   END.   
+END.
+
+IF Guru.Konstanter:globforetag = "GKAL"  THEN DO:
+   IF korvar = "" THEN DO:      
+      prognamn3 = prognamn5 + "Elnät.d".
+      prognamn4 = prognamn5 + "LOMAKO.D".
+      OS-COPY VALUE(prognamn3) VALUE(prognamn4).               
+      prognamn3 = prognamn5 + "FRKOLL.D".
+      prognamn4 = prognamn5 + "FRMAKO.D".
+      OS-COPY VALUE(prognamn3) VALUE(prognamn4).      
+      prognamn3 = prognamn5 + "FRFELMA.D".
+      prognamn4 = prognamn5 + "FRFELKO.D".
+      OS-COPY VALUE(prognamn3) VALUE(prognamn4).      
+      prognamn3 = prognamn5 + "FRANFEL.D".
+      prognamn4 = prognamn5 + "FRFELMA.D".
+      OS-COPY VALUE(prognamn3) VALUE(prognamn4).      
+      prognamn3 = prognamn5 + "TOM.D".
+      prognamn4 = prognamn5 + "FRANFEL.D".
+      OS-COPY VALUE(prognamn3) VALUE(prognamn4).      
+      prognamn3 = prognamn5 + "pasumma.d".
+      prognamn4 = prognamn5 + "paloko.d".
+      OS-COPY VALUE(prognamn3) VALUE(prognamn4).      
+      prognamn3 = prognamn5 + "fransu.d".
+      prognamn4 = prognamn5 + "pafrko.d".
+      OS-COPY VALUE(prognamn3) VALUE(prognamn4).         
+   END.
+END.
+
+
+IF korvar = "" THEN DO:
+   prognamn3 = prognamn5 + "pa2.d".
+   OUTPUT TO VALUE(prognamn3) NO-ECHO.   
+END.
+ELSE DO:
+   prognamn3 = prognamn5 + "pa2omk.d".
+   OUTPUT TO VALUE(prognamn3) NO-ECHO.   
+END.
+FOR EACH pa90filen BY pa90filen.PPERSONNUMMER BY pa90filen.PTILLAGG:
+  EXPORT pa90filen.
+END. 
+
+
+FOR EACH pa90filen:
+   /*måltidsavdrag med minus kronor*/
+
+   IF pa90filen.PTILLAGG = "844" THEN pa90filen.PKR = (-1) * pa90filen.PKR.  /* avdrag traktamente utland kronor*/
+
+END.
+/* ELNÄT GKEAB */
+IF Guru.Konstanter:globforetag = "GKAL" THEN DO:      
+   IF korvar = "" THEN DO:
+      prognamn3 = prognamn5 + "Elnät.d".
+      OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+   END.
+   ELSE DO:
+      prognamn3 = prognamn5 + "Elnätomk.d".
+      OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+   END.
+   
+   overrapp1 = "000000".
+   PUT overrapp1.
+   PUT SKIP.
+   overrapp1 = ";Innehåll= Tillägg och frånvaro tom datum " + STRING(vkdatum,"99999999") + " Kalmar Energi Elnät AB".
+   PUT overrapp1.
+   PUT SKIP.
+   rgr = "    ".
+   FOR EACH pa90filen WHERE pa90filen.VIJUDID = "GKEAB" BY pa90filen.PPERSONNUMMER BY pa90filen.PTILLAGG:
+     pa90filen.PANTAL = pa90filen.PANTAL * 100.
+     pa90filen.PKR = pa90filen.PKR * 100.
+     stdat = DATE(MONTH(pa90filen.UTDATUM),01,YEAR(pa90filen.UTDATUM)).
+     IF MONTH(pa90filen.UTDATUM) = 12 THEN DO:
+        sldat = DATE(01,01,YEAR(pa90filen.UTDATUM)+ 1)- 1.
+     END.
+     ELSE DO:
+        sldat = DATE(MONTH(pa90filen.UTDATUM)+ 1,01,YEAR(pa90filen.UTDATUM))- 1.
+     END.     
+     IF  pa90filen.PTILLAGG  = "020" THEN DO:
+         FIND FIRST lonefil WHERE lonefil.PPERSONNUMMER = pa90filen.PPERSONNUMMER AND lonefil.PLONTILLAGG = pa90filen.PTILLAGG AND MONTH(lonefil.PDATUM) = MONTH(pa90filen.UTDATUM) NO-ERROR.
+         IF AVAILABLE lonefil  THEN DO:
+            stdat = lonefil.PDATUM.
+         END.
+         FIND LAST lonefil WHERE lonefil.PPERSONNUMMER = pa90filen.PPERSONNUMMER AND lonefil.PLONTILLAGG = pa90filen.PTILLAGG AND MONTH(lonefil.PDATUM) = MONTH(pa90filen.UTDATUM)  NO-ERROR.
+         IF AVAILABLE lonefil  THEN DO:
+            sldat = lonefil.PDATUM.
+         END.        
+     END.     
+   
+      IF pa90filen.PANTAL NE 0 THEN lonant = STRING(pa90filen.PANTAL,"-999999999").
+      ELSE lonant = STRING(pa90filen.PANTAL,"9999999999").
+      IF pa90filen.PKR NE 0 THEN lonkr = STRING(pa90filen.PKR,"-9999999999999999").
+      ELSE lonkr = STRING(pa90filen.PKR,"99999999999999999").
+      overrapp1 = "214006" + "0" + pa90filen.PPERSONNUMMER +
+            "L" + pa90filen.PTILLAGG +
+            lonant +
+            "0000000000" +
+            lonkr +         
+            STRING(stdat,"99999999") +
+            "00000" +                        
+            STRING(sldat,"99999999") + 
+            "00000" +                        
+            "0000000000000000" +
+            "00000 " +         
+            "                    " +
+            "                    " +
+            "            " +
+            SUBSTRING(rgr,1,4) + "                " +
+            "100.00".   
+            
+      PUT overrapp1.   
+      PUT SKIP.
+   END.
+   
+   OUTPUT CLOSE.
+END.
+
+/*Försäljning GSEAB */
+IF Guru.Konstanter:globforetag = "GKAL" THEN DO:      
+   IF korvar = "" THEN DO:
+      prognamn3 = prognamn5 + "Försälj.d".
+      OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+   END.
+   ELSE DO:
+      prognamn3 = prognamn5 + "Försäljomk.d".
+      OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+   END.
+
+
+   overrapp1 = "000000".
+   PUT overrapp1.
+   PUT SKIP.
+   overrapp1 = ";Innehåll= Tillägg och frånvaro tom datum " + STRING(vkdatum,"99999999") + " Kalmar Energi Försäljning AB".
+   PUT overrapp1.
+   PUT SKIP.
+   rgr = "    ".
+   FOR EACH pa90filen WHERE pa90filen.VIJUDID = "GSEAB" BY pa90filen.PPERSONNUMMER BY pa90filen.PTILLAGG:
+      pa90filen.PANTAL = pa90filen.PANTAL * 100.
+      pa90filen.PKR = pa90filen.PKR * 100.
+      stdat = DATE(MONTH(pa90filen.UTDATUM),01,YEAR(pa90filen.UTDATUM)).
+      IF MONTH(pa90filen.UTDATUM) = 12 THEN DO:
+         sldat = DATE(01,01,YEAR(pa90filen.UTDATUM)+ 1)- 1.
+      END.
+      ELSE DO:
+         sldat = DATE(MONTH(pa90filen.UTDATUM)+ 1,01,YEAR(pa90filen.UTDATUM))- 1.
+      END.
+      IF  pa90filen.PTILLAGG  = "020" THEN DO:
+         FIND FIRST lonefil WHERE lonefil.PPERSONNUMMER = pa90filen.PPERSONNUMMER AND lonefil.PLONTILLAGG = pa90filen.PTILLAGG AND MONTH(lonefil.PDATUM) = MONTH(pa90filen.UTDATUM) NO-ERROR.
+         IF AVAILABLE lonefil  THEN DO:
+            stdat = lonefil.PDATUM.
+         END.
+         FIND LAST lonefil WHERE lonefil.PPERSONNUMMER = pa90filen.PPERSONNUMMER AND lonefil.PLONTILLAGG = pa90filen.PTILLAGG AND MONTH(lonefil.PDATUM) = MONTH(pa90filen.UTDATUM)  NO-ERROR.
+         IF AVAILABLE lonefil  THEN DO:
+            sldat = lonefil.PDATUM.
+         END.        
+     END.           
+      IF pa90filen.PANTAL NE 0 THEN lonant = STRING(pa90filen.PANTAL,"-999999999").
+      ELSE lonant = STRING(pa90filen.PANTAL,"9999999999").
+      IF pa90filen.PKR NE 0 THEN lonkr = STRING(pa90filen.PKR,"-9999999999999999").
+      ELSE lonkr = STRING(pa90filen.PKR,"99999999999999999").
+      overrapp1 = "214006" + "0" + pa90filen.PPERSONNUMMER +
+            "L" + pa90filen.PTILLAGG +
+            lonant +
+            "0000000000" +
+            lonkr +         
+            STRING(stdat,"99999999") +
+            "00000" +                        
+            STRING(sldat,"99999999") + 
+            "00000" +                        
+            "0000000000000000" +
+            "00000 " +         
+            "                    " +
+            "                    " +
+            "            " +
+            SUBSTRING(rgr,1,4) + "                " +
+            "100.00".   
+            
+      PUT overrapp1.   
+      PUT SKIP.
+   END.
+   
+   OUTPUT CLOSE.
+END.
+
+/*Värme  KEV*/
+IF Guru.Konstanter:globforetag = "GKAL" THEN DO:      
+   IF korvar = "" THEN DO:
+      prognamn3 = prognamn5 + "Värme.d".
+      OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+   END.
+   ELSE DO:
+      prognamn3 = prognamn5 + "Värmeomk.d".
+      OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+   END.
+
+
+   overrapp1 = "000000".
+   PUT overrapp1.
+   PUT SKIP.
+   overrapp1 = ";Innehåll= Tillägg och frånvaro tom datum " + STRING(vkdatum,"99999999") + " Kalmar Energi Värme AB".
+   PUT overrapp1.
+   PUT SKIP.
+   rgr = "    ".
+   FOR EACH pa90filen WHERE pa90filen.VIJUDID = "KEV" BY pa90filen.PPERSONNUMMER BY pa90filen.PTILLAGG:
+      pa90filen.PANTAL = pa90filen.PANTAL * 100.
+      pa90filen.PKR = pa90filen.PKR * 100.
+      stdat = DATE(MONTH(pa90filen.UTDATUM),01,YEAR(pa90filen.UTDATUM)).
+      IF MONTH(pa90filen.UTDATUM) = 12 THEN DO:
+         sldat = DATE(01,01,YEAR(pa90filen.UTDATUM)+ 1)- 1.
+      END.
+      ELSE DO:
+         sldat = DATE(MONTH(pa90filen.UTDATUM)+ 1,01,YEAR(pa90filen.UTDATUM))- 1.
+      END.
+      IF  pa90filen.PTILLAGG  = "020" THEN DO:
+         FIND FIRST lonefil WHERE lonefil.PPERSONNUMMER = pa90filen.PPERSONNUMMER AND lonefil.PLONTILLAGG = pa90filen.PTILLAGG AND MONTH(lonefil.PDATUM) = MONTH(pa90filen.UTDATUM) NO-ERROR.
+         IF AVAILABLE lonefil  THEN DO:
+            stdat = lonefil.PDATUM.
+         END.
+         FIND LAST lonefil WHERE lonefil.PPERSONNUMMER = pa90filen.PPERSONNUMMER AND lonefil.PLONTILLAGG = pa90filen.PTILLAGG AND MONTH(lonefil.PDATUM) = MONTH(pa90filen.UTDATUM) NO-ERROR.
+         IF AVAILABLE lonefil  THEN DO:
+            sldat = lonefil.PDATUM.
+         END.        
+     END.     
+      IF pa90filen.PANTAL NE 0 THEN lonant = STRING(pa90filen.PANTAL,"-999999999").
+      ELSE lonant = STRING(pa90filen.PANTAL,"9999999999").
+      IF pa90filen.PKR NE 0 THEN lonkr = STRING(pa90filen.PKR,"-9999999999999999").
+      ELSE lonkr = STRING(pa90filen.PKR,"99999999999999999").
+      overrapp1 = "214006" + "0" + pa90filen.PPERSONNUMMER +
+            "L" + pa90filen.PTILLAGG +
+            lonant +
+            "0000000000" +
+            lonkr +         
+            STRING(stdat,"99999999") +
+            "00000" +                        
+            STRING(sldat,"99999999") + 
+            "00000" +                        
+            "0000000000000000" +
+            "00000 " +         
+            "                    " +
+            "                    " +
+            "            " +
+            SUBSTRING(rgr,1,4) + "                " +
+            "100.00".   
+            
+      PUT overrapp1.   
+      PUT SKIP.
+   END.
+   
+   OUTPUT CLOSE.
+END.
+
+
+/*SÄVSJÖENERGI SEAB*/
+IF Guru.Konstanter:globforetag = "GKAL" THEN DO:      
+   IF korvar = "" THEN DO:
+      prognamn3 = prognamn5 + "SävsjöE.d".
+      OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+   END.
+   ELSE DO:
+      prognamn3 = prognamn5 + "SävsjöEomk.d".
+      OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+   END.
+
+
+   overrapp1 = "000000".
+   PUT overrapp1.
+   PUT SKIP.
+   overrapp1 = ";Innehåll= Tillägg och frånvaro tom datum " + STRING(vkdatum,"99999999") + " Sävsjö Energi AB".
+   PUT overrapp1.
+   PUT SKIP.
+   rgr = "    ".
+   FOR EACH pa90filen WHERE pa90filen.VIJUDID = "SEAB" BY pa90filen.PPERSONNUMMER BY pa90filen.PTILLAGG:
+      pa90filen.PANTAL = pa90filen.PANTAL * 100.
+      pa90filen.PKR = pa90filen.PKR * 100.
+      stdat = DATE(MONTH(pa90filen.UTDATUM),01,YEAR(pa90filen.UTDATUM)).
+      IF MONTH(pa90filen.UTDATUM) = 12 THEN DO:
+         sldat = DATE(01,01,YEAR(pa90filen.UTDATUM)+ 1)- 1.
+      END.
+      ELSE DO:
+         sldat = DATE(MONTH(pa90filen.UTDATUM)+ 1,01,YEAR(pa90filen.UTDATUM))- 1.
+      END.
+      IF  pa90filen.PTILLAGG  = "020" THEN DO:
+         FIND FIRST lonefil WHERE lonefil.PPERSONNUMMER = pa90filen.PPERSONNUMMER AND lonefil.PLONTILLAGG = pa90filen.PTILLAGG AND MONTH(lonefil.PDATUM) = MONTH(pa90filen.UTDATUM) NO-ERROR.
+         IF AVAILABLE lonefil  THEN DO:
+            stdat = lonefil.PDATUM.
+         END.
+         FIND LAST lonefil WHERE lonefil.PPERSONNUMMER = pa90filen.PPERSONNUMMER AND lonefil.PLONTILLAGG = pa90filen.PTILLAGG AND MONTH(lonefil.PDATUM) = MONTH(pa90filen.UTDATUM) NO-ERROR.
+         IF AVAILABLE lonefil  THEN DO:
+            sldat = lonefil.PDATUM.
+         END.        
+     END.     
+      IF pa90filen.PANTAL NE 0 THEN lonant = STRING(pa90filen.PANTAL,"-999999999").
+      ELSE lonant = STRING(pa90filen.PANTAL,"9999999999").
+      IF pa90filen.PKR NE 0 THEN lonkr = STRING(pa90filen.PKR,"-9999999999999999").
+      ELSE lonkr = STRING(pa90filen.PKR,"99999999999999999").
+      overrapp1 = "214006" + "0" + pa90filen.PPERSONNUMMER +
+            "L" + pa90filen.PTILLAGG +
+            lonant +
+            "0000000000" +
+            lonkr +         
+            STRING(stdat,"99999999") +
+            "00000" +                        
+            STRING(sldat,"99999999") + 
+            "00000" +                        
+            "0000000000000000" +
+            "00000 " +         
+            "                    " +
+            "                    " +
+            "            " +
+            SUBSTRING(rgr,1,4) + "                " +
+            "100.00".   
+
+      PUT overrapp1.   
+      PUT SKIP.
+   END.
+
+   OUTPUT CLOSE.
+END.
+
+/*special stans*/
+
+  IF Guru.Konstanter:globforetag = "GKAL" THEN DO:      
+   IF korvar = "" THEN DO:
+      prognamn3 = prognamn5 + "stanstid.d".
+      OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+   END.
+   ELSE DO:
+      prognamn3 = prognamn5 + "stanstidomk.d".
+      OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+   END.
+      
+   anstperson = "".
+   FOR EACH pa90filen BY pa90filen.VIJUDID BY pa90filen.PPERSONNUMMER BY pa90filen.PTILLAGG:
+      IF anstperson NE pa90filen.PPERSONNUMMER THEN DO:      
+         PUT SKIP (1). 
+         ASSIGN overrapp1 = "".   
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONNUMMER = pa90filen.PPERSONNUMMER AND
+         PERSONALTAB.AKTIV = TRUE NO-LOCK NO-ERROR. 
+         IF NOT AVAILABLE PERSONALTAB THEN DO:      
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONNUMMER = pa90filen.PPERSONNUMMER NO-LOCK NO-ERROR. 
+         END.
+         ASSIGN
+         SUBSTRING(overrapp1,2,11) = STRING(pa90filen.PPERSONNUMMER,"999999-9999").
+         IF AVAILABLE PERSONALTAB THEN DO: 
+            SUBSTRING(overrapp1,14,38) = PERSONALTAB.PERSONALKOD + " " + PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN.  
+         END.        
+         anstperson = pa90filen.PPERSONNUMMER.   
+         PUT overrapp1.
+         PUT SKIP(1). 
+      END.      
+      IF pa90filen.PANTAL = 0 AND pa90filen.PKR = 0 THEN overrapp1 = overrapp1.
+      ELSE DO:
+         stdat = DATE(MONTH(pa90filen.UTDATUM),01,YEAR(pa90filen.UTDATUM)).
+         IF MONTH(pa90filen.UTDATUM) = 12 THEN DO:
+            sldat = DATE(01,01,YEAR(pa90filen.UTDATUM)+ 1)- 1.
+         END.
+         ELSE DO:
+            sldat = DATE(MONTH(pa90filen.UTDATUM)+ 1,01,YEAR(pa90filen.UTDATUM))- 1.
+         END.
+         IF pa90filen.PANTAL NE 0 THEN pa90filen.PANTAL =  pa90filen.PANTAL / 100.
+         IF pa90filen.PKR NE 0 THEN pa90filen.PKR =  pa90filen.PKR / 100.
+         ASSIGN overrapp1 = "".            
+         ASSIGN         
+         SUBSTRING(overrapp1,2,8) = SUBSTRING(pa90filen.PTILLAGG,1,8)
+         SUBSTRING(overrapp1,11,9) = STRING(pa90filen.PANTAL,"->>>>9.99")
+         SUBSTRING(overrapp1,24,10) = STRING(stdat,"99999999")
+         SUBSTRING(overrapp1,39,10) = STRING(sldat,"99999999").
+         IF pa90filen.PKR NE 0  THEN DO:
+            SUBSTRING(overrapp1,11,9) = STRING(pa90filen.PKR,"->>>>9.99").            
+         END.         
+      END.
+      anstperson = pa90filen.PPERSONNUMMER.   
+      IF overrapp1 NE ""  THEN DO:
+         PUT overrapp1.   /*  r3tillen.P    */
+         PUT SKIP. 
+      END.
+   END.
+END.  
+
+
+
+
+
+
+IF Guru.Konstanter:globforetag = "GKAL" THEN DO:
+   IF korvar = "" THEN DO: 
+      prognamn3 = prognamn5 + "felpers.d".
+      OUTPUT TO VALUE(prognamn3) APPEND.      
+   END.
+   ELSE DO:
+     prognamn3 = prognamn5 + "felpersomk.d".
+     OUTPUT TO VALUE(prognamn3) APPEND.     
+   END.
+   FOR EACH pa90filen:
+      IF pa90filen.VIJUDID = "GKEAB" THEN.   
+      ELSE IF pa90filen.VIJUDID = "GSEAB" THEN.               
+      ELSE IF pa90filen.VIJUDID = "KEV" THEN.               
+      ELSE IF pa90filen.VIJUDID = "SEAB" THEN.               
+      ELSE DO:
+         EXPORT pa90filen.
+      END.
+   END.
+   OUTPUT CLOSE.
+END.   
+   
+IF korvar = "" THEN DO:
+   prognamn3 = prognamn5 + "pasumma.d".
+   OUTPUT TO VALUE(prognamn3) NO-ECHO.
+END.
+ELSE DO:
+   prognamn3 = prognamn5 + "pasummaomk.d".
+   OUTPUT TO VALUE(prognamn3) NO-ECHO.
+END.
+PUT " ".
+ASSIGN
+filut = ""
+lonfil = "".
+IF Guru.Konstanter:globforetag = "GKAL" THEN DO:
+   IF korvar = "" THEN DO:      
+      lonfil =  "Elnättill" + STRING(TODAY,"99999999") + ".d".
+      prognamn = prognamn5  + lonfil.        
+      prognamn3 = prognamn5 + "Elnät.d".      
+      OS-COPY VALUE(prognamn3) VALUE(prognamn).                         
+   END.
+   ELSE DO:       
+      prognamn = prognamn5 + "Elnätomktill".
+      prognamn = prognamn  + STRING(TODAY,"999999") + ".d".        
+      prognamn3 = prognamn5 + "Elnätomk.d".      
+      OS-COPY VALUE(prognamn3) VALUE(prognamn).                   
+   END.
+END.
+
+EMPTY TEMP-TABLE pa90fil NO-ERROR. 
+
+
+RUN sammut_UI (INPUT 2).
+{EUROPEANAMERICAN.I}
+PROCEDURE rgren_UI :   
+   /*DEFINE OUTPUT PARAMETER rgr AS CHARACTER NO-UNDO.
+   rgr = "    ".
+   IF pa90filen.ORSAK = "BERE" THEN DO:
+      IF pa90filen.AONR = "100293" AND pa90filen.DELNR = 0 THEN rgr = "1420".
+      ELSE IF pa90filen.AONR = "003005" AND pa90filen.DELNR = 1 THEN rgr = "6700".
+      ELSE IF pa90filen.AONR = "003005" AND pa90filen.DELNR = 0 THEN rgr = "6700".
+      ELSE IF pa90filen.AONR = "241" AND pa90filen.DELNR = 0 THEN rgr = "2420".
+      ELSE IF pa90filen.AONR = "245" AND pa90filen.DELNR = 0 THEN rgr = "2450".
+      ELSE rgr = "1420".      
+   END.
+   /*ob och ansvarstillägg*/
+   IF pa90filen.PTILLAGG = "310" OR pa90filen.PTILLAGG = "311" OR pa90filen.PTILLAGG = "312" OR pa90filen.PTILLAGG = "350" OR  
+   pa90filen.PTILLAGG = "351" THEN rgr = "2420".
+     */
+END PROCEDURE.
+
+/*PROCEDURE overkoll_UI :
+   
+   FOR EACH tidbuff WHERE tidbuff.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+   YEAR(tidbuff.DATUM) = YEAR(vkdatum) AND tidbuff.VECKOKORD NE "" USE-INDEX PSTART NO-LOCK:
+      IF tidbuff.PRISTYP NE "FRÅNVARO." THEN DO:   
+         IF tidbuff.PRISTYP NE "RESTID..." THEN DO:
+            IF tidbuff.OANT1 > 0  THEN DO: 
+               sumoverk = sumoverk + klock100(tidbuff.OANT1).                                            
+            END. 
+            IF tidbuff.OANT2 > 0  THEN DO:      
+               sumoverk = sumoverk + klock100(tidbuff.OANT2).                                      
+            END.                    
+            IF tidbuff.OANT3 > 0  THEN DO:
+               sumoverk = sumoverk + klock100(tidbuff.OANT3).                                                
+            END.
+         END.
+      END.
+   END.
+END PROCEDURE.*/
+
+
+
+
+
+   
+  
+   

@@ -1,0 +1,229 @@
+/*XDBKOLL.P*/
+DEFINE VARIABLE musz AS LOGICAL.
+DEFINE TEMP-TABLE tidut
+   FIELD UT AS CHARACTER FORMAT "X(60)".
+DEFINE TEMP-TABLE tabsak
+   FIELD ORDNING AS INTEGER
+   FIELD ORSAK AS CHARACTER FORMAT "X(15)"
+   FIELD TABNAMN AS CHARACTER FORMAT "X(15)"
+   FIELD FALTNAMN AS CHARACTER FORMAT "X(15)"
+   FIELD INDEXNAMN AS CHARACTER FORMAT "X(15)"
+   INDEX ORDNING IS PRIMARY ORDNING TABNAMN ORSAK.
+FOR EACH rt9._file NO-LOCK:
+   IF rt9._file._FILE-NAME BEGINS "_" THEN NEXT.
+   IF rt9._file._FILE-NAME BEGINS "SYS" THEN NEXT.
+   MESSAGE rt9._file._FILE-NAME.  
+   FIND FIRST UTBI._file WHERE UTBI._file._FILE-NAME = rt9._file._FILE-NAME NO-LOCK NO-ERROR. 
+   IF NOT AVAILABLE(UTBI._file) THEN DO:
+      CREATE tabsak.
+      ASSIGN
+      tabsak.ORDNING = 1
+      tabsak.ORSAK = "TABELL SAKNAS"
+      tabsak.TABNAMN = rt9._file._FILE-NAME.
+   END.   
+   ELSE DO:
+      FOR EACH rt9._field WHERE rt9._field._FILE-RECID = RECID(rt9._file) NO-LOCK:
+         FIND FIRST UTBI._field WHERE UTBI._field._FILE-RECID = RECID(UTBI._file) AND
+         UTBI._field._FIELD-NAME = rt9._field._FIELD-NAME NO-LOCK NO-ERROR. 
+         IF NOT AVAILABLE(UTBI._field) THEN DO:
+            CREATE tabsak.
+            ASSIGN
+            tabsak.ORDNING = 2
+            tabsak.ORSAK = "FÄLT SAKNAS"
+            tabsak.TABNAMN = rt9._file._FILE-NAME
+            tabsak.FALTNAMN = rt9._field._FIELD-NAME.
+         END.        
+      END.
+      FOR EACH rt9._index WHERE rt9._index._FILE-RECID = RECID(rt9._file) NO-LOCK:
+      FIND FIRST UTBI._INDEX WHERE 
+         UTBI._index._FILE-RECID = RECID(UTBI._file) AND
+         UTBI._index._INDEX-NAME = rt9._index._INDEX-NAME NO-LOCK NO-ERROR. 
+         IF NOT AVAILABLE(UTBI._index) THEN DO:
+            CREATE tabsak.
+            ASSIGN
+            tabsak.ORDNING = 2
+            tabsak.ORSAK = "INDEX SAKNAS"
+            tabsak.TABNAMN = rt9._file._FILE-NAME
+            tabsak.INDEXNAMN = rt9._index._INDEX-NAME.
+         END.       
+      END.
+   END.
+  
+END.
+MESSAGE "För v9 svara Ja" skip
+      "För v8 svara Nej !"
+VIEW-AS ALERT-BOX QUESTION BUTTONS YES-NO UPDATE val2 AS LOGICAL.
+RUN ut9_UI.
+OUTPUT TO A:\T.DF.
+FOR EACH tidut:
+   /*DISPLAY tidut.UT NO-LABEL.*/
+   PUT UNFORMATTED tidut.UT SKIP.      
+END.
+OUTPUT CLOSE.
+PROCEDURE visatab_UI:
+   DEFINE INPUT PARAMETER rt9var AS LOGICAL NO-UNDO.
+   CREATE tidut.
+   tidut.UT = 'ADD TABLE ' + '"' + rt9._file._file-name + '"'.
+   IF rt9var = TRUE THEN DO:
+      CREATE tidut.
+      tidut.UT = '  AREA ' + '"' + rt9._area._area-name + '"'.     
+   END.
+   IF rt9._file._can-create NE "*" THEN DO:
+      CREATE tidut.
+      tidut.UT = '  CAN-CREATE ' + '"' + rt9._file._can-create + '"'.             
+   END.
+   IF rt9._file._can-delete NE "*" THEN DO:
+      CREATE tidut.
+      tidut.UT = '  CAN-DELETE ' + '"' + rt9._file._can-delete + '"'.
+   END.
+   IF rt9._file._can-read NE "*" THEN DO:
+      CREATE tidut.
+      tidut.UT = '  CAN-READ ' + '"' + rt9._file._can-read + '"'.
+   END.
+   IF rt9._file._can-write NE "*" THEN DO:
+      CREATE tidut.
+      tidut.UT = '  CAN-WRITE ' + '"' + rt9._file._can-write + '"'.
+   END.
+   IF rt9._file._desc NE "" THEN DO:
+      CREATE tidut.
+      tidut.UT = '  DESCRIPTION ' + '"' + rt9._file._desc + '"'.
+   END.     
+   CREATE tidut.
+   tidut.UT = '  DUMP-NAME ' + '"' + rt9._file._dump-name + '"'.               
+   CREATE tidut.
+END PROCEDURE.
+PROCEDURE visafalt_UI:
+   DEFINE INPUT PARAMETER rt9var AS LOGICAL NO-UNDO.   
+   CREATE tidut.
+   tidut.UT = 'ADD FIELD ' + '"' + rt9._field._field-name + '"' + ' OF ' 
+   + '"' + rt9._file._file-name + '"' + ' AS ' + rt9._field._data-type.
+   IF rt9._field._desc NE "" THEN DO:
+      CREATE tidut.
+      tidut.UT = '  DESCRIPTION ' + '"' + rt9._field._desc + '"'.        
+   END.
+   CREATE tidut.
+   tidut.UT = '  FORMAT ' + '"' + rt9._field._format + '"'.
+   IF rt9._field._initial = ? THEN DO:
+      CREATE tidut.
+      tidut.UT = '  INITIAL ' + '?'.   
+   END.
+   ELSE DO:
+      CREATE tidut.
+      tidut.UT = '  INITIAL ' + '"' + rt9._field._initial + '"'.   
+   END.   
+   IF rt9._field._label NE ? THEN DO:
+      CREATE tidut.
+      tidut.UT = '  LABEL ' + '"' + rt9._field._label + '"'.
+   END.
+   IF rt9var = TRUE THEN DO:
+      CREATE tidut.
+      tidut.UT = '  POSITION ' + STRING(rt9._field._field-physpos).
+      CREATE tidut.
+      tidut.UT = '  SQL-WIDTH ' + STRING(rt9._field._width).
+   END.
+   IF rt9._field._col-label NE ? THEN DO:
+      CREATE tidut.
+      tidut.UT = '  COLUMN-LABEL ' + '"' + rt9._field._col-label + '"'.
+   END.
+   IF rt9._field._help NE "" THEN DO:
+      CREATE tidut.
+      tidut.UT = '  HELP ' + '"' + rt9._field._help + '"'.
+   END.
+   IF rt9._field._extent NE 0 THEN DO:
+      CREATE tidut.
+      tidut.UT = '  EXTENT ' + STRING(rt9._field._extent).      
+   END.
+   IF rt9._field._data-type = "decimal" THEN DO:
+      CREATE tidut.
+      tidut.UT = '  DECIMALS ' + STRING(rt9._field._decimals).      
+   END.
+   CREATE tidut.
+   tidut.UT = '  ORDER ' + STRING(rt9._field._order).
+   CREATE tidut.
+END PROCEDURE.
+PROCEDURE visaindex_UI:
+   DEFINE INPUT PARAMETER rt9var AS LOGICAL NO-UNDO.
+   CREATE tidut.
+   tidut.UT = 'ADD INDEX ' + '"' + rt9._index._index-name + '"' + ' ON ' 
+   + '"' + rt9._file._file-name  + '"'.
+   IF rt9var = TRUE THEN DO:
+      CREATE tidut.
+      tidut.UT = '  AREA ' + '"' + rt9._area._area-name + '"'.     
+   END.
+   IF rt9._index._unique = TRUE THEN DO:
+      CREATE tidut.
+      tidut.UT = "  UNIQUE".
+   END.
+   IF rt9._index._wordidx NE ? THEN DO:
+      CREATE tidut.
+      tidut.UT = "  WORD".
+   END.
+   
+   IF rt9._index._desc NE ? THEN DO:
+      CREATE tidut.
+      tidut.UT = '  DESCRIPTION ' + '"' + rt9._index._desc + '"'. 
+   END. 
+   IF RECID(_Index) = _File._Prime-Index THEN DO:
+      CREATE tidut.
+      tidut.UT = "  PRIMARY".
+   END.
+   FOR EACH rt9._index-field WHERE rt9._index-field._index-RECID = RECID(rt9._index) NO-LOCK:
+      FIND FIRST rt9._field WHERE RECID(rt9._field) = rt9._index-field._field-recid NO-LOCK.
+      IF AVAILABLE rt9._field THEN DO: 
+         CREATE tidut.
+         tidut.UT = '  INDEX-FIELD ' + '"' + rt9._field._field-name + '"'. 
+         IF rt9._index-field._ascending = TRUE THEN tidut.UT = tidut.UT + " ASCENDING".
+         ELSE tidut.UT = tidut.UT + " DESCENDING".
+         IF rt9._index-field._abbreviate = TRUE THEN tidut.UT = tidut.UT + " ABBREVIATED".
+      END.
+   END.
+   CREATE tidut.
+END PROCEDURE.
+PROCEDURE ut9_UI:
+   FOR EACH tabsak:
+      FIND first rt9._file WHERE rt9._file._FILE-NAME = tabsak.TABNAMN NO-LOCK.
+      IF tabsak.ORDNING = 1 THEN DO:   
+         FIND RT9._storageobject WHERE
+         RT9._storageobject._object-number = RT9._file._file-number AND
+         RT9._storageobject._object-type = 1
+         NO-LOCK NO-ERROR.
+         FIND RT9._area WHERE RT9._area._area-number = RT9._storageobject._area-number
+         NO-LOCK NO-ERROR.
+         RUN visatab_UI (INPUT val2).        
+      END.
+      IF tabsak.ORDNING = 1 OR tabsak.ORSAK = "FÄLT SAKNAS" THEN DO:
+         FOR EACH rt9._field WHERE rt9._field._FILE-RECID = RECID(rt9._file) 
+         NO-LOCK BY rt9._field._order.
+            IF tabsak.ORSAK = "FÄLT SAKNAS"  THEN DO:
+               IF rt9._field._FIELD-NAME = tabsak.FALTNAMN THEN DO:
+                  RUN visafalt_UI (INPUT val2).
+               END.               
+            END.
+            ELSE RUN visafalt_UI (INPUT val2).
+         END.                          
+      END.
+      IF tabsak.ORDNING = 1 OR tabsak.ORSAK = "INDEX SAKNAS" THEN DO:   
+         FOR EACH rt9._index WHERE rt9._index._FILE-RECID = RECID(rt9._file) NO-LOCK.
+            FIND RT9._storageobject WHERE
+            RT9._storageobject._object-number = RT9._index._idx-num AND
+            RT9._storageobject._object-type = 2
+            NO-LOCK NO-ERROR.
+            FIND RT9._area WHERE 
+            RT9._area._area-number = RT9._storageobject._area-number
+            NO-LOCK NO-ERROR. 
+            IF tabsak.ORSAK = "INDEX SAKNAS" THEN DO:
+               IF rt9._index._index-name = tabsak.INDEXNAMN THEN DO:
+                  RUN visaindex_UI (INPUT val2).
+               END.
+            END.
+            ELSE RUN visaindex_UI (INPUT val2).
+         END.
+      END.
+   END.
+END PROCEDURE.
+
+
+
+
+
+

@@ -1,0 +1,150 @@
+/*xraknaanv.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+
+
+
+  
+
+
+{EXECLIN2.I}
+
+DEFINE VARIABLE datornamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE globanvnt AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dbvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE filtest AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kommandoinut AS CHARACTER NO-UNDO.
+DEFINE VARIABLE antalvar AS INTEGER NO-UNDO.
+
+DEFINE TEMP-TABLE intemp      
+   FIELD DATUMIN AS DATE
+   FIELD KLOCKAIN AS CHARACTER
+   FIELD DATUMUT AS DATE
+   FIELD KLOCKANUT AS CHARACTER
+   FIELD ANTAL AS INTEGER  
+   FIELD ANVANDARE LIKE ANVANDARE.ANVANDARE    
+   FIELD DATOR AS CHARACTER   
+   FIELD OSANVANDARE AS CHARACTER   
+   FIELD GFORETAG AS CHARACTER  
+   FIELD TYP AS CHARACTER 
+   INDEX ANVANDARE IS PRIMARY ANVANDARE DATUMIN KLOCKAIN  
+   INDEX DATUMIN DATUMIN
+   INDEX DATUMUT DATUMUT.
+DEFINE TEMP-TABLE ccintemp NO-UNDO LIKE intemp
+ FIELD FORNAMN  AS CHARACTER
+ FIELD EFTERNAMN AS CHARACTER
+ FIELD OMRADE AS CHARACTER
+ FIELD NAMN AS CHARACTER
+ FIELD EPOST AS CHARACTER.
+
+DEF VAR II AS INTEGER.
+OUTPUT TO D:\ONE.TXT.
+FOR EACH ANVANDARE WHERE AV-LEVEL > 0:
+II = II + 1.
+   FIND LAST LOGGRAPP WHERE LOGGRAPP.ANVANDARE = ANVANDARE.ANVANDARE NO-LOCK NO-ERROR.
+   IF AVAILABLE LOGGRAPP THEN DO: 
+     DISPLAY II  ANVANDARE.ANVANDARE  ANVANDARE.AV-NAMN  DATE(LOGGRAPP.DATUM).
+   END.
+   ELSE DISPLAY II  ANVANDARE.ANVANDARE  ANVANDARE.AV-NAMN.
+
+END.     
+OUTPUT CLOSE.
+ 
+ 
+kommandoinut = "d:\DELAD\LOGGRAPP.TXT".  /*statistik*/
+{AMERICANEUROPEAN.I}  
+RUN ut_UI.
+{EUROPEANAMERICAN.I}
+PROCEDURE ut_UI :
+
+   /*VILKA ÄR INLOGGADE*/
+   INPUT FROM VALUE(kommandoinut) NO-ECHO.
+   REPEAT:
+      DO TRANSACTION: 
+         CREATE intemp.
+         ASSIGN.
+         IMPORT intemp NO-ERROR.
+      END.
+   END. 
+   FOR EACH intemp WHERE intemp.ANVANDARE = "":
+      DELETE intemp.
+   END.    
+                                           /*
+   FOR EACH intemp WHERE year(intemp.DATUMIN) < 2006:
+      DELETE intemp.
+   END.
+   */
+   FOR EACH intemp BREAK BY intemp.ANVANDARE:
+      ACCUMULATE intemp.ANTAL (TOTAL BY intemp.ANVANDARE).
+      ACCUMULATE intemp.ANTAL (COUNT BY intemp.ANVANDARE).
+      
+      IF LAST-OF(intemp.ANVANDARE) THEN DO: 
+         antalvar = antalvar + 1.
+         DISPLAY intemp.ANVANDARE antalvar.
+         CREATE ccintemp.
+         BUFFER-COPY intemp TO ccintemp.
+         /*
+          DISPLAY (ACCUM TOTAL BY intemp.ANVANDARE intemp.ANTAL).
+          DISPLAY (ACCUM COUNT BY intemp.ANVANDARE intemp.ANTAL).
+          */
+      END.                                      
+      /*
+      DISPLAY (ACCUM COUNT BY intemp.ANVANDARE intemp.ANTAL) intemp.ANVANDARE           .
+      */
+      
+   END.        
+
+   DISPLAY antalvar.
+   OUTPUT TO d:\DELAD\anv.txt.
+   FOR EACH ccintemp:
+      DISPLAY ccintemp.
+   END.
+   
+   OUTPUT CLOSE.
+
+   FOR EACH ccintemp WHERE NO-LOCK:
+      FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = ccintemp.ANVANDARE NO-LOCK NO-ERROR.
+      IF AVAILABLE ANVANDARE THEN DO:
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO:
+            FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+            IF AVAILABLE OMRADETAB THEN DO:
+               ccintemp.OMRADE  = OMRADETAB.OMRADE.
+               ccintemp.NAMN = OMRADETAB.NAMN.
+            END.
+            ASSIGN
+            ccintemp.FORNAMN = PERSONALTAB.FORNAMN
+            ccintemp.EFTERNAMN = PERSONALTAB.EFTERNAMN
+            ccintemp.EPOST = SUBSTRING(PERSONALTAB.PERSONSOK,20).
+         END.      
+      END.   
+   END.
+   RUN startexcel_UI.
+   FOR EACH ccintemp:
+      iRad = iRad + 1.
+      RUN put_UI ("A",ccintemp.DATOR).
+      RUN put_UI ("C",ccintemp.ANVANDARE).
+      RUN put_UI ("D",ccintemp.EFTERNAMN + " " + ccintemp.FORNAMN ).
+      RUN put_UI ("E",ccintemp.OMRADE + "," + ccintemp.NAMN).
+      
+      RUN put_UI ("G",ccintemp.EPOST).
+      RUN put_UI ("I",ccintemp.TYP).
+      RUN put_UI ("J",ccintemp.GFORETAG).
+      RUN put_UI ("K",ccintemp.DATUMIN).
+      
+      
+   END.
+   RUN slutexcel_UI.
+   /*
+   OUTPUT TO c:\temp\anv.txt.
+   FOR EACH ccintemp:
+      PUT UNFORMATTED ccintemp.DATOR ccintemp.ANVANDARE ccintemp.EFTERNAMN ccintemp.FORNAMN ccintemp.NAMN ccintemp.EPOST SKIP.
+   END.
+   OUTPUT CLOSE.
+   */
+END PROCEDURE.
+
+

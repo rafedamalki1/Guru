@@ -1,0 +1,7 @@
+/*RegisterClasserStart.p*/
+DEFINE INPUT  PARAMETER valreg AS CHARACTER NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE r AS Guru.Root NO-UNDO.
+r = NEW Guru.Root().
+r:startregisterdb(INPUT valreg).
+DELETE OBJECT r NO-ERROR.

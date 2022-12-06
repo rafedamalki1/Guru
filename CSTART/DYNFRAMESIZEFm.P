@@ -1,0 +1,335 @@
+/*   Filename: DYNFRAMESIZEFM.P ör window och flera framear bara beredning
+                                  
+      Created: 03.04.0022 10:46ELPAO     
+     Modified: 
+*/
+&Scoped-define NEW 
+{FORETEMP.I}
+
+
+/*DEFINE SHARED VARIABLE hpApi AS HANDLE NO-UNDO.*/
+DEFINE VARIABLE titlevar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE litenvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE goringet AS LOGICAL NO-UNDO.
+DEFINE VARIABLE ph_frame AS HANDLE NO-UNDO.
+DEFINE VARIABLE winh AS HANDLE NO-UNDO.
+DEFINE VARIABLE applyvc AS HANDLE  NO-UNDO.
+DEFINE VARIABLE applyvcframe AS HANDLE  NO-UNDO.
+DEFINE VARIABLE orgbredd AS INTEGER NO-UNDO.
+DEFINE VARIABLE orghojd AS INTEGER NO-UNDO.
+DEFINE VARIABLE x-multi AS DECIMAL NO-UNDO.
+DEFINE VARIABLE y-multi AS DECIMAL NO-UNDO.
+DEFINE VARIABLE stoppafonster AS LOGICAL NO-UNDO.
+ASSIGN
+x-multi = 1
+y-multi = 1.
+{FRAMSIZETEMP.I}
+
+DEFINE INPUT PARAMETER winhandle AS HANDLE NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR frametemp. 
+DEFINE INPUT PARAMETER TABLE FOR widgettemp.
+DEFINE INPUT PARAMETER brwh AS HANDLE NO-UNDO.
+ASSIGN
+winh = winhandle.
+ON WINDOW-MINIMIZED OF winh PERSISTENT RUN winmin IN THIS-PROCEDURE.
+ON WINDOW-MAXIMIZED OF winh PERSISTENT RUN winmax IN THIS-PROCEDURE.
+ON WINDOW-RESTORED OF winh PERSISTENT RUN winrest IN THIS-PROCEDURE.
+ON WINDOW-RESIZED OF winh PERSISTENT RUN winresized IN THIS-PROCEDURE.
+ON MOUSE-MENU-DBLCLICK OF winh PERSISTENT RUN fileinfo_UI IN THIS-PROCEDURE.
+{DYNQUITW.I}
+FIND FIRST foretemp NO-LOCK NO-ERROR.
+titlevar = winh:TITLE.
+winh:TITLE = titlevar + "-" + "Systemsupport 090/184540    elpool.ume@elpool.se".
+/*
+winh:TITLE = titlevar + "-" + foretemp.ATRHOME.
+*/
+   IF Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)  THEN DO:
+      IF INDEX(PROGRAM-NAME(2),".W") NE ? THEN winh:TITLE = titlevar + "-" + foretemp.ATRHOME + "-" + PROGRAM-NAME(2) .
+      ELSE winh:TITLE = titlevar + "-" + foretemp.ATRHOME + "-" + PROGRAM-NAME(1).
+   END.
+   ELSE DO:
+      IF INDEX(PROGRAM-NAME(2),".W") NE ? THEN winh:TITLE = titlevar + "-" + foretemp.ATRHOME  + "-" + "Systemsupport 090/184540    elpool.ume@elpool.se".
+      ELSE winh:TITLE = titlevar + "-" + foretemp.ATRHOME  + "-" + "Systemsupport 090/184540    elpool.ume@elpool.se".
+   END.   
+/*startvärdeb*/
+ASSIGN
+orghojd  = winh:HEIGHT-PIXELS
+orgbredd = winh:WIDTH-PIXELS
+winh:MIN-HEIGHT-PIXELS = winh:HEIGHT-PIXELS 
+winh:MIN-WIDTH-PIXELS = winh:WIDTH-PIXELS
+winh:MAX-HEIGHT-PIXELS = Guru.Konstanter:globstorh 
+winh:MAX-WIDTH-PIXELS = Guru.Konstanter:globstorb
+winh:VIRTUAL-HEIGHT-PIXELS = Guru.Konstanter:globstorh 
+winh:VIRTUAL-WIDTH-PIXELS = Guru.Konstanter:globstorb.
+/*föregåend stor ?*/
+
+SESSION:SET-WAIT-STATE("").
+DEFINE VARIABLE rowhj AS INTEGER NO-UNDO.
+DEFINE VARIABLE colhj AS INTEGER NO-UNDO.
+FOR EACH frametemp :                             
+   rowhj = frametemp.FRMHAND:ROW * SESSION:PIXELS-PER-ROW.
+   colhj = frametemp.FRMHAND:COLUMN * SESSION:PIXELS-PER-COLUMN.
+   ASSIGN  
+   frametemp.FHOJD  = frametemp.FRMHAND:HEIGHT-PIXELS
+   frametemp.FBREDD = frametemp.FRMHAND:WIDTH-PIXELS  /* * Guru.Konstanter:globDefaultstorb /  frametemp.FRMHAND:WIDTH-PIXELS*/
+   frametemp.MFHOJD = frametemp.FHOJD *  (1 + (Guru.Konstanter:globstorh - orghojd) / orghojd) /* - rowhj*/
+   frametemp.MFBREDD = frametemp.FBREDD *  (1 + (Guru.Konstanter:globstorb - orgbredd) / orgbredd) /*- colhj */.    
+END.
+
+/*
+FOR EACH frametemp :                             
+   MESSAGE  frametemp.FRAMENAMN frametemp.MFHOJD frametemp.MFBREDD VIEW-AS ALERT-BOX.
+END.
+*/
+PROCEDURE nydefault_UI :
+   CURRENT-WINDOW:WINDOW-STATE = 3.   
+   IF winh:HEIGHT-PIXELS < 682 AND winh:WIDTH-PIXELS < 1000 THEN RETURN.
+   IF winh:HEIGHT-PIXELS < Guru.Konstanter:globDefaultstorh THEN winh:HEIGHT-PIXELS = Guru.Konstanter:globDefaultstorh.
+   IF winh:WIDTH-PIXELS < Guru.Konstanter:globDefaultstorb THEN winh:WIDTH-PIXELS = Guru.Konstanter:globDefaultstorb.
+   
+   FOR EACH frametemp WHERE frametemp.ORDNING = 1 :   
+     RUN frmsiz_UI (INPUT winh:HEIGHT-PIXELS,INPUT winh:WIDTH-PIXELS).  
+   END.
+   RUN CenterWindow IN Guru.Konstanter:hpApi (INPUT CURRENT-WINDOW).   
+   RUN tobottom_UI.
+   FOR EACH frametemp :                             
+   rowhj = frametemp.FRMHAND:ROW * SESSION:PIXELS-PER-ROW.
+      colhj = frametemp.FRMHAND:COLUMN * SESSION:PIXELS-PER-COLUMN.
+      ASSIGN  
+      frametemp.FHOJD  = frametemp.FRMHAND:HEIGHT-PIXELS
+      frametemp.FBREDD = frametemp.FRMHAND:WIDTH-PIXELS  /* * Guru.Konstanter:globDefaultstorb /  frametemp.FRMHAND:WIDTH-PIXELS*/
+      frametemp.MFHOJD = frametemp.FHOJD *  (1 + (Guru.Konstanter:globstorh - orghojd) / orghojd) /* - rowhj*/
+      frametemp.MFBREDD = frametemp.FBREDD *  (1 + (Guru.Konstanter:globstorb - orgbredd) / orgbredd) /*- colhj */.    
+   END.
+   IF VALID-HANDLE(applyvc) THEN APPLY "VALUE-CHANGED" TO applyvc.
+   IF VALID-HANDLE(applyvcframe) THEN APPLY "VALUE-CHANGED" TO applyvcframe.
+END PROCEDURE.
+PROCEDURE alltidmax_UI :
+   DEFINE INPUT  PARAMETER maximerat AS LOGICAL NO-UNDO.
+   
+   IF maximerat = FALSE THEN RETURN.
+   FOR EACH frametemp WHERE frametemp.ORDNING = 1  :      
+      IF Guru.Konstanter:alltidmax = TRUE THEN DO:   
+         CURRENT-WINDOW:WINDOW-STATE = 1.   
+         winh:HEIGHT-PIXELS = winh:VIRTUAL-HEIGHT-PIXELS.
+         winh:WIDTH-PIXELS = winh:VIRTUAL-WIDTH-PIXELS.  
+         
+         IF winh:HEIGHT-PIXELS > Guru.Konstanter:globstorh THEN winh:HEIGHT-PIXELS = Guru.Konstanter:globstorh.
+         IF winh:WIDTH-PIXELS > Guru.Konstanter:globstorb THEN winh:WIDTH-PIXELS = Guru.Konstanter:globstorb.
+         ASSIGN
+         winh:MAX-HEIGHT-PIXELS = Guru.Konstanter:globstorh 
+         winh:MAX-WIDTH-PIXELS = Guru.Konstanter:globstorb.
+         
+         RUN frmsiz_UI (INPUT winh:HEIGHT-PIXELS,INPUT winh:WIDTH-PIXELS).             
+      END.  
+   END.
+   IF maximerat = TRUE THEN DO:   
+      RUN CenterWindow IN Guru.Konstanter:hpApi (INPUT CURRENT-WINDOW).   
+      RUN tobottom_UI.
+   END.
+   IF VALID-HANDLE(applyvc) THEN APPLY "VALUE-CHANGED" TO applyvc.
+   IF VALID-HANDLE(applyvcframe) THEN APPLY "VALUE-CHANGED" TO applyvcframe.
+END PROCEDURE.
+SESSION:SET-WAIT-STATE("GENERAL").
+FIND FIRST frametemp NO-LOCK NO-ERROR.
+ph_frame = frametemp.FRMHAND.      
+/******************************** Triggers *****************************************/
+/*
+ON WINDOW-MINIMIZED OF winh PERSISTENT RUN winmin IN THIS-PROCEDURE.
+ON WINDOW-MAXIMIZED OF winh PERSISTENT RUN winmax IN THIS-PROCEDURE.
+ON WINDOW-RESTORED OF winh PERSISTENT RUN winrest IN THIS-PROCEDURE.
+ON WINDOW-RESIZED OF winh PERSISTENT RUN winresized IN THIS-PROCEDURE.
+ON MOUSE-MENU-DBLCLICK OF winh PERSISTENT RUN fileinfo_UI IN THIS-PROCEDURE.
+*/
+ON MOUSE-MENU-DBLCLICK OF ph_frame PERSISTENT RUN fileinfo_UI IN THIS-PROCEDURE.
+RETURN.
+
+PROCEDURE winmin :
+   goringet = TRUE. 
+END PROCEDURE.
+
+PROCEDURE winmax :
+   
+    winhandle:ROW = 1.
+    winhandle:COLUMN = 1.
+   
+   {APPATFRAGA.I}
+   IF VALID-HANDLE(applyvc) THEN APPLY "VALUE-CHANGED" TO applyvc.
+   IF VALID-HANDLE(applyvcframe) THEN APPLY "VALUE-CHANGED" TO applyvcframe.
+   
+END PROCEDURE.
+
+PROCEDURE winrest :    
+   
+   IF winh:VISIBLE = TRUE THEN goringet = TRUE.    /* <--- Fixen  */
+   
+   IF goringet = TRUE THEN goringet = FALSE.
+   ELSE DO:
+      winh:HEIGHT-PIXELS = winh:MIN-HEIGHT-PIXELS.
+      winh:WIDTH-PIXELS = winh:MIN-WIDTH-PIXELS.
+      Guru.Konstanter:alltidmax = FALSE.
+      FOR EACH frametemp  WHERE frametemp.ORDNING = 1 :      
+         RUN frmsiz_UI (INPUT winh:HEIGHT-PIXELS,INPUT winh:WIDTH-PIXELS ).               
+      END.
+      RUN CenterWindow IN Guru.Konstanter:hpApi (INPUT CURRENT-WINDOW). 
+      IF VALID-HANDLE(applyvc) THEN APPLY "VALUE-CHANGED" TO applyvc.
+      IF VALID-HANDLE(applyvcframe) THEN APPLY "VALUE-CHANGED" TO applyvcframe.
+   END.
+   RUN tobottom_UI.
+END PROCEDURE.
+
+PROCEDURE winresized :
+   IF stoppafonster = TRUE THEN DO:
+      CURRENT-WINDOW:WINDOW-STATE = 1.
+      RETURN.
+   END.       
+   IF litenvar = TRUE THEN litenvar = FALSE.
+   ELSE DO:
+      FOR EACH frametemp  WHERE frametemp.ORDNING = 1 :      
+         RUN frmsiz_UI (INPUT winh:HEIGHT-PIXELS,INPUT winh:WIDTH-PIXELS ).                                  
+      END.
+         
+      RUN CenterWindow IN Guru.Konstanter:hpApi (INPUT CURRENT-WINDOW).                          
+   END.
+   
+   /*{APPATFRAGA.I}*/
+   IF VALID-HANDLE(applyvc) THEN APPLY "VALUE-CHANGED" TO applyvc.
+   IF VALID-HANDLE(applyvcframe) THEN APPLY "VALUE-CHANGED" TO applyvcframe.
+   RUN tobottom_UI.
+END PROCEDURE.
+PROCEDURE setapplyvc :
+   DEFINE INPUT PARAMETER applyvch AS HANDLE NO-UNDO.
+   applyvc = applyvch.
+END PROCEDURE.
+PROCEDURE setapplyvcframe :
+   DEFINE INPUT PARAMETER applyvch AS HANDLE NO-UNDO.
+   applyvcframe = applyvch.
+END PROCEDURE.
+
+PROCEDURE fileinfo_UI :
+  {filinfo.i}
+END PROCEDURE.
+PROCEDURE tobottom_UI :
+   FIND FIRST frametemp NO-LOCK NO-ERROR.
+   frametemp.FRMHAND:MOVE-TO-BOTTOM().
+   
+END PROCEDURE.
+
+
+PROCEDURE frmsiz_UI :
+   DEFINE INPUT PARAMETER hh AS DECIMAL NO-UNDO.
+   DEFINE INPUT PARAMETER bb AS DECIMAL NO-UNDO.
+   RUN FRM-SIZEBERM.P (INPUT TABLE frametemp,INPUT TABLE widgettemp,INPUT hh,INPUT bb,INPUT Guru.Konstanter:alltidmax,INPUT CURRENT-WINDOW,INPUT THIS-PROCEDURE ).  
+   RUN frmfix_UI.  
+   RUN fixandrak_UI.
+   RUN fixandrakNR_UI.
+   IF CURRENT-WINDOW:WINDOW-STATE = 1 THEN stoppafonster = TRUE. 
+END PROCEDURE.
+
+PROCEDURE frmfix_UI :
+   DEFINE VARIABLE frmheight AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE frmrow AS DECIMAL NO-UNDO.
+   
+   FIND FIRST frametemp WHERE frametemp.ORDNING NE 1 NO-LOCK NO-ERROR.
+   IF AVAILABLE frametemp THEN DO: 
+      REPEAT:
+         IF NOT AVAILABLE frametemp THEN DO:
+            LEAVE.
+         END.     
+         IF frametemp.FRMHAND:NAME = "FRAME-ANDRAK" OR frametemp.FRMHAND:NAME = "FRAME-ANDKONST" THEN DO:
+            FIND NEXT frametemp WHERE frametemp.ORDNING NE 1 NO-LOCK NO-ERROR.
+         END.
+         ELSE LEAVE.
+      END.   
+      IF AVAILABLE frametemp THEN DO:
+         brwh:HEIGHT = frametemp.FRMHAND:ROW - (brwh:ROW + 0.1).      
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE fixandrakNR_UI:
+   DEFINE VARIABLE extrah AS HANDLE NO-UNDO.
+   FIND FIRST frametemp WHERE frametemp.FRAMENAMN = "FRAME-ANDKONST" NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE frametemp THEN RETURN.
+   FIND FIRST widgettemp WHERE widgettemp.WIDGETNAMN = "BRW_ANDKONST" NO-LOCK NO-ERROR.
+   IF AVAILABLE widgettemp THEN DO:
+      ASSIGN
+      widgettemp.WIDGETHAND:HEIGHT = 4.
+      widgettemp.WIDGETHAND:WIDTH = 25.  
+   END.
+   ELSE RETURN.
+   ASSIGN
+   frametemp.FRMHAND:SCROLLABLE    = NO
+   frametemp.FRMHAND:HEIGHT = 7
+   frametemp.FRMHAND:WIDTH  = 40.
+   FIND FIRST widgettemp WHERE widgettemp.WIDGETNAMN = "BRW_VAL" NO-LOCK NO-ERROR.
+   IF AVAILABLE widgettemp THEN DO:
+      
+      ASSIGN
+      frametemp.FRMHAND:ROW = widgettemp.WIDGETHAND:ROW + 0.59
+      frametemp.FRMHAND:HEIGHT = widgettemp.WIDGETHAND:HEIGHT - 1.51
+      frametemp.FRMHAND:WIDTH = widgettemp.WIDGETHAND:WIDTH - 14.5.
+      FIND FIRST widgettemp WHERE widgettemp.WIDGETNAMN = "BRW_ANDKONST" NO-LOCK NO-ERROR.
+      IF AVAILABLE widgettemp THEN DO:
+         ASSIGN
+         widgettemp.WIDGETHAND:HEIGHT = frametemp.FRMHAND:HEIGHT - (0.7 + 2)
+         widgettemp.WIDGETHAND:WIDTH = frametemp.FRMHAND:WIDTH - widgettemp.WIDGETHAND:COLUMN .  
+
+      END.
+   END.
+   extrah = ?.
+   FIND FIRST widgettemp WHERE widgettemp.WIDGETNAMN = "BTN_STANGANDKONST" NO-LOCK NO-ERROR.
+   IF AVAILABLE widgettemp THEN extrah =  widgettemp.WIDGETHAND.
+   IF extrah NE ? THEN DO:
+      extrah:COLUMN = frametemp.FRMHAND:WIDTH - 13.
+      FIND FIRST widgettemp WHERE widgettemp.WIDGETNAMN = "BRW_ANDKONST" NO-LOCK NO-ERROR.
+      IF AVAILABLE widgettemp THEN DO:
+         extrah:ROW = widgettemp.WIDGETHAND:ROW + widgettemp.WIDGETHAND:HEIGHT + 0.5.
+         extrah:COLUMN = widgettemp.WIDGETHAND:COLUMN + widgettemp.WIDGETHAND:WIDTH - extrah:WIDTH.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE fixandrak_UI :
+   DEFINE VARIABLE extrah AS HANDLE NO-UNDO.
+   FIND FIRST frametemp WHERE frametemp.FRAMENAMN = "FRAME-ANDRAK" NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE frametemp THEN RETURN.
+   FIND FIRST widgettemp WHERE widgettemp.WIDGETNAMN = "BRW_ANDRAK" NO-LOCK NO-ERROR.
+   IF AVAILABLE widgettemp THEN DO:
+      ASSIGN
+      widgettemp.WIDGETHAND:HEIGHT = 4.
+      widgettemp.WIDGETHAND:WIDTH = 25.  
+   END.
+   ELSE RETURN.
+   ASSIGN
+   frametemp.FRMHAND:SCROLLABLE    = NO
+   frametemp.FRMHAND:HEIGHT = 7
+   frametemp.FRMHAND:WIDTH  = 40.
+   FIND FIRST widgettemp WHERE widgettemp.WIDGETNAMN = "BRW_VAL" NO-LOCK NO-ERROR.
+   IF AVAILABLE widgettemp THEN DO:
+      
+      ASSIGN
+      frametemp.FRMHAND:ROW = widgettemp.WIDGETHAND:ROW + 0.59
+      frametemp.FRMHAND:HEIGHT = widgettemp.WIDGETHAND:HEIGHT - 1.51
+      frametemp.FRMHAND:WIDTH = widgettemp.WIDGETHAND:WIDTH - 14.5.
+      FIND FIRST widgettemp WHERE widgettemp.WIDGETNAMN = "BRW_ANDRAK" NO-LOCK NO-ERROR.
+      IF AVAILABLE widgettemp THEN DO:
+         ASSIGN
+         widgettemp.WIDGETHAND:HEIGHT = frametemp.FRMHAND:HEIGHT - 0.7
+         widgettemp.WIDGETHAND:WIDTH = frametemp.FRMHAND:WIDTH - 23.  
+
+      END.
+   END.
+   extrah = ?.
+   FIND FIRST widgettemp WHERE widgettemp.WIDGETNAMN = "BTN_STANG" NO-LOCK NO-ERROR.
+   IF AVAILABLE widgettemp THEN extrah =  widgettemp.WIDGETHAND.
+   IF extrah NE ? THEN DO:
+      extrah:COLUMN = frametemp.FRMHAND:WIDTH - 13.
+      FIND FIRST widgettemp WHERE widgettemp.WIDGETNAMN = "BRW_ANDRAK" NO-LOCK NO-ERROR.
+      IF AVAILABLE widgettemp THEN DO:
+         extrah:ROW = widgettemp.WIDGETHAND:ROW + widgettemp.WIDGETHAND:HEIGHT - extrah:HEIGHT.
+      END.
+   END.
+END PROCEDURE.
+
+{BUTCOL.I}

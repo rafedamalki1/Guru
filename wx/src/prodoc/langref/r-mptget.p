@@ -1,0 +1,12 @@
+/* r-mptget.p */
+
+DEFINE VARIABLE mptr AS MEMPTR.
+DEFINE VARIABLE cnt  AS INTEGER.
+
+SET-SIZE(mptr) = LENGTH("DANIEL") + 1.
+PUT-STRING(mptr, 1) = "DANIEL".
+
+REPEAT cnt = 1 TO LENGTH("DANIEL"):
+   DISPLAY GET-BYTE(mptr, cnt).
+END.
+

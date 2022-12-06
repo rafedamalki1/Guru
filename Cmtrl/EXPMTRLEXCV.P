@@ -1,0 +1,109 @@
+/*EXPMTRLEXCV.P UTLÄSNING AV MTRL KOPPLAT TILL KONSTRUKTIONER TILL EXCEL*/   
+DEFINE VARIABLE chExcelApplication      AS COM-HANDLE.
+DEFINE VARIABLE chWorkbook              AS COM-HANDLE.
+DEFINE VARIABLE chWorksheet             AS COM-HANDLE.
+DEFINE VARIABLE chChart                 AS COM-HANDLE.
+DEFINE VARIABLE chWorksheetRange        AS COM-HANDLE.
+DEFINE VARIABLE iCount                  AS INTEGER.
+DEFINE VARIABLE iIndex                  AS INTEGER.
+DEFINE VARIABLE iMonth                  AS INTEGER.
+DEFINE VARIABLE dAnnualQuota            AS DECIMAL.
+DEFINE VARIABLE dTotalSalesAmount       AS DECIMAL.
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 1.
+DEFINE VARIABLE cColumn                 AS CHARACTER.
+DEFINE VARIABLE cRange                  AS CHARACTER.   
+DEFINE VARIABLE felexcel AS LOGICAL NO-UNDO.
+DEFINE VARIABLE mtrlbapph AS HANDLE NO-UNDO.
+DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER lista AS INTEGER NO-UNDO.
+
+{GLOBVAR2DEL1.I}
+   
+{MTRLTAB.I}
+
+   CREATE "Excel.Application" chExcelApplication.
+   chExcelApplication:Visible = TRUE NO-ERROR.
+   chWorkbook = chExcelApplication:Workbooks:Add() NO-ERROR.
+   chWorkSheet = chExcelApplication:Sheets:Item(1) NO-ERROR.
+   IF lista = 1 THEN DO:
+      chWorkSheet:Columns("A"):ColumnWidth = 10 NO-ERROR.
+      chWorkSheet:Columns("B"):ColumnWidth = 40 NO-ERROR.
+      chWorkSheet:Columns("C"):ColumnWidth = 5 NO-ERROR.
+      chWorkSheet:Columns("D"):ColumnWidth = 10 NO-ERROR.
+      chWorkSheet:Columns("E"):ColumnWidth = 10 NO-ERROR.
+      chWorkSheet:Columns("F"):ColumnWidth = 5 NO-ERROR.   
+      
+      chWorkSheet:Range("A1:P1"):Font:Bold = TRUE NO-ERROR.
+   
+      chWorkSheet:Range("A1"):Value = Guru.Konstanter:genk NO-ERROR.   
+      chWorkSheet:Range("B1"):Value = "Benämning" NO-ERROR.
+      chWorkSheet:Range("C1"):Value = "Enhet" NO-ERROR.   
+      chWorkSheet:Range("D1"):Value = "Bruttopris" NO-ERROR.   
+      chWorkSheet:Range("E1"):Value = "Nettopris" NO-ERROR.
+      chWorkSheet:Range("F1"):Value = "Märkt" NO-ERROR.   
+   
+      chWorkSheet:Range("A:A"):NumberFormat = "@" NO-ERROR.
+      chWorkSheet:Range("B:B"):NumberFormat = "@" NO-ERROR.
+      chWorkSheet:Range("C:C"):NumberFormat = "@" NO-ERROR.
+      chWorkSheet:Range("D:D"):NumberFormat = "@" NO-ERROR.
+      chWorkSheet:Range("E:E"):NumberFormat = "@" NO-ERROR.
+      chWorkSheet:Range("F:F"):NumberFormat = "@" NO-ERROR.
+   END.
+   ELSE DO:
+      chWorkSheet:Columns("A"):ColumnWidth = 10 NO-ERROR.
+      chWorkSheet:Range("A1:P1"):Font:Bold = TRUE NO-ERROR.
+      chWorkSheet:Range("A1"):Value = Guru.Konstanter:genk NO-ERROR.          
+      chWorkSheet:Range("A:A"):NumberFormat = "@" NO-ERROR.      
+   END.      
+   {EXCELFEL.I}
+   
+   /*IF Guru.Konstanter:appcon THEN DO:                           
+      RUN MTRLTEHMT.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+      (INPUT leverant,OUTPUT TABLE mtrltemp).
+   END.
+   ELSE DO:
+      RUN MTRLTEHMT.P 
+      (INPUT leverant ,OUTPUT TABLE mtrltemp).
+   END.*/   
+   IF Guru.Konstanter:appcon THEN DO:
+      RUN MTRLBAPP.P PERSISTENT SET mtrlbapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+   END.
+   ELSE DO:
+      RUN MTRLBAPP.P PERSISTENT SET mtrlbapph.
+   END.  
+   RUN hmtkat_UI IN mtrlbapph (INPUT leverant, INPUT lista ,OUTPUT TABLE mtrltemp ).
+   /*DUMMY*/
+   FIND FIRST mtrltemp WHERE NO-LOCK NO-ERROR.
+   OPEN QUERY satsq FOR EACH mtrltemp WHERE mtrltemp.LEVKOD = leverant AND
+   mtrltemp.KALKNR = 0 NO-LOCK USE-INDEX ENR.
+   GET FIRST satsq NO-LOCK.
+   DO WHILE AVAILABLE(mtrltemp): 
+      {EXCELFEL.I}
+      iColumn = iColumn + 1.
+      cColumn = STRING(iColumn).      
+      IF lista = 1 THEN DO:
+         cRange = "A" + cColumn.
+         chWorkSheet:Range(cRange):Value = mtrltemp.ENR NO-ERROR.
+         cRange = "B" + cColumn.
+         chWorkSheet:Range(cRange):Value = mtrltemp.BENAMNING NO-ERROR.
+         cRange = "C" + cColumn.
+         chWorkSheet:Range(cRange):Value = mtrltemp.ENHET NO-ERROR.
+         cRange = "D" + cColumn.
+         chWorkSheet:Range(cRange):Value = string(mtrltemp.BPRIS,">>>>>9.99") NO-ERROR.
+         cRange = "E" + cColumn.
+         chWorkSheet:Range(cRange):Value = string(mtrltemp.NPRIS,">>>>>9.99") NO-ERROR.
+         cRange = "F" + cColumn.
+         chWorkSheet:Range(cRange):Value = string(mtrltemp.KUND,"Ja/Nej") NO-ERROR.
+      END.
+      ELSE IF lista = 2 OR lista = 3 THEN DO:
+         cRange = "A" + cColumn.
+         chWorkSheet:Range(cRange):Value = mtrltemp.ENR NO-ERROR.
+      END.            
+      GET NEXT satsq NO-LOCK.
+   END.     
+   CLOSE QUERY satsq.        
+   RELEASE OBJECT chExcelApplication NO-ERROR.      
+   RELEASE OBJECT chWorkbook NO-ERROR.
+   RELEASE OBJECT chWorksheet NO-ERROR.
+   IF VALID-HANDLE(mtrlbapph) THEN DELETE PROCEDURE mtrlbapph NO-ERROR. 
+   

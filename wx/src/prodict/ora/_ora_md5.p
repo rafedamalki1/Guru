@@ -1,0 +1,31 @@
+/*************************************************************/
+/* Copyright (c) 1984-1998 by Progress Software Corporation  */
+/*                                                           */
+/* All rights reserved.  No part of this program or document */
+/* may be  reproduced in  any form  or by  any means without */
+/* permission in writing from PROGRESS Software Corporation. */
+/*************************************************************/
+
+/* Procedure prodict/ora/_ora_md5.p
+
+   Modified 11/12/97 DLM Removed DISCONNECT of Progress Database.
+   
+*/   
+
+
+DEFINE INPUT PARAMETER ora-name AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER pro-name AS CHARACTER NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+
+/* connect up the databases to work with ------------------------------------*/
+
+DELETE ALIAS DICTDB2.
+
+IF NOT CONNECTED(pro-name) THEN
+  CONNECT VALUE(pro-name)-1 -ld DICTDB2 NO-ERROR.
+ELSE
+   CREATE ALIAS DICTDB2 FOR DATABASE VALUE(pro-name).  
+
+RUN prodict/ora/_ora_fix.p.
+
+RETURN.

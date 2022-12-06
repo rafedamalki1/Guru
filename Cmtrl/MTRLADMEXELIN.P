@@ -1,0 +1,143 @@
+/*MTRLADMEXELIN.P*/
+{MTTEMP.I}
+&Scoped-define NEW 
+
+{GLOBVAR2DEL1.I}
+
+
+   
+DEFINE VARIABLE antvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE utskriv AS LOGICAL NO-UNDO.
+DEFINE VARIABLE artecken AS LOGICAL NO-UNDO.
+
+
+{EXECLIN2.I}
+
+DEFINE INPUT PARAMETER filnamn AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER lkod AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR mttemp.
+EMPTY TEMP-TABLE mttemp NO-ERROR. 
+EMPTY TEMP-TABLE emttemp NO-ERROR. 
+{AMERICANEUROPEAN.I}
+ RUN startin_UI.
+{EUROPEANAMERICAN.I}
+
+FOR EACH emttemp BREAK BY emttemp.LEVKOD BY emttemp.ENR:                
+   ACCUMULATE emttemp.ANTAL (TOTAL BY emttemp.LEVKOD BY emttemp.ENR).       
+   IF LAST-OF(emttemp.ENR) THEN DO:
+      CREATE mttemp.
+      ASSIGN 
+      mttemp.ENR = emttemp.ENR
+      mttemp.BENAMNING = emttemp.BENAMNING             
+      mttemp.LEVKOD = emttemp.LEVKOD.            
+      mttemp.ANTAL = (ACCUM TOTAL BY emttemp.ENR emttemp.ANTAL).            
+   END.     
+END.      
+
+PROCEDURE startin_UI:  
+   EMPTY TEMP-TABLE emttemp NO-ERROR.  
+   ASSIGN
+   startc = "A"
+   slutc = "D"
+   iRad = 0.    
+   RUN readexcelstart_UI (INPUT filnamn).
+   
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      
+      IF allacolumtext[1] NE "" THEN DO:                  
+         allacolumtext[1] = REPLACE(allacolumtext[1]," ","") NO-ERROR.                 
+         RUN goromDec_UI(INPUT-OUTPUT allacolumtext[2]).
+         allacolumtext[1] = REPLACE(allacolumtext[1],CHR(9),"")NO-ERROR.
+         allacolumtext[2] = REPLACE(allacolumtext[2]," ","") NO-ERROR.    /*ta bort ev tusenavgränsare*/        
+         RUN isSiffraBokstav_UI (INPUT SUBSTRING(allacolumtext[1],1,1),OUTPUT artecken). 
+         IF artecken = FALSE THEN allacolumtext[1] = SUBSTRING(allacolumtext[1],2).                      
+         IF Guru.Konstanter:globforetag = "sund" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "ORBI" OR Guru.Konstanter:globforetag = "celpa" THEN DO:            
+            IF SUBSTRING(allacolumtext[1],1,1) NE "E" THEN allacolumtext[1] = "E" + allacolumtext[1].                                       
+         END.
+         ELSE DO:                     
+            IF SUBSTRING(allacolumtext[1],1,1) = "E" THEN allacolumtext[1] = SUBSTRING(allacolumtext[1],2).                            
+         END.         
+         CREATE emttemp.         
+         emttemp.ENR = allacolumtext[1].                      
+         antvar = INTEGER(allacolumtext[2]) NO-ERROR.
+         /* i ADMIN KAN ANTAL VARA = 0
+         IF antvar < 1 THEN emttemp.ANTAL = 1.
+         ELSE emttemp.ANTAL = antvar .*/
+         emttemp.ANTAL = antvar .
+         IF allacolumtext[3] NE "" THEN emttemp.LEVKOD = allacolumtext[3]. 
+         ELSE emttemp.LEVKOD = lkod.
+         IF allacolumtext[4] NE "" THEN emttemp.BENAMNING = allacolumtext[4].                   
+       
+      END.   
+   END.   
+     
+   RUN slutreadexcel_UI.        
+   
+END PROCEDURE.
+
+PROCEDURE isSiffraBokstav_UI :
+   DEFINE INPUT PARAMETER varde AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER artecken AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE ascivarde AS INTEGER NO-UNDO.
+   
+   ascivarde = ASC(varde).
+   /*siffror*/
+   IF ascivarde >= 48 AND ascivarde <= 57 THEN artecken = TRUE.
+   
+   /*stora bokstäver*/
+   ELSE IF ascivarde >= 65 AND ascivarde <= 90 THEN artecken = TRUE.
+   
+   /*små bokstäver*/
+   ELSE IF ascivarde >= 97 AND ascivarde <= 122 THEN artecken = TRUE.
+   
+   /*Å Ä Ö å ä ö*/
+   ELSE IF ascivarde = 197 OR ascivarde = 196 OR ascivarde = 214 OR ascivarde = 229 OR 
+      ascivarde = 228 OR ascivarde = 246 THEN artecken = TRUE.
+   ELSE artecken = FALSE.
+END PROCEDURE.
+
+PROCEDURE goromDec_UI :
+   DEFINE INPUT-OUTPUT PARAMETER varde AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE ascivarde AS INTEGER NO-UNDO.
+   DEFINE VARIABLE artecken AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE vardearray AS CHARACTER EXTENT 50 NO-UNDO.
+   DEFINE VARIABLE langd AS INTEGER NO-UNDO.
+   DEFINE VARIABLE i AS INTEGER NO-UNDO.
+
+   i = 1.
+
+   langd = LENGTH(varde).
+   DO WHILE i <= (langd):
+      vardearray[i] = SUBSTRING(varde,1, 1).
+      varde = SUBSTRING(varde,2).
+      i = i + 1.
+   END.
+   varde = "".
+   i = 1.
+   DO WHILE i <= langd:
+      ascivarde = ASC(vardearray[i]).
+      /*siffror*/
+      IF ascivarde >= 48 AND ascivarde <= 57 THEN artecken = TRUE.
+      ELSE artecken = FALSE.
+   
+      IF artecken = FALSE THEN DO:
+         /*varde = "".*/
+      END.
+      ELSE varde = varde + vardearray[i].
+      
+      IF vardearray[i] = "," THEN DO:
+         vardearray[i] = ".".
+         varde = varde + vardearray[i].
+      END.
+
+      IF vardearray[i] = "." THEN DO:
+         varde = varde + vardearray[i].
+      END.
+           
+      i = i + 1.      
+  END.      
+
+END PROCEDURE.
+

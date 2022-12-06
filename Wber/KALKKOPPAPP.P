@@ -1,0 +1,478 @@
+/*KALKKOPPAPP.P*/
+{STARTFORAPP.I}
+{KONSTRMTRL.I}
+{LOP.I}
+{LOPTEMP.I}
+{PTEMP.I}
+{SMTRL.I}
+
+DEFINE QUERY mtrlq FOR KALKBER.
+DEFINE BUFFER mtrlbuf FOR KALKBER.
+
+EMPTY TEMP-TABLE spec_mtrl NO-ERROR. 
+EMPTY TEMP-TABLE ekalkbertemp NO-ERROR. 
+
+PROCEDURE kalkhmt_UI :
+   DEFINE INPUT PARAMETER typkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER p2p3var AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkbertemp.
+   EMPTY TEMP-TABLE kalkbertemp NO-ERROR. 
+   OPEN QUERY kq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = typkod NO-LOCK.
+   GET FIRST kq NO-LOCK.
+   DO WHILE AVAILABLE(KALKBER):
+      CREATE kalkbertemp.
+      BUFFER-COPY KALKBER TO kalkbertemp.
+      ASSIGN kalkbertemp.KALKROW = ROWID(KALKBER).
+      GET NEXT kq NO-LOCK.
+   END.
+   CLOSE QUERY kq.
+   /*
+   FOR EACH kalkbertemp:
+      IF p2p3var = 1 THEN DO:
+         FIND FIRST LOP2 WHERE LOP2.ARBKOD = kalkbertemp.ARBKOD AND LOP2.LOPNR = kalkbertemp.LOPNR NO-LOCK NO-ERROR.         
+         IF NOT AVAILABLE  LOP2 THEN DELETE kalkbertemp.
+      END.
+      ELSE DO:
+         /*endast p3*/
+         FIND FIRST LOP3 WHERE LOP3.ARBKOD = kalkbertemp.ARBKOD AND LOP3.LOPNR = kalkbertemp.LOPNR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE LOP3 THEN DELETE kalkbertemp.
+      END.
+   END.
+   */
+   RETURN.
+
+END PROCEDURE.
+
+PROCEDURE bort_UI :
+   DEFINE INPUT PARAMETER mtrl_rowid AS ROWID NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST KALKBER WHERE ROWID(KALKBER) = mtrl_rowid EXCLUSIVE-LOCK NO-ERROR.         
+      IF AVAILABLE KALKBER THEN DO:
+         DELETE KALKBER.  
+      END.
+   END.
+   RELEASE KALKBER NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE enstaka_UI :
+   DEFINE INPUT PARAMETER mtrlkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER mtrl_rowid AS ROWID NO-UNDO.
+   DEFINE INPUT PARAMETER var2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var3 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var4 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var5 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var6 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR kalkbertemp.
+   FIND FIRST spec_mtrl NO-LOCK NO-ERROR.
+   IF AVAILABLE spec_mtrl THEN DO:
+      DO TRANSACTION:
+         FOR EACH spec_mtrl:
+            FIND FIRST KALKBER WHERE KALKBER.KTYPKOD = mtrlkod AND
+            KALKBER.ARBKOD = spec_mtrl.ARBKOD AND KALKBER.LOPNR = spec_mtrl.LOPNR AND
+            KALKBER.F1 = var2 AND KALKBER.F2 = var3 AND KALKBER.F3 = var4 AND KALKBER.F4 = var5
+            AND KALKBER.F5 = var6 AND ROWID(KALKBER) NE mtrl_rowid
+            USE-INDEX AR EXCLUSIVE-LOCK NO-ERROR.
+            IF NOT AVAILABLE KALKBER THEN DO:
+               RUN nyand_UI (INPUT mtrlkod,INPUT var2,INPUT var3, INPUT var4, INPUT var5,INPUT var6).
+            END.
+            ELSE DO:
+               FIND FIRST kalkbertemp WHERE kalkbertemp.KALKROW = ROWID(KALKBER) NO-LOCK NO-ERROR.
+               IF AVAILABLE kalkbertemp THEN DO:
+                  DELETE kalkbertemp.
+               END.
+               DELETE KALKBER.
+               RUN nyand_UI (INPUT mtrlkod,INPUT var2,INPUT var3, INPUT var4, INPUT var5,INPUT var6).
+            END.
+         END.
+         FIND FIRST KALKBER WHERE ROWID(KALKBER) = mtrl_rowid EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE KALKBER THEN DO:
+             FIND FIRST kalkbertemp WHERE kalkbertemp.KALKROW = mtrl_ROWID NO-LOCK NO-ERROR.
+             IF AVAILABLE kalkbertemp THEN DO:
+                DELETE kalkbertemp.
+             END.
+             DELETE KALKBER.
+         END.
+      END.
+   END.
+   RELEASE KALKBER NO-ERROR.
+
+END PROCEDURE.
+
+PROCEDURE nyand_UI :
+   DEFINE INPUT PARAMETER mtrlkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var2    AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var3    AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var4    AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var5    AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var6    AS CHARACTER NO-UNDO.
+   FIND FIRST KALKBER WHERE 
+   KALKBER.KTYPKOD = mtrlkod AND 
+   KALKBER.LOPNR   = spec_mtrl.LOPNR AND
+   KALKBER.ARBKOD  = spec_mtrl.ARBKOD AND
+   KALKBER.F1      = var2 AND
+   KALKBER.F2      = var3 AND 
+   KALKBER.F3      = var4 AND
+   KALKBER.F4      = var5 AND
+   KALKBER.F5      = var6 EXCLUSIVE-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKBER THEN DO:      
+      CREATE KALKBER.
+      ASSIGN  
+      KALKBER.KTYPKOD = mtrlkod
+      KALKBER.ARBKOD = spec_mtrl.ARBKOD
+      KALKBER.LOPNR = spec_mtrl.LOPNR
+      KALKBER.BENAMNING = spec_mtrl.BENAMNING
+      KALKBER.ENHET = spec_mtrl.ENHET
+      KALKBER.ANTAL = spec_mtrl.ANTAL
+      KALKBER.F1 = var2
+      KALKBER.F2 = var3
+      KALKBER.F3 = var4
+      KALKBER.F4 = var5
+      KALKBER.F5 = var6.
+      CREATE kalkbertemp.
+      BUFFER-COPY KALKBER TO kalkbertemp.
+      ASSIGN kalkbertemp.KALKROW = ROWID(KALKBER).
+   END.   
+
+END PROCEDURE.
+
+PROCEDURE andra_UI :
+   DEFINE INPUT PARAMETER mtrlkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER mtrl_rowid AS ROWID NO-UNDO.
+   DEFINE INPUT PARAMETER arbkodvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER lopnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR kalkbertemp.
+   DEFINE VARIABLE var2 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE var3 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE var4 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE var5 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE var6 AS CHARACTER NO-UNDO.
+   
+   FIND FIRST spec_mtrl NO-LOCK NO-ERROR.
+   IF AVAILABLE spec_mtrl THEN DO:
+      
+      OPEN QUERY mtrlq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = mtrlkod AND KALKBER.ARBKOD = arbkodvar AND KALKBER.LOPNR = lopnrvar NO-LOCK.
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         ASSIGN
+         mtrl_ROWID = ROWID(KALKBER)
+         mtrlkod = KALKBER.KTYPKOD
+         var2 = KALKBER.F1
+         var3 = KALKBER.F2
+         var4 = KALKBER.F3
+         var5 = KALKBER.F4
+         var6 = KALKBER.F5.
+         DO TRANSACTION:
+            FOR EACH spec_mtrl:
+               FIND FIRST KALKBER WHERE KALKBER.KTYPKOD = mtrlkod AND
+               KALKBER.ARBKOD = spec_mtrl.ARBKOD AND KALKBER.LOPNR = spec_mtrl.LOPNR AND
+               KALKBER.F1 = var2 AND KALKBER.F2 = var3 AND KALKBER.F3 = var4 AND KALKBER.F4 = var5
+               AND KALKBER.F5 = var6 AND ROWID(KALKBER) NE mtrl_ROWID
+               USE-INDEX AR EXCLUSIVE-LOCK NO-ERROR.
+               IF NOT AVAILABLE KALKBER THEN DO:
+                  RUN nyand_UI (INPUT mtrlkod,INPUT var2,INPUT var3, INPUT var4, INPUT var5,INPUT var6).
+               END.
+               ELSE DO:
+                  FIND FIRST kalkbertemp WHERE kalkbertemp.KALKROW = ROWID(KALKBER) NO-LOCK NO-ERROR.
+                  IF AVAILABLE kalkbertemp THEN DO:
+                     DELETE kalkbertemp.
+                  END.
+                  DELETE KALKBER.
+                  RUN nyand_UI (INPUT mtrlkod,INPUT var2,INPUT var3, INPUT var4, INPUT var5,INPUT var6).
+               END.
+            END.
+            FIND FIRST KALKBER WHERE ROWID(KALKBER) = mtrl_rowid EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE KALKBER THEN DO:
+               FIND FIRST kalkbertemp WHERE kalkbertemp.KALKROW = mtrl_ROWID NO-LOCK NO-ERROR.
+               IF AVAILABLE kalkbertemp THEN DO:
+                  DELETE kalkbertemp.
+               END.
+               DELETE KALKBER.
+            END.
+         END.
+         GET NEXT mtrlq NO-LOCK.
+      END.
+      CLOSE QUERY mtrlq.
+      
+   END.
+   RELEASE KALKBER NO-ERROR.
+
+END PROCEDURE.
+
+PROCEDURE ny_UI :
+   DEFINE INPUT PARAMETER mtrlkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER mtrl_rowid AS ROWID NO-UNDO.
+   DEFINE INPUT PARAMETER var2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var3 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var4 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var5 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var6 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR kalkbertemp.
+   FIND FIRST spec_mtrl NO-LOCK NO-ERROR.
+   IF AVAILABLE spec_mtrl THEN DO:
+      DO TRANSACTION:
+         FOR EACH spec_mtrl:
+            FIND FIRST KALKBER WHERE KALKBER.KTYPKOD = mtrlkod AND
+            KALKBER.ARBKOD = spec_mtrl.ARBKOD AND KALKBER.LOPNR = spec_mtrl.LOPNR AND
+            KALKBER.F1 = var2 AND KALKBER.F2 = var3 AND KALKBER.F3 = var4 AND KALKBER.F4 = var5
+            AND KALKBER.F5 = var6 USE-INDEX AR NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE KALKBER THEN DO:
+               RUN nyand_UI (INPUT mtrlkod,INPUT var2,INPUT var3, INPUT var4, INPUT var5,INPUT var6).
+            END.
+         END.
+      END.
+   END.
+   RELEASE KALKBER NO-ERROR.
+
+END PROCEDURE.
+
+
+
+PROCEDURE laddaenlop3_UI :
+   DEFINE INPUT PARAMETER katvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER arbkodvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR loptemp3.
+   EMPTY TEMP-TABLE loptemp3 NO-ERROR. 
+   FOR EACH LOP3 WHERE LOP3.KATAR = katvar AND  LOP3.ARBKOD = arbkodvar NO-LOCK.
+      CREATE loptemp3.
+      BUFFER-COPY LOP3 TO loptemp3.
+      /*FÖR ATT VI ANVÄNDER OSS AV FYRA DECIMALER*/
+      IF LOP3.F9 NE 0 THEN DO:
+         ASSIGN
+         loptemp3.F1 = loptemp3.F1 / 100
+         loptemp3.F2 = loptemp3.F2 / 100
+         loptemp3.F3 = loptemp3.F3 / 100
+         loptemp3.F4 = loptemp3.F4 / 100
+         loptemp3.F5 = loptemp3.F5 / 100
+         loptemp3.F6 = loptemp3.F6 / 100
+         loptemp3.F7 = loptemp3.F7 / 100
+         loptemp3.F8 = loptemp3.F8 / 100.
+      END.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE laddaenlop_UI :
+   DEFINE INPUT PARAMETER typvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER katvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER arbkodvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR loptemp.
+   EMPTY TEMP-TABLE loptemp NO-ERROR. 
+   IF typvar = 2 THEN DO:
+      FOR EACH LOP2 WHERE LOP2.KATAR = katvar AND  LOP2.ARBKOD = arbkodvar NO-LOCK.
+         CREATE loptemp.
+         BUFFER-COPY LOP2 TO loptemp.
+         /*FÖR ATT VI ANVÄNDER OSS AV FYRA DECIMALER*/
+         IF LOP2.F9 NE 0 THEN DO:
+            ASSIGN
+            loptemp.F1 = loptemp.F1 / 100
+            loptemp.F2 = loptemp.F2 / 100
+            loptemp.F3 = loptemp.F3 / 100
+            loptemp.F4 = loptemp.F4 / 100
+            loptemp.F5 = loptemp.F5 / 100
+            loptemp.F6 = loptemp.F6 / 100
+            loptemp.F7 = loptemp.F7 / 100
+            loptemp.F8 = loptemp.F8 / 100.
+         END.
+      END.
+   END.
+   ELSE IF typvar = 3 THEN DO:   
+      FOR EACH LOP3 WHERE LOP3.KATAR = katvar AND  LOP3.ARBKOD = arbkodvar NO-LOCK.
+         CREATE loptemp.
+         BUFFER-COPY LOP3 TO loptemp.
+         /*FÖR ATT VI ANVÄNDER OSS AV FYRA DECIMALER*/
+         IF LOP3.F9 NE 0 THEN DO:
+            ASSIGN
+            loptemp.F1 = loptemp.F1 / 100
+            loptemp.F2 = loptemp.F2 / 100
+            loptemp.F3 = loptemp.F3 / 100
+            loptemp.F4 = loptemp.F4 / 100
+            loptemp.F5 = loptemp.F5 / 100
+            loptemp.F6 = loptemp.F6 / 100
+            loptemp.F7 = loptemp.F7 / 100
+            loptemp.F8 = loptemp.F8 / 100.
+         END.
+      END.
+   END.
+END PROCEDURE.
+
+
+PROCEDURE ladda_UI :
+   DEFINE OUTPUT PARAMETER katvar AS INTEGER NO-UNDO.
+   DEFINE VARIABLE katnrartal AS INTEGER NO-UNDO.
+   /*kalkår*/
+   katnrartal = INTEGER(STRING(TODAY,"99999999")).
+    
+      FIND LAST EBRPRIS USE-INDEX AR NO-LOCK NO-ERROR.
+      IF AVAILABLE EBRPRIS THEN katvar = EBRPRIS.ARTAL.
+      ELSE katvar = YEAR(TODAY). 
+   
+END PROCEDURE.
+
+PROCEDURE laddatempen_UI:
+   DEFINE INPUT PARAMETER konskodvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR konstvaltemp.
+   EMPTY TEMP-TABLE konstvaltemp NO-ERROR. 
+   FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = konskodvar NO-LOCK.
+      CREATE konstvaltemp.
+      BUFFER-COPY KONSTVAL TO konstvaltemp.
+      ASSIGN konstvaltemp.KVALROW = ROWID(KONSTVAL).     
+   END.
+   RUN bildladda_UI (INPUT 2).
+   RETURN.
+END PROCEDURE.
+{BERBILDLADDA.i}
+
+PROCEDURE checkkalkber_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR ekalkbertemp.
+   FOR EACH ekalkbertemp:
+      FIND FIRST KALKBER WHERE 
+      KALKBER.KTYPKOD = ekalkbertemp.KTYPKOD AND 
+      KALKBER.LOPNR   = ekalkbertemp.LOPNR AND
+      KALKBER.ARBKOD  = ekalkbertemp.ARBKOD AND
+      KALKBER.F1      = ekalkbertemp.F1 AND
+      KALKBER.F2      = ekalkbertemp.F2 AND 
+      KALKBER.F3      = ekalkbertemp.F3 AND
+      KALKBER.F4      = ekalkbertemp.F4 AND
+      KALKBER.F5      = ekalkbertemp.F5 NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKBER THEN DO: /* skapa de som ska sparas bara, jämför med bortkalkber_UI */
+         DELETE ekalkbertemp.                  
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE bortkalkber_UI :
+   
+   DEFINE INPUT PARAMETER TABLE FOR ekalkbertemp.
+   DO TRANSACTION:
+      FOR EACH ekalkbertemp:
+         FIND FIRST KALKBER WHERE 
+         KALKBER.KTYPKOD = ekalkbertemp.KTYPKOD AND 
+         KALKBER.LOPNR   = ekalkbertemp.LOPNR AND
+         KALKBER.ARBKOD  = ekalkbertemp.ARBKOD AND
+         KALKBER.F1      = ekalkbertemp.F1 AND
+         KALKBER.F2      = ekalkbertemp.F2 AND 
+         KALKBER.F3      = ekalkbertemp.F3 AND
+         KALKBER.F4      = ekalkbertemp.F4 AND
+         KALKBER.F5      = ekalkbertemp.F5 EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE KALKBER THEN DO:
+            DELETE KALKBER.
+         END.         
+      END.
+   END.
+   RELEASE KALKBER NO-ERROR.
+END PROCEDURE.
+
+
+PROCEDURE sparkalkber2_UI :
+   DEFINE INPUT PARAMETER TABLE FOR ekalkbertemp.
+   DO TRANSACTION:
+      FOR EACH ekalkbertemp:
+         FIND FIRST KALKBER WHERE 
+         KALKBER.KTYPKOD = ekalkbertemp.KTYPKOD AND 
+         KALKBER.LOPNR   = ekalkbertemp.LOPNR AND
+         KALKBER.ARBKOD  = ekalkbertemp.ARBKOD AND
+         KALKBER.F1      = ekalkbertemp.F1 AND
+         KALKBER.F2      = ekalkbertemp.F2 AND 
+         KALKBER.F3      = ekalkbertemp.F3 AND
+         KALKBER.F4      = ekalkbertemp.F4 AND
+         KALKBER.F5      = ekalkbertemp.F5 EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE KALKBER THEN DO:
+            CREATE KALKBER.
+         END.
+         BUFFER-COPY ekalkbertemp TO KALKBER.          
+      END.
+   END.
+   RELEASE KALKBER NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE sparkalkber_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR ekalkbertemp.
+   DO TRANSACTION:
+      FOR EACH ekalkbertemp:
+         FIND FIRST KALKBER WHERE 
+         KALKBER.KTYPKOD = ekalkbertemp.KTYPKOD AND 
+         KALKBER.LOPNR = ekalkbertemp.LOPNR AND
+         KALKBER.ARBKOD = ekalkbertemp.ARBKOD AND
+         KALKBER.F1 = ekalkbertemp.F1 AND
+         KALKBER.F2 = ekalkbertemp.F2 AND 
+         KALKBER.F3 = ekalkbertemp.F3 AND
+         KALKBER.F4 = ekalkbertemp.F4 AND
+         KALKBER.F5 = ekalkbertemp.F5 EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE KALKBER THEN DO:
+            CREATE KALKBER.
+         END.
+         BUFFER-COPY ekalkbertemp TO KALKBER. 
+         ASSIGN ekalkbertemp.KALKROW = ROWID(KALKBER).
+      END.
+   END.
+   RELEASE KALKBER NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE ptemp_UI:
+   
+   DEFINE INPUT PARAMETER artalvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER rad_typ AS INTEGER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER TABLE FOR ptemp.
+   EMPTY TEMP-TABLE ptemp NO-ERROR. 
+   
+   
+      IF rad_typ = 2 THEN DO:
+         FOR EACH P2 WHERE P2.KATAR = artalvar NO-LOCK:
+            CREATE ptemp.
+            BUFFER-COPY P2 TO ptemp.
+            {PKODREGION.I}
+            ptemp.TYP = 2.
+         END.
+      END.
+      IF rad_typ = 3 THEN DO:
+         FOR EACH P3 WHERE P3.KATAR = artalvar NO-LOCK:
+            CREATE ptemp.
+            BUFFER-COPY P3 TO ptemp.
+            ptemp.TYP = 3.
+         END.
+      END.
+    
+END PROCEDURE.
+
+PROCEDURE loptempn_UI:
+   DEFINE INPUT PARAMETER valkalkar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER rad_typ AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR loptemp.
+   DEFINE VARIABLE tempvar AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE loptemp NO-ERROR. 
+   
+      IF rad_typ = 2 THEN DO:
+         FIND FIRST LOP2 WHERE LOP2.KATAR = valkalkar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE LOP2 THEN DO:
+            FIND LAST LOP2 USE-INDEX AR NO-LOCK NO-ERROR.
+            tempvar = LOP2.KATAR. 
+         END.
+         ELSE tempvar = valkalkar.
+         FOR EACH LOP2 WHERE LOP2.KATAR = tempvar NO-LOCK:
+            CREATE loptemp.
+            BUFFER-COPY LOP2 TO loptemp.
+            loptemp.TYP = 2.
+         END.
+      END.
+      ELSE IF rad_typ = 3 THEN DO:
+         FIND FIRST LOP3 WHERE LOP3.KATAR = valkalkar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE LOP3 THEN DO:
+            FIND LAST LOP3 USE-INDEX AR NO-LOCK NO-ERROR.
+            tempvar = LOP3.KATAR. 
+         END.
+         ELSE tempvar = valkalkar.
+         FOR EACH LOP3 WHERE LOP3.KATAR = tempvar NO-LOCK:                 
+            CREATE loptemp.
+            BUFFER-COPY LOP3 TO loptemp.
+            loptemp.TYP = 3.
+         END.
+      END.
+   
+   
+END PROCEDURE.
+
+
+

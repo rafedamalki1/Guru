@@ -1,0 +1,48 @@
+/* Solution to Language Tutorial Problem 6-1 */
+
+/***********  DEFINE WIDGETS  *********/
+DEFINE VARIABLE Guest AS CHARACTER FORMAT "x(30)".
+DEFINE VARIABLE Address AS CHARACTER 
+    VIEW-AS EDITOR INNER-CHARS 29 INNER-LINES 4.
+DEFINE VARIABLE Phone AS CHARACTER FORMAT "x(30)".
+DEFINE VARIABLE Attendees AS INTEGER INITIAL 1
+    VIEW-AS RADIO-SET HORIZONTAL RADIO-BUTTONS "1", 1, "2", 2.
+DEFINE VARIABLE Room-For AS INTEGER LABEL "Hotel For" INITIAL 1
+    VIEW-AS RADIO-SET HORIZONTAL RADIO-BUTTONS "1", 1, "2", 2.
+DEFINE VARIABLE Cost AS INTEGER VIEW-AS TEXT.
+DEFINE VARIABLE Cancellation AS LOGICAL INITIAL "No" VIEW-AS TEXT.
+DEFINE VARIABLE Refund AS LOGICAL LABEL "Refund Sent?" INITIAL "No" 
+    VIEW-AS TOGGLE-BOX.
+DEFINE BUTTON btn-Calc LABEL "Calculate Cost".
+DEFINE BUTTON btn-Cancel LABEL "Cancel Registration".
+DEFINE BUTTON btn-Exit LABEL "Exit".
+
+/**********  DEFINE FRAMES  **********/
+{lt-06-i1.i}
+
+/**********  DEFINE TRIGGERS  **********/
+ON CHOOSE OF btn-Calc
+DO:
+    ASSIGN Attendees Room-For.
+    RUN lt-06-e1.p (INPUT Attendees, INPUT Room-For, OUTPUT Cost).
+    DISPLAY COST WITH FRAME Frame1.
+END.
+ON CHOOSE OF btn-Cancel
+DO:
+    RUN Internal-Proc.
+END.
+
+/**********  MAIN LOGIC  **********/
+DISPLAY Cost Cancellation WITH FRAME Frame1.
+ENABLE ALL EXCEPT Cancellation Refund WITH FRAME Frame1.
+WAIT-FOR CHOOSE OF btn-Exit.
+
+/**********  INTERNAL PROCEDURES  **********/
+PROCEDURE Internal-Proc: 
+
+ASSIGN Cancellation = yes.
+DISPLAY Cancellation Refund WITH FRAME Frame1.
+DISABLE ALL EXCEPT btn-Exit WITH FRAME Frame1.
+ENABLE Refund WITH FRAME Frame1.
+
+END PROCEDURE.

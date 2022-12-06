@@ -1,0 +1,62 @@
+
+/*------------------------------------------------------------------------
+    File        : STOPPAOMRSEKLADD.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Mon Aug 19 17:42:28 CEST 2019
+    Notes       :
+  ----------------------------------------------------------------------*/
+&Scoped-define NEW NEW
+ {VARFORETYP.I}
+DEFINE INPUT  PARAMETER globanv AS CHARACTER NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETER TABLE-HANDLE tthtemp.
+DEFINE VARIABLE ttbuffh AS HANDLE NO-UNDO.
+
+IF Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)   THEN RETURN.
+
+ttbuffh = tthtemp:DEFAULT-BUFFER-HANDLE.
+
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.   
+RUN STYREAPP.P (INPUT FORETAG.FORETAG, INPUT-OUTPUT varforetypval, INPUT-OUTPUT varforetypchar, INPUT FALSE).
+{STYREAPPLADD.I}
+IF Guru.Konstanter:varforetypchar[4] NE  "ja" THEN RETURN.
+RUN SekKoll_UI.
+PROCEDURE SekKoll_UI :
+   DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE qh  AS HANDLE NO-UNDO.
+   DEFINE VARIABLE urfalth AS HANDLE NO-UNDO.
+   kommandoquery = "FOR EACH " + ttbuffh:TABLE + " NO-LOCK".  
+   RUN CreateCustomQuery(INPUT ttbuffh,INPUT kommandoquery,OUTPUT qh).
+   qH:GET-FIRST().
+   urfalth = ttbuffh:BUFFER-FIELD("OMRADE") NO-ERROR.
+   IF urfalth = ? THEN RETURN.
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = globanv AND OFFERT.OMRADE = ttbuffh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE OFFERT THEN DO:
+         ttbuffh:BUFFER-DELETE().            
+      END.
+      qH:GET-NEXT().     
+   END.
+   RUN CloseCustomQuery(INPUT qH).
+END PROCEDURE.
+
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh .
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+   
+PROCEDURE CloseCustomQuery:
+   DEFINE INPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CustomQueryh:QUERY-CLOSE()  NO-ERROR.
+   CustomQueryh = ?.
+END PROCEDURE.

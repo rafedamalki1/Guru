@@ -1,0 +1,443 @@
+/*
+     Filename: ENLINJEPDF2.P
+*/
+&Scoped-define NEW 
+{pdf_StartInc.i}
+
+DEFINE VARIABLE utfil      AS CHARACTER NO-UNDO.
+DEFINE VARIABLE starttextrow     AS INTEGER NO-UNDO.
+DEFINE VARIABLE ROWCOUNT AS INTEGER NO-UNDO.
+DEFINE VARIABLE intext AS CHARACTER NO-UNDO.
+DEFINE VARIABLE TEXTROWCOUNT AS INTEGER NO-UNDO.
+DEFINE VARIABLE bodyheight AS INTEGER NO-UNDO.
+DEFINE VARIABLE starttextcolumn AS DECIMAL NO-UNDO.
+DEFINE VARIABLE SKAPSTORLEK AS INTEGER NO-UNDO.
+DEFINE VARIABLE objekt AS CHARACTER NO-UNDO.
+DEFINE VARIABLE objekttext AS LOGICAL NO-UNDO.
+DEFINE VARIABLE linesum AS INTEGER NO-UNDO.
+DEFINE VARIABLE varcol AS DECIMAL NO-UNDO.
+DEFINE VARIABLE varrow AS DECIMAL NO-UNDO.
+DEFINE VARIABLE startcenter AS LOGICAL NO-UNDO.
+DEFINE VARIABLE initX AS INTEGER NO-UNDO.
+DEFINE VARIABLE initY AS INTEGER NO-UNDO.
+
+DEFINE TEMP-TABLE objtt NO-UNDO
+FIELD NUM            AS INTEGER 
+FIELD OWIDTH              AS DECIMAL 
+FIELD OHEIGHT              AS DECIMAL 
+FIELD OTYPE           AS CHARACTER
+FIELD SKAPSTORLEK    AS INTEGER
+FIELD OFONT           AS CHARACTER
+FIELD TEXTSIZE       AS INTEGER
+FIELD OTEXT           AS LOGICAL
+FIELD TEXTROWCOUNT   AS INTEGER
+FIELD TEXTROW        AS INTEGER 
+FIELD TEXTCOL     AS DECIMAL
+FIELD SIZEWIDTH     AS DECIMAL
+FIELD SIZEHEIGHT    AS DECIMAL
+FIELD DIRECTION     AS CHARACTER
+INDEX NUM NUM.
+
+DEFINE BUFFER objttbuf FOR objtt.
+
+utfil = SESSION:TEMP-DIRECTORY + string(TIME) + "enlin.pdf".
+
+RUN start_pdf_UI.
+RUN pdf_close IN h_PDFinc ("Spdf").
+RUN OPENDOC.P (utfil,"","Acrobat.exe",NO).
+
+PROCEDURE new_page_UI :
+   RUN pdf_new_page IN h_PDFinc ("Spdf").
+/*    RUN pdf_set_LeftMargin IN h_PDFinc ("Spdf",40). /*default 40*/ */
+/*    RUN pdf_set_TopMargin IN h_PDFinc ("Spdf",120). /*default 50*/ */
+/*    RUN pdf_set_BottomMargin("Spdf",5). /*default 1*/ */
+   RUN pdf_set_font IN h_PDFinc ("Spdf","Courier",8.0).
+   RUN pdf_text_color IN h_PDFinc ("Spdf",0.0,0.0,0.0).
+   bodyheight = pdf_PageHeight("Spdf").
+   ASSIGN
+   initY = pdf_TextY("Spdf")  
+   initX = pdf_TextX("Spdf") 
+   starttextrow = pdf_PageHeight("Spdf") - pdf_TopMargin("Spdf") - 20  /* 742 = 792 - 50 */      
+   starttextcolumn = pdf_LeftMargin("Spdf") + 10  /* 40 + 10 */ 
+   startcenter = TRUE.
+   
+END PROCEDURE.
+
+PROCEDURE set_header_UI :
+   DEFINE INPUT PARAMETER intext AS CHARACTER NO-UNDO.
+   IF AVAILABLE objtt THEN DO:
+      RUN pdf_set_font IN h_PDFinc ("Spdf",objtt.OFONT,12.0).
+      RUN pdf_text_align IN h_PDFinc ("Spdf",intext,"CENTER", objtt.TEXTCOL + 200, objtt.TEXTROW).
+      RUN pdf_set_font IN h_PDFinc ("Spdf",objtt.OFONT,objtt.TEXTSIZE).
+      objtt.TEXTROW = objtt.TEXTROW - 20.
+   END.
+END PROCEDURE.
+
+PROCEDURE set_text_UI :
+   DEFINE INPUT PARAMETER intext AS CHARACTER NO-UNDO.
+   IF AVAILABLE objtt THEN DO:
+      IF objtt.TEXTROW < 20 THEN RUN new_page_UI.
+      IF objtt.OTYPE NE "" THEN DO:
+         IF objtt.OTEXT = FALSE THEN DO:
+            objtt.TEXTROW = objtt.TEXTROW + objtt.OHEIGHT.
+            objtt.OTEXT = TRUE.
+         END.
+         IF objtt.OTYPE = "skap" THEN DO:
+            objtt.TEXTCOL = objtt.TEXTCOL + objtt.OWIDTH.
+            RUN pdf_text_align IN h_PDFinc ("Spdf",intext,"left",objtt.TEXTCOL + 5, objtt.TEXTROW).      
+            objtt.TEXTCOL = objtt.TEXTCOL - objtt.OWIDTH.
+         END.
+         ELSE RUN pdf_text_align IN h_PDFinc ("Spdf",intext,"left",objtt.TEXTCOL + 25, objtt.TEXTROW).      
+         
+      END.
+      ELSE RUN pdf_text_align IN h_PDFinc ("Spdf",intext,"left",objtt.TEXTCOL + 25, objtt.TEXTROW).      
+      ASSIGN
+      objtt.TEXTROW = objtt.TEXTROW - 10
+      objtt.TEXTROWCOUNT = objtt.TEXTROWCOUNT + 10.
+   END.  
+END PROCEDURE.
+
+PROCEDURE set_textrot_UI :
+   DEFINE INPUT PARAMETER intext AS CHARACTER NO-UNDO.
+   IF AVAILABLE objtt THEN DO:
+      IF objtt.TEXTROW < 20 THEN RUN new_page_UI.
+      IF objtt.OWIDTH NE 0 THEN RUN pdf_set_TextX	IN h_PDFinc ("Spdf",objtt.TEXTCOL - objtt.OWIDTH / 2).
+      ELSE RUN pdf_set_TextX	IN h_PDFinc ("Spdf",objtt.TEXTCOL - 1).
+      IF objtt.OTYPE = "line" THEN RUN pdf_set_TextY	IN h_PDFinc ("Spdf",objtt.TEXTROW + objtt.OHEIGHT - LENGTH(intext)).
+      ELSE RUN pdf_set_TextY	IN h_PDFinc ("Spdf",objtt.TEXTROW + objtt.OHEIGHT + LENGTH(intext)).
+      RUN pdf_text_rotate IN h_PDFinc ("Spdf", 90).
+      RUN pdf_set_font IN h_PDFinc ("Spdf",objtt.OFONT,6.0).
+      RUN pdf_text IN h_PDFinc ("Spdf",intext).
+      RUN pdf_text_rotate IN h_PDFinc ("Spdf", 0).
+      RUN pdf_set_font IN h_PDFinc ("Spdf",objtt.OFONT,objtt.TEXTSIZE).
+   END.
+END PROCEDURE.
+
+PROCEDURE set_verticalline :
+   DEFINE INPUT PARAMETER len AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER num AS INTEGER NO-UNDO.
+   IF AVAILABLE objtt THEN DO:
+      DEFINE VARIABLE i AS INTEGER NO-UNDO.
+      IF objtt.TEXTROWCOUNT NE 0 THEN DO: 
+         objtt.TEXTROW = objtt.TEXTROW + objtt.TEXTROWCOUNT.
+         IF objtt.TEXTROWCOUNT > 10 THEN DO: 
+            len = objtt.TEXTROWCOUNT + 10.            
+         END.
+      END.
+      IF objtt.OTEXT = TRUE THEN DO: 
+         objtt.TEXTROW = objtt.TEXTROW - objtt.OHEIGHT.
+         objtt.OTEXT = FALSE.
+      END.
+      ASSIGN
+      objtt.TEXTCOL = objtt.TEXTCOL + 5
+      objtt.OHEIGHT = len
+      varcol = objtt.TEXTCOL.
+      IF num > 1 THEN DO:
+         i = 1.
+         DO WHILE i LE num:
+            FIND FIRST objttbuf WHERE objttbuf.NUM = i USE-INDEX NUM NO-LOCK NO-ERROR.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objttbuf.TEXTCOL,objttbuf.TEXTROW,objttbuf.TEXTCOL,objttbuf.TEXTROW - len,1).         
+            FIND FIRST objtt WHERE objtt.NUM = i + 1 NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE objtt THEN CREATE objtt.
+            ASSIGN
+            objtt.NUM = objttbuf.NUM + 1
+            objtt.TEXTCOL = objttbuf.TEXTCOL + 20
+            objtt.TEXTROW = objttbuf.TEXTROW
+            objtt.TEXTROWCOUNT = 0
+            objtt.OWIDTH = 0
+            objtt.OHEIGHT = len
+            objtt.TEXTSIZE = 8
+            objtt.OFONT   = "Courier"
+            objtt.OTYPE = "line"
+            objtt.OTEXT = FALSE
+            objtt.SIZEWIDTH = 0     
+            objtt.SIZEHEIGHT = 0
+            objtt.DIRECTION = "n".            
+            i = i + 1.        
+         END.
+         i = 1.
+         DO WHILE i LE num:
+            FIND FIRST objtt WHERE objtt.NUM = i NO-LOCK NO-ERROR.
+            IF AVAILABLE objtt THEN DO:
+               IF objtt.TEXTCOL NE varcol THEN DO:
+                  objtt.TEXTROW = objtt.TEXTROW - len.
+                  objtt.TEXTCOL = objtt.TEXTCOL - 5.
+               END.
+            END.
+            i = i + 1.
+         END.
+         FIND FIRST objtt WHERE objtt.TEXTCOL = varcol USE-INDEX NUM NO-LOCK NO-ERROR.
+         IF AVAILABLE objtt THEN DO:
+            objtt.TEXTCOL = objtt.TEXTCOL - 5.
+         END.
+         varcol = 0.
+      END.
+      ELSE DO:
+         IF objtt.DIRECTION = "u" THEN DO:
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL,objtt.TEXTROW,objtt.TEXTCOL,objtt.TEXTROW + len,1). 
+            ASSIGN
+            objtt.TEXTCOL = objtt.TEXTCOL - 5
+            objtt.TEXTROW = objtt.TEXTROW + len
+            objtt.OHEIGHT = len.
+
+         END.
+         ELSE IF objtt.DIRECTION = "n" THEN DO:
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL,objtt.TEXTROW,objtt.TEXTCOL,objtt.TEXTROW - len,1). 
+            ASSIGN
+            objtt.TEXTCOL = objtt.TEXTCOL - 5
+            objtt.TEXTROW = objtt.TEXTROW - len
+            objtt.OHEIGHT = len.
+         END.
+         
+         ASSIGN
+         objtt.TEXTROWCOUNT = 0
+         objtt.OWIDTH = 0
+         objtt.TEXTSIZE = 8
+         objtt.OFONT   = "Courier"
+         objtt.OTYPE = "line"
+         objtt.OTEXT = FALSE
+         objtt.SIZEWIDTH = 0     
+         objtt.SIZEHEIGHT = 0
+         objtt.DIRECTION = "n".
+      END.
+   END.   
+   startcenter = FALSE.
+END PROCEDURE.
+
+PROCEDURE set_hotizontalline :
+   DEFINE INPUT PARAMETER len AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER num AS INTEGER NO-UNDO.
+   IF AVAILABLE objtt THEN DO:
+      DEFINE VARIABLE i AS INTEGER NO-UNDO.
+      IF objtt.TEXTROWCOUNT NE 0 THEN DO:
+         objtt.TEXTROW = objtt.TEXTROW + objtt.TEXTROWCOUNT.
+      END.
+      ASSIGN
+      varcol = objtt.TEXTCOL
+      varrow = objtt.TEXTROW.
+      IF num > 1 THEN DO:
+         i = 1.
+         DO WHILE i < num:
+            FIND FIRST objttbuf WHERE objttbuf.NUM = i USE-INDEX NUM NO-LOCK NO-ERROR.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objttbuf.TEXTCOL + 5 + objttbuf.OWIDTH / 2,objttbuf.TEXTROW + objttbuf.OHEIGHT / 2,objttbuf.TEXTCOL + len,objttbuf.TEXTROW + objttbuf.OHEIGHT / 2,1).
+            FIND FIRST objtt WHERE objtt.NUM = i + 1 NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE objtt THEN CREATE objtt.
+            ASSIGN
+            objtt.NUM = objttbuf.NUM + 1
+            objtt.TEXTCOL = objttbuf.TEXTCOL + len
+            objtt.TEXTROW = objttbuf.TEXTROW
+            objtt.TEXTROWCOUNT = 0
+            objtt.OWIDTH = len
+            objtt.OHEIGHT = 0
+            objtt.TEXTSIZE = 8
+            objtt.OFONT   = "Courier"
+            objtt.OTYPE = "line"
+            objtt.OTEXT = FALSE
+            objtt.SIZEWIDTH = 0  
+            objtt.SIZEHEIGHT = 0
+            objtt.DIRECTION = "n".
+            i = i + 1.        
+         END.
+         i = 1.
+         DO WHILE i LE num:
+            FIND FIRST objtt WHERE objtt.NUM = i NO-LOCK NO-ERROR.
+            IF AVAILABLE objtt THEN DO:
+               IF objtt.TEXTCOL NE varcol THEN DO:
+                  objtt.TEXTROW = objtt.TEXTROW + 5.
+                  objtt.TEXTCOL = objtt.TEXTCOL - 5.
+               END.
+            END.
+            i = i + 1.
+         END.
+         FIND FIRST objtt WHERE objtt.TEXTCOL = varcol USE-INDEX NUM NO-LOCK NO-ERROR.
+         varcol = 0.
+      END.
+      ELSE DO:
+         RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL + 5,objtt.TEXTROW,objtt.TEXTCOL + len,objtt.TEXTROW,1).
+         ASSIGN
+         objtt.TEXTROWCOUNT = 0
+         objtt.OWIDTH = len
+         objtt.OHEIGHT = 0
+         objtt.OTYPE = "line"
+         objtt.OTEXT = FALSE
+         objtt.SIZEWIDTH = 0  
+         objtt.SIZEHEIGHT = 0
+         objtt.DIRECTION = "n".      
+      END.
+   END.
+   startcenter = FALSE.
+END PROCEDURE.
+
+PROCEDURE set_object_UI :
+   DEFINE VARIABLE avd AS INTEGER NO-UNDO.
+   IF AVAILABLE objtt THEN DO:
+      IF objtt.TEXTROWCOUNT NE 0 THEN DO: 
+         objtt.TEXTROW = objtt.TEXTROW + objtt.TEXTROWCOUNT.
+      END.
+      IF objtt.OTEXT = TRUE THEN DO: 
+         objtt.TEXTROW = objtt.TEXTROW - objtt.OHEIGHT.      
+      END.
+      ASSIGN
+      objtt.OTEXT = FALSE.      
+      CASE objtt.OTYPE:
+         WHEN "jord" THEN DO:
+            objtt.TEXTCOL = objtt.TEXTCOL + 5.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL - 6,objtt.TEXTROW,objtt.TEXTCOL + 6,objtt.TEXTROW,1).
+            objtt.TEXTROW = objtt.TEXTROW - 2.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL - 4,objtt.TEXTROW,objtt.TEXTCOL + 4,objtt.TEXTROW,1).
+            objtt.TEXTROW = objtt.TEXTROW - 2.        
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL - 2,objtt.TEXTROW,objtt.TEXTCOL + 2,objtt.TEXTROW,1).
+            objtt.TEXTCOL = objtt.TEXTCOL - 2.
+            ASSIGN
+            objtt.OWIDTH = 16
+            objtt.OHEIGHT = 6.            
+         END.
+         WHEN "mat" THEN DO:
+            /*Åttahörning - fortsätter nedåt*/
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL + 5,objtt.TEXTROW,objtt.TEXTCOL + 10,objtt.TEXTROW - 2.5,1).
+            objtt.TEXTROW = objtt.TEXTROW - 2.5.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL + 10,objtt.TEXTROW,objtt.TEXTCOL + 12,objtt.TEXTROW - 5,1).
+            objtt.TEXTROW = objtt.TEXTROW - 5.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL + 12,objtt.TEXTROW,objtt.TEXTCOL + 10,objtt.TEXTROW - 5,1).
+            objtt.TEXTROW = objtt.TEXTROW - 5.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL + 10,objtt.TEXTROW,objtt.TEXTCOL + 5,objtt.TEXTROW - 2.5,1).
+            objtt.TEXTROW = objtt.TEXTROW - 2.5.
+            objtt.TEXTROW = objtt.TEXTROW + 14.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL + 5,objtt.TEXTROW,objtt.TEXTCOL,objtt.TEXTROW - 2.5,1).
+            objtt.TEXTROW = objtt.TEXTROW - 2.5.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL,objtt.TEXTROW,objtt.TEXTCOL - 2,objtt.TEXTROW - 5,1).
+            objtt.TEXTROW = objtt.TEXTROW - 5.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL - 2,objtt.TEXTROW,objtt.TEXTCOL,objtt.TEXTROW - 5,1).
+            objtt.TEXTROW = objtt.TEXTROW - 5.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL,objtt.TEXTROW,objtt.TEXTCOL + 5,objtt.TEXTROW - 2.5,1).
+            objtt.TEXTROW = objtt.TEXTROW - 2.5.
+   
+            objtt.TEXTROW = objtt.TEXTROW + 5.   /*Gå upp 5 punkter och gör en till*/
+   
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL + 5,objtt.TEXTROW,objtt.TEXTCOL + 10,objtt.TEXTROW - 2.5,1).
+            objtt.TEXTROW = objtt.TEXTROW - 2.5.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL + 10,objtt.TEXTROW,objtt.TEXTCOL + 12,objtt.TEXTROW - 5,1).
+            objtt.TEXTROW = objtt.TEXTROW - 5.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL + 12,objtt.TEXTROW,objtt.TEXTCOL + 10,objtt.TEXTROW - 5,1).
+            objtt.TEXTROW = objtt.TEXTROW - 5.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL + 10,objtt.TEXTROW,objtt.TEXTCOL + 5,objtt.TEXTROW - 2.5,1).
+            objtt.TEXTROW = objtt.TEXTROW - 2.5.
+            objtt.TEXTROW = objtt.TEXTROW + 14.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL + 5,objtt.TEXTROW,objtt.TEXTCOL,objtt.TEXTROW - 2.5,1).
+            objtt.TEXTROW = objtt.TEXTROW - 2.5.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL,objtt.TEXTROW,objtt.TEXTCOL - 2,objtt.TEXTROW - 5,1).
+            objtt.TEXTROW = objtt.TEXTROW - 5.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL - 2,objtt.TEXTROW,objtt.TEXTCOL,objtt.TEXTROW - 5,1).
+            objtt.TEXTROW = objtt.TEXTROW - 5.
+            RUN pdf_line_dec IN h_PDFinc ("Spdf",objtt.TEXTCOL,objtt.TEXTROW,objtt.TEXTCOL + 5,objtt.TEXTROW - 2.5,1).
+            objtt.TEXTROW = objtt.TEXTROW - 2.5.
+            ASSIGN
+            objtt.OWIDTH = 16
+            objtt.OHEIGHT = 14.
+         END.
+         WHEN "mot" THEN DO:
+            objtt.TEXTROW = objtt.TEXTROW - 20.
+                                    /*Stream,From X,From Y,Width,Height,Weight*/
+            RUN pdf_rect2 IN h_PDFinc ("Spdf", objtt.TEXTCOL,objtt.TEXTROW,10,20,1).
+            ASSIGN
+            objtt.OWIDTH = 12
+            objtt.OHEIGHT = 20.
+         END.
+         WHEN "skap" THEN DO:
+            IF startcenter = TRUE THEN DO:
+               ASSIGN
+               objtt.TEXTROW = 400
+               objtt.TEXTCOL = 200.
+            END.
+            CASE objtt.SKAPSTORLEK:
+               WHEN ? THEN objtt.SKAPSTORLEK = 120.
+               WHEN 2 THEN DO: 
+                  ASSIGN
+                  objtt.SIZEWIDTH = 160
+                  objtt.SIZEHEIGHT  = 100.                  
+               END.               
+            END CASE.
+            IF objtt.SKAPSTORLEK = 2 THEN DO:
+               /*Stream,From X,From Y,Width,Height,Weight*/
+               RUN pdf_rect2 IN h_PDFinc ("Spdf", objtt.TEXTCOL,objtt.TEXTROW,objtt.SIZEWIDTH,objtt.SIZEHEIGHT,1).
+               RUN pdf_rect2 IN h_PDFinc ("Spdf", objtt.TEXTCOL,objtt.TEXTROW,objtt.SIZEWIDTH / 2,objtt.SIZEHEIGHT - 20,1).
+               RUN pdf_rect2 IN h_PDFinc ("Spdf", objtt.TEXTCOL + objtt.SIZEWIDTH / 2,objtt.TEXTROW,objtt.SIZEWIDTH / 2,objtt.SIZEHEIGHT - 20,1).
+               ASSIGN
+               objtt.TEXTCOL = objtt.TEXTCOL - 5
+               objtt.TEXTROW = objtt.TEXTROW + objtt.SIZEHEIGHT.
+
+            END.                  
+         END.
+         WHEN "and" THEN DO:
+            objtt.TEXTCOL = objtt.TEXTCOL + 5.
+            RUN pdf_circle IN h_PDFinc ("Spdf",objtt.TEXTCOL,objtt.TEXTROW,5,1).
+            ASSIGN
+            objtt.TEXTCOL = objtt.TEXTCOL - 5
+            objtt.TEXTROW = objtt.TEXTROW - 5
+            objtt.OWIDTH = 10
+            objtt.OHEIGHT = 10. 
+         END.
+      END CASE.
+      objtt.TEXTROWCOUNT = 0.
+   END.
+   startcenter = FALSE.
+END PROCEDURE.
+
+PROCEDURE start_pdf_UI :   
+   RUN pdf_new IN h_PDFinc ("Spdf",utfil).
+   RUN pdf_set_LEFTMARGIN IN h_PDFinc ("Spdf",40).
+   /* Dokument Information */ 
+   RUN pdf_set_info IN h_PDFinc ("Spdf","Author","Elpool i Umeå AB").
+   RUN pdf_set_info IN h_PDFinc ("Spdf","Subject","Enlinjeschema").
+   RUN pdf_set_info IN h_PDFinc ("Spdf","Title","Enlinjeschema").
+   RUN pdf_set_info IN h_PDFinc ("Spdf","Keywords","Enlinjeschema").
+   RUN pdf_set_info IN h_PDFinc ("Spdf","Creator","PDFinclude").
+   RUN pdf_set_info IN h_PDFinc ("Spdf","Producer","ENLINJEPDF2.P").
+   /*Skapa ny sida*/
+   RUN new_page_UI. 
+   CREATE objtt.
+   ASSIGN
+   objtt.NUM            = 1        
+   objtt.OWIDTH         = 0       
+   objtt.OHEIGHT        = 0
+   objtt.OTYPE          = ""
+   objtt.SKAPSTORLEK    = 0
+   objtt.OFONT          = "Courier"
+   objtt.TEXTSIZE       = 8
+   objtt.OTEXT          = FALSE
+   objtt.TEXTROWCOUNT   = 0
+   objtt.TEXTROW        = starttextrow
+   objtt.TEXTCOL        = starttextcolumn
+   objtt.SIZEWIDTH      = 0     
+   objtt.SIZEHEIGHT     = 0
+   objtt.DIRECTION      = "n".
+
+   FIND FIRST objtt NO-LOCK NO-ERROR.
+   
+   RUN set_header_UI (INPUT "Enlinjeschema").
+   
+   ASSIGN 
+   objtt.OTYPE = "skap"
+   objtt.SKAPSTORLEK = 2
+   objtt.DIRECTION = "u".
+   RUN set_object_UI.   
+   RUN set_verticalline (INPUT 20,INPUT 1).
+  
+/*    RUN set_textrot_UI (INPUT "500 kWA"). */
+   
+   
+   
+/*    RUN set_verticalline (INPUT 20,INPUT 1). */
+/*    RUN set_textrot_UI (INPUT "h-lina").     */
+/*    RUN set_verticalline (INPUT 20,INPUT 1). */
+   
+
+/*    DEFINE VARIABLE j AS INTEGER NO-UNDO. */
+/*    DEFINE VARIABLE k AS INTEGER NO-UNDO. */
+/*    j = pdf_textX ("Spdf"). */
+/*    k = pdf_textY ("Spdf"). */
+/*    j = pdf_GraphicX ("Spdf").            */
+/*    k = pdf_GraphicY ("Spdf").            */
+/*    MESSAGE j k VIEW-AS ALERT-BOX.        */
+
+END.

@@ -1,0 +1,513 @@
+/*BERTRPAPP.P*/
+{STARTFORAPP.I}
+{LEVTRPTEMP.I}
+{BEREDNINGTEMP.I}
+{DEPATEMP.I}
+{BESTSTATTEMP.I}
+{DEPSEKTEMP.I}
+{KUNDNRTEMP.I}
+{PERSONALTEMP.I}
+&Scoped-define NEW   
+&Scoped-define SHARED
+{ANVTEMPS.I}
+{LEVKONTAKTTEMP.I}
+{ANMARKTEMP.I}
+PROCEDURE attestera_UI :
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omradevar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER datvar AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER meddelande AS CHARACTER NO-UNDO.   
+   FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = aonrvar AND
+   BEREDNING.OMRADE = omradevar NO-LOCK NO-ERROR.   
+   FIND FIRST TIDSLAGE WHERE TIDSLAGE.TIDLAGE = "ATTEST" NO-LOCK NO-ERROR.
+   FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.IDTIDLAG = TIDSLAGE.IDTIDLAG AND 
+   AONRTIDLAGE.DATUM1 = datvar AND AONRTIDLAGE.AONR = BEREDNING.AONR AND
+   AONRTIDLAGE.DELNR = BEREDNING.DELNR NO-LOCK NO-ERROR.
+   IF AVAILABLE AONRTIDLAGE THEN DO:
+      IF AONRTIDLAGE.DATUM2 = ? THEN DO:
+         meddelande = "Denna beredning är ej attesterad.".
+      END.
+      ELSE DO:
+         meddelande = "".
+      END.         
+   END.
+   ELSE DO:
+      meddelande = "Denna beredning är ej begärd attest för.".
+   END.
+END PROCEDURE.
+
+PROCEDURE bestnr_UI :
+   DEFINE INPUT PARAMETER omrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER bernrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER nyttnr AS INTEGER NO-UNDO.
+   FIND LAST LEVTRP2 WHERE LEVTRP2.OMRADE = omrvar AND
+   LEVTRP2.BERNR = bernrvar USE-INDEX NR NO-LOCK NO-ERROR.             
+   IF AVAILABLE LEVTRP2 THEN nyttnr = LEVTRP2.BESTNR + 1.
+   ELSE nyttnr = 1.
+END PROCEDURE.
+
+PROCEDURE kolltrp_UI :
+   DEFINE INPUT PARAMETER kollvald_lev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kollbernr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER kollomr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kollberbestnr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   FOR EACH LEVTRP WHERE LEVTRP.BERNR = kollbernr AND 
+   LEVTRP.OMRADE = kollomr AND LEVTRP.BERBESTNR = kollberbestnr NO-LOCK:
+      IF kollvald_lev = LEVTRP.LEVKOD THEN.
+      ELSE DO:
+         CREATE felmeddtemp.
+         felmeddtemp.FELMEDD = "Du har ett fel i ditt beställningsregister. Var god och kontakta Elpool 090-184540! Ange fel 1".
+         RETURN.
+      END.
+   
+   END.
+
+END PROCEDURE.
+
+PROCEDURE kolltrp2_UI :
+   DEFINE INPUT PARAMETER kollvald_lev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kollbernr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER kollomr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kollberbestnr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kollbestnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   FOR EACH LEVTRP WHERE LEVTRP.BERNR = kollbernr AND 
+   LEVTRP.OMRADE = kollomr AND LEVTRP.BERBESTNR = kollberbestnr NO-LOCK:
+      IF kollbestnr = LEVTRP.BESTNR THEN.
+      ELSE DO:
+         CREATE felmeddtemp.
+         felmeddtemp.FELMEDD = "Du har ett fel i ditt beställningsregister. Var god och kontakta Elpool 090-184540! Ange fel 2".
+         RETURN.
+      END.
+   
+   END.
+
+END PROCEDURE.
+
+PROCEDURE laddaanm_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR fastanmtemp.
+   EMPTY TEMP-TABLE fastanmtemp NO-ERROR. 
+   FOR EACH FASTANM WHERE FASTANM.PROGRAM = "INKOP" USE-INDEX OMRADE NO-LOCK:
+      CREATE fastanmtemp.
+      BUFFER-COPY FASTANM TO fastanmtemp.
+      fastanmtemp.FASTANVROW = ROWID(FASTANM).               
+   END.  
+END PROCEDURE.
+PROCEDURE laddatemptab_UI :
+   DEFINE INPUT PARAMETER kalkrow AS ROWID NO-UNDO.                 
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER datvar AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER klockansek AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER anvglob AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR beredningtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR levtrptemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR levtrp2temp.   
+   DEFINE OUTPUT PARAMETER TABLE FOR anvandartemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR personaltemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR depsektemp.
+   
+   DEFINE VARIABLE nyttnr AS INTEGER NO-UNDO.
+
+   EMPTY TEMP-TABLE beredningtemp NO-ERROR. 
+   EMPTY TEMP-TABLE levtrptemp NO-ERROR. 
+   EMPTY TEMP-TABLE levtrp2temp NO-ERROR.    
+   EMPTY TEMP-TABLE anvandartemp NO-ERROR. 
+   EMPTY TEMP-TABLE personaltemp NO-ERROR. 
+   /*Guru.Konstanter:globanv = anvglob.*/
+   FIND FIRST BEREDNING WHERE ROWID(BEREDNING) = kalkrow NO-LOCK NO-ERROR.
+   FIND FIRST DEPA NO-LOCK NO-ERROR.
+   IF AVAILABLE BEREDNING THEN DO:
+      CREATE beredningtemp.
+      BUFFER-COPY BEREDNING TO beredningtemp.
+      /* fler best per dag*/
+      FOR EACH LEVTRP WHERE LEVTRP.BERNR = BEREDNING.BERNR AND
+      LEVTRP.OMRADE = BEREDNING.OMRADE AND 
+      INTEGER(SUBSTRING(LEVTRP.LEVERANS,1,15)) = INTEGER(datvar) AND
+      INTEGER(SUBSTRING(LEVTRP.LEVERANS,20,15)) = klockansek NO-LOCK:
+         FIND FIRST levtrptemp WHERE levtrptemp.BERNR = BEREDNING.BERNR AND
+         levtrptemp.OMRADE = BEREDNING.OMRADE AND levtrptemp.LEVKOD = LEVTRP.LEVKOD
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE levtrptemp THEN DO:
+            CREATE levtrptemp.
+         END.
+         BUFFER-COPY LEVTRP EXCEPT LEVTRP.LEVERANS TO levtrptemp.
+         IF INTEGER(SUBSTRING(LEVTRP.LEVERANS,1,15)) > INTEGER(SUBSTRING(levtrptemp.LEVERANS,1,15)) THEN levtrptemp.LEVERANS = LEVTRP.LEVERANS.
+         ELSE IF INTEGER(SUBSTRING(LEVTRP.LEVERANS,1,15)) = INTEGER(SUBSTRING(levtrptemp.LEVERANS,1,15)) AND 
+         INTEGER(SUBSTRING(LEVTRP.LEVERANS,20,15)) > INTEGER(SUBSTRING(levtrptemp.LEVERANS,20,15)) THEN levtrptemp.LEVERANS = LEVTRP.LEVERANS.         
+      END.
+      FOR EACH levtrptemp,
+      EACH LEVTRP2 WHERE LEVTRP2.OMRADE = levtrptemp.OMRADE AND
+      LEVTRP2.BERNR = levtrptemp.BERNR AND LEVTRP2.BESTNR = levtrptemp.BESTNR AND LEVTRP2.LEVKOD = levtrptemp.LEVKOD NO-LOCK: 
+         CREATE levtrp2temp.
+         BUFFER-COPY LEVTRP2 TO levtrp2temp.
+      END.
+      /*
+      FIND FIRST LEVTRP WHERE LEVTRP.BERNR = BEREDNING.BERNR AND LEVTRP.LEVKOD = vald_lev
+      AND LEVTRP.OMRADE = BEREDNING.OMRADE USE-INDEX BERNR2 NO-LOCK NO-ERROR.
+      IF AVAILABLE LEVTRP THEN DO:
+         CREATE levtrptemp.
+         BUFFER-COPY LEVTRP TO levtrptemp.
+         FIND FIRST DEPA WHERE DEPA.DEP-NR = LEVTRP.DEP-NR NO-LOCK NO-ERROR.
+         IF globforetag = "ELPA" OR globforetag = "GKAL" {GLOBVES.I} THEN DO:          
+            FIND FIRST LEVTRP2 WHERE LEVTRP2.OMRADE = BEREDNING.OMRADE AND
+            LEVTRP2.BERNR = BEREDNING.BERNR AND LEVTRP2.LEVKOD = vald_lev AND
+            LEVTRP2.DATUM = datvar USE-INDEX BERED NO-LOCK NO-ERROR. 
+            IF NOT AVAILABLE LEVTRP2 THEN DO:                                         
+               FIND LAST LEVTRP2 WHERE LEVTRP2.OMRADE = BEREDNING.OMRADE AND
+               LEVTRP2.BERNR = BEREDNING.BERNR USE-INDEX NR NO-LOCK NO-ERROR.
+               IF AVAILABLE LEVTRP2 THEN DO:
+                  nyttnr = LEVTRP2.BESTNR + 1.
+                  CREATE levtrp2temp.               
+                  ASSIGN
+                  levtrp2temp.BERNR = BEREDNING.BERNR
+                  levtrp2temp.OMRADE = BEREDNING.OMRADE
+                  levtrp2temp.LEVKOD = vald_lev
+                  levtrp2temp.DATUM = datvar
+                  levtrp2temp.BESTNR = nyttnr
+                  levtrp2temp.BESTALLD = "Ej beställd".
+               END.   
+               ELSE DO:
+                  CREATE levtrp2temp.               
+                  ASSIGN
+                  levtrp2temp.BERNR = BEREDNING.BERNR
+                  levtrp2temp.OMRADE = BEREDNING.OMRADE
+                  levtrp2temp.LEVKOD = vald_lev
+                  levtrp2temp.DATUM = datvar
+                  levtrp2temp.BESTNR = 1
+                  levtrp2temp.BESTALLD = "Ej beställd"
+                  nyttnr = 1.
+               END.            
+            END.           
+            ELSE DO:
+               CREATE levtrp2temp.
+               BUFFER-COPY LEVTRP2 TO levtrp2temp.
+            END.
+         END.         
+      END.
+      ELSE DO:
+         IF globforetag = "NIKLAS" {GLOBVES.I} THEN DO:         
+            FIND FIRST DEPSEK WHERE DEPSEK.ANVANDARE = globanv NO-LOCK NO-ERROR.
+            IF AVAILABLE DEPSEK THEN DO:
+               CREATE depsektemp.
+               ASSIGN 
+               depsektemp.Dep-Nr    = DEPSEK.DEPNR
+               depsektemp.ANVANDARE = DEPSEK.ANVANDARE.                            
+            END.
+         END.
+         CREATE levtrptemp.
+         IF AVAILABLE BEREDNING THEN DO:
+            ASSIGN 
+            levtrptemp.BERNR = BEREDNING.BERNR
+            levtrptemp.OMRADE = BEREDNING.OMRADE.
+         END.   
+         ASSIGN 
+         levtrptemp.LEVKOD = vald_lev
+         levtrptemp.BESTALLD = "Ej beställd".
+         FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = vald_lev NO-LOCK NO-ERROR. 
+         IF globforetag = "ELPA" OR globforetag = "GKAL" {GLOBVES.I} THEN DO:       
+            FIND LAST LEVTRP2 WHERE LEVTRP2.OMRADE = BEREDNING.OMRADE AND
+            LEVTRP2.BERNR = BEREDNING.BERNR USE-INDEX NR NO-LOCK NO-ERROR.
+            IF AVAILABLE LEVTRP2 THEN DO:
+               nyttnr = LEVTRP2.BESTNR + 1.
+               CREATE levtrp2temp.            
+               ASSIGN
+               levtrp2temp.BERNR = BEREDNING.BERNR
+               levtrp2temp.OMRADE = BEREDNING.OMRADE
+               levtrp2temp.LEVKOD = vald_lev
+               levtrp2temp.DATUM = datvar
+               levtrp2temp.BESTNR = nyttnr
+               levtrp2temp.BESTALLD = "Ej beställd".
+            END.   
+            ELSE DO:
+               CREATE levtrp2temp.            
+               ASSIGN
+               levtrp2temp.BERNR = BEREDNING.BERNR
+               levtrp2temp.OMRADE = BEREDNING.OMRADE
+               levtrp2temp.LEVKOD = vald_lev
+               levtrp2temp.DATUM = datvar
+               levtrp2temp.BESTNR = 1
+               levtrp2temp.BESTALLD = "Ej beställd"
+               nyttnr = 1.
+            END.
+         END.   
+         IF LEVERANTOR.LEVNAMN = "Elektroskandia" THEN DO:
+            ASSIGN
+            levtrptemp.LEVERANS = "DATUM".            
+         END.
+         ELSE DO:
+            ASSIGN
+            levtrptemp.LEVERANS = "DATUM".            
+         END.   
+         FIND FIRST KUNDNR WHERE KUNDNR.DEP-NR = DEPA.DEP-NR AND KUNDNR.LEVKOD = LEVERANTOR.LEVKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE KUNDNR THEN DO:
+            CREATE kundnrtemp.
+            BUFFER-COPY KUNDNR TO kundnrtemp.
+         END.
+         FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = globanv NO-LOCK NO-ERROR.
+         IF AVAILABLE ANVANDARE THEN DO:
+            CREATE anvandartemp.
+            BUFFER-COPY ANVANDARE TO anvandartemp.
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE PERSONALTAB THEN DO:
+               CREATE personaltemp.
+               BUFFER-COPY PERSONALTAB TO personaltemp.            
+            END.          
+         END.         
+      END.
+      */
+      IF globforetag = "NIKLAS" {GLOBVES.I} THEN DO:         
+         FIND FIRST DEPSEK WHERE DEPSEK.ANVANDARE = globanv NO-LOCK NO-ERROR.
+         IF AVAILABLE DEPSEK THEN DO:
+            CREATE depsektemp.
+            ASSIGN 
+            depsektemp.Dep-Nr    = DEPSEK.DEPNR
+            depsektemp.ANVANDARE = DEPSEK.ANVANDARE.                            
+         END.
+      END.
+      /*
+      FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = globanv NO-LOCK NO-ERROR.
+      IF AVAILABLE ANVANDARE THEN DO:
+         CREATE anvandartemp.
+         BUFFER-COPY ANVANDARE TO anvandartemp.
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO:
+            CREATE personaltemp.
+            BUFFER-COPY PERSONALTAB TO personaltemp.            
+         END.          
+      END.  
+      FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = BEREDNING.ANVANDARE NO-LOCK NO-ERROR.
+      IF AVAILABLE ANVANDARE THEN DO:
+         CREATE anvandartemp.
+         BUFFER-COPY ANVANDARE TO anvandartemp.
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO:
+            CREATE personaltemp.
+            BUFFER-COPY PERSONALTAB TO personaltemp.            
+         END.          
+      END. 
+      */
+      FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = globanv NO-LOCK NO-ERROR.
+      IF AVAILABLE ANVANDARE THEN DO:
+         CREATE anvandartemp.
+         BUFFER-COPY ANVANDARE TO anvandartemp.
+      END.  
+      FIND FIRST anvandartemp WHERE anvandartemp.ANVANDARE = BEREDNING.ANVANDARE NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE anvandartemp THEN DO:
+         FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = BEREDNING.ANVANDARE NO-LOCK NO-ERROR.
+         IF AVAILABLE ANVANDARE THEN DO:
+            CREATE anvandartemp.
+            BUFFER-COPY ANVANDARE TO anvandartemp.
+         END.          
+      END.
+      FOR EACH PERSONALTAB NO-LOCK:
+         CREATE personaltemp.
+         BUFFER-COPY PERSONALTAB TO personaltemp.            
+      END. 
+   END.  
+  
+END PROCEDURE.
+
+PROCEDURE hmtaonrrec_UI:
+   DEFINE INPUT PARAMETER kalkrow AS ROWID NO-UNDO.
+   DEFINE OUTPUT PARAMETER aonrrec AS RECID NO-UNDO.
+   FIND FIRST BEREDNING WHERE ROWID(BEREDNING) = kalkrow NO-LOCK NO-ERROR.
+   IF AVAILABLE BEREDNING THEN DO:
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = BEREDNING.AONR AND 
+      AONRTAB.DELNR = BEREDNING.DELNR NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DO:
+         ASSIGN aonrrec = RECID(AONRTAB).
+      END.
+   END.
+
+END PROCEDURE.
+
+PROCEDURE spara_UI :
+   DEFINE INPUT PARAMETER TABLE FOR elevtrptemp.
+   DEFINE INPUT PARAMETER TABLE FOR elevtrp2temp.
+   DEFINE INPUT PARAMETER TABLE FOR ebeststattemp.
+   FIND FIRST elevtrptemp NO-LOCK NO-ERROR.
+   /* fler best per dag*/
+   IF AVAILABLE elevtrptemp THEN DO TRANSACTION:
+      FIND FIRST LEVTRP WHERE LEVTRP.LEVKOD = elevtrptemp.LEVKOD AND LEVTRP.BERNR = elevtrptemp.BERNR
+      AND LEVTRP.OMRADE = elevtrptemp.OMRADE AND LEVTRP.LEVERANS =  elevtrptemp.LEVERANS
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE LEVTRP THEN DO:
+         CREATE LEVTRP.
+      END.
+      BUFFER-COPY elevtrptemp TO LEVTRP.
+   END.
+   RELEASE LEVTRP NO-ERROR.
+   /* fler best per dag*/
+   FIND FIRST elevtrp2temp NO-LOCK NO-ERROR.
+   IF AVAILABLE elevtrp2temp THEN DO TRANSACTION:
+      FIND FIRST LEVTRP2 WHERE LEVTRP2.OMRADE = elevtrp2temp.OMRADE AND 
+      LEVTRP2.BERNR = elevtrp2temp.BERNR AND
+      LEVTRP2.DATUM = elevtrp2temp.DATUM AND
+      LEVTRP2.LEVKOD = elevtrp2temp.LEVKOD AND
+      LEVTRP2.BESTNR = elevtrp2temp.BESTNR 
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE LEVTRP2 THEN DO:
+         CREATE LEVTRP2.
+      END.
+      BUFFER-COPY elevtrp2temp TO LEVTRP2.
+   END.
+   RELEASE LEVTRP2 NO-ERROR.
+   /* fler best per dag*/
+   FIND FIRST ebeststattemp NO-LOCK NO-ERROR.
+   IF AVAILABLE ebeststattemp THEN DO TRANSACTION:
+      /*
+      FIND FIRST BESTSTAT WHERE BESTSTAT.BERNR = ebeststattemp.BERNR AND 
+      BESTSTAT.DATUM = ebeststattemp.DATUM AND BESTSTAT.TID = ebeststattemp.TID EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE BESTSTAT THEN DO:
+      
+         CREATE BESTSTAT.
+      END.
+      */
+      CREATE BESTSTAT.
+      BUFFER-COPY ebeststattemp TO BESTSTAT.         
+   END.
+   RELEASE BESTSTAT NO-ERROR.
+   EMPTY TEMP-TABLE elevtrptemp NO-ERROR. 
+   EMPTY TEMP-TABLE elevtrp2temp NO-ERROR. 
+   EMPTY TEMP-TABLE ebeststattemp NO-ERROR. 
+END PROCEDURE.
+
+PROCEDURE spara2_UI :
+   DEFINE INPUT PARAMETER TABLE FOR elevtrptemp.
+   DEFINE INPUT PARAMETER TABLE FOR elevtrp2temp.
+   DEFINE INPUT PARAMETER TABLE FOR ebeststattemp.
+   FIND FIRST elevtrptemp NO-LOCK NO-ERROR.
+   FOR EACH elevtrptemp:
+      DO TRANSACTION:
+         /* fler best per dag*/
+         FIND FIRST LEVTRP WHERE LEVTRP.LEVKOD = elevtrptemp.LEVKOD AND LEVTRP.BERNR = elevtrptemp.BERNR
+         AND LEVTRP.OMRADE = elevtrptemp.OMRADE AND LEVTRP.LEVERANS =  elevtrptemp.LEVERANS
+         USE-INDEX BERNR2 EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE LEVTRP THEN DO:
+            CREATE LEVTRP.
+         END.
+         BUFFER-COPY elevtrptemp TO LEVTRP.
+         RELEASE LEVTRP NO-ERROR.
+      END.
+   END.      
+   FOR EACH elevtrp2temp:
+      DO TRANSACTION:
+         /* fler best per dag*/
+         FIND FIRST LEVTRP2 WHERE LEVTRP2.OMRADE = elevtrp2temp.OMRADE AND 
+         LEVTRP2.BERNR = elevtrp2temp.BERNR AND
+         LEVTRP2.DATUM = elevtrp2temp.DATUM AND
+         LEVTRP2.LEVKOD = elevtrp2temp.LEVKOD AND
+         LEVTRP2.BESTNR = elevtrp2temp.BESTNR 
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE LEVTRP2 THEN DO:
+            CREATE LEVTRP2.
+         END.
+         BUFFER-COPY elevtrp2temp TO LEVTRP2.
+         RELEASE LEVTRP2 NO-ERROR.
+      END.
+   END.      
+   FOR EACH ebeststattemp:
+      DO TRANSACTION:
+         /* fler best per dag*/
+         /*FIND FIRST BESTSTAT WHERE BESTSTAT.BERNR = ebeststattemp.BERNR AND 
+         BESTSTAT.DATUM = ebeststattemp.DATUM AND BESTSTAT.TID = ebeststattemp.TID EXCLUSIVE-LOCK NO-ERROR.         */
+         FIND FIRST BESTSTAT WHERE BESTSTAT.BERNR = ebeststattemp.BERNR AND BESTSTAT.OMRADE = ebeststattemp.OMRADE AND
+         BESTSTAT.LEVKOD = ebeststattemp.LEVKOD AND
+         BESTSTAT.DATUM = ebeststattemp.DATUM AND BESTSTAT.TID = ebeststattemp.TID EXCLUSIVE-LOCK NO-ERROR.        
+         IF NOT AVAILABLE BESTSTAT THEN DO:
+            CREATE BESTSTAT.
+         END.
+
+         BUFFER-COPY ebeststattemp TO BESTSTAT. 
+         RELEASE BESTSTAT NO-ERROR.
+      END.
+   END.   
+   EMPTY TEMP-TABLE elevtrptemp NO-ERROR. 
+   EMPTY TEMP-TABLE elevtrp2temp NO-ERROR. 
+   EMPTY TEMP-TABLE ebeststattemp NO-ERROR. 
+END PROCEDURE.
+
+PROCEDURE dellevkontakt_UI :
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kontaktvar AS CHARACTER NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST LEVKONTAKT WHERE LEVKONTAKT.LEVKOD = vald_lev AND
+      LEVKONTAKT.LEVKONTAKT = kontaktvar EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE LEVKONTAKT THEN DELETE LEVKONTAKT.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE skapdepsek_UI :
+   DEFINE INPUT PARAMETER depanr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER anvglob AS CHARACTER NO-UNDO.
+
+   /*Guru.Konstanter:globanv = anvglob.*/
+   DO TRANSACTION:
+      FIND FIRST DEPSEK WHERE DEPSEK.ANVANDARE = globanv EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE DEPSEK THEN DO:
+         ASSIGN DEPSEK.DEPNR = depanr.
+      END.
+      ELSE DO:
+         CREATE DEPSEK.
+         ASSIGN
+         DEPSEK.ANVANDARE = globanv
+         DEPSEK.DEPNR = depanr.
+      END.
+   END.
+   RELEASE DEPSEK NO-ERROR.
+END PROCEDURE.
+
+
+PROCEDURE levk_UI :   
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR elevkontakttemp.
+   FIND FIRST elevkontakttemp NO-ERROR.
+   IF AVAILABLE elevkontakttemp THEN DO TRANSACTION:      
+      CREATE LEVKONTAKT.
+      ASSIGN
+      LEVKONTAKT.LEVKOD = vald_lev
+      LEVKONTAKT.LEVKONTAKT = elevkontakttemp.LEVKONTAKT
+      LEVKONTAKT.LEVADR = elevkontakttemp.LEVADR
+      LEVKONTAKT.LEVTEL = elevkontakttemp.LEVTEL         
+      LEVKONTAKT.LEVPNR = elevkontakttemp.LEVPNR 
+      LEVKONTAKT.LEVORT = elevkontakttemp.LEVORT.               
+   END.
+   EMPTY TEMP-TABLE elevkontakttemp NO-ERROR. 
+   RELEASE LEVKONTAKT NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE hamtlev_UI :
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valbernr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.   
+   FIND FIRST BETFRIA WHERE BETFRIA.FAKTTEXT = valomrade AND
+   BETFRIA.BETNR = valbernr NO-LOCK NO-ERROR. 
+   IF AVAILABLE BETFRIA THEN vald_lev = BETFRIA.TYP.         
+   ELSE vald_lev = "".
+END PROCEDURE.
+
+PROCEDURE hmtplib_UI :
+   DEFINE INPUT PARAMETER vaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER plled AS CHARACTER NO-UNDO.      
+   ASSIGN
+   plled = "".
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = vaonr AND AONRTAB.DELNR = vdelnr  NO-LOCK NO-ERROR.
+   IF AVAILABLE AONRTAB THEN DO:
+        plled =  AONRTAB.UTFARDAT.
+   END.
+
+END PROCEDURE.
+
+PROCEDURE kollaha_UI :
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER kah AS LOGICAL NO-UNDO.      
+   ASSIGN
+   kah = FALSE.
+   IF ganv = "M22537" OR ganv = "P12110" OR ganv = "P15462" OR ganv = "LEIAKR" OR ganv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79) THEN kah = TRUE.
+   
+END PROCEDURE.

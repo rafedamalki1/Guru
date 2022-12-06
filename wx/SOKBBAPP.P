@@ -1,0 +1,1207 @@
+/*SOKBBAPP.P*/
+
+
+
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.         
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE fnamn LIKE PERSONALTAB.FORNAMN NO-UNDO.
+DEFINE VARIABLE enamn LIKE PERSONALTAB.EFTERNAMN NO-UNDO.
+DEFINE VARIABLE ednum3 AS INTEGER NO-UNDO. 
+DEFINE VARIABLE breddantal AS INTEGER NO-UNDO.
+DEFINE VARIABLE sidmax AS INTEGER NO-UNDO.
+DEFINE VARIABLE aktuellsidlangd AS INTEGER NO-UNDO.
+DEFINE VARIABLE utnr AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE bredd AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE nrcol AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE sokdag AS DATE NO-UNDO.
+DEFINE VARIABLE krullpv AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE krullph AS CHARACTER  NO-UNDO.
+sidmax = 950.
+krullpv = "~{".
+krullph = "}".
+DEFINE BUFFER persbuff FOR PERSONALTAB.
+DEFINE TEMP-TABLE tiduttemp NO-UNDO
+   FIELD UT AS CHARACTER FORMAT "X(132)"
+   FIELD BOTYP AS CHARACTER 
+   FIELD KUNDNR AS INTEGER
+   INDEX BOTYP BOTYP KUNDNR.
+DEFINE TEMP-TABLE tidut NO-UNDO
+FIELD UT AS CHARACTER FORMAT "X(132)". 
+DEFINE TEMP-TABLE finnstemp NO-UNDO
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD HUSEGENSKAP AS CHARACTER
+   FIELD SVAR        AS LOGICAL INITIAL YES
+   FIELD OBLIGA      AS LOGICAL
+   INDEX HUS AS PRIMARY HUSEGENSKAP.
+DEFINE TEMP-TABLE kravtemp NO-UNDO LIKE finnstemp.
+DEFINE TEMP-TABLE utkundobjtemp NO-UNDO
+   FIELD KOPPLING AS CHARACTER
+   FIELD VAD         AS INTEGER
+   FIELD NAMN        AS CHARACTER
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD VEMSKRAV    AS CHARACTER
+   FIELD BOTYP       AS CHARACTER
+   FIELD POSTER      AS CHARACTER  EXTENT 21    
+   FIELD OMRADE      AS CHARACTER
+   FIELD PRIS        AS DECIMAL
+   FIELD KUNDNR      AS INTEGER
+   FIELD MAXPRISVILLA AS DECIMAL
+   FIELD MINPRISVILLA AS DECIMAL
+   FIELD MAXPRISBO    AS DECIMAL
+   FIELD MINPRISBO    AS DECIMAL
+   FIELD MAXBOVILLA   AS DECIMAL
+   FIELD MINBOVILLA   AS DECIMAL
+   FIELD MAXBOBO      AS DECIMAL
+   FIELD MINBOBO      AS DECIMAL
+   FIELD MAXRUM       AS DECIMAL
+   FIELD MINRUM       AS DECIMAL
+   FIELD ANTALVIS     AS DECIMAL
+   FIELD BIYTA        AS DECIMAL
+   FIELD BOAREA       AS DECIMAL
+   FIELD MANAVG       AS DECIMAL
+   FIELD POOLPRIS     AS DECIMAL
+   FIELD RUM          AS DECIMAL
+   FIELD RUM2         AS DECIMAL
+   FIELD SOVRUM       AS DECIMAL
+   FIELD TOMTYTA      AS DECIMAL
+   FIELD TOTYTA       AS DECIMAL
+   FIELD STADSDEL     AS CHARACTER
+   INDEX VAD IS PRIMARY VAD
+   INDEX KOPPLING KOPPLING
+   INDEX KUNDNR KUNDNR
+   INDEX BOTYP BOTYP OMRADE KUNDNR .
+DEFINE TEMP-TABLE utrubriktemp NO-UNDO
+   FIELD KUNDSORT AS INTEGER
+   FIELD KOPPLING AS CHARACTER  /*STADSDEL + BOTYP*/ 
+   FIELD BOTYPST AS CHARACTER     /*BOTYP + STADSDELENS NAMN*/
+   FIELD BOTYP AS CHARACTER
+   INDEX KOP IS PRIMARY KOPPLING
+   INDEX BOTYPST KUNDSORT BOTYPST. 
+DEFINE  TEMP-TABLE utrubrik1temp NO-UNDO
+   FIELD KOPPLING AS CHARACTER  /*STADSDEL + BOTYP*/   
+   FIELD BOTYP    AS CHARACTER     
+   FIELD RUBRIK    AS CHARACTER  EXTENT 21    
+   INDEX KOP IS PRIMARY KOPPLING
+   INDEX BOTYP BOTYP.
+DEFINE TEMP-TABLE utrubrik2temp NO-UNDO
+   FIELD KOPPLING AS CHARACTER   /*STADSDEL + BOTYP*/
+   FIELD TKR      AS CHARACTER
+   FIELD AREA1    AS CHARACTER
+   FIELD AREA2    AS CHARACTER
+   FIELD ARTAL    AS CHARACTER
+   FIELD MAKLARE  AS CHARACTER
+   FIELD AVGIFT   AS CHARACTER
+   FIELD AREA3    AS CHARACTER
+   FIELD AREA4    AS CHARACTER   
+   INDEX KOP IS PRIMARY KOPPLING.
+RUN ZEEKPATH.P.
+PROCEDURE sidbryt_UI :
+   DEFINE INPUT  PARAMETER sidtill AS INTEGER    NO-UNDO.
+   IF sidtill = 0 THEN RUN startdiv_UI (INPUT "FIRSTPAGE"). 
+   aktuellsidlangd = aktuellsidlangd + sidtill.
+   IF sidmax > aktuellsidlangd THEN RETURN.
+   RUN slutdiv_UI.
+   aktuellsidlangd = sidtill.
+   RUN startdiv_UI (INPUT "PAGE"). 
+END PROCEDURE.
+PROCEDURE matcbstart_UI :
+   RUN del_UI.   
+END PROCEDURE.
+PROCEDURE matcbbbsok_UI :
+   DEFINE INPUT PARAMETER alltma AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vad AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER uppdat AS LOGICAL NO-UNDO.
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE PERSONALTAB THEN RETURN.
+   RUN huvud_UI (INPUT PERSONALTAB.PERSONALKOD).
+   FIND LAST POLTRAFF WHERE POLTRAFF.PERSONALKOD = pkod AND 
+   POLTRAFF.TYP = vad NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE POLTRAFF THEN DO TRANSACTION:
+      CREATE POLTRAFF.
+      ASSIGN
+      POLTRAFF.PERSONALKOD = pkod
+      POLTRAFF.TYP = vad
+      POLTRAFF.DATUM = TODAY - 365.
+   END.
+   FIND CURRENT POLTRAFF NO-LOCK.
+   sokdag = POLTRAFF.DATUM.
+   RUN bbsokm_UI (INPUT alltma,INPUT pkod).     
+   IF uppdat = TRUE THEN DO TRANSACTION:
+      FIND CURRENT POLTRAFF EXCLUSIVE-LOCK.
+      POLTRAFF.DATUM = TODAY. 
+   END.
+   FIND CURRENT POLTRAFF NO-LOCK.
+END PROCEDURE.
+PROCEDURE bbsokm_UI :
+   DEFINE INPUT PARAMETER alltma AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   OPEN QUERY bbq FOR EACH POLOBJ WHERE POLOBJ.PERSONALKOD = pkod NO-LOCK,
+   EACH OMRPERS WHERE OMRPERS.OMRADE = POLOBJ.STADSDEL AND OMRPERS.BOTYP = POLOBJ.BOTYP NO-LOCK,
+   EACH EXTRAPERS WHERE EXTRAPERS.PERSONALKOD = OMRPERS.PERSONALKOD AND EXTRAPERS.SOKLOG[2] = TRUE AND EXTRAPERS.SOKLOG[3] = FALSE AND 
+   EXTRAPERS.SOKDAT[1] > sokdag NO-LOCK,
+   EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = EXTRAPERS.PERSONALKOD NO-LOCK.
+   GET FIRST bbq  NO-LOCK.   
+   DO WHILE AVAILABLE(EXTRAPERS):                   
+      IF pkod = PERSONALTAB.PERSONALKOD THEN musz = TRUE.                  
+      IF alltma = TRUE THEN DO:
+         IF musz = FALSE THEN RUN vilkharkoll_UI.               
+      END.
+      IF musz = FALSE THEN DO:                  
+         RUN kravkollsb_UI (INPUT pkod,INPUT EXTRAPERS.PERSONALKOD).            
+      END.
+      IF musz = FALSE THEN DO:                  
+         RUN skapapostbs_UI (INPUT pkod,INPUT EXTRAPERS.PERSONALKOD).            
+      END.
+      musz = FALSE.
+      GET NEXT bbq  NO-LOCK.           
+   END.         
+   
+END PROCEDURE.
+PROCEDURE skapapostbs_UI:
+   
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER sokkod AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE vadvar AS INTEGER NO-UNDO.
+   RUN huvud_UI (INPUT pkod).
+   CREATE utkundobjtemp.
+   ASSIGN
+   utkundobjtemp.KOPPLING = OMRPERS.OMRADE + OMRPERS.BOTYP + pkod
+   utkundobjtemp.KUNDNR = INTEGER(sokkod)
+   utkundobjtemp.NAMN   = fnamn + " " + enamn
+   utkundobjtemp.PERSONALKOD = pkod
+   utkundobjtemp.VEMSKRAV    = sokkod   
+   utkundobjtemp.MAXPRISVILLA = PERSONALTAB.VPRIS
+   utkundobjtemp.MINPRISVILLA = PERSONALTAB.MINPRISVI
+   utkundobjtemp.MAXPRISBO    = PERSONALTAB.BPRIS
+   utkundobjtemp.MINPRISBO    = PERSONALTAB.MINPRISBO
+   utkundobjtemp.MAXBOVILLA   = PERSONALTAB.MAXBOVI
+   utkundobjtemp.MINBOVILLA   = PERSONALTAB.BOAREA
+   utkundobjtemp.MAXBOBO      = PERSONALTAB.MAXBOBO
+   utkundobjtemp.MINBOBO      = PERSONALTAB.MINBOBO
+   utkundobjtemp.MAXRUM       = PERSONALTAB.RUM2
+   utkundobjtemp.MINRUM       = PERSONALTAB.RUM
+   utkundobjtemp.BOTYP        = OMRPERS.BOTYP
+   utkundobjtemp.OMRADE       = OMRPERS.OMRADE.        
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = OMRPERS.OMRADE NO-LOCK NO-ERROR.
+   IF utkundobjtemp.BOTYP = "BOSTADSRÄTTER" THEN DO:
+      ASSIGN
+      utkundobjtemp.POSTER[1] = CAPS(OMRADETAB.NAMN)
+      utkundobjtemp.POSTER[2] = STRING(PERSONALTAB.BPRIS)
+      utkundobjtemp.POSTER[3] = STRING(PERSONALTAB.RUM)
+      utkundobjtemp.POSTER[4] = STRING(PERSONALTAB.MINBOBO)
+      utkundobjtemp.POSTER[5] = sokkod
+      utkundobjtemp.VAD = 1.
+   END.
+   ELSE IF utkundobjtemp.BOTYP = "BRF-Radhus" THEN DO:
+      ASSIGN
+      utkundobjtemp.POSTER[1] = CAPS(OMRADETAB.NAMN)
+      utkundobjtemp.POSTER[2] = STRING(PERSONALTAB.BPRIS)
+      utkundobjtemp.POSTER[3] = STRING(PERSONALTAB.RUM)
+      utkundobjtemp.POSTER[4] = STRING(PERSONALTAB.MINBOBO)
+      utkundobjtemp.POSTER[5] = sokkod
+      utkundobjtemp.VAD = 2.
+   END.
+   ELSE IF utkundobjtemp.BOTYP = "HYRESRÄTTER" THEN DO:
+      ASSIGN
+      utkundobjtemp.POSTER[1] = CAPS(OMRADETAB.NAMN)
+      utkundobjtemp.POSTER[2] = STRING(PERSONALTAB.BPRIS)
+      utkundobjtemp.POSTER[3] = STRING(PERSONALTAB.RUM)
+      utkundobjtemp.POSTER[4] = STRING(PERSONALTAB.MINBOBO)
+      utkundobjtemp.POSTER[5] = sokkod
+      utkundobjtemp.VAD = 3.
+   END.
+   ELSE DO:
+      ASSIGN
+      utkundobjtemp.POSTER[1] = CAPS(OMRADETAB.NAMN)             
+      utkundobjtemp.POSTER[2] = STRING(PERSONALTAB.VPRIS)                 
+      utkundobjtemp.POSTER[3] = STRING(PERSONALTAB.BOAREA)                  
+      utkundobjtemp.POSTER[4] = sokkod
+      utkundobjtemp.VAD = 4.
+   END.
+   IF utkundobjtemp.VAD = 3 THEN DELETE utkundobjtemp.
+   ELSE IF utkundobjtemp.BOTYP = "Sökuppdrag" THEN DELETE utkundobjtemp.   
+   IF AVAILABLE utkundobjtemp THEN DO:
+      RUN rubrik_UI (INPUT "BSM", INPUT utkundobjtemp.OMRADE,INPUT utkundobjtemp.BOTYP,INPUT pkod,INPUT utkundobjtemp.VAD).
+   END.              
+   FIND FIRST kravtemp WHERE kravtemp.PERSONALKOD = sokkod NO-ERROR.
+   IF NOT AVAILABLE kravtemp THEN DO:
+      FOR EACH KRAVFINNS WHERE KRAVFINNS.PERSONALKOD = sokkod AND KRAVFINNS.KRAV-FINNS-ONSKA = 1 NO-LOCK.          
+         CREATE kravtemp.
+         BUFFER-COPY KRAVFINNS TO kravtemp.      
+      END.   
+   END.
+END PROCEDURE.
+PROCEDURE matcbsokbb_UI :
+   DEFINE INPUT PARAMETER alltma AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vad AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER uppdat AS LOGICAL NO-UNDO.
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE PERSONALTAB THEN RETURN.
+   RUN huvud_UI (INPUT PERSONALTAB.PERSONALKOD).
+   FIND LAST POLTRAFF WHERE POLTRAFF.PERSONALKOD = pkod AND 
+   POLTRAFF.TYP = vad NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE POLTRAFF THEN DO TRANSACTION:
+      CREATE POLTRAFF.
+      ASSIGN
+      POLTRAFF.PERSONALKOD = pkod
+      POLTRAFF.TYP = vad
+      POLTRAFF.DATUM = TODAY - 365.
+   END.
+   FIND CURRENT POLTRAFF NO-LOCK.
+   sokdag = POLTRAFF.DATUM.
+   RUN sokbbm_UI (INPUT alltma,INPUT pkod).     
+   IF uppdat = TRUE THEN DO TRANSACTION:
+      FIND CURRENT POLTRAFF EXCLUSIVE-LOCK.
+      POLTRAFF.DATUM = TODAY. 
+   END.
+   FIND CURRENT POLTRAFF NO-LOCK.
+END PROCEDURE.
+PROCEDURE sokbbm_UI :
+   DEFINE INPUT PARAMETER alltma AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   OPEN QUERY ompq FOR EACH OMRPERS WHERE OMRPERS.PERSONALKOD = pkod NO-LOCK,
+   EACH POLOBJ WHERE POLOBJ.STADSDEL = OMRPERS.OMRADE AND POLOBJ.BOTYP = OMRPERS.BOTYP AND POLOBJ.POOLEN = TRUE AND
+   POLOBJ.ANDATUM > sokdag NO-LOCK,
+   EACH EXTRAPERS WHERE EXTRAPERS.PERSONALKOD = POLOBJ.PERSONALKOD AND EXTRAPERS.SOKLOG[3] = FALSE NO-LOCK.
+   GET FIRST ompq  NO-LOCK.   
+   DO WHILE AVAILABLE(EXTRAPERS): 
+      IF pkod = POLOBJ.PERSONALKOD THEN musz = TRUE.                  
+      IF musz = FALSE THEN DO:
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pkod 
+         NO-LOCK NO-ERROR.
+      END.
+      IF alltma = TRUE THEN DO:
+         IF musz = FALSE THEN RUN vilkharkoll_UI.               
+      END.
+      IF musz = FALSE THEN DO:                  
+         RUN kravkollsb_UI (INPUT pkod,INPUT POLOBJ.PERSONALKOD).            
+      END.
+      IF musz = FALSE THEN DO:                  
+         RUN skapapostsb_UI (INPUT pkod,INPUT POLOBJ.PERSONALKOD).            
+      END.
+      musz = FALSE.
+      GET NEXT ompq  NO-LOCK.           
+   END.                
+END PROCEDURE.
+PROCEDURE kravkollsb_UI:
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER bbkod AS CHARACTER NO-UNDO.
+END PROCEDURE.
+PROCEDURE skapapostsb_UI:
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER bbkod AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE vadvar AS INTEGER NO-UNDO.
+   RUN huvud_UI (INPUT pkod).
+   CREATE utkundobjtemp.
+   ASSIGN
+   utkundobjtemp.KOPPLING = POLOBJ.STADSDEL + POLOBJ.BOTYP + PKOD
+   utkundobjtemp.KUNDNR = INTEGER(bbkod)
+   utkundobjtemp.NAMN   = fnamn + " " + enamn
+   utkundobjtemp.PERSONALKOD = pkod
+   utkundobjtemp.VEMSKRAV    = bbkod
+   utkundobjtemp.ANTALVIS    = EXTRAPERS.SOKINT[1]
+   utkundobjtemp.BIYTA       = POLOBJ.BIYTA 
+   utkundobjtemp.BOAREA      = POLOBJ.BOAREA 
+   utkundobjtemp.BOTYP       = POLOBJ.BOTYP 
+   utkundobjtemp.MANAVG  =  POLOBJ.MANAVG 
+   utkundobjtemp.POOLPRIS =  POLOBJ.POOLPRIS 
+   utkundobjtemp.RUM      = POLOBJ.RUM 
+   utkundobjtemp.RUM2     = POLOBJ.RUM2 
+   utkundobjtemp.SOVRUM   = POLOBJ.SOVRUM 
+   utkundobjtemp.STADSDEL = POLOBJ.STADSDEL 
+   utkundobjtemp.TOMTYTA  = POLOBJ.TOMTYTA 
+   utkundobjtemp.TOTYTA   = POLOBJ.TOTYTA
+   utkundobjtemp.OMRADE   = POLOBJ.OMRADE.      
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = POLOBJ.OMRADE NO-LOCK NO-ERROR.
+   IF utkundobjtemp.BOTYP = "BOSTADSRÄTTER" THEN DO:
+      ASSIGN
+      utkundobjtemp.POSTER[1] = CAPS(OMRADETAB.NAMN)
+      utkundobjtemp.POSTER[2] = STRING(POLOBJ.POOLPRIS)
+      utkundobjtemp.POSTER[3] = STRING(POLOBJ.RUM)
+      utkundobjtemp.POSTER[4] = STRING(POLOBJ.BOAREA)
+      utkundobjtemp.POSTER[5] = STRING(POLOBJ.MANAVG)
+      utkundobjtemp.POSTER[6] = STRING(POLOBJ.BYGGAR)
+      utkundobjtemp.POSTER[7] = STRING(EXTRAPERS.SOKINT[1])
+      utkundobjtemp.POSTER[9] = STRING(EXTRAPERS.SOKLOG[4],"Ja/Nej")
+      utkundobjtemp.POSTER[8] = bbkod
+      utkundobjtemp.VAD = 1.
+   END.
+   ELSE IF utkundobjtemp.BOTYP = "BRF-Radhus" THEN DO:
+      ASSIGN
+      utkundobjtemp.POSTER[1] = CAPS(OMRADETAB.NAMN)
+      utkundobjtemp.POSTER[2] = STRING(POLOBJ.POOLPRIS)
+      utkundobjtemp.POSTER[3] = STRING(POLOBJ.RUM)
+      utkundobjtemp.POSTER[4] = STRING(POLOBJ.BOAREA)
+      utkundobjtemp.POSTER[5] = STRING(POLOBJ.MANAVG)
+      utkundobjtemp.POSTER[6] = STRING(POLOBJ.BYGGAR)
+      utkundobjtemp.POSTER[7] = STRING(EXTRAPERS.SOKINT[1])
+      utkundobjtemp.POSTER[9] = STRING(EXTRAPERS.SOKLOG[4],"Ja/Nej")
+      utkundobjtemp.POSTER[8] = bbkod
+      utkundobjtemp.VAD = 2.
+   END.
+   ELSE IF utkundobjtemp.BOTYP = "HYRESRÄTTER" THEN DO:
+      ASSIGN
+      utkundobjtemp.POSTER[1] = CAPS(OMRADETAB.NAMN)
+      utkundobjtemp.POSTER[2] = STRING(POLOBJ.POOLPRIS)
+      utkundobjtemp.POSTER[3] = STRING(POLOBJ.RUM)
+      utkundobjtemp.POSTER[4] = STRING(POLOBJ.BOAREA)
+      utkundobjtemp.POSTER[5] = STRING(POLOBJ.MANAVG)
+      utkundobjtemp.POSTER[6] = STRING(POLOBJ.BYGGAR)
+      utkundobjtemp.POSTER[7] = STRING(EXTRAPERS.SOKINT[1])
+      utkundobjtemp.POSTER[9] = STRING(EXTRAPERS.SOKLOG[4],"Ja/Nej")
+      utkundobjtemp.POSTER[8] = bbkod
+      utkundobjtemp.VAD = 3.
+   END.
+   ELSE DO:
+      ASSIGN
+      utkundobjtemp.POSTER[1] = CAPS(OMRADETAB.NAMN)
+      utkundobjtemp.POSTER[2] = STRING(POLOBJ.POOLPRIS)
+      utkundobjtemp.POSTER[3] = STRING(POLOBJ.SOVRUM)
+      utkundobjtemp.POSTER[4] = STRING(POLOBJ.BOAREA) 
+      utkundobjtemp.POSTER[5] = STRING(POLOBJ.BIYTA)
+      utkundobjtemp.POSTER[6] = STRING(POLOBJ.TOMTYTA)
+      utkundobjtemp.POSTER[7] = STRING(EXTRAPERS.SOKINT[1])
+      utkundobjtemp.POSTER[9] = STRING(EXTRAPERS.SOKLOG[4],"Ja/Nej")
+      utkundobjtemp.POSTER[8] = bbkod
+      utkundobjtemp.VAD = 4.
+   END.
+   IF utkundobjtemp.VAD = 3 THEN DELETE utkundobjtemp.
+   ELSE IF utkundobjtemp.BOTYP = "Sökuppdrag" THEN DELETE utkundobjtemp.   
+   IF AVAILABLE utkundobjtemp THEN DO:
+      RUN rubrik_UI (INPUT "SBM",INPUT utkundobjtemp.OMRADE,INPUT utkundobjtemp.BOTYP,INPUT pkod,INPUT utkundobjtemp.VAD).
+   END.   
+   FIND FIRST kravtemp WHERE kravtemp.PERSONALKOD = bbkod NO-ERROR.
+   IF NOT AVAILABLE kravtemp THEN DO:       
+      FOR EACH KRAVFINNS WHERE KRAVFINNS.PERSONALKOD = bbkod AND KRAVFINNS.KRAV-FINNS-ONSKA = 2 NO-LOCK.    
+         CREATE kravtemp.
+         BUFFER-COPY KRAVFINNS TO kravtemp.      
+      END.
+   END.
+END PROCEDURE.
+
+
+PROCEDURE bbupp_UI :     
+   DEFINE INPUT PARAMETER cssfil AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER startkund AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER slutkund AS INTEGER NO-UNDO.
+   RUN del_UI.
+   OPEN QUERY poolpersq FOR EACH POLOBJ WHERE 
+   INTEGER(POLOBJ.PERSONALKOD) >= startkund AND INTEGER(POLOBJ.PERSONALKOD) <= slutkund AND            
+   POLOBJ.POOLEN = TRUE, 
+   EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = POLOBJ.PERSONALKOD NO-LOCK,
+   EACH EXTRAPERS WHERE EXTRAPERS.PERSONALKOD = PERSONALTAB.PERSONALKOD AND 
+   EXTRAPERS.SOKLOG[3] = FALSE NO-LOCK.
+   GET FIRST poolpersq NO-LOCK.
+   DO WHILE AVAILABLE(POLOBJ):
+      RUN huvud_UI (INPUT PERSONALTAB.PERSONALKOD).
+      RUN bbsumma_UI.     
+      GET NEXT poolpersq NO-LOCK.
+   END.  
+   
+   RUN htmstart_UI (INPUT "Bostadasbank",INPUT cssfil).
+   
+END PROCEDURE.
+PROCEDURE bbsumma_UI :
+   CREATE utkundobjtemp.
+   ASSIGN
+   utkundobjtemp.KOPPLING = POLOBJ.STADSDEL + POLOBJ.BOTYP
+   utkundobjtemp.KUNDNR = INTEGER(PERSONALTAB.PERSONALKOD)
+   utkundobjtemp.NAMN   = fnamn + " " + enamn
+   utkundobjtemp.VEMSKRAV    = PERSONALTAB.PERSONALKOD
+   utkundobjtemp.PERSONALKOD = PERSONALTAB.PERSONALKOD
+   utkundobjtemp.BOTYP       = POLOBJ.BOTYP 
+   utkundobjtemp.OMRADE   = POLOBJ.OMRADE.                     
+   utkundobjtemp.STADSDEL = POLOBJ.STADSDEL.
+   ASSIGN
+   utkundobjtemp.ANTALVIS    = EXTRAPERS.SOKINT[1]
+   utkundobjtemp.BIYTA       = POLOBJ.BIYTA 
+   utkundobjtemp.BOAREA      = POLOBJ.BOAREA   
+   utkundobjtemp.MANAVG  =  POLOBJ.MANAVG 
+   utkundobjtemp.POOLPRIS =  POLOBJ.POOLPRIS 
+   utkundobjtemp.RUM      = POLOBJ.RUM 
+   utkundobjtemp.RUM2     = POLOBJ.RUM2 
+   utkundobjtemp.SOVRUM   = POLOBJ.SOVRUM   
+   utkundobjtemp.TOMTYTA  = POLOBJ.TOMTYTA 
+   utkundobjtemp.TOTYTA   = POLOBJ.TOTYTA.
+   
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = POLOBJ.OMRADE NO-LOCK NO-ERROR.
+   IF utkundobjtemp.BOTYP = "BOSTADSRÄTTER" THEN DO:
+      ASSIGN
+      utkundobjtemp.POSTER[1] = CAPS(OMRADETAB.NAMN)
+      utkundobjtemp.POSTER[2] = STRING(POLOBJ.POOLPRIS)
+      utkundobjtemp.POSTER[3] = STRING(POLOBJ.RUM)
+      utkundobjtemp.POSTER[4] = STRING(POLOBJ.BOAREA)
+      utkundobjtemp.POSTER[5] = STRING(POLOBJ.MANAVG)
+      utkundobjtemp.POSTER[6] = STRING(POLOBJ.BYGGAR)
+      utkundobjtemp.POSTER[7] = STRING(EXTRAPERS.SOKINT[1])
+      utkundobjtemp.POSTER[9] = STRING(EXTRAPERS.SOKLOG[4],"Ja/Nej")
+      utkundobjtemp.POSTER[8] = PERSONALTAB.PERSONALKOD.
+      utkundobjtemp.VAD = 1.
+   END.
+   ELSE IF utkundobjtemp.BOTYP = "BRF-Radhus" THEN DO:
+      ASSIGN
+      utkundobjtemp.POSTER[1] = CAPS(OMRADETAB.NAMN)
+      utkundobjtemp.POSTER[2] = STRING(POLOBJ.POOLPRIS)
+      utkundobjtemp.POSTER[3] = STRING(POLOBJ.RUM)
+      utkundobjtemp.POSTER[4] = STRING(POLOBJ.BOAREA)
+      utkundobjtemp.POSTER[5] = STRING(POLOBJ.MANAVG)
+      utkundobjtemp.POSTER[6] = STRING(POLOBJ.BYGGAR)
+      utkundobjtemp.POSTER[7] = STRING(EXTRAPERS.SOKINT[1])
+      utkundobjtemp.POSTER[9] = STRING(EXTRAPERS.SOKLOG[4],"Ja/Nej")
+      utkundobjtemp.POSTER[8] = PERSONALTAB.PERSONALKOD
+      utkundobjtemp.VAD = 2.
+   END.
+   ELSE IF utkundobjtemp.BOTYP = "HYRESRÄTTER" THEN DO:
+      ASSIGN
+      utkundobjtemp.POSTER[1] = CAPS(OMRADETAB.NAMN)
+      utkundobjtemp.POSTER[2] = STRING(POLOBJ.POOLPRIS)
+      utkundobjtemp.POSTER[3] = STRING(POLOBJ.RUM)
+      utkundobjtemp.POSTER[4] = STRING(POLOBJ.BOAREA)
+      utkundobjtemp.POSTER[5] = STRING(POLOBJ.MANAVG)
+      utkundobjtemp.POSTER[6] = STRING(POLOBJ.BYGGAR)
+      utkundobjtemp.POSTER[7] = STRING(EXTRAPERS.SOKINT[1])
+      utkundobjtemp.POSTER[9] = STRING(EXTRAPERS.SOKLOG[4],"Ja/Nej")
+      utkundobjtemp.POSTER[8] = PERSONALTAB.PERSONALKOD
+      utkundobjtemp.VAD = 3.
+   END.
+   ELSE DO:
+      ASSIGN
+      utkundobjtemp.POSTER[1] = CAPS(OMRADETAB.NAMN)
+      utkundobjtemp.POSTER[2] = STRING(POLOBJ.POOLPRIS)
+      utkundobjtemp.POSTER[3] = STRING(POLOBJ.SOVRUM)
+      utkundobjtemp.POSTER[4] = STRING(POLOBJ.BOAREA) 
+      utkundobjtemp.POSTER[5] = STRING(POLOBJ.BIYTA)
+      utkundobjtemp.POSTER[6] = STRING(POLOBJ.TOMTYTA)      
+      utkundobjtemp.POSTER[7] = STRING(EXTRAPERS.SOKINT[1])
+      utkundobjtemp.POSTER[9] = STRING(EXTRAPERS.SOKLOG[4],"Ja/Nej")
+      utkundobjtemp.POSTER[8] = PERSONALTAB.PERSONALKOD
+      utkundobjtemp.VAD = 4.
+   END.
+
+   IF utkundobjtemp.VAD = 3 THEN DELETE utkundobjtemp.
+   ELSE IF utkundobjtemp.BOTYP = "Sökuppdrag" THEN DELETE utkundobjtemp.
+   IF AVAILABLE utkundobjtemp THEN DO:
+      RUN rubrik_UI (INPUT "BBU",INPUT utkundobjtemp.OMRADE,INPUT utkundobjtemp.BOTYP,INPUT "",INPUT utkundobjtemp.VAD).
+   END.
+   FOR EACH KRAVFINNS WHERE KRAVFINNS.PERSONALKOD = PERSONALTAB.PERSONALKOD AND KRAVFINNS.KRAV-FINNS-ONSKA = 2 NO-LOCK.    
+      CREATE kravtemp.
+      BUFFER-COPY KRAVFINNS TO kravtemp.      
+   END.   
+END PROCEDURE.
+PROCEDURE sokupp_UI :   
+   DEFINE INPUT PARAMETER cssfil AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER startkund AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER slutkund AS INTEGER NO-UNDO.
+   
+   RUN del_UI.
+      
+   OPEN QUERY epersq FOR EACH EXTRAPERS WHERE 
+   INTEGER(EXTRAPERS.PERSONALKOD) >= startkund AND INTEGER(EXTRAPERS.PERSONALKOD) <= slutkund AND            
+   EXTRAPERS.SOKLOG[2] = TRUE AND EXTRAPERS.SOKLOG[3] = FALSE NO-LOCK,
+   EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = EXTRAPERS.PERSONALKOD NO-LOCK.
+   GET FIRST epersq NO-LOCK.
+   DO WHILE AVAILABLE(EXTRAPERS):
+      RUN huvud_UI (INPUT PERSONALTAB.PERSONALKOD).
+      RUN soksumma_UI.     
+      GET NEXT epersq NO-LOCK.
+   END.
+   
+   RUN htmstart_UI (INPUT "Sökuppdrag",INPUT cssfil).
+   
+END PROCEDURE.
+PROCEDURE soksumma_UI :
+   OPEN QUERY ompq FOR EACH OMRPERS WHERE OMRPERS.PERSONALKOD = PERSONALTAB.PERSONALKOD NO-LOCK,
+   EACH OMRADETAB WHERE OMRADETAB.STADSDEL = OMRPERS.OMRADE AND OMRADETAB.OMRADE = OMRPERS.OMRADE NO-LOCK.                  
+   GET FIRST ompq NO-LOCK.
+   DO WHILE AVAILABLE(OMRPERS):
+      CREATE utkundobjtemp.
+      ASSIGN
+      utkundobjtemp.KOPPLING = OMRPERS.OMRADE + OMRPERS.BOTYP
+      utkundobjtemp.KUNDNR = PERSONALTAB.KUNDNR
+      utkundobjtemp.NAMN   = fnamn + " " + enamn
+      utkundobjtemp.VEMSKRAV    = PERSONALTAB.PERSONALKOD
+      utkundobjtemp.PERSONALKOD = PERSONALTAB.PERSONALKOD
+      utkundobjtemp.BOTYP        = OMRPERS.BOTYP
+      utkundobjtemp.OMRADE       = OMRPERS.OMRADE.      
+      ASSIGN
+      utkundobjtemp.MAXPRISVILLA = PERSONALTAB.VPRIS
+      utkundobjtemp.MINPRISVILLA = PERSONALTAB.MINPRISVI
+      utkundobjtemp.MAXPRISBO    = PERSONALTAB.BPRIS
+      utkundobjtemp.MINPRISBO    = PERSONALTAB.MINPRISBO
+      utkundobjtemp.MAXBOVILLA   = PERSONALTAB.MAXBOVI
+      utkundobjtemp.MINBOVILLA   = PERSONALTAB.BOAREA
+      utkundobjtemp.MAXBOBO      = PERSONALTAB.MAXBOBO
+      utkundobjtemp.MINBOBO      = PERSONALTAB.MINBOBO
+      utkundobjtemp.MAXRUM       = PERSONALTAB.RUM2
+      utkundobjtemp.MINRUM       = PERSONALTAB.RUM.
+                                                 
+      IF utkundobjtemp.BOTYP = "BOSTADSRÄTTER" THEN DO:
+         ASSIGN
+         utkundobjtemp.POSTER[1] = CAPS(OMRADETAB.NAMN)
+         utkundobjtemp.POSTER[2] = STRING(PERSONALTAB.BPRIS)
+         utkundobjtemp.POSTER[3] = STRING(PERSONALTAB.RUM)
+         utkundobjtemp.POSTER[4] = STRING(PERSONALTAB.MINBOBO)
+         utkundobjtemp.POSTER[5] = PERSONALTAB.PERSONALKOD
+         utkundobjtemp.VAD = 1.
+      END.
+      ELSE IF utkundobjtemp.BOTYP = "BRF-Radhus" THEN DO:
+         ASSIGN
+         utkundobjtemp.POSTER[1] = CAPS(OMRADETAB.NAMN)
+         utkundobjtemp.POSTER[2] = STRING(PERSONALTAB.BPRIS)
+         utkundobjtemp.POSTER[3] = STRING(PERSONALTAB.RUM)
+         utkundobjtemp.POSTER[4] = STRING(PERSONALTAB.MINBOBO)
+         utkundobjtemp.POSTER[5] = PERSONALTAB.PERSONALKOD
+         utkundobjtemp.VAD = 2.
+      END.
+      ELSE IF utkundobjtemp.BOTYP = "HYRESRÄTTER" THEN DO:
+         ASSIGN
+         utkundobjtemp.POSTER[1] = CAPS(OMRADETAB.NAMN)
+         utkundobjtemp.POSTER[2] = STRING(PERSONALTAB.BPRIS)
+         utkundobjtemp.POSTER[3] = STRING(PERSONALTAB.RUM)
+         utkundobjtemp.POSTER[4] = STRING(PERSONALTAB.MINBOBO)
+         utkundobjtemp.POSTER[5] = PERSONALTAB.PERSONALKOD
+         utkundobjtemp.VAD = 3.
+      END.
+      ELSE DO:
+         ASSIGN
+         utkundobjtemp.POSTER[1] = CAPS(OMRADETAB.NAMN)             
+         utkundobjtemp.POSTER[2] = STRING(PERSONALTAB.VPRIS)                 
+         utkundobjtemp.POSTER[3] = STRING(PERSONALTAB.BOAREA)                  
+         utkundobjtemp.POSTER[4] = PERSONALTAB.PERSONALKOD.
+         utkundobjtemp.VAD = 4.
+      END.       
+      IF utkundobjtemp.VAD = 3 THEN DELETE utkundobjtemp.
+      IF AVAILABLE utkundobjtemp THEN DO:
+         RUN rubrik_UI (INPUT "SKU",INPUT utkundobjtemp.OMRADE,INPUT utkundobjtemp.BOTYP,INPUT "",INPUT utkundobjtemp.VAD).
+      END.
+      GET NEXT ompq NO-LOCK.
+   END.            
+   CLOSE QUERY ompq.
+   FOR EACH KRAVFINNS WHERE KRAVFINNS.PERSONALKOD = PERSONALTAB.PERSONALKOD AND KRAVFINNS.KRAV-FINNS-ONSKA = 1 NO-LOCK.    
+      CREATE kravtemp.
+      BUFFER-COPY KRAVFINNS TO kravtemp.      
+   END.   
+END PROCEDURE.
+PROCEDURE huvud_UI :
+   DEFINE INPUT PARAMETER namnperst AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE medvar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE medlangd AS INTEGER NO-UNDO.
+   DEFINE VARIABLE utlangd AS INTEGER NO-UNDO.   
+   FIND FIRST persbuff WHERE persbuff.PERSONALKOD = namnperst NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE persbuff THEN RETURN.  
+   ASSIGN
+   fnamn = persbuff.FORNAMN 
+   enamn = persbuff.EFTERNAMN.
+   ASSIGN
+   fnamn = TRIM(fnamn)
+   enamn = TRIM(enamn). 
+   fnamn = CAPS(SUBSTRING(fnamn,1,1)) + LC(SUBSTRING(fnamn,2)). 
+   enamn = CAPS(SUBSTRING(enamn,1,1)) + LC(SUBSTRING(enamn,2)).  
+   IF INDEX(fnamn,"-") = 0 THEN DO: 
+      fnamn = fnamn.
+   END.             
+   ELSE DO:
+      ednum3 = INDEX(fnamn,"-").
+      fnamn = CAPS(SUBSTRING(fnamn,1,1)) + LC(SUBSTRING(fnamn,2)).
+      fnamn = SUBSTRING(fnamn,1,ednum3) + CAPS(SUBSTRING(fnamn,ednum3 + 1,1)) + LC(SUBSTRING(fnamn,ednum3 + 2)).
+   END.
+   IF INDEX(enamn,"-") = 0 THEN DO: 
+      enamn = enamn.     
+   END.             
+   ELSE DO:
+      ednum3 = INDEX(enamn,"-").
+      enamn = CAPS(SUBSTRING(enamn,1,1)) + LC(SUBSTRING(enamn,2)).
+      enamn = SUBSTRING(enamn,1,ednum3) + CAPS(SUBSTRING(enamn,ednum3 + 1,1)) + LC(SUBSTRING(enamn,ednum3 + 2)).      
+   END.  
+   IF INDEX(fnamn," ") = 0 THEN DO: 
+      fnamn = fnamn.
+   END.             
+   ELSE DO:
+      ednum3 = INDEX(fnamn," ").
+      fnamn = CAPS(SUBSTRING(fnamn,1,1)) + LC(SUBSTRING(fnamn,2)).
+      fnamn = SUBSTRING(fnamn,1,ednum3) + CAPS(SUBSTRING(fnamn,ednum3 + 1,1)) + LC(SUBSTRING(fnamn,ednum3 + 2)).
+   END.
+   IF INDEX(enamn," ") = 0 THEN DO: 
+      enamn = enamn.  
+   END.             
+   ELSE DO:
+      ednum3 = INDEX(enamn," ").
+      enamn = CAPS(SUBSTRING(enamn,1,1)) + LC(SUBSTRING(enamn,2)).
+      enamn = SUBSTRING(enamn,1,ednum3) + CAPS(SUBSTRING(enamn,ednum3 + 1,1)) + LC(SUBSTRING(enamn,ednum3 + 2)).      
+   END.                                            
+END PROCEDURE.
+PROCEDURE hamtatidut_UI:
+   /*DEFINE INPUT PARAMETER lista AS CHARACTER NO-UNDO.*/
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+
+END PROCEDURE.
+PROCEDURE rubrik_UI :                                    
+   DEFINE INPUT PARAMETER lista AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER botypvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER pextra AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vadvar AS INTEGER NO-UNDO.
+   FIND FIRST utrubriktemp WHERE utrubriktemp.KOPPLING = omrvar + botypvar + pextra NO-ERROR.
+   IF AVAILABLE utrubriktemp THEN RETURN.
+   FIND FIRST OMRADETAB WHERE OMRADETAB.STADSDEL = omrvar AND OMRADETAB.OMRADE = omrvar 
+   USE-INDEX STADOMR NO-LOCK NO-ERROR.                  
+   IF NOT AVAILABLE OMRADETAB THEN RETURN.                     
+   CREATE utrubriktemp. 
+   ASSIGN              
+   utrubriktemp.KUNDSORT = INTEGER(pextra)
+   utrubriktemp.KOPPLING = omrvar + botypvar + pextra             
+   utrubriktemp.BOTYPST = CAPS(botypvar) + " " + CAPS(OMRADETAB.NAMN).                  
+   utrubriktemp.BOTYP = botypvar.
+   IF lista = "SBM" THEN utrubriktemp.BOTYPST = utrubriktemp.BOTYPST + " " + utkundobjtemp.PERSONALKOD + " " + utkundobjtemp.NAMN.
+   IF lista = "BSM" THEN utrubriktemp.BOTYPST = utrubriktemp.BOTYPST + " " + utkundobjtemp.PERSONALKOD + " " + utkundobjtemp.NAMN.
+   /*VILLOR*/
+   IF vadvar = 4 THEN DO:
+
+      IF lista = "SBM" THEN DO:
+         FIND FIRST utrubrik1temp WHERE utrubrik1temp.BOTYP = botypvar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE utrubrik1temp THEN DO:
+            CREATE utrubrik1temp.
+            ASSIGN        
+            utrubrik1temp.BOTYP = botypvar      
+            utrubrik1temp.RUBRIK[1] = "Område"
+            utrubrik1temp.RUBRIK[2] = "Pris"
+            utrubrik1temp.RUBRIK[3] = "Sovrum"
+            utrubrik1temp.RUBRIK[4] = "Boarea"
+            utrubrik1temp.RUBRIK[5] = "Biarea"
+            utrubrik1temp.RUBRIK[6] = "Tomtarea"
+            utrubrik1temp.RUBRIK[7] = "Antal vis"
+            utrubrik1temp.RUBRIK[9] = "Besökt"
+            utrubrik1temp.RUBRIK[8] = "Kundnr"
+            utrubrik1temp.RUBRIK[21] = "Finns".
+         END.
+      END.
+      IF lista = "BSM" THEN DO:
+         FIND FIRST utrubrik1temp WHERE utrubrik1temp.BOTYP = botypvar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE utrubrik1temp THEN DO:
+            CREATE utrubrik1temp.
+            ASSIGN        
+            utrubrik1temp.BOTYP = botypvar      
+            utrubrik1temp.RUBRIK[1] = "Område"
+            utrubrik1temp.RUBRIK[2] = "Max Pris"
+            utrubrik1temp.RUBRIK[3] = "Min boarea"
+            utrubrik1temp.RUBRIK[4] = "Kundnr"
+            utrubrik1temp.RUBRIK[21] = "Krav".
+         END.
+      END.
+      IF lista = "SKU" THEN DO:
+         FIND FIRST utrubrik1temp WHERE utrubrik1temp.BOTYP = botypvar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE utrubrik1temp THEN DO:
+            CREATE utrubrik1temp.
+            ASSIGN        
+            utrubrik1temp.BOTYP = botypvar      
+            utrubrik1temp.RUBRIK[1] = "Område"
+            utrubrik1temp.RUBRIK[2] = "Max Pris"
+            utrubrik1temp.RUBRIK[3] = "Min boarea"
+            utrubrik1temp.RUBRIK[4] = "Kundnr"
+            utrubrik1temp.RUBRIK[21] = "Krav".
+         END.
+      END.
+      IF lista = "BBU" THEN DO:
+         FIND FIRST utrubrik1temp WHERE utrubrik1temp.BOTYP = botypvar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE utrubrik1temp THEN DO:
+            CREATE utrubrik1temp.
+            ASSIGN        
+            utrubrik1temp.BOTYP = botypvar      
+            utrubrik1temp.RUBRIK[1] = "Område"
+            utrubrik1temp.RUBRIK[2] = "Pris"
+            utrubrik1temp.RUBRIK[3] = "Sovrum"
+            utrubrik1temp.RUBRIK[4] = "Boarea"
+            utrubrik1temp.RUBRIK[5] = "Biarea"
+            utrubrik1temp.RUBRIK[6] = "Tomtarea"
+            utrubrik1temp.RUBRIK[7] = "Antal vis"
+            utrubrik1temp.RUBRIK[9] = "Besökt"
+            utrubrik1temp.RUBRIK[8] = "Kundnr"
+            utrubrik1temp.RUBRIK[21] = "Finns".
+         END.
+      END.
+   END.       
+   /*BORÄTT*/
+   ELSE IF vadvar = 1 THEN DO:
+      IF lista = "SBM" THEN DO:
+         FIND FIRST utrubrik1temp WHERE utrubrik1temp.BOTYP = botypvar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE utrubrik1temp THEN DO:
+            CREATE utrubrik1temp.
+            ASSIGN        
+            utrubrik1temp.BOTYP = botypvar      
+            utrubrik1temp.RUBRIK[1] = "Område"
+            utrubrik1temp.RUBRIK[2] = "Pris"
+            utrubrik1temp.RUBRIK[3] = "Rum"
+            utrubrik1temp.RUBRIK[4] = "Boarea"
+            utrubrik1temp.RUBRIK[5] = "Mån.avg"
+            utrubrik1temp.RUBRIK[6] = "Byggår"
+            utrubrik1temp.RUBRIK[7] = "Antal vis"
+            utrubrik1temp.RUBRIK[9] = "Besökt"
+            utrubrik1temp.RUBRIK[8] = "Kundnr"
+            utrubrik1temp.RUBRIK[21] = "Finns".
+         END.
+      END.
+      IF lista = "BSM" THEN DO:
+         FIND FIRST utrubrik1temp WHERE utrubrik1temp.BOTYP = botypvar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE utrubrik1temp THEN DO:
+            CREATE utrubrik1temp.
+            ASSIGN                
+            utrubrik1temp.BOTYP = botypvar      
+            utrubrik1temp.RUBRIK[1] = "Område"     
+            utrubrik1temp.RUBRIK[2] = "Max Pris"   
+            utrubrik1temp.RUBRIK[3] = "Min Rum"    
+            utrubrik1temp.RUBRIK[4] = "Min boarea" 
+            utrubrik1temp.RUBRIK[5] = "Kundnr"
+            utrubrik1temp.RUBRIK[21] = "Krav".
+         END.
+      END.
+      IF lista = "SKU" THEN DO:
+         FIND FIRST utrubrik1temp WHERE utrubrik1temp.BOTYP = botypvar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE utrubrik1temp THEN DO:
+            CREATE utrubrik1temp.
+            ASSIGN        
+            utrubrik1temp.BOTYP = botypvar      
+            utrubrik1temp.RUBRIK[1] = "Område"
+            utrubrik1temp.RUBRIK[2] = "Max Pris"
+            utrubrik1temp.RUBRIK[3] = "Min Rum"
+            utrubrik1temp.RUBRIK[4] = "Min boarea"
+            utrubrik1temp.RUBRIK[5] = "Kundnr"
+            utrubrik1temp.RUBRIK[21] = "Krav".
+         END.
+      END. 
+      IF lista = "BBU" THEN DO:
+         FIND FIRST utrubrik1temp WHERE utrubrik1temp.BOTYP = botypvar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE utrubrik1temp THEN DO:
+            CREATE utrubrik1temp.
+            ASSIGN        
+            utrubrik1temp.BOTYP = botypvar      
+            utrubrik1temp.RUBRIK[1] = "Område"
+            utrubrik1temp.RUBRIK[2] = "Pris"
+            utrubrik1temp.RUBRIK[3] = "Rum"
+            utrubrik1temp.RUBRIK[4] = "Boarea"
+            utrubrik1temp.RUBRIK[5] = "Mån.avg"
+            utrubrik1temp.RUBRIK[6] = "Byggår"
+            utrubrik1temp.RUBRIK[7] = "Antal vis"
+            utrubrik1temp.RUBRIK[9] = "Besökt"
+            utrubrik1temp.RUBRIK[8] = "Kundnr"
+            utrubrik1temp.RUBRIK[21] = "Finns".
+         END.
+      END.
+   END.
+   /*BRF-RADHUS*/
+   ELSE IF vadvar = 2 THEN DO:
+      IF lista = "SBM" THEN DO:
+         FIND FIRST utrubrik1temp WHERE utrubrik1temp.BOTYP = botypvar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE utrubrik1temp THEN DO:
+            CREATE utrubrik1temp.
+            ASSIGN        
+            utrubrik1temp.BOTYP = botypvar      
+            utrubrik1temp.RUBRIK[1] = "Område"
+            utrubrik1temp.RUBRIK[2] = "Pris"
+            utrubrik1temp.RUBRIK[3] = "Rum"
+            utrubrik1temp.RUBRIK[4] = "Boarea"
+            utrubrik1temp.RUBRIK[5] = "Mån.avg"
+            utrubrik1temp.RUBRIK[6] = "Byggår"
+            utrubrik1temp.RUBRIK[7] = "Antal vis"
+            utrubrik1temp.RUBRIK[9] = "Besökt"
+            utrubrik1temp.RUBRIK[8] = "Kundnr"
+            utrubrik1temp.RUBRIK[21] = "Finns".
+         END.
+      END.
+      IF lista = "BSM" THEN DO:
+         FIND FIRST utrubrik1temp WHERE utrubrik1temp.BOTYP = botypvar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE utrubrik1temp THEN DO:
+            CREATE utrubrik1temp.
+            ASSIGN        
+            utrubrik1temp.BOTYP = botypvar      
+            utrubrik1temp.RUBRIK[1] = "Område"    
+            utrubrik1temp.RUBRIK[2] = "Max Pris"  
+            utrubrik1temp.RUBRIK[3] = "Min Rum"   
+            utrubrik1temp.RUBRIK[4] = "Min boarea"
+            utrubrik1temp.RUBRIK[5] = "Kundnr"    
+            utrubrik1temp.RUBRIK[21] = "Krav".
+         END.
+      END.
+      IF lista = "SKU" THEN DO:
+         FIND FIRST utrubrik1temp WHERE utrubrik1temp.BOTYP = botypvar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE utrubrik1temp THEN DO:
+            CREATE utrubrik1temp.
+            ASSIGN        
+            utrubrik1temp.BOTYP = botypvar      
+            utrubrik1temp.RUBRIK[1] = "Område"
+            utrubrik1temp.RUBRIK[2] = "Max Pris"
+            utrubrik1temp.RUBRIK[3] = "Min Rum"
+            utrubrik1temp.RUBRIK[4] = "Min boarea"
+            utrubrik1temp.RUBRIK[5] = "Kundnr"
+            utrubrik1temp.RUBRIK[21] = "Krav".
+         END.      
+      END.
+      IF lista = "BBU" THEN DO:
+         FIND FIRST utrubrik1temp WHERE utrubrik1temp.BOTYP = botypvar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE utrubrik1temp THEN DO:
+            CREATE utrubrik1temp.
+            ASSIGN        
+            utrubrik1temp.BOTYP = botypvar      
+            utrubrik1temp.RUBRIK[1] = "Område"
+            utrubrik1temp.RUBRIK[2] = "Pris"
+            utrubrik1temp.RUBRIK[3] = "Rum"
+            utrubrik1temp.RUBRIK[4] = "Boarea"
+            utrubrik1temp.RUBRIK[5] = "Mån.avg"
+            utrubrik1temp.RUBRIK[6] = "Byggår"
+            utrubrik1temp.RUBRIK[7] = "Antal vis"
+            utrubrik1temp.RUBRIK[9] = "Besökt"
+            utrubrik1temp.RUBRIK[8] = "Kundnr"
+            utrubrik1temp.RUBRIK[21] = "Finns".
+         END.
+      END.
+   END. 
+END PROCEDURE.
+PROCEDURE del_UI :
+   FOR EACH tidut:
+      DELETE tidut.
+   END.
+   FOR EACH utkundobjtemp:
+      DELETE utkundobjtemp.
+   END.
+   FOR EACH utrubrik1temp.
+      DELETE utrubrik1temp.
+   END.        
+   FOR EACH utrubrik2temp.
+      DELETE utrubrik2temp.
+   END.          
+   FOR EACH kravtemp:
+      DELETE kravtemp.
+   END.    
+END PROCEDURE.
+PROCEDURE vilkharkoll_UI:
+   IF POLOBJ.BOTYP = "BOSTADSRÄTTER" OR POLOBJ.BOTYP = "BRF-Radhus" THEN DO:
+      IF POLOBJ.RUM = 0 THEN musz = musz.
+      ELSE DO:       
+         IF PERSONALTAB.RUM2 = 0 AND PERSONALTAB.RUM = 0 THEN musz = musz.
+            ELSE DO:         
+            IF PERSONALTAB.RUM = 0 THEN DO:
+               IF POLOBJ.RUM <= PERSONALTAB.RUM2 THEN musz = FALSE.
+               ELSE musz = TRUE. 
+            END.
+            ELSE IF PERSONALTAB.RUM2 = 0 THEN DO:
+               IF POLOBJ.RUM >= PERSONALTAB.RUM THEN musz = FALSE.
+               ELSE musz = TRUE.
+            END.
+            ELSE DO:
+               IF POLOBJ.RUM >= PERSONALTAB.RUM AND 
+               POLOBJ.RUM <= PERSONALTAB.RUM2 THEN musz = FALSE.
+               ELSE musz = TRUE.
+            END.
+         END.
+      END.              
+      IF musz = FALSE THEN DO:                
+         IF POLOBJ.POOLPRIS = 0 THEN musz = musz.
+         ELSE DO:   
+            IF PERSONALTAB.BPRIS = 0 AND PERSONALTAB.MINPRISBO = 0 THEN musz = musz.   
+            ELSE DO:
+               IF PERSONALTAB.MINPRISBO = 0 THEN DO:  
+                  IF POLOBJ.POOLPRIS <= PERSONALTAB.BPRIS THEN musz = FALSE.
+                  ELSE musz = TRUE.
+               END.
+               ELSE IF PERSONALTAB.BPRIS = 0 THEN DO:
+                  IF POLOBJ.POOLPRIS >= PERSONALTAB.MINPRISBO THEN musz = FALSE.
+                  ELSE musz = TRUE.
+               END.                 
+               ELSE DO:   
+                  IF POLOBJ.POOLPRIS >= PERSONALTAB.MINPRISBO AND 
+                  POLOBJ.POOLPRIS <= PERSONALTAB.BPRIS THEN musz = FALSE.
+                  ELSE musz = TRUE.
+               END.                         
+            END.
+         END.
+      END.     
+      IF musz = FALSE THEN DO:                
+         IF POLOBJ.BOAREA = 0 THEN musz = musz.
+         ELSE DO:   
+            IF PERSONALTAB.MAXBOBO = 0 AND PERSONALTAB.MINBOBO = 0 THEN musz = musz.   
+            ELSE DO:
+               IF PERSONALTAB.MINBOBO = 0 THEN DO:  
+                  IF POLOBJ.BOAREA <= PERSONALTAB.MAXBOBO THEN musz = FALSE.
+                  ELSE musz = TRUE.
+               END.
+               ELSE IF PERSONALTAB.MAXBOBO = 0 THEN DO:
+                  IF POLOBJ.BOAREA >= PERSONALTAB.MINBOBO THEN musz = FALSE.
+                  ELSE musz = TRUE.
+               END.                 
+               ELSE DO:   
+                  IF POLOBJ.BOAREA >= PERSONALTAB.MINBOBO AND 
+                  POLOBJ.BOAREA <= PERSONALTAB.MAXBOBO THEN musz = FALSE.
+                  ELSE musz = TRUE.
+               END.                         
+            END.
+         END.
+      END.
+   END.       
+   ELSE IF POLOBJ.BOTYP = "HYRESRÄTTER" THEN DO:
+      IF POLOBJ.RUM = 0 THEN musz = musz.
+      ELSE DO:       
+         IF PERSONALTAB.RUM2 = 0 AND PERSONALTAB.RUM = 0 THEN musz = musz.
+            ELSE DO:         
+            IF PERSONALTAB.RUM = 0 THEN DO:
+               IF POLOBJ.RUM <= PERSONALTAB.RUM2 THEN musz = FALSE.
+               ELSE musz = TRUE. 
+            END.
+            ELSE IF PERSONALTAB.RUM2 = 0 THEN DO:
+               IF POLOBJ.RUM >= PERSONALTAB.RUM THEN musz = FALSE.
+               ELSE musz = TRUE.
+            END.
+            ELSE DO:
+               IF POLOBJ.RUM >= PERSONALTAB.RUM AND 
+               POLOBJ.RUM <= PERSONALTAB.RUM2 THEN musz = FALSE.
+               ELSE musz = TRUE.
+            END.
+         END.
+      END.              
+      IF musz = FALSE THEN DO:                
+         IF POLOBJ.BOAREA = 0 THEN musz = musz.
+         ELSE DO:   
+            IF PERSONALTAB.MAXBOBO = 0 AND PERSONALTAB.MINBOBO = 0 THEN musz = musz.   
+            ELSE DO:
+               IF PERSONALTAB.MINBOBO = 0 THEN DO:  
+                  IF POLOBJ.BOAREA <= PERSONALTAB.MAXBOBO THEN musz = FALSE.
+                  ELSE musz = TRUE.
+               END.
+               ELSE IF PERSONALTAB.MAXBOBO = 0 THEN DO:
+                  IF POLOBJ.BOAREA >= PERSONALTAB.MINBOBO THEN musz = FALSE.
+                  ELSE musz = TRUE.
+               END.                 
+               ELSE DO:   
+                  IF POLOBJ.BOAREA >= PERSONALTAB.MINBOBO AND 
+                  POLOBJ.BOAREA <= PERSONALTAB.MAXBOBO THEN musz = FALSE.
+                  ELSE musz = TRUE.
+               END.                         
+            END.
+         END.
+      END.
+   END.  
+   ELSE DO:          
+      IF POLOBJ.BOAREA = 0 THEN musz = musz.
+      ELSE DO:   
+         IF PERSONALTAB.BOAREA = 0 AND PERSONALTAB.MAXBOVI = 0 THEN musz = musz.   
+         ELSE DO:
+            IF PERSONALTAB.BOAREA = 0 THEN DO:  
+               IF POLOBJ.BOAREA <= PERSONALTAB.MAXBOVI THEN musz = FALSE.
+               ELSE musz = TRUE.
+            END.
+            ELSE IF PERSONALTAB.MAXBOVI = 0 THEN DO:
+               IF POLOBJ.BOAREA >= PERSONALTAB.BOAREA THEN musz = FALSE.
+               ELSE musz = TRUE.
+            END.                 
+            ELSE DO:   
+               IF POLOBJ.BOAREA >= PERSONALTAB.BOAREA AND 
+               POLOBJ.BOAREA <= PERSONALTAB.MAXBOVI THEN musz = FALSE.
+               ELSE musz = TRUE.
+            END.                                         
+         END.
+      END.              
+      IF musz = FALSE THEN DO:                
+         IF POLOBJ.POOLPRIS = 0 THEN musz = musz.
+         ELSE DO:   
+            IF PERSONALTAB.VPRIS = 0 AND PERSONALTAB.MINPRISVI = 0 THEN musz = musz.   
+            ELSE DO:
+               IF PERSONALTAB.MINPRISVI = 0 THEN DO:  
+                  IF POLOBJ.POOLPRIS <= PERSONALTAB.VPRIS THEN musz = FALSE.
+                  ELSE musz = TRUE.
+               END.
+               ELSE IF PERSONALTAB.VPRIS = 0 THEN DO:
+                  IF POLOBJ.POOLPRIS >= PERSONALTAB.MINPRISVI THEN musz = FALSE.
+                  ELSE musz = TRUE.
+               END.                 
+               ELSE DO:   
+                  IF POLOBJ.POOLPRIS >= PERSONALTAB.MINPRISVI AND 
+                  POLOBJ.POOLPRIS <= PERSONALTAB.VPRIS THEN musz = FALSE.
+                  ELSE musz = TRUE.
+               END.                         
+            END.
+         END.
+      END.  
+   END.
+END PROCEDURE.
+PROCEDURE bodystart_UI:   
+   DEFINE VARIABLE hjalpvar AS CHARACTER NO-UNDO.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<body>'.  
+   RUN startdiv_UI (INPUT "BODY"). 
+   RUN sidbryt_UI (INPUT 0).
+   RUN startdiv_UI (INPUT "ANTAL"). 
+   hjalpvar = 'Antal:'.
+   FOR EACH utkundobjtemp BREAK BY utkundobjtemp.BOTYP: 
+      ACCUMULATE 
+      utkundobjtemp.BOTYP (COUNT BY utkundobjtemp.BOTYP). 
+      IF LAST-OF(utkundobjtemp.BOTYP) THEN DO TRANSACTION:         
+         IF utkundobjtemp.BOTYP NE "" THEN DO:        
+            RUN sidbryt_UI (INPUT 25).
+            RUN startdiv_UI (INPUT "ANTCOL1"). 
+            tidut.UT = tidut.UT + hjalpvar.
+            RUN slutdiv_UI.
+            hjalpvar = "".
+            RUN startdiv_UI (INPUT "ANTCOL2").
+            tidut.UT = tidut.UT + utkundobjtemp.BOTYP.
+            RUN slutdiv_UI.
+            RUN startdiv_UI (INPUT "ANTCOL3").
+            tidut.UT = tidut.UT + STRING((ACCUM COUNT by utkundobjtemp.BOTYP utkundobjtemp.BOTYP)).
+            RUN slutdiv_UI.
+         END.
+      END.
+   END.
+   RUN slutdiv_UI. /*antal*/
+   RUN startdiv_UI (INPUT "BLANK").
+   RUN sidbryt_UI (INPUT 36).
+   RUN slutdiv_UI. /*BLANK*/
+END PROCEDURE.
+PROCEDURE bodyslut_UI:   
+   CREATE tidut.
+   RUN slutdiv_UI.   /*PAGE*/ 
+   RUN slutdiv_UI.  /*body*/
+   ASSIGN
+   tidut.UT = tidut.UT + '</body>'.
+END PROCEDURE.
+
+PROCEDURE sokupphtml_UI:
+   DEFINE VARIABLE hjalpvar AS INTEGER    NO-UNDO.
+   FOR EACH utrubriktemp USE-INDEX BOTYPST:
+      RUN sidbryt_UI (INPUT 18 + 36 + 18).  /*bromma borätt + pris mm + linje*/
+      RUN startdiv_UI (INPUT "OBJEKTRUBRIK").
+      tidut.UT = tidut.UT + utrubriktemp.BOTYPST.
+      RUN slutdiv_UI.
+      FIND FIRST utrubrik1temp WHERE utrubrik1temp.BOTYP = utrubriktemp.BOTYP NO-LOCK NO-ERROR.
+      hjalpvar = 1. 
+      REPEAT:
+         IF hjalpvar > 9 THEN LEAVE.
+         IF utrubrik1temp.RUBRIK[hjalpvar] = "" THEN LEAVE.      
+         RUN startdiv_UI (INPUT "COL" + STRING(hjalpvar)). 
+         RUN startdiv_UI (INPUT "RUBRIK").
+         tidut.UT = tidut.UT + utrubrik1temp.RUBRIK[hjalpvar].
+         RUN slutdiv_UI.
+         RUN slutdiv_UI. /*col*/
+         hjalpvar = hjalpvar + 1.
+      END.
+      RUN startdiv_UI (INPUT "COL10"). 
+      RUN startdiv_UI (INPUT "RUBRIK").
+      tidut.UT = tidut.UT + utrubrik1temp.RUBRIK[21].
+      RUN slutdiv_UI.
+      RUN slutdiv_UI.    /*col*/
+      RUN startdiv_UI (INPUT "LINJE").
+      tidut.UT = tidut.UT + '<hr>'.
+      RUN slutdiv_UI.
+      hjalpvar = 1. 
+      FOR EACH utkundobjtemp WHERE utkundobjtemp.KOPPLING = utrubriktemp.KOPPLING BY utkundobjtemp.KUNDNR:
+         hjalpvar = 1. 
+         RUN sidbryt_UI (INPUT 36).
+         RUN startdiv_UI (INPUT "OBJEKT").  
+         REPEAT:
+            IF hjalpvar > 9 THEN LEAVE.
+            IF utkundobjtemp.POSTER[hjalpvar] = "" THEN LEAVE.                 
+            RUN startdiv_UI (INPUT "COL" + STRING(hjalpvar)). 
+            tidut.UT = tidut.UT + STRING(utkundobjtemp.POSTER[hjalpvar],"X(9)").
+            RUN slutdiv_UI.
+            hjalpvar = hjalpvar + 1.
+         END.
+         OPEN QUERY kq FOR EACH kravtemp WHERE kravtemp.PERSONALKOD = utkundobjtemp.VEMSKRAV.
+         GET FIRST kq.
+         IF AVAILABLE kravtemp THEN DO:         
+            RUN startdiv_UI (INPUT "KRAVCOL"). 
+            CREATE tidut.
+            ASSIGN
+            tidut.UT = '<table width="100">'.
+            GET FIRST kq.
+            DO WHILE AVAILABLE(kravtemp): 
+               RUN tabradstart_UI.
+               RUN falttabbredd_UI (INPUT FALSE,INPUT STRING(LC(kravtemp.HUSEGENSKAP),"X(16)"),INPUT 80,0).
+               RUN falttabbredd_UI (INPUT FALSE,INPUT STRING(kravtemp.SVAR,"Ja/Nej"),INPUT 20,0).
+               RUN tabradslut_UI.
+               GET NEXT kq.
+            END.
+            CREATE tidut.
+            ASSIGN
+            tidut.UT = '</table>'.
+            RUN slutdiv_UI. /*KRAVCOL*/
+         END.
+         ELSE DO:
+            RUN startdiv_UI (INPUT "KRAVCOL"). 
+            RUN slutdiv_UI.
+         END.
+         RUN slutdiv_UI. /*objekt*/
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE startdiv_UI:
+   DEFINE INPUT  PARAMETER classvar AS CHARACTER  NO-UNDO.
+   CREATE tidut.
+   tidut.UT = '<div class="' + classvar + '">'.
+END PROCEDURE.
+PROCEDURE slutdiv_UI:
+   tidut.UT = tidut.UT + '</div>'.
+END PROCEDURE.
+
+PROCEDURE htmstart_UI:
+   DEFINE INPUT PARAMETER titlevar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER mallvar AS CHARACTER NO-UNDO.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">'.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<html>'.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<head>'.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<title>' + titlevar + '</title>'.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">'.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<link rel="stylesheet" type="text/css" href="' + mallvar + '" />'.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '</head>'.
+   RUN bodystart_UI.
+   RUN sokupphtml_UI.
+   RUN bodyslut_UI.
+   RUN htmslut_UI.    
+END PROCEDURE.
+PROCEDURE htmslut_UI:
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '</html>'.
+END PROCEDURE.
+PROCEDURE tabradstart_UI:
+   CREATE tidut.            
+   tidut.UT = '<tr>'.
+END PROCEDURE.
+PROCEDURE tabradslut_UI:
+   CREATE tidut.            
+   tidut.UT = '</tr>'.
+END PROCEDURE.
+PROCEDURE falttabbredd_UI:
+   DEFINE INPUT PARAMETER hoger AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER faltvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER breddproc AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER antaltomfalt AS INTEGER NO-UNDO.
+   DEFINE VARIABLE raknare AS INTEGER NO-UNDO.
+   IF faltvar NE "" THEN DO:
+      IF hoger = TRUE THEN tidut.UT = tidut.UT + '<td align="right" width="' + STRING(breddproc) + '%" height="14" valign="top">' + faltvar + '</td>'.
+      ELSE tidut.UT = tidut.UT + '<td align="left" width="' + STRING(breddproc) + '%" height="14" valign="top">' + faltvar + '</td>'.
+   END.
+   raknare = 1.
+   DO WHILE raknare <= antaltomfalt:
+      tidut.UT = tidut.UT + '<td  width="' + STRING(breddproc) + '%" height="14" valign="top">&nbsp;</td>'.               
+      raknare = raknare + 1.      
+   END.
+END PROCEDURE.
+
+
+
+
+
+

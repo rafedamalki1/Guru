@@ -1,0 +1,141 @@
+/*KALKAOHMT1.P*/
+{KALKIN.I}
+&Scoped-define NEW NEW
+{KALKALLTEMP.I}  
+{GLOBVAR2DEL1.I}
+FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+DEFINE INPUT PARAMETER vartifran AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR kalkintemp. 
+DEFINE OUTPUT PARAMETER TABLE FOR valdfasttemp. 
+DEFINE TEMP-TABLE kalkaonrtemp NO-UNDO LIKE KALKAONR.
+{DYNHMT.I}
+IF vartifran = 2 THEN DO:
+   ASSIGN
+   kommandoquery = "FOR EACH kalkintemp ,".
+   kommandoquery = kommandoquery + " EACH KALKAONR WHERE " +
+   "KALKAONR.AONR = kalkintemp.AONR AND KALKAONR.DELNR = kalkintemp.DELNR NO-LOCK". 
+END.
+IF vartifran = 3 THEN DO:
+   ASSIGN
+   kommandoquery = "FOR EACH kalkintemp ,".
+   kommandoquery = kommandoquery + " EACH KALKAONR WHERE " +
+   "KALKAONR.PLANNR = kalkintemp.PLANNR AND KALKAONR.ARTAL = kalkintemp.ARTAL NO-LOCK". 
+END.
+ASSIGN
+jointab    = "kalkintemp"
+orginaltab = "KALKAONR"
+nytab      = "kalkaonrtemp".
+/*BUGG 9.1c FIX*/
+ASSIGN 
+extratemptabh = TEMP-TABLE kalkaonrtemp:DEFAULT-BUFFER-HANDLE
+extrajointemptabh = TEMP-TABLE kalkintemp:DEFAULT-BUFFER-HANDLE.
+RUN dynquery_UI (INPUT FALSE,INPUT TRUE).
+FOR EACH kalkaonrtemp WHERE kalkaonrtemp.KALKNR = ?:
+  DELETE kalkaonrtemp.
+END.
+FOR EACH kalkaonrtemp: 
+   IF kalkaonrtemp.TYP = 6 THEN DO:
+      FIND FIRST KALKSPEC WHERE KALKSPEC.KALKNR = kalkaonrtemp.KALKNR
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE KALKSPEC THEN DO:
+         CREATE valdfasttemp.
+         BUFFER-COPY KALKSPEC TO valdfasttemp.
+         BUFFER-COPY kalkaonrtemp TO valdfasttemp.
+         ASSIGN
+         valdfasttemp.BENAMNING = KALKSPEC.KALKTEXT  
+         valdfasttemp.TYPCHAR = "Fri"
+         valdfasttemp.TYP = 6.
+         /*KALKÅR*/
+
+         IF Guru.Konstanter:globforetag = "GRAN" THEN valdfasttemp.VIKATAR = valdfasttemp.KATAR - 2.
+         ELSE valdfasttemp.VIKATAR = valdfasttemp.KATAR - 1.                  
+         IF valdfasttemp.VIKATAR < 1900  THEN valdfasttemp.VIKATAR = 0.
+      END.
+   END.
+   ELSE DO:
+      FIND FIRST FASTSPEC WHERE FASTSPEC.KALKNR = kalkaonrtemp.KALKNR
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE FASTSPEC THEN DO:
+         CREATE valdfasttemp.
+         BUFFER-COPY FASTSPEC TO valdfasttemp. 
+         BUFFER-COPY kalkaonrtemp TO valdfasttemp.
+         ASSIGN
+         valdfasttemp.TYPCHAR = STRING(valdfasttemp.TYP).
+         IF valdfasttemp.TYP = 5 THEN valdfasttemp.TYPCHAR = "Sam".
+         ELSE IF valdfasttemp.TYP = 7 THEN valdfasttemp.TYPCHAR = "Nät".
+         /*KALKÅR*/
+        
+            IF Guru.Konstanter:globforetag = "GRAN" THEN valdfasttemp.VIKATAR = valdfasttemp.KATAR - 2.
+            ELSE valdfasttemp.VIKATAR = valdfasttemp.KATAR - 1.         
+            IF valdfasttemp.VIKATAR < 1900  THEN valdfasttemp.VIKATAR = 0.
+        
+      END.
+   END.
+END.
+
+IF vartifran = 2 THEN DO:
+   /*AONR SOM SAKNAR KALKYL*/
+   
+   FOR EACH kalkintemp:
+      FIND FIRST valdfasttemp WHERE valdfasttemp.AONR = kalkintemp.AONR AND valdfasttemp.DELNR = kalkintemp.DELNR 
+      NO-ERROR.
+      IF NOT AVAILABLE valdfasttemp THEN DO:
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = kalkintemp.AONR AND AONRTAB.DELNR = kalkintemp.DELNR 
+         NO-LOCK NO-ERROR.
+         CREATE valdfasttemp.
+         ASSIGN
+         valdfasttemp.AONR = kalkintemp.AONR 
+         valdfasttemp.DELNR = kalkintemp.DELNR
+         valdfasttemp.AKTIV = TRUE   
+         valdfasttemp.ANVANDARE = ?
+         
+         valdfasttemp.BENAMNING = AONRTAB.ORT
+         valdfasttemp.BESTID   = AONRTAB.BESTID
+         valdfasttemp.KALKANV = ? 
+         valdfasttemp.KALKNR = ?  
+         valdfasttemp.KATAR  = ?  
+         valdfasttemp.PLANNR  = ? 
+         valdfasttemp.ARTAL = ?   
+         valdfasttemp.OMRADE  = AONRTAB.OMRADE 
+         valdfasttemp.TYPCHAR = ?
+         valdfasttemp.TYP   = ?.   
+         /* KALKÅR*/
+         valdfasttemp.VIKATAR = valdfasttemp.KATAR.         
+         IF valdfasttemp.VIKATAR < 1900  THEN valdfasttemp.VIKATAR = 0.
+      END.
+   END.   
+   
+END.
+IF vartifran = 3 THEN DO:
+   FOR EACH kalkintemp:
+      FIND FIRST valdfasttemp WHERE valdfasttemp.PLANNR = kalkintemp.PLANNR AND valdfasttemp.ARTAL = kalkintemp.ARTAL 
+      NO-ERROR.
+      IF NOT AVAILABLE valdfasttemp THEN DO:
+         FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = kalkintemp.PLANNR AND PLANNRTAB.ARTAL = kalkintemp.ARTAL
+         NO-LOCK NO-ERROR.
+         CREATE valdfasttemp.
+         ASSIGN
+         valdfasttemp.AONR = ? 
+         valdfasttemp.DELNR = ?
+         valdfasttemp.AKTIV = TRUE   
+         valdfasttemp.ANVANDARE = ?
+         valdfasttemp.ARTAL = PLANNRTAB.ARTAL   
+         valdfasttemp.BENAMNING = PLANNRTAB.ORT
+         valdfasttemp.BESTID   = PLANNRTAB.BESTID
+         valdfasttemp.KALKANV = ? 
+         valdfasttemp.KALKNR = ?  
+         valdfasttemp.KATAR  = ?  
+         valdfasttemp.OMRADE  = PLANNRTAB.OMRADE 
+         valdfasttemp.PLANNR  = PLANNRTAB.PLANNR
+         valdfasttemp.TYPCHAR = ?
+         valdfasttemp.TYP   = ?.   
+         /*
+         KALKÅR*/
+         valdfasttemp.VIKATAR = valdfasttemp.KATAR.         
+         IF valdfasttemp.VIKATAR < 1900  THEN valdfasttemp.VIKATAR = 0.
+      END.
+   END.
+END.
+RUN objdelete_UI.

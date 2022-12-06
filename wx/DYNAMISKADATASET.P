@@ -1,0 +1,413 @@
+
+/*------------------------------------------------------------------------
+    File        : DYNAMISKADATASET.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Wed Mar 02 12:15:29 CET 2016
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+METHOD PUBLIC VOID BerKalkSynk(phBuffer AS HANDLE):
+      DEFINE VARIABLE hBeforeBuff AS HANDLE NO-UNDO.
+      DEFINE VARIABLE hBeforeQry  AS HANDLE    NO-UNDO.
+      DEFINE VARIABLE hchBuff AS HANDLE NO-UNDO.
+      
+      IF THIS-OBJECT:berkalkylstart = FALSE THEN DO:
+         RETURN.
+      END.
+      hBeforeBuff = phBuffer:BEFORE-BUFFER.
+      /*
+      CREATE BUFFER hchBuff.
+      hchBuff:CREATE-LIKE(phBuffer:TABLE-HANDLE).
+      hchBuff:GET-CHANGES(phBuffer).
+     */
+      IF VALID-HANDLE(hBeforeBuff) THEN DO:
+         CREATE QUERY hBeforeQry.
+         hBeforeQry:ADD-BUFFER(hBeforeBuff).
+         hBeforeQry:QUERY-PREPARE("FOR EACH " + hBeforeBuff:NAME).
+         hBeforeQry:QUERY-OPEN().
+         hBeforeQry:GET-FIRST().
+         DO WHILE NOT hBeforeQry:QUERY-OFF-END:
+            IF hBeforeBuff:ROW-STATE = ROW-DELETED  THEN DO:
+               THIS-OBJECT:BerKalkSynkCrMoDe(hBeforeBuff:ROW-STATE,hBeforeBuff:BUFFER-FIELD("NUM"):BUFFER-VALUE).
+            END.
+            IF hBeforeBuff:ROW-STATE = ROW-MODIFIED THEN DO:
+               THIS-OBJECT:BerKalkSynkCrMoDe(hBeforeBuff:ROW-STATE,hBeforeBuff:BUFFER-FIELD("NUM"):BUFFER-VALUE).
+            END.
+            IF hBeforeBuff:ROW-STATE = ROW-CREATED THEN DO:
+               THIS-OBJECT:BerKalkSynkCrMoDe(hBeforeBuff:ROW-STATE,nyberkalknum).
+            END.
+            hBeforeQry:GET-NEXT().
+         END.
+      END.      
+   END METHOD.
+   METHOD PUBLIC VOID BerKalkSynkCrMoDe(ImpAndNyBort AS INTEGER ,knumvar AS INTEGER):
+                                /* VAD         kalknum.num             alltid 0 om inte import alltid 0 om inte import  uppdatering av gammalkod från ber från schakt*/ 
+      DEFINE VARIABLE idvar AS INTEGER NO-UNDO.
+     
+      IF berkalkylstart = FALSE THEN RETURN.
+      
+      IF ImpAndNyBort = 1 THEN DO:
+        /*tar bort kalkylpost*/
+         THIS-OBJECT:BerKalkylbuffh:FIND-FIRST("WHERE KALKNUM = " + STRING(knumvar)) NO-ERROR.
+         IF THIS-OBJECT:BerKalkylbuffh:AVAILABLE THEN DO: 
+            IF THIS-OBJECT:BerKalkylbuffh:BUFFER-FIELD("ARBKOD"):BUFFER-VALUE = "EGEN" THEN DO:
+               THIS-OBJECT:KalkbefBbuffh:FIND-FIRST("WHERE ARBKOD = 'EGEN' AND LOPNR = " + STRING(THIS-OBJECT:BerKalkylbuffh:BUFFER-FIELD("LOPNR"):BUFFER-VALUE)) NO-ERROR.
+               IF THIS-OBJECT:KalkbefBbuffh:AVAILABLE THEN THIS-OBJECT:KalkbefBbuffh:BUFFER-DELETE().
+            END.
+            THIS-OBJECT:BerKalkylbuffh:BUFFER-DELETE().
+         END.   
+         THIS-OBJECT:HdKalkylbuffh:FIND-FIRST("WHERE KALKNUM = " + STRING(knumvar)) NO-ERROR.
+         IF THIS-OBJECT:HdKalkylbuffh:AVAILABLE THEN DO:
+            IF THIS-OBJECT:HdKalkylbuffh:BUFFER-FIELD("ARBKOD"):BUFFER-VALUE = "EGEN" THEN DO:
+               THIS-OBJECT:KalkbefBbuffh:FIND-FIRST("WHERE ARBKOD = 'EGEN' AND LOPNR = " + STRING(THIS-OBJECT:HdKalkylbuffh:BUFFER-FIELD("LOPNR"):BUFFER-VALUE)) NO-ERROR.
+               IF THIS-OBJECT:KalkbefBbuffh:AVAILABLE THEN THIS-OBJECT:KalkbefBbuffh:BUFFER-DELETE().
+            END.
+            THIS-OBJECT:HdKalkylbuffh:BUFFER-DELETE().
+         END.
+      END.
+       ELSE IF ImpAndNyBort = 2 THEN DO:   
+          /*UPPDATERA BEFINTLIG BERKALK POST*/
+         THIS-OBJECT:KoderTTh:FIND-FIRST("WHERE NUM = " + STRING(knumvar)) NO-ERROR.
+         IF THIS-OBJECT:KoderTTh:AVAILABLE THEN DO:
+            THIS-OBJECT:BerKalkylbuffh:FIND-FIRST("WHERE KALKNUM = " + STRING(knumvar)) NO-ERROR.
+            IF THIS-OBJECT:BerKalkylbuffh:AVAILABLE THEN DO:
+               THIS-OBJECT:BerKalkylbuffh:BUFFER-COPY(THIS-OBJECT:KoderTTh,"NUM").
+               IF THIS-OBJECT:KoderTTh:BUFFER-FIELD("ARBKOD"):BUFFER-VALUE = "EGEN" THEN DO:
+                  THIS-OBJECT:KalkbefbUpp(INPUT THIS-OBJECT:KoderTTh:BUFFER-FIELD("LOPNR"):BUFFER-VALUE,INPUT THIS-OBJECT:BerKalkylbuffh:BUFFER-FIELD("NUM"):BUFFER-VALUE, INPUT 0).
+               END.
+            END.
+            ELSE DO:
+               THIS-OBJECT:HdKalkylbuffh:FIND-FIRST("WHERE KALKNUM = " + STRING(knumvar)) NO-ERROR.
+               IF THIS-OBJECT:HdKalkylbuffh:AVAILABLE THEN DO: 
+                  THIS-OBJECT:HdKalkylbuffh:BUFFER-COPY(THIS-OBJECT:KoderTTh).
+                  IF THIS-OBJECT:KoderTTh:BUFFER-FIELD("ARBKOD"):BUFFER-VALUE = "EGEN" THEN DO:
+                     THIS-OBJECT:KalkbefbUpp(INPUT THIS-OBJECT:KoderTTh:BUFFER-FIELD("LOPNR"):BUFFER-VALUE,INPUT 0, INPUT THIS-OBJECT:HdKalkylbuffh:BUFFER-FIELD("SID"):BUFFER-VALUE).
+                  END.
+               END.   
+            END.
+         END.   
+      END.  
+      ELSE IF ImpAndNyBort = 3 THEN DO:   
+          /*Ny BERKALK POST*/
+         THIS-OBJECT:KoderTTh:FIND-FIRST("WHERE NUM = " + STRING(knumvar)) NO-ERROR.
+         IF THIS-OBJECT:KoderTTh:AVAILABLE THEN DO:
+            IF valdberkonst > 0 THEN DO: 
+               THIS-OBJECT:BerKalkylbuffh:FIND-FIRST("WHERE KALKNUM = " + STRING(knumvar)) NO-ERROR.
+               IF THIS-OBJECT:BerKalkylbuffh:AVAILABLE THEN THIS-OBJECT:BerKalkylbuffh:BUFFER-COPY(THIS-OBJECT:KoderTTh,"NUM").
+               ELSE DO:
+                  idvar = 0.
+                  THIS-OBJECT:BerKalkylbuffh:FIND-LAST("WHERE USE-INDEX BKID") NO-ERROR.
+                  IF THIS-OBJECT:BerKalkylbuffh:AVAILABLE THEN idvar = BerKalkylbuffh:BUFFER-FIELD("BKID"):BUFFER-VALUE.
+                  idvar = idvar + 1. 
+                  THIS-OBJECT:BerKalkylbuffh:BUFFER-COPY(THIS-OBJECT:KoderTTh,"NUM").
+                  THIS-OBJECT:BerKalkylbuffh:BUFFER-FIELD("BKID"):BUFFER-VALUE = idvar.
+                  THIS-OBJECT:BerKalkylbuffh:BUFFER-FIELD("NUM"):BUFFER-VALUE = valdberkonst. 
+                  THIS-OBJECT:BerKalkylbuffh:BUFFER-FIELD("KALKNUM"):BUFFER-VALUE = knumvar.
+               END.   
+               IF THIS-OBJECT:KoderTTh:BUFFER-FIELD("ARBKOD"):BUFFER-VALUE = "EGEN" THEN DO:
+                  THIS-OBJECT:KalkbefbUpp(INPUT THIS-OBJECT:KoderTTh:BUFFER-FIELD("LOPNR"):BUFFER-VALUE,INPUT THIS-OBJECT:BerKalkylbuffh:BUFFER-FIELD("NUM"):BUFFER-VALUE, INPUT 0).
+               END.
+            END.
+            ELSE IF valdsidnr > 0 THEN DO:
+                THIS-OBJECT:HdKalkylbuffh:FIND-FIRST("WHERE KALKNUM = " + STRING(knumvar)) NO-ERROR.
+                IF THIS-OBJECT:HdKalkylbuffh:AVAILABLE THEN THIS-OBJECT:HdKalkylbuffh:BUFFER-COPY(THIS-OBJECT:KoderTTh).
+                ELSE DO:
+                   idvar = 0.
+                   THIS-OBJECT:HdKalkylbuffh:FIND-LAST("WHERE USE-INDEX HKID") NO-ERROR.
+                   IF THIS-OBJECT:HdKalkylbuffh:AVAILABLE THEN idvar = HdKalkylbuffh:BUFFER-FIELD("BKID"):BUFFER-VALUE.
+                   idvar = idvar + 1.
+                   THIS-OBJECT:HdKalkylbuffh:BUFFER-CREATE().
+                   THIS-OBJECT:HdKalkylbuffh:BUFFER-COPY(THIS-OBJECT:KoderTTh).
+                   THIS-OBJECT:HdKalkylbuffh:BUFFER-FIELD("HKID"):BUFFER-VALUE = idvar.
+                   THIS-OBJECT:HdKalkylbuffh:BUFFER-FIELD("SID"):BUFFER-VALUE = valdsidnr. 
+                   THIS-OBJECT:HdKalkylbuffh:BUFFER-FIELD("KALKNUM"):BUFFER-VALUE = knumvar.        
+               END.
+               IF THIS-OBJECT:KoderTTh:BUFFER-FIELD("ARBKOD"):BUFFER-VALUE = "EGEN" THEN DO:
+                  THIS-OBJECT:KalkbefbUpp(INPUT THIS-OBJECT:KoderTTh:BUFFER-FIELD("LOPNR"):BUFFER-VALUE,INPUT 0, INPUT THIS-OBJECT:HdKalkylbuffh:BUFFER-FIELD("SID"):BUFFER-VALUE).
+               END.
+            END.
+         END.   
+      END.
+      
+      THIS-OBJECT:BerKalkSpara().   
+   END METHOD.
+   METHOD PUBLIC VOID BerKalkSynkImport(knumvar AS INTEGER,INPUT bkidvar AS INTEGER,INPUT hkidvar AS INTEGER):
+                                /* VAD         kalknum.num             alltid 0 om inte import alltid 0 om inte import  uppdatering av gammalkod från ber från schakt*/ 
+      DEFINE VARIABLE idvar AS INTEGER NO-UNDO.
+      /*OBS! KalkbefBbuffh MÅSTE UPPDATERAS!*/
+     
+      IF berkalkylstart = FALSE THEN RETURN.
+      THIS-OBJECT:KoderTTh:FIND-FIRST("WHERE NUM = " + STRING(knumvar)) NO-ERROR.
+      /*UPPDATERA berkalk vid ny post från beredningen*/
+      IF bkidvar NE 0 THEN DO:
+         THIS-OBJECT:BerKalkylbuffh:FIND-FIRST("WHERE BKID = " + STRING(bkidvar)) NO-ERROR.
+         IF THIS-OBJECT:BerKalkylbuffh:AVAILABLE THEN THIS-OBJECT:BerKalkylbuffh:BUFFER-FIELD("KALKNUM"):BUFFER-VALUE = knumvar.
+         THIS-OBJECT:KoderTTh:BUFFER-FIELD("BERNUM"):BUFFER-VALUE = THIS-OBJECT:BerKalkylbuffh:BUFFER-FIELD("NUM"):BUFFER-VALUE.
+      END. 
+      /*UPPDATERA HDkalk vid ny post från beredningen*/  
+      ELSE IF hkidvar NE 0 THEN DO:
+         THIS-OBJECT:HdKalkylbuffh:FIND-FIRST("WHERE HKID = " + STRING(hkidvar)) NO-ERROR.
+         IF THIS-OBJECT:HdKalkylbuffh:AVAILABLE THEN THIS-OBJECT:HdKalkylbuffh:BUFFER-FIELD("KALKNUM"):BUFFER-VALUE = knumvar.
+         THIS-OBJECT:KoderTTh:BUFFER-FIELD("SID"):BUFFER-VALUE = THIS-OBJECT:HdKalkylbuffh:BUFFER-FIELD("SID"):BUFFER-VALUE.
+      END.
+      RETURN. 
+         
+   END METHOD.
+   METHOD PUBLIC LOGICAL BerKalkSpara():
+      DEFINE VARIABLE chDS AS HANDLE NO-UNDO.
+      IF berkalkylstart = FALSE THEN RETURN FALSE.
+      THIS-OBJECT:BerKalkTracking(FALSE).
+      CREATE DATASET chDS.
+      chDS:CREATE-LIKE(BerKalkDS).
+      chDS:GET-CHANGES(BerKalkDS).
+
+   /*
+      DEFINE VARIABLE SPARAXML AS CHARACTER NO-UNDO.
+      SPARAXML = "C:\Ckalk.xml". 
+      chDS:WRITE-XML("FILE", SPARAXML). 
+MESSAGE "ber sparas"
+VIEW-AS ALERT-BOX.
+*/
+      RUN SparaDynDSstart_UI IN AppServerHandle (INPUT "BerKalkDS", INPUT DATASET-HANDLE chDS).
+
+      chDS:MERGE-CHANGES(BerKalkDS).
+      THIS-OBJECT:BerKalkTracking(TRUE).  
+      
+      RETURN TRUE.        
+   END METHOD.
+   METHOD PUBLIC VOID KalkbefbUpp(INPUT Lnr AS INTEGER, INPUT Bnr AS INTEGER, Snr AS INTEGER):
+      DEFINE VARIABLE qH       AS HANDLE    NO-UNDO.
+      DEFINE VARIABLE queryvar AS CHARACTER NO-UNDO.
+      THIS-OBJECT:KalkbefBbuffh:FIND-FIRST("WHERE ARBKOD = 'EGEN' AND LOPNR = " +  STRING(Lnr)) NO-ERROR.
+      IF THIS-OBJECT:KalkbefBbuffh:AVAILABLE THEN THIS-OBJECT:KalkbefBbuffh:BUFFER-DELETE().
+      THIS-OBJECT:KalkbefBbuffh:BUFFER-CREATE().
+      THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("BERNR"):BUFFER-VALUE = STRING(THIS-OBJECT:BerKalkkopplabuffh:BUFFER-FIELD("BERNR"):BUFFER-VALUE). 
+      THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE = THIS-OBJECT:BerKalkkopplabuffh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE.
+      THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("ARBKOD"):BUFFER-VALUE = "EGEN".
+      THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("LOPNR"):BUFFER-VALUE = Lnr.
+      THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("NUM"):BUFFER-VALUE = Bnr.
+      THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("SID"):BUFFER-VALUE = Snr.
+      THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("TTRECID"):BUFFER-VALUE = THIS-OBJECT:KalkbefBbuffh:RECID.
+          
+      THIS-OBJECT:KoderTTh:FIND-FIRST("WHERE ARBKOD = 'EGEN' AND LOPNR = " +  STRING(Lnr)) NO-ERROR.
+      
+      queryvar =  "FOR EACH " + ValdaPriserTTh:TABLE + " WHERE NUM = " + STRING(THIS-OBJECT:KoderTTh:BUFFER-FIELD("NUM"):BUFFER-VALUE).
+      qH = THIS-OBJECT:Root:DatabaseManager:Global:CreateCustomQuery(ValdaPriserTTh,queryvar).
+      qH:GET-FIRST().
+      DO WHILE qH:QUERY-OFF-END = FALSE:
+         THIS-OBJECT:PriserTTh:FIND-FIRST("WHERE  KPID = " + STRING(THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("KPID"):BUFFER-VALUE)) NO-ERROR.
+         IF THIS-OBJECT:PriserTTh:AVAILABLE THEN DO:
+            IF THIS-OBJECT:PriserTTh:BUFFER-FIELD("SOKBENAMNING"):BUFFER-VALUE = "BEREDARE" THEN DO:
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("F1"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("TIMMAR"):BUFFER-VALUE.
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("PRIS1"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("PRIS"):BUFFER-VALUE.
+            END.   
+            IF THIS-OBJECT:PriserTTh:BUFFER-FIELD("SOKBENAMNING"):BUFFER-VALUE = "BEREDARE REGION" THEN DO:
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("F1"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("TIMMAR"):BUFFER-VALUE.
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("PRIS1"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("PRIS"):BUFFER-VALUE.
+            END. 
+            IF THIS-OBJECT:PriserTTh:BUFFER-FIELD("SOKBENAMNING"):BUFFER-VALUE = "MONTÖR" THEN DO:
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("F2"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("TIMMAR"):BUFFER-VALUE.
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("PRIS2"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("PRIS"):BUFFER-VALUE.
+            END.
+            IF THIS-OBJECT:PriserTTh:BUFFER-FIELD("SOKBENAMNING"):BUFFER-VALUE = "MASKIN1" THEN DO:
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("F3"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("TIMMAR"):BUFFER-VALUE.
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("PRIS3"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("PRIS"):BUFFER-VALUE.
+            END. 
+            IF THIS-OBJECT:PriserTTh:BUFFER-FIELD("SOKBENAMNING"):BUFFER-VALUE = "MASKIN2" THEN DO:
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("F4"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("TIMMAR"):BUFFER-VALUE.
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("PRIS4"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("PRIS"):BUFFER-VALUE.
+            END.
+            IF THIS-OBJECT:PriserTTh:BUFFER-FIELD("SOKBENAMNING"):BUFFER-VALUE = "MASKIN3" THEN DO:
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("F7"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("TIMMAR"):BUFFER-VALUE.
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("PRIS7"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("PRIS"):BUFFER-VALUE.
+            END.
+            IF THIS-OBJECT:PriserTTh:BUFFER-FIELD("SOKBENAMNING"):BUFFER-VALUE = "MASKIN4" THEN DO:
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("F5"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("TIMMAR"):BUFFER-VALUE.
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("PRIS5"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("PRIS"):BUFFER-VALUE.
+            END.
+            IF THIS-OBJECT:PriserTTh:BUFFER-FIELD("SOKBENAMNING"):BUFFER-VALUE = "MASKIN5" THEN DO:
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("F6"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("TIMMAR"):BUFFER-VALUE.
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("PRIS6"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("PRIS"):BUFFER-VALUE.
+            END.
+             IF THIS-OBJECT:PriserTTh:BUFFER-FIELD("SOKBENAMNING"):BUFFER-VALUE = "MATERIEL" THEN DO:
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("MATERIEL"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("KOSTNAD"):BUFFER-VALUE.
+            END.
+            IF THIS-OBJECT:PriserTTh:BUFFER-FIELD("SOKBENAMNING"):BUFFER-VALUE = "ÖVRIGKOSTNAD" THEN DO:
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("OVRIGT"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("KOSTNAD"):BUFFER-VALUE.
+            END.
+            IF THIS-OBJECT:PriserTTh:BUFFER-FIELD("SOKBENAMNING"):BUFFER-VALUE = "ENTREP" THEN DO:
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("ENTRP"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("KOSTNAD"):BUFFER-VALUE.
+            END.
+            IF THIS-OBJECT:PriserTTh:BUFFER-FIELD("SOKBENAMNING"):BUFFER-VALUE = "UTRUSTNING" THEN DO:
+               THIS-OBJECT:KalkbefBbuffh:BUFFER-FIELD("UTRUSTKOST"):BUFFER-VALUE = THIS-OBJECT:ValdaPriserTTh:BUFFER-FIELD("KOSTNAD"):BUFFER-VALUE.
+            END.
+         END.
+                        
+   
+         qH:GET-NEXT().    
+      END.
+                 
+                 
+                 
+   END METHOD.
+   METHOD PUBLIC VOID LoadKalkyl():
+      IF THIS-OBJECT:Root:DatabaseManager:Kalkyl:berkalkylstart = TRUE THEN DO:
+         THIS-OBJECT:Root:DatabaseManager:Kalkyl:ImportBerKalk().
+                  
+      END. 
+   END METHOD.
+   METHOD PUBLIC VOID ImportBerKalk():
+      /*
+      KalkylimportTTh = TEMP-TABLE KalkylimportTT:HANDLE:DEFAULT-BUFFER-HANDLE.
+      
+      THIS-OBJECT:KalkylimportTTh:FIND-FIRST() NO-ERROR.
+      */ 
+      /*KOPIERAR KALKYL FRÅN BEREDNING*/
+      DEFINE VARIABLE qH       AS HANDLE    NO-UNDO.
+      DEFINE VARIABLE queryvar AS CHARACTER NO-UNDO.
+      queryvar =  "FOR EACH " + BerKalkylbuffh:TABLE + " WHERE KALKNUM = 0".
+      qH = THIS-OBJECT:Root:DatabaseManager:Global:CreateCustomQuery(BerKalkylbuffh,queryvar).
+      qH:GET-FIRST().
+      DO WHILE qH:QUERY-OFF-END = FALSE:
+         IF THIS-OBJECT:BerKalkylbuffh:BUFFER-FIELD("ARBKOD"):BUFFER-VALUE = "EGEN" THEN.
+         ELSE DO:
+            CREATE KalkylimportTT.
+            KalkylimportTT.ARBKOD = THIS-OBJECT:BerKalkylbuffh:BUFFER-FIELD("ARBKOD"):BUFFER-VALUE. 
+            KalkylimportTT.LOPNR = THIS-OBJECT:BerKalkylbuffh:BUFFER-FIELD("LOPNR"):BUFFER-VALUE.
+            KalkylimportTT.ANTAL = THIS-OBJECT:BerKalkylbuffh:BUFFER-FIELD("ANTAL"):BUFFER-VALUE.
+            KalkylimportTT.BKID = THIS-OBJECT:BerKalkylbuffh:BUFFER-FIELD("BKID"):BUFFER-VALUE.
+         END.   
+         qH:GET-NEXT().    
+      END.
+      queryvar =  "FOR EACH " + HdKalkylbuffh:TABLE + " WHERE KALKNUM = 0".
+      qH = THIS-OBJECT:Root:DatabaseManager:Global:CreateCustomQuery(HdKalkylbuffh,queryvar).
+      qH:GET-FIRST().
+      DO WHILE qH:QUERY-OFF-END = FALSE:
+         IF THIS-OBJECT:HdKalkylbuffh:BUFFER-FIELD("ARBKOD"):BUFFER-VALUE = "EGEN" THEN.
+         ELSE DO:
+            CREATE KalkylimportTT.
+            KalkylimportTT.ARBKOD = THIS-OBJECT:HdKalkylbuffh:BUFFER-FIELD("ARBKOD"):BUFFER-VALUE. 
+            KalkylimportTT.LOPNR = THIS-OBJECT:HdKalkylbuffh:BUFFER-FIELD("LOPNR"):BUFFER-VALUE.
+            KalkylimportTT.ANTAL = THIS-OBJECT:HdKalkylbuffh:BUFFER-FIELD("ANTAL"):BUFFER-VALUE.
+            KalkylimportTT.HKID = THIS-OBJECT:HdKalkylbuffh:BUFFER-FIELD("HKID"):BUFFER-VALUE.
+         END.
+         qH:GET-NEXT().    
+      END.
+      
+      
+      IF THIS-OBJECT:KalkylimportTTh:AVAILABLE THEN DO:                   
+         THIS-OBJECT:ControlShell:ImportLista().
+         THIS-OBJECT:ControlShell:FelMeddCheck().
+      END.
+   END METHOD.
+   
+   PROCEDURE BerKalkylCreate_UI :
+   CREATE TEMP-TABLE BerKalkkopplatth.
+   BerKalkkopplatth:CREATE-LIKE("BERKALKOPPLA").
+   BerKalkkopplatth:ADD-NEW-FIELD("TTRECID","RECID").
+   BerKalkkopplatth:TEMP-TABLE-PREPARE("Berkalkkopptt").
+   BerKalkkopplabuffh = BerKalkkopplatth:DEFAULT-BUFFER-HANDLE.
+   
+   CREATE TEMP-TABLE BerKalkyltth.
+   BerKalkyltth:CREATE-LIKE("BERKALK").
+   BerKalkyltth:ADD-NEW-FIELD("TTRECID","RECID").
+   BerKalkyltth:TEMP-TABLE-PREPARE("Berkalktt").
+   BerKalkylbuffh = BerKalkyltth:DEFAULT-BUFFER-HANDLE.
+   CREATE TEMP-TABLE HdKalkyltth.
+   HdKalkyltth:CREATE-LIKE("HDKALK").
+   HdKalkyltth:ADD-NEW-FIELD("TTRECID","RECID").
+   HdKalkyltth:TEMP-TABLE-PREPARE("Hdkalktt").
+   HdKalkylbuffh = HdKalkyltth:DEFAULT-BUFFER-HANDLE.
+      
+   CREATE TEMP-TABLE Bervalltth.
+   Bervalltth:CREATE-LIKE("BERVAL").
+   Bervalltth:ADD-NEW-FIELD("TTRECID","RECID").
+   Bervalltth:TEMP-TABLE-PREPARE("Bervaltt").
+   Bervallbuffh = Bervalltth:DEFAULT-BUFFER-HANDLE.
+   
+   CREATE TEMP-TABLE Bermtrltth.
+   Bermtrltth:CREATE-LIKE("BERMTRL").
+   Bermtrltth:ADD-NEW-FIELD("TTRECID","RECID").
+   Bermtrltth:TEMP-TABLE-PREPARE("Bermtrltt").
+   Bermtrlbuffh = Bermtrltth:DEFAULT-BUFFER-HANDLE.   
+  
+   
+   CREATE TEMP-TABLE HdSchakttth.
+   HdSchakttth:CREATE-LIKE("HDSCHAKT").
+   HdSchakttth:ADD-NEW-FIELD("TTRECID","RECID").
+   HdSchakttth:TEMP-TABLE-PREPARE("Schakttt").
+   HdSchaktbuffh = HdSchakttth:DEFAULT-BUFFER-HANDLE.
+   
+   CREATE TEMP-TABLE KalkbefBtth.
+   KalkbefBtth:CREATE-LIKE("KALKBEFB").
+   KalkbefBtth:ADD-NEW-FIELD("TTRECID","RECID").
+   KalkbefBtth:TEMP-TABLE-PREPARE("Kalkbefbtt").
+   KalkbefBbuffh = KalkbefBtth:DEFAULT-BUFFER-HANDLE.
+ 
+END PROCEDURE.
+PROCEDURE laddaBerkalkDS_UI :
+   
+   DEFINE INPUT  PARAMETER berkalkvad AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER bervalvad AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER bermtrlvad AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER schaktvad AS CHARACTER NO-UNDO. 
+   DEFINE OUTPUT PARAMETER DATASET-HANDLE BerKalkDS BIND.
+   DEFINE OUTPUT PARAMETER DATASET-HANDLE BerValDS BIND.
+   DEFINE OUTPUT PARAMETER DATASET-HANDLE BerMtrlDS BIND.
+   DEFINE OUTPUT PARAMETER DATASET-HANDLE HdSchaktDS BIND.
+   
+   IF NOT VALID-HANDLE(BerKalkyltth) THEN RUN BerKalkylCreate_UI.
+   RUN GetDatasetDeftt_UI ("BerKalkDS").
+   DatasetDeftt.antaltab = 4.
+   DatasetDeftt.pcBuffers[1] = STRING(BerKalkkopplabuffh).
+   DatasetDeftt.pcBuffers[2] = STRING(BerKalkylbuffh).
+   DatasetDeftt.pcBuffers[3] = STRING(HdKalkylbuffh).
+   DatasetDeftt.pcBuffers[4] = STRING(KalkbefBbuffh).
+   
+   DatasetDeftt.pcSources[1] = "BERKALKOPPLA".
+   DatasetDeftt.pcSources[2] = "BERKALK".
+   DatasetDeftt.pcSources[3] = "HDKALK".
+   DatasetDeftt.pcSources[4] = "KALKBEFB". 
+   pcRelFields[1] = "AONR,AONR,OMRADE,OMRADE".
+   pcRelFields[2] = "BERNR,BERNR,OMRADE,OMRADE".
+   pcRelFields[3] = "BERNR,BERNR,OMRADE,OMRADE".
+   pcRelFields[4] = "BERNR,BERNR,OMRADE,OMRADE".  
+ 
+   DatasetDeftt.pcSourceKeys[1] = "BERNR,OMRADE,KALKNR".
+   DatasetDeftt.pcSourceKeys[2] = "AONR,OMRADE,BKID".
+   DatasetDeftt.pcSourceKeys[3] = "BERNR,OMRADE,HKID".
+   DatasetDeftt.pcSourceKeys[4] = "BERNR,OMRADE,ARBKOD,LOPNR,NUM,SID".
+   DatasetDeftt.pcKeyValue[1] = berkalkvad.
+   RUN DefAndLoadDs_UI IN dyndamicDSh 
+   ({DataSetInput.I} OUTPUT DATASET-HANDLE BerKalkDS BIND).
+   RUN GetDatasetDeftt_UI ("BerValDS").
+   DatasetDeftt.antaltab = 1.
+   DatasetDeftt.pcBuffers[1] = STRING(Bervallbuffh).
+   DatasetDeftt.pcSources[1] = "BERVAL".
+   DatasetDeftt.pcSourceKeys[1] = "AONR,OMRADE,NUM,SKAPNUM".
+   DatasetDeftt.pcKeyValue[1] = bervalvad.
+   RUN DefAndLoadDs_UI IN dyndamicDSh 
+   ({DataSetInput.I} OUTPUT DATASET-HANDLE BerValDS BIND).
+   RUN GetDatasetDeftt_UI ("BerMtrlDS").
+   DatasetDeftt.antaltab = 1.
+   DatasetDeftt.pcBuffers[1] = STRING(Bermtrlbuffh).
+   DatasetDeftt.pcSources[1] = "BERMTRL".
+   DatasetDeftt.pcSourceKeys[1] = "AONR,OMRADE,NUM".  /*EJ UNIKT*/
+   DatasetDeftt.pcKeyValue[1] = bermtrlvad.
+   RUN DefAndLoadDs_UI IN dyndamicDSh 
+   ({DataSetInput.I} OUTPUT DATASET-HANDLE BerMtrlDS BIND). 
+   RUN GetDatasetDeftt_UI ("HdschaktDS").  
+   DatasetDeftt.antaltab = 1.
+   DatasetDeftt.pcBuffers[1] = STRING(HdSchaktbuffh).
+   DatasetDeftt.pcSources[1] = "HDSCHAKT".
+   DatasetDeftt.pcSourceKeys[1] = "BERNR,OMRADE,SID".
+   DatasetDeftt.pcKeyValue[1] = schaktvad.
+   RUN DefAndLoadDs_UI IN dyndamicDSh 
+   ({DataSetInput.I} OUTPUT DATASET-HANDLE HdSchaktDS BIND).
+END PROCEDURE.

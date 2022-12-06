@@ -1,0 +1,185 @@
+/*SEMTILLW.P*/
+DEFINE VARIABLE stim AS DECIMAL NO-UNDO.
+DEFINE VARIABLE hjrak AS INTEGER NO-UNDO.
+DEFINE TEMP-TABLE stillagg 
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD
+   FIELD DATUM LIKE TIDREGITAB.DATUM
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR
+   FIELD TOTALT LIKE TIDREGITAB.TOTALT 
+   FIELD HELDAG AS LOGICAL
+   INDEX PKOD IS PRIMARY DATUM ASCENDING. 
+DEFINE BUFFER persbuff FOR PERSONALTAB.
+DEFINE BUFFER tbuff FOR TIDREGITAB.
+
+DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER hjdatum AS DATE NO-UNDO.
+DEFINE OUTPUT PARAMETER sdagar AS DECIMAL NO-UNDO.
+
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+/*bara elnät har demestertillägg- ladda sdagar = 16 för övriga */
+DEBUGGER:SET-BREAK().
+IF JURPERS.JUDID = "ELNÄT" OR JURPERS.JUDID = "ServaNet" THEN DO:
+   IF MONTH(hjdatum) GE 5 THEN DO:            
+      OPEN QUERY semq FOR EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD   
+      AND TIDREGITAB.PRISTYP = "FRÅNVARO." 
+      AND TIDREGITAB.TIDLOG = TRUE
+      AND YEAR(TIDREGITAB.DATUM) = YEAR(hjdatum)
+      AND MONTH(TIDREGITAB.DATUM) > 5 AND MONTH(TIDREGITAB.DATUM) < 9 NO-LOCK.
+      GET FIRST semq NO-LOCK.   
+      DO WHILE AVAILABLE(TIDREGITAB):           
+         IF TIDREGITAB.AONR = "150" OR TIDREGITAB.AONR = "170" OR TIDREGITAB.AONR = "160" OR TIDREGITAB.AONR = "120"
+         OR TIDREGITAB.AONR = "121" OR TIDREGITAB.AONR = "130" OR TIDREGITAB.AONR = "119" OR TIDREGITAB.AONR = "191" OR TIDREGITAB.AONR = "192" OR TIDREGITAB.AONR = "193" OR TIDREGITAB.AONR = "194"
+         OR TIDREGITAB.AONR = "155" THEN DO:         
+            CREATE stillagg.   
+            ASSIGN
+            stillagg.PERSONALKOD = TIDREGITAB.PERSONALKOD
+            stillagg.DATUM = TIDREGITAB.DATUM
+            stillagg.AONR  = TIDREGITAB.AONR 
+            stillagg.DELNR = TIDREGITAB.DELNR
+            stillagg.TOTALT = TIDREGITAB.TOTALT.
+            FIND FIRST tbuff  WHERE tbuff.PERSONALKOD = TIDREGITAB.PERSONALKOD   
+            AND tbuff.DATUM = TIDREGITAB.DATUM AND tbuff.AONR NE TIDREGITAB.AONR    
+            AND tbuff.TIDLOG = TRUE AND tbuff.OKOD1 = ""
+            AND tbuff.LONTILLAGG = ""     NO-LOCK NO-ERROR.
+            IF AVAILABLE tbuff THEN DO:
+               stillagg.HELDAG = FALSE.
+            END.
+            ELSE stillagg.HELDAG = TRUE.
+            IF TIDREGITAB.AONR = "155" AND stillagg.HELDAG = FALSE THEN DELETE stillagg.
+         END.
+         
+         GET NEXT semq NO-LOCK.      
+      END.
+      CLOSE QUERY semq.
+   END.
+   ELSE IF  MONTH(hjdatum) < 5 THEN DO:      
+      hjrak = 0.
+      OPEN QUERY semnq FOR EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+      AND TIDREGITAB.PRISTYP = "FRÅNVARO."  
+      AND TIDREGITAB.TIDLOG = TRUE
+      AND YEAR(TIDREGITAB.DATUM) =  ( YEAR(hjdatum) - 1 )
+      AND MONTH(TIDREGITAB.DATUM) > 5 AND MONTH(TIDREGITAB.DATUM) < 9 NO-LOCK.
+      GET FIRST semnq NO-LOCK.   
+      DO WHILE AVAILABLE(TIDREGITAB):             
+         IF TIDREGITAB.AONR = "150" OR TIDREGITAB.AONR = "170" OR TIDREGITAB.AONR = "160" OR TIDREGITAB.AONR = "120"
+         OR TIDREGITAB.AONR = "121" OR TIDREGITAB.AONR = "130" OR TIDREGITAB.AONR = "119" OR TIDREGITAB.AONR = "191" OR TIDREGITAB.AONR = "192" OR TIDREGITAB.AONR = "193" OR TIDREGITAB.AONR = "194"
+         OR TIDREGITAB.AONR = "155"  THEN DO:         
+            CREATE stillagg.   
+            ASSIGN
+            stillagg.PERSONALKOD = TIDREGITAB.PERSONALKOD
+            stillagg.DATUM = TIDREGITAB.DATUM
+            stillagg.AONR  = TIDREGITAB.AONR 
+            stillagg.DELNR = TIDREGITAB.DELNR
+            stillagg.TOTALT = TIDREGITAB.TOTALT.
+            hjrak = hjrak + 1.
+            FIND FIRST tbuff  WHERE tbuff.PERSONALKOD = TIDREGITAB.PERSONALKOD   
+            AND tbuff.DATUM = TIDREGITAB.DATUM AND tbuff.AONR NE TIDREGITAB.AONR    
+            AND tbuff.TIDLOG = TRUE AND tbuff.OKOD1 = ""
+            AND tbuff.LONTILLAGG = ""     NO-LOCK NO-ERROR.
+            IF AVAILABLE tbuff THEN DO:
+               stillagg.HELDAG = FALSE.
+            END.
+            ELSE stillagg.HELDAG = TRUE.
+            IF TIDREGITAB.AONR = "155" AND stillagg.HELDAG = FALSE THEN DELETE stillagg.
+         END.         
+         GET NEXT semnq NO-LOCK.      
+      END.
+      CLOSE QUERY semnq.   
+   END.
+   
+   sdagar = 0.   
+   FOR EACH stillagg WHERE stillagg.AONR = "150" AND stillagg.totalt > 0:
+      sdagar = sdagar + 1.     
+   END.
+   FOR EACH stillagg WHERE stillagg.AONR = "160" OR stillagg.AONR = "119" OR stillagg.AONR = "120"
+   OR stillagg.AONR = "121" OR stillagg.AONR = "130" OR stillagg.AONR = "155" OR stillagg.AONR = "170" OR stillagg.AONR = "191" OR stillagg.AONR = "192" OR stillagg.AONR = "193" OR stillagg.AONR = "194":
+      IF stillagg.HELDAG =  TRUE THEN DO:   
+         sdagar = sdagar + 1.     
+      END.
+   END.   
+   IF sdagar < 16 THEN DO:
+      IF MONTH(hjdatum) = 12 THEN DO:
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+         AND TIDREGITAB.TIDLOG = TRUE   
+         AND YEAR(TIDREGITAB.DATUM) =  YEAR(hjdatum)
+         AND MONTH(TIDREGITAB.DATUM) < 7 NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE TIDREGITAB THEN DO: 
+            sdagar = 16.
+         END.
+         ELSE DO:
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            AND TIDREGITAB.TIDLOG = TRUE   
+            AND YEAR(TIDREGITAB.DATUM) =  YEAR(hjdatum) 
+            AND MONTH(TIDREGITAB.DATUM) > 5 AND MONTH(TIDREGITAB.DATUM) < 9 NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE TIDREGITAB THEN DO: 
+               sdagar = 16.
+            END.
+            ELSE DO:            
+               FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+               AND TIDREGITAB.TIDLOG = TRUE   
+               AND YEAR(TIDREGITAB.DATUM) =  YEAR(hjdatum)
+               AND MONTH(TIDREGITAB.DATUM) < 6 NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE TIDREGITAB THEN DO:
+                  FOR EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+                  AND TIDREGITAB.TIDLOG = TRUE   
+                  AND TIDREGITAB.AONR = "159" 
+                  AND YEAR(TIDREGITAB.DATUM) =  YEAR(hjdatum)
+                  AND MONTH(TIDREGITAB.DATUM) = 6 NO-LOCK:
+                     sdagar = sdagar + 1.
+                  END.
+               END.
+            END.   
+         END.
+      END.
+      ELSE IF MONTH(hjdatum) LE 4 THEN DO:   
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+         AND TIDREGITAB.TIDLOG = TRUE   
+         AND YEAR(TIDREGITAB.DATUM) =  ( YEAR(hjdatum) - 1 )
+         AND MONTH(TIDREGITAB.DATUM) < 7 NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE TIDREGITAB THEN DO: 
+            sdagar = 16.
+         END.
+         ELSE DO:
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            AND TIDREGITAB.TIDLOG = TRUE   
+            AND YEAR(TIDREGITAB.DATUM) =  ( YEAR(hjdatum) - 1 ) 
+            AND MONTH(TIDREGITAB.DATUM) > 5 AND MONTH(TIDREGITAB.DATUM) < 9 NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE TIDREGITAB THEN DO: 
+               sdagar = 16.
+            END.
+            ELSE DO:            
+               FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+               AND TIDREGITAB.TIDLOG = TRUE   
+               AND YEAR(TIDREGITAB.DATUM) =  ( YEAR(hjdatum) - 1 )
+               AND MONTH(TIDREGITAB.DATUM) < 6 NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE TIDREGITAB THEN DO: 
+                  FOR EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+                  AND TIDREGITAB.TIDLOG = TRUE   
+                  AND TIDREGITAB.AONR = "159" 
+                  AND YEAR(TIDREGITAB.DATUM) =  ( YEAR(hjdatum) - 1 )
+                  AND MONTH(TIDREGITAB.DATUM) = 6 NO-LOCK:
+                     sdagar = sdagar + 1.
+                  END.
+               END.
+            END.   
+         END.
+      END.
+   END.
+END.
+ELSE DO:
+   sdagar = 16.
+END.

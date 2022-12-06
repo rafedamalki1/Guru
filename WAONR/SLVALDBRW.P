@@ -1,0 +1,417 @@
+/*
+     Filename: SLVALDBRW.P 
+      Created: 03.02.0028 16:30ELPAO     
+     Modified: hämta favoriter spara favoriter 
+                        
+*/    
+&Scoped-define NEW NEW
+{VARFORETYP.I}                                             
+DEFINE VARIABLE sldynfalthao AS HANDLE NO-UNDO.
+DEFINE VARIABLE sldynfalthdel AS HANDLE NO-UNDO.
+DEFINE VARIABLE sldynfalthdate AS HANDLE NO-UNDO.
+DEFINE VARIABLE slanvandare AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sanvqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE lanvbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE joinbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE ttbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE ttqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE forstkommandoquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE globforetag AS CHARACTER  NO-UNDO.
+
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{SLVALDBRW.I}
+
+/**************** INPUT PARAMTER ***********************/
+DEFINE INPUT-OUTPUT PARAMETER TABLE-HANDLE tth.
+DEFINE INPUT PARAMETER TABLE FOR sparaladdatemp.                               
+
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.
+RUN STYREAPP.P (INPUT FORETAG.FORETAG, INPUT-OUTPUT varforetypval, INPUT-OUTPUT varforetypchar, INPUT FALSE).
+{STYREAPPLADD.I}
+
+FIND FIRST sparaladdatemp NO-LOCK NO-ERROR.
+IF NOT AVAILABLE sparaladdatemp THEN RETURN.
+slanvandare = sparaladdatemp.GLOBANV + "$" + sparaladdatemp.BENAMNING.
+
+IF sparaladdatemp.SLVAL = 1 THEN RUN spara_UI.
+IF sparaladdatemp.SLVAL = 2 THEN DO:
+   RUN hamta_UI.
+   IF sparaladdatemp.TABVAL = "MTRL" THEN RUN hamtaMtrlSpec_UI.
+END.   
+IF sparaladdatemp.SLVAL = 3 THEN RUN ephamta_UI.
+DELETE OBJECT tth.
+
+PROCEDURE ephamta_UI :
+    /*med epost utan att lagra i databasen förutom ANVAOTAB DVS UTAN JOIN*/
+   
+   /* laddabrw2_UI : hämta med epost utan att lagra i databasen förutom ANVAOTAB DVS UTAN JOIN*/
+   ttbufh = tth:DEFAULT-BUFFER-HANDLE.
+   forstkommandoquery = "FOR EACH ANVAOTAB WHERE ANVAOTAB.ANVANDARE = " + '"' + slanvandare + '"' .     
+   
+   kommandoquery = kommandoquery + " NO-LOCK:".
+   kommandoquery = forstkommandoquery + kommandoquery.
+/*    DEFINE VARIABLE cc AS INTEGER NO-UNDO. */
+/*    cc = ETIME.                            */
+   /*CREATE BUFFER lanvbufh FOR TABLE sparaladdatemp.TABVAL. */
+   CREATE BUFFER joinbufh FOR TABLE "ANVAOTAB".
+   CREATE QUERY ttqh.
+   ttqh:SET-BUFFERS(joinbufh).
+   ttqh:QUERY-PREPARE(kommandoquery).
+   ttqh:QUERY-OPEN().
+   ttqh:GET-FIRST(NO-LOCK).
+   DO WHILE ttqh:QUERY-OFF-END = FALSE:
+      ttbufh:BUFFER-CREATE().
+      ttbufh:BUFFER-COPY(joinbufh).
+      ttqh:GET-NEXT(NO-LOCK).
+   END.
+/*    ttqh:QUERY-CLOSE.                           */
+/*    cc = ETIME - cc.                            */
+/*    MESSAGE cc kommandoquery VIEW-AS ALERT-BOX. */
+   DELETE OBJECT ttqh.
+   DELETE OBJECT joinbufh.
+   /*DELETE OBJECT lanvbufh.       */   
+   
+END PROCEDURE.
+PROCEDURE spara_UI :
+   DEFINE VARIABLE sparaok  AS LOGICAL NO-UNDO.
+  
+   /*sparabrw_UI : spara*/   
+   OPEN QUERY sanvq FOR EACH ANVAOTAB WHERE ANVAOTAB.ANVANDARE = slanvandare NO-LOCK.
+   GET FIRST sanvq NO-LOCK.
+   DO WHILE AVAILABLE(ANVAOTAB): 
+      DO TRANSACTION:
+         GET CURRENT sanvq EXCLUSIVE-LOCK.
+         DELETE ANVAOTAB. 
+      END.      
+      GET NEXT sanvq NO-LOCK.
+   END.
+   ttbufh = tth:DEFAULT-BUFFER-HANDLE.
+   CREATE QUERY ttqh.
+   ttqh:SET-BUFFERS(ttbufh).
+   kommandoquery = "FOR EACH " + ttbufh:TABLE + " NO-LOCK.".
+   ttqh:QUERY-PREPARE(kommandoquery).
+   ttqh:QUERY-OPEN().
+   ttqh:GET-FIRST(NO-LOCK).
+   
+   DO WHILE ttqh:QUERY-OFF-END = FALSE:
+      CREATE BUFFER lanvbufh FOR TABLE sparaladdatemp.TABVAL.
+      IF sparaladdatemp.FALTVALAO NE "" THEN DO:
+         sldynfalthao = ttbufh:BUFFER-FIELD(sparaladdatemp.FALTVALAO).
+      END.
+      IF sparaladdatemp.FALTVALDEL NE "" THEN DO:
+         sldynfalthdel = ttbufh:BUFFER-FIELD(sparaladdatemp.FALTVALDEL).
+      END.
+      IF sparaladdatemp.FALTVALDATE NE "" THEN DO:
+         sldynfalthdate = ttbufh:BUFFER-FIELD(sparaladdatemp.FALTVALDATE).
+      END.
+      sparaok = FALSE.
+      /* DETTA BEHÖVS INTE OM MAN BLIR AUTO UPPLAGD PÅ PROJEKTET DVS OFFERT FÖR DET MAN SKAPAR*/
+      /*
+      IF sparaladdatemp.FALTVALAO = "AONR" THEN RUN aonrsekkoll_UI (INPUT "SPAR", OUTPUT sparaok).
+      ELSE 
+      */
+      
+      sparaok = TRUE.
+      IF sparaok = TRUE THEN RUN SkapFavo_UI.
+      ttqh:GET-NEXT(NO-LOCK).
+   END.             
+   ttqh:QUERY-CLOSE.
+   DELETE OBJECT ttqh.
+END PROCEDURE.
+
+PROCEDURE hamta_UI :
+   DEFINE VARIABLE sparaok AS LOGICAL NO-UNDO. 
+   /*laddabrw_UI hämta*/
+   ttbufh = tth:DEFAULT-BUFFER-HANDLE.
+   forstkommandoquery = "FOR EACH ANVAOTAB WHERE ANVAOTAB.ANVANDARE = " + '"' + slanvandare + '"' + " NO-LOCK, EACH " +
+   sparaladdatemp.TABVAL + " WHERE ".     
+   
+   IF sparaladdatemp.FALTVALAO NE ""  THEN DO:
+      kommandoquery = sparaladdatemp.TABVAL + "." + sparaladdatemp.FALTVALAO +  
+      " = ANVAOTAB.AONR".
+   END.
+   IF sparaladdatemp.FALTVALDATE NE "" THEN DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + sparaladdatemp.TABVAL + "." + sparaladdatemp.FALTVALDATE + 
+      " = ANVAOTAB.AONRAVDATUM".
+   END.
+   IF sparaladdatemp.FALTVALDEL NE "" THEN DO:
+      RUN and_UI.
+      IF sparaladdatemp.TABVAL = "MTRL" THEN DO:
+         kommandoquery = kommandoquery + sparaladdatemp.TABVAL + "." + sparaladdatemp.FALTVALDEL + " = " + "STRING(ANVAOTAB.DELNR)".
+         
+      END.
+      ELSE DO:    
+         kommandoquery = kommandoquery + "INTEGER(" + sparaladdatemp.TABVAL + "." + sparaladdatemp.FALTVALDEL + ")" + 
+         " = ANVAOTAB.DELNR".
+      END.   
+   END.
+   IF sparaladdatemp.TABVAL = "MTRL" THEN DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + sparaladdatemp.TABVAL + "." + "KALKNR = 0".
+   END.   
+   kommandoquery = kommandoquery + " NO-LOCK.".
+   kommandoquery = forstkommandoquery + kommandoquery.
+    
+/*    DEFINE VARIABLE cc AS INTEGER NO-UNDO. */
+/*    cc = ETIME.  */          
+
+   CREATE BUFFER lanvbufh FOR TABLE sparaladdatemp.TABVAL. 
+   CREATE BUFFER joinbufh FOR TABLE "ANVAOTAB".
+   CREATE QUERY ttqh.
+   ttqh:SET-BUFFERS(joinbufh,lanvbufh).
+   ttqh:QUERY-PREPARE(kommandoquery).
+   ttqh:QUERY-OPEN().
+   ttqh:GET-FIRST(NO-LOCK).
+   DO WHILE ttqh:QUERY-OFF-END = FALSE:
+      ttbufh:BUFFER-CREATE().
+      ttbufh:BUFFER-COPY(lanvbufh).
+   
+      IF sparaladdatemp.BENAMNING = "KALK" THEN RUN kalksekkoll_UI (INPUT "HAMT",OUTPUT sparaok).
+      IF sparaladdatemp.BENAMNING = "BER" THEN RUN bersekkoll_UI (INPUT "HAMT",OUTPUT sparaok).
+      IF sparaladdatemp.FALTVALAO = "AONR" THEN RUN aonrsekkoll_UI (INPUT "HAMT",OUTPUT sparaok).
+     
+      IF sparaladdatemp.TABVAL = "PERSONALTAB" THEN Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + lanvbufh:BUFFER-FIELD("PERSONALKOD"):BUFFER-VALUE.       
+      
+      ttqh:GET-NEXT(NO-LOCK).
+   END.
+   {GDPRLOGGCLIENT.I}
+   DELETE OBJECT ttqh.
+   DELETE OBJECT joinbufh.
+   DELETE OBJECT lanvbufh.
+   
+END PROCEDURE.
+
+
+PROCEDURE hamtaMtrlSpec_UI :
+   DEFINE VARIABLE sparaok AS LOGICAL NO-UNDO. 
+   DEFINE VARIABLE specanv AS CHARACTER NO-UNDO.
+   /*laddabrw_UI hämta*/
+   ttbufh = tth:DEFAULT-BUFFER-HANDLE.
+   forstkommandoquery = "FOR EACH ANVAOTAB WHERE ANVAOTAB.ANVANDARE = " + '"' + slanvandare + '"' + " AND  
+   ANVAOTAB.FASTAAONR = TRUE  NO-LOCK, EACH " + 
+   sparaladdatemp.TABVAL + " WHERE ".     
+   specanv =  SUBSTRING(slanvandare,1,INDEX(slanvandare,"$",1) - 1).
+   IF sparaladdatemp.FALTVALAO NE ""  THEN DO:
+      kommandoquery = sparaladdatemp.TABVAL + "." + sparaladdatemp.FALTVALAO +  
+      " = ANVAOTAB.AONR".
+   END.
+   IF sparaladdatemp.FALTVALDATE NE "" THEN DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + sparaladdatemp.TABVAL + "." + sparaladdatemp.FALTVALDATE + 
+      " = ANVAOTAB.AONRAVDATUM".
+   END.
+   IF sparaladdatemp.FALTVALDEL NE "" THEN DO:
+      RUN and_UI.
+      IF sparaladdatemp.TABVAL = "MTRL" THEN DO:
+          
+         kommandoquery = kommandoquery + sparaladdatemp.TABVAL + "." + sparaladdatemp.FALTVALDEL + " = " + QUOTER(STRING(99)  + STRING(specanv)).
+         
+      END.
+      
+   END.
+   IF sparaladdatemp.TABVAL = "MTRL" THEN DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + sparaladdatemp.TABVAL + "." + "KALKNR = 0".
+   END.   
+   kommandoquery = kommandoquery + " NO-LOCK.".
+   kommandoquery = forstkommandoquery + kommandoquery.
+    
+/*    DEFINE VARIABLE cc AS INTEGER NO-UNDO. */
+/*    cc = ETIME.  */          
+
+   CREATE BUFFER lanvbufh FOR TABLE sparaladdatemp.TABVAL. 
+   CREATE BUFFER joinbufh FOR TABLE "ANVAOTAB".
+   CREATE QUERY ttqh.
+   ttqh:SET-BUFFERS(joinbufh,lanvbufh).
+   ttqh:QUERY-PREPARE(kommandoquery).
+   ttqh:QUERY-OPEN().
+   ttqh:GET-FIRST(NO-LOCK).
+   DO WHILE ttqh:QUERY-OFF-END = FALSE:
+      ttbufh:BUFFER-CREATE().
+      ttbufh:BUFFER-COPY(lanvbufh).
+     
+      IF sparaladdatemp.TABVAL = "PERSONALTAB" THEN Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + lanvbufh:BUFFER-FIELD("PERSONALKOD"):BUFFER-VALUE.       
+      
+      ttqh:GET-NEXT(NO-LOCK).
+   END.
+   {GDPRLOGGCLIENT.I}
+   DELETE OBJECT ttqh.
+   DELETE OBJECT joinbufh.
+   DELETE OBJECT lanvbufh.
+   
+END PROCEDURE.
+
+PROCEDURE kalksekkoll_UI :
+   DEFINE INPUT  PARAMETER vad AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER sparaok AS LOGICAL NO-UNDO.
+   IF Guru.Konstanter:varforetypchar[4] = "" THEN DO:
+      sparaok = TRUE. 
+      RETURN.
+   END.
+   IF sparaladdatemp.GLOBANV = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)  THEN DO:
+      sparaok = TRUE. 
+      RETURN.
+   END.   
+   IF sparaladdatemp.GLOBANV = "" THEN DO:
+      sparaok = TRUE. 
+      RETURN.
+   END.   
+  
+   IF Guru.Konstanter:varforetypchar[4] = "ja" THEN DO:
+      IF vad = "HAMT" THEN DO:
+         IF lanvbufh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE = "" THEN RETURN.
+         FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = sparaladdatemp.GLOBANV AND OFFERT.OMRADE = lanvbufh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE OFFERT THEN DO:
+            
+            FIND FIRST KALKHUV WHERE KALKHUV.KALKNR = lanvbufh:BUFFER-FIELD("KALKNR"):BUFFER-VALUE  AND KALKHUV.OMRADE = lanvbufh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE NO-LOCK NO-ERROR.
+            IF AVAILABLE KALKHUV THEN DO:
+               IF KALKHUV.ANVANDARE = sparaladdatemp.GLOBANV AND lanvbufh:BUFFER-FIELD("AONR"):BUFFER-VALUE = ? THEN RETURN.
+            END.                 
+            
+            FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = sparaladdatemp.GLOBANV AND OFFERT.AONR = lanvbufh:BUFFER-FIELD("AONR"):BUFFER-VALUE AND 
+            OFFERT.DELNR = lanvbufh:BUFFER-FIELD("DELNR"):BUFFER-VALUE
+            NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE OFFERT THEN DO TRANSACTION:
+               ttqh:GET-CURRENT(EXCLUSIVE-LOCK).  
+               joinbufh:BUFFER-DELETE().
+               ttbufh:BUFFER-DELETE().
+            
+            END.
+         END.
+      END.  
+   END.
+   ELSE DO:
+      sparaok = TRUE. 
+      RETURN.
+   END.   
+END PROCEDURE.
+
+PROCEDURE bersekkoll_UI :
+   DEFINE INPUT  PARAMETER vad AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER sparaok AS LOGICAL NO-UNDO.
+   IF Guru.Konstanter:varforetypchar[4] = "" THEN DO:
+      sparaok = TRUE. 
+      RETURN.
+   END.
+   IF sparaladdatemp.GLOBANV = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)  THEN DO:
+      sparaok = TRUE. 
+      RETURN.
+   END.   
+   IF sparaladdatemp.GLOBANV = "" THEN DO:
+      sparaok = TRUE. 
+      RETURN.
+   END.   
+   IF Guru.Konstanter:varforetypchar[4] = "ja" THEN DO:
+      IF vad = "HAMT" THEN DO:
+         IF lanvbufh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE = "" THEN RETURN.
+         FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = sparaladdatemp.GLOBANV AND OFFERT.OMRADE = lanvbufh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE NO-LOCK NO-ERROR.
+         FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = sparaladdatemp.GLOBANV AND OFFERT.OMRADE = lanvbufh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE OFFERT THEN DO:
+            IF lanvbufh:BUFFER-FIELD("ANVANDARE"):BUFFER-VALUE = sparaladdatemp.GLOBANV AND lanvbufh:BUFFER-FIELD("AONR"):BUFFER-VALUE  = ? THEN RETURN.
+            FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = sparaladdatemp.GLOBANV AND OFFERT.AONR = lanvbufh:BUFFER-FIELD("AONR"):BUFFER-VALUE AND 
+            OFFERT.DELNR = lanvbufh:BUFFER-FIELD("DELNR"):BUFFER-VALUE
+            NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE OFFERT THEN DO TRANSACTION:
+               ttqh:GET-CURRENT(EXCLUSIVE-LOCK).  
+               joinbufh:BUFFER-DELETE().
+               ttbufh:BUFFER-DELETE().
+            END.
+         END.
+      END.  
+   END.
+   ELSE DO:
+      sparaok = TRUE. 
+      RETURN.
+   END.   
+END PROCEDURE.
+
+PROCEDURE aonrsekkoll_UI :
+   DEFINE INPUT  PARAMETER vad AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER sparaok AS LOGICAL NO-UNDO.
+   IF Guru.Konstanter:varforetypchar[4] = "" THEN DO:
+      sparaok = TRUE. 
+      RETURN.
+   END.
+  
+   IF sparaladdatemp.GLOBANV = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79) THEN DO:
+      sparaok = TRUE. 
+      RETURN.
+   END.   
+   IF sparaladdatemp.GLOBANV = "" THEN DO:
+      sparaok = TRUE. 
+      RETURN.
+   END.   
+   IF Guru.Konstanter:varforetypchar[4] = "ja" THEN DO:
+      IF vad = "HAMT" THEN DO:
+         IF lanvbufh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE = "" THEN RETURN.  
+         FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = sparaladdatemp.GLOBANV AND OFFERT.OMRADE = lanvbufh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE OFFERT THEN DO:
+            FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = sparaladdatemp.GLOBANV AND OFFERT.AONR = lanvbufh:BUFFER-FIELD("AONR"):BUFFER-VALUE AND 
+            OFFERT.DELNR = lanvbufh:BUFFER-FIELD("DELNR"):BUFFER-VALUE
+            NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE OFFERT THEN DO TRANSACTION:
+               ttqh:GET-CURRENT(EXCLUSIVE-LOCK).  
+               joinbufh:BUFFER-DELETE().
+               ttbufh:BUFFER-DELETE().
+            END.
+         END.
+      END.  
+      IF vad = "SPAR" THEN DO:
+         lanvbufh:FIND-FIRST("WHERE AONR = " + QUOTER(sldynfalthao:BUFFER-VALUE) + " AND DELNR = " + sldynfalthdel:BUFFER-VALUE ,NO-LOCK) NO-ERROR.
+         
+         IF lanvbufh:AVAILABLE THEN DO:
+            IF lanvbufh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE = "" THEN DO:
+               sparaok = TRUE. 
+               RETURN.
+            END.     
+            FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = sparaladdatemp.GLOBANV AND OFFERT.OMRADE = lanvbufh:BUFFER-FIELD("OMRADE"):BUFFER-VALUE NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE OFFERT THEN DO:
+               FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = sparaladdatemp.GLOBANV AND OFFERT.AONR = lanvbufh:BUFFER-FIELD("AONR"):BUFFER-VALUE AND 
+               OFFERT.DELNR = lanvbufh:BUFFER-FIELD("DELNR"):BUFFER-VALUE
+               NO-LOCK NO-ERROR.
+               IF AVAILABLE OFFERT THEN DO:
+                  sparaok = TRUE.
+                  RETURN.
+               END.
+               ELSE ttbufh:BUFFER-DELETE(). 
+            END.
+            ELSE DO:
+               sparaok = TRUE.
+               RETURN.
+            END.     
+         END.   
+      END.   
+   END.
+   ELSE DO:
+      sparaok = TRUE. 
+      RETURN.
+   END.   
+END PROCEDURE.
+PROCEDURE SkapFavo_UI :
+   DO TRANSACTION:
+      CREATE ANVAOTAB.
+      ANVAOTAB.ANVANDARE = slanvandare.
+      IF sparaladdatemp.FALTVALAO NE "" THEN DO:
+         ANVAOTAB.AONR = sldynfalthao:BUFFER-VALUE NO-ERROR.
+      END.
+      IF sparaladdatemp.FALTVALDEL NE "" THEN DO:
+         IF sparaladdatemp.FALTVALDEL = "LEVKOD" THEN DO:
+            IF sldynfalthdel:BUFFER-VALUE BEGINS "99" THEN DO:
+               ANVAOTAB.DELNR = 99.
+               IF LENGTH(sldynfalthdel:BUFFER-VALUE) >= 3 THEN ANVAOTAB.FASTAAONR = TRUE.
+            END.
+            ELSE ANVAOTAB.DELNR = sldynfalthdel:BUFFER-VALUE NO-ERROR.
+         END.   
+         ELSE ANVAOTAB.DELNR = sldynfalthdel:BUFFER-VALUE NO-ERROR. 
+      END.
+      IF sparaladdatemp.FALTVALDATE NE "" THEN DO:
+         ANVAOTAB.AONRAVDATUM = sldynfalthdate:BUFFER-VALUE NO-ERROR. 
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE and_UI:
+   IF kommandoquery NE " " THEN kommandoquery = kommandoquery + " AND ".
+END PROCEDURE.

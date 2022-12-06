@@ -1,0 +1,2 @@
+/*INKKOLL0.I*/
+DEFINE VARIABLE inkopkollvar AS LOGICAL     NO-UNDO.

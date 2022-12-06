@@ -1,0 +1,32 @@
+/*rt9onback.p*/
+/*Anders Olsson Elpool i Umeå AB  27 sep 2017 10:59:38 
+TAR BACKUP ONLINE FÖR VALDDB, MEN ANVÄNDS INTE 
+*/
+DEFINE VARIABLE dbfilename AS CHARACTER NO-UNDO.
+DEFINE VARIABLE prognamnque AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE conappvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE gforetag AS CHARACTER NO-UNDO.
+DEFINE VARIABLE progflytt AS CHARACTER NO-UNDO.
+{VALDBDEF.I}
+{VALDBALL.I} 
+{AMERICANEUROPEAN.I} 
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN
+gforetag = SUBSTRING(FORETAG.VERSION,20,10)
+conappvar = SUBSTRING(FORETAG.VERSION,32).
+
+
+FIND FIRST valdbtemp WHERE valdbtemp.FORETAG = FORETAG.FORETAG AND valdbtemp.DBNAMN NE "UTBI" NO-ERROR.
+IF AVAILABLE valdbtemp THEN DO:
+   progflytt = SUBSTRING(valdbtemp.DBPLATS,1,INDEX(valdbtemp.DBPLATS,"DB\") - 1).
+   prognamnque = progflytt + "autotid.txt". 
+END.
+ELSE prognamnque = "autotid.txt". 
+IF AVAILABLE valdbtemp THEN DO:
+   dbfilename = valdbtemp.DBNAMN.
+   IF CONNECTED(LDBNAME(1)) THEN DO:          
+              
+   END.  
+   {DBBACKAI.I}
+END.
+{EUROPEANAMERICAN.I}

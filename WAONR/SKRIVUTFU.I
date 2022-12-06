@@ -1,0 +1,62 @@
+   /*SKRIVUTFU.I*/
+   
+   IF visaupp.UPPFOLJVAL = 1 THEN DO:      
+      RUN SKRIVVAL.W (INPUT FALSE).   
+   END.
+   ELSE IF visaupp.UPPFOLJVAL = 5 THEN DO:
+      RUN SKRIVVAL.W (INPUT FALSE).   
+   END.
+   ELSE IF visaupp.UPPFOLJVAL = 10 THEN DO:        
+      RUN SKRIVVAL.W (INPUT FALSE).   
+   END.
+   ELSE IF visaupp.UPPFOLJVAL = 4 THEN DO:
+      RUN SKRIVVAL.W (INPUT FALSE).         
+   END.
+   ELSE IF visaupp.UPPFOLJVAL = 14 THEN DO:      
+      RUN SKRIVVAL.W (INPUT FALSE).
+   END.
+   ELSE IF visaupp.UPPFOLJVAL = 12 THEN DO:       
+      RUN SKRIVVAL.W (INPUT FALSE). 
+   END.
+   ELSE IF visaupp.UPPFOLJVAL = 15 THEN DO:      
+      RUN SKRIVVAL.W (INPUT FALSE).
+   END.
+   ELSE IF visaupp.UPPFOLJVAL = 13 THEN DO:       
+     RUN SKRIVVAL.W (INPUT FALSE).
+   END.
+   ELSE IF visaupp.UPPFOLJVAL = 11 THEN DO:         
+      RUN SKRIVVAL.W (INPUT FALSE).
+   END.
+   ELSE IF visaupp.UPPFOLJVAL = 16 THEN DO:      
+      RUN SKRIVVAL.W (INPUT TRUE).
+   END.
+   ELSE IF visaupp.UPPFOLJVAL = 8 THEN DO:
+      RUN SKRIVVAL.W (INPUT TRUE).
+   END.  
+   ELSE IF visaupp.UPPFOLJVAL = 17 THEN DO:        
+      RUN SKRIVVAL.W (INPUT FALSE).
+   END.       
+   ELSE IF visaupp.UPPFOLJVAL = 23 THEN DO:        
+      RUN SKRIVVAL.W (INPUT FALSE).
+   END.       
+   ELSE IF visaupp.UPPFOLJVAL = 6 THEN DO:        
+      RUN SKRIVVAL.W (INPUT TRUE).    
+   END. 
+   ELSE IF visaupp.UPPFOLJVAL = 2 THEN DO:        
+      RUN SKRIVVAL.W (INPUT TRUE).    
+   END.
+   ELSE IF visaupp.UPPFOLJVAL = 7 THEN DO:        
+      RUN SKRIVVAL.W (INPUT TRUE).
+   END.
+   ELSE IF visaupp.UPPFOLJVAL = 20 THEN DO:        
+      RUN SKRIVVAL.W (INPUT FALSE).
+   END.
+   ELSE IF visaupp.UPPFOLJVAL = 3 THEN DO:        
+      RUN SKRIVVAL.W (INPUT TRUE).
+   END.   
+   ELSE IF visaupp.UPPFOLJVAL = 31 THEN DO:        
+      RUN SKRIVVAL.W (INPUT TRUE).
+   END.   
+   ELSE DO:
+      RUN SKRIVVAL.W (INPUT FALSE).
+   END.

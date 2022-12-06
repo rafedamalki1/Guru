@@ -1,0 +1,730 @@
+/*POMESUAPP.P*/
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+
+DEFINE TEMP-TABLE intakttemp NO-UNDO
+   FIELD AONR         LIKE KOSTREG.AONR
+   FIELD DELNR        LIKE KOSTREG.DELNR   
+   FIELD BOKKONTO     LIKE KOSTREG.BOKKONTO
+   FIELD INTINTAKT    AS DECIMAL
+   FIELD EXTERNINTAKT AS DECIMAL
+   FIELD RESULTAT     AS DECIMAL
+   INDEX AONR IS PRIMARY AONR DELNR BOKKONTO.
+DEFINE TEMP-TABLE inkomsttemp NO-UNDO
+   FIELD AONR         LIKE KOSTREG.AONR
+   FIELD DELNR        LIKE KOSTREG.DELNR   
+   FIELD BOKKONTO     LIKE KOSTREG.BOKKONTO
+   FIELD INKOMST    AS DECIMAL   
+   INDEX AONR IS PRIMARY AONR DELNR BOKKONTO.
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+&Scoped-define NEW NEW
+{FAKTTYPDEF.I}
+&Scoped-define NEW 
+{FAKTTYPSKAP.I}
+FUNCTION klockan100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+
+FUNCTION klockan60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ):
+  RETURN TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) / 100) * 60 . 
+
+END FUNCTION.
+DEFINE VARIABLE superhandle AS HANDLE.
+DEFINE VARIABLE vartvar AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE kalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE intkalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE exkalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE summakostvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE hjalpvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE rakn AS INTEGER NO-UNDO.
+DEFINE VARIABLE slutrakn AS INTEGER NO-UNDO.
+DEFINE QUERY fq FOR FAKTINTAKTKONT,FAKTURERAD.
+DEFINE QUERY fkq FOR FAKTINTAKTKONTKRED,FAKTKRED.
+DEFINE QUERY kq FOR KOSTREG.
+DEFINE QUERY sq FOR SUMTID.
+DEFINE QUERY stq FOR SUMTIDDAG.
+DEFINE QUERY tq FOR TIDREGITAB.
+{DIRDEF.I}
+{PHMT.I}
+{KALKTEMP.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+IF FORETAG.FORETAG = "GRIT" THEN DO:
+   RUN GRITIN.P PERSISTENT SET superhandle (INPUT 1).
+   THIS-PROCEDURE:ADD-SUPER-PROCEDURE (superhandle).
+END.
+{TIDUTTT.I}
+DEFINE BUFFER tiut2 FOR tidut.
+DEFINE BUFFER tiut3 FOR tidut.
+
+DEFINE TEMP-TABLE dagtemp
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD
+   FIELD NAMN AS CHARACTER 
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR 
+   FIELD ORT LIKE AONRTAB.ORT
+   FIELD PERSMASK LIKE SUMTIDDAG.PERSMASK
+   FIELD BELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"           
+   FIELD TIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"         
+   INDEX AONR IS PRIMARY AONR DELNR. 
+
+DEFINE TEMP-TABLE slutsum           
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD 
+   FIELD NAMN AS CHARACTER 
+   FIELD PRIS LIKE TIDREGITAB.PRIS     
+   FIELD PRISTYP LIKE TIDREGITAB.PRISTYP 
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR 
+   FIELD ORT LIKE AONRTAB.ORT
+   FIELD TIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   INDEX PERSONALKOD IS PRIMARY PERSONALKOD AONR DELNR ASCENDING.    
+DEFINE TEMP-TABLE slutsumkont           
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD 
+   FIELD NAMN AS CHARACTER 
+   FIELD PRIS LIKE TIDREGITAB.PRIS     
+   FIELD PRISTYP LIKE TIDREGITAB.PRISTYP 
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR 
+   FIELD ORT LIKE AONRTAB.ORT
+   FIELD TIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD K1 AS CHARACTER
+   FIELD K1EXTRA AS CHARACTER
+   FIELD K1KUND AS CHARACTER
+   FIELD SATS% AS INTEGER
+   INDEX PERSONALKOD IS PRIMARY PERSONALKOD AONR DELNR ASCENDING.    
+DEFINE TEMP-TABLE ssumkont           
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR 
+   FIELD K1 AS CHARACTER
+   FIELD K1KUND AS CHARACTER
+   FIELD ORT LIKE AONRTAB.ORT   
+   FIELD PKOD AS CHARACTER EXTENT 100   
+   FIELD TIMMAR AS DECIMAL EXTENT 100
+   FIELD AOTOT AS DECIMAL 
+   FIELD AOTOTPROG AS DECIMAL 
+   FIELD PRISTYP LIKE TIDREGITAB.PRISTYP
+   INDEX K1 IS PRIMARY K1KUND K1 AONR DELNR
+   INDEX AONR  AONR DELNR K1.
+   
+DEFINE TEMP-TABLE k1sum              
+   FIELD K1 AS CHARACTER   
+   FIELD K1NAMN AS CHARACTER
+   FIELD K1KUND AS CHARACTER
+   FIELD KTIMMAR AS DECIMAL 
+   FIELD KPROG AS DECIMAL
+   FIELD PROC AS INTEGER
+   INDEX K1 IS PRIMARY K1.
+
+DEFINE TEMP-TABLE kundsum              
+   FIELD K1 AS CHARACTER   
+   FIELD K1NAMN AS CHARACTER
+   FIELD K1KUND AS CHARACTER
+   FIELD KTIMMAR AS DECIMAL 
+   FIELD KPROG AS DECIMAL
+   FIELD PROC AS INTEGER
+   INDEX K1 IS PRIMARY K1.
+
+
+DEFINE TEMP-TABLE vpers           
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD TOTTIM AS DECIMAL
+   FIELD INVEST AS DECIMAL
+   FIELD DRIFT AS DECIMAL
+   FIELD RAKN AS INTEGER.
+
+
+   
+DEFINE INPUT PARAMETER TABLE FOR uppvaltemp.
+DEFINE INPUT PARAMETER TABLE FOR valperstemp.
+DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+DEFINE OUTPUT PARAMETER TABLE FOR vpers.
+/*DEFINE OUTPUT PARAMETER str2 AS CHARACTER FORMAT "X(92)" NO-UNDO.
+DEFINE OUTPUT PARAMETER str3 AS CHARACTER FORMAT "X(92)" NO-UNDO.*/
+DEFINE NEW SHARED VARIABLE fastrec AS RECID NO-UNDO.
+DEFINE VARIABLE offert AS LOGICAL NO-UNDO.
+DEFINE VARIABLE xtypmtrl AS INTEGER NO-UNDO.
+DEFINE VARIABLE monpris LIKE EBRPRIS.MONT NO-UNDO.
+DEFINE VARIABLE berpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE kalkvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE breddantal AS INTEGER NO-UNDO.
+DEFINE VARIABLE utnr AS INTEGER EXTENT 100 NO-UNDO.
+DEFINE VARIABLE bredd AS INTEGER EXTENT 100 NO-UNDO.
+DEFINE VARIABLE nrcol AS INTEGER EXTENT 100 NO-UNDO.
+DEFINE VARIABLE ingakostver AS LOGICAL NO-UNDO.
+DEFINE VARIABLE stim AS DECIMAL NO-UNDO.   
+
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(256)" NO-UNDO.
+DEFINE VARIABLE valomr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE k1var AS CHARACTER NO-UNDO.
+DEFINE VARIABLE k1kunvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE arandel AS DECIMAL NO-UNDO.
+DEFINE VARIABLE tsumma AS DECIMAL NO-UNDO.
+DEFINE VARIABLE totinvest AS DECIMAL NO-UNDO.
+DEFINE VARIABLE totdrift AS DECIMAL NO-UNDO.
+
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR. 
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+EMPTY TEMP-TABLE dagtemp  NO-ERROR. 
+EMPTY TEMP-TABLE slutsum NO-ERROR. 
+EMPTY TEMP-TABLE slutsumkont NO-ERROR. 
+EMPTY TEMP-TABLE ssumkont NO-ERROR. 
+EMPTY TEMP-TABLE k1sum NO-ERROR. 
+EMPTY TEMP-TABLE vpers NO-ERROR. 
+
+EMPTY TEMP-TABLE tidut NO-ERROR. 
+EMPTY TEMP-TABLE tiut2 NO-ERROR. 
+EMPTY TEMP-TABLE tiut3 NO-ERROR. 
+
+FIND FIRST uppvaltemp NO-ERROR.
+
+OPEN QUERY aq FOR EACH valperstemp NO-LOCK. 
+GET FIRST aq NO-LOCK.
+GET NEXT aq  NO-LOCK.
+IF AVAILABLE valperstemp THEN ingakostver = TRUE.
+ELSE ingakostver = FALSE.
+IF uppvaltemp.DELNRKOLL = FALSE THEN ingakostver = TRUE.
+GET FIRST aq NO-LOCK.
+DO WHILE AVAILABLE(valperstemp):      
+   {SUPEOPEN.I}   
+   GET NEXT aq NO-LOCK.
+END.      
+RUN summa_UI.
+RUN huvud_UI.
+
+{GDPRLOGGCLIENT.I}
+PROCEDURE huvud_UI :  
+      
+   CREATE tidut.
+   tidut.UT = uppvaltemp.VALDLISTA. 
+   IF uppvaltemp.VISPERAR = TRUE THEN DO: 
+      SUBSTRING(tidut.UT,55) = "ÅR " + STRING(YEAR(uppvaltemp.STARTDATUM),"9999").
+   END.                        
+   ELSE IF uppvaltemp.VISPERAR = FALSE THEN DO:
+      SUBSTRING(tidut.UT,55) = "PERIOD " +  STRING(uppvaltemp.STARTDATUM) + 
+      " - " + STRING(uppvaltemp.SLUTDATUM).     
+   END.
+   ELSE DO:
+      SUBSTRING(tidut.UT,55) = "VISNING AV ALLT".
+   END.
+   SUBSTRING(tidut.UT,100) = STRING(TODAY) + " " + STRING(TIME,"HH:MM").
+   /*CREATE tidut.
+   {KUURV.I}*/
+   
+   ASSIGN
+   nrcol[1] = 1
+   nrcol[2] = 2.
+   rakn = 2.
+   FOR EACH valperstemp USE-INDEX PERSONALKOD NO-LOCK:
+      rakn = rakn + 1.
+      nrcol[rakn] = rakn.
+      bredd[rakn] = 6.
+      CREATE vpers.
+      ASSIGN
+      vpers.PERSONALKOD = valperstemp.PERSONALKOD
+      vpers.RAKN = rakn.
+   END.
+
+   ASSIGN
+   slutrakn = rakn
+   nrcol[rakn + 1] = rakn + 1
+   bredd[rakn + 1] = 12
+   nrcol[rakn + 2] = rakn + 2
+   bredd[rakn + 2] = 12
+   nrcol[rakn + 3] = rakn + 3
+   bredd[rakn + 3] = 7
+   breddantal = slutrakn + 3   /*antal kolumner*/   
+   bredd[1] = 11
+   bredd[2] = 25.   
+   
+   ASSIGN
+   i = 2.     
+   utnr[nrcol[1]] = 1.   
+   DO WHILE i <= breddantal:             
+      utnr[i] = utnr[i - 1] + bredd[i - 1] + 1.            
+      i = i + 1.
+   END.   
+   ASSIGN
+   str = "".  
+   i = 1.
+   DO WHILE i <= utnr[breddantal] + bredd[breddantal] - 1:
+      str = str + "=".     
+      i = i + 1.
+   END.   
+   i = 2.      
+   DO WHILE i <= breddantal:             
+      SUBSTRING(str,(utnr[i] - 1),1) = ".".      
+      i = i + 1.
+   END.                            
+   FIND FIRST KBENAMNING NO-LOCK NO-ERROR.         
+   CREATE tidut.
+   CREATE tiut2.
+   CREATE tiut3.
+   rakn = 2.   
+   FOR EACH valperstemp USE-INDEX PERSONALKOD NO-LOCK:
+      FIND LAST PERSONALPRIS WHERE PERSONALPRIS.PERSONALKOD = valperstemp.PERSONALKOD AND
+      PERSONALPRIS.BEFATTNING = valperstemp.BEFATTNING
+      USE-INDEX PSTART NO-LOCK NO-ERROR.
+      ASSIGN
+      rakn = rakn + 1
+      nrcol[rakn] = rakn
+      SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "Namn"      
+      SUBSTRING(tidut.UT,utnr[nrcol[rakn]]) = SUBSTRING(valperstemp.FORNAMN,1,1) + "." + SUBSTRING(valperstemp.EFTERNAMN,1,4)
+      SUBSTRING(tiut2.UT,utnr[nrcol[2]]) = "Enhet/Sign"      
+      SUBSTRING(tiut2.UT,utnr[nrcol[rakn]]) = valperstemp.PERSONALKOD
+      SUBSTRING(tiut2.UT,utnr[nrcol[slutrakn + 1]]) = "Utfall tom:".                              
+      SUBSTRING(tiut2.UT,utnr[nrcol[slutrakn + 2]]) = "Prognos tom:".    
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + valperstemp.PERSONALKOD.                            
+      IF AVAILABLE PERSONALPRIS THEN DO: 
+         ASSIGN
+         SUBSTRING(tiut3.UT,utnr[nrcol[2]]) = "Timpris"      
+         SUBSTRING(tiut3.UT,utnr[nrcol[rakn]]) = STRING(PERSONALPRIS.PRIS).         
+         SUBSTRING(tiut3.UT,utnr[nrcol[slutrakn + 1]]) = STRING(uppvaltemp.SLUTDATUM,"99/99/9999").
+         SUBSTRING(tiut3.UT,utnr[nrcol[slutrakn + 2]]) = STRING(DATE(12,31,YEAR(uppvaltemp.SLUTDATUM)),"99/99/9999"). 
+      END.
+   END.
+   /*CREATE tidut.      
+   ASSIGN                                     
+   SUBSTRING(tidut.UT,utnr[nrcol[1]]) = CAPS(Guru.Konstanter:gaok)      
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = CAPS(Guru.Konstanter:gaonamnk).
+   SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 1]]) = "Tom:" + STRING(uppvaltemp.SLUTDATUM,"99/99/9999").
+   SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 2]]) = "Tom:" + STRING(DATE(12,31,YEAR(uppvaltemp.SLUTDATUM)),"99/99/9999").     */                         
+   
+   
+   
+   CREATE tidut.      
+   tidut.UT = str.
+   
+   
+   FOR EACH slutsum USE-INDEX PERSONALKOD:            
+      FOR EACH AONRKONTKOD WHERE AONRKONTKOD.AONR = slutsum.AONR AND AONRKONTKOD.DELNR = slutsum.DELNR NO-LOCK:
+         CREATE slutsumkont.  
+         BUFFER-COPY slutsum  TO slutsumkont.         
+         ASSIGN slutsumkont.K1 = AONRKONTKOD.K1 
+         slutsumkont.K1EXTRA = AONRKONTKOD.K1         
+         slutsumkont.SATS% = AONRKONTKOD.SATS%
+         slutsumkont.TIMMAR = AONRKONTKOD.SATS% / 100 * slutsum.TIMMAR.                  
+      END.              
+      
+      IF Guru.Konstanter:globforetag = "MISV" THEN DO:
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = slutsum.AONR AND AONRTAB.DELNR = slutsum.DELNR NO-LOCK NO-ERROR.
+         IF AVAILABLE AONRTAB THEN DO:
+            CREATE slutsumkont.  
+            BUFFER-COPY slutsum  TO slutsumkont.         
+            ASSIGN slutsumkont.K1 = AONRTAB.BESTID 
+            slutsumkont.K1EXTRA = AONRTAB.BESTID
+            slutsumkont.K1KUND = AONRTAB.BESTID
+            slutsumkont.SATS% = 100
+            slutsumkont.TIMMAR = slutsum.TIMMAR.                  
+         END.
+      END.
+   END.   
+   FIND FIRST valperstemp WHERE NO-LOCK NO-ERROR.
+   valomr = valperstemp.OMRADE.  
+   /*FOR EACH slutsumkont   NO-LOCK:
+      MESSAGE slutsumkont.aonr slutsumkont.k1 slutsumkont.sats% slutsumkont.timmar VIEW-AS ALERT-BOX.
+   END.*/
+   IF Guru.Konstanter:globforetag = "sund" OR Guru.Konstanter:globforetag = "SNAT" THEN DO:   
+      FOR EACH slutsumkont WHERE SUBSTRING(slutsumkont.K1,1,3) NE SUBSTRING(valomr,1,3):
+         ASSIGN slutsumkont.K1 = "Övrig" slutsumkont.K1EXTRA = "Övrig".      
+      END.   
+   END.
+   IF Guru.Konstanter:globforetag = "misv" THEN DO:   
+      FOR EACH slutsumkont:
+         /*IF slutsumkont.K1 = "SVAB" THEN ASSIGN slutsumkont.K1 = "MSVAB" slutsumkont.K1EXTRA = "MSVAB".
+         IF slutsumkont.K1 = "1" THEN ASSIGN slutsumkont.K1 = "SVAB" slutsumkont.K1EXTRA = "SVAB".
+         IF slutsumkont.K1 = "3" THEN ASSIGN slutsumkont.K1 = "TVAB" slutsumkont.K1EXTRA = "TVAB".
+         IF slutsumkont.K1 = "4" THEN ASSIGN slutsumkont.K1 = "NVAB" slutsumkont.K1EXTRA = "NVAB".*/
+         IF slutsumkont.K1 = "SVAB" THEN DO:         
+            slutsumkont.K1KUND = "MSVAB".
+            IF (SUBSTRING(slutsumkont.AONR,1,2) = "13" OR SUBSTRING(slutsumkont.AONR,1,2) = "14")  THEN
+            ASSIGN slutsumkont.K1 = "Invest MSVAB" slutsumkont.K1EXTRA = "Invest MSVAB".
+            IF (SUBSTRING(slutsumkont.AONR,1,2) = "11" OR SUBSTRING(slutsumkont.AONR,1,2) = "12" OR SUBSTRING(slutsumkont.AONR,1,2) = "15" OR
+            SUBSTRING(slutsumkont.AONR,1,2) = "16" OR SUBSTRING(slutsumkont.AONR,1,2) = "18" ) THEN
+            ASSIGN slutsumkont.K1 = "Drift MSVAB" slutsumkont.K1EXTRA = "Drift MSVAB".
+         END.
+         IF slutsumkont.K1 = "1" THEN DO:                     
+            slutsumkont.K1KUND = "SVAB".
+            IF (SUBSTRING(slutsumkont.AONR,1,2) = "23" OR SUBSTRING(slutsumkont.AONR,1,2) = "24")  THEN
+            ASSIGN slutsumkont.K1 = "Invest SVAB" slutsumkont.K1EXTRA = "Invest SVAB".
+            IF (SUBSTRING(slutsumkont.AONR,1,2) = "20" OR SUBSTRING(slutsumkont.AONR,1,2) = "21" OR SUBSTRING(slutsumkont.AONR,1,2) = "22" 
+            OR SUBSTRING(slutsumkont.AONR,1,2) = "25")  THEN
+            ASSIGN slutsumkont.K1 = "Drift SVAB" slutsumkont.K1EXTRA = "Drift SVAB".
+         END.
+         IF slutsumkont.K1 = "3" THEN DO:                     
+            slutsumkont.K1KUND = "TVAB".
+            IF (SUBSTRING(slutsumkont.AONR,1,2) = "33" OR SUBSTRING(slutsumkont.AONR,1,2) = "34" OR SUBSTRING(slutsumkont.AONR,1,2) = "35") THEN
+            ASSIGN slutsumkont.K1 = "Invest TVAB" slutsumkont.K1EXTRA = "Invest TVAB".
+            IF (SUBSTRING(slutsumkont.AONR,1,2) = "30" OR SUBSTRING(slutsumkont.AONR,1,2) = "31" OR SUBSTRING(slutsumkont.AONR,1,2) = "32" 
+            OR SUBSTRING(slutsumkont.AONR,1,2) = "35")  THEN
+            ASSIGN slutsumkont.K1 = "Drift TVAB" slutsumkont.K1EXTRA = "Drift TVAB".
+         END.
+         IF slutsumkont.K1 = "4" THEN DO:                     
+            slutsumkont.K1KUND = "NVAB".
+            IF (SUBSTRING(slutsumkont.AONR,1,2) = "43" OR SUBSTRING(slutsumkont.AONR,1,2) = "44") THEN
+            ASSIGN slutsumkont.K1 = "Invest NVAB" slutsumkont.K1EXTRA = "Invest NVAB".
+            IF (SUBSTRING(slutsumkont.AONR,1,2) = "40" OR SUBSTRING(slutsumkont.AONR,1,2) = "41" OR SUBSTRING(slutsumkont.AONR,1,2) = "42" 
+            OR SUBSTRING(slutsumkont.AONR,1,2) = "45") THEN
+            ASSIGN slutsumkont.K1 = "Drift NVAB" slutsumkont.K1EXTRA = "Drift NVAB".
+         END.
+         
+         
+      END.   
+   END.
+   
+   FOR EACH slutsumkont  WHERE NO-LOCK:
+      FIND FIRST ssumkont WHERE ssumkont.AONR = slutsumkont.AONR AND ssumkont.DELNR = slutsumkont.DELNR AND ssumkont.K1 = slutsumkont.K1EXTRA NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ssumkont THEN DO:
+         CREATE ssumkont.
+         ASSIGN ssumkont.AONR = slutsumkont.AONR ssumkont.DELNR = slutsumkont.DELNR ssumkont.ORT = slutsumkont.ORT ssumkont.K1 = slutsumkont.K1 ssumkont.K1KUND = slutsumkont.K1KUND.
+      END.
+      FIND FIRST vpers WHERE vpers.PERSONALKOD = slutsumkont.PERSONALKOD NO-LOCK NO-ERROR.
+      ASSIGN 
+      ssumkont.PKOD[vpers.RAKN] = slutsumkont.PERSONALKOD
+      ssumkont.TIMMAR[vpers.RAKN] = ssumkont.TIMMAR[vpers.RAKN] + slutsumkont.TIMMAR.
+      ssumkont.AOTOT = ssumkont.AOTOT + slutsumkont.TIMMAR. /* TOT TIMMAR AONR*/      
+      vpers.TOTTIM = vpers.TOTTIM + slutsumkont.TIMMAR.     /*TOT TIMMAR PERSON*/ 
+      IF slutsumkont.K1 BEGINS "INVEST" THEN DO:
+         totinvest = totinvest + slutsumkont.TIMMAR.
+         vpers.INVEST = vpers.INVEST + slutsumkont.TIMMAR.
+      END.
+      IF slutsumkont.K1 BEGINS "DRIFT" THEN DO: 
+         totdrift = totdrift + slutsumkont.TIMMAR.
+         vpers.DRIFT = vpers.DRIFT + slutsumkont.TIMMAR.
+      END.
+
+   END.  
+   
+   tsumma = 0.
+   rakn = 3.   
+   DO WHILE rakn <= slutrakn:             
+      FIND FIRST vpers WHERE vpers.RAKN = rakn NO-LOCK NO-ERROR.
+      IF AVAILABLE vpers THEN DO:   
+         tsumma = tsumma + vpers.TOTTIM.
+      END.
+      rakn = rakn + 1.
+   END.   
+
+   
+   FOR EACH slutsumkont NO-LOCK BREAK BY slutsumkont.K1:         
+      ACCUMULATE slutsumkont.TIMMAR (TOTAL BY slutsumkont.K1).       
+      IF LAST-OF(slutsumkont.K1) THEN DO:
+         FIND FIRST KONTO WHERE KONTO.KONTO = "K1" AND KONTO.KONTONR = slutsumkont.K1  NO-LOCK NO-ERROR.
+         CREATE k1sum.
+         ASSIGN 
+         k1sum.K1 = slutsumkont.K1.                                         
+         k1sum.K1KUND = slutsumkont.K1KUND.                                         
+         k1sum.KTIMMAR = (ACCUM TOTAL BY slutsumkont.K1 slutsumkont.TIMMAR).                   
+         IF AVAILABLE KONTO THEN DO:
+            k1sum.K1NAMN = KONTO.BENAMNING.
+         END.         
+         k1sum.PROC = 100 * k1sum.KTIMMAR / tsumma.         
+
+      END.     
+   END.         
+   arandel = (uppvaltemp.SLUTDATUM - uppvaltemp.STARTDATUM) / 365.      
+   FOR EACH ssumkont USE-INDEX K1 :                        
+      ssumkont.AOTOTPROG = ssumkont.AOTOT / arandel.
+   END.
+   FOR EACH k1sum USE-INDEX K1 :                        
+      k1sum.KPROG = k1sum.KTIMMAR / arandel.
+   END.
+ 
+   IF Guru.Konstanter:globforetag = "misv" THEN DO:      
+      FOR EACH k1sum NO-LOCK BREAK BY k1sum.K1KUND:         
+         ACCUMULATE k1sum.KTIMMAR (TOTAL BY k1sum.K1KUND).       
+         IF LAST-OF(k1sum.K1KUND) THEN DO:            
+            CREATE kundsum.
+            ASSIGN 
+            kundsum.K1KUND = k1sum.K1KUND.                                         
+            kundsum.KTIMMAR = (ACCUM TOTAL BY k1sum.K1KUND k1sum.KTIMMAR).                               
+            kundsum.PROC = 100 * kundsum.KTIMMAR / tsumma.
+         END.     
+      END.
+      FOR EACH kundsum USE-INDEX K1 :                        
+         kundsum.KPROG = kundsum.KTIMMAR / arandel.
+      END.
+      FOR EACH k1sum:
+         FIND FIRST kundsum WHERE kundsum.K1KUND = k1sum.K1KUND NO-LOCK NO-ERROR.
+         IF AVAILABLE kundsum THEN DO:
+            k1sum.PROC = 100 * k1sum.KTIMMAR / kundsum.KTIMMAR.         
+         END.
+      END.
+      
+      /*arandel = (uppvaltemp.SLUTDATUM - uppvaltemp.STARTDATUM) / 365.      
+      FOR EACH ssumkont USE-INDEX K1 :                        
+         ssumkont.AOTOTPROG = ssumkont.AOTOT / arandel.
+      END.
+      FOR EACH k1sum USE-INDEX K1 :                        
+         k1sum.KPROG = k1sum.KTIMMAR / arandel.
+      END.*/
+   END.
+
+
+   k1var = "".
+   k1kunvar = "".   
+     
+    IF Guru.Konstanter:globforetag = "misv" THEN DO:    
+       FOR EACH ssumkont USE-INDEX K1 :                                              
+         IF k1var NE ssumkont.K1 AND k1var NE "" THEN DO:
+            FIND FIRST k1sum WHERE k1sum.K1 = k1var NO-LOCK NO-ERROR.
+            IF AVAILABLE k1sum THEN DO:
+               CREATE tidut.                                                            
+               ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[1]]) = /*"Kund:" +*/ k1sum.K1.
+               
+               SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 1]]) = STRING(k1sum.KTIMMAR).
+               SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 2]]) = STRING(k1sum.KPROG,"->>>>>>9").      
+               SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 3]]) = STRING(k1sum.PROC,">>9") + "%".                                           
+            END.
+         END.
+         IF k1kunvar NE ssumkont.K1KUND AND  k1kunvar NE "" THEN DO:
+            FIND FIRST kundsum WHERE kundsum.K1KUND = k1kunvar NO-LOCK NO-ERROR.
+            IF AVAILABLE kundsum THEN DO:
+               CREATE tidut.                                                            
+               ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "Tot:" + kundsum.K1KUND.               
+               SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 1]]) = STRING(kundsum.KTIMMAR).
+               SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 2]]) = STRING(kundsum.KPROG,"->>>>>>9").      
+               SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 3]]) = STRING(kundsum.PROC,">>9") + "%".                                           
+            END.
+         END.
+         CREATE tidut.                                             
+         ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[1]]) = ssumkont.AONR + STRING(ssumkont.DELNR,Guru.Konstanter:varforetypchar[1])      
+         SUBSTRING(tidut.UT,utnr[nrcol[2]]) = SUBSTRING(ssumkont.ORT,1,bredd[2]).
+         SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 1]]) = STRING(ssumkont.AOTOT).
+         SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 2]]) = STRING(ssumkont.AOTOTPROG,"->>>>>>9").      
+         rakn = 3.   
+         DO WHILE rakn <= slutrakn:             
+            SUBSTRING(tidut.UT,utnr[nrcol[rakn]]) = STRING(ssumkont.TIMMAR[rakn]).         
+            rakn = rakn + 1.
+         END.   
+         k1var = ssumkont.K1.
+         k1kunvar = ssumkont.K1KUND.
+      END.   
+      IF k1var NE "" THEN DO:
+         FIND FIRST k1sum WHERE k1sum.K1 = k1var NO-LOCK NO-ERROR.
+         IF AVAILABLE k1sum THEN DO:
+            CREATE tidut.                                                   
+            ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[1]]) = /*"Kund:" +*/ k1sum.K1.            
+            IF Guru.Konstanter:globforetag = "sund" OR Guru.Konstanter:globforetag = "SNAT" THEN SUBSTRING(tidut.UT,utnr[nrcol[2]]) = SUBSTRING(k1sum.K1NAMN,1,bredd[2]).            
+            SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 1]]) = STRING(k1sum.KTIMMAR).
+            SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 2]]) = STRING(k1sum.KPROG,"->>>>>>9").      
+            SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 3]]) = STRING(k1sum.PROC,">>9") + "%".                               
+            CREATE tidut.                                             
+         END.
+      END.
+      IF k1kunvar NE "" THEN DO:         
+         FIND FIRST kundsum WHERE kundsum.K1KUND = k1kunvar NO-LOCK NO-ERROR.
+         IF AVAILABLE kundsum THEN DO:
+            CREATE tidut.                                                            
+            ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "Tot:" + kundsum.K1KUND.
+            IF Guru.Konstanter:globforetag = "sund" OR Guru.Konstanter:globforetag = "SNAT" THEN SUBSTRING(tidut.UT,utnr[nrcol[2]]) = SUBSTRING(k1sum.K1NAMN,1,bredd[2]).            
+            SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 1]]) = STRING(kundsum.KTIMMAR).
+            SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 2]]) = STRING(kundsum.KPROG,"->>>>>>9").      
+            SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 3]]) = STRING(kundsum.PROC,">>9") + "%".                                           
+            CREATE tidut.                                             
+         END.         
+      END.
+
+   END.
+   ELSE DO:
+      FOR EACH ssumkont USE-INDEX K1 :                  
+         IF k1var NE ssumkont.K1 AND k1var NE "" THEN DO:
+            FIND FIRST k1sum WHERE k1sum.K1 = k1var NO-LOCK NO-ERROR.
+            IF AVAILABLE k1sum THEN DO:
+               CREATE tidut.                                             
+               ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "Vht:" + k1sum.K1.               
+               SUBSTRING(tidut.UT,utnr[nrcol[2]]) = SUBSTRING(k1sum.K1NAMN,1,bredd[2]).            
+               SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 1]]) = STRING(k1sum.KTIMMAR).
+               SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 2]]) = STRING(k1sum.KPROG,"->>>>>>9").      
+               SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 3]]) = STRING(k1sum.PROC,">>9") + "%".                                           
+            END.
+         END.
+         CREATE tidut.                                             
+         ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[1]]) = ssumkont.AONR + STRING(ssumkont.DELNR,Guru.Konstanter:varforetypchar[1])      
+         SUBSTRING(tidut.UT,utnr[nrcol[2]]) = SUBSTRING(ssumkont.ORT,1,bredd[2]).
+         SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 1]]) = STRING(ssumkont.AOTOT).
+         SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 2]]) = STRING(ssumkont.AOTOTPROG,"->>>>>>9").      
+         rakn = 3.   
+         DO WHILE rakn <= slutrakn:             
+            SUBSTRING(tidut.UT,utnr[nrcol[rakn]]) = STRING(ssumkont.TIMMAR[rakn]).         
+            rakn = rakn + 1.
+         END.   
+         k1var = ssumkont.K1.
+      END.   
+      IF k1var NE "" THEN DO:
+         FIND FIRST k1sum WHERE k1sum.K1 = k1var NO-LOCK NO-ERROR.
+         IF AVAILABLE k1sum THEN DO:
+            CREATE tidut.                                             
+            ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "Vht: " + k1sum.K1.            
+            SUBSTRING(tidut.UT,utnr[nrcol[2]]) = SUBSTRING(k1sum.K1NAMN,1,bredd[2]).            
+            SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 1]]) = STRING(k1sum.KTIMMAR).
+            SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 2]]) = STRING(k1sum.KPROG,"->>>>>>9").      
+            SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 3]]) = STRING(k1sum.PROC,">>9") + "%".                               
+            CREATE tidut.                                             
+         END.
+      END.
+
+   END.
+   IF Guru.Konstanter:globforetag = "misv" THEN DO:   
+      CREATE tidut.                                             
+      SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "Tot Drift alla bolag:".   
+      
+      rakn = 3.   
+      DO WHILE rakn <= slutrakn:             
+         FIND FIRST vpers WHERE vpers.RAKN = rakn NO-LOCK NO-ERROR.
+         IF AVAILABLE vpers THEN DO:
+            SUBSTRING(tidut.UT,utnr[nrcol[rakn]]) = STRING(vpers.DRIFT).                  
+         END.
+         rakn = rakn + 1.
+      END.   
+      SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 1]]) = STRING(totdrift).
+      SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 2]]) = STRING((totdrift / arandel),"->>>>>>9").      
+      SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 3]]) = STRING(100 * totdrift / tsumma,">>9" ) + "%".
+   
+      CREATE tidut.                                             
+      SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "Tot Invest alla bolag:".   
+      
+      rakn = 3.   
+      DO WHILE rakn <= slutrakn:             
+         FIND FIRST vpers WHERE vpers.RAKN = rakn NO-LOCK NO-ERROR.
+         IF AVAILABLE vpers THEN DO:
+            SUBSTRING(tidut.UT,utnr[nrcol[rakn]]) = STRING(vpers.INVEST).                  
+         END.
+         rakn = rakn + 1.
+      END.   
+      SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 1]]) = STRING(totinvest).
+      SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 2]]) = STRING((totinvest / arandel),"->>>>>>9").      
+      SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 3]]) = STRING(100 * totinvest / tsumma,">>9" ) + "%".
+      CREATE tidut.                                             
+   END.
+   CREATE tidut.                                             
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "Totalt timmar".   
+   
+   rakn = 3.   
+   DO WHILE rakn <= slutrakn:             
+      FIND FIRST vpers WHERE vpers.RAKN = rakn NO-LOCK NO-ERROR.
+      IF AVAILABLE vpers THEN DO:
+         SUBSTRING(tidut.UT,utnr[nrcol[rakn]]) = STRING(vpers.TOTTIM).                  
+      END.
+      rakn = rakn + 1.
+   END.   
+   SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 1]]) = STRING(tsumma).
+   SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 2]]) = STRING((tsumma / arandel),"->>>>>>9").      
+   SUBSTRING(tidut.UT,utnr[nrcol[slutrakn + 3]]) = "100%".
+
+
+
+   
+
+END PROCEDURE.
+
+
+PROCEDURE kontokoll_UI:
+   DEFINE INPUT PARAMETER varkont LIKE KOSTREG.BOKKONTO NO-UNDO.
+   DEFINE OUTPUT PARAMETER varvart AS CHARACTER NO-UNDO.
+   RUN SUPER (INPUT varkont,OUTPUT varvart).
+END PROCEDURE.
+
+PROCEDURE skapadagdag_UI :
+   GET FIRST stq NO-LOCK.
+   DO WHILE AVAILABLE(SUMTIDDAG):  
+      /*IF Guru.Konstanter:globforetag = "GKAL" AND SUMTIDDAG.PERSMASK = FALSE THEN DO:
+         /*Kalmar vill ha med tiskrivning maskiner -ej kostnadsregistreringar*/         
+         CREATE dagtemp.
+         ASSIGN          
+         dagtemp.PERSONALKOD = SUMTIDDAG.PERSONALKOD
+         dagtemp.NAMN = SUBSTRING(SUMTIDDAG.FORNAMN,1,1) + "." + 
+         SUBSTRING(SUMTIDDAG.EFTERNAMN,1,30)
+         dagtemp.AONR = SUMTIDDAG.AONR
+         dagtemp.DELNR = SUMTIDDAG.DELNR 
+         dagtemp.ORT = SUMTIDDAG.ORT
+         dagtemp.PERSMASK = SUMTIDDAG.PERSMASK         
+         dagtemp.BELOPP = SUMTIDDAG.BELOPP + SUMTIDDAG.OBELOPP
+         dagtemp.TIMMAR = SUMTIDDAG.TIMMAR + SUMTIDDAG.OTIMMAR.
+         dagtemp.NTIMMAR = SUMTIDDAG.TIMMAR. 
+         dagtemp.OATIMMAR = SUMTIDDAG.OTIMMAR.    
+         dagtemp.ABELOPP = dagtemp.BELOPP.
+         dagtemp.BEFATTNING = SUBSTRING(SUMTIDDAG.BEFATTNING,1,20).
+         dagtemp.LONKOST = SUMTIDDAG.LONKOST.
+                  
+      END.*/
+      IF SUMTIDDAG.PERSMASK = FALSE THEN musz = musz.
+      ELSE IF SUMTIDDAG.PRISTYP = "RESTID..." THEN musz = musz.               
+      ELSE IF SUMTIDDAG.PRISTYP = "FRÅNVARO." THEN musz = musz.                     
+      ELSE DO:
+         CREATE dagtemp.
+         ASSIGN         
+         dagtemp.PERSONALKOD = SUMTIDDAG.PERSONALKOD
+         dagtemp.NAMN = SUBSTRING(SUMTIDDAG.FORNAMN,1,1) + "." + 
+         SUBSTRING(SUMTIDDAG.EFTERNAMN,1,30)
+         dagtemp.AONR = SUMTIDDAG.AONR
+         dagtemp.DELNR = SUMTIDDAG.DELNR 
+         dagtemp.ORT = SUMTIDDAG.ORT
+         dagtemp.PERSMASK = SUMTIDDAG.PERSMASK
+         /*dagtemp.BELOPP = SUMTIDDAG.BELOPP + SUMTIDDAG.OBELOPP*/
+         dagtemp.TIMMAR = SUMTIDDAG.TIMMAR + SUMTIDDAG.OTIMMAR.
+         
+   
+      END.
+      GET NEXT stq NO-LOCK.      
+   END.
+   /*/* arbetstidsförkortning */
+   IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+      GET FIRST tq NO-LOCK.
+      DO WHILE AVAILABLE(TIDREGITAB):        
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD =  TIDREGITAB.PERSONALKOD NO-LOCK NO-ERROR.
+         CREATE dagtemp.
+         ASSIGN          
+         dagtemp.PERSONALKOD = TIDREGITAB.PERSONALKOD
+         dagtemp.NAMN = SUBSTRING(PERSONALTAB.FORNAMN,1,1) + "." + 
+         SUBSTRING(PERSONALTAB.EFTERNAMN,1,30)
+         dagtemp.AONR = "160"
+         dagtemp.DELNR = 0            
+         dagtemp.PERSMASK = TRUE.
+         dagtemp.BELOPP =  0.                  
+         dagtemp.TIMMAR = klockan100(TIDREGITAB.LONTILLANTAL).
+         dagtemp.NTIMMAR = klockan100(TIDREGITAB.LONTILLANTAL).          
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = TIDREGITAB.AONR AND AONRTAB.DELNR = TIDREGITAB.DELNR NO-LOCK NO-ERROR.
+         IF AVAILABLE AONRTAB THEN DO: 
+            dagtemp.ORT = AONRTAB.ORT. 
+         END.                     
+         GET NEXT tq NO-LOCK.      
+      END.
+   END.*/
+   /*FOR EACH dagtemp WHERE dagtemp.aonr = "160":
+      MESSAGE dagtemp.personalkod dagtemp.timmar dagtemp.PERSMASK VIEW-AS ALERT-BOX.
+   END.*/
+END PROCEDURE.
+PROCEDURE summa_UI.
+   /*PERSONER*/
+   FOR EACH dagtemp NO-LOCK 
+   BREAK BY dagtemp.PERSONALKOD BY dagtemp.AONR BY dagtemp.DELNR BY dagtemp.PERSMASK: 
+      /*ACCUMULATE dagtemp.BELOPP (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.AONR BY dagtemp.DELNR BY dagtemp.PERSMASK). */
+      ACCUMULATE dagtemp.TIMMAR (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.AONR BY dagtemp.DELNR BY dagtemp.PERSMASK).       
+      IF LAST-OF(dagtemp.PERSMASK) THEN DO:
+         CREATE slutsum.
+         ASSIGN 
+         slutsum.PERSONALKOD = dagtemp.PERSONALKOD
+         slutsum.NAMN = dagtemp.NAMN
+         slutsum.AONR = dagtemp.AONR
+         slutsum.DELNR = dagtemp.DELNR
+         slutsum.ORT = dagtemp.ORT          
+         /*slutsum.BELOPP = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.BELOPP)                      */
+         slutsum.TIMMAR = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.TIMMAR).          
+   
+      END.     
+   END.
+   
+END PROCEDURE.
+
+   
+

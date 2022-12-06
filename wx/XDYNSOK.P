@@ -1,0 +1,143 @@
+/*XDYNSOK.P*/
+
+ 
+/*  RUN DYNLADDBRW.P PERSISTENT SET brwproc[1]          */
+/*          (INPUT BRW_HLEV:HANDLE IN FRAME {&FRAME-NAME}). */
+/*                                                       */
+/*    EMPTY TEMP-TABLE valsoktemp NO-ERROR.                                                                              */
+/*    EMPTY TEMP-TABLE mtrltemp NO-ERROR.                                                                                */
+/*    CREATE valsoktemp.                                                                                                 */
+/*    ASSIGN                                                                                                             */
+/*    valsoktemp.SOKCHAR[1] = "mtrltemp"                                                                                 */
+/*    valsoktemp.SOKCHAR[2] = "MTRL"                                                                                     */
+/*    valsoktemp.SOKCHAR[3] = " WHERE KALKNR = " + STRING(0) + " AND LEVKOD = '" + STRING(vald_lev) + "' USE-INDEX LEV " */
+/*    valsoktemp.SOKCHAR[4] = "MTRLROW"                                                                                  */
+/*    specbrw = 1.                                                                                                       */
+/*    RUN initdynbrwsok_UI IN brwproc[specbrw] (INPUT TABLE valsoktemp).                                                 */
+/*    RUN settriggerproc_UI IN brwproc[specbrw] (INPUT 2,INPUT "anyprintable_UI").                                       */
+/*    RUN settriggerproc_UI IN brwproc[specbrw] (INPUT 4,INPUT "offend_UI").                                             */
+/*    RUN settriggerproc_UI IN brwproc[specbrw] (INPUT 5,INPUT "offhome_UI").                                            */
+/*    RUN settriggerproc_UI IN brwproc[specbrw] (INPUT 6,INPUT "end_UI").                                                */
+/*    RUN settriggerproc_UI IN brwproc[specbrw] (INPUT 7,INPUT "home_UI").                                               */
+
+ 
+/* TEST - Nya procedurer för sökfunktion */     
+PROCEDURE initdynbrwsok_UI :
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+   FIND FIRST valsoktemp WHERE NO-LOCK NO-ERROR.
+   IF AVAILABLE valsoktemp THEN DO:
+      ASSIGN
+      colsortcharinput = valsoktemp.SOKCHAR[3].      
+      IF Guru.Konstanter:appcon THEN DO:
+         RUN DYNLADDBRWAPP2.P PERSISTENT SET dynbrwsokh ON Guru.Konstanter:apphand TRANSACTION DISTINCT
+            (INPUT TABLE valsoktemp).
+      END.
+      ELSE DO:
+         RUN DYNLADDBRWAPP2.P PERSISTENT SET dynbrwsokh
+            (INPUT TABLE valsoktemp).
+      END.
+      EMPTY TEMP-TABLE valsoktemp NO-ERROR. 
+   END.
+END.
+PROCEDURE dynbrwsok_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valsoktemp.
+   DEFINE VARIABLE svar AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE seekfield AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE searchstring AS CHARACTER NO-UNDO.
+   FIND FIRST valsoktemp NO-LOCK NO-ERROR.
+   IF AVAILABLE valsoktemp THEN DO:
+      ASSIGN
+      senastvarsok = TRUE
+      svar  = TRUE
+      seekfield = valsoktemp.SOKCHAR[1]
+      searchstring = valsoktemp.SOKCHAR[2].
+      RUN getcolname_UI (OUTPUT colnamevar,OUTPUT ascdesclog).
+      IF colnamevar NE ? OR colnamevar NE "" THEN DO:
+         IF INDEX(searchstring,"*",1) = 0 THEN DO:
+            begvar = TRUE.
+         END.
+         IF SUBSTRING(searchstring,1,1) = "*" THEN DO:
+            begvar = FALSE.
+         END.
+         IF begvar = TRUE THEN DO:
+            IF LENGTH(searchstring) <= 1 THEN DO:
+               svar = FALSE.
+               MESSAGE "Den här sökningen kan ta lite tid att uföra. Vill du fortsätta?" VIEW-AS ALERT-BOX
+                  QUESTION BUTTONS YES-NO TITLE "Meddelande" UPDATE svar.
+            END.
+         END.
+         ELSE DO:
+            IF SUBSTRING(searchstring,1,1) NE "*" AND SUBSTRING(searchstring,3,1) = "*" THEN DO:
+               svar = FALSE.
+               MESSAGE "Den här sökningen kan ta lite tid att uföra. Vill du fortsätta?" VIEW-AS ALERT-BOX
+                  QUESTION BUTTONS YES-NO TITLE "Meddelande" UPDATE svar.
+            END.
+            ELSE IF LENGTH(searchstring) <= 3 OR SUBSTRING(searchstring,4,1) = "*" THEN DO:
+               svar = FALSE.
+               MESSAGE "Den här sökningen kan ta lite tid att uföra. Vill du fortsätta?" VIEW-AS ALERT-BOX
+                  QUESTION BUTTONS YES-NO TITLE "Meddelande" UPDATE svar.
+            END.
+         END.
+         IF svar THEN DO:
+            IF colnamevar NE colnamespar THEN DO:
+               IF dynbrwh:TITLE NE ? THEN dynbrwh:TITLE = orgtitle + "   Vänta, omsortering pågår... ".
+               colnamespar = colnamevar.
+            END.
+            IF dynbrwh:TITLE NE ? THEN dynbrwh:TITLE = orgtitle + "   Vänta, sökning pågår... ".
+            RUN dynbrwsok_UI IN dynbrwsokh (INPUT-OUTPUT TABLE valsoktemp,OUTPUT TABLE-HANDLE tth).           
+            FIND FIRST valsoktemp NO-LOCK NO-ERROR.
+            IF AVAILABLE valsoktemp THEN DO:
+               IF valsoktemp.SOKCHAR[3] = "" THEN DO:
+                  dynbuffh = tth:DEFAULT-BUFFER-HANDLE.
+
+                  IF INDEX(sokstring,"*",1) = 0 THEN DO:
+                     begvar = TRUE.
+                  END.
+                  IF SUBSTRING(sokstring,1,1) = "*" THEN DO:
+                     begvar = FALSE.
+                  END.
+                  RUN openbdyn_UI (INPUT colsortcharinput).
+                  RUN getnumresult_UI (OUTPUT brwantal).
+                  dynqueh:GET-FIRST(NO-LOCK).
+                  DO WHILE dynqueh:QUERY-OFF-END = FALSE:
+                     extrafalth1 = dynbuffh:BUFFER-FIELD(seekfield).
+                     IF begvar = FALSE THEN DO:
+                        IF extrafalth1:BUFFER-VALUE MATCHES searchstring THEN DO:
+                           lastbrwrow = dynbuffh:ROWID.
+                           finns = TRUE.
+                           LEAVE.
+                        END.
+                     END.
+                     ELSE DO:
+                        IF extrafalth1:BUFFER-VALUE BEGINS searchstring THEN DO:
+                           lastbrwrow = dynbuffh:ROWID.
+                           finns = TRUE.
+                           LEAVE.
+                        END.
+                     END.
+                     dynqueh:GET-NEXT(NO-LOCK).
+                  END.
+                  IF finns = FALSE THEN DO:
+                     dynqueh:GET-FIRST(NO-LOCK).
+                     lastbrwrow = dynbuffh:ROWID.
+                  END.
+                  RUN lastselectdyn_UI.
+                  RUN getnumresult_UI (OUTPUT brwantal).
+                  ASSIGN
+                  dynbrwh:MAX-DATA-GUESS = brwantal
+                  colsortchar = colsortcharinput
+                  colnamespar = colnamevar
+                  finns = FALSE.
+                  IF dynbrwh:TITLE NE ? THEN dynbrwh:TITLE = orgtitle + "   Urvalresultat " + STRING(brwantal) + "st".
+               END.
+               ELSE DO:
+                  MESSAGE valsoktemp.SOKCHAR[3] VIEW-AS ALERT-BOX.
+                  IF dynbrwh:TITLE NE ? THEN dynbrwh:TITLE = orgtitle.
+               END.
+            END.
+         END.
+      END.
+   END.
+   RETURN.
+END PROCEDURE.
+/*Slut TEST nya procedurer*/

@@ -1,0 +1,870 @@
+WHEN 'ACCELERATOR'
+THEN IF CAN-SET({&object}, 'ACCELERATOR')
+     THEN ASSIGN {&object}:ACCELERATOR = {&var}.
+WHEN 'ADM-DATA'
+THEN IF CAN-SET({&object}, 'ADM-DATA')
+     THEN ASSIGN {&object}:ADM-DATA = {&var}.
+WHEN 'APPL-ALERT-BOXES'
+THEN IF CAN-SET({&object}, 'APPL-ALERT-BOXES')
+     THEN ASSIGN {&object}:APPL-ALERT-BOXES = {&var}.
+WHEN 'AUTO-GO'
+THEN IF CAN-SET({&object}, 'AUTO-GO')
+     THEN ASSIGN {&object}:AUTO-GO = {&var}.
+WHEN 'AUTO-INDENT'
+THEN IF CAN-SET({&object}, 'AUTO-INDENT')
+     THEN ASSIGN {&object}:AUTO-INDENT = {&var}.
+WHEN 'AUTO-RESIZE'
+THEN IF CAN-SET({&object}, 'AUTO-RESIZE')
+     THEN ASSIGN {&object}:AUTO-RESIZE = {&var}.
+WHEN 'AUTO-RETURN'
+THEN IF CAN-SET({&object}, 'AUTO-RETURN')
+     THEN ASSIGN {&object}:AUTO-RETURN = {&var}.
+WHEN 'AUTO-ZAP'
+THEN IF CAN-SET({&object}, 'AUTO-ZAP')
+     THEN ASSIGN {&object}:AUTO-ZAP = {&var}.
+WHEN 'AVAILABLE-FORMATS'
+THEN IF CAN-SET({&object}, 'AVAILABLE-FORMATS')
+     THEN ASSIGN {&object}:AVAILABLE-FORMATS = {&var}.
+WHEN 'BACKGROUND'
+THEN IF CAN-SET({&object}, 'BACKGROUND')
+     THEN ASSIGN {&object}:BACKGROUND = {&var}.
+WHEN 'BATCH-MODE'
+THEN IF CAN-SET({&object}, 'BATCH-MODE')
+     THEN ASSIGN {&object}:BATCH-MODE = {&var}.
+WHEN 'BGCOLOR'
+THEN IF CAN-SET({&object}, 'BGCOLOR')
+     THEN ASSIGN {&object}:BGCOLOR = {&var}.
+WHEN 'BLANK'
+THEN IF CAN-SET({&object}, 'BLANK')
+     THEN ASSIGN {&object}:BLANK = {&var}.
+WHEN 'BLOCK-ITERATION-DISPLAY'
+THEN IF CAN-SET({&object}, 'BLOCK-ITERATION-DISPLAY')
+     THEN ASSIGN {&object}:BLOCK-ITERATION-DISPLAY = {&var}.
+WHEN 'BORDER-BOTTOM-CHARS'
+THEN IF CAN-SET({&object}, 'BORDER-BOTTOM-CHARS')
+     THEN ASSIGN {&object}:BORDER-BOTTOM-CHARS = {&var}.
+WHEN 'BORDER-BOTTOM-PIXELS'
+THEN IF CAN-SET({&object}, 'BORDER-BOTTOM-PIXELS')
+     THEN ASSIGN {&object}:BORDER-BOTTOM-PIXELS = {&var}.
+WHEN 'BORDER-LEFT-CHARS'
+THEN IF CAN-SET({&object}, 'BORDER-LEFT-CHARS')
+     THEN ASSIGN {&object}:BORDER-LEFT-CHARS = {&var}.
+WHEN 'BORDER-LEFT-PIXELS'
+THEN IF CAN-SET({&object}, 'BORDER-LEFT-PIXELS')
+     THEN ASSIGN {&object}:BORDER-LEFT-PIXELS = {&var}.
+WHEN 'BORDER-RIGHT-CHARS'
+THEN IF CAN-SET({&object}, 'BORDER-RIGHT-CHARS')
+     THEN ASSIGN {&object}:BORDER-RIGHT-CHARS = {&var}.
+WHEN 'BORDER-RIGHT-PIXELS'
+THEN IF CAN-SET({&object}, 'BORDER-RIGHT-PIXELS')
+     THEN ASSIGN {&object}:BORDER-RIGHT-PIXELS = {&var}.
+WHEN 'BORDER-TOP-CHARS'
+THEN IF CAN-SET({&object}, 'BORDER-TOP-CHARS')
+     THEN ASSIGN {&object}:BORDER-TOP-CHARS = {&var}.
+WHEN 'BORDER-TOP-PIXELS'
+THEN IF CAN-SET({&object}, 'BORDER-TOP-PIXELS')
+     THEN ASSIGN {&object}:BORDER-TOP-PIXELS = {&var}.
+WHEN 'BOX'
+THEN IF CAN-SET({&object}, 'BOX')
+     THEN ASSIGN {&object}:BOX = {&var}.
+WHEN 'BOX-SELECTABLE'
+THEN IF CAN-SET({&object}, 'BOX-SELECTABLE')
+     THEN ASSIGN {&object}:BOX-SELECTABLE = {&var}.
+WHEN 'BUFFER-CHARS'
+THEN IF CAN-SET({&object}, 'BUFFER-CHARS')
+     THEN ASSIGN {&object}:BUFFER-CHARS = {&var}.
+WHEN 'BUFFER-LINES'
+THEN IF CAN-SET({&object}, 'BUFFER-LINES')
+     THEN ASSIGN {&object}:BUFFER-LINES = {&var}.
+WHEN 'CANCEL-BUTTON'
+THEN IF CAN-SET({&object}, 'CANCEL-BUTTON')
+     THEN ASSIGN {&object}:CANCEL-BUTTON = {&var}.
+WHEN 'CENTERED'
+THEN IF CAN-SET({&object}, 'CENTERED')
+     THEN ASSIGN {&object}:CENTERED = {&var}.
+WHEN 'CHARSET'
+THEN IF CAN-SET({&object}, 'CHARSET')
+     THEN ASSIGN {&object}:CHARSET = {&var}.
+WHEN 'CHECKED'
+THEN IF CAN-SET({&object}, 'CHECKED')
+     THEN ASSIGN {&object}:CHECKED = {&var}.
+WHEN 'CODE'
+THEN IF CAN-SET({&object}, 'CODE')
+     THEN ASSIGN {&object}:CODE = {&var}.
+WHEN 'CODEPAGE'
+THEN IF CAN-SET({&object}, 'CODEPAGE')
+     THEN ASSIGN {&object}:CODEPAGE = {&var}.
+WHEN 'COLUMN'
+THEN IF CAN-SET({&object}, 'COLUMN')
+     THEN ASSIGN {&object}:COLUMN = {&var}.
+WHEN 'COLUMN-BGCOLOR'
+THEN IF CAN-SET({&object}, 'COLUMN-BGCOLOR')
+     THEN ASSIGN {&object}:COLUMN-BGCOLOR = {&var}.
+WHEN 'COLUMN-DCOLOR'
+THEN IF CAN-SET({&object}, 'COLUMN-DCOLOR')
+     THEN ASSIGN {&object}:COLUMN-DCOLOR = {&var}.
+WHEN 'COLUMN-FGCOLOR'
+THEN IF CAN-SET({&object}, 'COLUMN-FGCOLOR')
+     THEN ASSIGN {&object}:COLUMN-FGCOLOR = {&var}.
+WHEN 'COLUMN-FONT'
+THEN IF CAN-SET({&object}, 'COLUMN-FONT')
+     THEN ASSIGN {&object}:COLUMN-FONT = {&var}.
+WHEN 'COLUMN-PFCOLOR'
+THEN IF CAN-SET({&object}, 'COLUMN-PFCOLOR')
+     THEN ASSIGN {&object}:COLUMN-PFCOLOR = {&var}.
+WHEN 'COLUMN-SCROLLING'
+THEN IF CAN-SET({&object}, 'COLUMN-SCROLLING')
+     THEN ASSIGN {&object}:COLUMN-SCROLLING = {&var}.
+WHEN 'COM-HANDLE'
+THEN IF CAN-SET({&object}, 'COM-HANDLE')
+     THEN ASSIGN {&object}:COM-HANDLE = {&var}.
+WHEN 'CONVERT-3D-COLORS'
+THEN IF CAN-SET({&object}, 'CONVERT-3D-COLORS')
+     THEN ASSIGN {&object}:CONVERT-3D-COLORS = {&var}.
+WHEN 'CPCASE'
+THEN IF CAN-SET({&object}, 'CPCASE')
+     THEN ASSIGN {&object}:CPCASE = {&var}.
+WHEN 'CPCOLL'
+THEN IF CAN-SET({&object}, 'CPCOLL')
+     THEN ASSIGN {&object}:CPCOLL = {&var}.
+WHEN 'CPINTERNAL'
+THEN IF CAN-SET({&object}, 'CPINTERNAL')
+     THEN ASSIGN {&object}:CPINTERNAL = {&var}.
+WHEN 'CPLOG'
+THEN IF CAN-SET({&object}, 'CPLOG')
+     THEN ASSIGN {&object}:CPLOG = {&var}.
+WHEN 'CPPRINT'
+THEN IF CAN-SET({&object}, 'CPPRINT')
+     THEN ASSIGN {&object}:CPPRINT = {&var}.
+WHEN 'CPRCODEIN'
+THEN IF CAN-SET({&object}, 'CPRCODEIN')
+     THEN ASSIGN {&object}:CPRCODEIN = {&var}.
+WHEN 'CPRCODEOUT'
+THEN IF CAN-SET({&object}, 'CPRCODEOUT')
+     THEN ASSIGN {&object}:CPRCODEOUT = {&var}.
+WHEN 'CPSTREAM'
+THEN IF CAN-SET({&object}, 'CPSTREAM')
+     THEN ASSIGN {&object}:CPSTREAM = {&var}.
+WHEN 'CPTERM'
+THEN IF CAN-SET({&object}, 'CPTERM')
+     THEN ASSIGN {&object}:CPTERM = {&var}.
+WHEN 'CRC-VALUE'
+THEN IF CAN-SET({&object}, 'CRC-VALUE')
+     THEN ASSIGN {&object}:CRC-VALUE = {&var}.
+WHEN 'CURRENT-COLUMN'
+THEN IF CAN-SET({&object}, 'CURRENT-COLUMN')
+     THEN ASSIGN {&object}:CURRENT-COLUMN = {&var}.
+WHEN 'CURRENT-ITERATION'
+THEN IF CAN-SET({&object}, 'CURRENT-ITERATION')
+     THEN ASSIGN {&object}:CURRENT-ITERATION = {&var}.
+WHEN 'CURRENT-ROW-MODIFIED'
+THEN IF CAN-SET({&object}, 'CURRENT-ROW-MODIFIED')
+     THEN ASSIGN {&object}:CURRENT-ROW-MODIFIED = {&var}.
+WHEN 'CURRENT-WINDOW'
+THEN IF CAN-SET({&object}, 'CURRENT-WINDOW')
+     THEN ASSIGN {&object}:CURRENT-WINDOW = {&var}.
+WHEN 'CURSOR-CHAR'
+THEN IF CAN-SET({&object}, 'CURSOR-CHAR')
+     THEN ASSIGN {&object}:CURSOR-CHAR = {&var}.
+WHEN 'CURSOR-LINE'
+THEN IF CAN-SET({&object}, 'CURSOR-LINE')
+     THEN ASSIGN {&object}:CURSOR-LINE = {&var}.
+WHEN 'CURSOR-OFFSET'
+THEN IF CAN-SET({&object}, 'CURSOR-OFFSET')
+     THEN ASSIGN {&object}:CURSOR-OFFSET = {&var}.
+WHEN 'DATA-ENTRY-RETURN'
+THEN IF CAN-SET({&object}, 'DATA-ENTRY-RETURN')
+     THEN ASSIGN {&object}:DATA-ENTRY-RETURN = {&var}.
+WHEN 'DATA-TYPE'
+THEN IF CAN-SET({&object}, 'DATA-TYPE')
+     THEN ASSIGN {&object}:DATA-TYPE = {&var}.
+WHEN 'DATE-FORMAT'
+THEN IF CAN-SET({&object}, 'DATE-FORMAT')
+     THEN ASSIGN {&object}:DATE-FORMAT = {&var}.
+WHEN 'DB-REFERENCES'
+THEN IF CAN-SET({&object}, 'DB-REFERENCES')
+     THEN ASSIGN {&object}:DB-REFERENCES = {&var}.
+WHEN 'DBNAME'
+THEN IF CAN-SET({&object}, 'DBNAME')
+     THEN ASSIGN {&object}:DBNAME = {&var}.
+WHEN 'DCOLOR'
+THEN IF CAN-SET({&object}, 'DCOLOR')
+     THEN ASSIGN {&object}:DCOLOR = {&var}.
+WHEN 'DDE-ERROR'
+THEN IF CAN-SET({&object}, 'DDE-ERROR')
+     THEN ASSIGN {&object}:DDE-ERROR = {&var}.
+WHEN 'DDE-ID'
+THEN IF CAN-SET({&object}, 'DDE-ID')
+     THEN ASSIGN {&object}:DDE-ID = {&var}.
+WHEN 'DDE-ITEM'
+THEN IF CAN-SET({&object}, 'DDE-ITEM')
+     THEN ASSIGN {&object}:DDE-ITEM = {&var}.
+WHEN 'DDE-NAME'
+THEN IF CAN-SET({&object}, 'DDE-NAME')
+     THEN ASSIGN {&object}:DDE-NAME = {&var}.
+WHEN 'DDE-TOPIC'
+THEN IF CAN-SET({&object}, 'DDE-TOPIC')
+     THEN ASSIGN {&object}:DDE-TOPIC = {&var}.
+WHEN 'DEBLANK'
+THEN IF CAN-SET({&object}, 'DEBLANK')
+     THEN ASSIGN {&object}:DEBLANK = {&var}.
+WHEN 'DEFAULT'
+THEN IF CAN-SET({&object}, 'DEFAULT')
+     THEN ASSIGN {&object}:DEFAULT = {&var}.
+WHEN 'DEFAULT-BUTTON'
+THEN IF CAN-SET({&object}, 'DEFAULT-BUTTON')
+     THEN ASSIGN {&object}:DEFAULT-BUTTON = {&var}.
+WHEN 'DELIMITER'
+THEN IF CAN-SET({&object}, 'DELIMITER')
+     THEN ASSIGN {&object}:DELIMITER = {&var}.
+WHEN 'DISPLAY-TYPE'
+THEN IF CAN-SET({&object}, 'DISPLAY-TYPE')
+     THEN ASSIGN {&object}:DISPLAY-TYPE = {&var}.
+WHEN 'DOWN'
+THEN IF CAN-SET({&object}, 'DOWN')
+     THEN ASSIGN {&object}:DOWN = {&var}.
+WHEN 'DRAG-ENABLED'
+THEN IF CAN-SET({&object}, 'DRAG-ENABLED')
+     THEN ASSIGN {&object}:DRAG-ENABLED = {&var}.
+WHEN 'DYNAMIC'
+THEN IF CAN-SET({&object}, 'DYNAMIC')
+     THEN ASSIGN {&object}:DYNAMIC = {&var}.
+WHEN 'EDGE-CHARS'
+THEN IF CAN-SET({&object}, 'EDGE-CHARS')
+     THEN ASSIGN {&object}:EDGE-CHARS = {&var}.
+WHEN 'EDGE-PIXELS'
+THEN IF CAN-SET({&object}, 'EDGE-PIXELS')
+     THEN ASSIGN {&object}:EDGE-PIXELS = {&var}.
+WHEN 'EDIT-CAN-UNDO'
+THEN IF CAN-SET({&object}, 'EDIT-CAN-UNDO')
+     THEN ASSIGN {&object}:EDIT-CAN-UNDO = {&var}.
+WHEN 'EMPTY'
+THEN IF CAN-SET({&object}, 'EMPTY')
+     THEN ASSIGN {&object}:EMPTY = {&var}.
+WHEN 'ERROR'
+THEN IF CAN-SET({&object}, 'ERROR')
+     THEN ASSIGN {&object}:ERROR = {&var}.
+WHEN 'ERROR-COLUMN'
+THEN IF CAN-SET({&object}, 'ERROR-COLUMN')
+     THEN ASSIGN {&object}:ERROR-COLUMN = {&var}.
+WHEN 'ERROR-ROW'
+THEN IF CAN-SET({&object}, 'ERROR-ROW')
+     THEN ASSIGN {&object}:ERROR-ROW = {&var}.
+WHEN 'EVENT-TYPE'
+THEN IF CAN-SET({&object}, 'EVENT-TYPE')
+     THEN ASSIGN {&object}:EVENT-TYPE = {&var}.
+WHEN 'EXPAND'
+THEN IF CAN-SET({&object}, 'EXPAND')
+     THEN ASSIGN {&object}:EXPAND = {&var}.
+WHEN 'FGCOLOR'
+THEN IF CAN-SET({&object}, 'FGCOLOR')
+     THEN ASSIGN {&object}:FGCOLOR = {&var}.
+WHEN 'FILE-NAME'
+THEN IF CAN-SET({&object}, 'FILE-NAME')
+     THEN ASSIGN {&object}:FILE-NAME = {&var}.
+WHEN 'FILE-OFFSET'
+THEN IF CAN-SET({&object}, 'FILE-OFFSET')
+     THEN ASSIGN {&object}:FILE-OFFSET = {&var}.
+WHEN 'FILE-TYPE'
+THEN IF CAN-SET({&object}, 'FILE-TYPE')
+     THEN ASSIGN {&object}:FILE-TYPE = {&var}.
+WHEN 'FILLED'
+THEN IF CAN-SET({&object}, 'FILLED')
+     THEN ASSIGN {&object}:FILLED = {&var}.
+WHEN 'FIRST-CHILD'
+THEN IF CAN-SET({&object}, 'FIRST-CHILD')
+     THEN ASSIGN {&object}:FIRST-CHILD = {&var}.
+WHEN 'FIRST-COLUMN'
+THEN IF CAN-SET({&object}, 'FIRST-COLUMN')
+     THEN ASSIGN {&object}:FIRST-COLUMN = {&var}.
+WHEN 'FIRST-PROCEDURE'
+THEN IF CAN-SET({&object}, 'FIRST-PROCEDURE')
+     THEN ASSIGN {&object}:FIRST-PROCEDURE = {&var}.
+WHEN 'FIRST-SERVER'
+THEN IF CAN-SET({&object}, 'FIRST-SERVER')
+     THEN ASSIGN {&object}:FIRST-SERVER = {&var}.
+WHEN 'FIRST-TAB-ITEM'
+THEN IF CAN-SET({&object}, 'FIRST-TAB-ITEM')
+     THEN ASSIGN {&object}:FIRST-TAB-ITEM = {&var}.
+WHEN 'FOCUSED-ROW'
+THEN IF CAN-SET({&object}, 'FOCUSED-ROW')
+     THEN ASSIGN {&object}:FOCUSED-ROW = {&var}.
+WHEN 'FONT'
+THEN IF CAN-SET({&object}, 'FONT')
+     THEN ASSIGN {&object}:FONT = {&var}.
+WHEN 'FOREGROUND'
+THEN IF CAN-SET({&object}, 'FOREGROUND')
+     THEN ASSIGN {&object}:FOREGROUND = {&var}.
+WHEN 'FORMAT'
+THEN IF CAN-SET({&object}, 'FORMAT')
+     THEN ASSIGN {&object}:FORMAT = {&var}.
+WHEN 'FRAME'
+THEN IF CAN-SET({&object}, 'FRAME')
+     THEN ASSIGN {&object}:FRAME = {&var}.
+WHEN 'FRAME-COL'
+THEN IF CAN-SET({&object}, 'FRAME-COL')
+     THEN ASSIGN {&object}:FRAME-COL = {&var}.
+WHEN 'FRAME-NAME'
+THEN IF CAN-SET({&object}, 'FRAME-NAME')
+     THEN ASSIGN {&object}:FRAME-NAME = {&var}.
+WHEN 'FRAME-SPACING'
+THEN IF CAN-SET({&object}, 'FRAME-SPACING')
+     THEN ASSIGN {&object}:FRAME-SPACING = {&var}.
+WHEN 'FRAME-ROW'
+THEN IF CAN-SET({&object}, 'FRAME-ROW')
+     THEN ASSIGN {&object}:FRAME-ROW = {&var}.
+WHEN 'FRAME-X'
+THEN IF CAN-SET({&object}, 'FRAME-X')
+     THEN ASSIGN {&object}:FRAME-X = {&var}.
+WHEN 'FRAME-Y'
+THEN IF CAN-SET({&object}, 'FRAME-Y')
+     THEN ASSIGN {&object}:FRAME-Y = {&var}.
+WHEN 'FREQUENCY'
+THEN IF CAN-SET({&object}, 'FREQUENCY')
+     THEN ASSIGN {&object}:FREQUENCY = {&var}.
+WHEN 'FULL-HEIGHT-CHARS'
+THEN IF CAN-SET({&object}, 'FULL-HEIGHT-CHARS')
+     THEN ASSIGN {&object}:FULL-HEIGHT-CHARS = {&var}.
+WHEN 'FULL-HEIGHT-PIXELS'
+THEN IF CAN-SET({&object}, 'FULL-HEIGHT-PIXELS')
+     THEN ASSIGN {&object}:FULL-HEIGHT-PIXELS = {&var}.
+WHEN 'FULL-PATHNAME'
+THEN IF CAN-SET({&object}, 'FULL-PATHNAME')
+     THEN ASSIGN {&object}:FULL-PATHNAME = {&var}.
+WHEN 'FULL-WIDTH-CHARS'
+THEN IF CAN-SET({&object}, 'FULL-WIDTH-CHARS')
+     THEN ASSIGN {&object}:FULL-WIDTH-CHARS = {&var}.
+WHEN 'FULL-WIDTH-PIXELS'
+THEN IF CAN-SET({&object}, 'FULL-WIDTH-PIXELS')
+     THEN ASSIGN {&object}:FULL-WIDTH-PIXELS = {&var}.
+WHEN 'FUNCTION'
+THEN IF CAN-SET({&object}, 'FUNCTION')
+     THEN ASSIGN {&object}:FUNCTION = {&var}.
+WHEN 'GRAPHIC-EDGE'
+THEN IF CAN-SET({&object}, 'GRAPHIC-EDGE')
+     THEN ASSIGN {&object}:GRAPHIC-EDGE = {&var}.
+WHEN 'GRID-FACTOR-HORIZONTAL'
+THEN IF CAN-SET({&object}, 'GRID-FACTOR-HORIZONTAL')
+     THEN ASSIGN {&object}:GRID-FACTOR-HORIZONTAL = {&var}.
+WHEN 'GRID-FACTOR-VERTICAL'
+THEN IF CAN-SET({&object}, 'GRID-FACTOR-VERTICAL')
+     THEN ASSIGN {&object}:GRID-FACTOR-VERTICAL = {&var}.
+WHEN 'GRID-SNAP'
+THEN IF CAN-SET({&object}, 'GRID-SNAP')
+     THEN ASSIGN {&object}:GRID-SNAP = {&var}.
+WHEN 'GRID-UNIT-HEIGHT-CHARS'
+THEN IF CAN-SET({&object}, 'GRID-UNIT-HEIGHT-CHARS')
+     THEN ASSIGN {&object}:GRID-UNIT-HEIGHT-CHARS = {&var}.
+WHEN 'GRID-UNIT-HEIGHT-PIXELS'
+THEN IF CAN-SET({&object}, 'GRID-UNIT-HEIGHT-PIXELS')
+     THEN ASSIGN {&object}:GRID-UNIT-HEIGHT-PIXELS = {&var}.
+WHEN 'GRID-UNIT-WIDTH-CHARS'
+THEN IF CAN-SET({&object}, 'GRID-UNIT-WIDTH-CHARS')
+     THEN ASSIGN {&object}:GRID-UNIT-WIDTH-CHARS = {&var}.
+WHEN 'GRID-UNIT-WIDTH-PIXELS'
+THEN IF CAN-SET({&object}, 'GRID-UNIT-WIDTH-PIXELS')
+     THEN ASSIGN {&object}:GRID-UNIT-WIDTH-PIXELS = {&var}.
+WHEN 'GRID-VISIBLE'
+THEN IF CAN-SET({&object}, 'GRID-VISIBLE')
+     THEN ASSIGN {&object}:GRID-VISIBLE = {&var}.
+WHEN 'HANDLE'
+THEN IF CAN-SET({&object}, 'HANDLE')
+     THEN ASSIGN {&object}:HANDLE = {&var}.
+WHEN 'HEIGHT-CHARS'
+THEN IF CAN-SET({&object}, 'HEIGHT-CHARS')
+     THEN ASSIGN {&object}:HEIGHT-CHARS = {&var}.
+WHEN 'HEIGHT-PIXELS'
+THEN IF CAN-SET({&object}, 'HEIGHT-PIXELS')
+     THEN ASSIGN {&object}:HEIGHT-PIXELS = {&var}.
+WHEN 'HELP'
+THEN IF CAN-SET({&object}, 'HELP')
+     THEN ASSIGN {&object}:HELP = {&var}.
+WHEN 'HIDDEN'
+THEN IF CAN-SET({&object}, 'HIDDEN')
+     THEN ASSIGN {&object}:HIDDEN = {&var}.
+WHEN 'HORIZONTAL'
+THEN IF CAN-SET({&object}, 'HORIZONTAL')
+     THEN ASSIGN {&object}:HORIZONTAL = {&var}.
+WHEN 'HWND'
+THEN IF CAN-SET({&object}, 'HWND')
+     THEN ASSIGN {&object}:HWND = {&var}.
+WHEN 'IMMEDIATE-DISPLAY'
+THEN IF CAN-SET({&object}, 'IMMEDIATE-DISPLAY')
+     THEN ASSIGN {&object}:IMMEDIATE-DISPLAY = {&var}.
+WHEN 'INDEX'
+THEN IF CAN-SET({&object}, 'INDEX')
+     THEN ASSIGN {&object}:INDEX = {&var}.
+WHEN 'INNER-CHARS'
+THEN IF CAN-SET({&object}, 'INNER-CHARS')
+     THEN ASSIGN {&object}:INNER-CHARS = {&var}.
+WHEN 'INNER-LINES'
+THEN IF CAN-SET({&object}, 'INNER-LINES')
+     THEN ASSIGN {&object}:INNER-LINES = {&var}.
+WHEN 'INTERNAL-ENTRIES'
+THEN IF CAN-SET({&object}, 'INTERNAL-ENTRIES')
+     THEN ASSIGN {&object}:INTERNAL-ENTRIES = {&var}.
+WHEN 'ITEMS-PER-ROW'
+THEN IF CAN-SET({&object}, 'ITEMS-PER-ROW')
+     THEN ASSIGN {&object}:ITEMS-PER-ROW = {&var}.
+WHEN 'KEEP-FRAME-Z-ORDER'
+THEN IF CAN-SET({&object}, 'KEEP-FRAME-Z-ORDER')
+     THEN ASSIGN {&object}:KEEP-FRAME-Z-ORDER = {&var}.
+WHEN 'LABEL'
+THEN IF CAN-SET({&object}, 'LABEL')
+     THEN ASSIGN {&object}:LABEL = {&var}.
+WHEN 'LABEL-BGCOLOR'
+THEN IF CAN-SET({&object}, 'LABEL-BGCOLOR')
+     THEN ASSIGN {&object}:LABEL-BGCOLOR = {&var}.
+WHEN 'LABEL-DCOLOR'
+THEN IF CAN-SET({&object}, 'LABEL-DCOLOR')
+     THEN ASSIGN {&object}:LABEL-DCOLOR = {&var}.
+WHEN 'LABEL-FGCOLOR'
+THEN IF CAN-SET({&object}, 'LABEL-FGCOLOR')
+     THEN ASSIGN {&object}:LABEL-FGCOLOR = {&var}.
+WHEN 'LABEL-FONT'
+THEN IF CAN-SET({&object}, 'LABEL-FONT')
+     THEN ASSIGN {&object}:LABEL-FONT = {&var}.
+WHEN 'LABELS'
+THEN IF CAN-SET({&object}, 'LABELS')
+     THEN ASSIGN {&object}:LABELS = {&var}.
+WHEN 'LANGUAGES'
+THEN IF CAN-SET({&object}, 'LANGUAGES')
+     THEN ASSIGN {&object}:LANGUAGES = {&var}.
+WHEN 'LAST-CHILD'
+THEN IF CAN-SET({&object}, 'LAST-CHILD')
+     THEN ASSIGN {&object}:LAST-CHILD = {&var}.
+WHEN 'LAST-PROCEDURE'
+THEN IF CAN-SET({&object}, 'LAST-PROCEDURE')
+     THEN ASSIGN {&object}:LAST-PROCEDURE = {&var}.
+WHEN 'LAST-SERVER'
+THEN IF CAN-SET({&object}, 'LAST-SERVER')
+     THEN ASSIGN {&object}:LAST-SERVER = {&var}.
+WHEN 'LARGE'
+THEN IF CAN-SET({&object}, 'LARGE')
+     THEN ASSIGN {&object}:LARGE = {&var}.
+WHEN 'LARGE-TO-SMALL'
+THEN IF CAN-SET({&object}, 'LARGE-TO-SMALL')
+     THEN ASSIGN {&object}:LARGE-TO-SMALL = {&var}.
+WHEN 'LAST-TAB-ITEM'
+THEN IF CAN-SET({&object}, 'LAST-TAB-ITEM')
+     THEN ASSIGN {&object}:LAST-TAB-ITEM = {&var}.
+WHEN 'LENGTH'
+THEN IF CAN-SET({&object}, 'LENGTH')
+     THEN ASSIGN {&object}:LENGTH = {&var}.
+WHEN 'LINE'
+THEN IF CAN-SET({&object}, 'LINE')
+     THEN ASSIGN {&object}:LINE = {&var}.
+WHEN 'LIST-ITEMS'
+THEN IF CAN-SET({&object}, 'LIST-ITEMS')
+     THEN ASSIGN {&object}:LIST-ITEMS = {&var}.
+WHEN 'LOG-ID'
+THEN IF CAN-SET({&object}, 'LOG-ID')
+     THEN ASSIGN {&object}:LOG-ID = {&var}.
+WHEN 'MANUAL-HIGHLIGHT'
+THEN IF CAN-SET({&object}, 'MANUAL-HIGHLIGHT')
+     THEN ASSIGN {&object}:MANUAL-HIGHLIGHT = {&var}.
+WHEN 'MAX-CHARS'
+THEN IF CAN-SET({&object}, 'MAX-CHARS')
+     THEN ASSIGN {&object}:MAX-CHARS = {&var}.
+WHEN 'MAX-DATA-GUESS'
+THEN IF CAN-SET({&object}, 'MAX-DATA-GUESS')
+     THEN ASSIGN {&object}:MAX-DATA-GUESS = {&var}.
+WHEN 'MAX-HEIGHT-CHARS'
+THEN IF CAN-SET({&object}, 'MAX-HEIGHT-CHARS')
+     THEN ASSIGN {&object}:MAX-HEIGHT-CHARS = {&var}.
+WHEN 'MAX-HEIGHT-PIXELS'
+THEN IF CAN-SET({&object}, 'MAX-HEIGHT-PIXELS')
+     THEN ASSIGN {&object}:MAX-HEIGHT-PIXELS = {&var}.
+WHEN 'MAX-VALUE'
+THEN IF CAN-SET({&object}, 'MAX-VALUE')
+     THEN ASSIGN {&object}:MAX-VALUE = {&var}.
+WHEN 'MAX-WIDTH-CHARS'
+THEN IF CAN-SET({&object}, 'MAX-WIDTH-CHARS')
+     THEN ASSIGN {&object}:MAX-WIDTH-CHARS = {&var}.
+WHEN 'MAX-WIDTH-PIXELS'
+THEN IF CAN-SET({&object}, 'MAX-WIDTH-PIXELS')
+     THEN ASSIGN {&object}:MAX-WIDTH-PIXELS = {&var}.
+WHEN 'MENU-BAR'
+THEN IF CAN-SET({&object}, 'MENU-BAR')
+     THEN ASSIGN {&object}:MENU-BAR = {&var}.
+WHEN 'MENU-KEY'
+THEN IF CAN-SET({&object}, 'MENU-KEY')
+     THEN ASSIGN {&object}:MENU-KEY = {&var}.
+WHEN 'MENU-MOUSE'
+THEN IF CAN-SET({&object}, 'MENU-MOUSE')
+     THEN ASSIGN {&object}:MENU-MOUSE = {&var}.
+WHEN 'MESSAGE-AREA'
+THEN IF CAN-SET({&object}, 'MESSAGE-AREA')
+     THEN ASSIGN {&object}:MESSAGE-AREA = {&var}.
+WHEN 'MESSAGE-AREA-FONT'
+THEN IF CAN-SET({&object}, 'MESSAGE-AREA-FONT')
+     THEN ASSIGN {&object}:MESSAGE-AREA-FONT = {&var}.
+WHEN 'MIN-HEIGHT-CHARS'
+THEN IF CAN-SET({&object}, 'MIN-HEIGHT-CHARS')
+     THEN ASSIGN {&object}:MIN-HEIGHT-CHARS = {&var}.
+WHEN 'MIN-HEIGHT-PIXELS'
+THEN IF CAN-SET({&object}, 'MIN-HEIGHT-PIXELS')
+     THEN ASSIGN {&object}:MIN-HEIGHT-PIXELS = {&var}.
+WHEN 'MIN-VALUE'
+THEN IF CAN-SET({&object}, 'MIN-VALUE')
+     THEN ASSIGN {&object}:MIN-VALUE = {&var}.
+WHEN 'MIN-WIDTH-CHARS'
+THEN IF CAN-SET({&object}, 'MIN-WIDTH-CHARS')
+     THEN ASSIGN {&object}:MIN-WIDTH-CHARS = {&var}.
+WHEN 'MIN-WIDTH-PIXELS'
+THEN IF CAN-SET({&object}, 'MIN-WIDTH-PIXELS')
+     THEN ASSIGN {&object}:MIN-WIDTH-PIXELS = {&var}.
+WHEN 'MODIFIED'
+THEN IF CAN-SET({&object}, 'MODIFIED')
+     THEN ASSIGN {&object}:MODIFIED = {&var}.
+WHEN 'MOVABLE'
+THEN IF CAN-SET({&object}, 'MOVABLE')
+     THEN ASSIGN {&object}:MOVABLE = {&var}.
+WHEN 'MULTIPLE'
+THEN IF CAN-SET({&object}, 'MULTIPLE')
+     THEN ASSIGN {&object}:MULTIPLE = {&var}.
+WHEN 'MULTITASKING-INTERVAL'
+THEN IF CAN-SET({&object}, 'MULTITASKING-INTERVAL')
+     THEN ASSIGN {&object}:MULTITASKING-INTERVAL = {&var}.
+WHEN 'NAME'
+THEN IF CAN-SET({&object}, 'NAME')
+     THEN ASSIGN {&object}:NAME = {&var}.
+WHEN 'NEW-ROW'
+THEN IF CAN-SET({&object}, 'NEW-ROW')
+     THEN ASSIGN {&object}:NEW-ROW = {&var}.
+WHEN 'NEXT-COLUMN'
+THEN IF CAN-SET({&object}, 'NEXT-COLUMN')
+     THEN ASSIGN {&object}:NEXT-COLUMN = {&var}.
+WHEN 'NEXT-SIBLING'
+THEN IF CAN-SET({&object}, 'NEXT-SIBLING')
+     THEN ASSIGN {&object}:NEXT-SIBLING = {&var}.
+WHEN 'NEXT-TAB-ITEM'
+THEN IF CAN-SET({&object}, 'NEXT-TAB-ITEM')
+     THEN ASSIGN {&object}:NEXT-TAB-ITEM = {&var}.
+WHEN 'NO-CURRENT-VALUE'
+THEN IF CAN-SET({&object}, 'NO-CURRENT-VALUE')
+     THEN ASSIGN {&object}:NO-CURRENT-VALUE = {&var}.
+WHEN 'NO-FOCUS'
+THEN IF CAN-SET({&object}, 'NO-FOCUS')
+     THEN ASSIGN {&object}:NO-FOCUS = {&var}.
+WHEN 'NUM-BUTTONS'
+THEN IF CAN-SET({&object}, 'NUM-BUTTONS')
+     THEN ASSIGN {&object}:NUM-BUTTONS = {&var}.
+WHEN 'NUM-COLUMNS'
+THEN IF CAN-SET({&object}, 'NUM-COLUMNS')
+     THEN ASSIGN {&object}:NUM-COLUMNS = {&var}.
+WHEN 'NUM-ENTRIES'
+THEN IF CAN-SET({&object}, 'NUM-ENTRIES')
+     THEN ASSIGN {&object}:NUM-ENTRIES = {&var}.
+WHEN 'NUM-FORMATS'
+THEN IF CAN-SET({&object}, 'NUM-FORMATS')
+     THEN ASSIGN {&object}:NUM-FORMATS = {&var}.
+WHEN 'NUM-ITEMS'
+THEN IF CAN-SET({&object}, 'NUM-ITEMS')
+     THEN ASSIGN {&object}:NUM-ITEMS = {&var}.
+WHEN 'NUM-ITERATIONS'
+THEN IF CAN-SET({&object}, 'NUM-ITERATIONS')
+     THEN ASSIGN {&object}:NUM-ITERATIONS = {&var}.
+WHEN 'NUM-LINES'
+THEN IF CAN-SET({&object}, 'NUM-LINES')
+     THEN ASSIGN {&object}:NUM-LINES = {&var}.
+WHEN 'NUM-LOCKED-COLUMNS'
+THEN IF CAN-SET({&object}, 'NUM-LOCKED-COLUMNS')
+     THEN ASSIGN {&object}:NUM-LOCKED-COLUMNS = {&var}.
+WHEN 'NUM-MESSAGES'
+THEN IF CAN-SET({&object}, 'NUM-MESSAGES')
+     THEN ASSIGN {&object}:NUM-MESSAGES = {&var}.
+WHEN 'NUM-SELECTED-ROWS'
+THEN IF CAN-SET({&object}, 'NUM-SELECTED-ROWS')
+     THEN ASSIGN {&object}:NUM-SELECTED-ROWS = {&var}.
+WHEN 'NUM-SELECTED-WIDGETS'
+THEN IF CAN-SET({&object}, 'NUM-SELECTED-WIDGETS')
+     THEN ASSIGN {&object}:NUM-SELECTED-WIDGETS = {&var}.
+WHEN 'NUM-TABS'
+THEN IF CAN-SET({&object}, 'NUM-TABS')
+     THEN ASSIGN {&object}:NUM-TABS = {&var}.
+WHEN 'NUM-TO-RETAIN'
+THEN IF CAN-SET({&object}, 'NUM-TO-RETAIN')
+     THEN ASSIGN {&object}:NUM-TO-RETAIN = {&var}.
+WHEN 'NUMERIC-FORMAT'
+THEN IF CAN-SET({&object}, 'NUMERIC-FORMAT')
+     THEN ASSIGN {&object}:NUMERIC-FORMAT = {&var}.
+WHEN 'ON-FRAME-BORDER'
+THEN IF CAN-SET({&object}, 'ON-FRAME-BORDER')
+     THEN ASSIGN {&object}:ON-FRAME-BORDER = {&var}.
+WHEN 'OVERLAY'
+THEN IF CAN-SET({&object}, 'OVERLAY')
+     THEN ASSIGN {&object}:OVERLAY = {&var}.
+WHEN 'OWNER'
+THEN IF CAN-SET({&object}, 'OWNER')
+     THEN ASSIGN {&object}:OWNER = {&var}.
+WHEN 'PAGE-BOTTOM'
+THEN IF CAN-SET({&object}, 'PAGE-BOTTOM')
+     THEN ASSIGN {&object}:PAGE-BOTTOM = {&var}.
+WHEN 'PAGE-TOP'
+THEN IF CAN-SET({&object}, 'PAGE-TOP')
+     THEN ASSIGN {&object}:PAGE-TOP = {&var}.
+WHEN 'PARAMETER'
+THEN IF CAN-SET({&object}, 'PARAMETER')
+     THEN ASSIGN {&object}:PARAMETER = {&var}.
+WHEN 'PARENT'
+THEN IF CAN-SET({&object}, 'PARENT')
+     THEN ASSIGN {&object}:PARENT = {&var}.
+WHEN 'PATHNAME'
+THEN IF CAN-SET({&object}, 'PATHNAME')
+     THEN ASSIGN {&object}:PATHNAME = {&var}.
+WHEN 'PERSISTENT'
+THEN IF CAN-SET({&object}, 'PERSISTENT')
+     THEN ASSIGN {&object}:PERSISTENT = {&var}.
+WHEN 'PFCOLOR'
+THEN IF CAN-SET({&object}, 'PFCOLOR')
+     THEN ASSIGN {&object}:PFCOLOR = {&var}.
+WHEN 'PIXELS-PER-COLUMN'
+THEN IF CAN-SET({&object}, 'PIXELS-PER-COLUMN')
+     THEN ASSIGN {&object}:PIXELS-PER-COLUMN = {&var}.
+WHEN 'PIXELS-PER-ROW'
+THEN IF CAN-SET({&object}, 'PIXELS-PER-ROW')
+     THEN ASSIGN {&object}:PIXELS-PER-ROW = {&var}.
+WHEN 'POPUP-MENU'
+THEN IF CAN-SET({&object}, 'POPUP-MENU')
+     THEN ASSIGN {&object}:POPUP-MENU = {&var}.
+WHEN 'POPUP-ONLY'
+THEN IF CAN-SET({&object}, 'POPUP-ONLY')
+     THEN ASSIGN {&object}:POPUP-ONLY = {&var}.
+WHEN 'PREV-COLUMN'
+THEN IF CAN-SET({&object}, 'PREV-COLUMN')
+     THEN ASSIGN {&object}:PREV-COLUMN = {&var}.
+WHEN 'PREV-SIBLING'
+THEN IF CAN-SET({&object}, 'PREV-SIBLING')
+     THEN ASSIGN {&object}:PREV-SIBLING = {&var}.
+WHEN 'PREV-TAB-ITEM'
+THEN IF CAN-SET({&object}, 'PREV-TAB-ITEM')
+     THEN ASSIGN {&object}:PREV-TAB-ITEM = {&var}.
+WHEN 'PRINTER-CONTROL-HANDLE'
+THEN IF CAN-SET({&object}, 'PRINTER-CONTROL-HANDLE')
+     THEN ASSIGN {&object}:PRINTER-CONTROL-HANDLE = {&var}.
+WHEN 'PRINTER-NAME'
+THEN IF CAN-SET({&object}, 'PRINTER-NAME')
+     THEN ASSIGN {&object}:PRINTER-NAME = {&var}.
+WHEN 'PRINTER-PORT'
+THEN IF CAN-SET({&object}, 'PRINTER-PORT')
+     THEN ASSIGN {&object}:PRINTER-PORT = {&var}.
+WHEN 'PRIVATE-DATA'
+THEN IF CAN-SET({&object}, 'PRIVATE-DATA')
+     THEN ASSIGN {&object}:PRIVATE-DATA = {&var}.
+WHEN 'PROGRESS-SOURCE'
+THEN IF CAN-SET({&object}, 'PROGRESS-SOURCE')
+     THEN ASSIGN {&object}:PROGRESS-SOURCE = {&var}.
+WHEN 'PROXY'
+THEN IF CAN-SET({&object}, 'PROXY')
+     THEN ASSIGN {&object}:PROXY = {&var}.
+WHEN 'RADIO-BUTTONS'
+THEN IF CAN-SET({&object}, 'RADIO-BUTTONS')
+     THEN ASSIGN {&object}:RADIO-BUTTONS = {&var}.
+WHEN 'READ-ONLY'
+THEN IF CAN-SET({&object}, 'READ-ONLY')
+     THEN ASSIGN {&object}:READ-ONLY = {&var}.
+WHEN 'REFRESHABLE'
+THEN IF CAN-SET({&object}, 'REFRESHABLE')
+     THEN ASSIGN {&object}:REFRESHABLE = {&var}.
+WHEN 'REMOTE'
+THEN IF CAN-SET({&object}, 'REMOTE')
+     THEN ASSIGN {&object}:REMOTE = {&var}.
+WHEN 'RESIZABLE'
+THEN IF CAN-SET({&object}, 'RESIZABLE')
+     THEN ASSIGN {&object}:RESIZABLE = {&var}.
+WHEN 'RESIZE'
+THEN IF CAN-SET({&object}, 'RESIZE')
+     THEN ASSIGN {&object}:RESIZE = {&var}.
+WHEN 'RETURN-INSERTED'
+THEN IF CAN-SET({&object}, 'RETURN-INSERTED')
+     THEN ASSIGN {&object}:RETURN-INSERTED = {&var}.
+WHEN 'ROW'
+THEN IF CAN-SET({&object}, 'ROW')
+     THEN ASSIGN {&object}:ROW = {&var}.
+WHEN 'ROW-MARKERS'
+THEN IF CAN-SET({&object}, 'ROW-MARKERS')
+     THEN ASSIGN {&object}:ROW-MARKERS = {&var}.
+WHEN 'SCREEN-LINES'
+THEN IF CAN-SET({&object}, 'SCREEN-LINES')
+     THEN ASSIGN {&object}:SCREEN-LINES = {&var}.
+WHEN 'SCREEN-VALUE'
+THEN IF CAN-SET({&object}, 'SCREEN-VALUE')
+     THEN ASSIGN {&object}:SCREEN-VALUE = {&var}.
+WHEN 'SCROLL-BARS'
+THEN IF CAN-SET({&object}, 'SCROLL-BARS')
+     THEN ASSIGN {&object}:SCROLL-BARS = {&var}.
+WHEN 'SCROLLABLE'
+THEN IF CAN-SET({&object}, 'SCROLLABLE')
+     THEN ASSIGN {&object}:SCROLLABLE = {&var}.
+WHEN 'SCROLLBAR-HORIZONTAL'
+THEN IF CAN-SET({&object}, 'SCROLLBAR-HORIZONTAL')
+     THEN ASSIGN {&object}:SCROLLBAR-HORIZONTAL = {&var}.
+WHEN 'SCROLLBAR-VERTICAL'
+THEN IF CAN-SET({&object}, 'SCROLLBAR-VERTICAL')
+     THEN ASSIGN {&object}:SCROLLBAR-VERTICAL = {&var}.
+WHEN 'SELECTABLE'
+THEN IF CAN-SET({&object}, 'SELECTABLE')
+     THEN ASSIGN {&object}:SELECTABLE = {&var}.
+WHEN 'SELECTED'
+THEN IF CAN-SET({&object}, 'SELECTED')
+     THEN ASSIGN {&object}:SELECTED = {&var}.
+WHEN 'SELECTION-END'
+THEN IF CAN-SET({&object}, 'SELECTION-END')
+     THEN ASSIGN {&object}:SELECTION-END = {&var}.
+WHEN 'SELECTION-START'
+THEN IF CAN-SET({&object}, 'SELECTION-START')
+     THEN ASSIGN {&object}:SELECTION-START = {&var}.
+WHEN 'SELECTION-TEXT'
+THEN IF CAN-SET({&object}, 'SELECTION-TEXT')
+     THEN ASSIGN {&object}:SELECTION-TEXT = {&var}.
+WHEN 'SENSITIVE'
+THEN IF CAN-SET({&object}, 'SENSITIVE')
+     THEN ASSIGN {&object}:SENSITIVE = {&var}.
+WHEN 'SEPARATORS'
+THEN IF CAN-SET({&object}, 'SEPARATORS')
+     THEN ASSIGN {&object}:SEPARATORS = {&var}.
+WHEN 'SERVER'
+THEN IF CAN-SET({&object}, 'SERVER')
+     THEN ASSIGN {&object}:SERVER = {&var}.
+WHEN 'SIDE-LABEL-HANDLE'
+THEN IF CAN-SET({&object}, 'SIDE-LABEL-HANDLE')
+     THEN ASSIGN {&object}:SIDE-LABEL-HANDLE = {&var}.
+WHEN 'SIDE-LABELS'
+THEN IF CAN-SET({&object}, 'SIDE-LABELS')
+     THEN ASSIGN {&object}:SIDE-LABELS = {&var}.
+WHEN 'SORT'
+THEN IF CAN-SET({&object}, 'SORT')
+     THEN ASSIGN {&object}:SORT = {&var}.
+WHEN 'STATUS-AREA'
+THEN IF CAN-SET({&object}, 'STATUS-AREA')
+     THEN ASSIGN {&object}:STATUS-AREA = {&var}.
+WHEN 'STATUS-AREA-FONT'
+THEN IF CAN-SET({&object}, 'STATUS-AREA-FONT')
+     THEN ASSIGN {&object}:STATUS-AREA-FONT = {&var}.
+WHEN 'STOPPED'
+THEN IF CAN-SET({&object}, 'STOPPED')
+     THEN ASSIGN {&object}:STOPPED = {&var}.
+WHEN 'STREAM'
+THEN IF CAN-SET({&object}, 'STREAM')
+     THEN ASSIGN {&object}:STREAM = {&var}.
+WHEN 'SUBTYPE'
+THEN IF CAN-SET({&object}, 'SUBTYPE')
+     THEN ASSIGN {&object}:SUBTYPE = {&var}.
+WHEN 'SUPPRESS-WARNINGS'
+THEN IF CAN-SET({&object}, 'SUPPRESS-WARNINGS')
+     THEN ASSIGN {&object}:SUPPRESS-WARNINGS = {&var}.
+WHEN 'SYSTEM-ALERT-BOXES'
+THEN IF CAN-SET({&object}, 'SYSTEM-ALERT-BOXES')
+     THEN ASSIGN {&object}:SYSTEM-ALERT-BOXES = {&var}.
+WHEN 'TAB-POSITION'
+THEN IF CAN-SET({&object}, 'TAB-POSITION')
+     THEN ASSIGN {&object}:TAB-POSITION = {&var}.
+WHEN 'TABLE'
+THEN IF CAN-SET({&object}, 'TABLE')
+     THEN ASSIGN {&object}:TABLE = {&var}.
+WHEN 'TEMP-DIRECTORY'
+THEN IF CAN-SET({&object}, 'TEMP-DIRECTORY')
+     THEN ASSIGN {&object}:TEMP-DIRECTORY = {&var}.
+WHEN 'TEXT-SELECTED'
+THEN IF CAN-SET({&object}, 'TEXT-SELECTED')
+     THEN ASSIGN {&object}:TEXT-SELECTED = {&var}.
+WHEN 'THREE-D'
+THEN IF CAN-SET({&object}, 'THREE-D')
+     THEN ASSIGN {&object}:THREE-D = {&var}.
+WHEN 'TIC-MARKS'
+THEN IF CAN-SET({&object}, 'TIC-MARKS')
+     THEN ASSIGN {&object}:TIC-MARKS = {&var}.
+WHEN 'TIME-SOURCE'
+THEN IF CAN-SET({&object}, 'TIME-SOURCE')
+     THEN ASSIGN {&object}:TIME-SOURCE = {&var}.
+WHEN 'TITLE'
+THEN IF CAN-SET({&object}, 'TITLE')
+     THEN ASSIGN {&object}:TITLE = {&var}.
+WHEN 'TITLE-BGCOLOR'
+THEN IF CAN-SET({&object}, 'TITLE-BGCOLOR')
+     THEN ASSIGN {&object}:TITLE-BGCOLOR = {&var}.
+WHEN 'TITLE-DCOLOR'
+THEN IF CAN-SET({&object}, 'TITLE-DCOLOR')
+     THEN ASSIGN {&object}:TITLE-DCOLOR = {&var}.
+WHEN 'TITLE-FGCOLOR'
+THEN IF CAN-SET({&object}, 'TITLE-FGCOLOR')
+     THEN ASSIGN {&object}:TITLE-FGCOLOR = {&var}.
+WHEN 'TITLE-FONT'
+THEN IF CAN-SET({&object}, 'TITLE-FONT')
+     THEN ASSIGN {&object}:TITLE-FONT = {&var}.
+WHEN 'TOGGLE-BOX'
+THEN IF CAN-SET({&object}, 'TOGGLE-BOX')
+     THEN ASSIGN {&object}:TOGGLE-BOX = {&var}.
+WHEN 'TOOLTIP'
+THEN IF CAN-SET({&object}, 'TOOLTIP')
+     THEN ASSIGN {&object}:TOOLTIP = {&var}.
+WHEN 'TOOLTIPS'
+THEN IF CAN-SET({&object}, 'TOOLTIPS')
+     THEN ASSIGN {&object}:TOOLTIPS = {&var}.
+WHEN 'TOP-ONLY'
+THEN IF CAN-SET({&object}, 'TOP-ONLY')
+     THEN ASSIGN {&object}:TOP-ONLY = {&var}.
+WHEN 'TYPE'
+THEN IF CAN-SET({&object}, 'TYPE')
+     THEN ASSIGN {&object}:TYPE = {&var}.
+WHEN 'UNIQUE-ID'
+THEN IF CAN-SET({&object}, 'UNIQUE-ID')
+     THEN ASSIGN {&object}:UNIQUE-ID = {&var}.
+WHEN 'V6DISPLAY'
+THEN IF CAN-SET({&object}, 'V6DISPLAY')
+     THEN ASSIGN {&object}:V6DISPLAY = {&var}.
+WHEN 'VALUE'
+THEN IF CAN-SET({&object}, 'VALUE')
+     THEN ASSIGN {&object}:VALUE = {&var}.
+WHEN 'VIRTUAL-HEIGHT-CHARS'
+THEN IF CAN-SET({&object}, 'VIRTUAL-HEIGHT-CHARS')
+     THEN ASSIGN {&object}:VIRTUAL-HEIGHT-CHARS = {&var}.
+WHEN 'VIRTUAL-HEIGHT-PIXELS'
+THEN IF CAN-SET({&object}, 'VIRTUAL-HEIGHT-PIXELS')
+     THEN ASSIGN {&object}:VIRTUAL-HEIGHT-PIXELS = {&var}.
+WHEN 'VIRTUAL-WIDTH-CHARS'
+THEN IF CAN-SET({&object}, 'VIRTUAL-WIDTH-CHARS')
+     THEN ASSIGN {&object}:VIRTUAL-WIDTH-CHARS = {&var}.
+WHEN 'VIRTUAL-WIDTH-PIXELS'
+THEN IF CAN-SET({&object}, 'VIRTUAL-WIDTH-PIXELS')
+     THEN ASSIGN {&object}:VIRTUAL-WIDTH-PIXELS = {&var}.
+WHEN 'VISIBLE'
+THEN IF CAN-SET({&object}, 'VISIBLE')
+     THEN ASSIGN {&object}:VISIBLE = {&var}.
+WHEN 'WARNING'
+THEN IF CAN-SET({&object}, 'WARNING')
+     THEN ASSIGN {&object}:WARNING = {&var}.
+WHEN 'WIDTH-CHARS'
+THEN IF CAN-SET({&object}, 'WIDTH-CHARS')
+     THEN ASSIGN {&object}:WIDTH-CHARS = {&var}.
+WHEN 'WIDTH-PIXELS'
+THEN IF CAN-SET({&object}, 'WIDTH-PIXELS')
+     THEN ASSIGN {&object}:WIDTH-PIXELS = {&var}.
+WHEN 'WIDGET-ENTER'
+THEN IF CAN-SET({&object}, 'WIDGET-ENTER')
+     THEN ASSIGN {&object}:WIDGET-ENTER = {&var}.
+WHEN 'WIDGET-LEAVE'
+THEN IF CAN-SET({&object}, 'WIDGET-LEAVE')
+     THEN ASSIGN {&object}:WIDGET-LEAVE = {&var}.
+WHEN 'WINDOW'
+THEN IF CAN-SET({&object}, 'WINDOW')
+     THEN ASSIGN {&object}:WINDOW = {&var}.
+WHEN 'WINDOW-STATE'
+THEN IF CAN-SET({&object}, 'WINDOW-STATE')
+     THEN ASSIGN {&object}:WINDOW-STATE = {&var}.
+WHEN 'WINDOW-SYSTEM'
+THEN IF CAN-SET({&object}, 'WINDOW-SYSTEM')
+     THEN ASSIGN {&object}:WINDOW-SYSTEM = {&var}.
+WHEN 'WORD-WRAP'
+THEN IF CAN-SET({&object}, 'WORD-WRAP')
+     THEN ASSIGN {&object}:WORD-WRAP = {&var}.
+WHEN 'X'
+THEN IF CAN-SET({&object}, 'X')
+     THEN ASSIGN {&object}:X = {&var}.
+WHEN 'Y'
+THEN IF CAN-SET({&object}, 'Y')
+     THEN ASSIGN {&object}:Y = {&var}.
+WHEN 'YEAR-OFFSET'
+THEN IF CAN-SET({&object}, 'YEAR-OFFSET')
+     THEN ASSIGN {&object}:YEAR-OFFSET = {&var}.

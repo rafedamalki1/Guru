@@ -1,0 +1,225 @@
+
+/*------------------------------------------------------------------------
+    File        : UTBYTESLISTADS.P
+    Purpose     : 
+                 UtbytListaAdmDb.cls (2 matches)
+
+    Syntax      :NYBEREU.W  sparar vald lista
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Thu Aug 13 08:56:50 CEST 2020
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+
+
+{SparaDynDSstarMultiSpar.I}
+
+DEFINE VARIABLE queryvar AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE qH AS HANDLE NO-UNDO. 
+
+DEFINE VARIABLE UtbytNamnTTh AS HANDLE NO-UNDO.
+DEFINE VARIABLE UtbytNamnbuffh AS HANDLE NO-UNDO.
+
+DEFINE VARIABLE Utbyttabh AS HANDLE NO-UNDO.
+DEFINE VARIABLE Utbyttabbuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE harladdamtrl AS LOGICAL NO-UNDO.
+
+
+
+DEFINE VAR DynWp AS CHARACTER NO-UNDO.
+DynWp = "DYNUDS" + STRING(TIME).
+CREATE WIDGET-POOL STRING(DynWp) NO-ERROR.
+
+PROCEDURE StartUtbyte_UI :
+   FIND FIRST UTBYTESLNAMN  WHERE  UTBYTESLNAMN.UID = 0 NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE  UTBYTESLNAMN THEN DO TRANSACTION:
+      CREATE UTBYTESLNAMN.
+      ASSIGN
+      UTBYTESLNAMN.UID = 0
+      UTBYTESLNAMN.UNAMN = "Ersättningslista Leverantör".
+   END.
+   RELEASE UTBYTESLNAMN NO-ERROR.
+   
+END PROCEDURE.
+
+
+PROCEDURE HamtBerVald_UI :
+   DEFINE INPUT  PARAMETER bvar AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER ovar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER listnr AS INTEGER NO-UNDO.
+   FIND FIRST BEREDNING WHERE BEREDNING.BERNR  = bvar AND BEREDNING.OMRADE  = ovar NO-LOCK NO-ERROR.
+   IF AVAILABLE BEREDNING THEN listnr = BEREDNING.UID.  
+END PROCEDURE.
+
+PROCEDURE SparBerVald_UI :
+   DEFINE INPUT PARAMETER bvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ovar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER listnr AS INTEGER NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST BEREDNING WHERE BEREDNING.BERNR  = bvar AND BEREDNING.OMRADE  = ovar EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BEREDNING THEN BEREDNING.UID = listnr. 
+   END.
+   RELEASE BEREDNING.   
+       
+END PROCEDURE.
+
+PROCEDURE HamtalistaUtb_UI :
+   DEFINE OUTPUT PARAMETER DATASET-HANDLE UtbytlistorDS BIND.
+   
+   UtbytlistorDS:EMPTY-DATASET() NO-ERROR.
+   RUN UtbCreate_UI.
+   RUN GetDatasetDeftt_UI (INPUT 1, INPUT "UtbytlistorDS").  
+   DatasetDeftt.antaltab = 1.
+   
+   DatasetDeftt.pcKeyValue[1] = "".
+   DatasetDeftt.pcBuffers[1] = STRING(UtbytNamnbuffh).
+   DatasetDeftt.pcSources[1] = "UTBYTESLNAMN".
+   DatasetDeftt.pcSourceKeys[1] = "UID".
+   
+   RUN DefAndLoadDsRe_UI IN  dyndamicDSMh[DatasetDeftt.NrDS]
+   ({DataSetInput.I} OUTPUT DATASET-HANDLE UtbytlistorDS BIND).
+   
+   /*
+   queryvar =  "FOR EACH " + UtbytNamnbuffh:TABLE.
+   RUN CreateCustomQuery(INPUT UtbytNamnbuffh,INPUT queryvar,OUTPUT qH).
+   qH:GET-FIRST().
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+     MESSAGE UtbytNamnbuffh:BUFFER-FIELD("unamn"):BUFFER-VALUE
+     VIEW-AS ALERT-BOX.
+      qH:GET-NEXT().
+   END.
+   */
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE HamtaMtrlUtb_UI :
+   DEFINE INPUT  PARAMETER UlistId AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER DATASET-HANDLE UtbytDS BIND.
+   DEFINE VARIABLE utbvad  AS CHARACTER NO-UNDO.
+     
+   UtbytDS:EMPTY-DATASET() NO-ERROR.
+   IF VALID-HANDLE(Utbyttabbuffh) THEN DO:
+      Utbyttabbuffh:EMPTY-TEMP-TABLE().
+   END.  
+   utbvad =  "UTBYTESLISTA.UID = " + STRING(UlistId).
+   RUN GetDatasetDeftt_UI (INPUT 2, INPUT "UtbytDS").  
+   DatasetDeftt.antaltab = 1.
+   DatasetDeftt.pcKeyValue[1] = utbvad.
+   DatasetDeftt.pcBuffers[1] = STRING(Utbyttabbuffh). 
+   DatasetDeftt.pcSources[1] = "UTBYTESLISTA".       
+   DatasetDeftt.pcSourceKeys[1] = "UID,BYTTILLENR,BYTTILLLEVKOD,ORGENR,ORGLEVKOD".
+   IF harladdamtrl = FALSE THEN DO: 
+      RUN DefAndLoadDsRe_UI IN  dyndamicDSMh[DatasetDeftt.NrDS]
+      ({DataSetInput.I} OUTPUT DATASET-HANDLE UtbytDS BIND).
+   END.
+   ELSE DO: 
+      RUN ReloadDs_UI IN  dyndamicDSMh[DatasetDeftt.NrDS] 
+      ({DataSetInput.I} OUTPUT DATASET-HANDLE UtbytDS).
+   END.  
+ 
+   harladdamtrl = TRUE.
+END PROCEDURE.  
+PROCEDURE LaddMtrlev_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE-HANDLE Utbyttabladdh.
+   DEFINE VARIABLE Utbyttabladdbuffh AS HANDLE NO-UNDO. 
+   Utbyttabladdbuffh = Utbyttabladdh:DEFAULT-BUFFER-HANDLE.  
+   queryvar =  "FOR EACH " + Utbyttabladdbuffh:TABLE .
+   RUN CreateCustomQuery(INPUT Utbyttabladdbuffh,INPUT queryvar,OUTPUT qH).
+   qH:GET-FIRST().
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      FIND FIRST LEVERANTOR  WHERE LEVERANTOR.LEVKOD =  Utbyttabladdbuffh:BUFFER-FIELD("ORGLEVKOD"):BUFFER-VALUE NO-LOCK NO-ERROR.
+      IF AVAILABLE LEVERANTOR THEN DO:
+         Utbyttabladdbuffh:BUFFER-FIELD("OLEVNAMN"):BUFFER-VALUE = LEVERANTOR.LEVNAMN.
+      END.
+      FIND FIRST LEVERANTOR  WHERE LEVERANTOR.LEVKOD =  Utbyttabladdbuffh:BUFFER-FIELD("BYTTILLLEVKOD"):BUFFER-VALUE NO-LOCK NO-ERROR.
+      IF AVAILABLE LEVERANTOR THEN DO:
+         Utbyttabladdbuffh:BUFFER-FIELD("BLEVNAMN"):BUFFER-VALUE = LEVERANTOR.LEVNAMN.
+      END.
+      FIND FIRST MTRL WHERE MTRL.LEVKOD =  Utbyttabladdbuffh:BUFFER-FIELD("ORGLEVKOD"):BUFFER-VALUE AND 
+      MTRL.Enr = Utbyttabladdbuffh:BUFFER-FIELD("ORGENR"):BUFFER-VALUE
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         ASSIGN
+         Utbyttabladdbuffh:BUFFER-FIELD("OPRIS"):BUFFER-VALUE = MTRL.NPRIS
+         Utbyttabladdbuffh:BUFFER-FIELD("OBENAMNING"):BUFFER-VALUE = MTRL.Benamning.
+      END.
+      FIND FIRST MTRL WHERE MTRL.LEVKOD =  Utbyttabladdbuffh:BUFFER-FIELD("BYTTILLLEVKOD"):BUFFER-VALUE AND 
+      MTRL.Enr = Utbyttabladdbuffh:BUFFER-FIELD("BYTTILLENR"):BUFFER-VALUE
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         ASSIGN
+         Utbyttabladdbuffh:BUFFER-FIELD("BPRIS"):BUFFER-VALUE = MTRL.NPRIS
+         Utbyttabladdbuffh:BUFFER-FIELD("BBENAMNING"):BUFFER-VALUE = MTRL.Benamning.
+      END.   
+      qH:GET-NEXT().
+   END.
+
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE KollMtrltill_UI :
+   DEFINE INPUT  PARAMETER kolllev AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER kollenr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER kollokenr AS LOGICAL.
+   kollokenr = TRUE .
+   FIND FIRST MTRL WHERE MTRL.LEVKOD = kolllev AND MTRL.Enr = kollenr NO-LOCK NO-ERROR.  
+   IF NOT AVAILABLE MTRL THEN DO:
+      kollokenr = FALSE.
+   END.    
+END PROCEDURE.   
+   
+PROCEDURE UtbCreate_UI :
+   CREATE TEMP-TABLE UtbytNamnTTh IN WIDGET-POOL DynWp.
+   UtbytNamnTTh:CREATE-LIKE("UTBYTESLNAMN").
+   UtbytNamnTTh:ADD-NEW-FIELD("TTRECID","RECID").   
+   UtbytNamnTTh:TEMP-TABLE-PREPARE("Utbnamntt").
+   UtbytNamnbuffh = UtbytNamnTTh:DEFAULT-BUFFER-HANDLE.  
+   
+   CREATE TEMP-TABLE Utbyttabh IN WIDGET-POOL DynWp.
+   Utbyttabh:CREATE-LIKE("UTBYTESLISTA").
+   Utbyttabh:ADD-NEW-FIELD("OLEVNAMN","CHARACTER"). 
+   Utbyttabh:ADD-NEW-FIELD("BLEVNAMN","CHARACTER").
+   Utbyttabh:ADD-NEW-FIELD("OBENAMNING","CHARACTER"). 
+   Utbyttabh:ADD-NEW-FIELD("BBENAMNING","CHARACTER"). 
+   Utbyttabh:ADD-NEW-FIELD("OPRIS","DECIMAL").
+   Utbyttabh:ADD-NEW-FIELD("BPRIS","DECIMAL"). 
+   Utbyttabh:ADD-NEW-FIELD("TTRECID","RECID").   
+   Utbyttabh:TEMP-TABLE-PREPARE("utbtabtt").
+   Utbyttabbuffh = Utbyttabh:DEFAULT-BUFFER-HANDLE.  
+   
+END PROCEDURE.
+PROCEDURE AvsUtb_UI :
+   DELETE OBJECT UtbytNamnTTh NO-ERROR.
+   UtbytNamnTTh = ?.
+   DELETE OBJECT UtbytNamnbuffh NO-ERROR.
+   UtbytNamnbuffh = ?.
+   DELETE OBJECT Utbyttabh NO-ERROR.
+   Utbyttabh = ?.
+   DELETE OBJECT Utbyttabbuffh NO-ERROR.
+   Utbyttabbuffh = ?.
+   RUN AvslutaDS_UI.
+   DELETE WIDGET-POOL DynWp NO-ERROR. 
+END PROCEDURE.
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh IN WIDGET-POOL DynWp.
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+   
+PROCEDURE CloseCustomQuery:
+   DEFINE INPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CustomQueryh:QUERY-CLOSE()  NO-ERROR.
+   CustomQueryh = ?.
+END PROCEDURE.
+
+
+  
+  
+

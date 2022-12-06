@@ -1,0 +1,4 @@
+
+/* LOSENKOLLFEL11.I*/
+ /*   "DU MÅSTE LOGGA IN IGEN!"*/
+CHR(68) + CHR(85) + CHR(32) + CHR(77) + CHR(197) + CHR(83) + CHR(84) + CHR(69) + CHR(32) + CHR(76) + CHR(79) + CHR(71) + CHR(71) + CHR(65) + CHR(32) + CHR(73) + CHR(78) + CHR(32) + CHR(73) + CHR(71) + CHR(69) + CHR(78) + CHR(33)

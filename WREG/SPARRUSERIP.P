@@ -1,0 +1,173 @@
+
+/*------------------------------------------------------------------------
+    File        : SPARRUSERIP.P
+    Purpose     : 
+datum
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Tue Jun 14 12:52:26 CEST 2016
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+{SparaDynDSstarMultiSpar.I}
+
+DEFINE VARIABLE qh AS HANDLE NO-UNDO.
+DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+
+DEFINE VARIABLE usersparrtth AS HANDLE NO-UNDO.
+DEFINE VARIABLE usersparrbuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE userloggtth AS HANDLE NO-UNDO.
+DEFINE VARIABLE userloggbuffh AS HANDLE NO-UNDO.
+
+DEFINE VARIABLE sparrvad  AS CHARACTER NO-UNDO.
+DEFINE VARIABLE SparrDS AS HANDLE NO-UNDO.
+DEFINE INPUT  PARAMETER inglobanv AS CHARACTER NO-UNDO.
+CREATE WIDGET-POOL "DynTableSP" NO-ERROR.
+DEFINE VARIABLE harladdalogg AS LOGICAL NO-UNDO.
+
+
+
+
+/*
+
+
+*/
+
+PROCEDURE SparrAnv_UI :
+   DEFINE OUTPUT PARAMETER DATASET-HANDLE SparrDS BIND.
+   DEFINE VARIABLE queryvar AS CHARACTER NO-UNDO. 
+   DEFINE VARIABLE qH AS HANDLE NO-UNDO. 
+   SparrDS:EMPTY-DATASET() NO-ERROR.
+   sparrvad =  "WEBUSERDATE.APPID = 'Ip' OR WEBUSERDATE.APPID = 'GuruAnv' OR WEBUSERDATE.APPID = 'DatorAnv'  OR WEBUSERDATE.APPID = 'MacAdd'" .
+   IF  VALID-HANDLE(usersparrbuffh) THEN usersparrbuffh:EMPTY-TEMP-TABLE().
+   FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.   
+   IF harladdalogg = FALSE THEN RUN SparrCreate_UI.
+   RUN GetDatasetDeftt_UI (INPUT 1, INPUT "SparrDS").  
+   DatasetDeftt.antaltab = 1.
+   DatasetDeftt.pcBuffers[1] = STRING(usersparrbuffh).
+   DatasetDeftt.pcSources[1] = "WEBUSERDATE".
+   DatasetDeftt.pcSourceKeys[1] = "APPID,IDUSER,FORETAG".
+   DatasetDeftt.pcKeyValue[1] = sparrvad.
+   /*Anders Olsson Elpool i Umeå AB  20 maj 2019 10:39:42 
+     RUN DefAndLoadDs_UI IN dyndamicDSh 
+   ({DataSetInput.I} OUTPUT DATASET-HANDLE SparrDS BIND).
+   FÖR ATT KUNNA UPPDATERA UTAN ATT LÄMNA BILDEN
+   */
+   
+   IF harladdalogg = FALSE THEN DO: 
+      RUN DefAndLoadDsRe_UI IN  dyndamicDSMh[ DatasetDeftt.NrDS]
+      ({DataSetInput.I} OUTPUT DATASET-HANDLE SparrDS BIND).
+   END.
+   ELSE DO:
+      RUN ReloadDs_UI IN  dyndamicDSMh[ DatasetDeftt.NrDS] 
+      ({DataSetInput.I} OUTPUT DATASET-HANDLE SparrDS).
+   END.   
+   
+  
+   queryvar =  "FOR EACH " + usersparrbuffh:TABLE.
+   RUN CreateCustomQuery(INPUT usersparrbuffh,INPUT queryvar,OUTPUT qH).
+   qH:GET-FIRST().
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      
+      /*
+      usersparrbuffh:BUFFER-FIELD("SOKCHAR2"):BUFFER-VALUE = usersparrbuffh:BUFFER-FIELD("SOKCHAR"):BUFFER-VALUE(2).
+      usersparrbuffh:BUFFER-FIELD("SOKCHAR3"):BUFFER-VALUE = usersparrbuffh:BUFFER-FIELD("SOKCHAR"):BUFFER-VALUE(3).
+      usersparrbuffh:BUFFER-FIELD("SOKCHAR5"):BUFFER-VALUE = usersparrbuffh:BUFFER-FIELD("SOKCHAR"):BUFFER-VALUE(5).
+      usersparrbuffh:BUFFER-FIELD("APPID"):BUFFER-VALUE = "5".
+      */
+      qH:GET-NEXT().
+   END.
+   
+   RUN CloseCustomQuery (INPUT qH).
+  
+   
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE LoggAnv_UI :
+   DEFINE INPUT  PARAMETER loggvad AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER DATASET-HANDLE LogguserDS BIND.
+   DEFINE VARIABLE queryvar AS CHARACTER NO-UNDO. 
+   DEFINE VARIABLE qH AS HANDLE NO-UNDO. 
+   LogguserDS:EMPTY-DATASET() NO-ERROR.
+   /*
+   OUTPUT TO "e:\delad\da.txt".
+   PUT UNFORMATTED loggvad SKIP 
+     TODAY.
+   OUTPUT CLOSE.
+   */
+     
+   IF  VALID-HANDLE(userloggbuffh) THEN userloggbuffh:EMPTY-TEMP-TABLE().
+   FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.   
+   RUN GetDatasetDeftt_UI (INPUT 2, INPUT "LogguserDS").  
+   DatasetDeftt.antaltab = 1.
+   DatasetDeftt.pcBuffers[1] = STRING(userloggbuffh).
+   DatasetDeftt.pcSources[1] = "LOGGRAPP".
+   DatasetDeftt.pcSourceKeys[1] = "ANVANDARE,DATOR,DATUM".
+   DatasetDeftt.pcKeyValue[1] = loggvad.
+  
+   IF harladdalogg = FALSE THEN DO: 
+      RUN DefAndLoadDsRe_UI IN  dyndamicDSMh[DatasetDeftt.NrDS]
+      ({DataSetInput.I} OUTPUT DATASET-HANDLE LogguserDS BIND).
+   END.
+   ELSE DO:
+      RUN ReloadDs_UI IN  dyndamicDSMh[DatasetDeftt.NrDS] 
+      ({DataSetInput.I} OUTPUT DATASET-HANDLE LogguserDS).
+   END.
+   harladdalogg = TRUE.
+  
+   RETURN.
+END PROCEDURE.
+   
+PROCEDURE SparrCreate_UI :
+   CREATE TEMP-TABLE usersparrtth IN WIDGET-POOL "DynTableSP".
+   usersparrtth:CREATE-LIKE("WEBUSERDATE").
+   usersparrtth:ADD-NEW-FIELD("SOKCHAR2","CHARACTER").
+   usersparrtth:ADD-NEW-FIELD("SOKCHAR3","CHARACTER").
+   usersparrtth:ADD-NEW-FIELD("SOKCHAR5","CHARACTER").
+   usersparrtth:ADD-NEW-FIELD("TTRECID","RECID").   
+   usersparrtth:ADD-NEW-INDEX("DATADB").
+   usersparrtth:ADD-INDEX-FIELD("DATADB","SOKCHAR2").
+   usersparrtth:ADD-INDEX-FIELD("DATADB","APPID").
+   usersparrtth:ADD-INDEX-FIELD("DATADB","SOKCHAR3").
+   usersparrtth:TEMP-TABLE-PREPARE("Sparrusiptt").
+   usersparrbuffh = usersparrtth:DEFAULT-BUFFER-HANDLE.  
+   
+   CREATE TEMP-TABLE userloggtth IN WIDGET-POOL "DynTableSP".
+   userloggtth:CREATE-LIKE("LOGGRAPP").
+   userloggtth:ADD-NEW-FIELD("TTRECID","RECID").   
+   userloggtth:TEMP-TABLE-PREPARE("Loggusertt").
+   userloggbuffh = userloggtth:DEFAULT-BUFFER-HANDLE.  
+   
+END PROCEDURE.
+PROCEDURE AvsSparrUser_UI :
+   DELETE OBJECT usersparrtth NO-ERROR.
+   usersparrtth = ?.
+   DELETE OBJECT usersparrbuffh NO-ERROR.
+   usersparrbuffh = ?.
+   DELETE OBJECT userloggtth NO-ERROR.
+   userloggtth = ?.
+   DELETE OBJECT userloggbuffh NO-ERROR.
+   userloggbuffh = ?.
+   RUN AvslutaDS_UI.
+   DELETE WIDGET-POOL "DynTableSP" NO-ERROR. 
+END PROCEDURE.
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh IN WIDGET-POOL "DynTableSP".
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+   
+PROCEDURE CloseCustomQuery:
+   DEFINE INPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CustomQueryh:QUERY-CLOSE()  NO-ERROR.
+   CustomQueryh = ?.
+END PROCEDURE.
+

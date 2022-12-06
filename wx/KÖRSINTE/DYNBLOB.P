@@ -1,0 +1,508 @@
+/****************************************************************************************** 
+*                                                                                         *
+*  file:       DYNBLOB.P                                                                  *
+*  by:         Elpool i Umeå AB, 2004                                                     *
+*  mailto:     anders@elpool.se                                                           *
+*  http:       www.elpool.se                                                              *
+*  language:   Progress 9.1D                                                              *
+*  purpose:    Use the procedure in this file to store all kind of files in database.     *
+******************************************************************************************/
+DEFINE SHARED VARIABLE globforetag AS CHARACTER NO-UNDO.
+
+
+
+
+DEFINE VARIABLE hjvart AS CHARACTER NO-UNDO.
+DEFINE VARIABLE blobapph AS HANDLE NO-UNDO.              /* BLOBAPPD.P */
+DEFINE VARIABLE rawImageData  AS RAW         NO-UNDO.
+DEFINE VARIABLE intsek        AS INTEGER     NO-UNDO.
+DEFINE VARIABLE tempdir       AS CHARACTER   NO-UNDO.
+DEFINE VARIABLE logresult     AS LOGICAL     NO-UNDO.
+DEFINE VARIABLE computername  AS CHARACTER   NO-UNDO.
+DEFINE VARIABLE complength    AS INTEGER     NO-UNDO INITIAL 128.
+DEFINE VARIABLE retvalue      AS INTEGER     NO-UNDO.
+DEFINE VARIABLE sresult AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hinstance AS INTEGER NO-UNDO.
+DEFINE VARIABLE sesblobdir AS CHARACTER NO-UNDO.
+
+
+/* 
+   Lägg märke till att dessa tabeller är definerade som SHARED!!!!
+   blobinfotemp 
+   blobdatatemp 
+   blobcomptemp    
+*/
+&SCOPED-DEFINE NEW
+&SCOPED-DEFINE SHARED SHARED
+{BLOB.I}
+
+/*****  API  *****/
+/* Denna procedurer används för att finna vilket program som körs för aktuell filändelse. */
+PROCEDURE FindExecutableA EXTERNAL "shell32":
+  DEFINE INPUT        PARAMETER lpFile      AS CHARACTER.
+  DEFINE INPUT        PARAMETER lpDirectory AS CHARACTER.
+  DEFINE INPUT-OUTPUT PARAMETER lpResult    AS CHARACTER.
+  DEFINE RETURN       PARAMETER hInstance   AS LONG.
+END PROCEDURE.
+
+/* Används för att ta reda på datorns namn */
+PROCEDURE GetComputerNameA EXTERNAL "kernel32":
+   DEFINE INPUT-OUTPUT PARAMETER lpszName AS CHAR.
+   DEFINE OUTPUT PARAMETER lpdwcBuffer AS LONG.
+   DEFINE RETURN PARAMETER ReturnValue AS LONG.
+END PROCEDURE.
+
+/* BLOBAPPD.P ska ligga på servern */
+IF Guru.Konstanter:appcon = TRUE THEN DO:   
+   RUN BLOBAPPD.P PERSISTENT SET blobapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT.
+END.
+ELSE DO:
+   RUN BLOBAPPD.P PERSISTENT SET blobapph.
+END.
+
+computername = FILL(" ", complength). /*Skapa minne*/
+RUN GetComputerNameA (INPUT-OUTPUT computername, OUTPUT complength, OUTPUT retvalue).
+/*CCC
+computername = "SE010961".
+*/
+ASSIGN
+sesblobdir = guruvar
+   
+computername = RIGHT-TRIM(computername).
+
+/*------------------------------------------------------------------------------
+   Namn:       blobandra_UI                   
+   Syfte:      Att ändra på fälten MODINFO och EXEPROG i tabellen BLOBINFO.
+   In-data:    blobid - ID för aktuell BLOBINFO-post.
+               modinfovar - Vilken modul aktuell post ska tillhöra ex. "CAONR"
+               exeprogvar - Vilket program som ska köra den aktuella filen.
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE blobandra_UI:
+   DEFINE INPUT PARAMETER blobid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER modinfovar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER exeprogvar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE felmedd AS CHARACTER NO-UNDO.
+   
+   /* Anropar den skarpa tabellen */
+   RUN andrablob_UI IN blobapph (INPUT blobid, INPUT modinfovar, INPUT exeprogvar, OUTPUT felmedd).
+   IF felmedd = "" THEN DO:
+      /* Uppdaterar den temporära tabellen */
+      FIND FIRST blobinfotemp WHERE blobinfotemp.ID = blobid NO-LOCK NO-ERROR.
+      IF AVAILABLE blobinfotemp THEN DO:
+         ASSIGN
+         blobinfotemp.MODINFO = modinfovar
+         blobinfotemp.EXEPROG = exeprogvar.
+      END.
+   END.
+   ELSE MESSAGE felmedd VIEW-AS ALERT-BOX.
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       blobcheck_UI                   
+   Syfte:      Kontrollerar om filnamn redan finns upplagd i databasen.
+   In-data:    Filnamn
+   Ut-data:    BLOB-id, returnerar '?' ifall filen inte finns inlagd.
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE blobcheck_UI:
+   DEFINE INPUT PARAMETER filnamn AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER blobid AS INTEGER NO-UNDO.
+   RUN checkblobinfo_UI IN blobapph (INPUT SUBSTRING(filnamn,R-INDEX(filnamn, "\") + 1), OUTPUT blobid).   
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       blobfil_UI                   
+   Syfte:      
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE blobfil_UI:
+   DEFINE INPUT PARAMETER filnamn AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER tempid AS INTEGER NO-UNDO.   
+   DEFINE VARIABLE prepstr AS CHARACTER NO-UNDO.
+   /* Kontrollerar om det finns någon BLOBINFO med BLOBINFO.FILNAMN = filnamn */
+   RUN checkblobinfo_UI IN blobapph (INPUT filnamn, OUTPUT tempid).  
+   
+   IF tempid = ? THEN RETURN.
+   prepstr = "BLOBINFO.FILNAMN = '" + filnamn + "'".
+   RUN laddablob_UI IN blobapph (INPUT prepstr, OUTPUT TABLE blobinfotemp).
+   FIND FIRST blobinfotemp WHERE blobinfotemp.ID = tempid NO-LOCK NO-ERROR.
+   IF AVAILABLE blobinfotemp THEN RUN bloboppnafil_UI (INPUT blobinfotemp.ID).      
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       blobimage_UI                   
+   Syfte:      -
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE blobimage_UI:
+
+   DEFINE INPUT PARAMETER filnamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER imageh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE tempid AS INTEGER NO-UNDO.
+   DEFINE VARIABLE prepstr AS CHARACTER NO-UNDO.
+   
+   RUN checkblobinfo_UI IN blobapph (INPUT filnamn, OUTPUT tempid).   
+   IF tempid = ? THEN RETURN NO-APPLY.
+   prepstr = "BLOBINFO.FILNAMN = '" + filnamn + "'".
+   RUN laddablob_UI IN blobapph (INPUT prepstr, OUTPUT TABLE blobinfotemp).
+   FIND FIRST blobinfotemp WHERE blobinfotemp.ID = tempid NO-LOCK NO-ERROR.
+   IF AVAILABLE blobinfotemp THEN DO: 
+      RUN bloboppnafil_UI (INPUT blobinfotemp.ID).
+      IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN DO:            
+         hjvart = SUBSTRING(sesblobdir,1,LENGTH(sesblobdir) - 1) + blobinfotemp.VARTWC + "\" + blobinfotemp.FILNAMN.
+      END.
+      ELSE DO:
+         hjvart = SUBSTRING(sesblobdir,1,LENGTH(sesblobdir) - 1) + blobinfotemp.VART + "\" + blobinfotemp.FILNAMN.
+      END.
+      IF SEARCH(hjvart) = ? THEN hjvart = REPLACE(hjvart,"\WTID","\CTID").
+      IF SEARCH(hjvart) = ? THEN imageh = ?.
+      ELSE imageh:LOAD-IMAGE(hjvart) NO-ERROR.
+   END.
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       blobkor_UI                   
+   Syfte:      -
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE blobkor_UI:
+   DEFINE INPUT PARAMETER filnamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER exeprog AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE prepstr AS CHARACTER NO-UNDO.
+   felmedd = "".
+   prepstr = "BLOBINFO.FILNAMN = '" + filnamn + "'".     /* Detta kanske inte behöver göras varje gång!!!*/
+   RUN laddablob_UI IN blobapph (INPUT prepstr, OUTPUT TABLE blobinfotemp). /* Gör om detta senare!!!!!!!*/
+   FIND FIRST blobinfotemp WHERE blobinfotemp.FILNAMN = filnamn NO-LOCK NO-ERROR.
+   IF AVAILABLE blobinfotemp THEN DO:
+      IF exeprog NE "" THEN blobinfotemp.EXEPROG = exeprog.
+      ELSE DO:
+         RUN bloboppnafil_UI (INPUT blobinfotemp.ID).
+         IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN DO:            
+            hjvart = SUBSTRING(sesblobdir,1,LENGTH(sesblobdir) - 1) + blobinfotemp.VARTWC + "\".
+         END.
+         ELSE DO:
+            /*
+            hjvart = SUBSTRING(sesblobdir,1,LENGTH(sesblobdir) - 1) + blobinfotemp.VART + "\".
+            */
+            hjvart = SESSION:TEMP-DIRECTORY + blobinfotemp.FILNAMN.            
+         END.
+         RUN OPENDOC.P(INPUT blobinfotemp.EXEPROG, INPUT blobinfotemp.FILNAMN, INPUT hjvart, INPUT FALSE).
+      END.
+   END.
+   ELSE felmedd = "Hittade inte " + filnamn + "!".
+END PROCEDURE.
+
+
+/*------------------------------------------------------------------------------
+   Namn:       blobladdaen_UI                   
+   Syfte:      -
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE blobladdaen_UI:
+   DEFINE INPUT PARAMETER fil AS CHARACTER NO-UNDO.
+   RUN laddaenblob_UI IN blobapph (INPUT fil, OUTPUT TABLE blobinfotemp).
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       blobladda_UI                   
+   Syfte:      -
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE blobladda_UI:
+   DEFINE INPUT PARAMETER queryarg AS CHARACTER NO-UNDO.
+   RUN laddablob_UI IN blobapph (INPUT queryarg, OUTPUT TABLE blobinfotemp).
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       andrauppdat_UI                   
+   Syfte:      -
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE andrauppdat_UI:
+   DEFINE INPUT PARAMETER sendat AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER sentid AS INTEGER NO-UNDO.
+   RUN uppdatandra_UI IN blobapph (INPUT computername, INPUT sendat, INPUT sentid).
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       sendatt_UI                   
+   Syfte:      -
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE sendatt_UI:
+   DEFINE OUTPUT PARAMETER sendat AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER sentid AS INTEGER NO-UNDO.
+   RUN sendatt_UI IN blobapph (OUTPUT sendat, OUTPUT sentid).
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       skapauppdat_UI                   
+   Syfte:      -
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE skapauppdat_UI:
+   RUN uppdatskap_UI IN blobapph (INPUT computername).
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       senastuppdat_UI                   
+   Syfte:      -
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE senastuppdat_UI:
+   DEFINE OUTPUT PARAMETER sendat AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER sentid AS INTEGER NO-UNDO.
+   RUN uppdatcheck_UI IN blobapph (INPUT computername, OUTPUT sendat, OUTPUT sentid).
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       klientprog_UI                   
+   Syfte:      -
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE klientprog_UI:
+   DEFINE INPUT PARAMETER blobid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER klientdir AS CHARACTER NO-UNDO.
+   FIND FIRST blobinfotemp WHERE blobinfotemp.ID = blobid NO-LOCK NO-ERROR.
+   IF AVAILABLE blobinfotemp THEN DO:
+      FILE-INFO:FILE-NAME = klientdir + blobinfotemp.FILNAMN.
+      IF FILE-INFO:FULL-PATHNAME = ? THEN logresult = TRUE. /* Om inte filen finns på den lokala datorn */
+      IF logresult = TRUE THEN RUN skapalokalfil_UI (INPUT blobinfotemp.ID, INPUT klientdir).
+      ELSE DO:
+         RUN skapdatcheck_UI IN blobapph (INPUT blobinfotemp.ID, INPUT computername, INPUT FILE-INFO:FILE-MOD-TIME, INPUT FILE-INFO:FILE-MOD-DATE, OUTPUT logresult).
+         IF logresult = TRUE THEN RUN skapalokalfil_UI (INPUT blobinfotemp.ID, INPUT klientdir).
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE blobopen_UI:
+   DEFINE INPUT PARAMETER blobfil AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER blobvart AS CHARACTER NO-UNDO.
+   IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN DO:
+      blobvart = SUBSTRING(sesblobdir,1,LENGTH(sesblobdir) - 1) + blobinfotemp.VARTWC + "\" + blobinfotemp.FILNAMN.
+   END.
+   ELSE DO:
+      blobvart = SUBSTRING(sesblobdir,1,LENGTH(sesblobdir) - 1) + blobinfotemp.VART. 
+      blobvart = SESSION:TEMP-DIRECTORY + blobinfotemp.FILNAMN.
+         
+      /*
+         REPLACE(blobvart,"\WTID","\komp10").
+      
+      ELSE blobvart = blobvart + "\" + blobinfotemp.FILNAMN.
+      */
+   END.
+
+END PROCEDURE.
+/*------------------------------------------------------------------------------
+   Namn:       skapalokalfil_UI                   
+   Syfte:      -
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE skapalokalfil_UI:
+   DEFINE INPUT PARAMETER blobid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER klientdir AS CHARACTER NO-UNDO.
+   FIND FIRST blobinfotemp WHERE blobinfotemp.ID = blobid NO-LOCK NO-ERROR.
+   IF AVAILABLE blobinfotemp THEN DO:      
+      RUN laddablobdata_UI IN blobapph (INPUT blobid, INPUT computername, OUTPUT TABLE blobdatatemp, INPUT klientdir).      
+      IF klientdir = "" THEN DO:         
+         IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN DO:
+            hjvart = SUBSTRING(sesblobdir,1,LENGTH(sesblobdir) - 1) + blobinfotemp.VARTWC + "\" + blobinfotemp.FILNAMN.
+         END.
+         ELSE DO:
+            hjvart = SUBSTRING(sesblobdir,1,LENGTH(sesblobdir) - 1) + blobinfotemp.VART. 
+            hjvart = SESSION:TEMP-DIRECTORY + blobinfotemp.FILNAMN.
+            /*
+            ELSE hjvart = hjvart + "\" + blobinfotemp.FILNAMN.            
+            */
+         END.
+         
+      END.
+      ELSE  hjvart = klientdir + blobinfotemp.FILNAMN.              
+      OUTPUT TO VALUE(hjvart) NO-MAP NO-CONVERT BINARY.
+      FOR EACH blobdatatemp NO-LOCK WHERE blobdatatemp.ID = blobinfotemp.ID USE-INDEX SEK:
+         PUT CONTROL blobdatatemp.DATA.
+      END.
+      OUTPUT CLOSE.
+      FILE-INFO:FILE-NAME = hjvart.
+      IF klientdir = "" THEN DO:         
+         RUN setskapdat_UI IN blobapph (INPUT blobinfotemp.ID, INPUT computername, 
+                                        INPUT FILE-INFO:FILE-MOD-TIME,
+                                        INPUT FILE-INFO:FILE-MOD-DATE).
+      END.
+      ELSE DO: 
+         RUN setskapdat_UI IN blobapph (INPUT 0, INPUT computername, 
+                                        INPUT FILE-INFO:FILE-MOD-TIME,                                     
+                                        INPUT FILE-INFO:FILE-MOD-DATE).
+      END.
+   END.
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       bloboppnafil_UI                   
+   Syfte:      Öppnar/Kör en fil, skapar en temporär fil under 
+               SESSION:TEMP-DIRECTORY + "Blob\".
+   In-data:    BLOB-id
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE bloboppnafil_UI:
+   DEFINE INPUT PARAMETER blobid AS INTEGER NO-UNDO.
+   FIND FIRST blobinfotemp WHERE blobinfotemp.ID = blobid NO-LOCK NO-ERROR.
+   IF AVAILABLE blobinfotemp THEN DO:
+      logresult = SESSION:SET-WAIT-STATE("GENERAL").
+      IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN DO:         
+         hjvart = SUBSTRING(sesblobdir,1,LENGTH(sesblobdir) - 1) + blobinfotemp.VARTWC + "\" + blobinfotemp.FILNAMN.
+      END.
+      ELSE DO:
+         /*
+         hjvart = SUBSTRING(sesblobdir,1,LENGTH(sesblobdir) - 1) + blobinfotemp.VART + "\" + blobinfotemp.FILNAMN.
+         */
+         hjvart = SESSION:TEMP-DIRECTORY + blobinfotemp.FILNAMN.         
+      END.      
+      FILE-INFO:FILE-NAME = hjvart.
+      logresult = FALSE.
+      IF FILE-INFO:FULL-PATHNAME = ? THEN logresult = TRUE. /* Om inte filen finns på den lokala datorn */
+      ELSE RUN blobcompcheck_UI IN blobapph (INPUT blobinfotemp.ID, INPUT computername, OUTPUT logresult).      
+      IF logresult = TRUE THEN RUN skapalokalfil_UI (INPUT blobinfotemp.ID, INPUT "").
+      ELSE DO:         
+         FILE-INFO:FILE-NAME = hjvart.
+         RUN skapdatcheck_UI IN blobapph (INPUT blobinfotemp.ID, INPUT computername, INPUT FILE-INFO:FILE-MOD-TIME,
+                                           INPUT FILE-INFO:FILE-MOD-DATE, OUTPUT logresult).
+         IF logresult = TRUE THEN RUN skapalokalfil_UI (INPUT blobinfotemp.ID, INPUT "").         
+      END.
+      logresult = SESSION:SET-WAIT-STATE("").
+   END.
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       blobskapa_UI                   
+   Syfte:      Lägger in en ny fil i databasen
+   In-data:    filnamn - Filnamn
+               blobid - '?' sätts till frågetecken vid skapandet. 
+               modinfovar - Vilken modul aktuell post ska tillhöra ex. "CAONR"
+               exeprogvar - Vilket program som ska köra den aktuella filen.
+               felmedd - Felmeddelande
+   Ut-data:    blobid - Nytt id erhålles.
+   Kommentar:  Om exeprogvar lämnas blankt kopplas associerat program till filändelse.
+------------------------------------------------------------------------------*/
+PROCEDURE blobskapa_UI:   
+   DEFINE INPUT PARAMETER filnamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER blobid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER modinfovar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER exeprogvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vartvar   AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vartvarwc AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   felmedd = "".
+   IF blobid = ? THEN RUN skapablobinfo_UI IN blobapph (INPUT SUBSTRING(filnamn,R-INDEX(filnamn, "\") + 1), OUTPUT blobid).
+   FILE-INFO:FILE-NAME = filnamn.
+   FIND FIRST blobinfotemp WHERE blobinfotemp.ID = blobid NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE blobinfotemp THEN CREATE blobinfotemp.
+   ASSIGN
+   blobinfotemp.FILNAMN = SUBSTRING(filnamn,R-INDEX(filnamn, "\") + 1)
+   blobinfotemp.ID = blobid
+   blobinfotemp.FILFORMAT = CAPS(SUBSTRING(filnamn,R-INDEX(filnamn, ".") + 1))
+   blobinfotemp.STORLEK = INTEGER(FILE-INFO:FILE-SIZE / 1000)
+   blobinfotemp.SKAPDAT = TODAY
+   blobinfotemp.INTID =  TIME
+   blobinfotemp.VART  =   vartvar  
+   blobinfotemp.VARTWC =  vartvarwc
+   blobinfotemp.ORGPATH = SUBSTRING(filnamn,1,R-INDEX(filnamn, "\")).
+   IF blobinfotemp.STORLEK = 0 THEN blobinfotemp.STORLEK = 1.
+   /* Definerar kopplat program till fil-ändelse ex. .DOC -> WINWORD.EXE  om man har Word installerat*/   
+   /* Finner det körbara program som är kopplat till en viss filtyp. */
+   IF exeprogvar = "" THEN DO:
+      sresult = FILL(" ",260). 
+      RUN FindExecutableA (INPUT blobinfotemp.FILNAMN, INPUT blobinfotemp.ORGPATH, INPUT-OUTPUT sresult, OUTPUT hinstance).
+      IF hinstance < 32 THEN DO:
+         IF hinstance = 31 THEN felmedd = 'Error: No Associated Executable Found'.
+         ELSE IF hinstance = 11 THEN felmedd = 'Error: Bad file format'.
+         ELSE IF hinstance = 3 THEN felmedd = 'Error: Path not found'.
+         ELSE IF hinstance = 2 THEN felmedd = 'Error: File not found'.
+         ELSE IF hinstance = 0 THEN felmedd = 'Error: Out of memory'.      
+         blobinfotemp.EXEPROG = "".
+      END.
+      ELSE blobinfotemp.EXEPROG = SUBSTRING(sresult,R-INDEX(sresult, "\") + 1).   
+   END.
+   ELSE blobinfotemp.EXEPROG = exeprogvar.
+   ASSIGN
+   blobinfotemp.MODINFO = modinfovar
+   blobinfotemp.TEMPFIL = sesblobdir
+   blobinfotemp.ANDTID = FILE-INFO:FILE-MOD-TIME
+   blobinfotemp.ANDDAT = FILE-INFO:FILE-MOD-DATE
+   LENGTH(rawImageData) = {&CHUNK-SIZE}
+   intsek = 1.
+   EMPTY TEMP-TABLE blobdatatemp NO-ERROR.    
+   INPUT FROM VALUE(filnamn) BINARY NO-MAP NO-CONVERT.
+   REPEAT:
+      IMPORT UNFORMATTED rawImageData.
+      CREATE blobdatatemp.
+      ASSIGN
+      blobdatatemp.ID      = blobid
+      blobdatatemp.SEKVENS = intsek
+      blobdatatemp.DATA    = rawImageData
+      intsek               = intsek + 1.
+   END.
+   INPUT CLOSE.
+   FIND FIRST extrablobinfotemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE extrablobinfotemp THEN CREATE extrablobinfotemp.
+   BUFFER-COPY blobinfotemp TO extrablobinfotemp.
+   RUN skapablob_UI IN blobapph (INPUT TABLE extrablobinfotemp, INPUT TABLE blobdatatemp).
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       blobtabort_UI                   
+   Syfte:      Tar bort en blobinfo, all blobdata samt alla blobcomp:ar
+               tillhörande ett visst ID
+   In-data:    BLOB-id
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE blobtabort_UI:
+   DEFINE INPUT PARAMETER blobid AS INTEGER NO-UNDO.
+   FIND FIRST blobinfotemp WHERE blobinfotemp.ID = blobid NO-LOCK NO-ERROR.
+   IF AVAILABLE blobinfotemp THEN DO:
+      RUN tabortblob_UI IN blobapph (INPUT blobinfotemp.ID).
+      DELETE blobinfotemp.
+   END.
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       deleteproc_UI                   
+   Syfte:      Tar bort denna procedure (DYNBLOB.P) samt BLOBAPP.H
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  Anropa denna procedure när ni är klar med DYNBLOB
+------------------------------------------------------------------------------*/
+PROCEDURE deleteproc_UI:   
+  
+   IF VALID-HANDLE(blobapph) THEN DO:
+       RUN borthandle_UI IN blobapph.
+      DELETE PROCEDURE blobapph NO-ERROR.
+      DELETE PROCEDURE THIS-PROCEDURE.
+   END.   
+END PROCEDURE.

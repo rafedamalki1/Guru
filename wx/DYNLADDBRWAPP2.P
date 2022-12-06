@@ -1,0 +1,172 @@
+/*DYNLADDBRWAPP2.P*/
+/*{MTRLTEMP.I}*/
+
+
+{SOKDEF.I}
+
+DEFINE VARIABLE tmpbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE orgbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE appqueh AS HANDLE NO-UNDO.
+DEFINE VARIABLE apptth AS HANDLE NO-UNDO.
+DEFINE VARIABLE appq AS HANDLE NO-UNDO.
+DEFINE VARIABLE orgstring AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tmpq AS CHARACTER NO-UNDO.
+DEFINE VARIABLE ttname AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tabname AS CHARACTER NO-UNDO.
+DEFINE VARIABLE seekfield AS CHARACTER NO-UNDO.
+DEFINE VARIABLE searchstring AS CHARACTER NO-UNDO.
+DEFINE VARIABLE startpos AS INTEGER NO-UNDO.
+DEFINE VARIABLE begvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE storefield AS CHARACTER NO-UNDO.
+DEFINE VARIABLE newq AS CHARACTER NO-UNDO.
+DEFINE VARIABLE rowidfaltnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE extrafalth AS HANDLE NO-UNDO.
+DEFINE VARIABLE extrafalth2 AS HANDLE NO-UNDO.
+
+DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+FIND FIRST valsoktemp NO-LOCK NO-ERROR.
+IF AVAILABLE valsoktemp THEN DO:
+   ASSIGN
+   ttname = valsoktemp.SOKCHAR[1]  
+   tabname = valsoktemp.SOKCHAR[2]   
+   orgstring = valsoktemp.SOKCHAR[3]
+   rowidfaltnamn = valsoktemp.SOKCHAR[4].
+   EMPTY TEMP-TABLE valsoktemp NO-ERROR. 
+END.
+
+DELETE WIDGET-POOL "dynpool" NO-ERROR.
+CREATE WIDGET-POOL "dynpool" PERSISTENT.    
+RETURN.
+
+PROCEDURE dynbrwsok_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valsoktemp.
+   DEFINE OUTPUT PARAMETER TABLE-HANDLE apptth.
+   DEFINE INPUT PARAMETER indexinfo AS CHARACTER NO-UNDO.
+   
+  
+   ASSIGN
+   tmpq = "".
+   FIND FIRST valsoktemp NO-LOCK NO-ERROR.
+   ASSIGN
+   seekfield = valsoktemp.SOKCHAR[1]
+   searchstring = valsoktemp.SOKCHAR[2].
+   CREATE BUFFER orgbufh FOR TABLE tabname IN WIDGET-POOL "dynpool".      
+   CREATE TEMP-TABLE apptth IN WIDGET-POOL "dynpool". 
+/*    apptth:CREATE-LIKE(orgbufh:NAME). */
+   apptth:ADD-FIELDS-FROM(tabname).
+
+   IF rowidfaltnamn NE "" THEN DO:
+      apptth:ADD-NEW-FIELD(rowidfaltnamn,"ROWID").      
+   END.
+   
+   apptth:TEMP-TABLE-PREPARE(ttname).
+   tmpbufh = apptth:DEFAULT-BUFFER-HANDLE.
+   IF rowidfaltnamn NE "" THEN DO:
+      extrafalth = tmpbufh:BUFFER-FIELD(rowidfaltnamn).
+   END.
+   IF tmpbufh:DBNAME NE "PROGRESST" THEN RETURN. 
+   
+   /*Ta bort WHERE*/
+   startpos = INDEX(orgstring,"WHERE",1).
+   IF startpos NE 0 THEN DO:
+      IF seekfield NE storefield THEN DO:
+         newq = SUBSTRING(orgstring,startpos + 5,LENGTH(orgstring)) + " BY " + seekfield.
+      END.
+      ELSE DO:
+         newq = SUBSTRING(orgstring,startpos + 5,LENGTH(orgstring)).
+      END.
+   END.
+   ELSE newq = orgstring.
+   /*Kontrollera sökalternativ*/
+   RUN begins_UI.
+   IF begvar = ? THEN RETURN.
+   /*Lägg till söksträng*/
+   RUN queryphrase_UI.
+   CREATE QUERY appq IN WIDGET-POOL "dynpool".
+   appq:SET-BUFFERS(orgbufh).
+   appq:QUERY-PREPARE(tmpq).
+   appq:QUERY-OPEN().
+   appq:GET-FIRST(NO-LOCK).
+   IF appq:QUERY-OFF-END = TRUE THEN DO:
+      valsoktemp.SOKCHAR[3] = "Sökningen gav inga träffar".
+      RETURN.
+   END.
+   ELSE DO:
+      DO WHILE appq:QUERY-OFF-END = FALSE:
+         tmpbufh:BUFFER-CREATE().
+         tmpbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+         IF rowidfaltnamn NE "" THEN DO:
+            extrafalth:BUFFER-VALUE = orgbufh:ROWID.
+         END.
+         appq:GET-NEXT(NO-LOCK).
+      END.
+   END.
+   DELETE OBJECT orgbufh NO-ERROR.
+   DELETE OBJECT appq NO-ERROR.  
+   DELETE OBJECT apptth NO-ERROR.            
+   storefield = seekfield. 
+   RETURN.
+
+END PROCEDURE.
+
+PROCEDURE begins_UI:
+   IF INDEX(searchstring,"*",1) = 0 THEN DO:
+      begvar = TRUE.
+      RETURN.
+   END.
+   IF SUBSTRING(searchstring,1,1) = "*" THEN DO:
+      begvar = FALSE.
+      RETURN.      
+   END.  
+   
+END PROCEDURE.
+
+PROCEDURE queryphrase_UI :
+   extrafalth2 = tmpbufh:BUFFER-FIELD(seekfield).
+   IF begvar = FALSE THEN DO:
+      IF extrafalth2:DATA-TYPE = "CHARACTER" THEN DO:
+         IF newq = "" THEN tmpq = " FOR EACH " + orgbufh:TABLE + " WHERE " + seekfield + " MATCHES '" + searchstring + "'".
+         ELSE tmpq = " FOR EACH " + orgbufh:TABLE + " WHERE " + seekfield + " MATCHES '" + searchstring + "' AND " + newq.
+      END.
+      ELSE IF extrafalth2:DATA-TYPE = "INTEGER" THEN DO: 
+         IF newq = "" THEN tmpq = " FOR EACH " + orgbufh:TABLE + " WHERE " + seekfield + " MATCHES " + STRING(searchstring).
+         ELSE tmpq = " FOR EACH " + orgbufh:TABLE + " WHERE " + seekfield + " MATCHES " + STRING(searchstring) + " AND " + newq.
+      END.
+      ELSE IF extrafalth2:DATA-TYPE = "LOGICAL" THEN DO: 
+         IF newq = "" THEN tmpq = " FOR EACH " + orgbufh:TABLE + " WHERE " + seekfield + " MATCHES " + STRING(searchstring).
+         ELSE tmpq = " FOR EACH " + orgbufh:TABLE + " WHERE " + seekfield + " MATCHES " + STRING(searchstring) + " AND " + newq.
+      END.          
+      ELSE IF extrafalth2:DATA-TYPE = "DECIMAL" THEN DO: 
+         IF newq = "" THEN tmpq = " FOR EACH " + orgbufh:TABLE + " WHERE " + seekfield + " MATCHES " + STRING(searchstring).
+         ELSE tmpq = " FOR EACH " + orgbufh:TABLE + " WHERE " + seekfield + " MATCHES " + STRING(searchstring) + " AND " + newq.
+      END.          
+   END.
+   ELSE DO:
+      IF extrafalth2:DATA-TYPE = "CHARACTER" THEN DO:
+         tmpq = " FOR EACH " + orgbufh:TABLE + " WHERE " + seekfield + " BEGINS '" + searchstring + "' AND " +  newq.
+      END.
+      ELSE IF extrafalth2:DATA-TYPE = "INTEGER" THEN DO: 
+         tmpq = " FOR EACH " + orgbufh:TABLE + " WHERE " + seekfield + " BEGINS " + STRING(searchstring) + " AND " + newq.
+      END.
+      ELSE IF extrafalth2:DATA-TYPE = "LOGICAL" THEN DO: 
+         tmpq = " FOR EACH " + orgbufh:TABLE + " WHERE " + seekfield + " BEGINS " + STRING(searchstring) + " AND " + newq.
+      END.       
+      ELSE IF extrafalth2:DATA-TYPE = "DECIMAL" THEN DO: 
+         tmpq = " FOR EACH " + orgbufh:TABLE + " WHERE " + seekfield + " BEGINS " + STRING(searchstring) + " AND " + newq.
+      END.       
+   END.
+   extrafalth2 = ?.
+END PROCEDURE.
+
+PROCEDURE disconnectdb_UI.
+   IF VALID-HANDLE(appq) THEN DO:
+      appq:QUERY-CLOSE.
+      DELETE OBJECT appq NO-ERROR.  
+      DELETE OBJECT apptth NO-ERROR.
+      DELETE OBJECT orgbufh NO-ERROR.
+      DELETE WIDGET-POOL "dynpool".       
+   END.
+   DELETE WIDGET-POOL "dynpool". 
+   DELETE WIDGET-POOL NO-ERROR.
+END PROCEDURE.
+

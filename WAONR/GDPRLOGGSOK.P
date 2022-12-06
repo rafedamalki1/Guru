@@ -1,0 +1,129 @@
+
+/*------------------------------------------------------------------------
+    File        : GDPRLOGGSOK.P
+                   
+                :  run GDPRLOGGSOK.P (today - 10, today,"SKOGSK", "p","ELPLO","",""). VEM HAR ELPAO SETT AV TYPEN P  
+                   run GDPRLOGGSOK.P (today - 10, today,"SKOGSK", "","ELPLO","","").    VEM HAR ELPAO SETT AV ALLA TYPER
+                   run GDPRLOGGSOK.P (today - 10, today,"SKOGSK", "","","PEKKA","").  VEM HAR SETT PEKKAS UPPGIFTER
+    Syntax      :
+   
+    Description : 
+
+    Author(s)   : 
+    Created     : Mon Jan 15 16:08:56 CET 2018
+    Notes       :
+  ----------------------------------------------------------------------*/
+DEFINE INPUT  PARAMETER frdat AS DATE NO-UNDO.
+DEFINE INPUT  PARAMETER tidat AS DATE NO-UNDO.
+DEFINE INPUT  PARAMETER GDPRgforetag AS CHARACTER NO-UNDO.
+DEFINE INPUT  PARAMETER GDPRtyp AS CHARACTER NO-UNDO.
+DEFINE INPUT  PARAMETER GDPRuser AS CHARACTER NO-UNDO.
+DEFINE INPUT  PARAMETER GDPRvem AS CHARACTER NO-UNDO.
+DEFINE INPUT  PARAMETER GDPRdator AS CHARACTER NO-UNDO.
+DEFINE VARIABLE CCC AS DATE NO-UNDO.
+IF GDPRgforetag = "" THEN RETURN.
+DEFINE VARIABLE GDPRvemLong AS LONGCHAR NO-UNDO.
+DEFINE VARIABLE GDPRsok AS LONGCHAR NO-UNDO.
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+RUN FINNSTABELL.P (INPUT "GDPRLOGG", OUTPUT bloblog).
+IF bloblog = FALSE THEN RETURN.
+IF GDPRtyp = "" THEN GDPRtyp = "P".
+CREATE WIDGET-POOL "GDPRSOKDynTable" NO-ERROR.
+DEFINE VARIABLE GDPRh AS HANDLE NO-UNDO.
+DEFINE VARIABLE GDPRTtth AS HANDLE NO-UNDO.
+DEFINE VARIABLE GDPRbuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE qh AS HANDLE NO-UNDO. 
+DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+CREATE BUFFER GDPRh FOR TABLE "GDPRLOGG" IN WIDGET-POOL "GDPRSOKDynTable".
+CREATE TEMP-TABLE GDPRTtth IN WIDGET-POOL "GDPRSOKDynTable".
+   GDPRTtth:CREATE-LIKE("GDPRLOGG").
+   GDPRTtth:ADD-NEW-FIELD("VEMCH","CHARACTER").
+   GDPRTtth:ADD-NEW-FIELD("TTRECID","RECID").
+   GDPRTtth:TEMP-TABLE-PREPARE("gdprtt").
+   GDPRbuffh = GDPRTtth:DEFAULT-BUFFER-HANDLE.
+
+ 
+
+
+IF GDPRgforetag NE "" THEN kommandoquery = kommandoquery + " GFORETAG = " + QUOTER(GDPRgforetag). 
+RUN and_UI.
+IF GDPRtyp NE "" THEN kommandoquery = kommandoquery + " TYP = " + QUOTER(GDPRtyp). 
+RUN and_UI.
+IF GDPRuser NE "" THEN kommandoquery = kommandoquery + " ANVANDARE = " + QUOTER(GDPRuser). 
+RUN and_UI.
+IF GDPRdator NE "" THEN kommandoquery = kommandoquery + " DATOR = " + QUOTER(GDPRdator). 
+RUN and_UI.
+kommandoquery = kommandoquery + "DATE(DATUMTI)" + " >= " + STRING(frdat) + " AND " + "DATE(DATUMTI)" + " <= " + STRING(tidat).
+kommandoquery = "FOR EACH " + GDPRh:TABLE + " WHERE " + kommandoquery + " NO-LOCK".
+RUN CreateCustomQuery(INPUT GDPRh,INPUT kommandoquery,OUTPUT qh).
+
+qH:GET-FIRST().
+DO WHILE qH:QUERY-OFF-END = FALSE:
+   IF GDPRvem = "" THEN DO:
+      GDPRbuffh:BUFFER-CREATE.
+      GDPRbuffh:BUFFER-COPY(GDPRh). 
+   END. 
+   ELSE DO:
+      GDPRsok = GDPRh:BUFFER-FIELD("VEM"):BUFFER-VALUE.
+      IF LOOKUP(GDPRvem,GDPRsok) > 0 THEN DO:  
+        
+         GDPRbuffh:BUFFER-CREATE.
+         GDPRbuffh:BUFFER-COPY(GDPRh). 
+         GDPRbuffh:BUFFER-FIELD("VEM"):BUFFER-VALUE = "".
+         GDPRbuffh:BUFFER-FIELD("VEMCH"):BUFFER-VALUE = GDPRvem.
+         GDPRbuffh:BUFFER-FIELD("VEM"):BUFFER-VALUE = GDPRh:BUFFER-FIELD("VEM"):BUFFER-VALUE. 
+      END. 
+   END. 
+   qH:GET-NEXT().    
+END.
+RUN CloseCustomQuery(INPUT qH).
+RUN writexmlomini_UI (INPUT GDPRbuffh,INPUT "FILE",INPUT "GDPRLOGG.xml",INPUT "",INPUT "",INPUT YES,INPUT NO,INPUT NO, INPUT NO, INPUT YES).  
+   
+
+
+RUN avs_UI.
+PROCEDURE and_UI:
+   IF kommandoquery NE " " THEN DO:
+      IF SUBSTRING(kommandoquery,LENGTH(kommandoquery) - 3,3) = "AND" THEN. 
+      ELSE kommandoquery = kommandoquery + " AND ".
+   END.                                  
+END PROCEDURE.
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh IN WIDGET-POOL "GDPRSOKDynTable".
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+   
+PROCEDURE CloseCustomQuery:
+   DEFINE INPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CustomQueryh:QUERY-CLOSE()  NO-ERROR.
+   CustomQueryh = ?.
+END PROCEDURE.   
+PROCEDURE avs_UI :
+   DELETE WIDGET-POOL "GDPRSOKDynTable" NO-ERROR.
+   ASSIGN 
+   GDPRh = ?
+   GDPRTtth = ?
+   GDPRbuffh = ?.
+END PROCEDURE.
+PROCEDURE writexmlomini_UI :            
+   DEFINE INPUT  PARAMETER hPDS AS HANDLE NO-UNDO.
+   DEFINE INPUT  PARAMETER cTargetType AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER cFile AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER cEncoding AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER cSchemaLocation AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER lFormatted AS LOGICAL NO-UNDO.
+   DEFINE INPUT  PARAMETER lWriteSchema AS LOGICAL NO-UNDO.
+   DEFINE INPUT  PARAMETER lMinSchema AS LOGICAL NO-UNDO.
+   DEFINE INPUT  PARAMETER lWriteBeforeImage AS LOGICAL NO-UNDO.
+   DEFINE INPUT  PARAMETER omit-initial AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE lReturn AS LOGICAL NO-UNDO.
+
+   lReturn = hPDS:WRITE-XML(cTargetType, cFile, lFormatted,cEncoding,cSchemaLocation,lWriteSchema,lMinSchema,lWriteBeforeImage, omit-initial).
+   
+END PROCEDURE.
+

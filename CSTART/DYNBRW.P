@@ -1,0 +1,92 @@
+/****************************************************************************************** 
+*                                                                                         *
+*  file:       DYNBRW.P                                                                   *
+*  by:         Elpool i Umeå AB, 2003                                                     *
+*  mailto:     anders@elpool.se                                                           *
+*  http:       www.elpool.se                                                              *
+*  language:   Progress 9.1D                                                              *
+*  purpose:    Add some new behaviours to a browser. Sorting, searching, selection etc.   *   
+*                                                                                         *
+******************************************************************************************/
+{DYNBRWSTART.I}
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{SLVALDBRW.I}
+DEFINE VARIABLE injoin AS CHARACTER NO-UNDO.
+/* Kopplar samman två fillin-fält för dubbelsökning
+   ex. Förnamn- och Efternamn-fälts sökning */
+DEFINE TEMP-TABLE fillintemp
+   FIELD FH AS HANDLE
+   FIELD SH AS HANDLE.
+
+DEFINE TEMP-TABLE coltemp
+   FIELD PROCH AS HANDLE
+   FIELD CH AS HANDLE
+   FIELD PROCNAME AS CHARACTER
+   FIELD CNAME AS CHARACTER
+   FIELD DTYP AS CHARACTER
+   FIELD NUM AS INTEGER
+   INDEX NUM AS PRIMARY NUM.
+DEFINE BUFFER coltempbuff FOR coltemp. 
+DEFINE TEMP-TABLE colcoltemp
+   FIELD CH AS HANDLE
+   FIELD CNAME AS CHARACTER
+   FIELD NUM AS INTEGER
+   INDEX NUM AS PRIMARY NUM.
+
+DEFINE TEMP-TABLE multiseltemp
+   FIELD NUMSEL AS INTEGER
+   FIELD SELROW AS ROWID
+   INDEX NUM AS PRIMARY NUMSEL.
+
+/* Håller ordning på menyerna i varje enskild browser. */
+DEFINE TEMP-TABLE menutemp
+   FIELD MENUH AS HANDLE
+   FIELD MENUITEMH AS HANDLE
+   FIELD BRWH AS HANDLE.
+
+/************************* RUN DYNBRW.P PERSISTENT SET ... ********************************
+*  Kräver en handle till en browser vid första anrop, ex:                                 *
+*     RUN DYNBRW.P PERSISTENT SET 'brwprochandle' (INPUT {&BROWSE-NAME}:HANDLE).          *
+*  Använd sedan 'brwprochandle' för att anropa interna procedurer i denna fil, ex:        *
+*     RUN openbdynspec_UI in 'brwprochandle'.                                             *
+******************************************************************************************/
+
+/********************************** INPUT Variables **************************************/
+DEFINE INPUT PARAMETER brwh AS HANDLE.
+DEFINE VARIABLE tempinth AS HANDLE NO-UNDO.
+DEFINE VARIABLE tempinthAH AS HANDLE NO-UNDO.
+DEFINE VARIABLE tempinthES AS HANDLE NO-UNDO.
+DEFINE VARIABLE tempinthON AS HANDLE NO-UNDO.
+DEFINE VARIABLE tempinthSE AS HANDLE NO-UNDO.
+DEFINE VARIABLE huvprogh AS HANDLE NO-UNDO.
+dynbrwh = brwh. 
+
+RUN brwsetup_UI.
+dynqueh = dynbrwh:QUERY.
+dynbuffh = dynqueh:GET-BUFFER-HANDLE(1).
+
+IF dynbuffh:TABLE MATCHES "tidut" THEN  dynbrwh:FONT = 24. 
+ELSE IF dynbuffh:TABLE MATCHES "*tidut" THEN  dynbrwh:FONT = 24. 
+ELSE IF dynbuffh:TABLE MATCHES "tidut*" THEN  dynbrwh:FONT = 24. 
+
+IF dynbrwh:FONT = ? THEN dynbrwh:FONT = 4.
+
+dyncurcolh = dynbrwh:GET-BROWSE-COLUM (defaultcol).
+multvar = dynbrwh:MULTIPLE.
+orgtitle = dynbrwh:TITLE.
+/* Denna dels används för randiga browsrar */
+colshiftlog = FALSE.       /* TRUE = Randig browser */
+dynprogextrah = THIS-PROCEDURE.
+procexrowdisvar = "rowex_UI".
+IF Guru.Konstanter:varforetypval[20] >= 1 THEN DO:
+   colshiftlog = TRUE.
+   RUN columnstotemp_UI.
+END.
+RUN setmenucopy_UI.
+RUN wversion_UI (INPUT 1).
+RUN triggs_UI.
+
+RETURN.
+{DYNBRWPROC.I}
+{DYNSETSOKENRLEV.I}

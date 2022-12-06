@@ -1,0 +1,117 @@
+
+/*------------------------------------------------------------------------
+    File        : PRODATAAPP2.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : elpao
+    Created     : Wed Jun 27 16:05:06 CEST 2012
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+/*ProDataApp.p*/
+
+{KALKYLKAT.i}
+DEFINE VARIABLE hDataSet AS HANDLE NO-UNDO.
+
+DEFINE DATASET KalkylDS FOR kalkhuvtt,kalknumtt,kalknumsubtt
+   DATA-RELATION KalkhuvNumsDR FOR kalkhuvtt, kalknumtt RELATION-FIELDS (kalkhuvtt.KALKNR,kalknumtt.KALKNR)
+   DATA-RELATION KalknumSubsDR FOR kalknumtt, kalknumsubtt RELATION-FIELDS (kalknumtt.KALKNR,kalknumsubtt.KALKNR,kalknumtt.NUM,kalknumsubtt.NUM).  
+     
+DEFINE QUERY KalkylQuery FOR KALKHUV .
+   DEFINE DATA-SOURCE KalkhuvSrc FOR QUERY KalkylQuery KALKHUV KEYS (KALKNR). 
+   DEFINE DATA-SOURCE NumSrc FOR KALKNUM KEYS (KALKNR,OMRADE,NUM).
+   DEFINE DATA-SOURCE NumsubSrc FOR KALKNUMSUB KEYS (KALKNR,OMRADE,NUM,NUMSUBID).
+
+PROCEDURE LaddaKalkyl:
+   
+   DEFINE OUTPUT PARAMETER DATASET FOR KalkylDS.
+   DEFINE INPUT PARAMETER KalkNr AS INTEGER.
+   DATASET KalkylDS:EMPTY-DATASET().
+   QUERY KalkylQuery:QUERY-PREPARE("FOR EACH KALKHUV NO-LOCK WHERE KALKHUV.KALKNR = " + STRING(KalkNr)).
+   BUFFER kalkhuvtt:ATTACH-DATA-SOURCE(DATA-SOURCE KalkhuvSrc:HANDLE,?,?).
+   BUFFER kalknumtt:ATTACH-DATA-SOURCE(DATA-SOURCE NumSrc:HANDLE,?,?).
+   BUFFER kalknumsubtt:ATTACH-DATA-SOURCE(DATA-SOURCE NumsubSrc:HANDLE,?,?).  
+   DATASET KalkylDS:FILL().
+  
+END PROCEDURE.
+
+
+PROCEDURE SparaKalkyl:
+       
+   DEFINE INPUT PARAMETER DATASET FOR KalkylDS.
+   
+   DEFINE VARIABLE hTopBuff    AS HANDLE  NO-UNDO.
+   DEFINE VARIABLE iBuff       AS INTEGER NO-UNDO.
+   DEFINE VARIABLE hSourceProc AS HANDLE  NO-UNDO.
+   
+   hDataSet = DATASET KalkylDS:HANDLE.
+   hSourceProc = SOURCE-PROCEDURE.
+   
+   DO iBuff = 1 TO hDataSet:NUM-TOP-BUFFERS:
+     hTopBuff = hDataSet:GET-TOP-BUFFER(iBuff).
+     /* Skip the reposition children. */
+     IF hTopBuff:PARENT-RELATION NE ? THEN NEXT. 
+     RUN traverseBuffers (hTopBuff).
+   END. /* END DO iBuff */
+      
+  
+  
+END PROCEDURE.
+
+
+
+PROCEDURE traverseBuffers:
+  DEFINE INPUT PARAMETER phBuffer AS HANDLE NO-UNDO.
+
+  DEFINE VARIABLE iChildRel AS INTEGER NO-UNDO.
+
+  RUN saveBuffer(phBuffer).
+  DO iChildRel = 1 TO phBuffer:NUM-CHILD-RELATIONS:
+    RUN traverseBuffers (phBuffer:GET-CHILD-RELATION(iChildRel):CHILD-BUFFER).
+  END. /* END DO iChildRel */
+END PROCEDURE. /* traverseBuffers */
+
+PROCEDURE saveBuffer:
+  DEFINE INPUT PARAMETER phBuffer AS HANDLE NO-UNDO.
+
+  DEFINE VARIABLE hBeforeBuff AS HANDLE    NO-UNDO.
+  DEFINE VARIABLE hBeforeQry  AS HANDLE    NO-UNDO.
+  DEFINE VARIABLE cLogicProc  AS CHARACTER NO-UNDO.
+  DEFINE VARIABLE iErrors AS INTEGER NO-UNDO.
+  hBeforeBuff = phBuffer:BEFORE-BUFFER.
+  IF VALID-HANDLE(hBeforeBuff) THEN DO:
+    CREATE QUERY hBeforeQry.
+    hBeforeQry:ADD-BUFFER(hBeforeBuff).
+    hBeforeQry:QUERY-PREPARE("FOR EACH " + hBeforeBuff:NAME).
+    hBeforeQry:QUERY-OPEN().
+    hBeforeQry:GET-FIRST().
+DEBUGGER:SET-BREAK().
+    DO WHILE NOT hBeforeQry:QUERY-OFF-END:
+      cLogicProc = phBuffer:TABLE-HANDLE:NAME +
+      IF hBeforeBuff:ROW-STATE = ROW-DELETED THEN "Delete"
+        ELSE IF hBeforeBuff:ROW-STATE = ROW-CREATED THEN "Create"
+        ELSE "Modify".
+        IF hBeforeBuff:AFTER-ROWID = ? THEN DO:
+           phBuffer:FIND-BY-ROWID(hBeforeBuff:ROWID).
+           IF NOT hBeforeBuff:ERROR THEN   hBeforeBuff:SAVE-ROW-CHANGES() NO-ERROR.
+        END.   
+        ELSE DO:
+          phBuffer:FIND-BY-ROWID(hBeforeBuff:AFTER-ROWID) NO-ERROR .
+      
+         IF NOT hBeforeBuff:ERROR THEN   hBeforeBuff:SAVE-ROW-CHANGES().
+       END.
+      /* If there was an error signal that this row did not make it into 
+         the database. */
+      IF hBeforeBuff:ERROR THEN
+        ASSIGN 
+          hDataSet:ERROR       = TRUE
+          hBeforeBuff:REJECTED = TRUE.
+      hBeforeQry:GET-NEXT().
+    END. /* DO WHILE NOT QUERY-OFF-END */
+    DELETE OBJECT hBeforeQry.
+  END. /* DO IF VALID-HANDLE */
+END PROCEDURE. /* saveChanges */

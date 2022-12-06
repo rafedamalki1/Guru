@@ -1,0 +1,284 @@
+/*PROCMAPP.P*/
+
+{OMRTEMPW.I}
+FUNCTION klockan100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+
+FUNCTION klockan60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ):
+  RETURN TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) / 100) * 60 . 
+
+END FUNCTION.
+
+DEFINE TEMP-TABLE aoval NO-UNDO
+   FIELD AONR LIKE AONRTAB.AONR
+   FIELD DELNR LIKE AONRTAB.DELNR
+   FIELD AONRREC AS RECID
+   INDEX AONR IS PRIMARY AONR DELNR.  
+DEFINE TEMP-TABLE omrtemp2 NO-UNDO LIKE omrtemp.
+/* DEFINE TEMP-TABLE omrtemp2            */
+/*    FIELD AVDELNINGNR AS INTEGER       */
+/*    FIELD OMRADE LIKE OMRADETAB.OMRADE */
+/*    FIELD NAMN LIKE OMRADETAB.NAMN     */
+/*    INDEX OMR IS PRIMARY OMRADE        */
+/*    INDEX OMRNAMN NAMN.                */
+{TIDUTTT.I}
+
+DEFINE TEMP-TABLE dagtemp
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR   
+   FIELD PRISTYP LIKE TIDREGITAB.PRISTYP 
+   FIELD TOTALT LIKE TIDREGITAB.TOTALT      
+   FIELD VECKOKORD LIKE TIDREGITAB.VECKOKORD
+   FIELD OMRADE LIKE PERSONALTAB.OMRADE.
+   
+DEFINE TEMP-TABLE dagtemp2
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR   
+   FIELD PRISTYP LIKE TIDREGITAB.PRISTYP 
+   FIELD TOTALT LIKE TIDREGITAB.TOTALT      
+   FIELD VECKOKORD LIKE TIDREGITAB.VECKOKORD
+   FIELD OMRADE LIKE PERSONALTAB.OMRADE.
+DEFINE TEMP-TABLE sumomr
+   FIELD TOTALT LIKE TIDREGITAB.TOTALT      
+   FIELD VECKOKORD LIKE TIDREGITAB.VECKOKORD
+   FIELD OMRADE LIKE PERSONALTAB.OMRADE
+   FIELD NAMN LIKE OMRADETAB.NAMN.
+
+DEFINE TEMP-TABLE sumomr2
+   FIELD TOTALT LIKE TIDREGITAB.TOTALT      
+   FIELD VECKOKORD LIKE TIDREGITAB.VECKOKORD
+   FIELD OMRADE LIKE PERSONALTAB.OMRADE
+   FIELD NAMN LIKE OMRADETAB.NAMN.   
+   
+DEFINE QUERY dagaq FOR PERSONALTAB,TIDREGITAB.
+DEFINE QUERY dagq FOR omrtemp2,PERSONALTAB,TIDREGITAB. 
+   
+DEFINE INPUT PARAMETER RAD_PERIOD AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER utomr LIKE OMRADETAB.OMRADE NO-UNDO. 
+DEFINE INPUT PARAMETER bdatum AS DATE NO-UNDO. 
+DEFINE INPUT PARAMETER avdatum AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR omrtemp2. 
+DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+DEFINE OUTPUT PARAMETER str AS CHARACTER FORMAT "X(92)" NO-UNDO.
+DEFINE OUTPUT PARAMETER str2 AS CHARACTER FORMAT "X(92)" NO-UNDO.
+DEFINE OUTPUT PARAMETER str3 AS CHARACTER FORMAT "X(92)" NO-UNDO.
+
+
+DEFINE VARIABLE utnr AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE kordatum AS DATE NO-UNDO.
+DEFINE VARIABLE totsum AS INTEGER NO-UNDO.
+DEFINE VARIABLE totsum2 AS INTEGER NO-UNDO.
+ 
+
+RUN open_UI.
+RUN summa_UI.
+RUN huvud_UI.
+
+PROCEDURE huvud_UI :
+ 
+   CREATE tidut. 
+   SUBSTRING(tidut.UT,60) = STRING(TODAY) + " " + STRING(TIME,"HH:MM").
+   CREATE tidut.
+   CREATE tidut.
+   tidut.UT = "Procent godkända tidsedlar / " +  Guru.Konstanter:gomrk + " för: ".   
+   IF utomr NE "ALLA" THEN DO:
+      FOR EACH omrtemp2 NO-LOCK:
+         CREATE tidut.
+         tidut.UT = omrtemp2.OMRADE + " " + omrtemp2.NAMN.
+      END.   
+   END. 
+   ELSE ASSIGN SUBSTRING(tidut.UT,50) = "ALLA " +  Guru.Konstanter:gomrk.
+   IF RAD_PERIOD = 1 THEN DO: 
+      SUBSTRING(tidut.UT,64) = " " + STRING(YEAR(bdatum),"9999").
+   END.
+   IF RAD_PERIOD = 2 THEN DO:
+      SUBSTRING(tidut.UT,64) = " " +  STRING(bdatum) + " - " + STRING(avdatum).     
+   END.
+   ASSIGN
+   utnr[1] = 1
+   utnr[2] = 12
+   utnr[3] = 40
+   utnr[4] = 55
+   utnr[5] = 70. 
+   str = "".
+   DEFINE VARIABLE i AS INTEGER NO-UNDO.
+   DO WHILE i <= 85:
+      i = i + 1.
+      str = str + "=".      
+   END.   
+   i = 2.   
+   DO WHILE i <= 5:             
+      SUBSTRING(str,(utnr[i] - 1),1) = ".".      
+      i = i + 1.
+   END.    
+   CREATE tidut.  
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,utnr[1]) = CAPS(Guru.Konstanter:gomrl)
+   SUBSTRING(tidut.UT,utnr[2]) = "Benämning"
+   SUBSTRING(tidut.UT,utnr[3]) = "Total tid" 
+   SUBSTRING(tidut.UT,utnr[4]) = "Godkänd tid".  
+   SUBSTRING(tidut.UT,utnr[5]) = "Procent godkänd tid".   
+
+   CREATE tidut.
+   tidut.UT = str.
+   FOR EACH sumomr:
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = sumomr.OMRADE 
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE OMRADETAB THEN ASSIGN sumomr.NAMN = OMRADETAB.NAMN.
+   END.   
+   FOR EACH sumomr,
+   EACH sumomr2 WHERE sumomr2.OMRADE = sumomr.OMRADE.
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,utnr[1]) = sumomr.OMRADE
+      SUBSTRING(tidut.UT,utnr[2]) = sumomr.NAMN
+      SUBSTRING(tidut.UT,utnr[3]) = STRING(sumomr.TOTALT,">>>>>9") 
+      SUBSTRING(tidut.UT,utnr[4]) = STRING(sumomr2.TOTALT,">>>>>9")  
+      SUBSTRING(tidut.UT,utnr[5]) = STRING(sumomr2.TOTALT / sumomr.TOTALT * 100,">>9").   
+   END.   
+   CREATE tidut.
+   tidut.UT = str.
+   CREATE tidut.
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,utnr[1]) = "Totalt"
+   SUBSTRING(tidut.UT,utnr[3]) = STRING(totsum,">>>>>>>9") 
+   SUBSTRING(tidut.UT,utnr[4]) = STRING(totsum2,">>>>>>>9")  
+   SUBSTRING(tidut.UT,utnr[5]) = STRING(totsum2 / totsum * 100,">>9").   
+         
+END PROCEDURE.
+PROCEDURE open_UI :
+   IF utomr NE "ALLA" THEN DO:      
+      IF RAD_PERIOD = 1 THEN DO:                
+         OPEN QUERY dagq FOR EACH omrtemp2,
+         EACH PERSONALTAB WHERE PERSONALTAB.OMRADE = omrtemp2.OMRADE NO-LOCK,
+         EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+         YEAR(TIDREGITAB.DATUM) = YEAR(bdatum) AND
+         TIDREGITAB.TIDLOG = TRUE USE-INDEX PVKORD NO-LOCK.     
+      END.
+      IF RAD_PERIOD = 2 THEN DO:         
+         OPEN QUERY dagq FOR EACH omrtemp2,
+         EACH PERSONALTAB WHERE PERSONALTAB.OMRADE = omrtemp2.OMRADE NO-LOCK,
+         EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+         TIDREGITAB.DATUM >= bdatum AND TIDREGITAB.DATUM <= avdatum AND
+         TIDREGITAB.TIDLOG = TRUE USE-INDEX PVKORD NO-LOCK.
+
+      END.
+      RUN skapadag_UI.
+   END.
+   ELSE DO:   
+      IF RAD_PERIOD = 1 THEN DO:         
+         OPEN QUERY dagaq FOR EACH PERSONALTAB NO-LOCK,
+         EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD  AND
+         YEAR(TIDREGITAB.DATUM) = YEAR(bdatum) AND
+         TIDREGITAB.TIDLOG = TRUE USE-INDEX PVKORD NO-LOCK.
+      END.
+      IF RAD_PERIOD = 2 THEN DO:         
+         OPEN QUERY dagaq FOR EACH PERSONALTAB NO-LOCK,
+         EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD  AND
+         TIDREGITAB.DATUM >= bdatum AND
+         TIDREGITAB.DATUM <= avdatum AND TIDREGITAB.TIDLOG = TRUE
+         USE-INDEX PVKORD NO-LOCK.
+      END.
+      RUN skapadag_UI.
+   END.
+END PROCEDURE.
+PROCEDURE skapadag_UI :
+   IF RAD_PERIOD = 1 THEN DO:
+      kordatum = TODAY.
+   END.
+   ELSE DO:
+      FIND FIRST LOGGOD WHERE LOGGOD.FGB BEGINS "M" AND YEAR(LOGGOD.DATUM) = YEAR( avdatum + 1) AND
+      MONTH(LOGGOD.DATUM) = MONTH( avdatum + 1) NO-LOCK NO-ERROR.
+      IF AVAILABLE LOGGOD THEN DO:
+         IF DAY(LOGGOD.DATUM) < 3 THEN DO:
+            FIND NEXT LOGGOD WHERE LOGGOD.FGB BEGINS "M" AND YEAR(LOGGOD.DATUM) = YEAR( avdatum + 1) AND
+            MONTH(LOGGOD.DATUM) = MONTH( avdatum + 1) NO-LOCK NO-ERROR.
+            IF AVAILABLE LOGGOD THEN kordatum = LOGGOD.DATUM.
+         END.
+         ELSE kordatum = LOGGOD.DATUM.
+      END.            
+      ELSE kordatum = avdatum + 6.
+   END.   
+   IF utomr NE "ALLA" THEN DO:
+      GET FIRST dagq NO-LOCK.
+   END.
+   ELSE DO:
+      GET FIRST dagaq NO-LOCK.      
+   END.
+   DO WHILE AVAILABLE(TIDREGITAB):
+      IF TIDREGITAB.PRISTYP = "RESTID..." THEN utomr = utomr. 
+      ELSE IF TIDREGITAB.OANT1 > 0 THEN utomr = utomr. 
+/*      ELSE IF date(TIDREGITAB.VECKOKORD,2,8) > */
+      ELSE DO:               
+         CREATE dagtemp.
+         ASSIGN    
+         dagtemp.AONR = TIDREGITAB.AONR
+         dagtemp.DELNR = TIDREGITAB.DELNR 
+         dagtemp.PRISTYP = TIDREGITAB.PRISTYP.
+         ASSIGN
+         dagtemp.TOTALT = klockan100(TIDREGITAB.TOTALT)
+         dagtemp.VECKOKORD = TIDREGITAB.VECKOKORD
+         dagtemp.OMRADE = PERSONALTAB.OMRADE.
+      END.
+      IF utomr NE "ALLA" THEN DO:
+         GET NEXT dagq NO-LOCK.
+      END.
+      ELSE DO:
+         GET NEXT dagaq NO-LOCK.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE summa_UI.
+   FOR EACH dagtemp:
+      
+      IF dagtemp.VECKOKORD > ("w" + STRING(kordatum,"99999999"))  THEN kordatum = kordatum.
+      ELSE IF dagtemp.VECKOKORD = "" THEN kordatum = kordatum.
+      ELSE DO:
+         CREATE dagtemp2.
+         ASSIGN                        
+         dagtemp2.AONR = dagtemp.AONR
+         dagtemp2.DELNR = dagtemp.DELNR 
+         dagtemp2.PRISTYP = dagtemp.PRISTYP
+         dagtemp2.TOTALT = dagtemp.TOTALT
+         dagtemp2.VECKOKORD = dagtemp.VECKOKORD
+         dagtemp2.OMRADE = dagtemp.OMRADE.
+      END.   
+   END.   
+   FOR EACH dagtemp BREAK BY dagtemp.OMRADE:               
+      ACCUMULATE dagtemp.TOTALT (TOTAL BY dagtemp.OMRADE).
+      IF LAST-OF(dagtemp.OMRADE) THEN DO:
+         CREATE sumomr.         
+         ASSIGN
+         sumomr.OMRADE = dagtemp.OMRADE         
+         sumomr.TOTALT = (ACCUM TOTAL BY dagtemp.OMRADE dagtemp.TOTALT).               
+      END.
+   END.   
+   FOR EACH dagtemp2 BREAK BY dagtemp2.OMRADE:               
+      ACCUMULATE dagtemp2.TOTALT (TOTAL BY dagtemp2.OMRADE).
+      IF LAST-OF(dagtemp2.OMRADE) THEN DO:
+         CREATE sumomr2.         
+         ASSIGN
+         sumomr2.OMRADE = dagtemp2.OMRADE         
+         sumomr2.TOTALT = (ACCUM TOTAL BY dagtemp2.OMRADE dagtemp2.TOTALT).               
+      END.
+   END.   
+   FOR EACH sumomr :               
+      ACCUMULATE sumomr.TOTALT (TOTAL).      
+   END.   
+   ASSIGN totsum = (ACCUM TOTAL sumomr.TOTALT).               
+   FOR EACH sumomr2 :               
+      ACCUMULATE sumomr2.TOTALT (TOTAL).      
+   END.   
+   ASSIGN totsum2 = (ACCUM TOTAL sumomr2.TOTALT).               
+   
+
+END PROCEDURE.   

@@ -1,0 +1,97 @@
+/*steg8.p Denna körning syftar till att återställa priser på materiel i lager till det de är inköpta för.*/
+/*Detta för att värde på Lager skall bli korrekt                                                       */
+DEFINE TEMP-TABLE templager NO-UNDO
+   FIELD ENR AS CHARACTER
+   FIELD BENAMNING AS CHARACTER
+   FIELD ENHET AS CHARACTER
+   FIELD DPRIS AS DECIMAL
+   FIELD SALDO AS INTEGER
+   FIELD LEVKOD AS CHARACTER
+   FIELD LEVNAMN AS CHARACTER
+   FIELD LEVKOD2 AS CHARACTER
+   FIELD LEVNAMN2 AS CHARACTER
+   FIELD LEVDATUM AS DATE
+   FIELD ANTAL AS INTEGER
+   FIELD PRIS AS DECIMAL
+   FIELD PRIS2 AS DECIMAL
+   FIELD PRIS3 AS DECIMAL.
+   {AMERICANEUROPEAN.I}
+OPEN QUERY dq FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = 1 AND MTRLDEP.IBDATUM = ? NO-LOCK.
+GET FIRST dq NO-LOCK.
+CREATE templager.
+ASSIGN
+templager.ENR = MTRLDEP.ENR
+templager.BENAMNING = MTRLDEP.BENAMNING
+templager.ENHET = MTRLDEP.ENHET
+templager.DPRIS = MTRLDEP.NPRIS
+templager.SALDO = MTRLDEP.SALDO
+templager.LEVKOD = MTRLDEP.LEVKOD
+templager.LEVDATUM = 01/01/91.
+FOR EACH BESTDEP WHERE BESTDEP.DEPNR = 1 AND BESTDEP.ENR = MTRLDEP.ENR AND
+BESTDEP.LEVDATUM NE ? AND BESTDEP.BERED = FALSE NO-LOCK:
+   IF BESTDEP.LEVDATUM > templager.LEVDATUM THEN DO:               
+      ASSIGN
+      templager.LEVDATUM = BESTDEP.LEVDATUM
+      templager.ANTAL = BESTDEP.ANTAL
+      templager.PRIS = BESTDEP.PRIS
+      templager.LEVKOD2 = BESTDEP.LEVKOD.                  
+   END.
+END.      
+REPEAT:
+   GET NEXT dq NO-LOCK.
+   IF AVAILABLE MTRLDEP THEN DO:
+      CREATE templager.
+      ASSIGN
+      templager.ENR = MTRLDEP.ENR
+      templager.BENAMNING = MTRLDEP.BENAMNING
+      templager.ENHET = MTRLDEP.ENHET
+      templager.DPRIS = MTRLDEP.NPRIS
+      templager.SALDO = MTRLDEP.SALDO
+      templager.LEVKOD = MTRLDEP.LEVKOD
+      templager.LEVDATUM = 01/01/91.
+      FOR EACH BESTDEP WHERE BESTDEP.DEPNR = 1 AND BESTDEP.ENR = MTRLDEP.ENR AND
+      BESTDEP.LEVDATUM NE ? AND BESTDEP.BERED = FALSE NO-LOCK:
+         IF BESTDEP.LEVDATUM > templager.LEVDATUM THEN DO:               
+            ASSIGN
+            templager.LEVDATUM = BESTDEP.LEVDATUM
+            templager.ANTAL = BESTDEP.ANTAL
+            templager.PRIS = BESTDEP.PRIS
+            templager.LEVKOD2 = BESTDEP.LEVKOD.                  
+         END.
+      END.      
+   END.
+   ELSE LEAVE.
+END.
+
+FOR EACH templager:
+   IF templager.pris = 0 THEN DO:
+      FIND FIRST MTRLDEP WHERE MTRLDEP.INVDATUM = 10/03/05 AND MTRLDEP.DEPNR = 1 AND MTRLDEP.ENR = templager.ENR
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRLDEP THEN DO:
+         ASSIGN
+         templager.PRIS2 = MTRLDEP.NPRIS
+         templager.LEVNAMN2 = "Invent.050310".
+      END.
+      ELSE DO:
+         templager.PRIS2 = templager.DPRIS.
+      END.
+   END.
+   ELSE DO:
+      templager.PRIS2 = templager.PRIS.
+   END.
+   templager.PRIS3 = templager.pris2 * templager.SALDO.
+   FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = templager.LEVKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE LEVERANTOR THEN templager.LEVNAMN = LEVERANTOR.LEVNAMN.
+   FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = templager.LEVKOD2 NO-LOCK NO-ERROR.
+   IF AVAILABLE LEVERANTOR THEN templager.LEVNAMN2 = LEVERANTOR.LEVNAMN.
+END.
+
+OUTPUT TO D:\ELPOOL\DELAD\PRO9\070507STEG8.txt. 
+FOR EACH templager BY templager.enr:
+   PUT templager.ENR FORMAT "X(11)" ";" templager.BENAMNING FORMAT "X(40)" ";" templager.ENHET ";" templager.DPRIS ";" 
+       templager.SALDO ";" templager.LEVKOD ";" templager.LEVNAMN FORMAT "X(15)" ";" templager.LEVDATUM ";" templager.ANTAL ";" 
+       templager.PRIS ";" templager.LEVKOD2 ";" templager.LEVNAMN2 FORMAT "X(15)" ";" templager.PRIS2 ";" templager.PRIS3 SKIP.
+END.
+OUTPUT CLOSE.
+
+{EUROPEANAMERICAN.I}

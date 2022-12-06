@@ -1,0 +1,102 @@
+DEFINE NEW SHARED VARIABLE quotervar AS CHARACTER FORMAT "X(256)" NO-UNDO.
+
+
+
+DEFINE NEW SHARED VARIABLE deci AS INTEGER NO-UNDO. 
+DEFINE NEW SHARED VARIABLE dew AS LOGICAL NO-UNDO.
+
+DEFINE NEW SHARED VARIABLE globforetag LIKE FORETAG.FORETAG NO-UNDO.                               
+DEFINE NEW SHARED VARIABLE valhjalp AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE filnamn AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE musz AS LOGICAL NO-UNDO. 
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(86)" NO-UNDO. 
+DEFINE VARIABLE words AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE pos1 AS INTEGER NO-UNDO.
+DEFINE VARIABLE pos2 AS INTEGER NO-UNDO.
+
+DEFINE TEMP-TABLE tidin
+   FIELD TIN AS CHARACTER FORMAT "X(256)".
+
+DEFINE TEMP-TABLE mtrl_temp
+   FIELD ENR LIKE MTRL.ENR
+   FIELD BENAMNINGE LIKE MTRL.BENAMNING
+   FIELD ENHET LIKE MTRL.ENHET
+   FIELD NPRIS LIKE MTRL.NPRIS
+   FIELD BPRIS LIKE MTRL.BPRIS
+   INDEX ENR ENR.
+   
+   ASSIGN
+   dew = FALSE. 
+   deci = 0.
+   FOR EACH tidin:
+      DELETE tidin.
+   END.     
+   RUN PROVAG.P.   
+   IF globforetag = "SUND" THEN DO:
+      wtidvar = "\\beredning1\delad\klient\pro8\guru\wtid\priskat.q".
+   END.
+   ELSE DO:
+      wtidvar = wtidvar + "priskat.q".  
+   END. 
+   filnamn = "A:\elefpris.asc".  
+   ASSIGN
+   dlcvar = dlcvar + "QUOTER.EXE".
+   DOS SILENT VALUE(dlcvar)
+   VALUE(filnamn) > VALUE(wtidvar).   
+   INPUT FROM VALUE(wtidvar) NO-ECHO    
+   CONVERT TARGET "iso8859-1" SOURCE "ibm850" NO-ECHO.
+   /*iso8859-1 swedish-7-bit ibm850"*/
+   REPEAT:
+      SET words VIEW-AS EDITOR INNER-CHARS 50 INNER-LINES 3 WITH FRAME DDD WIDTH 80.
+      CREATE tidin.
+      ASSIGN tidin.TIN = words.
+   END.
+   INPUT CLOSE. 
+   OS-DELETE VALUE(wtidvar).
+   
+   OPEN QUERY mtrlq FOR EACH MTRL WHERE MTRL.LEVKOD = "1" AND MTRL.KALKNR = 0
+   USE-INDEX LEV NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST mtrlq NO-LOCK.
+      IF AVAILABLE MTRL THEN DO:
+         CREATE mtrl_temp.
+         ASSIGN
+         mtrl_temp.ENR = MTRL.ENR
+         mtrl_temp.BENAMNING = MTRL.BENAMNING
+         mtrl_temp.ENHET = MTRL.ENHET
+         mtrl_temp.NPRIS = MTRL.NPRIS
+         mtrl_temp.BPRIS = MTRL.BPRIS.
+         GET NEXT mtrlq NO-LOCK.
+      END.  
+   END.       
+   DO TRANSACTION:  
+      DO WHILE AVAILABLE(MTRL):
+         CREATE mtrl_temp.
+         ASSIGN
+         mtrl_temp.ENR = MTRL.ENR
+         mtrl_temp.BENAMNING = MTRL.BENAMNING
+         mtrl_temp.ENHET = MTRL.ENHET
+         mtrl_temp.NPRIS = MTRL.NPRIS
+         mtrl_temp.BPRIS = MTRL.BPRIS.
+         GET NEXT mtrlq NO-LOCK.
+      END.
+   END.                  
+   CLOSE QUERY mtrlq.
+   FOR EACH tidin:
+      FIND FIRST mtrl_temp WHERE mtrl_temp.ENR = SUBSTRING(tidin.TIN,1,10)
+      USE-INDEX ENR EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE mtrl_temp THEN DO:
+         mtrl_temp.NPRIS = DECIMAL(SUBSTRING(tidin.TIN,93,(101 - 93) + 1)) / EXP(10,2).
+         IF mtrl_temp.BPRIS = 0 THEN mtrl_temp.BPRIS = mtrl_temp.NPRIS.
+      END.
+   END.    
+   FOR EACH mtrl_temp:      
+      OUTPUT TO VALUE(wtidvar) APPEND CONVERT TARGET "ibm850" SOURCE "iso8859-1" 
+      NO-ECHO.           
+      PUT UNFORMATTED        
+      mtrl_temp.ENR + " " + 
+      SUBSTRING(mtrl_temp.BENAMNING,1,40) + "  " + STRING(mtrl_temp.NPRIS,">>>>99.99") + 
+      "  " + SUBSTRING(mtrl_temp.ENHET,1,3) + "  " + STRING(mtrl_temp.BPRIS,">>>>99.99") +
+      CHR(10) AT 1.                
+      OUTPUT CLOSE.      
+   END.      

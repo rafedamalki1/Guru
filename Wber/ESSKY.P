@@ -1,0 +1,226 @@
+/*BLISTAPP1.P*/
+{STARTFORAPP.I}
+{ANMARKD.I}
+{LISTDEF.I} 
+{KONVALTEMP.I}
+{LISTMTRL.I}
+{KONID.I}
+{KONSTGRUPP.I}
+{VISAMTRL.I}
+{BBENAMNTEMP.I}
+DEFINE TEMP-TABLE ord_temp
+   FIELD NUM LIKE BERORD.NUM
+   FIELD ORD LIKE BERORD.ORD
+   INDEX NUM NUM ASCENDING.
+   
+
+/*DEFINE TEMP-TABLE kon_valsk LIKE kon_val.*/   
+DEFINE VARIABLE edmedd AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE valkonst AS LOGICAL NO-UNDO.
+DEFINE VARIABLE prisvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE skrivut AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.          
+DEFINE VARIABLE valort AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE valomrade AS CHARACTER NO-UNDO.  
+
+PROCEDURE skyltlt_UI:
+ DEFINE OUTPUT  PARAMETER skyltlev AS CHARACTER NO-UNDO.
+   skyltlev = "7".
+   IF Guru.Konstanter:globforetag = "gran" THEN DO: 
+      skyltlev = "24834".
+   END.   
+   IF Guru.Konstanter:globforetag = "fors" THEN skyltlev = "71".
+   
+END PROCEDURE.
+PROCEDURE elnatskylt_UI :   
+   DEFINE INPUT PARAMETER skyltvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER valaonr2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade2 AS CHARACTER NO-UNDO.       
+   DEFINE OUTPUT PARAMETER TABLE FOR ekon_val.
+   DEFINE OUTPUT PARAMETER TABLE FOR elist_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR ekon_id.
+   
+   EMPTY TEMP-TABLE elist_mtrl NO-ERROR.
+   EMPTY TEMP-TABLE ekon_val NO-ERROR.  
+    IF Guru.Konstanter:globforetag = "fors" THEN DO:
+       OPEN QUERY berqmtrl FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr2 AND
+      BERMTRL.OMRADE = valomrade2 AND BERMTRL.INKOP = FALSE AND BERMTRL.MTRLTEXT NE ""
+      AND BERMTRL.LEVKOD = "71" USE-INDEX DATUM NO-LOCK.
+   END.
+   ELSE DO:    
+      OPEN QUERY berqmtrl FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr2 AND
+      BERMTRL.OMRADE = valomrade2 AND BERMTRL.INKOP = FALSE AND BERMTRL.MTRLTEXT NE ""
+      AND BERMTRL.LEVKOD = "24834" USE-INDEX DATUM NO-LOCK.
+   END.   
+   GET FIRST berqmtrl NO-LOCK.
+   DO WHILE AVAILABLE(BERMTRL):              
+      CREATE elist_mtrl.
+      ASSIGN      
+      elist_mtrl.NUM = BERMTRL.NUM 
+      elist_mtrl.ENR = BERMTRL.ENR 
+      elist_mtrl.BENAMNING = BERMTRL.BENAMNING 
+      elist_mtrl.ENHET = LC(BERMTRL.ENHET) 
+      elist_mtrl.ANTAL = BERMTRL.ANTAL 
+      elist_mtrl.PRIS = BERMTRL.PRIS 
+      elist_mtrl.LEVKOD = BERMTRL.LEVKOD
+      elist_mtrl.LINKAB = BERMTRL.LINKAB
+      elist_mtrl.MODUL = BERMTRL.MODUL  
+      elist_mtrl.SKAPNUM = BERMTRL.SKAPNUM
+      elist_mtrl.TYPBER = BERMTRL.TYPBER
+      elist_mtrl.SKAPMTRL = BERMTRL.SKAPMTRL
+      elist_mtrl.SKAPMODUL = BERMTRL.SKAPMODUL
+      elist_mtrl.DIAMETER = BERMTRL.DIAMETER
+      elist_mtrl.MTRLTEXT = BERMTRL.MTRLTEXT
+      elist_mtrl.SATS = BERMTRL.SATS
+      elist_mtrl.PAR = BERMTRL.PAR.            
+      GET NEXT berqmtrl NO-LOCK.
+   END.   
+   CLOSE QUERY berqmtrl.
+   
+   /*VALDA KONSTRUKTIONER*/   
+   OPEN QUERY ordq FOR EACH BERORD WHERE BERORD.AONR = valaonr2 AND
+   BERORD.OMRADE = valomrade2 USE-INDEX ORD NO-LOCK.
+   GET FIRST ordq NO-LOCK.
+   DO WHILE AVAILABLE(BERORD):
+      CREATE ord_temp.
+      ASSIGN 
+      ord_temp.NUM = BERORD.NUM
+      ord_temp.ORD = BERORD.ORD.
+      GET NEXT ordq NO-LOCK.
+   END.          
+   CLOSE QUERY ordq.             
+   FOR EACH elist_mtrl :
+      FIND FIRST ekon_val WHERE  ekon_val.NUM = elist_mtrl.NUM AND ekon_val.SKAPNUM = elist_mtrl.SKAPNUM NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ekon_val THEN DO:      
+         /*FIND FIRST BERVAL WHERE BERVAL.AONR = valaonr2 AND BERVAL.OMRADE = valomrade2
+         AND  BERVAL.NUM = elist_mtrl.NUM AND BERVAL.SKAPNUM = elist_mtrl.SKAPNUM NO-LOCK NO-ERROR.
+         IF AVAILABLE BERVAL THEN DO:*/
+         FOR EACH BERVAL WHERE BERVAL.AONR = valaonr2 AND BERVAL.OMRADE = valomrade2
+         AND  BERVAL.NUM = elist_mtrl.NUM NO-LOCK: 
+            CREATE ekon_val.
+            ASSIGN 
+            ekon_val.GRUPP = BERVAL.KONSKOD 
+            ekon_val.F1 = BERVAL.KTYPKOD
+            ekon_val.F2 = BERVAL.F2 
+            ekon_val.F3 = BERVAL.F3 
+            ekon_val.F4 = BERVAL.F4 
+            ekon_val.F5 = BERVAL.F5 
+            ekon_val.F6 = BERVAL.F6 
+            ekon_val.NUM = BERVAL.NUM
+            ekon_val.ID = BERVAL.ID
+            ekon_val.UPPLAG = BERVAL.UPPLAG
+            ekon_val.KSKAP = BERVAL.KSKAP
+            ekon_val.TYP = BERVAL.TYP
+            ekon_val.SKAPNUM = BERVAL.SKAPNUM
+            ekon_val.ANMARK = BERVAL.ANMARK.
+            IF ekon_val.KSKAP = FALSE THEN DO:
+               FIND FIRST ord_temp WHERE ord_temp.NUM = ekon_val.NUM
+               USE-INDEX NUM NO-LOCK NO-ERROR.
+               IF AVAILABLE ord_temp THEN DO:
+                  ekon_val.ORD = ord_temp.ORD.
+               END.
+            END.
+         END.
+      END.            
+   END.                   
+   /*INDENTIFIKATION*/   
+   OPEN QUERY berqid FOR EACH BERID WHERE BERID.AONR = valaonr2 AND
+   BERID.OMRADE = valomrade2 USE-INDEX OMR NO-LOCK.
+   GET FIRST berqid NO-LOCK.
+   DO WHILE AVAILABLE(BERID): 
+      FIND FIRST ekon_val WHERE ekon_val.NUM = BERID.NUM USE-INDEX NUM NO-LOCK NO-ERROR.
+      IF AVAILABLE ekon_val  THEN DO:
+         CREATE ekon_id.
+         ASSIGN      
+         ekon_id.NUM = BERID.NUM 
+         ekon_id.GRUPP = ekon_val.GRUPP
+         ekon_id.FORNR = BERID.FORNR 
+         ekon_id.LINNR = BERID.LINNR 
+         ekon_id.NATNR = BERID.NATNR 
+         ekon_id.FRI1 = BERID.FRI1 
+         ekon_id.FRI2 = BERID.FRI2
+         ekon_id.XKORD = BERID.XKORD
+            
+         ekon_id.ENDKOMB = BERID.ENDKOMB
+         ekon_id.FRI3 = BERID.FRI3
+         ekon_id.A = BERID.A
+         ekon_id.B = BERID.B
+         ekon_id.C = BERID.C.
+      END.    
+      GET NEXT berqid NO-LOCK.
+   END.  
+   CLOSE QUERY berqid.
+     
+END PROCEDURE.
+
+PROCEDURE skyltant_UI :   
+   DEFINE INPUT PARAMETER skyltvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER valaonr2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade2 AS CHARACTER NO-UNDO.          
+   DEFINE OUTPUT PARAMETER TABLE FOR sklist_mtrl.   
+   
+   EMPTY TEMP-TABLE sklist_mtrl NO-ERROR.
+   
+   IF Guru.Konstanter:globforetag = "fors" THEN DO:
+      OPEN QUERY berqmtrl FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr2 AND
+      BERMTRL.OMRADE = valomrade2 AND BERMTRL.INKOP = FALSE  AND BERMTRL.LEVKOD = "71" USE-INDEX DATUM NO-LOCK.
+   END.
+   ELSE DO:    
+      OPEN QUERY berqmtrl FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr2 AND
+      BERMTRL.OMRADE = valomrade2 AND BERMTRL.INKOP = FALSE  AND BERMTRL.LEVKOD = "24834" USE-INDEX DATUM NO-LOCK.
+   END.   
+   GET FIRST berqmtrl NO-LOCK.
+   DO WHILE AVAILABLE(BERMTRL):              
+      CREATE sklist_mtrl.
+      ASSIGN      
+      sklist_mtrl.NUM = BERMTRL.NUM 
+      sklist_mtrl.ENR = BERMTRL.ENR 
+      sklist_mtrl.BENAMNING = BERMTRL.BENAMNING 
+      sklist_mtrl.ENHET = LC(BERMTRL.ENHET) 
+      sklist_mtrl.ANTAL = BERMTRL.ANTAL 
+      sklist_mtrl.PRIS = BERMTRL.PRIS 
+      sklist_mtrl.LEVKOD = BERMTRL.LEVKOD
+      sklist_mtrl.LINKAB = BERMTRL.LINKAB
+      sklist_mtrl.MODUL = BERMTRL.MODUL  
+      sklist_mtrl.SKAPNUM = BERMTRL.SKAPNUM
+      sklist_mtrl.TYPBER = BERMTRL.TYPBER
+      sklist_mtrl.SKAPMTRL = BERMTRL.SKAPMTRL
+      sklist_mtrl.SKAPMODUL = BERMTRL.SKAPMODUL
+      sklist_mtrl.DIAMETER = BERMTRL.DIAMETER
+      sklist_mtrl.MTRLTEXT = BERMTRL.MTRLTEXT
+      sklist_mtrl.SATS = BERMTRL.SATS
+      sklist_mtrl.PAR = BERMTRL.PAR.            
+      GET NEXT berqmtrl NO-LOCK.
+   END.   
+   CLOSE QUERY berqmtrl.
+   
+        
+END PROCEDURE.
+
+
+PROCEDURE ejelnatskylt_UI :         
+   DEFINE OUTPUT PARAMETER TABLE FOR visamtrl.
+   FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = "ÖSKYLT" AND MTRLBER.F1 = "ÖSKYLT" NO-LOCK:
+      CREATE visamtrl.
+      BUFFER-COPY MTRLBER TO visamtrl.
+   END.
+     
+END PROCEDURE.
+
+PROCEDURE startupp_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR konstgrptemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR bbenamntemp.   
+   EMPTY TEMP-TABLE konstgrptemp  NO-ERROR.
+   EMPTY TEMP-TABLE bbenamntemp  NO-ERROR. 
+   FOR EACH KONSTGRUPP USE-INDEX ORD NO-LOCK:
+      FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = KONSTGRUPP.KONSKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE KONSTRUKTION THEN DO:
+         CREATE konstgrptemp.
+         BUFFER-COPY KONSTGRUPP TO konstgrptemp.                   
+      END.           
+   END.         
+   FOR EACH BBENAMNING  NO-LOCK.         
+      CREATE bbenamntemp.
+      BUFFER-COPY BBENAMNING TO bbenamntemp.
+   END.          
+END PROCEDURE.

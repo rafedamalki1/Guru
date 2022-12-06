@@ -1,0 +1,308 @@
+/*VISTIDFAPP.P*/
+{STARTFORAPP.I}
+&Scoped-define NEW NEW
+{TIDFALLT.I}
+FUNCTION klockan60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ) FORWARD.                
+DEFINE VARIABLE skrivut AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.         
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(130)" NO-UNDO. 
+DEFINE VARIABLE kommandosortquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE pkod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE utnr AS INTEGER EXTENT 50 NO-UNDO.
+{TIDUTTTNEW.I}
+DEFINE TEMP-TABLE sumaotemp    
+   FIELD AONR LIKE AONRTAB.AONR
+   FIELD DELNR LIKE AONRTAB.DELNR         
+   FIELD ORT LIKE AONRTAB.ORT 
+   FIELD BEREDARE LIKE TIDREGITAB.PERSONALKOD
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD 
+   FIELD NAMN AS CHARACTER
+   FIELD DATUM LIKE TIDREGITAB.DATUM 
+   FIELD SLUT LIKE TIDREGITAB.SLUT
+   FIELD START LIKE TIDREGITAB.START
+   FIELD TOT AS DECIMAL
+   FIELD PRISTYP LIKE TIDREGITAB.PRISTYP
+   FIELD NY AS LOGICAL 
+   FIELD ANM AS CHARACTER
+   FIELD DEBET AS LOGICAL
+   INDEX PKOD IS PRIMARY PERSONALKOD
+   INDEX AONR AONR DELNR PRISTYP PERSONALKOD.
+
+DEFINE TEMP-TABLE sumaotemp2    
+   FIELD AONR LIKE AONRTAB.AONR
+   FIELD DELNR LIKE AONRTAB.DELNR         
+   FIELD ORT LIKE AONRTAB.ORT 
+   FIELD BEREDARE LIKE TIDREGITAB.PERSONALKOD
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD 
+   FIELD NAMN AS CHARACTER
+   FIELD DATUM LIKE TIDREGITAB.DATUM 
+   FIELD SLUT LIKE TIDREGITAB.SLUT
+   FIELD START LIKE TIDREGITAB.START
+   FIELD TOT AS DECIMAL
+   FIELD PRISTYP LIKE TIDREGITAB.PRISTYP
+   FIELD NY AS LOGICAL 
+   FIELD DEBET AS LOGICAL
+   INDEX PKOD IS PRIMARY PERSONALKOD
+   INDEX AONR BEREDARE AONR DELNR PRISTYP PERSONALKOD.
+DEFINE TEMP-TABLE sumaotemp3    
+   FIELD AONR LIKE AONRTAB.AONR
+   FIELD DELNR LIKE AONRTAB.DELNR         
+   FIELD ORT LIKE AONRTAB.ORT 
+   FIELD BEREDARE LIKE TIDREGITAB.PERSONALKOD
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD 
+   FIELD NAMN AS CHARACTER
+   FIELD DATUM LIKE TIDREGITAB.DATUM 
+   FIELD SLUT LIKE TIDREGITAB.SLUT
+   FIELD START LIKE TIDREGITAB.START
+   FIELD TOT AS DECIMAL
+   FIELD PRISTYP LIKE TIDREGITAB.PRISTYP
+   FIELD NY AS LOGICAL 
+   FIELD DEBET AS LOGICAL
+   INDEX PKOD IS PRIMARY PERSONALKOD
+   INDEX AONR BEREDARE AONR DELNR PRISTYP PERSONALKOD.
+      
+PROCEDURE visfelsum_UI :
+   DEFINE INPUT PARAMETER TABLE FOR tidfeltemp.   
+   DEFINE INPUT  PARAMETER brwbdatum  AS DATE NO-UNDO.
+   DEFINE INPUT  PARAMETER prepmanad AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER vismanad AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER tkord AS LOGICAL NO-UNDO.      
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   DEFINE OUTPUT PARAMETER str AS CHARACTER FORMAT "X(92)" NO-UNDO.
+   DEFINE OUTPUT PARAMETER str2 AS CHARACTER FORMAT "X(92)" NO-UNDO.
+   DEFINE OUTPUT PARAMETER str3 AS CHARACTER FORMAT "X(92)" NO-UNDO.
+    
+   RUN open2_UI (INPUT brwbdatum,input prepmanad,input vismanad,input tkord).
+   RUN summa_UI.
+   RUN huvud_UI (INPUT brwbdatum,input prepmanad,input vismanad,input tkord,OUTPUT str, OUTPUT str2, OUTPUT str3).
+END PROCEDURE.
+ 
+PROCEDURE open2_UI :
+   DEFINE INPUT  PARAMETER brwbdatum  AS DATE NO-UNDO.
+   DEFINE INPUT  PARAMETER prepmanad AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER vismanad AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER tkord AS LOGICAL NO-UNDO.
+   
+   IF prepmanad = "" AND tkord = FALSE THEN DO:
+      OPEN QUERY apq FOR EACH tidfeltemp WHERE YEAR(brwbdatum) = YEAR(tidfeltemp.DATUM) AND tidfeltemp.TKORD = FALSE  NO-LOCK.      
+   END.
+   ELSE IF prepmanad = ""  THEN DO:
+      OPEN QUERY apq FOR EACH tidfeltemp WHERE YEAR(brwbdatum) = YEAR(tidfeltemp.DATUM) AND tidfeltemp.TKORD = TRUE   NO-LOCK.      
+   END.
+   ELSE IF tkord = FALSE THEN DO:
+      OPEN QUERY apq FOR EACH tidfeltemp WHERE YEAR(brwbdatum) = YEAR(tidfeltemp.DATUM) AND MONTH(brwbdatum) = MONTH(tidfeltemp.DATUM) AND tidfeltemp.TKORD = FALSE  NO-LOCK.      
+   END.  
+   ELSE DO:
+      OPEN QUERY apq FOR EACH tidfeltemp WHERE YEAR(brwbdatum) = YEAR(tidfeltemp.DATUM) AND MONTH(brwbdatum) = MONTH(tidfeltemp.DATUM) AND tidfeltemp.TKORD = TRUE  NO-LOCK.
+   END.   
+     
+   GET FIRST apq NO-LOCK.
+   DO WHILE AVAILABLE(tidfeltemp):
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = tidfeltemp.AONR AND AONRTAB.DELNR = tidfeltemp.DELNR NO-LOCK NO-ERROR. 
+      CREATE sumaotemp.
+      ASSIGN      
+      sumaotemp.AONR = tidfeltemp.AONR
+      sumaotemp.DELNR = tidfeltemp.DELNR         
+      sumaotemp.ORT = AONRTAB.ORT                     
+      sumaotemp.PERSONALKOD = tidfeltemp.PERSONALKOD 
+      sumaotemp.DATUM =tidfeltemp.DATUM 
+      sumaotemp.SLUT = tidfeltemp.SLUT
+      sumaotemp.START = tidfeltemp.START         
+      sumaotemp.PRISTYP = tidfeltemp.PRISTYP
+      sumaotemp.DEBET = tidfeltemp.DEBET
+      sumaotemp.NY = FALSE.
+      sumaotemp.TOT = tidfeltemp.TOTALT.      
+      GET NEXT apq NO-LOCK.
+   END.     
+   REPEAT:
+      FIND FIRST sumaotemp WHERE sumaotemp.NY = FALSE NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE sumaotemp THEN LEAVE.
+      pkod = sumaotemp.PERSONALKOD.
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+      FOR EACH sumaotemp WHERE sumaotemp.PERSONALKOD = pkod:
+          sumaotemp.NY = TRUE.
+          IF AVAILABLE PERSONALTAB THEN sumaotemp.NAMN =
+          SUBSTRING(PERSONALTAB.FORNAMN,1,1) + "." + PERSONALTAB.EFTERNAMN. 
+      END.
+   END. 
+        
+END PROCEDURE.
+
+ 
+PROCEDURE huvud_UI :
+   DEFINE INPUT  PARAMETER brwbdatum  AS DATE NO-UNDO.
+   DEFINE INPUT  PARAMETER prepmanad AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER vismanad AS CHARACTER NO-UNDO.   
+   DEFINE INPUT  PARAMETER tkord AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER str AS CHARACTER FORMAT "X(92)" NO-UNDO.
+   DEFINE OUTPUT PARAMETER str2 AS CHARACTER FORMAT "X(92)" NO-UNDO.
+   DEFINE OUTPUT PARAMETER str3 AS CHARACTER FORMAT "X(92)" NO-UNDO.
+
+   CREATE tidut. 
+   SUBSTRING(tidut.UT,60) = STRING(TODAY) + " " + STRING(TIME,"HH:MM").
+   
+   CREATE tidut.
+   ASSIGN tidut.UT = "Summering av valda rättningar".
+   CREATE tidut.    
+   CREATE tidut.
+   CREATE tidut.
+   IF vismanad = "hela året" THEN ASSIGN tidut.UT = "Rättningar för År: " + STRING(YEAR(brwbdatum)).   
+   ELSE ASSIGN tidut.UT = "Rättningar för År: " + STRING(YEAR(brwbdatum)) +  " Månad: " + vismanad.
+   CREATE tidut.
+   IF tkord = TRUE THEN ASSIGN tidut.UT = "Visningen gäller körda registreringar".
+   ELSE ASSIGN tidut.UT = "Visningen gäller ej körda registreringar".
+   CREATE tidut.
+   ASSIGN
+   utnr[1] = 1
+   utnr[2] = 12
+   utnr[3] = 30
+   utnr[4] = 41
+   utnr[5] = 51
+   utnr[6] = 58
+   utnr[7] = 70
+   utnr[8] = 79 
+   utnr[9] = 85   
+   utnr[10] = 91   
+   str = "".      
+   DEFINE VARIABLE i AS INTEGER NO-UNDO.
+   
+   DO WHILE i <= 132:
+      i = i + 1.
+      str = str + "=".      
+   END.   
+   i = 2. 
+   DO WHILE i <= 10:             
+      SUBSTRING(str,(utnr[i] - 1),1) = ".".      
+      i = i + 1.
+   END.                                   
+   CREATE tidut.
+   SUBSTRING(tidut.UT,utnr[5]) = "ENHET/".
+   str2 = tidut.UT.
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,utnr[1]) = CAPS(Guru.Konstanter:gaok)
+   SUBSTRING(tidut.UT,utnr[2]) = CAPS(Guru.Konstanter:gaonamnk) 
+   SUBSTRING(tidut.UT,utnr[3]) = CAPS(Guru.Konstanter:gdebk)  
+   SUBSTRING(tidut.UT,utnr[4]) = "TOTALT"
+   SUBSTRING(tidut.UT,utnr[5]) = "SIGN"
+   SUBSTRING(tidut.UT,utnr[6]) = "NAMN"
+   SUBSTRING(tidut.UT,utnr[7]) = "DATUM"      
+   SUBSTRING(tidut.UT,utnr[8]) = "START"      
+   SUBSTRING(tidut.UT,utnr[9]) = "SLUT".    
+   str3 = tidut.UT.                
+   CREATE tidut.
+   tidut.UT = str.
+   
+   CREATE tidut.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT =  "KREDIT-SUMMA PER " + CAPS(Guru.Konstanter:gaok).
+   CREATE tidut.
+   FOR EACH sumaotemp3 WHERE sumaotemp3.DEBET = FALSE USE-INDEX AONR:
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,utnr[1]) = sumaotemp3.AONR + " " + STRING(sumaotemp3.DELNR,Guru.Konstanter:varforetypchar[1])
+      SUBSTRING(tidut.UT,utnr[2]) = SUBSTRING(sumaotemp3.ORT,1,17)      
+      SUBSTRING(tidut.UT,utnr[3]) = sumaotemp3.PRISTYP    
+      SUBSTRING(tidut.UT,utnr[4]) = STRING(sumaotemp3.TOT,"->>>>>9.9").     
+   END.
+   
+   CREATE tidut.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT =  "DEBET-SUMMA PER " + CAPS(Guru.Konstanter:gaok).
+   CREATE tidut.
+   FOR EACH sumaotemp3 WHERE sumaotemp3.DEBET = TRUE USE-INDEX AONR:
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,utnr[1]) = sumaotemp3.AONR + " " + STRING(sumaotemp3.DELNR,Guru.Konstanter:varforetypchar[1])
+      SUBSTRING(tidut.UT,utnr[2]) = SUBSTRING(sumaotemp3.ORT,1,17)      
+      SUBSTRING(tidut.UT,utnr[3]) = sumaotemp3.PRISTYP    
+      SUBSTRING(tidut.UT,utnr[4]) = STRING(sumaotemp3.TOT,"->>>>>9.9").     
+   END.     
+
+   CREATE tidut.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT =  "KREDIT -SUMMA PER PERSON OCH " + CAPS(Guru.Konstanter:gaok).      
+   CREATE tidut.
+   FOR EACH sumaotemp2 WHERE sumaotemp2.DEBET = FALSE USE-INDEX AONR:
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,utnr[1]) = sumaotemp2.AONR + " " + STRING(sumaotemp2.DELNR,Guru.Konstanter:varforetypchar[1])
+      SUBSTRING(tidut.UT,utnr[2]) = SUBSTRING(sumaotemp2.ORT,1,17)      
+      SUBSTRING(tidut.UT,utnr[3]) = sumaotemp2.PRISTYP  
+      SUBSTRING(tidut.UT,utnr[4]) = STRING(sumaotemp2.TOT,"->>>>>9.9")
+      SUBSTRING(tidut.UT,utnr[5]) = sumaotemp2.PERSONALKOD
+      SUBSTRING(tidut.UT,utnr[6]) = SUBSTRING(sumaotemp2.NAMN,1,11).
+   END.     
+   CREATE tidut.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT =  "DEBET -SUMMA PER PERSON OCH " + CAPS(Guru.Konstanter:gaok).      
+   CREATE tidut.
+   FOR EACH sumaotemp2 WHERE sumaotemp2.DEBET = TRUE USE-INDEX AONR:
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,utnr[1]) = sumaotemp2.AONR + " " + STRING(sumaotemp2.DELNR,Guru.Konstanter:varforetypchar[1])
+      SUBSTRING(tidut.UT,utnr[2]) = SUBSTRING(sumaotemp2.ORT,1,17)      
+      SUBSTRING(tidut.UT,utnr[3]) = sumaotemp2.PRISTYP  
+      SUBSTRING(tidut.UT,utnr[4]) = STRING(sumaotemp2.TOT,"->>>>>9.9")
+      SUBSTRING(tidut.UT,utnr[5]) = sumaotemp2.PERSONALKOD
+      SUBSTRING(tidut.UT,utnr[6]) = SUBSTRING(sumaotemp2.NAMN,1,11).
+   END.                 
+END PROCEDURE.
+
+ 
+PROCEDURE summa_UI :
+
+   FOR EACH sumaotemp BREAK BY sumaotemp.BEREDARE BY sumaotemp.AONR BY 
+      sumaotemp.DELNR BY sumaotemp.PERSONALKOD BY sumaotemp.PRISTYP BY sumaotemp.DEBET: 
+      ACCUMULATE sumaotemp.TOT (TOTAL BY sumaotemp.BEREDARE BY sumaotemp.AONR BY
+      sumaotemp.DELNR BY sumaotemp.PERSONALKOD BY sumaotemp.PRISTYP BY sumaotemp.DEBET).      
+      IF LAST-OF(sumaotemp.DEBET) THEN DO:
+         CREATE sumaotemp2.                  
+         ASSIGN
+         sumaotemp2.AONR  = sumaotemp.AONR 
+         sumaotemp2.DELNR = sumaotemp.DELNR 
+         sumaotemp2.ORT = sumaotemp.ORT 
+         sumaotemp2.BEREDARE = sumaotemp.BEREDARE  
+         sumaotemp2.PERSONALKOD = sumaotemp.PERSONALKOD
+         sumaotemp2.NAMN = sumaotemp.NAMN
+         sumaotemp2.PRISTYP = sumaotemp.PRISTYP
+         sumaotemp2.DEBET = sumaotemp.DEBET          
+         sumaotemp2.TOT =  
+         (ACCUM TOTAL BY sumaotemp.DEBET sumaotemp.TOT).         
+      END.   
+   END. 
+   FOR EACH sumaotemp2 BREAK BY sumaotemp2.BEREDARE BY sumaotemp2.AONR BY 
+      sumaotemp2.DELNR BY sumaotemp2.PRISTYP BY sumaotemp2.DEBET: 
+      ACCUMULATE sumaotemp2.TOT 
+      (TOTAL BY sumaotemp2.BEREDARE BY sumaotemp2.AONR BY sumaotemp2.DELNR BY sumaotemp2.PRISTYP BY sumaotemp2.DEBET).      
+      IF LAST-OF(sumaotemp2.DEBET) THEN DO:
+         CREATE sumaotemp3.                  
+         ASSIGN
+         sumaotemp3.AONR = sumaotemp2.AONR 
+         sumaotemp3.DELNR = sumaotemp2.DELNR 
+         sumaotemp3.ORT = sumaotemp2.ORT 
+         sumaotemp3.BEREDARE = sumaotemp2.BEREDARE  
+         sumaotemp3.PRISTYP = sumaotemp2.PRISTYP      
+         sumaotemp3.DEBET = sumaotemp2.DEBET    
+         sumaotemp3.TOT =  
+          (ACCUM TOTAL BY sumaotemp2.DEBET sumaotemp2.TOT).         
+      END.   
+   END.
+        
+END PROCEDURE.
+
+
+FUNCTION klockan60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+  RETURN TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) / 100) * 60 . 
+
+END FUNCTION.

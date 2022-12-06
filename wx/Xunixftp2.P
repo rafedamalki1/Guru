@@ -1,0 +1,51 @@
+/*G:\DELAD\PRO9\GURU\XUNIXFTP2.P. kör appat program sundsvall*/
+
+DEFINE NEW SHARED VARIABLE appcon AS LOGICAL NO-UNDO.
+
+DEFINE VARIABLE mailberapph AS HANDLE NO-UNDO.
+DEFINE TEMP-TABLE felmeddftptemp 
+  FIELD FELMEDD AS CHARACTER
+  FIELD VAL AS INTEGER.            
+
+/*{CONAPP.I} */
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE utbivar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE conappvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE gforetag AS CHARACTER NO-UNDO.
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.
+ASSIGN
+gforetag = SUBSTRING(FORETAG.VERSION,20,10)
+conappvar = SUBSTRING(FORETAG.VERSION,32).
+CREATE SERVER Guru.Konstanter:apphand.
+IF SUBSTRING(PROVERSION,1,1) = "9" THEN DO:
+ 
+  IF conappvar = "" THEN DO:
+     MESSAGE "Kontakta Elpool tel 090/184540 för du kan inte ansluta korrekt!"
+     VIEW-AS ALERT-BOX.
+  END.
+ 
+   /*obs case-sensitv -AppService appguru9*/
+   ELSE DO:
+      Guru.Konstanter:appcon = Guru.Konstanter:apphand:CONNECT(conappvar,CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79),"KAGGEN",gforetag) NO-ERROR.  
+      
+   END.
+END.
+IF Guru.Konstanter:appcon THEN DO:
+   RUN Xuftp.P PERSISTENT SET mailberapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+END.
+ELSE DO:
+   RUN Xuftp.P PERSISTENT SET mailberapph.
+END. 
+/*IF Guru.Konstanter:appcon THEN DO:*/
+   EMPTY TEMP-TABLE felmeddftptemp NO-ERROR. 
+   RUN xutftp2_UI IN mailberapph ( OUTPUT TABLE felmeddftptemp).   
+   FIND FIRST felmeddftptemp NO-LOCK NO-ERROR.
+   IF AVAILABLE felmeddftptemp THEN DO:      
+      MESSAGE felmeddftptemp.FELMEDD VIEW-AS ALERT-BOX TITLE "Meddelande".
+      DELETE felmeddftptemp.
+   END.
+/*END.*/
+
+IF Guru.Konstanter:appcon THEN Guru.Konstanter:appcon = Guru.Konstanter:apphand:DISCONNECT().
+DELETE OBJECT Guru.Konstanter:apphand.
+appcon = FALSE.

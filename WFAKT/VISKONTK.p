@@ -1,0 +1,202 @@
+/*VISKONTK.P*/
+
+DEFINE SHARED VARIABLE faktrec AS RECID NO-UNDO.
+DEFINE SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE stat AS LOGICAL NO-UNDO.
+DEFINE VARIABLE status-ok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE nyrec AS RECID NO-UNDO.
+DEFINE VARIABLE dagsrec AS RECID NO-UNDO.
+DEFINE VARIABLE fadatum AS DATE NO-UNDO.
+DEFINE VARIABLE fodatum AS DATE NO-UNDO.
+DEFINE TEMP-TABLE sumkont
+   FIELD AONR LIKE AONRKONTKOD.AONR 
+   FIELD DELNR LIKE AONRKONTKOD.DELNR
+   FIELD K1 LIKE AONRKONTKOD.K1 
+   FIELD K2 LIKE AONRKONTKOD.K2 
+   FIELD K3 LIKE AONRKONTKOD.K3 
+   FIELD K4 LIKE AONRKONTKOD.K4 
+   FIELD K5 LIKE AONRKONTKOD.K5 
+   FIELD BELOPP AS DECIMAL
+   INDEX AONR IS PRIMARY AONR DELNR K1 K2.
+         
+
+{VISKONTAB.I}
+
+
+{TIDUTTTSHARED.I}
+
+
+
+DEFINE INPUT PARAMETER infaktnr    AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER kreditnrvar AS INTEGER NO-UNDO.
+FIND FAKTPLAN WHERE FAKTPLAN.FAKTNR = infaktnr NO-LOCK NO-ERROR.
+FIND FAKTKRED WHERE FAKTKRED.FAKTNR = infaktnr AND FAKTKRED.FDELNR = kreditnrvar NO-LOCK NO-ERROR.      
+
+FIND FIRST FAKTREGLER WHERE FAKTREGLER.FAKTNR = FAKTPLAN.FAKTNR 
+USE-INDEX FAKTREGLER NO-LOCK NO-ERROR.    
+FIND FIRST FAKTURERINGSTYP WHERE 
+FAKTURERINGSTYP.FAKTTYPID = FAKTKRED.FAKTTYPID NO-LOCK NO-ERROR.
+
+OPEN QUERY BRW_K1 FOR EACH FAKTKUNDKONTOKRED WHERE 
+FAKTKUNDKONTOKRED.FAKTNR = FAKTPLAN.FAKTNR AND 
+FAKTKUNDKONTOKRED.FDELNR = FAKTKRED.FDELNR NO-LOCK, 
+EACH KUNDFODRAN WHERE KUNDFODRAN.KUNDKONTOID = FAKTKUNDKONTOKRED.KUNDKONTOID NO-LOCK, 
+EACH MOTPART WHERE MOTPART.MOTPARTID = FAKTKUNDKONTOKRED.MOTPARTID NO-LOCK.
+
+OPEN QUERY BRW_K2 FOR EACH FAKTINTAKTKONTKRED WHERE 
+FAKTINTAKTKONTKRED.FAKTNR = FAKTPLAN.FAKTNR AND 
+FAKTINTAKTKONTKRED.FDELNR = FAKTKRED.FDELNR NO-LOCK, 
+EACH INTAKTTAB WHERE INTAKTTAB.INTAKTID = FAKTINTAKTKONTKRED.INTAKTID NO-LOCK, 
+EACH MOTPART WHERE MOTPART.MOTPARTID = FAKTINTAKTKONTKRED.MOTPARTID NO-LOCK.
+
+OPEN QUERY BRW_K4 FOR EACH FAKTMOMSKRED WHERE 
+FAKTMOMSKRED.FAKTNR = FAKTPLAN.FAKTNR AND 
+FAKTMOMSKRED.FDELNR = FAKTKRED.FDELNR NO-LOCK, 
+EACH MOMSTAB WHERE MOMSTAB.MOMSID = FAKTMOMSKRED.MOMSID NO-LOCK.       
+GET FIRST BRW_K2 NO-LOCK.
+IF NOT AVAILABLE FAKTINTAKTKONTKRED THEN RETURN.
+RUN viskont_UI.
+FIND FIRST viskonttemp NO-LOCK NO-ERROR.
+IF NOT AVAILABLE viskonttemp THEN RETURN.
+CREATE tidut.
+CREATE tidut. 
+
+ASSIGN                        
+SUBSTRING(tidut.UT,132) = "$". 
+CREATE tidut. 
+ASSIGN                        
+SUBSTRING(tidut.UT,1) = "Kontering :". 
+CREATE tidut.
+CREATE tidut.
+ASSIGN                        
+SUBSTRING(tidut.UT,1) = "KONTO" 
+SUBSTRING(tidut.UT,8) = "MOTPART" 
+SUBSTRING(tidut.UT,16) = CAPS(Guru.Konstanter:gomrk) 
+SUBSTRING(tidut.UT,23) = CAPS(Guru.Konstanter:gaok)                   
+SUBSTRING(tidut.UT,30) = CAPS(Guru.Konstanter:gdelnrk)  
+SUBSTRING(tidut.UT,36) = "DEBET"
+SUBSTRING(tidut.UT,49) = "KREDIT".
+CREATE tidut.
+ASSIGN                                   
+SUBSTRING(tidut.UT,1) = "======.=======.======.======.=====.============.============". 
+   
+FOR EACH viskonttemp:
+   CREATE tidut.
+   ASSIGN                        
+   SUBSTRING(tidut.UT,1) = viskonttemp.KONTO 
+   SUBSTRING(tidut.UT,8) = viskonttemp.MOTPART 
+   SUBSTRING(tidut.UT,16) = viskonttemp.OMRADE 
+   SUBSTRING(tidut.UT,23) = viskonttemp.AONR                   
+   SUBSTRING(tidut.UT,30) = viskonttemp.VDELNR 
+   /*OBS*/
+   SUBSTRING(tidut.UT,36) = STRING(viskonttemp.KREDIT,"->>>>>>>9.99")
+   SUBSTRING(tidut.UT,49) = STRING(viskonttemp.DEBET,"->>>>>>>9.99").
+END. 
+/*
+RUN aokont_UI.
+*/
+PROCEDURE aokont_UI :
+   FIND FIRST KBENAMNING USE-INDEX KBEN NO-LOCK NO-ERROR.
+   GET FIRST BRW_K2 NO-LOCK.
+   DO WHILE AVAILABLE(FAKTINTAKTKONTKRED):
+      IF FAKTINTAKTKONTKRED.VKREDIT = 0 THEN DO:
+         OPEN QUERY aokq FOR EACH AONRKONTKOD WHERE AONRKONTKOD.AONR = FAKTINTAKTKONTKRED.AONR AND       
+         AONRKONTKOD.DELNR = FAKTINTAKTKONTKRED.DELNR NO-LOCK.
+         GET FIRST aokq NO-LOCK.
+         DO WHILE AVAILABLE(AONRKONTKOD):
+            CREATE sumkont.
+            ASSIGN
+            sumkont.AONR = AONRKONTKOD.AONR 
+            sumkont.DELNR = AONRKONTKOD.DELNR
+            sumkont.K1 = AONRKONTKOD.K1 
+            sumkont.K2 = AONRKONTKOD.K2 
+            sumkont.K3 = AONRKONTKOD.K3 
+            sumkont.K4 = AONRKONTKOD.K4 
+            sumkont.K5 = AONRKONTKOD.K5 
+            sumkont.BELOPP = AONRKONTKOD.SATS% * FAKTINTAKTKONTKRED.BELOPP / 100.
+            GET NEXT aokq NO-LOCK.
+         END.
+      END.
+      ELSE DO:      
+         OPEN QUERY faokq FOR EACH FAKTAONRKONTOKRED WHERE 
+         FAKTAONRKONTOKRED.FDELNR = 0 AND
+         FAKTAONRKONTOKRED.FAKTNR = FAKTINTAKTKONTKRED.FAKTNR AND 
+         FAKTAONRKONTOKRED.VKREDIT = FAKTINTAKTKONTKRED.VKREDIT AND
+         FAKTAONRKONTOKRED.AONR = FAKTINTAKTKONTKRED.AONR AND       
+         FAKTAONRKONTOKRED.DELNR = FAKTINTAKTKONTKRED.DELNR NO-LOCK.
+         GET FIRST faokq NO-LOCK.
+         DO WHILE AVAILABLE(FAKTAONRKONTOKRED):
+            CREATE sumkont.
+            ASSIGN
+            sumkont.AONR = FAKTAONRKONTOKRED.AONR 
+            sumkont.DELNR = FAKTAONRKONTOKRED.DELNR
+            sumkont.K1 = FAKTAONRKONTOKRED.K1 
+            sumkont.K2 = FAKTAONRKONTOKRED.K2 
+            sumkont.K3 = FAKTAONRKONTOKRED.K3 
+            sumkont.K4 = FAKTAONRKONTOKRED.K4 
+            sumkont.K5 = FAKTAONRKONTOKRED.K5 
+            sumkont.BELOPP = FAKTAONRKONTOKRED.SATS% * FAKTINTAKTKONTKRED.BELOPP / 100.
+            GET NEXT faokq NO-LOCK.
+         END.
+      END.
+      GET NEXT BRW_K2 NO-LOCK.
+   END. 
+   FIND FIRST sumkont NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE sumkont THEN RETURN.       
+   CREATE tidut.
+   CREATE tidut.
+   ASSIGN                        
+   SUBSTRING(tidut.UT,132) = "$". 
+   CREATE tidut. 
+   ASSIGN                        
+   SUBSTRING(tidut.UT,1) = "Kontering :". 
+   CREATE tidut.
+   /*
+   CREATE tidut.
+   ASSIGN                        
+   SUBSTRING(tidut.UT,1) = CAPS(KBENAMNING.K1) 
+   SUBSTRING(tidut.UT,8) = CAPS(KBENAMNING.K2) 
+   SUBSTRING(tidut.UT,15) = CAPS(Guru.Konstanter:gaok) 
+   SUBSTRING(tidut.UT,22) = CAPS(Guru.Konstanter:gdelnrk)                    
+   SUBSTRING(tidut.UT,28) = "BELOPP".
+   CREATE tidut.
+   ASSIGN                  
+   SUBSTRING(tidut.UT,1) = "======.======.======.=====.============". 
+   FOR EACH sumkont BREAK BY sumkont.AONR BY sumkont.DELNR BY sumkont.K1 BY sumkont.K2:         
+      ACCUMULATE 
+      sumkont.BELOPP (TOTAL BY sumkont.AONR BY sumkont.DELNR BY sumkont.K1 BY sumkont.K2).         
+      IF LAST-OF(sumkont.K2) THEN DO:                        
+         CREATE tidut.
+         ASSIGN                        
+         SUBSTRING(tidut.UT,1) = sumkont.K1 
+         SUBSTRING(tidut.UT,8) = sumkont.K2 
+         SUBSTRING(tidut.UT,15) = sumkont.AONR                   
+         SUBSTRING(tidut.UT,22) = STRING(sumkont.DELNR,Guru.Konstanter:varforetypchar[1]) 
+         SUBSTRING(tidut.UT,28) = STRING((ACCUM TOTAL BY sumkont.K2 sumkont.BELOPP),"->>>>>>>9.99").
+      END. 
+   END.
+   */
+   CREATE tidut.
+   ASSIGN                        
+   SUBSTRING(tidut.UT,1) = CAPS(KBENAMNING.K2) 
+   SUBSTRING(tidut.UT,8) = "BELOPP".
+   CREATE tidut.
+   ASSIGN                  
+   SUBSTRING(tidut.UT,1) = "======.============". 
+   FOR EACH sumkont BREAK BY sumkont.K2:         
+      ACCUMULATE 
+      sumkont.BELOPP (TOTAL BY sumkont.K2).         
+      IF LAST-OF(sumkont.K2) THEN DO:                        
+         CREATE tidut.
+         ASSIGN                        
+         SUBSTRING(tidut.UT,1) = sumkont.K2 
+         SUBSTRING(tidut.UT,8) = STRING((ACCUM TOTAL BY sumkont.K2 sumkont.BELOPP),"->>>>>>>9.99").
+      END. 
+   END.
+END PROCEDURE.
+
+
+PROCEDURE viskont_UI :
+   {VISKONTK.I}      
+END PROCEDURE.
+

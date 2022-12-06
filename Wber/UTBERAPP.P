@@ -1,0 +1,162 @@
+/*UTBERAPP.P*/
+{STARTFORAPP.I}
+{BILDBERTEMP.I}
+{SOKDEF.I}
+DEFINE TEMP-TABLE bildkomb NO-UNDO
+   FIELD NUM AS INTEGER
+   FIELD BILD AS CHARACTER
+   FIELD KOMB AS CHARACTER
+   INDEX NUM NUM.
+DEFINE BUFFER konbuff FOR BERVAL.
+DEFINE TEMP-TABLE utfardtemp
+   FIELD NAMN AS CHARACTER  
+   FIELD TELEFON AS CHARACTER
+   FIELD MOBIL AS CHARACTER.
+DEFINE VARIABLE gfore AS CHARACTER NO-UNDO.
+FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+gfore = FORETAG.FORETAG.   
+PROCEDURE htmkonval_UI:
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER num AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR valsoktemp.
+   EMPTY TEMP-TABLE valsoktemp NO-ERROR. 
+   FIND FIRST BERVAL WHERE BERVAL.OMRADE = valomrade AND 
+   BERVAL.AONR = valaonr AND BERVAL.NUM = num NO-LOCK NO-ERROR.
+   IF AVAILABLE BERVAL THEN DO:
+      CREATE valsoktemp.
+      valsoktemp.SOKCHAR[1] = BERVAL.KTYPKOD.
+      FIND FIRST BERID WHERE BERID.OMRADE = BERVAL.OMRADE AND 
+      BERID.AONR = BERVAL.AONR AND BERID.NUM = BERVAL.NUM NO-LOCK NO-ERROR.
+      IF AVAILABLE BERID THEN DO:
+         ASSIGN 
+         valsoktemp.SOKCHAR[2] = BERID.FORNR
+         valsoktemp.SOKCHAR[3] = BERID.LINNR
+         valsoktemp.SOKCHAR[4] = BERID.NATNR
+         valsoktemp.SOKINT[1] = BERID.FRI1
+         valsoktemp.SOKINT[2] = BERID.FRI2
+         valsoktemp.SOKCHAR[5] = BERID.FRI3.
+      END.
+      FIND FIRST ANNNAMN NO-LOCK NO-ERROR.
+      IF AVAILABLE ANNNAMN THEN DO:
+         ASSIGN 
+         valsoktemp.SOKCHAR[6] = ANNNAMN.TAB1
+         valsoktemp.SOKCHAR[7] = ANNNAMN.TAB2
+         valsoktemp.SOKCHAR[8] = ANNNAMN.TAB3.
+      END.
+      FIND FIRST BBENAMNING WHERE BBENAMNING.KONSKOD = BERVAL.KONSKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE BBENAMNING THEN DO:
+         ASSIGN
+         valsoktemp.SOKCHAR[9] = BBENAMNING.ID1 
+         valsoktemp.SOKCHAR[10] = BBENAMNING.ID2.
+      END.
+   END.
+   
+END PROCEDURE.
+
+
+PROCEDURE bildberhmt_UI:
+   DEFINE INPUT  PARAMETER globanv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR bildbertemp.
+   DEFINE VARIABLE diranv AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE bildbertemp NO-ERROR. 
+   DEFINE VARIABLE bsok AS CHARACTER NO-UNDO.
+   RUN BildiBeredhmt_UI (INPUT INTEGER(valaonr), INPUT valomrade, INPUT gfore).
+   FIND FIRST bildbertemp WHERE NO-LOCK NO-ERROR.
+   IF AVAILABLE bildbertemp THEN.
+   ELSE DO:
+      FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "BERBILD" AND EXTRADATA.HUVUDINT = INTEGER(valaonr) AND 
+      EXTRADATA.HUVUDCH = valomrade NO-LOCK:
+         CREATE bildbertemp.
+         ASSIGN
+         bildbertemp.NUM = EXTRADATA.SOKINT[1]
+         bildbertemp.NAMN = EXTRADATA.SOKCHAR[1]
+         bildbertemp.FILNAMN = EXTRADATA.SOKCHAR[2].
+         IF gfore = "KRAF" THEN DO:
+            IF bildbertemp.FILNAMN BEGINS "c:\users\" THEN DO:
+               diranv = Guru.Konstanter:globanv.
+               {MOLNETMAPPEXTRA.I}
+               bsok = SUBSTRING(bildbertemp.FILNAMN,10,INDEX(bildbertemp.FILNAMN,"\",10) - 10).
+               bildbertemp.FILNAMN = REPLACE(bildbertemp.FILNAMN,bsok,diranv).  
+            END.   
+         END.
+      END.
+   END.   
+END PROCEDURE.
+{Berbilderhmt.i}
+/*Används ej*/
+PROCEDURE utfard_UI:
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR utfardtemp.
+   FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = valaonr AND 
+   BEREDNING.OMRADE = valomrade NO-LOCK NO-ERROR.
+   IF AVAILABLE BEREDNING THEN DO:
+      IF BEREDNING.AONR NE ? THEN DO:
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = BEREDNING.AONR NO-LOCK NO-ERROR.
+         IF AVAILABLE AONRTAB THEN DO:
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = AONRTAB.BEREDARE NO-LOCK NO-ERROR.
+            IF AVAILABLE PERSONALTAB THEN DO:
+               CREATE utfardtemp.
+               ASSIGN
+               utfardtemp.NAMN = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN
+               utfardtemp.TELEFON = PERSONALTAB.TELEFON
+               utfardtemp.MOBIL = PERSONALTAB.MOBILTEL.
+               Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+            END.
+            ELSE DO:
+               FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = Guru.Konstanter:globanv NO-LOCK NO-ERROR.
+               IF AVAILABLE ANVANDARE THEN DO:
+                  CREATE utfardtemp.
+                  ASSIGN
+                  utfardtemp.NAMN = ANVANDARE.AV-NAMN
+                  utfardtemp.TELEFON = ""
+                  utfardtemp.MOBIL = "".
+                  Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + ANVANDARE.ANVANDARE.
+               END.
+            END.
+         END.
+      END.
+      ELSE DO:
+         FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = Guru.Konstanter:globanv NO-LOCK NO-ERROR.
+         IF AVAILABLE ANVANDARE THEN DO:
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE PERSONALTAB THEN DO:
+               CREATE utfardtemp.
+               ASSIGN
+               utfardtemp.NAMN = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN
+               utfardtemp.TELEFON = PERSONALTAB.TELEFON
+               utfardtemp.MOBIL = PERSONALTAB.MOBILTEL.
+               Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+            END.
+            ELSE DO:
+               CREATE utfardtemp.
+               ASSIGN
+               utfardtemp.NAMN = ANVANDARE.AV-NAMN
+               utfardtemp.TELEFON = ""
+               utfardtemp.MOBIL = "".
+               Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + ANVANDARE.ANVANDARE.
+            END.
+         END.         
+      END.
+   END.
+   
+  {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+PROCEDURE idhmt_UI :
+   DEFINE INPUT PARAMETER idgrp AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER bben_id1 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER bben_id2 AS CHARACTER NO-UNDO.
+   ASSIGN
+   bben_id1 = ""
+   bben_id2 = "".
+   FIND FIRST BBENAMNING WHERE BBENAMNING.KONSKOD = idgrp USE-INDEX KOD NO-LOCK NO-ERROR.
+   IF AVAILABLE BBENAMNING THEN DO:
+      ASSIGN
+      bben_id1 = BBENAMNING.ID1
+      bben_id2 = BBENAMNING.ID2.
+   END.   
+END PROCEDURE.

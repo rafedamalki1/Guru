@@ -1,0 +1,2492 @@
+&ANALYZE-SUSPEND _VERSION-NUMBER UIB_v9r12 GUI
+&ANALYZE-RESUME
+/* Connected Databases 
+          temp-db          PROGRESS
+*/
+&Scoped-define WINDOW-NAME C-Win
+
+
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CUSTOM _DEFINITIONS C-Win 
+/*------------------------------------------------------------------------
+
+  File: 
+
+  Description: 
+
+  Input Parameters:
+      <none>
+
+  Output Parameters:
+      <none>
+
+  Author: 
+
+
+  Created: 
+
+------------------------------------------------------------------------*/
+/*          This .W file was created with the Progress AppBuilder.      */
+/*----------------------------------------------------------------------*/
+
+/* Create an unnamed pool to store all the widgets created 
+     by this procedure. This is a good default which assures
+     that this procedure's triggers and internal procedures 
+     will execute in this procedure's storage, and that proper
+     cleanup will occur on deletion of the procedure. */
+
+CREATE WIDGET-POOL.
+
+/* ***************************  Definitions  ************************** */
+
+/* Parameters Definitions ---                                           */
+
+/* Local Variable Definitions ---                                       */
+
+{INKTEMP.I}
+{AVDTEMP.I}
+{ALLDEF.I}
+{GLOBVAR2DEL1.I}
+{HOPPSEK2W.I}
+{BESTKUNDALLT.I}
+{PRIOTEMP.I}
+&Scoped-define NEW 
+{FAKTTYPDEF.I}
+{BRWSOK.I}
+{OMRTEMPW.I}
+{ANSPROJBER.I}
+{SOKDEF.I}
+{ARBATE.I}
+{AVTPLANTEMP.I}
+{JURPERST.I}
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{LEVERANT.I}
+{EXECLIN.I}
+{BESTVISTT.I} 
+&Scoped-define SHARED SHARED
+{DIRDEF.I}   
+&Scoped-define NEW
+{ANVTEMPS.I}
+DEFINE SHARED TEMP-TABLE berkalanvandartemp NO-UNDO LIKE anvandartemp.
+{TIDUTTT.I}
+
+DEFINE TEMP-TABLE delNRaonr NO-UNDO
+   FIELD AONR AS CHARACTER
+   FIELD DELNR AS INTEGER 
+   INDEX AONR IS PRIMARY AONR DELNR.
+
+
+DEFINE SHARED TEMP-TABLE aoval NO-UNDO
+   FIELD AONR AS CHARACTER
+   FIELD DELNR AS INTEGER
+   FIELD AONRREC AS RECID
+   INDEX AONR IS PRIMARY AONR DELNR. 
+
+DEFINE TEMP-TABLE batemp NO-UNDO   
+   FIELD ANVANDARE AS CHARACTER 
+   FIELD ANVNAMN AS CHARACTER.
+
+DEFINE VARIABLE hlevkod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hlevnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE anv AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hamtapp AS HANDLE NO-UNDO.
+DEFINE SHARED VARIABLE aonrrec AS RECID NO-UNDO.
+DEFINE SHARED VARIABLE skrivut AS LOGICAL NO-UNDO. 
+DEFINE SHARED VARIABLE regdatum AS DATE NO-UNDO.
+DEFINE SHARED VARIABLE bdatum AS DATE NO-UNDO.
+DEFINE SHARED VARIABLE avdatum AS DATE NO-UNDO.
+DEFINE SHARED VARIABLE valar AS INTEGER NO-UNDO. 
+DEFINE SHARED VARIABLE valmanad AS INTEGER NO-UNDO. 
+DEFINE SHARED VARIABLE valdelnrlog AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE aonummer AS CHARACTER NO-UNDO.
+DEFINE SHARED VARIABLE delnummer AS INTEGER NO-UNDO.
+DEFINE SHARED VARIABLE  visvalvar AS INTEGER NO-UNDO.   /* 1= progres vis 2 = excel 3 = IE 4 = pdf*/
+DEFINE SHARED VARIABLE laddaproch AS HANDLE NO-UNDO.
+DEFINE VARIABLE ttbuffcopyh AS HANDLE NO-UNDO.
+DEFINE VARIABLE tillbakaaonr AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE tillbakadelnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE valdarec AS RECID NO-UNDO.
+DEFINE VARIABLE my1hand AS WIDGET-HANDL NO-UNDO.
+DEFINE VARIABLE uppar AS INTEGER NO-UNDO.
+DEFINE VARIABLE aosok AS CHARACTER FORMAT "X(8)" NO-UNDO. 
+DEFINE VARIABLE ortssok AS CHARACTER NO-UNDO.
+DEFINE VARIABLE status-ok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE antal_valda AS INTEGER NO-UNDO. 
+DEFINE VARIABLE antal_raknare AS INTEGER NO-UNDO.
+DEFINE VARIABLE kuurvalapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE projvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE bortvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE excellista AS INTEGER NO-UNDO.
+DEFINE VARIABLE val1 AS LOGICAL.
+DEFINE VARIABLE aonrapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE nyttaoapph2 AS HANDLE NO-UNDO.                      /*NYTTAOAPP.P*/
+DEFINE VARIABLE jid AS CHARACTER NO-UNDO.
+DEFINE VARIABLE vallista AS INTEGER NO-UNDO.
+DEFINE VARIABLE bestrak AS INTEGER NO-UNDO.
+DEFINE VARIABLE spdep AS INTEGER NO-UNDO.
+DEFINE VARIABLE spbestnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE nettoh AS HANDLE NO-UNDO.
+DEFINE VARIABLE labelvar1 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE labelvar2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE labelvar3 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE labelvar4 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE priok AS INTEGER NO-UNDO.
+DEFINE VARIABLE aartk AS INTEGER NO-UNDO.
+DEFINE VARIABLE ftyp AS CHARACTER NO-UNDO.
+
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-PREPROCESSOR-BLOCK 
+
+/* ********************  Preprocessor Definitions  ******************** */
+
+&Scoped-define PROCEDURE-TYPE Window
+&Scoped-define DB-AWARE no
+
+/* Name of designated FRAME-NAME and/or first browse and/or first query */
+&Scoped-define FRAME-NAME DEFAULT-FRAME
+&Scoped-define BROWSE-NAME BRW_AONR
+
+/* Internal Tables (found by Frame, Query & Browse Queries)             */
+&Scoped-define INTERNAL-TABLES uvaldaao evaldaao
+
+/* Definitions for BROWSE BRW_AONR                                      */
+&Scoped-define FIELDS-IN-QUERY-BRW_AONR uvaldaao.OMRADE uvaldaao.AONR ~
+uvaldaao.DELNR uvaldaao.ORT 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_AONR 
+&Scoped-define QUERY-STRING-BRW_AONR FOR EACH uvaldaao NO-LOCK ~
+    BY uvaldaao.OMRADE ~
+       BY uvaldaao.AONR ~
+        BY uvaldaao.DELNR
+&Scoped-define OPEN-QUERY-BRW_AONR OPEN QUERY BRW_AONR FOR EACH uvaldaao NO-LOCK ~
+    BY uvaldaao.OMRADE ~
+       BY uvaldaao.AONR ~
+        BY uvaldaao.DELNR.
+&Scoped-define TABLES-IN-QUERY-BRW_AONR uvaldaao
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_AONR uvaldaao
+
+
+/* Definitions for BROWSE BRW_VAONR                                     */
+&Scoped-define FIELDS-IN-QUERY-BRW_VAONR evaldaao.AONR evaldaao.DELNR ~
+evaldaao.ORT 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_VAONR 
+&Scoped-define QUERY-STRING-BRW_VAONR FOR EACH evaldaao NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_VAONR OPEN QUERY BRW_VAONR FOR EACH evaldaao NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_VAONR evaldaao
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_VAONR evaldaao
+
+
+/* Definitions for FRAME DEFAULT-FRAME                                  */
+&Scoped-define OPEN-BROWSERS-IN-QUERY-DEFAULT-FRAME ~
+    ~{&OPEN-QUERY-BRW_AONR}~
+    ~{&OPEN-QUERY-BRW_VAONR}
+
+/* Standard List Definitions                                            */
+&Scoped-Define ENABLED-OBJECTS RECT-49 RECT-SOK IMAGE-1 BTN_NVE BTN_NVE-2 ~
+TOG_ADEP TOG_BDEP FILL-IN-STARTDAT FILL-IN-STOPPDAT BTN_FVE BTN_FVE-2 ~
+FILL-IN-K1 CMB_OMR CMB_ARBART FILL-IN-K2 CMB_UTF CMB_FAK FILL-IN-K3 ~
+CMB_PRIO FILL-IN-K4 TOG_LEV CMB_LEV BTN_HAMT FBTN_VISA FBTN_EX BRW_AONR ~
+BRW_VAONR BTN_AOF BTN_ALLOVER BTN_HAOF BTN_OVER BTN_BACK BTN_ALLBACK ~
+FILL-IN_SAONR FILL-IN_ORT FILL-IN_EAONR FILL-IN_DELNR BTN_AVB 
+&Scoped-Define DISPLAYED-OBJECTS TOG_ADEP TOG_BDEP FILL-IN-STARTDAT ~
+FILL-IN-STOPPDAT FILL-IN-K1 CMB_OMR FILL-IN-K2 CMB_UTF CMB_FAK FILL-IN-K3 ~
+CMB_PRIO FILL-IN-K4 TOG_LEV CMB_LEV FILL-IN_SAONR FILL-IN_ORT FILL-IN_EAONR ~
+FILL-IN_DELNR FILL-IN-AOTEXT FILL-IN-KTO FILL-IN-VAL 
+
+/* Custom List Definitions                                              */
+/* List-1,List-2,List-3,List-4,List-5,List-6                            */
+
+/* _UIB-PREPROCESSOR-BLOCK-END */
+&ANALYZE-RESUME
+
+
+
+/* ***********************  Control Definitions  ********************** */
+
+/* Define the widget handle for the window                              */
+DEFINE VAR C-Win AS WIDGET-HANDLE NO-UNDO.
+
+/* Definitions of the field level widgets                               */
+DEFINE BUTTON BTN_ALLBACK 
+     IMAGE-UP FILE "BILDER\rewind-u":U
+     LABEL "Alla aonr i listan":L 
+     SIZE 4 BY 1.21 TOOLTIP "Alla valda aonr tas bort"
+     FONT 11.
+
+DEFINE BUTTON BTN_ALLOVER 
+     IMAGE-UP FILE "BILDER\forwrd-u":U
+     LABEL "Alla aonr i listan":L 
+     SIZE 4 BY 1.21 TOOLTIP "Alla aonr väljs"
+     FONT 11.
+
+DEFINE BUTTON BTN_AOF 
+     LABEL "spara favorit" 
+     SIZE 14 BY 1.
+
+DEFINE BUTTON BTN_AVB AUTO-END-KEY 
+     LABEL "Avsluta":L 
+     SIZE 14 BY 1.
+
+DEFINE BUTTON BTN_BACK 
+     IMAGE-UP FILE "BILDER\prev-u":U
+     LABEL "":L 
+     SIZE 4 BY 1.21 TOOLTIP "Markerade tas bort".
+
+DEFINE BUTTON BTN_EXTRA 
+     LABEL "Enstaka aonr" 
+     SIZE 6.88 BY 1 TOOLTIP "Tryck här för välja enstaka aonr."
+     FONT 11.
+
+DEFINE BUTTON BTN_FVE 
+     LABEL "-" 
+     SIZE 2.5 BY .75.
+
+DEFINE BUTTON BTN_FVE-2 
+     LABEL "-" 
+     SIZE 2.5 BY .75.
+
+DEFINE BUTTON BTN_HAMT 
+     LABEL "Hämta och visa urval" 
+     SIZE 22 BY 1.
+
+DEFINE BUTTON BTN_HAOF 
+     LABEL "HÄMTA favorit" 
+     SIZE 14 BY 1.
+
+DEFINE BUTTON BTN_NVE 
+     LABEL "+" 
+     SIZE 2.5 BY .75.
+
+DEFINE BUTTON BTN_NVE-2 
+     LABEL "+" 
+     SIZE 2.5 BY .75.
+
+DEFINE BUTTON BTN_OVER 
+     IMAGE-UP FILE "BILDER\next-u":U
+     LABEL "":L 
+     SIZE 4 BY 1.21 TOOLTIP "Markerade väljs".
+
+DEFINE BUTTON FBTN_EX 
+     LABEL "Visa i excel" 
+     SIZE 14 BY 1.
+
+DEFINE BUTTON FBTN_VISA 
+     LABEL "Visa" 
+     SIZE 14 BY 1.
+
+DEFINE VARIABLE CMB_ARBART AS CHARACTER FORMAT "X(256)":U 
+     LABEL "Arbetsart" 
+     VIEW-AS COMBO-BOX INNER-LINES 5
+     DROP-DOWN-LIST
+     SIZE 23 BY 1 NO-UNDO.
+
+DEFINE VARIABLE CMB_FAK AS CHARACTER FORMAT "X(35)":U 
+     LABEL "Fakturakategori" 
+     VIEW-AS COMBO-BOX INNER-LINES 6
+     DROP-DOWN-LIST
+     SIZE 23 BY 1 NO-UNDO.
+
+DEFINE VARIABLE CMB_LEV AS CHARACTER FORMAT "X(256)":U 
+     LABEL "Leverantör till Excel" 
+     VIEW-AS COMBO-BOX INNER-LINES 5
+     DROP-DOWN-LIST
+     SIZE 24.5 BY 1 NO-UNDO.
+
+DEFINE VARIABLE CMB_OMR AS CHARACTER FORMAT "X(256)":U INITIAL ? 
+     LABEL "Område" 
+     VIEW-AS COMBO-BOX INNER-LINES 15
+     DROP-DOWN-LIST
+     SIZE 23 BY 1 NO-UNDO.
+
+DEFINE VARIABLE CMB_PRIO AS CHARACTER FORMAT "X(35)":U 
+     LABEL "Prioritet" 
+     VIEW-AS COMBO-BOX INNER-LINES 6
+     DROP-DOWN-LIST
+     SIZE 23 BY 1 NO-UNDO.
+
+DEFINE VARIABLE CMB_UTF AS CHARACTER FORMAT "X(256)":U 
+     LABEL "Utfärdare" 
+     VIEW-AS COMBO-BOX INNER-LINES 5
+     DROP-DOWN-LIST
+     SIZE 23 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-AOTEXT AS CHARACTER FORMAT "X(256)":U INITIAL "Gör urval :" 
+      VIEW-AS TEXT 
+     SIZE 22.5 BY .83
+     FGCOLOR 2 FONT 17 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-AR AS INTEGER FORMAT "9999":U INITIAL ? 
+     VIEW-AS FILL-IN 
+     SIZE 9 BY .92 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-K1 AS CHARACTER FORMAT "X(256)":U 
+     LABEL "KONTOK1" 
+     VIEW-AS FILL-IN 
+     SIZE 8 BY 1 TOOLTIP "Det går att använda ~"*~" men endast som ex ~"32*~"." NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-K2 AS CHARACTER FORMAT "X(256)":U 
+     LABEL "KONTO" 
+     VIEW-AS FILL-IN 
+     SIZE 8 BY 1 TOOLTIP "Det går att använda ~"*~" men endast som ex ~"32*~"." NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-K3 AS CHARACTER FORMAT "X(256)":U 
+     LABEL "KONTOK3" 
+     VIEW-AS FILL-IN 
+     SIZE 8 BY 1 TOOLTIP "Det går att använda ~"*~" men endast som ex ~"32*~"." NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-K4 AS CHARACTER FORMAT "X(256)":U 
+     LABEL "KONTOK4" 
+     VIEW-AS FILL-IN 
+     SIZE 8 BY 1 TOOLTIP "Det går att använda ~"*~" men endast som ex ~"32*~"." NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-KTO AS CHARACTER FORMAT "X(256)":U INITIAL "Urval konto" 
+      VIEW-AS TEXT 
+     SIZE 12.5 BY .63 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-STARTDAT AS DATE FORMAT "99/99/99":U 
+     LABEL "Från" 
+     VIEW-AS FILL-IN 
+     SIZE 9 BY .92 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-STOPPDAT AS DATE FORMAT "99/99/99":U 
+     LABEL "Till" 
+     VIEW-AS FILL-IN 
+     SIZE 9 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-VAL AS CHARACTER FORMAT "X(256)":U INITIAL "Hämta aonr:" 
+      VIEW-AS TEXT 
+     SIZE 9.75 BY .67 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN_DELNR AS INTEGER FORMAT ">99" INITIAL 0 
+     VIEW-AS FILL-IN 
+     SIZE 4 BY .83
+     FGCOLOR 2 .
+
+DEFINE VARIABLE FILL-IN_EAONR AS CHARACTER FORMAT "X(6)" 
+     LABEL "Aonr" 
+     VIEW-AS FILL-IN 
+     SIZE 7 BY .83
+     FGCOLOR 2 .
+
+DEFINE VARIABLE FILL-IN_ORT AS CHARACTER FORMAT "x(40)" 
+     LABEL "Ort/Benämning" 
+     VIEW-AS FILL-IN 
+     SIZE 11.88 BY .83 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN_SAONR AS CHARACTER FORMAT "X(6)" 
+     LABEL "Aonr" 
+     VIEW-AS FILL-IN 
+     SIZE 8 BY .83
+     FGCOLOR 2  NO-UNDO.
+
+DEFINE IMAGE IMAGE-1
+     FILENAME "BILDER\sokpa.gif":U CONVERT-3D-COLORS
+     SIZE 8 BY .83.
+
+DEFINE RECTANGLE RECT-49
+     EDGE-PIXELS 2 GRAPHIC-EDGE  NO-FILL   
+     SIZE 53.5 BY 1.21
+     BGCOLOR 8 .
+
+DEFINE RECTANGLE RECT-SOK
+     EDGE-PIXELS 2 GRAPHIC-EDGE  NO-FILL   
+     SIZE 49.5 BY 1.21
+     BGCOLOR 8 .
+
+DEFINE VARIABLE TOG_ADEP AS LOGICAL INITIAL no 
+     LABEL "Även depåbest." 
+     VIEW-AS TOGGLE-BOX
+     SIZE 17 BY .79 NO-UNDO.
+
+DEFINE VARIABLE TOG_BDEP AS LOGICAL INITIAL no 
+     LABEL "Bara depåbest." 
+     VIEW-AS TOGGLE-BOX
+     SIZE 16 BY .79 NO-UNDO.
+
+DEFINE VARIABLE TOG_LEV AS LOGICAL INITIAL no 
+     LABEL "Alla leverantörer till Excel" 
+     VIEW-AS TOGGLE-BOX
+     SIZE 31.13 BY .79 NO-UNDO.
+
+/* Query definitions                                                    */
+&ANALYZE-SUSPEND
+DEFINE QUERY BRW_AONR FOR 
+      uvaldaao SCROLLING.
+
+DEFINE QUERY BRW_VAONR FOR 
+      evaldaao SCROLLING.
+&ANALYZE-RESUME
+
+/* Browse definitions                                                   */
+DEFINE BROWSE BRW_AONR
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_AONR C-Win _STRUCTURED
+  QUERY BRW_AONR NO-LOCK DISPLAY
+      uvaldaao.OMRADE COLUMN-LABEL "Område" FORMAT "x(6)":U
+      uvaldaao.AONR COLUMN-LABEL "Aonr" FORMAT "X(6)":U
+      uvaldaao.DELNR COLUMN-LABEL "Delnr" FORMAT ">99":U
+      uvaldaao.ORT COLUMN-LABEL "Ort/Benämning" FORMAT "x(40)":U
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-ROW-MARKERS NO-COLUMN-SCROLLING MULTIPLE SIZE 49.5 BY 18
+         FONT 4
+         TITLE "Urvalsresultat".
+
+DEFINE BROWSE BRW_VAONR
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_VAONR C-Win _STRUCTURED
+  QUERY BRW_VAONR NO-LOCK DISPLAY
+      evaldaao.AONR COLUMN-LABEL "Aonr" FORMAT "X(6)":U
+      evaldaao.DELNR COLUMN-LABEL "Delnr" FORMAT ">99":U
+      evaldaao.ORT COLUMN-LABEL "Ort/Benämning" FORMAT "x(40)":U
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-ROW-MARKERS NO-COLUMN-SCROLLING MULTIPLE SIZE 53.5 BY 18
+         FONT 4
+         TITLE "Arbeta vidare med".
+
+
+/* ************************  Frame Definitions  *********************** */
+
+DEFINE FRAME DEFAULT-FRAME
+     BTN_NVE AT ROW 2.04 COL 18.13
+     BTN_NVE-2 AT ROW 2.04 COL 37.63
+     TOG_ADEP AT ROW 2.17 COL 49.5
+     TOG_BDEP AT ROW 2.17 COL 70.5
+     FILL-IN-STARTDAT AT ROW 2.25 COL 6.13 COLON-ALIGNED
+     FILL-IN-STOPPDAT AT ROW 2.25 COL 25.63 COLON-ALIGNED
+     BTN_FVE AT ROW 2.88 COL 18.13
+     BTN_FVE-2 AT ROW 2.88 COL 37.63
+     FILL-IN-K1 AT ROW 3.29 COL 96.13 COLON-ALIGNED WIDGET-ID 10
+     CMB_OMR AT ROW 3.96 COL 11
+     CMB_ARBART AT ROW 3.96 COL 57.63 COLON-ALIGNED WIDGET-ID 2
+     FILL-IN-K2 AT ROW 4.5 COL 96.13 COLON-ALIGNED WIDGET-ID 12
+     CMB_UTF AT ROW 5.04 COL 16.88 COLON-ALIGNED
+     CMB_FAK AT ROW 5.04 COL 57.63 COLON-ALIGNED WIDGET-ID 6
+     FILL-IN-K3 AT ROW 5.71 COL 96.13 COLON-ALIGNED WIDGET-ID 14
+     CMB_PRIO AT ROW 6.17 COL 16.88 COLON-ALIGNED WIDGET-ID 8
+     FILL-IN-K4 AT ROW 6.92 COL 96.13 COLON-ALIGNED WIDGET-ID 16
+     TOG_LEV AT ROW 7.25 COL 56
+     CMB_LEV AT ROW 8.25 COL 62
+     BTN_HAMT AT ROW 8.46 COL 15
+     FBTN_VISA AT ROW 8.5 COL 111
+     FBTN_EX AT ROW 9.33 COL 111
+     BRW_AONR AT ROW 9.71 COL 1.5
+     BRW_VAONR AT ROW 9.71 COL 56
+     BTN_AOF AT ROW 10.42 COL 111
+     BTN_ALLOVER AT ROW 11.83 COL 51.25
+     BTN_HAOF AT ROW 13.5 COL 111
+     BTN_OVER AT ROW 14 COL 51.25
+     BTN_EXTRA AT ROW 15.54 COL 113.5
+     BTN_BACK AT ROW 16.25 COL 51.25
+     BTN_ALLBACK AT ROW 18.42 COL 51.25
+     FILL-IN-AR AT ROW 18.79 COL 109.5 COLON-ALIGNED NO-LABEL
+     FILL-IN_SAONR AT ROW 28.08 COL 12.38 COLON-ALIGNED
+     FILL-IN_ORT AT ROW 28.08 COL 36.13 COLON-ALIGNED
+     FILL-IN_EAONR AT ROW 28.08 COL 72.88 COLON-ALIGNED
+     FILL-IN_DELNR AT ROW 28.08 COL 85.38 COLON-ALIGNED NO-LABEL
+     BTN_AVB AT ROW 28.21 COL 111
+     FILL-IN-AOTEXT AT ROW 1.25 COL 2.25 NO-LABEL
+     FILL-IN-KTO AT ROW 2.29 COL 92.63 COLON-ALIGNED NO-LABEL WIDGET-ID 18
+     FILL-IN-VAL AT ROW 28.17 COL 54.38 COLON-ALIGNED NO-LABEL
+     RECT-49 AT ROW 27.96 COL 56
+     RECT-SOK AT ROW 27.96 COL 1.5
+     IMAGE-1 AT ROW 28.17 COL 1.63
+    WITH 1 DOWN NO-BOX KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 1
+         SIZE 124.88 BY 28.42.
+
+
+/* *********************** Procedure Settings ************************ */
+
+&ANALYZE-SUSPEND _PROCEDURE-SETTINGS
+/* Settings for THIS-PROCEDURE
+   Type: Window
+   Allow: Basic,Browse,DB-Fields,Window,Query
+   Temp-Tables and Buffers:
+      TABLE: evaldaao T "?" NO-UNDO temp-db evaldaao
+      TABLE: uvaldaao T "?" NO-UNDO temp-db uvaldaao
+      TABLE: valdaao T "?" NO-UNDO temp-db valdaao
+   END-TABLES.
+ */
+&ANALYZE-RESUME _END-PROCEDURE-SETTINGS
+
+/* *************************  Create Window  ************************** */
+
+&ANALYZE-SUSPEND _CREATE-WINDOW
+IF SESSION:DISPLAY-TYPE = "GUI":U THEN
+  CREATE WINDOW C-Win ASSIGN
+         HIDDEN             = YES
+         TITLE              = "<insert window title>"
+         HEIGHT             = 28.42
+         WIDTH              = 125
+         MAX-HEIGHT         = 28.42
+         MAX-WIDTH          = 125
+         VIRTUAL-HEIGHT     = 28.42
+         VIRTUAL-WIDTH      = 125
+         RESIZE             = yes
+         SCROLL-BARS        = no
+         STATUS-AREA        = no
+         BGCOLOR            = ?
+         FGCOLOR            = ?
+         KEEP-FRAME-Z-ORDER = yes
+         THREE-D            = yes
+         MESSAGE-AREA       = no
+         SENSITIVE          = yes.
+ELSE {&WINDOW-NAME} = CURRENT-WINDOW.
+/* END WINDOW DEFINITION                                                */
+&ANALYZE-RESUME
+
+
+
+/* ***********  Runtime Attributes and AppBuilder Settings  *********** */
+
+&ANALYZE-SUSPEND _RUN-TIME-ATTRIBUTES
+/* SETTINGS FOR WINDOW C-Win
+  NOT-VISIBLE,,RUN-PERSISTENT                                           */
+/* SETTINGS FOR FRAME DEFAULT-FRAME
+   FRAME-NAME                                                           */
+/* BROWSE-TAB BRW_AONR FBTN_EX DEFAULT-FRAME */
+/* BROWSE-TAB BRW_VAONR BRW_AONR DEFAULT-FRAME */
+ASSIGN 
+       BRW_AONR:MAX-DATA-GUESS IN FRAME DEFAULT-FRAME         = 1000
+       BRW_AONR:ALLOW-COLUMN-SEARCHING IN FRAME DEFAULT-FRAME = TRUE.
+
+ASSIGN 
+       BRW_VAONR:MAX-DATA-GUESS IN FRAME DEFAULT-FRAME         = 10000
+       BRW_VAONR:ALLOW-COLUMN-SEARCHING IN FRAME DEFAULT-FRAME = TRUE.
+
+/* SETTINGS FOR BUTTON BTN_EXTRA IN FRAME DEFAULT-FRAME
+   NO-ENABLE                                                            */
+ASSIGN 
+       BTN_EXTRA:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+ASSIGN 
+       BTN_FVE:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+ASSIGN 
+       BTN_FVE-2:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+ASSIGN 
+       BTN_NVE:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+ASSIGN 
+       BTN_NVE-2:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR COMBO-BOX CMB_ARBART IN FRAME DEFAULT-FRAME
+   NO-DISPLAY                                                           */
+ASSIGN 
+       CMB_ARBART:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR COMBO-BOX CMB_LEV IN FRAME DEFAULT-FRAME
+   ALIGN-L                                                              */
+/* SETTINGS FOR COMBO-BOX CMB_OMR IN FRAME DEFAULT-FRAME
+   ALIGN-L                                                              */
+/* SETTINGS FOR FILL-IN FILL-IN-AOTEXT IN FRAME DEFAULT-FRAME
+   NO-ENABLE ALIGN-L                                                    */
+/* SETTINGS FOR FILL-IN FILL-IN-AR IN FRAME DEFAULT-FRAME
+   NO-DISPLAY NO-ENABLE                                                 */
+ASSIGN 
+       FILL-IN-AR:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-KTO IN FRAME DEFAULT-FRAME
+   NO-ENABLE                                                            */
+ASSIGN 
+       FILL-IN-STARTDAT:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+ASSIGN 
+       FILL-IN-STOPPDAT:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-VAL IN FRAME DEFAULT-FRAME
+   NO-ENABLE                                                            */
+IF SESSION:DISPLAY-TYPE = "GUI":U AND VALID-HANDLE(C-Win)
+THEN C-Win:HIDDEN = yes.
+
+/* _RUN-TIME-ATTRIBUTES-END */
+&ANALYZE-RESUME
+
+
+/* Setting information for Queries and Browse Widgets fields            */
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_AONR
+/* Query rebuild information for BROWSE BRW_AONR
+     _TblList          = "Temp-Tables.uvaldaao"
+     _Options          = "NO-LOCK"
+     _OrdList          = "Temp-Tables.uvaldaao.OMRADE|yes,Temp-Tables.uvaldaao.AONR|yes,Temp-Tables.uvaldaao.DELNR|yes"
+     _FldNameList[1]   > Temp-Tables.uvaldaao.OMRADE
+"uvaldaao.OMRADE" "Område" ? "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" "" "" "" "" "" 0 no 0 no no
+     _FldNameList[2]   > Temp-Tables.uvaldaao.AONR
+"uvaldaao.AONR" "Aonr" ? "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" "" "" "" "" "" 0 no 0 no no
+     _FldNameList[3]   > Temp-Tables.uvaldaao.DELNR
+"uvaldaao.DELNR" "Delnr" ">99" "integer" ? ? ? ? ? ? no ? no no ? yes no no "U" "" "" "" "" "" "" 0 no 0 no no
+     _FldNameList[4]   > Temp-Tables.uvaldaao.ORT
+"uvaldaao.ORT" "Ort/Benämning" ? "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" "" "" "" "" "" 0 no 0 no no
+     _Query            is OPENED
+*/  /* BROWSE BRW_AONR */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_VAONR
+/* Query rebuild information for BROWSE BRW_VAONR
+     _TblList          = "Temp-Tables.evaldaao"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.evaldaao.AONR
+"evaldaao.AONR" "Aonr" ? "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" "" "" "" "" "" 0 no 0 no no
+     _FldNameList[2]   > Temp-Tables.evaldaao.DELNR
+"evaldaao.DELNR" "Delnr" ">99" "integer" ? ? ? ? ? ? no ? no no ? yes no no "U" "" "" "" "" "" "" 0 no 0 no no
+     _FldNameList[3]   > Temp-Tables.evaldaao.ORT
+"evaldaao.ORT" "Ort/Benämning" ? "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" "" "" "" "" "" 0 no 0 no no
+     _Query            is OPENED
+*/  /* BROWSE BRW_VAONR */
+&ANALYZE-RESUME
+
+ 
+
+
+
+/* ************************  Control Triggers  ************************ */
+
+&Scoped-define SELF-NAME C-Win
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL C-Win C-Win
+ON END-ERROR OF C-Win /* <insert window title> */
+OR ENDKEY OF {&WINDOW-NAME} ANYWHERE DO:
+  /* This case occurs when the user presses the "Esc" key.
+     In a persistently run window, just ignore this.  If we did not, the
+     application would exit. */
+   APPLY "CLOSE":U TO THIS-PROCEDURE.
+  IF THIS-PROCEDURE:PERSISTENT THEN RETURN NO-APPLY.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL C-Win C-Win
+ON WINDOW-CLOSE OF C-Win /* <insert window title> */
+DO:
+  /* This event will close the window and terminate the procedure.  */
+  APPLY "CLOSE":U TO THIS-PROCEDURE.
+  RETURN NO-APPLY.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_AOF
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_AOF C-Win
+ON CHOOSE OF BTN_AOF IN FRAME DEFAULT-FRAME /* spara favorit */
+DO:
+   RUN sparaaofavoriter_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_AVB
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_AVB C-Win
+ON CHOOSE OF BTN_AVB IN FRAME DEFAULT-FRAME /* Avsluta */
+DO:
+   APPLY "CLOSE":U TO THIS-PROCEDURE.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_EXTRA
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_EXTRA C-Win
+ON CHOOSE OF BTN_EXTRA IN FRAME DEFAULT-FRAME /* Enstaka aonr */
+DO:
+   {muswait.i}
+   RUN btnextra_UI.
+   {musarrow.i} 
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_FVE
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_FVE C-Win
+ON CHOOSE OF BTN_FVE IN FRAME DEFAULT-FRAME /* - */
+DO: 
+   ASSIGN
+   FILL-IN-STARTDAT = INPUT FILL-IN-STARTDAT.   
+   FILL-IN-STARTDAT = FILL-IN-STARTDAT - 1.      
+   DISPLAY FILL-IN-STARTDAT WITH FRAME {&FRAME-NAME}.     
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_FVE-2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_FVE-2 C-Win
+ON CHOOSE OF BTN_FVE-2 IN FRAME DEFAULT-FRAME /* - */
+DO: 
+   ASSIGN
+   FILL-IN-STOPPDAT = INPUT FILL-IN-STOPPDAT.   
+   FILL-IN-STOPPDAT = FILL-IN-STOPPDAT - 1.      
+   DISPLAY FILL-IN-STOPPDAT WITH FRAME {&FRAME-NAME}.     
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_HAMT
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_HAMT C-Win
+ON CHOOSE OF BTN_HAMT IN FRAME DEFAULT-FRAME /* Hämta och visa urval */
+DO:   
+   RUN allaao_UI.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_HAOF
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_HAOF C-Win
+ON CHOOSE OF BTN_HAOF IN FRAME DEFAULT-FRAME /* HÄMTA favorit */
+DO:
+   RUN hmtfavoriter_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_NVE
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_NVE C-Win
+ON CHOOSE OF BTN_NVE IN FRAME DEFAULT-FRAME /* + */
+DO:   
+   ASSIGN
+   FILL-IN-STARTDAT = INPUT FILL-IN-STARTDAT.   
+   FILL-IN-STARTDAT = FILL-IN-STARTDAT + 1.        
+   DISPLAY FILL-IN-STARTDAT WITH FRAME {&FRAME-NAME}.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_NVE-2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_NVE-2 C-Win
+ON CHOOSE OF BTN_NVE-2 IN FRAME DEFAULT-FRAME /* + */
+DO:   
+   ASSIGN
+   FILL-IN-STOPPDAT = INPUT FILL-IN-STOPPDAT.   
+   FILL-IN-STOPPDAT = FILL-IN-STOPPDAT + 1.        
+   DISPLAY FILL-IN-STOPPDAT WITH FRAME {&FRAME-NAME}.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME CMB_ARBART
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL CMB_ARBART C-Win
+ON VALUE-CHANGED OF CMB_ARBART IN FRAME DEFAULT-FRAME /* Arbetsart */
+DO:
+     CMB_ARBART = INPUT CMB_ARBART. 
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME CMB_FAK
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL CMB_FAK C-Win
+ON VALUE-CHANGED OF CMB_FAK IN FRAME DEFAULT-FRAME /* Fakturakategori */
+DO:
+  CMB_FAK = INPUT CMB_FAK.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME CMB_LEV
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL CMB_LEV C-Win
+ON VALUE-CHANGED OF CMB_LEV IN FRAME DEFAULT-FRAME /* Leverantör till Excel */
+DO:                           
+   CMB_LEV = INPUT CMB_LEV.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME CMB_OMR
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL CMB_OMR C-Win
+ON VALUE-CHANGED OF CMB_OMR IN FRAME DEFAULT-FRAME /* Område */
+DO:
+   CMB_OMR = INPUT CMB_OMR.        
+   {CMB_PRIO.I}         
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME CMB_PRIO
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL CMB_PRIO C-Win
+ON VALUE-CHANGED OF CMB_PRIO IN FRAME DEFAULT-FRAME /* Prioritet */
+DO:
+     CMB_PRIO = INPUT CMB_PRIO. 
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME CMB_UTF
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL CMB_UTF C-Win
+ON VALUE-CHANGED OF CMB_UTF IN FRAME DEFAULT-FRAME /* Utfärdare */
+DO:
+   CMB_UTF = INPUT CMB_UTF.    
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FBTN_EX
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FBTN_EX C-Win
+ON CHOOSE OF FBTN_EX IN FRAME DEFAULT-FRAME /* Visa i excel */
+DO:
+   RUN visa_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FBTN_VISA
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FBTN_VISA C-Win
+ON CHOOSE OF FBTN_VISA IN FRAME DEFAULT-FRAME /* Visa */
+DO:
+   IF TOG_ADEP = TRUE AND TOG_BDEP = TRUE THEN DO:
+      MESSAGE "Du kan antingen välja  Även depåbeställningar eller Bara depåbeställningar. Inte båda" VIEW-AS ALERT-BOX.      
+      RETURN NO-APPLY.
+   END.  
+   RUN visa2_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FBTN_VISA C-Win
+ON GO OF FBTN_VISA IN FRAME DEFAULT-FRAME /* Visa */
+DO:
+   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FILL-IN-AR
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-AR C-Win
+ON LEAVE OF FILL-IN-AR IN FRAME DEFAULT-FRAME
+DO:
+   FILL-IN-AR = INPUT FILL-IN-AR.  
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FILL-IN-K1
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-K1 C-Win
+ON LEAVE OF FILL-IN-K1 IN FRAME DEFAULT-FRAME /* KONTOK1 */
+DO:
+  FILL-IN-K1 = INPUT FILL-IN-K1.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FILL-IN-K2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-K2 C-Win
+ON LEAVE OF FILL-IN-K2 IN FRAME DEFAULT-FRAME /* KONTO */
+DO:
+    FILL-IN-K2 = INPUT FILL-IN-K2.
+
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FILL-IN-K3
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-K3 C-Win
+ON LEAVE OF FILL-IN-K3 IN FRAME DEFAULT-FRAME /* KONTOK3 */
+DO:
+    FILL-IN-K3 = INPUT FILL-IN-K3.
+
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FILL-IN-K4
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-K4 C-Win
+ON LEAVE OF FILL-IN-K4 IN FRAME DEFAULT-FRAME /* KONTOK4 */
+DO:
+    FILL-IN-K4 = INPUT FILL-IN-K4.
+
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FILL-IN-STARTDAT
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-STARTDAT C-Win
+ON LEAVE OF FILL-IN-STARTDAT IN FRAME DEFAULT-FRAME /* Från */
+DO:
+   FILL-IN-STARTDAT = INPUT FILL-IN-STARTDAT.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-STARTDAT C-Win
+ON MOUSE-MENU-CLICK OF FILL-IN-STARTDAT IN FRAME DEFAULT-FRAME /* Från */
+DO:
+   ASSIGN
+   FILL-IN-STARTDAT = INPUT FILL-IN-STARTDAT
+   Guru.GlobalaVariabler:regdatum = INPUT FILL-IN-STARTDAT.
+   RUN AlmanBtn.w.
+   FILL-IN-STARTDAT = Guru.GlobalaVariabler:regdatum.
+   DISPLAY FILL-IN-STARTDAT WITH FRAME {&FRAME-NAME}.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FILL-IN-STOPPDAT
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-STOPPDAT C-Win
+ON LEAVE OF FILL-IN-STOPPDAT IN FRAME DEFAULT-FRAME /* Till */
+DO:
+   FILL-IN-STOPPDAT = INPUT FILL-IN-STOPPDAT.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-STOPPDAT C-Win
+ON MOUSE-MENU-CLICK OF FILL-IN-STOPPDAT IN FRAME DEFAULT-FRAME /* Till */
+DO: 
+   ASSIGN
+   FILL-IN-STOPPDAT = INPUT FILL-IN-STOPPDAT
+   Guru.GlobalaVariabler:regdatum = INPUT FILL-IN-STOPPDAT.
+   RUN AlmanBtn.w.
+   FILL-IN-STOPPDAT = Guru.GlobalaVariabler:regdatum.
+   DISPLAY FILL-IN-STOPPDAT WITH FRAME {&FRAME-NAME}.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FILL-IN_DELNR
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN_DELNR C-Win
+ON ANY-KEY OF FILL-IN_DELNR IN FRAME DEFAULT-FRAME
+DO:
+   {TRYCKS.I}
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      APPLY "MOUSE-SELECT-DBLCLICK" TO FILL-IN_EAONR IN FRAME {&FRAME-NAME}.
+   END. 
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN_DELNR C-Win
+ON ENTRY OF FILL-IN_DELNR IN FRAME DEFAULT-FRAME
+DO:
+   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN_DELNR C-Win
+ON LEAVE OF FILL-IN_DELNR IN FRAME DEFAULT-FRAME
+DO:
+   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN_DELNR C-Win
+ON MOUSE-SELECT-DBLCLICK OF FILL-IN_DELNR IN FRAME DEFAULT-FRAME
+DO:
+   APPLY "CHOOSE" TO BTN_EXTRA.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FILL-IN_EAONR
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN_EAONR C-Win
+ON ANY-KEY OF FILL-IN_EAONR IN FRAME DEFAULT-FRAME /* Aonr */
+DO:
+   {TRYCKS.I}
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      APPLY "MOUSE-SELECT-DBLCLICK" TO FILL-IN_EAONR IN FRAME {&FRAME-NAME}.
+   END. 
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN_EAONR C-Win
+ON ENTRY OF FILL-IN_EAONR IN FRAME DEFAULT-FRAME /* Aonr */
+DO:
+   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN_EAONR C-Win
+ON LEAVE OF FILL-IN_EAONR IN FRAME DEFAULT-FRAME /* Aonr */
+DO:
+   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN_EAONR C-Win
+ON MOUSE-SELECT-DBLCLICK OF FILL-IN_EAONR IN FRAME DEFAULT-FRAME /* Aonr */
+DO:
+   APPLY "CHOOSE" TO BTN_EXTRA.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FILL-IN_ORT
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN_ORT C-Win
+ON ANY-KEY OF FILL-IN_ORT IN FRAME DEFAULT-FRAME /* Ort/Benämning */
+DO:
+   {TRYCKS.I}
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      APPLY "MOUSE-SELECT-DBLCLICK" TO FILL-IN_ORT IN FRAME {&FRAME-NAME}.
+   END.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN_ORT C-Win
+ON LEAVE OF FILL-IN_ORT IN FRAME DEFAULT-FRAME /* Ort/Benämning */
+DO:
+   FILL-IN_ORT = INPUT FILL-IN_ORT.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN_ORT C-Win
+ON MOUSE-SELECT-DBLCLICK OF FILL-IN_ORT IN FRAME DEFAULT-FRAME /* Ort/Benämning */
+DO:   
+   FILL-IN_ORT = INPUT FILL-IN_ORT.
+   status-ok = BRW_AONR:SELECT-FOCUSED-ROW() NO-ERROR.
+   APPLY "VALUE-CHANGED" TO BRW_AONR.
+   ASSIGN   
+   aonummer = uvaldaao.AONR
+   delnummer = uvaldaao.DELNR.      
+   IF FILL-IN_ORT = '' THEN DO:
+      MESSAGE "Sökbegreppet kan inte vara blankt." VIEW-AS ALERT-BOX.
+      APPLY "ENTRY" TO FILL-IN_ORT IN FRAME {&FRAME-NAME}.
+      RETURN NO-APPLY.
+   END.      
+   ortssok = '*' + FILL-IN_ORT + '*'.   
+   FIND uvaldaao WHERE uvaldaao.AONR = aonummer AND 
+   uvaldaao.DELNR = delnummer NO-LOCK NO-ERROR.
+   FIND NEXT uvaldaao WHERE uvaldaao.ORT MATCHES ortssok 
+   NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE uvaldaao THEN DO:
+      FIND FIRST uvaldaao WHERE uvaldaao.ORT MATCHES ortssok 
+      NO-LOCK NO-ERROR.      
+   END.
+   IF NOT AVAILABLE uvaldaao THEN DO:
+      MESSAGE "Det finns inget på sökbegreppet." VIEW-AS ALERT-BOX.
+      APPLY "ENTRY" TO FILL-IN_ORT IN FRAME {&FRAME-NAME}.
+      RETURN NO-APPLY.   
+   END.
+   IF AVAILABLE uvaldaao THEN DO:
+      RUN setlastrowid_UI IN brwproc[{&LEFT-BROWSE}] (INPUT ROWID(uvaldaao)).
+      RUN lastselectdyn_UI IN brwproc[{&LEFT-BROWSE}].
+   END.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FILL-IN_SAONR
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN_SAONR C-Win
+ON ANY-KEY OF FILL-IN_SAONR IN FRAME DEFAULT-FRAME /* Aonr */
+DO:
+   {TRYCKS.I}
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      APPLY "MOUSE-SELECT-DBLCLICK" TO FILL-IN_SAONR IN FRAME {&FRAME-NAME}.
+   END. 
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN_SAONR C-Win
+ON LEAVE OF FILL-IN_SAONR IN FRAME DEFAULT-FRAME /* Aonr */
+DO:
+   FILL-IN_SAONR = INPUT FILL-IN_SAONR.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN_SAONR C-Win
+ON MOUSE-SELECT-DBLCLICK OF FILL-IN_SAONR IN FRAME DEFAULT-FRAME /* Aonr */
+DO:
+   FILL-IN_SAONR = INPUT FILL-IN_SAONR.
+   status-ok = BRW_AONR:SELECT-FOCUSED-ROW() NO-ERROR.
+   IF NOT AVAILABLE uvaldaao THEN DO:
+      RETURN NO-APPLY.
+   END.
+   APPLY "VALUE-CHANGED" TO BRW_AONR.
+   ASSIGN
+   aonummer = uvaldaao.AONR
+   delnummer = uvaldaao.DELNR.
+   IF FILL-IN_SAONR = '' THEN DO:
+      MESSAGE "Sökbegreppet kan inte vara blankt." VIEW-AS ALERT-BOX.
+      APPLY "ENTRY" TO FILL-IN_SAONR IN FRAME {&FRAME-NAME}.
+      RETURN NO-APPLY.
+   END.      
+   aosok = '*' + FILL-IN_SAONR + '*'.
+   FIND FIRST uvaldaao WHERE uvaldaao.AONR = aonummer AND 
+   uvaldaao.DELNR = delnummer NO-LOCK NO-ERROR.
+   FIND NEXT uvaldaao WHERE uvaldaao.AONR MATCHES aosok 
+   NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE uvaldaao THEN DO:
+      FIND FIRST uvaldaao WHERE uvaldaao.AONR MATCHES aosok 
+      NO-LOCK NO-ERROR.
+   END.
+   IF NOT AVAILABLE uvaldaao THEN DO:
+      MESSAGE "Det finns inget på sökbegreppet." VIEW-AS ALERT-BOX.
+      APPLY "ENTRY" TO FILL-IN_SAONR IN FRAME {&FRAME-NAME}.
+      RETURN NO-APPLY.     
+   END.
+   IF AVAILABLE uvaldaao THEN DO:
+      RUN setlastrowid_UI IN brwproc[{&LEFT-BROWSE}] (INPUT ROWID(uvaldaao)).
+      RUN lastselectdyn_UI IN brwproc[{&LEFT-BROWSE}].
+   END.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME TOG_ADEP
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL TOG_ADEP C-Win
+ON VALUE-CHANGED OF TOG_ADEP IN FRAME DEFAULT-FRAME /* Även depåbest. */
+DO:
+  TOG_ADEP = INPUT TOG_ADEP. 
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME TOG_BDEP
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL TOG_BDEP C-Win
+ON VALUE-CHANGED OF TOG_BDEP IN FRAME DEFAULT-FRAME /* Bara depåbest. */
+DO:
+    TOG_BDEP = INPUT TOG_BDEP. 
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME TOG_LEV
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL TOG_LEV C-Win
+ON VALUE-CHANGED OF TOG_LEV IN FRAME DEFAULT-FRAME /* Alla leverantörer till Excel */
+DO:
+   {muswait.i}
+   TOG_LEV = INPUT TOG_LEV. 
+
+   IF TOG_LEV = TRUE THEN DO:
+      CMB_LEV:VISIBLE = FALSE.
+   END.
+   ELSE IF TOG_LEV = FALSE THEN DO:
+      CMB_LEV:VISIBLE = TRUE.
+   END.
+   
+   {musarrow.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_AONR
+&UNDEFINE SELF-NAME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CUSTOM _MAIN-BLOCK C-Win 
+
+
+/* ***************************  Main Block  *************************** */
+
+/* Set CURRENT-WINDOW: this will parent dialog-boxes and frames.        */
+ASSIGN CURRENT-WINDOW                = {&WINDOW-NAME} 
+       THIS-PROCEDURE:CURRENT-WINDOW = {&WINDOW-NAME}.
+
+/* The CLOSE event can be used from inside or outside the procedure to  */
+/* terminate it.                                                        */
+ON CLOSE OF THIS-PROCEDURE 
+DO:
+   IF VALID-HANDLE(kuurvalapph) THEN DELETE PROCEDURE kuurvalapph.
+   IF VALID-HANDLE(nyttaoapph2) THEN DO:
+      RUN borthandle_UI IN nyttaoapph2.
+      DELETE PROCEDURE nyttaoapph2 NO-ERROR.
+      nyttaoapph2 = ?.
+   END.  
+   IF VALID-HANDLE(aonrapph) THEN DELETE PROCEDURE aonrapph NO-ERROR.      
+   {BORTBRWPROC.I}
+   
+   RUN disable_UI.
+END.
+   
+
+/* Best default for GUI applications is...                              */
+PAUSE 0 BEFORE-HIDE.
+
+/* Now enable the interface and wait for the exit condition.            */
+/* (NOTE: handle ERROR and END-KEY so cleanup code will always fire.    */
+MAIN-BLOCK:
+DO ON ERROR   UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK
+   ON END-KEY UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK:
+   {WIN_M_START.I}
+   {muswait.i}  
+   
+   {ALLSTARTDYN.I}      
+   IF Guru.Konstanter:mtrlsekvar[6] = TRUE THEN DO:
+      LEAVE MAIN-BLOCK.       
+   END.
+   CREATE uppvaltemp.
+   ASSIGN         
+   uppvaltemp.VALDLISTA = "Gjorda beställningar"
+   uppvaltemp.ENDBEST = ?
+   uppvaltemp.DELNRKOLL = TRUE
+   uppvaltemp.VISPERAR = TRUE
+   uppvaltemp.STARTDATUM = DATE(01,01,YEAR(TODAY))
+   uppvaltemp.SLUTDATUM  = TODAY
+   uppvaltemp.AVSLUTSTART = DATE(01,01,YEAR(TODAY))
+   uppvaltemp.AVSLUTSLUT = TODAY
+   uppvaltemp.TILLFALLFAST = 1
+   SUBSTRING(uppvaltemp.PROJEKTOR,1,20) = "ALLA"
+   uppvaltemp.BEREDARE = "ALLA"
+   uppvaltemp.ARBANSVARIG = "ALLA"
+   uppvaltemp.BESTNAMN = "ALLA"
+   uppvaltemp.OMRNAMN = "ALLA"
+   uppvaltemp.AVDNAMN = "ALLA"
+   uppvaltemp.AVDNR = "ALLA"
+   uppvaltemp.FAKTTYP = "ALLA"
+   uppvaltemp.PAAV = 1
+   uppvaltemp.MANUPPD = FALSE.
+           
+   RUN delnrkoll_UI.  
+   CMB_ARBART:LABEL = Guru.Konstanter:gartk.
+   CMB_PRIO:LABEL = Guru.Konstanter:gpriok.       
+   CMB_OMR:LIST-ITEMS = "". 
+   status-ok = CMB_OMR:ADD-FIRST("Alla").
+   FOR EACH omrtemp:
+      status-ok = CMB_OMR:ADD-LAST(omrtemp.NAMN).                        
+   END.   
+   /*start ladd*/
+   EMPTY TEMP-TABLE priotemp NO-ERROR. 
+   RUN laddaprio IN nyttaoapph2 ( OUTPUT TABLE priotemp).      
+   IF Guru.Konstanter:appcon THEN DO:                           
+      RUN ARBARTS.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+      (OUTPUT TABLE aarttemp).
+   END.
+   ELSE DO:
+      RUN ARBARTS.P 
+      (OUTPUT TABLE aarttemp).                  
+   END.
+   CMB_FAK:LIST-ITEMS = "" .
+   FOR EACH faktyptemp : 
+      status-ok = CMB_FAK:ADD-LAST(faktyptemp.VIFAKTTYP).      
+   END.
+   
+   FILL-IN_ORT:LABEL = Guru.Konstanter:gaonamnk.
+   CMB_ARBART:LIST-ITEMS = "".
+   status-ok = CMB_ARBART:ADD-FIRST("Alla").
+   FOR EACH aarttemp USE-INDEX ARBARTKOD NO-LOCK:
+      status-ok = CMB_ARBART:ADD-LAST(aarttemp.ARBBENAMNING).
+   END.
+   FIND FIRST aarttemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE aarttemp THEN DO:
+      CMB_ARBART:HIDDEN = TRUE.
+   END.
+   CMB_PRIO:LIST-ITEMS = "".
+   status-ok = CMB_PRIO:ADD-FIRST("Alla").
+   FOR EACH priotemp NO-LOCK:
+      status-ok = CMB_PRIO:ADD-LAST(priotemp.P-BENAMNING).
+   END.
+   RUN labelk2 IN aonrapph (OUTPUT labelvar2).      
+   RUN labelk3 IN aonrapph (OUTPUT labelvar3).   
+   RUN labelk4 IN aonrapph (OUTPUT labelvar4).   
+   assign   
+   FILL-IN-K2:LABEL = labelvar2
+   FILL-IN-K3:LABEL = labelvar3
+   FILL-IN-K4:LABEL = labelvar4
+   FILL-IN-AOTEXT:SCREEN-VALUE = "Gör urval av " + LC(Guru.Konstanter:gaol).              
+   RUN labelk1 IN aonrapph (OUTPUT labelvar1).
+   FILL-IN-K1:LABEL = labelvar1.     
+   /*slut ladd*/
+            
+   RUN utf_UI.
+   ASSIGN
+   FILL-IN-AOTEXT:SCREEN-VALUE = "Gör urval av " + LC(Guru.Konstanter:gaol)
+   FILL-IN_SAONR:LABEL = Guru.Konstanter:gaok
+   FILL-IN_EAONR:LABEL = Guru.Konstanter:gaok
+   FILL-IN-VAL = "Hämta " + LC(Guru.Konstanter:gaok)
+   CMB_OMR:LABEL = Guru.Konstanter:gomrk
+   uvaldaao.OMRADE:LABEL IN BROWSE BRW_AONR = Guru.Konstanter:gomrk
+   uvaldaao.AONR:LABEL IN BROWSE BRW_AONR = Guru.Konstanter:gaok
+   BTN_ALLBACK:TOOLTIP = "Alla valda " + LC(Guru.Konstanter:gaok) + " tas bort"   
+   BTN_ALLOVER:TOOLTIP = "Alla " + LC(Guru.Konstanter:gaok) + " väljs"
+   evaldaao.AONR:LABEL IN BROWSE BRW_VAONR = Guru.Konstanter:gaok
+   BTN_EXTRA:LABEL = "Enstaka " +  LC(Guru.Konstanter:gaok).
+   &Scoped-define FORMATNAMN uvaldaao.AONR
+   &Scoped-define BROWSE-NAME BRW_AONR
+   {AOFORMAT1.I}
+   &Scoped-define FORMATNAMN evaldaao.AONR
+   &Scoped-define BROWSE-NAME BRW_VAONR
+   {AOFORMAT1.I}
+   &Scoped-define FORMATNAMN FILL-IN_SAONR   
+   {AOFORMAT3.I}
+   &Scoped-define FORMATNAMN FILL-IN_EAONR   
+   {AOFORMAT3.I}
+   &Scoped-define FORMATNAMN FILL-IN_DELNR   
+   {DELNRFORMAT.I}
+   RUN btnupp_UI.
+   RUN enable_UI.
+   {FRMSIZEF.I}
+   RUN ladda_UI. 
+   DEBUGGER:SET-BREAK().
+   FIND FIRST aarttemp NO-ERROR.
+   IF AVAILABLE aarttemp THEN DO:   
+      CMB_ARBART:HIDDEN = FALSE.            
+      CMB_ARBART:SCREEN-VALUE = "Alla".
+      CMB_ARBART = "Alla".     
+   END.
+   ELSE CMB_ARBART:HIDDEN = TRUE.
+   FIND FIRST priotemp NO-ERROR.
+   IF AVAILABLE priotemp THEN DO:   
+      CMB_PRIO:HIDDEN = FALSE.            
+      CMB_PRIO:SCREEN-VALUE = "Alla".
+      CMB_PRIO = "Alla".     
+   END.
+   ELSE CMB_PRIO:HIDDEN = TRUE.
+   IF Guru.Konstanter:varforetypval[3] >= 1 AND Guru.Konstanter:varforetypval[3] < 4 THEN DO:
+      CMB_FAK:SCREEN-VALUE = "Alla".
+      CMB_FAK = "Alla".
+   END.   
+   ELSE CMB_FAK:HIDDEN = TRUE.
+   IF labelvar2 = "" THEN FILL-IN-K2:HIDDEN = TRUE.
+   IF labelvar1 = "" THEN FILL-IN-K1:HIDDEN = TRUE.
+   IF labelvar3 = "" THEN FILL-IN-K3:HIDDEN = TRUE.
+   IF labelvar4 = "" THEN FILL-IN-K4:HIDDEN = TRUE.
+   IF labelvar1 = "" AND labelvar2 = ""  THEN FILL-IN-KTO:HIDDEN  = TRUE.
+   Guru.GlobalaVariabler:collefth = ?.
+   
+   Guru.GlobalaVariabler:colrighth = FBTN_VISA:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).      
+   FBTN_EX:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = FBTN_EX:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).      
+   BTN_HAOF:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = BTN_HAOF:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).      
+   BTN_AOF:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = BTN_AOF:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).         
+   ASSIGN C-Win:TITLE = uppvaltemp.VALDLISTA.   
+   GET FIRST BRW_VAONR NO-LOCK.    
+   {musarrow.i}   
+   {WIN_M_SLUT.I}
+   RUN goma_UI.
+   RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+   /* Fylla leverantörslistan och positionera till huvudlev*/
+   RUN hamtalev_UI IN hamtapp (OUTPUT TABLE templeverant, OUTPUT hlevkod).
+   FOR EACH templeverant NO-LOCK:
+      CMB_LEV:ADD-LAST(templeverant.LEVNAMN).
+   END.
+   FIND FIRST templeverant WHERE templeverant.LEVKOD = hlevkod NO-LOCK NO-ERROR.
+   CMB_LEV:SCREEN-VALUE = templeverant.LEVNAMN.
+   CMB_LEV = INPUT CMB_LEV.
+   IF Guru.Konstanter:globforetag = "elpa" THEN DO:
+      FBTN_VISA:VISIBLE = TRUE.
+      FBTN_EX:VISIBLE = TRUE.
+      TOG_LEV:VISIBLE = TRUE. 
+      CMB_LEV:VISIBLE = TRUE.
+      TOG_ADEP:VISIBLE = TRUE.
+      TOG_BDEP:VISIBLE = TRUE.      
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "gran" OR Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "LULE"  THEN DO:
+      FBTN_VISA:VISIBLE = TRUE.
+      FBTN_EX:VISIBLE = FALSE.
+      TOG_LEV:VISIBLE = FALSE.
+      CMB_LEV:VISIBLE = FALSE.
+      TOG_ADEP:VISIBLE = FALSE.
+      TOG_BDEP:VISIBLE = FALSE.
+      IF Guru.Konstanter:globforetag = "LULE" THEN DO:
+         TOG_ADEP:VISIBLE = TRUE.
+         TOG_BDEP:VISIBLE = TRUE.
+      END.   
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "fors" OR Guru.Konstanter:globforetag = "celpa" THEN DO:
+      FBTN_VISA:VISIBLE = TRUE.   
+      FBTN_EX:VISIBLE = TRUE.
+      TOG_LEV:VISIBLE = TRUE. 
+      TOG_ADEP:VISIBLE = FALSE.
+      TOG_BDEP:VISIBLE = FALSE.     
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "VAST" OR Guru.Konstanter:globforetag = "celpa" THEN DO:
+      FBTN_VISA:VISIBLE = TRUE.
+      FBTN_EX:VISIBLE = TRUE.
+      TOG_LEV:VISIBLE = TRUE.
+      CMB_LEV:VISIBLE = TRUE.
+      TOG_ADEP:VISIBLE = FALSE.
+      TOG_BDEP:VISIBLE = FALSE.
+   END.
+   ELSE  DO:
+      FBTN_VISA:VISIBLE = TRUE.   
+      FBTN_EX:VISIBLE = TRUE.
+      TOG_LEV:VISIBLE = TRUE. 
+      TOG_ADEP:VISIBLE = FALSE.
+      TOG_BDEP:VISIBLE = FALSE.     
+   END.
+   IF NOT THIS-PROCEDURE:PERSISTENT THEN
+    WAIT-FOR CLOSE OF THIS-PROCEDURE.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+/* **********************  Internal Procedures  *********************** */
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE allaao_UI C-Win 
+PROCEDURE allaao_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   {muswait.i}   
+   DEFINE VARIABLE usernam AS CHARACTER.
+   DEFINE VARIABLE area AS CHARACTER.
+   EMPTY TEMP-TABLE uvaldaao NO-ERROR.    
+   FIND FIRST omrtemp WHERE omrtemp.NAMN = CMB_OMR NO-LOCK NO-ERROR.      
+   IF AVAILABLE omrtemp THEN area = omrtemp.OMRADE.
+   ELSE area = "Alla".   
+   IF CMB_UTF NE "Alla" THEN DO:
+       FIND FIRST batemp WHERE batemp.ANVNAMN = CMB_UTF NO-ERROR.
+       usernam = batemp.ANVANDARE.
+   END.
+   ELSE usernam = CMB_UTF.   
+   IF CMB_PRIO NE "Alla" THEN DO:
+       FIND FIRST priotemp WHERE priotemp.P-BENAMNING = CMB_PRIO NO-ERROR.
+       IF AVAILABLE priotemp THEN DO: 
+         priok = priotemp.PKOD.
+      END.   
+      ELSE priok = 0.
+   END.
+   ELSE priok = 0.
+   IF CMB_ARBART NE "Alla" THEN DO:
+       FIND FIRST aarttemp WHERE aarttemp.ARBBENAMNING = CMB_ARBART NO-ERROR.
+       IF AVAILABLE aarttemp  THEN DO:
+         aartk = aarttemp.ARBARTKOD.
+       END.  
+       ELSE aartk = 0.
+   END.
+   ELSE aartk = 0.
+   IF CMB_FAK NE "Alla" THEN DO:
+      FIND faktyptemp WHERE faktyptemp.VIFAKTTYP = CMB_FAK NO-ERROR.
+      IF AVAILABLE faktyptemp  THEN DO:      
+         ftyp = faktyptemp.FAKTTYP.
+      END.   
+      ELSE ftyp = "Alla".
+   END.
+   ELSE ftyp = "Alla".         
+   RUN hamtaAO_UI IN hamtapp (INPUT FILL-IN-STARTDAT, INPUT FILL-IN-STOPPDAT, INPUT area, INPUT usernam,INPUT priok, INPUT aartk,
+   INPUT ftyp,INPUT FILL-IN-K1,INPUT FILL-IN-K2,INPUT FILL-IN-K3,INPUT FILL-IN-K4, OUTPUT TABLE uvaldaao).   
+   OPEN QUERY BRW_AONR FOR EACH uvaldaao NO-LOCK.   
+   RUN title_UI IN brwproc[{&LEFT-BROWSE}].
+   
+   RUN goma_UI.
+   {musarrow.i}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE allstartbrw_UI C-Win 
+PROCEDURE allstartbrw_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   RUN DYNBRW.P PERSISTENT SET brwproc[{&LEFT-BROWSE}]
+      (INPUT BRW_AONR:HANDLE IN FRAME {&FRAME-NAME}).  
+   RUN DYNBRW.P PERSISTENT SET brwproc[{&RIGHT-BROWSE}]
+      (INPUT BRW_VAONR:HANDLE IN FRAME {&FRAME-NAME}).  
+   RUN DYNARROW.P PERSISTENT SET brwproc[{&ARROWS}]
+      (INPUT BRW_AONR:HANDLE, INPUT BRW_VAONR:HANDLE ,
+       INPUT BTN_OVER:HANDLE, INPUT BTN_ALLOVER:HANDLE ,
+       INPUT BTN_ALLBACK:HANDLE, INPUT BTN_BACK:HANDLE).
+   {INKKOLL1.I}    
+   IF Guru.Konstanter:appcon THEN DO:
+      RUN KUURVALAPP.P PERSISTENT SET kuurvalapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+      RUN MAONRAPP.P PERSISTENT SET aonrapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+      RUN NYTTAOAPP.P PERSISTENT SET nyttaoapph2 ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+      IF inkopkollvar = TRUE THEN RUN INKDIVHAMTAPP.P PERSISTENT SET hamtapp ON Guru.Konstanter:apphand TRANSACTION DISTINCT.
+      ELSE RUN DIVHAMTAPP.P PERSISTENT SET hamtapp ON Guru.Konstanter:apphand TRANSACTION DISTINCT.
+      RUN NETTOMARK.P PERSISTENT SET nettoh ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+   END.
+   ELSE DO:
+      RUN KUURVALAPP.P PERSISTENT SET kuurvalapph.
+      RUN MAONRAPP.P PERSISTENT SET aonrapph.
+      RUN NYTTAOAPP.P PERSISTENT SET nyttaoapph2.      
+      IF inkopkollvar = TRUE THEN RUN INKDIVHAMTAPP.P PERSISTENT SET hamtapp.
+      ELSE RUN DIVHAMTAPP.P PERSISTENT SET hamtapp.
+                
+      RUN NETTOMARK.P PERSISTENT SET nettoh. 
+   END.
+  
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE aokomp_UI C-Win 
+PROCEDURE aokomp_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   DEFINE INPUT PARAMETER vad AS INTEGER NO-UNDO.
+   IF vad = 1 THEN DO:
+      FOR EACH evaldaao NO-LOCK:
+         RUN komplettaonr IN aonrapph 
+         (INPUT evaldaao.AONR,INPUT evaldaao.DELNR,
+         OUTPUT aonrrec,OUTPUT projvar,OUTPUT bortvar).
+         ASSIGN
+         evaldaao.PROJEKTOR = projvar
+         evaldaao.AONRREC = aonrrec
+         evaldaao.TABORT = bortvar.      
+      END.
+      FOR EACH evaldaao,
+      EACH omrtemp WHERE omrtemp.OMRADE = evaldaao.OMRADE:
+         evaldaao.AVDELNINGNR = omrtemp.AVDELNINGNR.
+      END.
+   END.
+   ELSE IF vad = 2 THEN DO:
+      RUN komplettaonr IN aonrapph 
+         (INPUT evaldaao.AONR,INPUT evaldaao.DELNR,
+         OUTPUT aonrrec,OUTPUT projvar,OUTPUT bortvar).
+      ASSIGN
+      evaldaao.PROJEKTOR = projvar
+      evaldaao.AONRREC = aonrrec
+      evaldaao.TABORT = bortvar.      
+      FIND FIRST omrtemp WHERE omrtemp.OMRADE = evaldaao.OMRADE NO-LOCK NO-ERROR.
+      IF AVAILABLE omrtemp THEN DO:
+         evaldaao.AVDELNINGNR = omrtemp.AVDELNINGNR.
+      END.
+   END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnextra_UI C-Win 
+PROCEDURE btnextra_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/   
+   ASSIGN
+   FILL-IN_EAONR = INPUT FRAME {&FRAME-NAME}  FILL-IN_EAONR
+   FILL-IN_DELNR = INPUT FILL-IN_DELNR.
+   IF uppvaltemp.DELNRKOLL = FALSE AND FILL-IN_DELNR NE 0 THEN DO:
+      MESSAGE "Ni använder Er ej av delnr i denna rutin."
+      VIEW-AS ALERT-BOX.         
+      RETURN NO-APPLY.      
+   END.  
+   ASSIGN
+   aonummer = FILL-IN_EAONR
+   delnummer = FILL-IN_DELNR.   
+   status-ok = BRW_VAONR:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME} NO-ERROR. 
+   IF AVAILABLE evaldaao THEN DO:
+      ASSIGN
+      tillbakaaonr = evaldaao.AONR
+      tillbakadelnr = evaldaao.DELNR.
+   END.
+   ELSE tillbakaaonr = ?.
+   FIND FIRST evaldaao WHERE evaldaao.AONR = aonummer AND 
+   evaldaao.DELNR = delnummer NO-LOCK NO-ERROR. 
+   IF AVAILABLE evaldaao THEN DO:
+      RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(evaldaao)).
+      RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+      RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].        
+   END.
+   ELSE DO:
+      RUN aonrhmtaen IN aonrapph (INPUT aonummer,INPUT delnummer,
+      OUTPUT TABLE evaldaao APPEND,OUTPUT TABLE felmeddtemp).
+      FIND FIRST felmeddtemp NO-LOCK NO-ERROR.
+      IF AVAILABLE felmeddtemp THEN DO:
+         FIND FIRST evaldaao WHERE evaldaao.AONR = tillbakaaonr AND 
+         evaldaao.DELNR = tillbakadelnr NO-LOCK NO-ERROR. 
+         IF AVAILABLE evaldaao THEN DO:
+            RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(evaldaao)).
+            RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+            RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].        
+         END.
+         MESSAGE felmeddtemp.FELMEDD VIEW-AS ALERT-BOX TITLE "Meddelande".
+         DELETE felmeddtemp.         
+      END.
+      ELSE DO:
+         RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+         FIND FIRST evaldaao WHERE evaldaao.AONR = aonummer AND 
+         evaldaao.DELNR = delnummer NO-LOCK NO-ERROR.
+         IF AVAILABLE evaldaao THEN DO:      
+            RUN aokomp_UI (INPUT 2).
+            RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(evaldaao)).
+            RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].
+         END.
+      END.  
+   END.
+   ASSIGN 
+   aonummer = FILL-IN_EAONR
+   delnummer = FILL-IN_DELNR.
+   RUN goma_UI.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnupp_UI C-Win 
+PROCEDURE btnupp_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/   
+   
+   FIND FIRST uppvaltemp NO-ERROR.
+   ASSIGN             
+   uppvaltemp.VALDLIST = "Gjorda beställningar".      
+   RUN goma_UI.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE delnrkoll_UI C-Win 
+PROCEDURE delnrkoll_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/   
+   BRW_VAONR:SELECT-ROW(1) IN FRAME {&FRAME-NAME} NO-ERROR.      
+   RUN refreshbrw_UI IN brwproc[2].
+   BRW_VAONR:DESELECT-ROWS() NO-ERROR.   
+   BRW_AONR:SELECT-ROW(1) NO-ERROR.      
+   RUN refreshbrw_UI IN brwproc[1].
+   BRW_AONR:DESELECT-ROWS() NO-ERROR.   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE disable_UI C-Win  _DEFAULT-DISABLE
+PROCEDURE disable_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     DISABLE the User Interface
+  Parameters:  <none>
+  Notes:       Here we clean-up the user-interface by deleting
+               dynamic widgets we have created and/or hide 
+               frames.  This procedure is usually called when
+               we are ready to "clean-up" after running.
+------------------------------------------------------------------------------*/
+  /* Delete the WINDOW we created */
+  IF SESSION:DISPLAY-TYPE = "GUI":U AND VALID-HANDLE(C-Win)
+  THEN DELETE WIDGET C-Win.
+  IF THIS-PROCEDURE:PERSISTENT THEN DELETE PROCEDURE THIS-PROCEDURE.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE enable_UI C-Win  _DEFAULT-ENABLE
+PROCEDURE enable_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     ENABLE the User Interface
+  Parameters:  <none>
+  Notes:       Here we display/view/enable the widgets in the
+               user-interface.  In addition, OPEN all queries
+               associated with each FRAME and BROWSE.
+               These statements here are based on the "Other 
+               Settings" section of the widget Property Sheets.
+------------------------------------------------------------------------------*/
+  DISPLAY TOG_ADEP TOG_BDEP FILL-IN-STARTDAT FILL-IN-STOPPDAT FILL-IN-K1 CMB_OMR 
+          FILL-IN-K2 CMB_UTF CMB_FAK FILL-IN-K3 CMB_PRIO FILL-IN-K4 TOG_LEV 
+          CMB_LEV FILL-IN_SAONR FILL-IN_ORT FILL-IN_EAONR FILL-IN_DELNR 
+          FILL-IN-AOTEXT FILL-IN-KTO FILL-IN-VAL 
+      WITH FRAME DEFAULT-FRAME IN WINDOW C-Win.
+  ENABLE RECT-49 RECT-SOK IMAGE-1 BTN_NVE BTN_NVE-2 TOG_ADEP TOG_BDEP 
+         FILL-IN-STARTDAT FILL-IN-STOPPDAT BTN_FVE BTN_FVE-2 FILL-IN-K1 CMB_OMR 
+         CMB_ARBART FILL-IN-K2 CMB_UTF CMB_FAK FILL-IN-K3 CMB_PRIO FILL-IN-K4 
+         TOG_LEV CMB_LEV BTN_HAMT FBTN_VISA FBTN_EX BRW_AONR BRW_VAONR BTN_AOF 
+         BTN_ALLOVER BTN_HAOF BTN_OVER BTN_BACK BTN_ALLBACK FILL-IN_SAONR 
+         FILL-IN_ORT FILL-IN_EAONR FILL-IN_DELNR BTN_AVB 
+      WITH FRAME DEFAULT-FRAME IN WINDOW C-Win.
+  {&OPEN-BROWSERS-IN-QUERY-DEFAULT-FRAME}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE excel_UI C-Win 
+PROCEDURE excel_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   DEFINE VARIABLE pfarg AS INTEGER NO-UNDO.
+   DEFINE VARIABLE efarg AS INTEGER NO-UNDO.
+   DEFINE VARIABLE efarg2 AS INTEGER NO-UNDO.   
+   pfarg = Guru.Konstanter:varforetypval[28].
+   RUN profexcelfarg_UI (INPUT pfarg, OUTPUT efarg).
+   RUN profexcelfarg_UI (INPUT Guru.Konstanter:varforetypval[38], OUTPUT efarg2).   
+   bladvar = 0.
+   iRad = 1.
+   ASSIGN
+   breddantal = 9
+   bredd[1] = 10
+   bredd[2] = 50
+   bredd[3] = 10
+   bredd[4] = 6
+   bredd[5] = 8
+   bredd[6] = 10
+   bredd[7] = 10
+   bredd[8] = 10
+   bredd[9] = 10
+   slutbredd =  bredd[9].
+   IF allac[1] = "" THEN RUN allac_UI.   
+   allachar[1] = TRUE.
+   RUN colbredd_UI.  
+   RUN startexcel_UI.
+   RUN namnbladexcel_UI (INPUT "Uppföljning beställt materiel").   
+   FIND FIRST tidut NO-LOCK NO-ERROR.
+   raknare = 1.
+   RUN kolumnexcel_UI.   
+   RUN center_UI (INPUT 4, INPUT "C").
+   RUN center_UI (INPUT 3, INPUT "E").
+   RUN center_UI (INPUT 4, INPUT "F").   
+   REPEAT:
+      RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "COURIER",INPUT 10,INPUT FALSE,INPUT 12,INPUT 11).
+      FIND NEXT tidut NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE tidut THEN DO:
+         LEAVE.
+      END. 
+      IF SUBSTRING(tidut.UT,1) = "==" THEN DO:
+         LEAVE.
+      END.      
+   END.
+   raknare = 1.
+   FIND NEXT tidut NO-LOCK NO-ERROR.
+   IF AVAILABLE tidut THEN DO:
+      REPEAT:
+         IF tidut.UT NE "" THEN DO:                         /*                       höjd    färg  */
+            RUN posterexcel_UI (INPUT tidut.UT,INPUT "COURIER",INPUT 12,INPUT FALSE,INPUT 14,INPUT 14,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).
+         END.
+         FIND NEXT tidut NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE tidut THEN DO:
+            LEAVE.
+         END.     
+         IF SUBSTRING(tidut.UT,1) = "==" THEN DO:
+            LEAVE.
+         END.         
+      END.
+   END.
+   raknare = 1.
+   FIND NEXT tidut NO-LOCK NO-ERROR.
+   REPEAT:
+      IF tidut.UT NE "" THEN DO:                                                    /**/
+         RUN posterexcel_UI (INPUT tidut.UT,INPUT "COURIER",INPUT 10,INPUT FALSE,INPUT 12,INPUT 0,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).
+      END.      
+      IF SUBSTRING(tidut.UT,230) = "@" THEN DO:         
+         RUN bgcellc_UI (INPUT "F", INPUT "F", INPUT efarg).
+      END.
+      ELSE IF SUBSTRING(tidut.UT,230) = "#" THEN DO:         
+         RUN bgcellc_UI (INPUT "F", INPUT "F", INPUT efarg2).
+      END.
+      ELSE RUN bgcellc_UI (INPUT "F", INPUT "F", INPUT 0).
+      FIND NEXT tidut NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE tidut THEN DO:
+         LEAVE.
+      END.
+   END.
+   RUN slutexcel_UI. 
+
+
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE extraval_UI C-Win 
+PROCEDURE extraval_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   DEFINE VARIABLE val1 AS LOGICAL.
+   MESSAGE "Vill du att samtliga " + LC(Guru.Konstanter:gaok) + " skall summeras på huvudnummret ?"
+   VIEW-AS ALERT-BOX QUESTION BUTTONS YES-NO UPDATE val1.
+   CASE val1:
+      WHEN TRUE THEN DO:
+         valdelnrlog = TRUE.          
+      END.
+      WHEN FALSE THEN DO:
+         valdelnrlog = FALSE.          
+      END.
+   END CASE.  
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE goma_UI C-Win 
+PROCEDURE goma_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/  
+   GET FIRST BRW_AONR NO-LOCK.
+   IF AVAILABLE uvaldaao THEN DO:
+      ASSIGN                      
+      BTN_ALLBACK:HIDDEN IN FRAME {&FRAME-NAME} = FALSE 
+      BTN_ALLOVER:HIDDEN = FALSE 
+      BTN_OVER:HIDDEN = FALSE
+      BTN_BACK:HIDDEN = FALSE
+      BRW_AONR:HIDDEN = FALSE  
+      IMAGE-1:HIDDEN = FALSE
+      FILL-IN_ORT:HIDDEN = FALSE 
+      RECT-SOK:HIDDEN = FALSE
+      FILL-IN_SAONR:HIDDEN = FALSE.
+   END.    
+    
+   ASSIGN      
+   BTN_FVE:HIDDEN = FALSE 
+   BTN_FVE-2:HIDDEN = FALSE 
+   BTN_NVE:HIDDEN = FALSE 
+   BTN_NVE-2:HIDDEN = FALSE
+   FILL-IN-STARTDAT:HIDDEN = FALSE 
+   FILL-IN-STOPPDAT:HIDDEN = FALSE.
+
+   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE hmtfavoriter_UI C-Win 
+PROCEDURE hmtfavoriter_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   DEFINE VARIABLE ttbuffh AS HANDLE NO-UNDO.
+   tthandle = TEMP-TABLE evaldaao:HANDLE.
+   ttbuffh = tthandle:DEFAULT-BUFFER-HANDLE.
+   RUN ttcopy_UI (INPUT TABLE-HANDLE tthandle).
+   ttbuffh:EMPTY-TEMP-TABLE().
+   FIND FIRST sparaladdatemp NO-ERROR.
+   IF NOT AVAILABLE sparaladdatemp THEN CREATE sparaladdatemp.
+   ASSIGN
+   sparaladdatemp.GLOBANV = Guru.Konstanter:globanv /*Användare, i detta fall ELPAO*/
+   sparaladdatemp.BENAMNING = "KUUR" /*Benämnings sufix, i detta fall ELPAO$STOR*/
+   sparaladdatemp.TABVAL = "AONRTAB" /*Tabellnamn*/
+   sparaladdatemp.FALTVALAO = "AONR" /*CHARACTER field*/
+   sparaladdatemp.FALTVALDEL = "DELNR" /*Integer field*/
+   sparaladdatemp.FALTVALDATE = "".   /*DATE field*/
+   RUN laddabrw_UI IN brwproc[{&RIGHT-BROWSE}] 
+      (INPUT TABLE-HANDLE tthandle, INPUT TABLE sparaladdatemp). 
+   RUN aokomp_UI (INPUT 1).
+   RUN ttjmf_UI (INPUT-OUTPUT ttbuffh).
+   RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ""). 
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE laddaurval_UI C-Win 
+PROCEDURE laddaurval_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+
+   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE ladda_UI C-Win 
+PROCEDURE ladda_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   FIND faktyptemp WHERE faktyptemp.FAKTTYP = uppvaltemp.FAKTTYP NO-ERROR.
+   CMB_FAK:SCREEN-VALUE IN FRAME {&FRAME-NAME}= faktyptemp.VIFAKTTYP.
+   CMB_FAK = faktyptemp.VIFAKTTYP.
+   ASSIGN        
+   CMB_OMR = uppvaltemp.OMRNAMN
+   FILL-IN-STARTDAT = uppvaltemp.STARTDATUM
+   FILL-IN-STOPPDAT = uppvaltemp.SLUTDATUM.   
+   DISPLAY CMB_OMR FILL-IN-STARTDAT FILL-IN-STOPPDAT WITH FRAME {&FRAME-NAME}.
+   RUN goma_UI.                
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE skapaoval_UI C-Win 
+PROCEDURE skapaoval_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   EMPTY TEMP-TABLE aoval NO-ERROR.    
+   FOR EACH evaldaao:
+      CREATE aoval.
+      ASSIGN 
+      aoval.AONR = evaldaao.AONR
+      aoval.DELNR = evaldaao.DELNR.            
+   END. 
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE sparaaofavoriter_UI C-Win 
+PROCEDURE sparaaofavoriter_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   tthandle = TEMP-TABLE evaldaao:HANDLE.
+   FIND FIRST sparaladdatemp NO-ERROR.
+   IF NOT AVAILABLE sparaladdatemp THEN CREATE sparaladdatemp.
+   ASSIGN
+   sparaladdatemp.GLOBANV = Guru.Konstanter:globanv /*Användare, i detta fall ELPAO*/
+   sparaladdatemp.BENAMNING = "KUUR" /*Benämnings sufix, i detta fall ELPAO$STOR*/
+   sparaladdatemp.TABVAL = "AONRTAB" /*Tabellnamn*/
+   sparaladdatemp.FALTVALAO = "AONR" /*Character field*/
+   sparaladdatemp.FALTVALDEL = "DELNR" /*Integer field*/
+   sparaladdatemp.FALTVALDATE = "".  /*DATE field*/
+   RUN sparabrw_UI IN brwproc[{&RIGHT-BROWSE}] 
+         (INPUT TABLE-HANDLE tthandle, INPUT TABLE sparaladdatemp).
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE SuperExcel_UI C-Win 
+PROCEDURE SuperExcel_UI :
+EMPTY TEMP-TABLE tempbermtrlz.
+   
+   FOR EACH tempbermtrl NO-LOCK:
+      CREATE tempbermtrlz.
+      BUFFER-COPY tempbermtrl TO tempbermtrlz.            
+   END.   
+   FOR EACH tempbermtrlz NO-LOCK:            
+      tempbermtrlz.BENAMNING = TRIM(tempbermtrlz.BENAMNING,CHR(9)). 
+      tempbermtrlz.BENAMNING = TRIM(tempbermtrlz.BENAMNING,CHR(10)). 
+      tempbermtrlz.BENAMNING = TRIM(tempbermtrlz.BENAMNING,CHR(11)). 
+      tempbermtrlz.BENAMNING = TRIM(tempbermtrlz.BENAMNING,CHR(12)). 
+      tempbermtrlz.BENAMNING = TRIM(tempbermtrlz.BENAMNING,CHR(13)).
+      tempbermtrlz.POSTNR = REPLACE(tempbermtrlz.POSTNR," ","") NO-ERROR.        
+   END.
+   /*FOR EACH tempbermtrlz WHERE NO-LOCK:
+      MESSAGE tempbermtrlz.PROJLED tempbermtrlz.ENR
+      VIEW-AS ALERT-BOX.
+   END.*/
+   IF TOG_ADEP = FALSE AND TOG_BDEP = FALSE THEN DO:       
+      RUN BESTVIS.W (INPUT 1, INPUT TABLE tempbermtrlz, INPUT TABLE tempbeststat).
+   END.
+   ELSE IF TOG_ADEP = TRUE  THEN DO:
+       RUN BESTVIS.W (INPUT 2, INPUT TABLE tempbermtrlz, INPUT TABLE tempbeststat).       
+   END.
+   ELSE IF TOG_BDEP = TRUE THEN DO:
+       RUN BESTVIS.W (INPUT 3, INPUT TABLE tempbermtrlz, INPUT TABLE tempbeststat).       
+   END.           
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE tidutar_UI C-Win 
+PROCEDURE tidutar_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   DEFINE INPUT PARAMETER sumpris AS INTEGER NO-UNDO.   
+   DEFINE VARIABLE utnr AS INTEGER EXTENT 50 NO-UNDO.
+   DEFINE VARIABLE bredd AS INTEGER EXTENT 50 NO-UNDO.
+   DEFINE VARIABLE nrcol AS INTEGER EXTENT 50 NO-UNDO.
+   DEFINE VARIABLE i AS INTEGER NO-UNDO.
+   DEFINE VARIABLE str AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE levtitel AS CHARACTER NO-UNDO.
+
+   DEFINE VARIABLE dagens AS DATE NO-UNDO.
+   DEFINE VARIABLE tid AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE stad AS DATE NO-UNDO.
+   DEFINE VARIABLE stod AS DATE NO-UNDO.
+   DEFINE VARIABLE utfardare AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE tidut.
+   
+   ASSIGN
+   nrcol[1] = 1
+   nrcol[2] = 2
+   nrcol[3] = 3
+   nrcol[4] = 4
+   nrcol[5] = 5
+   nrcol[6] = 6.
+   
+   ASSIGN
+   breddantal = 6   /*antal kolumner*/
+   bredd[1] = 10
+   bredd[2] = 50
+   bredd[3] = 10
+   bredd[4] = 6
+   bredd[5] = 8
+   bredd[6] = 10.
+   ASSIGN
+   utnr[1] = 1
+   utnr[2] = 2
+   utnr[3] = 3
+   utnr[4] = 4
+   utnr[5] = 5
+   utnr[6] = 6.   
+   i = 2.     
+   utnr[nrcol[1]] = 1.
+   DO WHILE i <= breddantal:             
+      utnr[i] = utnr[i - 1] + bredd[i - 1] + 1.            
+      i = i + 1.
+   END.   
+   ASSIGN
+   str = "".  
+   i = 1.
+   DO WHILE i <= utnr[breddantal] + bredd[breddantal] - 1:
+      str = str + "=".     
+      i = i + 1.
+   END.   
+   i = 2.      
+   DO WHILE i <= breddantal:             
+      SUBSTRING(str,(utnr[i] - 1),1) = ".".      
+      i = i + 1.
+   END.
+
+   IF TOG_LEV = TRUE THEN levtitel = "Alla Leverantörer".
+   ELSE IF TOG_LEV = FALSE THEN levtitel = CMB_LEV.                   
+   dagens = TODAY.
+   tid = STRING(TIME, "HH:MM:SS").
+   stad = FILL-IN-STARTDAT.
+   stod = FILL-IN-STOPPDAT.   
+   IF CMB_UTF NE "Alla" THEN DO:
+      FIND FIRST batemp WHERE batemp.ANVNAMN = CMB_UTF NO-ERROR.
+   END.
+   IF CMB_UTF = "Alla" THEN utfardare = "Utfärdare: Alla beredare".
+   ELSE utfardare = "Utfärdare: " +  batemp.ANVNAMN. 
+   CREATE tidut.
+   SUBSTRING(tidut.UT,1) = "Gjorda beställningar".
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(dagens) + " " + tid.
+   CREATE tidut.  
+   CREATE tidut.  
+   SUBSTRING(tidut.UT,1) = "Beställningar för: " + levtitel.
+   CREATE tidut.
+   SUBSTRING(tidut.UT,1) = "Gjorda mellan: " + STRING(stad) + " och " + STRING(stod).
+   CREATE tidut.
+   SUBSTRING(tidut.UT,1) = utfardare.
+   CREATE tidut.
+   SUBSTRING(tidut.UT,1) = "Antal beställningar: " + STRING(bestrak).
+   CREATE tidut.
+   CREATE tidut. 
+   /*rubriker*/
+   CREATE tidut.
+   SUBSTRING(tidut.UT,1) = "==".   
+   CREATE tidut.
+   SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "ENR".
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "BENÄMNING".
+   SUBSTRING(tidut.UT,utnr[nrcol[3]]) = "ANTAL".
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "ENHET".
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "LEV-ID".
+   SUBSTRING(tidut.UT,utnr[nrcol[6]]) = "Pris".   
+   CREATE tidut.
+   SUBSTRING(tidut.UT,1) = "==".   
+   FOR EACH tempbermtrl WHERE tempbermtrl.ANTAL > 0 USE-INDEX ENR  NO-LOCK:
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,utnr[nrcol[1]]) = tempbermtrl.ENR.
+      SUBSTRING(tidut.UT,utnr[nrcol[2]]) = SUBSTRING(tempbermtrl.BENAMNING,1,50).
+      SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING(tempbermtrl.ANTAL).
+      SUBSTRING(tidut.UT,utnr[nrcol[4]]) = tempbermtrl.ENHET.
+      SUBSTRING(tidut.UT,utnr[nrcol[5]]) = tempbermtrl.LEVKOD.
+      SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(tempbermtrl.PRIS).
+      IF tempbermtrl.RABATT = TRUE THEN DO:
+         SUBSTRING(tidut.UT,230) = "@".
+      END.
+      IF tempbermtrl.RABATT = ? THEN DO:
+         SUBSTRING(tidut.UT,230) = "#".
+      END.
+   END.
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "Totalpris:".
+   SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(sumpris).
+    RUN excel_UI.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE ttcopy_UI C-Win 
+PROCEDURE ttcopy_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   DEFINE INPUT PARAMETER TABLE-HANDLE tthandle.
+   DEFINE VARIABLE ttcopyh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE komcop AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE ttqh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE ttbuffh AS HANDLE NO-UNDO.
+   ttbuffh = tthandle:DEFAULT-BUFFER-HANDLE.  
+   CREATE TEMP-TABLE ttcopyh. 
+   ttcopyh:CREATE-LIKE(ttbuffh).
+   ttcopyh:TEMP-TABLE-PREPARE("ttkopia"). 
+   ttbuffcopyh = ttcopyh:DEFAULT-BUFFER-HANDLE.
+   ttbuffh = tthandle:DEFAULT-BUFFER-HANDLE.  
+   komcop = "FOR EACH " + ttbuffh:TABLE + " NO-LOCK.".
+   CREATE QUERY ttqh.
+   ttqh:SET-BUFFERS(ttbuffh).
+   ttqh:QUERY-PREPARE(komcop).
+   ttqh:QUERY-OPEN().
+   ttqh:GET-FIRST(NO-LOCK).
+   DO WHILE ttqh:QUERY-OFF-END = FALSE:
+      ttbuffcopyh:BUFFER-CREATE().
+      ttbuffcopyh:BUFFER-COPY(ttbuffh).
+      ttqh:GET-NEXT(NO-LOCK).
+   END.
+   ttqh:QUERY-CLOSE.
+   DELETE OBJECT ttqh NO-ERROR.     
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE ttjmf_UI C-Win 
+PROCEDURE ttjmf_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   DEFINE INPUT-OUTPUT PARAMETER favbuffh AS HANDLE.
+   DEFINE VARIABLE compsave AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE komfav AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE komcop AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE ttcopqh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE ttfavqh AS HANDLE NO-UNDO.
+   komcop = "FOR EACH " + ttbuffcopyh:TABLE + " NO-LOCK.".
+   komfav = "FOR EACH " + favbuffh:TABLE + " NO-LOCK.".
+   CREATE QUERY ttcopqh.
+   ttcopqh:SET-BUFFERS(ttbuffcopyh).
+   ttcopqh:QUERY-PREPARE(komcop).
+   ttcopqh:QUERY-OPEN().
+   CREATE QUERY ttfavqh.
+   ttfavqh:SET-BUFFERS(favbuffh).
+   ttfavqh:QUERY-PREPARE(komfav).
+   ttfavqh:QUERY-OPEN().
+   ttcopqh:GET-FIRST(NO-LOCK).
+   DO WHILE ttcopqh:QUERY-OFF-END = FALSE:
+      ttfavqh:GET-FIRST(NO-LOCK).
+      compsave = FALSE.
+      DO WHILE ttfavqh:QUERY-OFF-END = FALSE:
+         IF favbuffh:BUFFER-COMPARE(ttbuffcopyh) THEN DO:
+            compsave = TRUE.       
+            ttfavqh:GET-LAST(NO-LOCK).
+            ttfavqh:GET-NEXT(NO-LOCK).
+         END.
+         ttfavqh:GET-NEXT(NO-LOCK).
+      END.                  
+      IF compsave = TRUE THEN DO:
+         ttbuffcopyh:BUFFER-DELETE().  
+      END.
+      ELSE DO:
+         favbuffh:BUFFER-CREATE().
+         favbuffh:BUFFER-COPY(ttbuffcopyh).
+      END.
+      ttcopqh:GET-NEXT(NO-LOCK).
+   END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE utf_UI C-Win 
+PROCEDURE utf_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes: omg bbq
+------------------------------------------------------------------------------*/   
+   FIND FIRST berkalanvandartemp WHERE berkalanvandartemp.ANVANDARE = Guru.Konstanter:globanv NO-LOCK NO-ERROR.   
+   anv = Guru.Konstanter:globanv.
+   status-ok = CMB_UTF:ADD-LAST(anv + " -- " + berkalanvandartemp.AV-NAMN) IN FRAME {&FRAME-NAME}.
+      FOR EACH berkalanvandartemp:
+         IF berkalanvandartemp.ANVANDARE = anv THEN.
+         ELSE DO: 
+            status-ok = CMB_UTF:ADD-LAST(berkalanvandartemp.ANVANDARE + " -- " + berkalanvandartemp.AV-NAMN).         
+         END.
+         CREATE batemp.
+         ASSIGN batemp.ANVANDARE = berkalanvandartemp.ANVANDARE
+         batemp.ANVNAMN = berkalanvandartemp.ANVANDARE + " -- " + berkalanvandartemp.AV-NAMN.         
+      END.
+      FIND FIRST berkalanvandartemp WHERE berkalanvandartemp.ANVANDARE = anv NO-LOCK NO-ERROR.
+      IF AVAILABLE berkalanvandartemp THEN DO:
+         ASSIGN CMB_UTF:SCREEN-VALUE = anv + " -- " + berkalanvandartemp.AV-NAMN.         
+      END.
+      
+      status-ok = CMB_UTF:ADD-FIRST("Alla") IN FRAME {&FRAME-NAME}.
+      CMB_UTF = "Alla".
+      CMB_UTF:SCREEN-VALUE = "Alla".      
+
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE utvald_UI C-Win 
+PROCEDURE utvald_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   FIND FIRST uppvaltemp NO-ERROR.      
+   ASSIGN     
+   uppvaltemp.VISPERAR = FALSE
+   uppvaltemp.STARTDATUM = FILL-IN-STARTDAT
+   uppvaltemp.SLUTDATUM  = FILL-IN-STOPPDAT
+   uppvaltemp.OMRNAMN = CMB_OMR
+   uppvaltemp.BEREDARE = "Alla".
+   uppvaltemp.ARBANSVARIG = "Alla".
+         
+   ASSIGN
+   uppvaltemp.FAKTTYP = "Alla"
+   uppvaltemp.BEREDARE = "ALLA"
+   uppvaltemp.PROJEKTOR = "ALLA"
+   uppvaltemp.ARBANSVARIG = "ALLA".
+   uppvaltemp.AVDNR = "ALLA".
+   uppvaltemp.OMRADE = "ALLA".
+   FIND FIRST omrtemp WHERE omrtemp.NAMN = CMB_OMR NO-LOCK NO-ERROR.      
+   IF AVAILABLE omrtemp THEN uppvaltemp.OMRADE = omrtemp.OMRADE.
+   ELSE uppvaltemp.OMRADE = "Alla".
+   uppvaltemp.BESTID = "ALLA".
+   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE visa2_UI C-Win 
+PROCEDURE visa2_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   DEFINE VARIABLE levkodvar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE sumpris AS INTEGER NO-UNDO.
+   levkodvar = CMB_LEV.   
+   EMPTY TEMP-TABLE tempbermtrl.
+   EMPTY TEMP-TABLE tempbermtrl2.
+   EMPTY TEMP-TABLE tempbeststat NO-ERROR.    
+   {muswait.i}      
+   IF TOG_BDEP = TRUE THEN.
+   ELSE DO:       
+       FOR EACH evaldaao NO-LOCK:
+          RUN hamtabermtrl_UI IN hamtapp (INPUT TRUE, INPUT "Alla", INPUT evaldaao.AONR, INPUT evaldaao.DELNR, INPUT evaldaao.OMRADE, INPUT FILL-IN-STARTDAT, INPUT FILL-IN-STOPPDAT, OUTPUT TABLE tempbermtrl APPEND, OUTPUT TABLE tempbeststat APPEND).                   
+       END.
+       FIND FIRST tempbermtrl WHERE NO-LOCK NO-ERROR.
+       RUN aoproj_UI IN hamtapp (INPUT-OUTPUT TABLE tempbermtrl).
+   END.    
+   
+   IF TOG_ADEP = TRUE OR TOG_BDEP = TRUE THEN DO:
+       RUN hamtadep_UI IN hamtapp (INPUT FILL-IN-STARTDAT, INPUT FILL-IN-STOPPDAT, OUTPUT TABLE tempbermtrl APPEND).
+   END.
+   /* Nettomärkning */
+   RUN uppnettomark_UI IN nettoh (INPUT-OUTPUT TABLE tempbermtrl).
+   FOR EACH tempbermtrl:
+      IF tempbermtrl.RABATT = TRUE THEN tempbermtrl.FARG = "Färg2".
+      ELSE IF tempbermtrl.RABATT = FALSE  THEN tempbermtrl.FARG = "Nej".
+      ELSE IF tempbermtrl.RABATT = ?  THEN tempbermtrl.FARG = "Färg1".
+      /* 
+      ljusgrön = ?   = färg1
+      mörkgrön = Ja  = färg2
+      ofärgat = Nej = Nej
+      */
+   END.  
+   {musarrow.i}        
+   FIND FIRST evaldaao NO-LOCK NO-ERROR.
+   IF AVAILABLE evaldaao THEN DO:      
+      RUN SuperExcel_UI.
+   END.
+   ELSE IF TOG_BDEP = TRUE THEN RUN SuperExcel_UI.     
+   ELSE DO:
+      MESSAGE "Inga " + Guru.Konstanter:gaok + " att visa"
+      VIEW-AS ALERT-BOX.
+   END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE visa_UI C-Win 
+PROCEDURE visa_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   DEFINE VARIABLE levkodvar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE sumpris AS INTEGER NO-UNDO.
+
+   levkodvar = CMB_LEV.   
+   EMPTY TEMP-TABLE tempbermtrl.
+   EMPTY TEMP-TABLE tempbermtrl2.   
+   {muswait.i}      
+   bestrak = 0.
+   IF TOG_BDEP = TRUE THEN.
+   ELSE DO:
+      FOR EACH evaldaao NO-LOCK:
+         bestrak =  bestrak + 1.
+         EMPTY TEMP-TABLE tempbermtrl2.
+         RUN hamtabermtrl_UI IN hamtapp (INPUT TOG_LEV, INPUT levkodvar, INPUT evaldaao.AONR, INPUT evaldaao.DELNR, INPUT evaldaao.OMRADE, INPUT FILL-IN-STARTDAT, INPUT FILL-IN-STOPPDAT, OUTPUT TABLE tempbermtrl2, OUTPUT TABLE tempbeststat APPEND).                    
+         FOR EACH tempbermtrl2 NO-LOCK:
+            FIND FIRST tempbermtrl WHERE tempbermtrl.ENR = tempbermtrl2.ENR AND tempbermtrl.LEVKOD = tempbermtrl2.LEVKOD NO-ERROR.    
+            /*om enr finns lägg till i antal*/
+            IF AVAILABLE tempbermtrl THEN DO:
+               tempbermtrl.ANTAL = tempbermtrl.ANTAL + tempbermtrl2.ANTAL.
+               tempbermtrl.PRIS = tempbermtrl.PRIS + (tempbermtrl2.PRIS * tempbermtrl2.ANTAL).
+            END.
+            ELSE DO:
+               CREATE tempbermtrl.
+               BUFFER-COPY tempbermtrl2 TO tempbermtrl.
+               tempbermtrl.PRIS = tempbermtrl.PRIS * tempbermtrl.ANTAL.
+            END.                  
+         END.                          
+      END.
+   END.    
+   IF TOG_ADEP = TRUE OR TOG_BDEP = TRUE THEN DO:
+       EMPTY TEMP-TABLE tempbermtrl2.
+       RUN hamtadep_UI IN hamtapp (INPUT FILL-IN-STARTDAT, INPUT FILL-IN-STOPPDAT, OUTPUT TABLE tempbermtrl2).
+       ASSIGN 
+       spdep = 0
+       spbestnr = 0.
+       FOR EACH tempbermtrl2 WHERE NO-LOCK BY tempbermtrl2.DEPNR BY tempbermtrl2.BESTNR:
+          IF tempbermtrl2.DEPNR = spdep AND tempbermtrl2.BESTNR = spbestnr THEN. 
+          ELSE bestrak =  bestrak + 1.
+          spdep = tempbermtrl2.DEPNR.
+          spbestnr = tempbermtrl2.BESTNR.
+       END.
+       FOR EACH tempbermtrl2 NO-LOCK:
+         FIND FIRST tempbermtrl WHERE tempbermtrl.ENR = tempbermtrl2.ENR AND tempbermtrl.LEVKOD = tempbermtrl2.LEVKOD NO-ERROR.
+         /*om enr finns lägg till i antal*/
+         IF AVAILABLE tempbermtrl THEN DO:
+            tempbermtrl.ANTAL = tempbermtrl.ANTAL + tempbermtrl2.ANTAL.
+            tempbermtrl.PRIS = tempbermtrl.PRIS + (tempbermtrl2.PRIS * tempbermtrl2.ANTAL).
+         END.
+         ELSE DO:
+            CREATE tempbermtrl.
+            BUFFER-COPY tempbermtrl2 TO tempbermtrl.
+            tempbermtrl.PRIS = tempbermtrl.PRIS * tempbermtrl.ANTAL.
+         END.                  
+      END. 
+   END.   
+   FOR EACH tempbermtrl NO-LOCK:
+      sumpris = sumpris + tempbermtrl.PRIS.
+      tempbermtrl.PRIS = INTEGER(tempbermtrl.PRIS). /*ören bort efteråt, sumpris blir summerad med ören, men respektive pris visas utan ören*/
+   END.      
+   RUN uppnettomark_UI IN nettoh (INPUT-OUTPUT TABLE tempbermtrl).     
+   RUN tidutar_UI (INPUT sumpris).
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+

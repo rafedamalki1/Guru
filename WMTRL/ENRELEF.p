@@ -1,0 +1,64 @@
+/*ENRELEF.p*/
+DEFINE VARIABLE kalle AS LOGICAL NO-UNDO. 
+DEFINE INPUT PARAMETER leverant LIKE LEVERANTOR.LEVKOD NO-UNDO.
+  
+   OPEN QUERY kq FOR EACH MTRLBER WHERE MTRLBER.LEVKOD = leverant
+   NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST kq EXCLUSIVE-LOCK.
+      IF SUBSTRING(MTRLBER.ENR,1,1) = "E" THEN kalle = kalle.
+      ELSE IF SUBSTRING(MTRLBER.ENR,1,1) = "X" THEN kalle = kalle.
+      ELSE MTRLBER.ENR = "E" + MTRLBER.ENR.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT kq EXCLUSIVE-LOCK.
+         IF NOT AVAILABLE MTRLBER THEN LEAVE.
+         ELSE DO:
+            IF SUBSTRING(MTRLBER.ENR,1,1) = "E" THEN kalle = kalle.
+            ELSE IF SUBSTRING(MTRLBER.ENR,1,1) = "X" THEN kalle = kalle.
+            ELSE MTRLBER.ENR = "E" + MTRLBER.ENR.
+         END.
+      END.
+   END.
+
+   OPEN QUERY ksq FOR EACH BERSKAP WHERE BERSKAP.LEVKOD = leverant
+   NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST ksq EXCLUSIVE-LOCK.
+      IF SUBSTRING(BERSKAP.ENR,1,1) = "E" THEN kalle = kalle.
+      ELSE IF SUBSTRING(BERSKAP.ENR,1,1) = "X" THEN kalle = kalle.
+      ELSE BERSKAP.ENR = "E" + BERSKAP.ENR.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT ksq EXCLUSIVE-LOCK.
+         IF NOT AVAILABLE BERSKAP THEN LEAVE.
+         ELSE DO:
+            IF SUBSTRING(BERSKAP.ENR,1,1) = "E" THEN kalle = kalle.
+            ELSE IF SUBSTRING(BERSKAP.ENR,1,1) = "X" THEN kalle = kalle.
+            ELSE BERSKAP.ENR = "E" + BERSKAP.ENR.
+         END.
+      END.
+   END.
+
+   OPEN QUERY kkq FOR EACH BERSTOLP WHERE BERSTOLP.LEVKOD = leverant
+   NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST kkq EXCLUSIVE-LOCK.
+      IF SUBSTRING(BERSTOLP.ENR,1,1) = "E" THEN kalle = kalle.
+      ELSE IF SUBSTRING(BERSTOLP.ENR,1,1) = "X" THEN kalle = kalle.
+      ELSE BERSTOLP.ENR = "E" + BERSTOLP.ENR.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT kkq EXCLUSIVE-LOCK.
+         IF NOT AVAILABLE BERSTOLP THEN LEAVE.
+         ELSE DO:
+            IF SUBSTRING(BERSTOLP.ENR,1,1) = "E" THEN kalle = kalle.
+            ELSE IF SUBSTRING(BERSTOLP.ENR,1,1) = "X" THEN kalle = kalle.
+            ELSE BERSTOLP.ENR = "E" + BERSTOLP.ENR.
+         END.
+      END.
+   END.
+

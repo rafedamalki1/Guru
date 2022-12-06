@@ -1,0 +1,228 @@
+/*EXETIKE3.P*/
+
+
+ 
+
+DEFINE TEMP-TABLE tidaut NO-UNDO
+   FIELD UTRAD1 AS CHARACTER
+   FIELD UTRAD2 AS CHARACTER
+   FIELD UTRAD3 AS CHARACTER
+   FIELD ORDNING AS INTEGER
+   FIELD RAD AS INTEGER
+   INDEX ORDNING ORDNING.
+
+{GLOBVAR2DEL1.I}        
+{IMPFAST.I}
+&Scoped-define SHARED SHARED  
+{MARKVAL.I}                         
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE kommando2 AS CHARACTER FORMAT "X(20)" NO-UNDO.
+
+DEFINE SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE ortvar AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE vman AS CHARACTER NO-UNDO.
+DEFINE VARIABLE fnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE radrakn AS INTEGER NO-UNDO.
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 0.
+DEFINE VARIABLE cColumn                 AS CHARACTER.
+
+
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{BLOB.I}
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE blobproch AS HANDLE NO-UNDO.
+
+DEFINE INPUT PARAMETER TABLE FOR marktmp.
+{EXECLIN2.I}
+DEFINE BUFFER markvalbuff FOR markval.
+
+
+
+
+FIND FIRST markval NO-LOCK NO-ERROR.  
+/*IF Guru.Konstanter:appcon THEN DO:                           
+   RUN EXFASTFORAPPN.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+   (INPUT TABLE markval,OUTPUT TABLE fastfortemp,OUTPUT ortvar, OUTPUT vman).
+END.
+ELSE DO:
+   RUN EXFASTFORAPPN.P 
+   (INPUT TABLE markval,OUTPUT TABLE fastfortemp,OUTPUT ortvar, OUTPUT vman).
+END.     */
+
+
+fnamn = "ETIMALL.xls".
+
+IF Guru.Konstanter:appcon THEN RUN FINNSTABELL.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT (INPUT "BLOBINFO", OUTPUT bloblog).
+ELSE RUN FINNSTABELL.P (INPUT "BLOBINFO", OUTPUT bloblog).
+IF bloblog = TRUE THEN DO:
+   {FINNSDYNBLOB.I}
+   DEFINE VARIABLE resid AS INTEGER NO-UNDO.   
+   RUN blobfil_UI IN blobproch (INPUT fnamn, OUTPUT resid).   
+   IF resid = ? THEN DO:
+      kommando = SEARCH(fnamn).     
+   END.
+   ELSE DO:
+      FIND FIRST blobinfotemp WHERE blobinfotemp.ID = resid NO-LOCK NO-ERROR.
+      RUN blobopen_UI IN blobproch (INPUT blobinfotemp.FILNAMN, OUTPUT kommando).     
+   END.
+   RUN deleteproc_UI IN blobproch.
+END.
+ELSE kommando = SEARCH(fnamn).   
+IF kommando = ? THEN DO:
+   MESSAGE "Hittade inte " fnamn VIEW-AS ALERT-BOX.
+   RETURN.       
+END.  
+kommando2 = SESSION:TEMP-DIRECTORY + Guru.Konstanter:globanv + "\".
+{SESSIONTEMPDIR.I}
+IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN kommando2 = webclienttempdir.
+OS-CREATE-DIR VALUE(kommando2) NO-ERROR.
+IF Guru.GlobalaVariabler:plusaonr = "" OR Guru.GlobalaVariabler:plusaonr = ? THEN DO:
+   kommando2 = kommando2 + fnamn.
+END.
+ELSE DO:
+   kommando2 = kommando2 + TRIM (Guru.GlobalaVariabler:plusaonr) + TRIM(STRING(Guru.GlobalaVariabler:plusdnr,Guru.Konstanter:varforetypchar[1])) + fnamn.
+END.
+
+OS-COPY VALUE(kommando) VALUE(kommando2).
+kommando = kommando2.
+
+   CREATE "Excel.Application" chExcelApplication.
+   chExcelApplication:Visible = TRUE.
+   
+   
+   {OPENEXCEL.I}
+   chWorkbook = chExcelApplication:Workbooks:OPEN(kommando).
+   chWorkSheet = chExcelApplication:Sheets:Item(1) NO-ERROR.
+
+
+
+RUN etiketer_UI (INPUT 3,INPUT 7).
+
+
+PROCEDURE etiketer_UI :
+   DEFINE INPUT PARAMETER antalcol AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER antaletiketrader AS INTEGER NO-UNDO.
+   DEFINE VARIABLE utnr AS INTEGER EXTENT 50 NO-UNDO.
+   DEFINE VARIABLE bredd AS INTEGER EXTENT 50 NO-UNDO.
+   DEFINE VARIABLE nrcol AS INTEGER EXTENT 50 NO-UNDO.
+   DEFINE VARIABLE i AS INTEGER NO-UNDO.
+   DEFINE VARIABLE i2 AS INTEGER NO-UNDO.
+   DEFINE VARIABLE rader AS INTEGER NO-UNDO.
+   i = 1.
+   REPEAT:
+      ASSIGN
+      bredd[i] = 30
+      nrcol[i] = i
+      i = i + 1.
+      IF i > antalcol THEN LEAVE.
+   END.
+   breddantal = antalcol   /*antal kolumner*/.   
+   ASSIGN
+   i = 2.     
+   utnr[nrcol[1]] = 1.
+   DO WHILE i <= breddantal:             
+      utnr[i] = utnr[i - 1] + bredd[i - 1] + 3.            
+      i = i + 1.
+   END.  
+   i2 = 1.
+   i = 1.
+   FOR EACH marktmp BY marktmp.MARKAGARE :
+      
+      IF i = 1 THEN DO:
+         CREATE tidaut.
+         rader = rader + 1.
+         ASSIGN
+         tidaut.RAD = i2   
+         tidaut.ORDNING = rader.
+
+      END.
+      ASSIGN
+      SUBSTRING(tidaut.UTRAD1,utnr[nrcol[i]]) = TRIM(marktmp.MARKAGARE) 
+      SUBSTRING(tidaut.UTRAD2,utnr[nrcol[i]]) = TRIM(marktmp.GATUADRESS) 
+      SUBSTRING(tidaut.UTRAD3,utnr[nrcol[i]]) = TRIM(STRING(marktmp.POSTNUMMER,"999 99") + " " +  marktmp.POSTADRESS).
+      i = i + 1.
+      IF i > antalcol THEN i = 1.      
+      i2 = i2 + 1.
+      IF i2 > antaletiketrader THEN i2 = 1.
+   END.
+   
+   i = 1.
+   i2 = 1.
+   radrakn = 2.
+   FOR EACH tidaut :
+      ASSIGN
+      iColumn = radrakn
+      cColumn = STRING(iColumn)
+      cRange = "A" + cColumn.
+      RUN utexcel_UI (INPUT "Arial",FALSE,INPUT 10,INPUT SUBSTRING(tidaut.UTRAD1,utnr[nrcol[1]],30)).       
+      {EXCELFEL2.I}
+      cRange = "B" + cColumn.
+      RUN utexcel_UI (INPUT "Arial",FALSE,INPUT 10,INPUT SUBSTRING(tidaut.UTRAD1,utnr[nrcol[2]],30)).       
+      {EXCELFEL2.I}
+      cRange = "C" + cColumn.
+      RUN utexcel_UI (INPUT "Arialn",FALSE,INPUT 10,INPUT SUBSTRING(tidaut.UTRAD1,utnr[nrcol[3]],30)).       
+      {EXCELFEL2.I}
+      ASSIGN
+      radrakn = radrakn + 1
+      iColumn = radrakn
+      cColumn = STRING(iColumn).
+      cRange = "A" + cColumn.
+      RUN utexcel_UI (INPUT "Arial",FALSE,INPUT 10,INPUT SUBSTRING(tidaut.UTRAD2,utnr[nrcol[1]],30)).       
+      {EXCELFEL2.I}
+      cRange = "B" + cColumn.
+      RUN utexcel_UI (INPUT "Arial",FALSE,INPUT 10,INPUT SUBSTRING(tidaut.UTRAD2,utnr[nrcol[2]],30)).       
+      {EXCELFEL2.I}
+      cRange = "C" + cColumn.
+      RUN utexcel_UI (INPUT "Arial",FALSE,INPUT 10,INPUT SUBSTRING(tidaut.UTRAD2,utnr[nrcol[3]],30)).       
+      {EXCELFEL2.I}
+      ASSIGN
+      radrakn = radrakn + 1
+      iColumn = radrakn
+      cColumn = STRING(iColumn).
+      cRange = "A" + cColumn.
+      RUN utexcel_UI (INPUT "Arial",FALSE,INPUT 10,INPUT SUBSTRING(tidaut.UTRAD3,utnr[nrcol[1]],30)).       
+      {EXCELFEL2.I}
+      cRange = "B" + cColumn.
+      RUN utexcel_UI (INPUT "Arial",FALSE,INPUT 10,INPUT SUBSTRING(tidaut.UTRAD3,utnr[nrcol[2]],30)).       
+      {EXCELFEL2.I}
+      cRange = "C" + cColumn.
+      RUN utexcel_UI (INPUT "Arial",FALSE,INPUT 10,INPUT SUBSTRING(tidaut.UTRAD3,utnr[nrcol[3]],30)).       
+      {EXCELFEL2.I}
+      radrakn = radrakn + 5.
+      i2 = i2 + 1.
+      IF i2 > antaletiketrader THEN DO:
+         i2 = 1.      
+         radrakn = radrakn - 2.      
+      END.
+   END.
+
+   RELEASE OBJECT chWorksheetRange NO-ERROR.
+   RELEASE OBJECT chCell NO-ERROR.
+   RELEASE OBJECT chWorksheet NO-ERROR.  
+   RELEASE OBJECT chWorkbook NO-ERROR.
+   RELEASE OBJECT chExcelApplication NO-ERROR.   
+   
+   IF VALID-HANDLE(blobproch) THEN DELETE PROCEDURE blobproch NO-ERROR.   
+   END PROCEDURE.
+
+PROCEDURE utexcel_UI :
+   DEFINE INPUT PARAMETER typsnitt AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER varbold AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER storlek AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER varde AS CHARACTER NO-UNDO.
+   
+   IF varde = "" THEN RETURN.
+   IF varde = ? THEN RETURN.
+   ASSIGN
+   chWorkSheet:Range(cRange):Font:NAME = typsnitt NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:Bold = varbold NO-ERROR.
+   chWorkSheet:Range(cRange):Font:SIZE = storlek  NO-ERROR.
+   chWorkSheet:Range(cRange):Value = varde NO-ERROR.  
+   {EXCELFEL.I}
+END PROCEDURE.
+
+
+
+
+

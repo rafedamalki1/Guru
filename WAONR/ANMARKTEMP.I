@@ -1,0 +1,4 @@
+/*ANMARKTEMP.I*/
+DEFINE TEMP-TABLE fastanmtemp NO-UNDO
+   {ANMARKTEMPF.I}
+   

@@ -1,0 +1,253 @@
+/*
+               KSV Editor
+    Copyright: (C) 2000-2001 Serguey Klimoff (bulkl0DD)
+     Filename: Xjsontest.P
+      Comment: <comment>
+   Parameters:
+         Uses:
+      Used by:
+      Created: 2005.10.14 12:57 ELPAO   
+     Modified: 2005.10.14 13:03 ELPAO    
+     Modified: 
+*/
+
+
+/*PROCEDURE Schema_UI :
+   DEFINE VARIABLE cTargetType     AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cFile           AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE lFormatted      AS LOGICAL   NO-UNDO.
+   DEFINE VARIABLE cEncoding       AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cSchemaLocation AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE lWriteSchema    AS LOGICAL   NO-UNDO.
+   DEFINE VARIABLE lMinSchema      AS LOGICAL   NO-UNDO.
+   DEFINE VARIABLE lRetOK          AS LOGICAL   NO-UNDO.
+   
+   EMPTY TEMP-TABLE FilInfo NO-ERROR.
+   CREATE FilInfo.
+   ASSIGN 
+   FilInfo.Skapad = NOW.
+   
+   ASSIGN 
+   cTargetType    =  "FILE"
+   cFile           = "C:\PROTEMP10\StorningImportSchema.xsd"
+   lFormatted      = TRUE
+   cEncoding       = "UTF-8"
+   lWriteSchema = TRUE 
+   lMinSchema = TRUE.
+   lRetOK = DATASET  StorningImportDs:WRITE-XMLSCHEMA(cTargetType, cFile, lFormatted,  cEncoding, lMinSchema).
+   cFile           = "C:\PROTEMP10\sch1.json".
+   DATASET  StorningImportDs:WRITE-JSON(cTargetType,cFile, lFormatted).
+   DATASET StorningImportDs:WRITE-XML("FILE", "C:\PROTEMP10\" + "Exempelfil" + ".xml", lFormatted, cEncoding, cSchemaLocation, false, false).
+END PROCEDURE.*/
+
+USING Progress.Lang.*.
+USING Progress.Json.ObjectModel.*.
+
+DEFINE TEMP-TABLE heromatill NO-UNDO
+   FIELD pnr AS CHARACTER        
+   FIELD lart AS CHARACTER        
+   FIELD lant AS DECIMAL. 
+       
+   /*FIELD balanceRequest_Text AS CHARACTER 
+      XML-NODE-TYPE "TEXT" .*/
+CREATE heromatill.
+assign 
+heromatill.pnr = "123456-1234"
+heromatill.lart = "1234"
+heromatill.lant = 2.5.
+assign 
+heromatill.pnr = "2123456-1234"
+heromatill.lart = "2234"
+heromatill.lant = 3.5.
+assign 
+heromatill.pnr = "323456-1234"
+heromatill.lart = "3234"
+heromatill.lant = 4.5.
+
+
+
+DEFINE DATASET heromatillagg  
+   FOR heromatill.
+
+
+DEFINE DATA-SOURCE ht  FOR heromatill.
+
+
+DEFINE VARIABLE oDataset AS JsonObject NO-UNDO.
+
+BUFFER heromatill:ATTACH-DATA-SOURCE(DATA-SOURCE ht:HANDLE).
+
+DATASET heromatillagg:FILL().
+
+oDataset = jsontest:convertDatasetToJson(DATASET heromatillagg:HANDLE).
+oDataset:WriteFile("htill.json",TRUE).
+
+
+
+/*BLOCK-LEVEL ON ERROR UNDO, THROW.
+
+CLASS JsonHelper: 
+
+    METHOD PUBLIC STATIC JsonObject convertDatasetToJson ( INPUT phDataset AS HANDLE ):
+        DEFINE VARIABLE hBuffer         AS HANDLE      NO-UNDO.
+
+        DEFINE VARIABLE iBuffer  AS INTEGER     NO-UNDO.
+        
+        DEFINE VARIABLE oDataset AS JsonObject    NO-UNDO.
+        DEFINE VARIABLE oTables  AS JsonArray     NO-UNDO.
+        
+        IF NOT VALID-HANDLE(phDataset) THEN RETURN ?.
+        
+        /* From top to bottom we have:
+           - A JsonObject representing the Dataset object itself
+           - A JsonArray of table names that are contained in the dataset
+           - A JsonArray of records in each table
+           - A JsonObject for each table record
+        */
+        
+        DO iBuffer = 1 TO phDataset:NUM-BUFFERS:
+            hBuffer = phDataset:GET-BUFFER-HANDLE(iBuffer).
+            
+            // Create the Tables array
+            IF iBuffer EQ 1 THEN
+                oTables = NEW JsonArray().
+                
+            // Add the table to the Tables array
+            oTables:Add(JsonHelper:convertTableToJson(hBuffer)).
+        END.
+        
+        // Create the DATASET object 
+        oDataset = NEW JsonObject().
+        
+        // Add the Tables array to the DATASET.  If the dataset was defined 
+        // using SERIALIZE-HIDDEN, leave its name out of the generated Json
+        oDataset:Add((IF phDataset:SERIALIZE-HIDDEN THEN "" ELSE phDataset:SERIALIZE-NAME),oTables).
+        
+        RETURN oDataset.
+        
+    END METHOD.
+    
+    METHOD PUBLIC STATIC JsonObject convertTableToJson ( INPUT phTempTable AS HANDLE ):
+        DEFINE VARIABLE hBuffer       AS HANDLE     NO-UNDO.
+        DEFINE VARIABLE hField        AS HANDLE     NO-UNDO.
+        DEFINE VARIABLE hQuery        AS HANDLE     NO-UNDO.
+
+        DEFINE VARIABLE iField        AS INTEGER    NO-UNDO.
+        DEFINE VARIABLE iExtent       AS INTEGER    NO-UNDO.
+
+        DEFINE VARIABLE oTable        AS JsonObject NO-UNDO.
+        DEFINE VARIABLE oTableRecords AS JsonArray  NO-UNDO.
+        DEFINE VARIABLE oTableArray   AS JsonArray  NO-UNDO.
+        DEFINE VARIABLE oRecord       AS JsonObject NO-UNDO.
+        DEFINE VARIABLE oArrayField   AS JsonArray  NO-UNDO.
+
+        DEFINE VARIABLE lBuffer       AS LOGICAL    NO-UNDO.
+        
+        IF NOT VALID-HANDLE(phTempTable) THEN 
+            RETURN ?.
+        
+        IF phTempTable:TYPE EQ "BUFFER" AND 
+           phTempTable:AVAILABLE THEN
+            lBuffer = TRUE.
+        ELSE IF phTempTable:TYPE EQ "BUFFER" THEN 
+            phTempTable = phTempTable:TABLE-HANDLE.
+                     
+        IF (NOT lBuffer) AND 
+           (NOT phTempTable:HAS-RECORDS) THEN 
+            RETURN ?.
+
+        hBuffer = (IF lBuffer THEN phTempTable ELSE phTempTable:DEFAULT-BUFFER-HANDLE).
+
+        CREATE QUERY hQuery.
+        hQuery:SET-BUFFERS(hBuffer).
+
+        IF lBuffer THEN
+            hQuery:QUERY-PREPARE(SUBSTITUTE("FOR EACH &1", hBuffer:NAME)).
+        ELSE
+            hQuery:QUERY-PREPARE(SUBSTITUTE("FOR EACH &1 WHERE ROWID('&1') EQ TO-ROWID('&2')", hBuffer:NAME, STRING(hBuffer:ROWID))).
+
+        hQuery:QUERY-OPEN().
+
+        /* This is the TABLE object itself.  Its label will reflect the table name */
+        oTable = NEW JsonObject().
+        oTableRecords = NEW JsonArray().
+
+        DO WHILE hQuery:GET-NEXT():
+            // Create the record object
+            oRecord = NEW JsonObject().
+            
+            FLD-BLK:
+            DO iField = 1 TO hBuffer:NUM-FIELDS:
+                hField = hBuffer:BUFFER-FIELD(iField).
+                
+                // If the field was defined using the SERIALIZE-HIDDEN option, leave it out of the generated Json
+                IF hField:SERIALIZE-HIDDEN THEN NEXT FLD-BLK.
+                
+                IF hField:EXTENT GT 0 THEN DO:
+                    oArrayField = NEW JsonArray().
+                    DO iExtent = 1 TO hField:EXTENT:
+                        // Add the values from the array elements to the record
+                        oArrayField:Add(hField:BUFFER-VALUE(iExtent)).
+                    END.
+                    // Add the array values to the record
+                    oRecord:Add(hField:SERIALIZE-NAME,oArrayField).
+                END.
+                // Add the field to the record
+                ELSE oRecord:Add(hField:SERIALIZE-NAME,hField:BUFFER-VALUE).
+            END.
+            // Add the record to the records array
+            oTableRecords:Add(oRecord).
+        END.
+        
+        // Add the records array to the Table object
+        oTable:Add(hBuffer:SERIALIZE-NAME,oTableRecords).
+
+        RETURN oTable.
+
+        FINALLY:
+            DELETE OBJECT hQuery NO-ERROR.                      
+        END FINALLY.
+    END METHOD.
+END CLASS.
+
+This example defines a DATASET with multiple relations and transforms it into a flat (not nested) JSON Array.  This will work fine when importing the JSON output into a statically defined DATASET, but the hierarchy of the data is not implied, so importing into a dynamic DATASET will not infer any relationships between tables. 
+USING Progress.Json.ObjectModel.*.
+
+DEFINE TEMP-TABLE ttCustomer    LIKE Customer.
+DEFINE TEMP-TABLE ttOrder       LIKE Order.
+DEFINE TEMP-TABLE ttOrderline   LIKE OrderLine.
+DEFINE TEMP-TABLE ttItem        LIKE Item.
+DEFINE TEMP-TABLE ttInvoice     LIKE Invoice.
+
+DEFINE DATASET dsCustomer FOR ttCustomer, ttOrder, ttOrderline, ttItem, ttInvoice
+    DATA-RELATION relCustOrd  FOR ttCustomer, ttOrder
+        RELATION-FIELDS (CustNum,CustNum)
+    DATA-RELATION relOrdLine  FOR ttOrder, ttOrderline
+        RELATION-FIELDS (OrderNum,OrderNum)
+    DATA-RELATION relLineItem FOR ttOrderline, ttItem
+        RELATION-FIELDS (ItemNum,ItemNum)
+    DATA-RELATION relCustInv  FOR ttCustomer, ttInvoice
+        RELATION-FIELDS (CustNum,CustNum).
+
+DEFINE DATA-SOURCE srcCustomer  FOR Customer.
+DEFINE DATA-SOURCE srcOrder     FOR Order.
+DEFINE DATA-SOURCE srcOrderline FOR OrderLine.
+DEFINE DATA-SOURCE srcItem      FOR Item.
+DEFINE DATA-SOURCE srcInvoice   FOR Invoice.
+
+DEFINE VARIABLE oDataset AS JsonObject NO-UNDO.
+
+BUFFER ttCustomer:ATTACH-DATA-SOURCE(DATA-SOURCE srcCustomer:HANDLE).
+BUFFER ttOrder:ATTACH-DATA-SOURCE(DATA-SOURCE srcOrder:HANDLE).
+BUFFER ttOrderline:ATTACH-DATA-SOURCE(DATA-SOURCE srcOrderline:HANDLE).
+BUFFER ttItem:ATTACH-DATA-SOURCE(DATA-SOURCE srcItem:HANDLE).
+BUFFER ttInvoice:ATTACH-DATA-SOURCE(DATA-SOURCE srcInvoice:HANDLE).
+
+DATASET dsCustomer:FILL().
+
+oDataset = JsonHelper:convertDatasetToJson(DATASET dsCustomer:HANDLE).
+oDataset:WriteFile("dsCustomer.json",TRUE).
+
+      
+      
+*/

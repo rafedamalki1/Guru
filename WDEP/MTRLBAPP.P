@@ -1,0 +1,3347 @@
+/*MTRLBAPP.P*/
+
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{DEPATEMP.I}
+
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{ANVTEMPS.I}
+{MTRLTEMP.I}
+{SPECMTRLTEMP.I}
+{LTRPTEMP.I}
+{LEVTEMP.I}
+{INKMTRLDEP.I}
+{LEVTEMPORDNINGFUNC.I} 
+
+{LAGERTRUM.I}        
+DEFINE TEMP-TABLE off_mtrl NO-UNDO    
+    FIELD TOTALT AS DECIMAL.  
+DEFINE TEMP-TABLE gam_mtrl NO-UNDO
+   FIELD DATUM AS DATE
+   FIELD DATUM2 AS DATE
+   FIELD KOM AS CHARACTER.    
+&Scoped-define NEW   
+&Scoped-define SHARED
+
+{bestnrtab.I}
+    
+DEFINE TEMP-TABLE skapa_mtrl NO-UNDO               
+   FIELD FORE AS CHARACTER
+   FIELD KADR AS CHARACTER  
+   FIELD KPNR AS CHARACTER
+   FIELD KORT AS CHARACTER
+   FIELD BOX AS CHARACTER FORMAT "X(5)"
+   FIELD FAX AS CHARACTER
+   FIELD KIKONTAKT AS CHARACTER                            
+   FIELD KITELE AS CHARACTER        
+   FIELD BESTNAMN AS CHARACTER    
+   FIELD TELE AS CHARACTER
+   FIELD ADR AS CHARACTER
+   FIELD PNR AS CHARACTER
+   FIELD ORT AS CHARACTER
+   FIELD KONTAKT AS CHARACTER 
+   FIELD FAXK AS CHARACTER
+   FIELD FAKADR AS CHARACTER
+   FIELD FAKPNR AS CHARACTER
+   FIELD FAKORT AS CHARACTER
+   FIELD LEVADR AS CHARACTER
+   FIELD LEVPNR AS CHARACTER
+   FIELD LEVORT AS CHARACTER   
+   FIELD DATUM AS DATE
+   FIELD DATUM2 AS DATE
+   FIELD MARK AS CHARACTER FORMAT "X(35)"
+   FIELD KOM AS CHARACTER FORMAT "X(40)".
+
+DEFINE TEMP-TABLE berbtemp NO-UNDO
+   FIELD UTTAG AS LOGICAL 
+   FIELD SVINN AS LOGICAL 
+   FIELD REST AS LOGICAL 
+   FIELD Pris AS DECIMAL 
+   FIELD OFFERT AS LOGICAL  
+   FIELD LEVKOD AS CHARACTER 
+   FIELD LEVDATUM AS DATE
+   FIELD Enr AS CHARACTER 
+   FIELD Enhet AS CHARACTER 
+   FIELD Depnr AS INTEGER 
+   FIELD DELNR AS INTEGER 
+   FIELD Bestnr AS INTEGER 
+   FIELD BESTID AS CHARACTER 
+   FIELD Bestdatum AS DATE 
+   FIELD BESTALLARE AS CHARACTER 
+   FIELD BENAMNING AS CHARACTER 
+   FIELD AONR AS CHARACTER 
+   FIELD Antal AS INTEGER
+   FIELD REKNR AS INTEGER
+   INDEX UTRE UTTAG LEVDATUM
+   INDEX DAT LEVDATUM UTTAG
+   INDEX ENR ENR LEVDATUM UTTAG
+   INDEX LISTA AONR DELNR DEPNR UTTAG LEVDATUM.
+{TEMPUT.I}
+
+DEFINE TEMP-TABLE bstattemp NO-UNDO
+   FIELD BESTNR     AS  INTEGER FORMAT ">>>"                             
+   FIELD Dep-Nr     AS  INTEGER FORMAT ">>>" LABEL "Depå-nr"                            
+   FIELD LEVKOD    AS  CHARACTER                       
+   FIELD OMRADE    AS  CHARACTER                            
+   FIELD ANVANDARE     AS  CHARACTER LABEL "Användare"                             
+   FIELD BESTALLD     AS  CHARACTER  LABEL "Beställd"
+   FIELD BERDATUM     AS  DATE
+   FIELD BERNR AS  INTEGER                        
+   FIELD DATUM     AS  DATE LABEL "Datum"                         
+   FIELD TID    AS  DECIMAL LABEL "Klockan"   
+   INDEX BESTNR2 IS PRIMARY dep-nr BESTNR DATUM TID
+   INDEX BERNR2 OMRADE BERNR DATUM TID.
+
+DEFINE TEMP-TABLE pristemp NO-UNDO
+   FIELD PRIS AS DECIMAL
+   FIELD ANTAL AS INTEGER.
+DEFINE TEMP-TABLE mkattmp   
+   FIELD ENR                AS CHARACTER 
+   FIELD BENAMNING          AS CHARACTER 
+   FIELD ENHET              AS CHARACTER
+   FIELD BPRIS              AS DECIMAL   
+   FIELD NPRIS              AS DECIMAL
+   FIELD NETTO              AS LOGICAL.   
+DEFINE TEMP-TABLE felex NO-UNDO LIKE mkattmp.
+
+{EXTRADATA.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+
+
+DEFINE TEMP-TABLE spec_mtrl2 NO-UNDO LIKE spec_mtrl.
+
+DEFINE VARIABLE rad AS INTEGER NO-UNDO.
+DEFINE VARIABLE summa AS INTEGER NO-UNDO.
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(86)" NO-UNDO.    
+DEFINE VARIABLE str1 AS CHARACTER FORMAT "X(86)" NO-UNDO.
+DEFINE VARIABLE totpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE varpaslag AS DECIMAL FORMAT "->9.99" NO-UNDO.
+DEFINE VARIABLE nbestnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE invdat AS DATE NO-UNDO.
+DEFINE VARIABLE berdatumvar AS DATE NO-UNDO.
+DEFINE VARIABLE datsok AS DATE NO-UNDO.
+DEFINE VARIABLE antalvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE antalvar2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE hjlev AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sparfilnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hjinknr AS INTEGER NO-UNDO.
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE Utbyttabbuffh AS HANDLE NO-UNDO.
+DEFINE BUFFER LAGERPLATSKOPPBUFF FOR LAGERPLATSKOPP.
+sparfilnamn = SESSION:TEMP-DIRECTORY + "inmtrl.txt".
+berdatumvar = TODAY.
+FIND FIRST VECKONATT WHERE SUBSTRING(VECKONATT.DAG_AR,1,3) = "DAG" AND
+VECKONATT.VECKOKORD = "w" + STRING(TODAY,"99999999") 
+USE-INDEX NATT NO-LOCK NO-ERROR.
+IF AVAILABLE VECKONATT THEN berdatumvar = TODAY + 1.
+{TIDUTTTNEW.I}
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+{DYNHMT.I}
+DEFINE VARIABLE gkmovar AS DECIMAL NO-UNDO.
+IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "GKAL" THEN RUN GKMOPA.P (OUTPUT gkmovar).    
+DEFINE TEMP-TABLE aspec_mtrl NO-UNDO LIKE spec_mtrl
+   FIELD NY AS LOGICAL
+   FIELD ANDRAD AS LOGICAL
+   FIELD BORT AS LOGICAL.  
+DEFINE TEMP-TABLE pspec_mtrl NO-UNDO LIKE spec_mtrl
+   FIELD ANVANDARE AS CHARACTER
+   FIELD NYPRIS AS DECIMAL
+   FIELD TIDPUNKT AS DECIMAL
+   FIELD DATUM AS DATE.
+ 
+ PROCEDURE mtrlehmt_UI:
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.      
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO. 
+   DEFINE OUTPUT PARAMETER klev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER dbenamning AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER TABLE FOR spec_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR ej_mtrl.
+    
+   OPEN QUERY mtrlq FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = depnr 
+   AND MTRLDEP.IBDATUM = ? /*AND MTRLDEP.LAGER = TRUE**/ USE-INDEX DEPNR NO-LOCK. 
+   GET FIRST mtrlq NO-LOCK.
+   DO WHILE AVAILABLE(MTRLDEP):
+      CREATE spec_mtrl.
+      ASSIGN 
+      spec_mtrl.LAGER = MTRLDEP.LAGER
+      spec_mtrl.DEPNR = MTRLDEP.DEPNR     
+      spec_mtrl.ENR = MTRLDEP.ENR
+      spec_mtrl.BENAMNING = MTRLDEP.BENAMNING
+      spec_mtrl.ENHET = MTRLDEP.ENHET
+      spec_mtrl.BESTKVANT = MTRLDEP.BESTKVANT
+      spec_mtrl.BESTPUNKT = MTRLDEP.BESTPUNKT
+      spec_mtrl.NPRIS = MTRLDEP.NPRIS  
+      spec_mtrl.BPRIS = MTRLDEP.BPRIS 
+      spec_mtrl.LEVKOD = MTRLDEP.LEVKOD 
+      spec_mtrl.FACKID = MTRLDEP.FACKID  
+      spec_mtrl.INVANT = MTRLDEP.INVANT
+      spec_mtrl.OMSATT = MTRLDEP.OMSATT    
+      spec_mtrl.SALDO = MTRLDEP.SALDO
+      spec_mtrl.MARK = TRUE.
+      GET NEXT mtrlq NO-LOCK. 
+   END.
+   CLOSE QUERY mtrlq.
+   /*IF gforetag = "ELPA"  OR gforetag = "GKAL" OR gforetag = "LULE" OR Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR
+   Guru.Konstanter:globforetag = "BORL" OR Guru.Konstanter:globforetag = "BODE" OR Guru.Konstanter:globforetag = "KRAF" THEN DO:*/
+   IF gforetag = "VAST" OR gforetag = "UMEA" THEN.
+   ELSE DO:
+   
+      OPEN QUERY mtrlq FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = depnr 
+      AND MTRLDEP.IBDATUM = ? AND MTRLDEP.LAGER = FALSE USE-INDEX DEPNR NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLDEP):
+         CREATE ej_mtrl.
+         ASSIGN 
+         ej_mtrl.DEPNR = MTRLDEP.DEPNR     
+         ej_mtrl.ENR = MTRLDEP.ENR
+         ej_mtrl.BENAMNING = MTRLDEP.BENAMNING
+         ej_mtrl.ENHET = MTRLDEP.ENHET
+         ej_mtrl.BESTKVANT = MTRLDEP.BESTKVANT
+         ej_mtrl.BESTPUNKT = MTRLDEP.BESTPUNKT
+         ej_mtrl.NPRIS = MTRLDEP.NPRIS  
+         ej_mtrl.BPRIS = MTRLDEP.BPRIS 
+         ej_mtrl.LEVKOD = MTRLDEP.LEVKOD 
+         ej_mtrl.FACKID = MTRLDEP.FACKID  
+         ej_mtrl.INVANT = MTRLDEP.INVANT
+         ej_mtrl.OMSATT = MTRLDEP.OMSATT    
+         ej_mtrl.SALDO = MTRLDEP.SALDO
+         ej_mtrl.MARK = TRUE.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.         
+   END.
+
+   FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = depnr NO-LOCK NO-ERROR.   
+   IF AVAILABLE HUVUDLEV THEN DO:  
+      klev = HUVUDLEV.LEVKOD.
+   END.                              
+   ELSE DO:
+      FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+      IF AVAILABLE HUVUDLEV THEN DO:
+         klev = HUVUDLEV.LEVKOD.
+      END.
+      ELSE DO:      
+         FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD NE "0" 
+         AND LEVERANTOR.BORTTAG = FALSE NO-LOCK NO-ERROR.
+         klev = LEVERANTOR.LEVKOD.
+      END.
+   END.   
+   FIND FIRST DEPA WHERE DEPA.DEP-NR = depnr NO-LOCK NO-ERROR.  
+   dbenamning = DEPA.BENAMNING.
+   
+END PROCEDURE.
+   
+PROCEDURE okdepv2_UI :
+   /*ÄNDRING AV LAGER SALDO*/
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER.
+   DEFINE INPUT PARAMETER TABLE FOR aspec_mtrl.
+   DEFINE INPUT PARAMETER TABLE FOR svinn_temp.
+   DEFINE INPUT PARAMETER invdat AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER globanv AS CHARACTER NO-UNDO.
+   
+   FOR EACH aspec_mtrl WHERE aspec_mtrl.NY = TRUE AND aspec_mtrl.LAGER = TRUE:       
+      DO TRANSACTION:   
+         FIND FIRST MTRLDEP WHERE MTRLDEP.ENR = aspec_mtrl.ENR AND MTRLDEP.DEPNR = vald_depa 
+         AND MTRLDEP.IBDATUM = ? AND MTRLDEP.LAGER = FALSE AND MTRLDEP.LEVKOD = aspec_mtrl.LEVKOD EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE MTRLDEP THEN DO:          
+            DELETE MTRLDEP.
+         END.         
+      END.
+   END.         
+   RELEASE MTRLDEP.
+   FOR EACH svinn_temp:
+      DO TRANSACTION:   
+         CREATE BERBEST.
+         ASSIGN
+         BERBEST.DEPNR = vald_depa
+         BERBEST.BESTDATUM = TODAY
+         BERBEST.LEVDATUM = TODAY
+         BERBEST.SVINN = TRUE
+         SUBSTRING(BERBEST.BESTALLARE,1,59) = globanv
+         BERBEST.ENR = svinn_temp.ENR
+         SUBSTRING(BERBEST.BENAMNING,1,59) = SUBSTRING(svinn_temp.BENAMNING,1,59)
+         SUBSTRING(BERBEST.BENAMNING,60) = SUBSTRING(svinn_temp.BENAMNING,60) /*KOMMENTAR*/
+         BERBEST.ENHET = svinn_temp.ENHET
+         BERBEST.PRIS = svinn_temp.PRIS       
+         BERBEST.LEVKOD = svinn_temp.LEV
+         BERBEST.ANTAL = svinn_temp.ANTAL
+         BERBEST.UTTAG = svinn_temp.UTTAG.   
+      END.      
+   END. 
+   /*FIFO*/
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   ASSIGN Guru.Konstanter:globforetag = FORETAG.FORETAG.
+   
+   DEBUGGER:SET-BREAK().
+   IF Guru.Konstanter:varforetypval[54] = 1 THEN DO:         
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+      FOR EACH svinn_temp:
+         REPEAT WHILE svinn_temp.ANTAL > 0:         
+            EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+            EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+            CREATE inextradatatemp.          
+            ASSIGN
+            inextradatatemp.PROGRAM = "FIFO"                                  
+            inextradatatemp.HUVUDINT =  vald_depa
+            inextradatatemp.HUVUDCH =  svinn_temp.ENR.                    
+            RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp).
+            EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+            IF svinn_temp.UTTAG = TRUE THEN DO:
+               datsok = TODAY + 1.
+               FOR EACH extradatatemp:
+                  IF extradatatemp.SOKDAT[1] < datsok THEN DO:
+                     datsok = extradatatemp.SOKDAT[1].
+                  END.
+               END.
+               FIND FIRST extradatatemp WHERE extradatatemp.SOKDAT[1] = datsok NO-LOCK NO-ERROR.
+               IF AVAILABLE extradatatemp THEN DO:
+                  IF svinn_temp.ANTAL <= extradatatemp.SOKINT[1] THEN DO:
+                     extradatatemp.SOKINT[1] = extradatatemp.SOKINT[1] - svinn_temp.ANTAL.
+                     svinn_temp.ANTAL = 0.
+                     EMPTY TEMP-TABLE inextradatatemp NO-ERROR.  
+                     CREATE inextradatatemp.
+                     BUFFER-COPY extradatatemp TO inextradatatemp.
+                     IF extradatatemp.SOKINT[1] = 0 THEN DO:                  
+                        RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).
+                     END.
+                     ELSE DO:                                       
+                        RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).
+                     END.
+                  END.
+                  ELSE DO:
+                     svinn_temp.ANTAL = svinn_temp.ANTAL - extradatatemp.SOKINT[1].
+                     EMPTY TEMP-TABLE inextradatatemp NO-ERROR.       
+                     CREATE inextradatatemp.
+                     BUFFER-COPY extradatatemp TO inextradatatemp.
+                     RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).
+                  END.               
+               END.
+            END.
+            ELSE DO:
+               datsok = 01/01/91.
+               FOR EACH extradatatemp:
+                  IF extradatatemp.SOKDAT[1] > datsok THEN DO:
+                     datsok = extradatatemp.SOKDAT[1].
+                  END.
+               END.
+               FIND FIRST extradatatemp WHERE extradatatemp.SOKDAT[1] = datsok NO-LOCK NO-ERROR.
+               IF AVAILABLE extradatatemp THEN DO:
+                  EMPTY TEMP-TABLE inextradatatemp NO-ERROR.       
+                  CREATE inextradatatemp.
+                  BUFFER-COPY extradatatemp TO inextradatatemp.
+                  ASSIGN
+                  inextradatatemp.SOKINT[1] =  svinn_temp.ANTAL
+                  inextradatatemp.SOKDATE[1] =  TODAY
+                  inextradatatemp.SOKINT[2] =  TIME.         
+                  RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).
+               END.               
+               ELSE DO:
+                  /*Priset blir här samma som i depån som i sin tur har priset för senast inköpta artikel*/
+                  CREATE inextradatatemp.          
+                  ASSIGN
+                  inextradatatemp.PROGRAM = "FIFO"                                  
+                  inextradatatemp.HUVUDINT =  vald_depa
+                  inextradatatemp.HUVUDCH =  svinn_temp.ENR
+                  inextradatatemp.SOKCHAR[2] =  svinn_temp.BENAMNING
+                  inextradatatemp.SOKCHAR[3] =  svinn_temp.ENHET
+                  inextradatatemp.SOKDEC[1] =  svinn_temp.PRIS
+                  inextradatatemp.SOKINT[1] =  svinn_temp.ANTAL
+                  inextradatatemp.SOKDATE[1] =  TODAY
+                  inextradatatemp.SOKINT[2] =  TIME.       
+                  RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).                 
+               END.
+               svinn_temp.ANTAL = 0.
+            END.       
+         END.
+      END.
+      IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+      edataapph = ?. 
+   END.
+END PROCEDURE.
+
+PROCEDURE andpris_UI :
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER.
+   DEFINE INPUT PARAMETER TABLE FOR pspec_mtrl.
+      
+   FOR EACH pspec_mtrl:
+      CREATE BETAONR.
+      ASSIGN
+      BETAONR.AONR = pspec_mtrl.ENR + ";" + pspec_mtrl.BENAMNING + ";" + pspec_mtrl.ENHET + ";" + pspec_mtrl.LEVKOD
+      BETAONR.ANM = pspec_mtrl.ANVANDARE
+      BETAONR.DELNR = pspec_mtrl.TIDPUNKT
+      BETAONR.BETNR = INTEGER(pspec_mtrl.DATUM)
+      BETAONR.EXTRAPRIS = pspec_mtrl.NPRIS
+      BETAONR.KALKPRIS = pspec_mtrl.NYPRIS
+      BETAONR.EXTRAANM = STRING(vald_depa).
+      /*Inlagt att ändring av pris i lager även uppdaterar pris i mtrlkataölogen för artikeln 20170703 Lena*/
+      IF Guru.Konstanter:globforetag = "lule" THEN DO:      
+         IF pspec_mtrl.LEVKOD = "4" OR pspec_mtrl.LEVKOD = "5" OR pspec_mtrl.LEVKOD = "21" THEN DO:
+            /*5= Onninen 21= Storel 4 = Ahlsell verktyg*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = pspec_mtrl.LEVKOD AND MTRL.KALKNR = 0 AND 
+            MTRL.ENR = pspec_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = pspec_mtrl.NYPRIS
+               MTRL.BPRIS = pspec_mtrl.NYPRIS.
+            END.
+         END.
+      END.
+      IF Guru.Konstanter:globforetag = "BODE" OR Guru.Konstanter:globforetag = "KRAF" THEN DO:               
+         IF pspec_mtrl.LEVKOD = "2"  THEN DO:
+            /*Ahlsell*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = pspec_mtrl.LEVKOD AND MTRL.KALKNR = 0 AND 
+            MTRL.ENR = pspec_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = pspec_mtrl.NYPRIS
+               MTRL.BPRIS = pspec_mtrl.NYPRIS.
+            END.
+         END.
+      END.
+      /*kalmar depåändring abc nu*/
+      IF Guru.Konstanter:globforetag = "GKAL" THEN DO:               
+         IF pspec_mtrl.LEVKOD = "3" OR pspec_mtrl.LEVKOD = "10" THEN DO:
+            /*3= SELGA 1= ONNINEN 4=Elektroskandia 10=Depå Kalmar*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = pspec_mtrl.LEVKOD AND MTRL.KALKNR = 0 AND 
+            MTRL.ENR = pspec_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = pspec_mtrl.NYPRIS
+               MTRL.BPRIS = pspec_mtrl.NYPRIS.
+            END.
+         END.
+      END.
+   END.
+
+      
+END PROCEDURE.
+PROCEDURE kollbest_UI :
+   DEFINE INPUT PARAMETER eenr AS CHARACTER.
+   DEFINE INPUT PARAMETER vdepa AS INTEGER.
+   DEFINE INPUT PARAMETER vlev AS CHARACTER.
+   DEFINE OUTPUT PARAMETER kollbt AS LOGICAL.
+   kollbt = FALSE.   
+   FIND FIRST BESTDEP WHERE BESTDEP.DEPNR = vdepa AND 
+   BESTDEP.ENR = eenr AND BESTDEP.LEVKOD = vlev AND BESTDEP.LEVDATUM = ? NO-LOCK NO-ERROR.
+   IF AVAILABLE BESTDEP THEN kollbt = TRUE.
+
+END PROCEDURE.
+PROCEDURE okdepv_UI :   
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR aspec_mtrl.
+   DEFINE INPUT PARAMETER invdat AS DATE NO-UNDO.
+   FOR EACH aspec_mtrl WHERE aspec_mtrl.BORT = TRUE:
+      DO TRANSACTION:
+         FOR EACH MTRLDEP WHERE MTRLDEP.ENR = aspec_mtrl.ENR AND MTRLDEP.DEPNR = vald_depa 
+         AND MTRLDEP.IBDATUM = ? AND MTRLDEP.LAGER = aspec_mtrl.LAGER EXCLUSIVE-LOCK:
+            DELETE MTRLDEP.
+         END.      
+         FOR EACH MTRLDEP WHERE MTRLDEP.ENR = aspec_mtrl.ENR AND MTRLDEP.DEPNR = vald_depa 
+         AND MTRLDEP.IBDATUM NE ? AND MTRLDEP.INVDATUM = ? EXCLUSIVE-LOCK:
+            DELETE MTRLDEP.
+         END.      
+      END.
+      DELETE aspec_mtrl.
+   END.
+   
+   FOR EACH aspec_mtrl WHERE aspec_mtrl.NY = TRUE:
+      DO TRANSACTION:
+         CREATE MTRLDEP.
+         BUFFER-COPY aspec_mtrl TO MTRLDEP.
+         ASSIGN
+         MTRLDEP.IBDATUM = ?
+         /*MTRLDEP.LAGER = TRUE*/
+         MTRLDEP.INVDATUM = invdat.
+      END.
+      DELETE aspec_mtrl.
+   END.
+   FOR EACH aspec_mtrl WHERE aspec_mtrl.ANDRAD = TRUE:
+      DO TRANSACTION:
+         FIND FIRST MTRLDEP WHERE MTRLDEP.ENR = aspec_mtrl.ENR AND MTRLDEP.DEPNR = vald_depa 
+         AND MTRLDEP.IBDATUM = ? AND MTRLDEP.LAGER = aspec_mtrl.LAGER EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE MTRLDEP THEN DO:          
+            BUFFER-COPY aspec_mtrl TO MTRLDEP.
+            /*
+            ASSIGN
+            MTRLDEP.LAGER = TRUE.
+            */
+         END.
+         ELSE DO:
+            IF aspec_mtrl.LAGER = TRUE THEN DO:
+               /*OM BYTE GÖRS FRÅN EJ LAGERFÖRD TILL LAGERFÖRD*/
+               FIND FIRST MTRLDEP WHERE MTRLDEP.ENR = aspec_mtrl.ENR AND MTRLDEP.DEPNR = vald_depa 
+               AND MTRLDEP.IBDATUM = ? AND MTRLDEP.LAGER = FALSE EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE MTRLDEP THEN DO:          
+                  BUFFER-COPY aspec_mtrl TO MTRLDEP.
+               END.
+            END.      
+         END.   
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE admbortmtrl_UI:   
+   DEFINE INPUT PARAMETER TABLE FOR emtrltemp. 
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp. 
+   
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   /*
+   FIND FIRST emtrltemp NO-ERROR.
+   */
+   FOR EACH emtrltemp:
+      IF Guru.Konstanter:globforetag = "CELPA" OR Guru.Konstanter:globforetag = "GKAL" THEN DO TRANSACTION:      
+   
+         IF emtrltemp.LEVKOD = "10" THEN DO :                          
+            FIND FIRST MTRLDEP WHERE MTRLDEP.ENR = emtrltemp.ENR AND 
+            MTRLDEP.IBDATUM = ? AND MTRLDEP.DEPNR = 1 EXCLUSIVE-LOCK NO-ERROR.                
+            IF AVAILABLE MTRLDEP THEN DO:
+               IF MTRLDEP.SALDO > 0 THEN DO:
+                  CREATE felmeddtemp.  
+                  ASSIGN               
+                  felmeddtemp.FELMEDD = "Ni kan ej ta bort denna artikel då saldot i depån är större än 0.".               
+               END.
+               ELSE DO:
+                  DELETE MTRLDEP.
+                  FIND FIRST MTRL WHERE ROWID(MTRL) = emtrltemp.MTRLROW EXCLUSIVE-LOCK NO-ERROR.         
+                  IF AVAILABLE MTRL THEN DELETE MTRL.
+               END.
+            END.
+            ELSE DO:
+               FIND FIRST MTRL WHERE ROWID(MTRL) = emtrltemp.MTRLROW EXCLUSIVE-LOCK NO-ERROR.         
+               IF AVAILABLE MTRL THEN DELETE MTRL.
+            END.               
+         END.
+         ELSE DO :         
+            FIND FIRST MTRL WHERE ROWID(MTRL) = emtrltemp.MTRLROW EXCLUSIVE-LOCK NO-ERROR.         
+            IF emtrltemp.LEVKOD = "99" THEN DO:
+               FIND FIRST MTRLSPEC WHERE MTRLSPEC.ENR = emtrltemp.ENR AND MTRLSPEC.LEVKOD =
+               emtrltemp.LEVKOD EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE MTRLSPEC THEN DELETE MTRLSPEC.
+            END.                  
+            IF AVAILABLE MTRL THEN DELETE MTRL.                     
+         END.
+      END.
+      ELSE DO TRANSACTION:         
+         FIND FIRST MTRL WHERE ROWID(MTRL) = emtrltemp.MTRLROW EXCLUSIVE-LOCK NO-ERROR.         
+         IF emtrltemp.LEVKOD = "99" THEN DO:
+            FIND FIRST MTRLSPEC WHERE MTRLSPEC.ENR = emtrltemp.ENR AND MTRLSPEC.LEVKOD =
+            emtrltemp.LEVKOD EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRLSPEC THEN DELETE MTRLSPEC.
+         END.                  
+         IF AVAILABLE MTRL THEN DELETE MTRL.                     
+      END.
+   END.
+   RELEASE MTRL NO-ERROR.
+   RELEASE MTRLSPEC NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE admsparmtrl_UI:
+   /*DEFINE INPUT PARAMETER rowvar AS ROWID NO-UNDO. */     
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR emtrltemp.
+    
+   FIND FIRST emtrltemp NO-LOCK NO-ERROR.
+   IF AVAILABLE emtrltemp THEN DO TRANSACTION:   
+      IF emtrltemp.MTRLROW = ? THEN DO :
+         CREATE MTRL.
+         BUFFER-COPY emtrltemp TO MTRL.
+         ASSIGN emtrltemp.MTRLROW = ROWID(MTRL).      
+      END.
+      ELSE DO:  
+         FIND FIRST MTRL WHERE MTRL.ENR = emtrltemp.ENR AND MTRL.LEVKOD = emtrltemp.LEVKOD AND MTRL.KALKNR = 0 EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE MTRL THEN DO:                 
+            FIND FIRST emtrltemp NO-LOCK NO-ERROR.
+            BUFFER-COPY emtrltemp TO MTRL.   
+         END.
+      END.
+   END.   
+   
+   RELEASE MTRL NO-ERROR.
+ 
+
+  
+END PROCEDURE.
+
+
+PROCEDURE bdepandra_UI :  
+   /*HÄMTAR EN TIDIGARE BESTÄLLNING EJ BESTÄLLD*/                       
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER bnummer AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR mtrldeptemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR spec_mtrl.
+
+   OPEN QUERY bestq FOR EACH BESTDEP WHERE BESTDEP.BESTNR =  bnummer AND
+   BESTDEP.DEPNR = depnr /*AND BESTDEP.Enr NE ""*/ USE-INDEX BEST NO-LOCK.
+   GET FIRST bestq NO-LOCK.
+   DO WHILE AVAILABLE(BESTDEP):        
+      CREATE spec_mtrl.
+      ASSIGN      
+      spec_mtrl.ENR = BESTDEP.ENR
+      spec_mtrl.BENAMNING = BESTDEP.BENAMNING
+      spec_mtrl.ENHET = BESTDEP.ENHET
+      spec_mtrl.BERKVANT = BESTDEP.ANTAL
+      spec_mtrl.NPRIS = BESTDEP.PRIS 
+      spec_mtrl.BESTDATUM = BESTDEP.BESTDATUM
+      spec_mtrl.LEVKOD = BESTDEP.LEVKOD
+      spec_mtrl.MARK = TRUE.
+      FIND FIRST mtrldeptemp WHERE mtrldeptemp.ENR = BESTDEP.ENR AND 
+      mtrldeptemp.LEVKOD = BESTDEP.LEVKOD AND mtrldeptemp.DEPNR = depnr
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE mtrldeptemp THEN spec_mtrl.FACKID = mtrldeptemp.FACKID.       
+      GET NEXT bestq NO-LOCK.         
+   END. 
+   CLOSE QUERY bestq.     
+
+END PROCEDURE.         
+
+PROCEDURE bdepskap_UI :                         
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER bnummer AS INTEGER NO-UNDO.
+   
+   DO TRANSACTION:
+      CREATE BESTDEP.
+      ASSIGN
+      BESTDEP.BESTNR = bnummer
+      BESTDEP.DEPNR = depnr 
+      BESTDEP.BESTALLARE = "TA BORT".      
+   END.
+   RELEASE BESTDEP NO-ERROR.   
+END PROCEDURE.         
+
+
+PROCEDURE beststatsp_UI :                         
+   DEFINE INPUT PARAMETER nbestnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vdepa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER bstalld AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vlev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER ktid AS DECIMAL NO-UNDO.
+   DO TRANSACTION:
+      CREATE BESTSTAT.
+      ASSIGN 
+      BESTSTAT.BESTNR = nbestnr
+      BESTSTAT.DEP-NR = vdepa
+      BESTSTAT.ANVANDARE = ganv
+      BESTSTAT.BESTALLD = bstalld
+      /*BESTSTAT.BESTALLD = "Ej beställd"*/
+      BESTSTAT.DATUM = TODAY
+      BESTSTAT.LEVKOD = vlev.   
+      BESTSTAT.TID = ktid.
+   END.
+   RELEASE BESTSTAT NO-ERROR.               
+   
+END PROCEDURE.         
+
+
+PROCEDURE bortbest_UI :                         
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER inbestallnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER bestallnr AS INTEGER NO-UNDO.
+
+   IF inbestallnr = 0 THEN DO:
+      OPEN QUERY trpq FOR EACH LEVTRP WHERE LEVTRP.DEP-NR = depnr AND
+      LEVTRP.BESTNR = bestallnr AND LEVTRP.BERNR = 0 NO-LOCK.
+      GET FIRST trpq NO-LOCK.
+      DO WHILE AVAILABLE(LEVTRP):
+         DO TRANSACTION:
+            GET CURRENT trpq EXCLUSIVE-LOCK. 
+            DELETE LEVTRP.
+         END.
+         GET NEXT trpq NO-LOCK.
+      END.
+      CLOSE QUERY trpq.
+      OPEN QUERY statq FOR EACH BESTSTAT WHERE BESTSTAT.DEP-NR = depnr AND
+      BESTSTAT.BESTNR = bestallnr AND BESTSTAT.BERNR = 0 NO-LOCK.
+      GET FIRST statq NO-LOCK.
+      DO WHILE AVAILABLE(BESTSTAT):
+         DO TRANSACTION:
+            GET CURRENT statq EXCLUSIVE-LOCK. 
+            DELETE BESTSTAT.
+         END.
+         GET NEXT statq NO-LOCK.
+      END.
+      CLOSE QUERY statq.
+   END. 
+   DO TRANSACTION:
+      FIND FIRST BESTDEP WHERE BESTDEP.BESTNR = bestallnr AND
+      BESTDEP.DEPNR = depnr AND BESTDEP.BESTALLARE = "TA BORT" EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BESTDEP THEN DELETE BESTDEP.                                   
+   END.
+   RELEASE LEVTRP NO-ERROR.
+   RELEASE BESTSTAT NO-ERROR.
+   RELEASE BESTDEP NO-ERROR.
+END PROCEDURE.         
+
+PROCEDURE bstathmt_UI :                           
+   DEFINE INPUT PARAMETER nbest AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER TABLE FOR  bstattemp.     
+   EMPTY TEMP-TABLE bstattemp NO-ERROR.
+   OPEN QUERY utq FOR EACH BESTSTAT WHERE BESTSTAT.BESTNR = nbest 
+   AND BESTSTAT.DEP-NR = depnr AND BESTSTAT.BERNR = 0 USE-INDEX BESTNR2 NO-LOCK.
+   GET FIRST utq NO-LOCK.
+   DO WHILE AVAILABLE(BESTSTAT):      
+      CREATE bstattemp.      
+      BUFFER-COPY BESTSTAT TO bstattemp.
+      
+      GET NEXT utq NO-LOCK.
+   END.
+   CLOSE QUERY utq.                               
+END PROCEDURE.         
+
+PROCEDURE ejlager_UI:   
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER invdat AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+   FOR EACH spec_mtrl:
+      DO TRANSACTION:      
+         FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = depnr AND
+         MTRLDEP.ENR = spec_mtrl.ENR AND MTRLDEP.LAGER = FALSE AND 
+         MTRLDEP.IBDATUM = ? EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE MTRLDEP THEN DO:
+            ASSIGN             
+            MTRLDEP.BESTPUNKT = spec_mtrl.BESTPUNKT 
+            MTRLDEP.BESTKV = spec_mtrl.BESTKVANT
+            MTRLDEP.FACKID = spec_mtrl.FACKID
+            MTRLDEP.OMSATT = spec_mtrl.OMSATT            
+            MTRLDEP.INVDATUM = invdat                  
+            MTRLDEP.LAGER = FALSE.
+         END.
+         ELSE DO:               
+            CREATE MTRLDEP.
+            ASSIGN 
+            MTRLDEP.DEPNR = depnr
+            MTRLDEP.ENR = spec_mtrl.ENR
+            MTRLDEP.BENAMNING = spec_mtrl.BENAMNING
+            MTRLDEP.ENHET = spec_mtrl.ENHET
+            MTRLDEP.BESTPUNKT = spec_mtrl.BESTPUNKT 
+            MTRLDEP.BESTKV = spec_mtrl.BESTKVANT
+            MTRLDEP.FACKID = spec_mtrl.FACKID
+            MTRLDEP.OMSATT = spec_mtrl.OMSATT
+            MTRLDEP.NPRIS = spec_mtrl.NPRIS
+            MTRLDEP.BPRIS = spec_mtrl.NPRIS
+            MTRLDEP.INVDATUM = invdat
+            MTRLDEP.LEVKOD = spec_mtrl.LEVKOD
+            MTRLDEP.SALDO = spec_mtrl.SALDO
+            MTRLDEP.LAGER = FALSE.
+         END.     
+      END.
+   END.
+   RELEASE MTRLDEP NO-ERROR.
+END PROCEDURE.
+
+
+
+PROCEDURE enrhmt2_UI :
+   DEFINE INPUT PARAMETER posok AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER begvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev2 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.
+
+   DEFINE VARIABLE num AS INTEGER NO-UNDO.
+   felmedd = "".
+   IF begvar = ? THEN DO:
+      RUN starwars_UI (OUTPUT begvar,OUTPUT felmedd,INPUT-OUTPUT posok).
+      IF felmedd NE "" THEN RETURN.
+   END.
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR. 
+   num = 0.
+   IF begvar = FALSE THEN DO:
+      FIND NEXT MTRL WHERE MTRL.ENR MATCHES posok AND MTRL.LEVKOD = vald_lev2
+      AND MTRL.KALKNR = 0 USE-INDEX LEV NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         CREATE mtrltemp.
+         BUFFER-COPY MTRL TO mtrltemp.
+         ASSIGN 
+         mtrltemp.ENHET = LC(mtrltemp.ENHET)
+         mtrltemp.MTRLROW = ROWID(MTRL).
+         num = num + 1.
+         REPEAT:      
+            FIND NEXT MTRL WHERE  MTRL.LEVKOD = vald_lev2 
+            AND MTRL.KALKNR = 0 USE-INDEX LEV NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE MTRL THEN LEAVE.            
+            CREATE mtrltemp.
+            BUFFER-COPY MTRL TO mtrltemp.
+            ASSIGN 
+            mtrltemp.ENHET = LC(mtrltemp.ENHET)
+            mtrltemp.MTRLROW = ROWID(MTRL).
+            num = num + 1.
+            IF num = 13 THEN LEAVE.
+         END.
+      END.
+   END.
+   ELSE DO:
+      FIND NEXT MTRL WHERE MTRL.ENR BEGINS posok AND MTRL.LEVKOD = vald_lev2
+      AND MTRL.KALKNR = 0 USE-INDEX LEV NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         CREATE mtrltemp.
+         BUFFER-COPY MTRL TO mtrltemp.
+         ASSIGN 
+         mtrltemp.ENHET = LC(mtrltemp.ENHET)
+         mtrltemp.MTRLROW = ROWID(MTRL).
+         num = num + 1.
+         REPEAT:      
+            FIND NEXT MTRL WHERE  MTRL.LEVKOD = vald_lev2 
+            AND MTRL.KALKNR = 0 USE-INDEX LEV NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE MTRL THEN LEAVE.
+            
+            CREATE mtrltemp.
+            BUFFER-COPY MTRL TO mtrltemp.
+            ASSIGN 
+            mtrltemp.ENHET = LC(mtrltemp.ENHET)
+            mtrltemp.MTRLROW = ROWID(MTRL).
+            num = num + 1.
+            IF num = 13 THEN LEAVE.
+         END.
+      END.
+   END.
+   FIND FIRST mtrltemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE mtrltemp THEN DO:
+      ASSIGN felmedd = "Det finns inget på sökbegreppet".
+      RETURN.
+   END.     
+END PROCEDURE.
+
+
+PROCEDURE hmtnasta_UI :
+   DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR. 
+   FIND FIRST MTRL WHERE MTRL.ENR = enrvar AND MTRL.LEVKOD = vald_lev 
+   AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      FIND NEXT MTRL WHERE MTRL.ENR NE enrvar AND MTRL.LEVKOD = vald_lev 
+      AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         CREATE mtrltemp.
+         BUFFER-COPY MTRL TO mtrltemp.
+         ASSIGN 
+         mtrltemp.ENHET = LC(mtrltemp.ENHET)
+         mtrltemp.MTRLROW = ROWID(MTRL).
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE hmtinnan_UI :
+   DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR. 
+   FIND FIRST MTRL WHERE MTRL.ENR = enrvar AND MTRL.LEVKOD = vald_lev 
+   AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      FIND PREV MTRL WHERE MTRL.ENR NE enrvar AND MTRL.LEVKOD = vald_lev 
+      AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         CREATE mtrltemp.
+         BUFFER-COPY MTRL TO mtrltemp.
+         ASSIGN 
+         mtrltemp.ENHET = LC(mtrltemp.ENHET)
+         mtrltemp.MTRLROW = ROWID(MTRL).         
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE hmtforsta_UI :
+   DEFINE INPUT PARAMETER vald_lev2 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.
+   DEFINE VARIABLE num AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR. 
+   num = 0.
+   FOR EACH MTRL WHERE MTRL.KALKNR = 0 AND  
+   MTRL.LEVKOD = vald_lev2 USE-INDEX ENR NO-LOCK :         
+      CREATE mtrltemp.                      
+      BUFFER-COPY MTRL TO mtrltemp.         
+      ASSIGN 
+      mtrltemp.ENHET = LC(mtrltemp.ENHET)
+      mtrltemp.MTRLROW = ROWID(MTRL).
+      num = num + 1.
+      IF num = 13 THEN RETURN.
+   END.  
+END PROCEDURE.
+
+PROCEDURE hmtsista_UI :
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.
+   DEFINE VARIABLE num AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR. 
+   num = 0.
+   FIND LAST MTRL WHERE MTRL.LEVKOD = vald_lev AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      REPEAT:
+         FIND PREV MTRL WHERE MTRL.LEVKOD = vald_lev AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRL THEN DO:
+            CREATE mtrltemp.
+            BUFFER-COPY MTRL TO mtrltemp.
+            ASSIGN 
+            mtrltemp.ENHET = LC(mtrltemp.ENHET)
+            mtrltemp.MTRLROW = ROWID(MTRL).
+            num = num + 1.
+            IF num = 13 THEN LEAVE.            
+         END.      
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE hmtskap_UI :
+   DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR emtrltemp.
+   EMPTY TEMP-TABLE emtrltemp NO-ERROR. 
+   FIND FIRST MTRL WHERE MTRL.ENR = enrvar AND MTRL.LEVKOD = vald_lev 
+   AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      CREATE emtrltemp.
+      BUFFER-COPY MTRL TO emtrltemp.
+      ASSIGN emtrltemp.MTRLROW = ROWID(MTRL).               
+   END.
+END PROCEDURE.
+
+PROCEDURE hmtskap2_UI :
+   DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR emtrltemp.
+   EMPTY TEMP-TABLE emtrltemp NO-ERROR. 
+   FIND FIRST MTRL WHERE MTRL.ENR = enrvar AND MTRL.LEVKOD = vald_lev 
+   AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      CREATE emtrltemp.
+      BUFFER-COPY MTRL TO emtrltemp.
+      ASSIGN emtrltemp.MTRLROW = ROWID(MTRL).               
+   END.
+   
+   /*inlagd  ersättningslista samma leverantör 2012-04-04 Lena*/
+   CREATE BUFFER Utbyttabbuffh FOR TABLE "UTBYTESLISTA".
+   Utbyttabbuffh:FIND-FIRST("WHERE UID = " + STRING(0) + " AND ORGLEVKOD = " + QUOTER(vald_lev)  + " AND ORGENR = " + QUOTER(enrvar)  + " AND BYTTILLLEVKOD = " + QUOTER(vald_lev),NO-LOCK) NO-ERROR.
+   IF Utbyttabbuffh:AVAILABLE THEN DO:
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = vald_lev AND MTRL.ENR = Utbyttabbuffh:BUFFER-FIELD("BYTTILLENR"):BUFFER-VALUE  AND
+      MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         IF NOT AVAILABLE emtrltemp THEN DO:
+            /*enr borttaget original, men man vill ha kvar översättningen för import från excel*/
+            CREATE emtrltemp.
+         END.  
+         ASSIGN
+         emtrltemp.ENR = MTRL.ENR
+         emtrltemp.BENAMNING = MTRL.BENAMNING
+         emtrltemp.ENHET = MTRL.ENHET
+         emtrltemp.NPRIS = MTRL.NPRIS
+         emtrltemp.LEVKOD = MTRL.LEVKOD.               
+      END.
+   END.   
+     
+       
+      
+END PROCEDURE.
+
+
+PROCEDURE hmtanv_UI :                         
+   DEFINE INPUT PARAMETER aanv AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER anamn AS CHARACTER NO-UNDO.   
+   anamn = "".
+   FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = aanv
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE ANVANDARE THEN anamn = ANVANDARE.AV-NAMN.
+END PROCEDURE.         
+
+PROCEDURE hmtberbtemp_UI :                         
+   DEFINE INPUT PARAMETER vaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER depnr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR  berbtemp.
+   EMPTY TEMP-TABLE berbtemp NO-ERROR.
+
+   OPEN QUERY utq FOR EACH BERBEST WHERE BERBEST.AONR = vaonr AND
+   BERBEST.DELNR = vdelnr /*AND BERBEST.DEPNR = vald_depa*/  NO-LOCK.
+   GET FIRST utq NO-LOCK.
+   DO WHILE AVAILABLE(BERBEST):      
+      CREATE berbtemp.      
+      BUFFER-COPY BERBEST TO berbtemp.
+                 
+      
+      GET NEXT utq NO-LOCK.
+   END.
+   CLOSE QUERY utq.           
+   
+END PROCEDURE.         
+
+PROCEDURE hmttemput_UI :                         
+   DEFINE INPUT PARAMETER vaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR  temp_ut.
+   EMPTY TEMP-TABLE temp_ut NO-ERROR.
+
+   OPEN QUERY utq FOR EACH BERBEST WHERE BERBEST.AONR = vaonr AND
+   BERBEST.DELNR = vdelnr AND BERBEST.DEPNR = depnr AND
+   BERBEST.LEVDATUM NE ? NO-LOCK.
+   GET FIRST utq NO-LOCK.
+   DO WHILE AVAILABLE(BERBEST):
+      IF BERBEST.OFFERT = FALSE THEN DO:      
+         CREATE temp_ut.      
+         BUFFER-COPY BERBEST TO temp_ut.
+      END.
+      ELSE DO:
+         CREATE temp_ut2.      
+         BUFFER-COPY BERBEST TO temp_ut2.
+      END.
+      GET NEXT utq NO-LOCK.
+   END.
+   CLOSE QUERY utq.
+
+   FOR EACH temp_ut2:
+      ASSIGN
+      varpaslag = 0
+      totpris = 0.
+      FOR EACH temp_ut WHERE temp_ut.BESTNR = temp_ut2.BESTNR:
+         totpris = totpris + (temp_ut.PRIS * temp_ut.ANTAL).
+      END.   
+      varpaslag = temp_ut2.PRIS / totpris.
+      IF varpaslag = 0 THEN varpaslag = 1. 
+      FOR EACH temp_ut WHERE temp_ut.BESTNR = temp_ut2.BESTNR:
+         temp_ut.PRIS = temp_ut.PRIS * varpaslag.
+      END.
+   END. 
+END PROCEDURE.         
+
+
+PROCEDURE ok_UI :                         
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER nnummer AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER inummer AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER globanv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.    
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valdelnr AS INTEGER NO-UNDO.
+   IF inummer = 0 THEN DO:    
+      DO TRANSACTION:         
+         FIND FIRST BESTDEP WHERE BESTDEP.BESTNR = nnummer AND
+         BESTDEP.DEPNR = depnr AND BESTDEP.BESTALLARE = "TA BORT" EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE BESTDEP THEN DELETE BESTDEP.               
+      END.   
+      FOR EACH spec_mtrl  /*WHERE spec_mtrl.MARK = TRUE*/:
+         DO TRANSACTION:
+            CREATE BESTDEP.
+            ASSIGN 
+            BESTDEP.BESTNR = nnummer
+            BESTDEP.ENR = spec_mtrl.ENR 
+            BESTDEP.BENAMNING = spec_mtrl.BENAMNING
+            BESTDEP.PRIS = spec_mtrl.NPRIS
+            BESTDEP.ENHET = spec_mtrl.ENHET
+            BESTDEP.ANTAL = spec_mtrl.BERKVANT 
+            BESTDEP.LEVKOD = spec_mtrl.LEVKOD
+            BESTDEP.DEPNR = depnr
+            BESTDEP.BESTDATUM = TODAY
+            BESTDEP.BESTALLARE = Guru.Konstanter:globanv.
+            IF valaonr NE "" THEN DO:
+               BESTDEP.LEVNAMN = valaonr + ";" + STRING(valdelnr).
+            END.
+         END.       
+      END.      
+   END.
+   ELSE DO:   
+      OPEN QUERY bestq FOR EACH BESTDEP WHERE BESTDEP.BESTNR = inummer AND 
+      BESTDEP.DEPNR = depnr USE-INDEX BEST NO-LOCK.
+      DO TRANSACTION:         
+         GET FIRST bestq EXCLUSIVE-LOCK.
+         IF AVAILABLE BESTDEP THEN DELETE BESTDEP. 
+      END.
+      REPEAT:
+         DO TRANSACTION:
+            GET NEXT bestq EXCLUSIVE-LOCK. 
+            IF AVAILABLE BESTDEP THEN DELETE BESTDEP. 
+            ELSE LEAVE.
+         END.
+      END.         
+      CLOSE QUERY bestq.                 
+      FOR EACH spec_mtrl /*WHERE spec_mtrl.MARK = TRUE*/:
+         DO TRANSACTION:         
+            CREATE BESTDEP.
+            ASSIGN 
+            BESTDEP.BESTNR = nnummer
+            BESTDEP.ENR = spec_mtrl.ENR 
+            BESTDEP.BENAMNING = spec_mtrl.BENAMNING
+            BESTDEP.PRIS = spec_mtrl.NPRIS
+            BESTDEP.ENHET = spec_mtrl.ENHET
+            BESTDEP.ANTAL = spec_mtrl.BERKVANT
+            BESTDEP.LEVKOD = spec_mtrl.LEVKOD
+            BESTDEP.DEPNR = depnr
+            BESTDEP.BESTDATUM = TODAY
+            BESTDEP.BESTALLARE = Guru.Konstanter:globanv.
+            IF valaonr NE "" THEN DO:
+               BESTDEP.LEVNAMN = valaonr + ";" + STRING(valdelnr).
+            END.
+         END.
+      END.             
+   END.   
+   RELEASE BESTDEP NO-ERROR.
+END PROCEDURE.         
+
+PROCEDURE okbest_UI : 
+   /*uttag2v.w görs av vast*/
+   /*UTTAG DET FINNS FLERA VARIANTER*/                             
+   DEFINE INPUT PARAMETER vaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vnummer AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ny AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER vkund AS CHARACTER NO-UNDO.   
+   DEFINE INPUT PARAMETER nbestnr2 AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.    
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR best_nr_tab.    
+   DEFINE INPUT PARAMETER TABLE FOR off_mtrl.    
+   DEFINE INPUT PARAMETER TABLE FOR skapa_mtrl.    
+   
+   IF ny = FALSE THEN DO:
+      OPEN QUERY dq FOR EACH BERBEST WHERE BERBEST.AONR = vaonr AND
+      BERBEST.DELNR = vdelnr AND BERBEST.DEPNR = depnr AND
+      BERBEST.UTTAG = TRUE AND BERBEST.LEVDATUM NE ? AND 
+      BERBEST.BESTNR = vnummer NO-LOCK.
+      DO TRANSACTION:      
+         GET FIRST dq EXCLUSIVE-LOCK.   
+         IF AVAILABLE BERBEST THEN DELETE BERBEST.
+      END.
+      REPEAT:
+         DO TRANSACTION:
+            GET NEXT dq EXCLUSIVE-LOCK.
+            IF AVAILABLE BERBEST THEN DELETE BERBEST.
+            ELSE LEAVE.
+         END.
+      END.      
+      CLOSE QUERY dq.
+      FIND FIRST best_nr_tab WHERE best_nr_tab.BESTNR = vnummer 
+      EXCLUSIVE-LOCK NO-ERROR.
+      ASSIGN
+      best_nr_tab.BESTDATUM = TODAY
+      best_nr_tab.BESTALLARE = ganv.
+   END. 
+   ELSE DO:
+      CREATE best_nr_tab.
+      ASSIGN
+      best_nr_tab.BESTNR = nbestnr2
+      best_nr_tab.BESTDATUM = TODAY
+      best_nr_tab.BESTALLARE = ganv.
+   END.   
+   FIND FIRST spec_mtrl NO-LOCK NO-ERROR.
+   IF AVAILABLE spec_mtrl THEN DO:    
+      FOR EACH spec_mtrl:
+         DO TRANSACTION:
+            CREATE BERBEST.                 
+            ASSIGN
+            BERBEST.BESTNR = nbestnr2 
+            BERBEST.ENR = spec_mtrl.ENR 
+            SUBSTRING(BERBEST.BENAMNING,1,59) = spec_mtrl.BENAMNING
+            BERBEST.PRIS = spec_mtrl.NPRIS
+            BERBEST.ENHET = spec_mtrl.ENHET
+            BERBEST.ANTAL = spec_mtrl.SALDO 
+            BERBEST.LEVKOD = spec_mtrl.LEVKOD
+            BERBEST.AONR = vaonr
+            BERBEST.DELNR = vdelnr
+            BERBEST.BESTID = vkund
+            BERBEST.DEPNR = depnr
+            BERBEST.BESTDATUM = berdatumvar 
+            BERBEST.LEVDATUM = TODAY
+            BERBEST.BESTALLARE = ganv
+            BERBEST.UTTAG = TRUE.          
+         END.
+      END.        
+      FIND FIRST off_mtrl NO-LOCK NO-ERROR.
+      IF AVAILABLE off_mtrl THEN DO TRANSACTION:   
+         CREATE BERBEST.                 
+         ASSIGN
+         BERBEST.BESTNR = nbestnr2           
+         BERBEST.PRIS = off_mtrl.TOTALT     
+         BERBEST.AONR = vaonr
+         BERBEST.DELNR = vdelnr
+         BERBEST.BESTID = vkund
+         BERBEST.DEPNR = depnr
+         BERBEST.BESTDATUM = berdatumvar 
+         BERBEST.LEVDATUM = TODAY
+         BERBEST.BESTALLARE = ganv
+         BERBEST.UTTAG = TRUE
+         BERBEST.OFFERT = TRUE.
+         FIND FIRST skapa_mtrl NO-LOCK NO-ERROR.
+         IF AVAILABLE skapa_mtrl THEN DO:
+            ASSIGN
+            BERBEST.BESTDATUM = skapa_mtrl.DATUM 
+            BERBEST.LEVDATUM = skapa_mtrl.DATUM2
+            SUBSTRING(BERBEST.BENAMNING,1,59) = skapa_mtrl.KOM.  
+         END.   
+      END.                     
+      ELSE DO:
+         FIND FIRST skapa_mtrl NO-LOCK NO-ERROR.
+         IF AVAILABLE skapa_mtrl THEN DO TRANSACTION:
+            CREATE BERBEST.                 
+            ASSIGN
+            BERBEST.BESTNR = nbestnr2                 
+            BERBEST.AONR = vaonr
+            BERBEST.DELNR = vdelnr
+            BERBEST.BESTID = vkund
+            BERBEST.DEPNR = depnr
+            BERBEST.BESTDATUM = skapa_mtrl.DATUM 
+            BERBEST.LEVDATUM = skapa_mtrl.DATUM2
+            BERBEST.BESTALLARE = ganv
+            BERBEST.UTTAG = TRUE
+            BERBEST.OFFERT = TRUE
+            SUBSTRING(BERBEST.BENAMNING,1,59) = skapa_mtrl.KOM.
+         END.
+      END.
+   END.
+   RELEASE BERBEST NO-ERROR.
+END PROCEDURE.         
+
+PROCEDURE okubest_UI :    
+   /*uttagv.w  körs av gkal lule*/
+   /*UTTAG DET FINNS FLERA VARIANTER*/                          
+   DEFINE INPUT PARAMETER vaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vkund AS CHARACTER NO-UNDO.   
+   DEFINE INPUT PARAMETER nbestnr2 AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER rvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.       
+   DEFINE INPUT PARAMETER TABLE FOR off_mtrl.  
+   /*FIFO*/
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   ASSIGN Guru.Konstanter:globforetag = FORETAG.FORETAG.
+   
+   IF Guru.Konstanter:varforetypval[54] = 1 THEN DO:         
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+      FOR EACH spec_mtrl WHERE spec_mtrl.SALDO > 0:
+         EMPTY TEMP-TABLE pristemp NO-ERROR. 
+         antalvar = spec_mtrl.SALDO.
+         REPEAT WHILE antalvar > 0:                 
+            EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+            EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+            CREATE inextradatatemp.          
+            ASSIGN
+            inextradatatemp.PROGRAM = "FIFO"                                  
+            inextradatatemp.HUVUDINT =  depnr
+            inextradatatemp.HUVUDCH =  spec_mtrl.ENR.                    
+            RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+            FIND FIRST extradatatemp NO-ERROR.
+            IF NOT AVAILABLE extradatatemp THEN LEAVE.            
+            /*BORDE KANSKE VARA MED KLOCKSLAG*/
+            datsok = TODAY + 1.
+            FOR EACH extradatatemp:
+               IF extradatatemp.SOKDAT[1] < datsok THEN DO:
+                  datsok = extradatatemp.SOKDAT[1].
+               END.
+            END.                        
+            FIND FIRST extradatatemp WHERE extradatatemp.SOKDAT[1] = datsok NO-LOCK NO-ERROR.
+            IF AVAILABLE extradatatemp THEN DO:
+               IF antalvar <= extradatatemp.SOKINT[1] THEN DO:
+                  extradatatemp.SOKINT[1] = extradatatemp.SOKINT[1] - antalvar.
+                  CREATE pristemp.
+                  ASSIGN
+                  pristemp.PRIS = extradatatemp.SOKDEC[1] * antalvar
+                  pristemp.ANTAL = antalvar.
+                  antalvar = 0.
+                  EMPTY TEMP-TABLE inextradatatemp NO-ERROR.  
+                  CREATE inextradatatemp.
+                  BUFFER-COPY extradatatemp TO inextradatatemp.
+                  IF extradatatemp.SOKINT[1] = 0 THEN DO:               
+                     RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).
+                  END.
+                  ELSE DO:                                    
+                     RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).
+                  END.
+               END.
+               ELSE DO:
+                  antalvar = antalvar - extradatatemp.SOKINT[1].
+                  CREATE pristemp.
+                  ASSIGN
+                  pristemp.PRIS = extradatatemp.SOKDEC[1] * extradatatemp.SOKINT[1]
+                  pristemp.ANTAL = extradatatemp.SOKINT[1].
+                  EMPTY TEMP-TABLE inextradatatemp NO-ERROR.       
+                  CREATE inextradatatemp.
+                  BUFFER-COPY extradatatemp TO inextradatatemp.
+                  RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).
+               END.                           
+            END.
+         END.
+         ASSIGN
+         antalvar2 = 0
+         totpris = 0.
+         FOR EACH pristemp:
+            ASSIGN
+            totpris = totpris + pristemp.PRIS
+            antalvar2 = antalvar2 + pristemp.ANTAL.
+         END.
+         IF antalvar2 > 0 THEN spec_mtrl.NPRIS = totpris / antalvar2.
+      END.
+      IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+      edataapph = ?. 
+   END.
+   FOR EACH spec_mtrl WHERE spec_mtrl.SALDO > 0:
+      DO TRANSACTION:      
+         
+         CREATE BERBEST.                 
+         ASSIGN
+         BERBEST.BESTNR = nbestnr2 
+         BERBEST.REKNR = rvar
+         BERBEST.ENR = spec_mtrl.ENR 
+         SUBSTRING(BERBEST.BENAMNING,1,59) = SUBSTRING(spec_mtrl.BENAMNING,1,59)
+         SUBSTRING(BERBEST.BENAMNING,60) = SUBSTRING(spec_mtrl.BENAMNING,60)
+         BERBEST.PRIS = spec_mtrl.NPRIS
+         BERBEST.ENHET = spec_mtrl.ENHET
+         BERBEST.ANTAL = spec_mtrl.SALDO 
+         BERBEST.LEVKOD = spec_mtrl.LEVKOD
+         BERBEST.AONR = vaonr
+         BERBEST.DELNR = vdelnr
+         BERBEST.BESTID = vkund
+         BERBEST.DEPNR = depnr
+         BERBEST.BESTDATUM = berdatumvar 
+         BERBEST.LEVDATUM = TODAY
+         SUBSTRING(BERBEST.BESTALLARE,1,59) = ganv
+         BERBEST.OFFERT = FALSE
+         BERBEST.UTTAG = TRUE.        
+      END.
+   END.        
+   FOR EACH off_mtrl:   
+      DO TRANSACTION:      
+         CREATE BERBEST.                 
+         ASSIGN
+         BERBEST.BESTNR = nbestnr2           
+         BERBEST.REKNR = rvar
+         BERBEST.PRIS = off_mtrl.TOTALT     
+         BERBEST.AONR = vaonr
+         BERBEST.DELNR = vdelnr
+         BERBEST.BESTID = vkund
+         BERBEST.DEPNR = depnr
+         BERBEST.BESTDATUM = berdatumvar 
+         BERBEST.LEVDATUM = TODAY
+         SUBSTRING(BERBEST.BESTALLARE,1,59) = ganv
+         BERBEST.UTTAG = TRUE
+         BERBEST.OFFERT = TRUE.  
+      END.
+   END.    
+   IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "GKAL" THEN DO:      
+      IF depnr = 1 THEN DO:      
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = vaonr AND 
+         AONRTAB.DELNR = vdelnr USE-INDEX AONR NO-LOCK NO-ERROR.   
+         IF AVAILABLE AONRTAB THEN DO TRANSACTION:     
+            FIND FIRST KOSTREG WHERE KOSTREG.AONR = AONRTAB.AONR AND 
+            KOSTREG.DELNR = AONRTAB.DELNR AND KOSTREG.KOSTAUTO = TRUE AND
+            KOSTREG.BOKKONTO = "Uttag" AND KOSTREG.FAKTURERAD = ? AND
+            YEAR(KOSTREG.REGDATUM) = YEAR(berdatumvar) AND MONTH(KOSTREG.REGDATUM) = MONTH(berdatumvar)
+            USE-INDEX KOST EXCLUSIVE-LOCK NO-ERROR.
+            IF NOT AVAILABLE KOSTREG THEN DO:         
+               FIND LAST KOSTREG WHERE KOSTREG.AONR = AONRTAB.AONR AND 
+               KOSTREG.DELNR = AONRTAB.DELNR
+               USE-INDEX KOST NO-LOCK NO-ERROR.  
+               rad = 1.                                                                      
+               IF AVAILABLE KOSTREG THEN rad = KOSTREG.RADNR + 1.          
+               CREATE KOSTREG.
+               ASSIGN  
+               KOSTREG.RADNR = rad
+               KOSTREG.AONR = AONRTAB.AONR
+               KOSTREG.DELNR = AONRTAB.DELNR.
+            END.
+            ASSIGN
+            KOSTREG.REGDATUM = DATE(MONTH(berdatumvar),01,YEAR(berdatumvar)) 
+            KOSTREG.BETDATUM = TODAY
+            KOSTREG.BENAMNING = "Uttag från depå"
+            KOSTREG.BOKKONTO = "Uttag"
+            KOSTREG.FAKTNR = ""
+            KOSTREG.FAKTURERAD = ?
+            KOSTREG.LEVKOD = "10"
+            SUBSTRING(KOSTREG.ANVANDARE,1,12) = ganv
+            KOSTREG.KOSTAUTO = TRUE. 
+            VALIDATE KOSTREG.                  
+            summa = 0.
+            FOR EACH spec_mtrl:
+               summa = summa + (spec_mtrl.SALDO * spec_mtrl.NPRIS).
+            END.
+            ASSIGN KOSTREG.MTRL = KOSTREG.MTRL + (summa + (summa * gkmovar)).          
+         END.
+         RELEASE KOSTREG NO-ERROR.
+      END.
+   END.  
+   RELEASE BERBEST NO-ERROR.   
+END PROCEDURE.
+
+PROCEDURE okubesttrum_UI :
+   /*hitta inte äldsta fifo-posten utan den med trummanspris för UTTRUM.W*/    
+                             
+   DEFINE INPUT PARAMETER vaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vkund AS CHARACTER NO-UNDO.   
+   DEFINE INPUT PARAMETER nbestnr2 AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER rvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.       
+   DEFINE INPUT PARAMETER TABLE FOR off_mtrl.  
+   /*FIFO*/
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   ASSIGN Guru.Konstanter:globforetag = FORETAG.FORETAG.
+   
+   IF Guru.Konstanter:varforetypval[54] = 1 THEN DO:         
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+      FOR EACH spec_mtrl WHERE spec_mtrl.SALDO > 0:
+         EMPTY TEMP-TABLE pristemp NO-ERROR. 
+         antalvar = spec_mtrl.SALDO.
+         REPEAT WHILE antalvar > 0:                 
+            EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+            EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+            CREATE inextradatatemp.          
+            ASSIGN
+            inextradatatemp.PROGRAM = "FIFO"                                  
+            inextradatatemp.HUVUDINT =  depnr
+            inextradatatemp.HUVUDCH =  spec_mtrl.ENR.                    
+            RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+            FIND FIRST extradatatemp NO-ERROR.
+            IF NOT AVAILABLE extradatatemp THEN LEAVE.            
+            /*BORDE KANSKE VARA MED KLOCKSLAG*/
+            datsok = TODAY + 1.
+            FOR EACH extradatatemp:
+               IF extradatatemp.SOKDAT[1] < datsok AND extradatatemp.SOKDEC[1] =  spec_mtrl.NPRIS THEN DO:
+                  datsok = extradatatemp.SOKDAT[1].
+               END.
+            END.                        
+            FIND FIRST extradatatemp WHERE extradatatemp.SOKDAT[1] = datsok AND extradatatemp.SOKDEC[1] =  spec_mtrl.NPRIS NO-LOCK NO-ERROR.
+            IF AVAILABLE extradatatemp THEN DO:
+               IF antalvar <= extradatatemp.SOKINT[1] THEN DO:
+                  extradatatemp.SOKINT[1] = extradatatemp.SOKINT[1] - antalvar.
+                  CREATE pristemp.
+                  ASSIGN
+                  pristemp.PRIS = extradatatemp.SOKDEC[1] * antalvar
+                  pristemp.ANTAL = antalvar.
+                  antalvar = 0.
+                  EMPTY TEMP-TABLE inextradatatemp NO-ERROR.  
+                  CREATE inextradatatemp.
+                  BUFFER-COPY extradatatemp TO inextradatatemp.
+                  IF extradatatemp.SOKINT[1] = 0 THEN DO:               
+                     RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).
+                  END.
+                  ELSE DO:                                    
+                     RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).
+                  END.
+               END.
+               ELSE DO:
+                  antalvar = antalvar - extradatatemp.SOKINT[1].
+                  CREATE pristemp.
+                  ASSIGN
+                  pristemp.PRIS = extradatatemp.SOKDEC[1] * extradatatemp.SOKINT[1]
+                  pristemp.ANTAL = extradatatemp.SOKINT[1].
+                  EMPTY TEMP-TABLE inextradatatemp NO-ERROR.       
+                  CREATE inextradatatemp.
+                  BUFFER-COPY extradatatemp TO inextradatatemp.
+                  RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).
+               END.                           
+            END.
+            ELSE DO:
+               /*om det inte finns en fifo-post med rätt pris för tumma - ta äldsta*/
+               FOR EACH extradatatemp:
+                  IF extradatatemp.SOKDAT[1] < datsok THEN DO:
+                     datsok = extradatatemp.SOKDAT[1].
+                  END.
+               END.                        
+               FIND FIRST extradatatemp WHERE extradatatemp.SOKDAT[1] = datsok  NO-LOCK NO-ERROR.
+               IF AVAILABLE extradatatemp THEN DO:
+                  IF antalvar <= extradatatemp.SOKINT[1] THEN DO:
+                     extradatatemp.SOKINT[1] = extradatatemp.SOKINT[1] - antalvar.
+                     CREATE pristemp.
+                     ASSIGN
+                     pristemp.PRIS = extradatatemp.SOKDEC[1] * antalvar
+                     pristemp.ANTAL = antalvar.
+                     antalvar = 0.
+                     EMPTY TEMP-TABLE inextradatatemp NO-ERROR.  
+                     CREATE inextradatatemp.
+                     BUFFER-COPY extradatatemp TO inextradatatemp.
+                     IF extradatatemp.SOKINT[1] = 0 THEN DO:               
+                        RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).
+                     END.
+                     ELSE DO:                                    
+                        RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).
+                     END.
+                  END.
+                  ELSE DO:
+                     antalvar = antalvar - extradatatemp.SOKINT[1].
+                     CREATE pristemp.
+                     ASSIGN
+                     pristemp.PRIS = extradatatemp.SOKDEC[1] * extradatatemp.SOKINT[1]
+                     pristemp.ANTAL = extradatatemp.SOKINT[1].
+                     EMPTY TEMP-TABLE inextradatatemp NO-ERROR.       
+                     CREATE inextradatatemp.
+                     BUFFER-COPY extradatatemp TO inextradatatemp.
+                     RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).
+                  END.
+               END.   
+            END.   
+            
+         END.
+         ASSIGN
+         antalvar2 = 0
+         totpris = 0.
+         FOR EACH pristemp:
+            ASSIGN
+            totpris = totpris + pristemp.PRIS
+            antalvar2 = antalvar2 + pristemp.ANTAL.
+         END.
+         IF antalvar2 > 0 THEN spec_mtrl.NPRIS = totpris / antalvar2.
+      END.
+      
+      FOR EACH spec_mtrl WHERE spec_mtrl.SALDO < 0:         
+         /*om man skarvar på en befintlig trumma blir uttaget tex -40 m. Lägg detta som svinn*/
+         EMPTY TEMP-TABLE pristemp NO-ERROR. 
+         antalvar = spec_mtrl.SALDO.
+                          
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "FIFO"                                  
+         inextradatatemp.HUVUDINT =  depnr
+         inextradatatemp.HUVUDCH =  spec_mtrl.ENR.                    
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+         FIND FIRST extradatatemp NO-ERROR.
+         IF NOT AVAILABLE extradatatemp THEN LEAVE.            
+         /*BORDE KANSKE VARA MED KLOCKSLAG*/
+         datsok = TODAY + 1.
+         FOR EACH extradatatemp:
+            IF extradatatemp.SOKDAT[1] < datsok AND extradatatemp.SOKDEC[1] =  spec_mtrl.NPRIS THEN DO:
+               datsok = extradatatemp.SOKDAT[1].
+            END.
+         END.                                 
+         FIND FIRST extradatatemp WHERE extradatatemp.SOKDAT[1] = datsok AND extradatatemp.SOKDEC[1] =  spec_mtrl.NPRIS NO-LOCK NO-ERROR.
+         IF AVAILABLE extradatatemp THEN DO:                             
+            extradatatemp.SOKINT[1] = extradatatemp.SOKINT[1] - antalvar.               
+            EMPTY TEMP-TABLE inextradatatemp NO-ERROR.  
+            CREATE inextradatatemp.
+            BUFFER-COPY extradatatemp TO inextradatatemp.                                                      
+            RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).
+         END.
+         ELSE DO:
+            /*om det inte finns en fifo-post med rätt pris för tumma - ta äldsta*/
+            FOR EACH extradatatemp:
+               IF extradatatemp.SOKDAT[1] < datsok THEN DO:
+                  datsok = extradatatemp.SOKDAT[1].
+               END.
+            END.                        
+            FIND FIRST extradatatemp WHERE extradatatemp.SOKDAT[1] = datsok  NO-LOCK NO-ERROR.
+            IF AVAILABLE extradatatemp THEN DO:                  
+               extradatatemp.SOKINT[1] = extradatatemp.SOKINT[1] - antalvar.                     
+               EMPTY TEMP-TABLE inextradatatemp NO-ERROR.  
+               CREATE inextradatatemp.
+               BUFFER-COPY extradatatemp TO inextradatatemp.                                                         
+               RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).                                 
+            END.   
+         END.            
+      END.
+      
+      IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+      edataapph = ?. 
+   END.
+   FOR EACH spec_mtrl WHERE spec_mtrl.SALDO > 0:
+      DO TRANSACTION:               
+         CREATE BERBEST.                 
+         ASSIGN
+         BERBEST.BESTNR = nbestnr2 
+         BERBEST.REKNR = rvar
+         BERBEST.ENR = spec_mtrl.ENR 
+         SUBSTRING(BERBEST.BENAMNING,1,59) = SUBSTRING(spec_mtrl.BENAMNING,1,59)
+         SUBSTRING(BERBEST.BENAMNING,60) = SUBSTRING(spec_mtrl.BENAMNING,60)
+         BERBEST.PRIS = spec_mtrl.NPRIS
+         BERBEST.ENHET = spec_mtrl.ENHET
+         BERBEST.ANTAL = spec_mtrl.SALDO 
+         BERBEST.LEVKOD = spec_mtrl.LEVKOD
+         BERBEST.AONR = vaonr
+         BERBEST.DELNR = vdelnr
+         BERBEST.BESTID = vkund
+         BERBEST.DEPNR = depnr
+         BERBEST.BESTDATUM = berdatumvar 
+         BERBEST.LEVDATUM = TODAY
+         SUBSTRING(BERBEST.BESTALLARE,1,59) = ganv
+         BERBEST.OFFERT = FALSE
+         BERBEST.UTTAG = TRUE.        
+      END.
+   END.
+   FOR EACH spec_mtrl WHERE spec_mtrl.SALDO < 0:
+      /*om man skarvar på en befintlig trumma blir uttaget tex -40 m. Lägg detta som svinn*/
+      DO TRANSACTION:               
+         CREATE BERBEST.                 
+         ASSIGN
+         BERBEST.BESTNR = nbestnr2 
+         BERBEST.REKNR = rvar
+         BERBEST.ENR = spec_mtrl.ENR 
+         SUBSTRING(BERBEST.BENAMNING,1,59) = SUBSTRING(spec_mtrl.BENAMNING,1,59)
+         SUBSTRING(BERBEST.BENAMNING,60) = SUBSTRING(spec_mtrl.BENAMNING,60)
+         BERBEST.PRIS = spec_mtrl.NPRIS
+         BERBEST.ENHET = spec_mtrl.ENHET
+         BERBEST.ANTAL = 0 - spec_mtrl.SALDO 
+         BERBEST.LEVKOD = spec_mtrl.LEVKOD
+         BERBEST.AONR = vaonr
+         BERBEST.DELNR = vdelnr
+         BERBEST.BESTID = vkund
+         BERBEST.DEPNR = depnr
+         BERBEST.BESTDATUM = berdatumvar 
+         BERBEST.LEVDATUM = TODAY
+         SUBSTRING(BERBEST.BESTALLARE,1,59) = ganv
+         BERBEST.OFFERT = FALSE
+         BERBEST.UTTAG = FALSE 
+         BERBEST.SVINN = TRUE.        
+      END.
+   END.        
+   FOR EACH off_mtrl:   
+      DO TRANSACTION:      
+         CREATE BERBEST.                 
+         ASSIGN
+         BERBEST.BESTNR = nbestnr2           
+         BERBEST.REKNR = rvar
+         BERBEST.PRIS = off_mtrl.TOTALT     
+         BERBEST.AONR = vaonr
+         BERBEST.DELNR = vdelnr
+         BERBEST.BESTID = vkund
+         BERBEST.DEPNR = depnr
+         BERBEST.BESTDATUM = berdatumvar 
+         BERBEST.LEVDATUM = TODAY
+         SUBSTRING(BERBEST.BESTALLARE,1,59) = ganv
+         BERBEST.UTTAG = TRUE
+         BERBEST.OFFERT = TRUE.  
+      END.
+   END.    
+   IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "GKAL" THEN DO:      
+      IF depnr = 1 THEN DO:      
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = vaonr AND 
+         AONRTAB.DELNR = vdelnr USE-INDEX AONR NO-LOCK NO-ERROR.   
+         IF AVAILABLE AONRTAB THEN DO TRANSACTION:     
+            FIND FIRST KOSTREG WHERE KOSTREG.AONR = AONRTAB.AONR AND 
+            KOSTREG.DELNR = AONRTAB.DELNR AND KOSTREG.KOSTAUTO = TRUE AND
+            KOSTREG.BOKKONTO = "Uttag" AND KOSTREG.FAKTURERAD = ? AND
+            YEAR(KOSTREG.REGDATUM) = YEAR(berdatumvar) AND MONTH(KOSTREG.REGDATUM) = MONTH(berdatumvar)
+            USE-INDEX KOST EXCLUSIVE-LOCK NO-ERROR.
+            IF NOT AVAILABLE KOSTREG THEN DO:         
+               FIND LAST KOSTREG WHERE KOSTREG.AONR = AONRTAB.AONR AND 
+               KOSTREG.DELNR = AONRTAB.DELNR
+               USE-INDEX KOST NO-LOCK NO-ERROR.  
+               rad = 1.                                                                      
+               IF AVAILABLE KOSTREG THEN rad = KOSTREG.RADNR + 1.          
+               CREATE KOSTREG.
+               ASSIGN  
+               KOSTREG.RADNR = rad
+               KOSTREG.AONR = AONRTAB.AONR
+               KOSTREG.DELNR = AONRTAB.DELNR.
+            END.
+            ASSIGN
+            KOSTREG.REGDATUM = DATE(MONTH(berdatumvar),01,YEAR(berdatumvar)) 
+            KOSTREG.BETDATUM = TODAY
+            KOSTREG.BENAMNING = "Uttag från depå"
+            KOSTREG.BOKKONTO = "Uttag"
+            KOSTREG.FAKTNR = ""
+            KOSTREG.FAKTURERAD = ?
+            KOSTREG.LEVKOD = "10"
+            SUBSTRING(KOSTREG.ANVANDARE,1,12) = ganv
+            KOSTREG.KOSTAUTO = TRUE. 
+            VALIDATE KOSTREG.                  
+            summa = 0.
+            FOR EACH spec_mtrl:
+               summa = summa + (spec_mtrl.SALDO * spec_mtrl.NPRIS).
+            END.
+            ASSIGN KOSTREG.MTRL = KOSTREG.MTRL + (summa + (summa * gkmovar)).          
+         END.
+         RELEASE KOSTREG NO-ERROR.
+      END.
+   END.  
+   RELEASE BERBEST NO-ERROR.   
+END PROCEDURE.
+
+
+PROCEDURE returkontroll_UI :                                  
+   DEFINE INPUT PARAMETER vaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vkund AS CHARACTER NO-UNDO.      
+   DEFINE INPUT PARAMETER valenr AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER kontroll AS LOGICAL NO-UNDO.
+
+   FIND FIRST BERBEST WHERE BERBEST.DEPNR = depnr AND BERBEST.ENR = valenr AND BERBEST.UTTAG = TRUE AND
+   BERBEST.OFFERT = FALSE AND BERBEST.AONR = vaonr AND BERBEST.DELNR = vdelnr NO-LOCK NO-ERROR.
+   IF AVAILABLE BERBEST THEN kontroll = TRUE.
+   ELSE kontroll = FALSE.
+END PROCEDURE.         
+   
+PROCEDURE okretur_UI :  
+   /*RETURER*/                              
+   DEFINE INPUT PARAMETER vaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vkund AS CHARACTER NO-UNDO. 
+   DEFINE INPUT PARAMETER rvar AS INTEGER NO-UNDO.     
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER invdat2 AS DATE NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR spec_mtrl.    
+   DEFINE OUTPUT PARAMETER TABLE FOR spec_mtrl2.
+   /*IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "LULE" OR 
+   Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "BORL" OR Guru.Konstanter:globforetag = "BODE" OR Guru.Konstanter:globforetag = "KRAF"  THEN DO:*/
+   IF Guru.Konstanter:globforetag = "VAST" OR Guru.Konstanter:globforetag = "UMEA" THEN.     
+   ELSE DO:   
+      FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = depnr AND 
+      MTRLDEP.IBDATUM = ? NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRLDEP THEN invdat2 = MTRLDEP.INVDATUM.
+      ELSE invdat2 = TODAY.  
+      FOR EACH spec_mtrl:  
+         DO TRANSACTION:        
+            FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = depnr AND
+            MTRLDEP.ENR = spec_mtrl.ENR AND MTRLDEP.LAGER = TRUE 
+            AND MTRLDEP.IBDATUM = ? EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRLDEP THEN DO: 
+               MTRLDEP.SALDO = MTRLDEP.SALDO + spec_mtrl.SALDO.
+            END.
+            ELSE DO:     
+               FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = depnr AND
+               MTRLDEP.ENR = spec_mtrl.ENR AND MTRLDEP.LAGER = FALSE AND 
+               MTRLDEP.IBDATUM = ? EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE MTRLDEP THEN DO:
+                  MTRLDEP.SALDO = MTRLDEP.SALDO + spec_mtrl.SALDO.
+                  /* spec_mtrl.SALDO = MTRLDEP.SALDO.*/
+                  /*niklas, ska verkligen spec_mtrl.SALDO laddas med saldo? BERBEST laddas ju senare med spec_mtrl.SALDO*/
+                  CREATE spec_mtrl2.
+                  BUFFER-COPY spec_mtrl TO spec_mtrl2.
+                  ASSIGN
+                  spec_mtrl2.BESTPUNKT = 0
+                  spec_mtrl2.BESTKVANT = 1
+                  spec_mtrl2.FACKID = " "        
+                  spec_mtrl2.OMSATT = 0
+                  spec_mtrl2.LAGER = TRUE.  
+              
+               END.
+               ELSE DO:
+                  CREATE spec_mtrl2.
+                  BUFFER-COPY spec_mtrl TO spec_mtrl2.
+                  ASSIGN
+                  spec_mtrl2.BESTPUNKT = 0
+                  spec_mtrl2.BESTKVANT = 1
+                  spec_mtrl2.FACKID = " "        
+                  spec_mtrl2.OMSATT = 0
+                  spec_mtrl2.LAGER = TRUE.                
+               END.            
+            END.         
+         END.
+      END.         
+   END.  
+   /*FIFO*/       
+   IF Guru.Konstanter:varforetypval[54] = 1 THEN DO:                                       
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+      FOR EACH spec_mtrl:
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "FIFO"                                  
+         inextradatatemp.HUVUDINT =  depnr
+         inextradatatemp.HUVUDCH =  spec_mtrl.ENR
+         inextradatatemp.SOKCHAR[2] =  spec_mtrl.BENAMNING
+         inextradatatemp.SOKCHAR[3] =  spec_mtrl.ENHET
+         inextradatatemp.SOKDEC[1] =  spec_mtrl.NPRIS
+         inextradatatemp.SOKINT[1] =  spec_mtrl.SALDO
+         inextradatatemp.SOKDATE[1] =  TODAY
+         inextradatatemp.SOKINT[2] =  TIME.         
+      END.
+      RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).           
+      IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+      edataapph = ?. 
+   END.
+   FOR EACH spec_mtrl:
+      DO TRANSACTION:    
+         CREATE BERBEST.                 
+         ASSIGN     
+         BERBEST.ENR = spec_mtrl.ENR 
+         BERBEST.REKNR = rvar
+         SUBSTRING(BERBEST.BENAMNING,1,59) = spec_mtrl.BENAMNING
+         BERBEST.PRIS = spec_mtrl.NPRIS
+         BERBEST.ENHET = spec_mtrl.ENHET
+         BERBEST.ANTAL = spec_mtrl.SALDO 
+         BERBEST.LEVKOD = spec_mtrl.LEVKOD
+         BERBEST.AONR = vaonr
+         BERBEST.DELNR = vdelnr 
+         BERBEST.BESTID = vkund
+         BERBEST.DEPNR = depnr
+         BERBEST.BESTDATUM = berdatumvar 
+         BERBEST.LEVDATUM = TODAY
+         SUBSTRING(BERBEST.BESTALLARE,1,59) = ganv
+         BERBEST.UTTAG = FALSE.        
+      END.
+   END.  
+   FIND LAST BESTDEP WHERE BESTDEP.DEPNR = depnr USE-INDEX BEST NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE BESTDEP THEN DO:
+      ASSIGN
+      nbestnr = 1.        
+   END.
+   ELSE DO:   
+      ASSIGN
+      nbestnr = BESTDEP.BESTNR + 1.        
+   END.                     
+   FOR EACH spec_mtrl:
+      DO TRANSACTION:      
+         CREATE BESTDEP.
+         ASSIGN 
+         BESTDEP.BESTNR = nbestnr
+         BESTDEP.ENR = spec_mtrl.ENR 
+         BESTDEP.BENAMNING = spec_mtrl.BENAMNING
+         BESTDEP.PRIS = spec_mtrl.NPRIS
+         BESTDEP.ENHET = spec_mtrl.ENHET
+         BESTDEP.ANTAL = spec_mtrl.SALDO
+         BESTDEP.LEVKOD = spec_mtrl.LEVKOD
+         BESTDEP.DEPNR = depnr
+         BESTDEP.BESTDATUM = TODAY  
+         BESTDEP.LEVDATUM = TODAY
+         BESTDEP.BESTALLARE = ganv
+         BESTDEP.BERED = TRUE.
+      END.
+   END.
+   IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "GKAL" THEN DO:
+      IF depnr = 1 THEN DO:     
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = vaonr AND 
+         AONRTAB.DELNR = vdelnr USE-INDEX AONR NO-LOCK NO-ERROR.   
+         IF AVAILABLE AONRTAB THEN DO TRANSACTION:
+            FIND FIRST KOSTREG WHERE KOSTREG.AONR = AONRTAB.AONR AND 
+            KOSTREG.DELNR = AONRTAB.DELNR AND KOSTREG.KOSTAUTO = TRUE AND
+            KOSTREG.BOKKONTO = "Uttag" AND KOSTREG.FAKTURERAD = ? AND
+            YEAR(KOSTREG.REGDATUM) = YEAR(berdatumvar) AND MONTH(KOSTREG.REGDATUM) = MONTH(berdatumvar)
+            USE-INDEX KOST EXCLUSIVE-LOCK NO-ERROR.
+            IF NOT AVAILABLE KOSTREG THEN DO:         
+               FIND LAST KOSTREG WHERE KOSTREG.AONR = AONRTAB.AONR AND 
+               KOSTREG.DELNR = AONRTAB.DELNR
+               USE-INDEX KOST NO-LOCK NO-ERROR.  
+               rad = 1.                                                                      
+               IF AVAILABLE KOSTREG THEN rad = KOSTREG.RADNR + 1.          
+               CREATE KOSTREG.
+               ASSIGN  
+               KOSTREG.RADNR = rad
+               KOSTREG.AONR = AONRTAB.AONR
+               KOSTREG.DELNR = AONRTAB.DELNR.
+            END.
+            ASSIGN
+            KOSTREG.REGDATUM = DATE(MONTH(berdatumvar),01,YEAR(berdatumvar)) 
+            KOSTREG.BETDATUM = TODAY
+            KOSTREG.BENAMNING = "Uttag från depå"
+            KOSTREG.BOKKONTO = "Uttag"
+            KOSTREG.FAKTNR = ""
+            KOSTREG.FAKTURERAD = ?
+            KOSTREG.LEVKOD = "10"
+            SUBSTRING(KOSTREG.ANVANDARE,1,12) = ganv
+            KOSTREG.KOSTAUTO = TRUE. 
+            VALIDATE KOSTREG.                  
+            summa = 0.
+            FOR EACH spec_mtrl:
+               summa = summa + (spec_mtrl.SALDO * spec_mtrl.NPRIS).
+            END.
+            ASSIGN KOSTREG.MTRL = KOSTREG.MTRL - (summa + (summa * gkmovar)).          
+         END.
+         RELEASE KOSTREG NO-ERROR.
+      END.
+   END.
+   RELEASE BERBEST NO-ERROR.
+   RELEASE MTRLDEP NO-ERROR.   
+   RELEASE BESTDEP NO-ERROR.
+END PROCEDURE.         
+
+
+PROCEDURE hlev_UI :                         
+   DEFINE OUTPUT PARAMETER vem AS CHARACTER NO-UNDO.    
+   FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+   IF AVAILABLE HUVUDLEV THEN DO:   
+      vem = HUVUDLEV.LEVKOD. 
+   END.
+   ELSE vem = "".
+END PROCEDURE.      
+
+PROCEDURE hmtmspec_UI :                         
+   DEFINE INPUT PARAMETER TABLE FOR emtrltemp.   
+   DEFINE OUTPUT PARAMETER mspmed AS CHARACTER NO-UNDO.    
+   FIND FIRST emtrltemp NO-ERROR.   
+   FIND FIRST MTRLSPEC WHERE MTRLSPEC.ENR = emtrltemp.ENR AND MTRLSPEC.LEVKOD = emtrltemp.LEVKOD
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRLSPEC THEN DO:
+      mspmed = MTRLSPEC.MED.
+   END.
+   ELSE DO:    
+      mspmed = "".
+   END.
+END PROCEDURE.      
+
+
+PROCEDURE kollenr_UI :
+   DEFINE INPUT PARAMETER rowkoll AS ROWID NO-UNDO.     
+   DEFINE INPUT PARAMETER kollenr AS CHARACTER NO-UNDO.     
+   DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.     
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.   
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   FIND FIRST MTRL WHERE MTRL.ENR = kollenr AND MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 AND ROWID(MTRL) NE rowkoll USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:                 
+      CREATE felmeddtemp.  
+      ASSIGN               
+      felmeddtemp.FELMEDD = "Det finns redan ett materiel med detta " + LC(Guru.Konstanter:genk) + " " +  kollenr +  ". Ange ett nytt." .
+   END.
+   ELSE DO:
+      IF rowkoll NE ? THEN DO:      
+         DO TRANSACTION:
+            FIND FIRST MTRL WHERE ROWID(MTRL) = rowkoll EXCLUSIVE-LOCK NO-ERROR.
+            MTRL.ENR = kollenr.
+         END.
+         RELEASE MTRL.
+      END.
+   END.
+     
+END PROCEDURE.    
+
+PROCEDURE kollmtrl2_UI :   
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER levnamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   IF enrvar = ""  THEN DO:
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = vald_lev AND   
+      MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE MTRL THEN DO:
+         CREATE felmeddtemp.  
+         ASSIGN               
+         felmeddtemp.FELMEDD = "Det finns ingen materielkatalog upplagd för " + levnamn.
+      END.
+      
+   END.
+   ELSE DO:
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = vald_lev AND   
+      MTRL.KALKNR = 0 AND MTRL.ENR = enrvar NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE MTRL THEN DO:
+         CREATE felmeddtemp.  
+         ASSIGN               
+         felmeddtemp.FELMEDD = "Det finns ingen artikel med Enr: " + enrvar + " hos leverantör " + levnamn +
+            ". Vill Ni göra bytet ändå?".
+      END.
+   END.
+
+
+END PROCEDURE.
+
+PROCEDURE kopikat2_UI :
+   DEFINE INPUT PARAMETER koplev AS CHARACTER NO-UNDO.     
+   DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.    
+   DEFINE BUFFER mtrlbuff FOR MTRL.
+   OPEN QUERY mtrlq FOR EACH MTRL WHERE MTRL.LEVKOD = koplev AND
+   MTRL.KALKNR = 0 USE-INDEX LEV NO-LOCK.
+   GET FIRST mtrlq NO-LOCK.
+   DO WHILE AVAILABLE(MTRL):
+      FIND FIRST mtrlbuff WHERE mtrlbuff.ENR = MTRL.ENR AND mtrlbuff.LEVKOD = leverant
+      AND mtrlbuff.KALKNR = 0 NO-LOCK NO-ERROR.
+      IF AVAILABLE mtrlbuff THEN leverant = leverant.
+      ELSE DO TRANSACTION:
+         CREATE mtrlbuff.
+         ASSIGN
+         mtrlbuff.ENR = MTRL.ENR
+         mtrlbuff.BENAMNING = MTRL.BENAMNING
+         mtrlbuff.ENHET = MTRL.ENHET
+         mtrlbuff.LEVKOD = leverant
+         mtrlbuff.NPRIS = MTRL.NPRIS
+         mtrlbuff.BPRIS = MTRL.BPRIS
+         mtrlbuff.KALKNR = 0.   
+      END.                  
+      GET NEXT mtrlq NO-LOCK.
+   END.                    
+   CLOSE QUERY mtrlq.
+   RELEASE MTRL.
+END PROCEDURE.      
+
+PROCEDURE kopikat_UI :
+   DEFINE INPUT PARAMETER koplev AS CHARACTER NO-UNDO.     
+   DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.    
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.   
+   DEFINE BUFFER mtrlbuff FOR MTRL.
+   OPEN QUERY mtrlq FOR EACH MTRL WHERE MTRL.LEVKOD = koplev AND
+   MTRL.KALKNR = 0 USE-INDEX LEV NO-LOCK.
+   GET FIRST mtrlq NO-LOCK.
+   DO WHILE AVAILABLE(MTRL):
+      FIND FIRST mtrlbuff WHERE mtrlbuff.ENR = MTRL.ENR AND mtrlbuff.LEVKOD = leverant
+      AND mtrlbuff.KALKNR = 0 NO-LOCK NO-ERROR.
+      IF AVAILABLE mtrlbuff THEN leverant = leverant.
+      ELSE DO TRANSACTION:
+         CREATE mtrlbuff.
+         ASSIGN
+         mtrlbuff.ENR = MTRL.ENR
+         mtrlbuff.BENAMNING = MTRL.BENAMNING
+         mtrlbuff.ENHET = LC(MTRL.ENHET)
+         mtrlbuff.LEVKOD = leverant
+         mtrlbuff.NPRIS = MTRL.NPRIS
+         mtrlbuff.BPRIS = MTRL.BPRIS
+         mtrlbuff.KALKNR = 0.
+         CREATE mtrltemp.
+         BUFFER-COPY mtrlbuff TO mtrltemp.
+         ASSIGN 
+         mtrltemp.ENHET = LC(mtrltemp.ENHET)
+         mtrltemp.MTRLROW = ROWID(mtrlbuff).
+      END.                  
+      GET NEXT mtrlq NO-LOCK.
+   END.                    
+   CLOSE QUERY mtrlq.
+   RELEASE MTRL.
+END PROCEDURE.      
+
+
+PROCEDURE kundhmt_UI :                         
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.  
+   DEFINE INPUT PARAMETER lev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER nbnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR ltrptemp.    
+   DEFINE OUTPUT PARAMETER knr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER namn AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER telf AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER mtelf AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER avisp AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER epost AS CHARACTER NO-UNDO.
+   FIND FIRST ltrptemp WHERE ltrptemp.LEVKOD = lev AND ltrptemp.BESTNR = nbnr 
+   AND ltrptemp.DEP-NR = depnr
+   USE-INDEX BESTNR2 NO-LOCK NO-ERROR.
+   IF AVAILABLE ltrptemp THEN DO TRANSACTION:
+      FIND FIRST LEVTRP WHERE LEVTRP.LEVKOD = lev AND LEVTRP.BESTNR = nbnr 
+      AND LEVTRP.DEP-NR = depnr AND LEVTRP.BERNR = 0
+      USE-INDEX BESTNR2 NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE LEVTRP THEN DO:
+         CREATE LEVTRP.
+         BUFFER-COPY ltrptemp TO LEVTRP.
+      END.
+   END.
+   FIND FIRST KUNDNR WHERE KUNDNR.DEP-NR = depnr AND KUNDNR.LEVKOD = lev NO-LOCK NO-ERROR.
+   IF AVAILABLE KUNDNR THEN ASSIGN knr = KUNDNR.KUNDNR.
+   ELSE ASSIGN knr = 0.
+   
+   FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = ganv NO-LOCK NO-ERROR.
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      
+      
+      ASSIGN
+      namn = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN
+      telf = PERSONALTAB.TELEFON      
+      mtelf = PERSONALTAB.MOBILTEL
+      epost = SUBSTRING(PERSONALTAB.PERSONSOK,20)
+      avisp = SUBSTRING(PERSONALTAB.FORNAMN,1,1) + "." + 
+      SUBSTRING(PERSONALTAB.EFTERNAMN,1,8) + " " + PERSONALTAB.TELEFON.   
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.                       
+   END.   
+   ELSE DO:
+      ASSIGN
+      namn = ""
+      telf = ""
+      mtelf = ""
+      avisp = "".                          
+   END.
+   RELEASE LEVTRP NO-ERROR.
+   
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.       
+
+PROCEDURE kundhmt2_UI :                            
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.  
+   DEFINE INPUT PARAMETER lev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER knr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER namn AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER telf AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER mtelf AS CHARACTER NO-UNDO.
+      
+   FIND FIRST KUNDNR WHERE KUNDNR.DEP-NR = depnr AND KUNDNR.LEVKOD = lev NO-LOCK NO-ERROR.
+   IF AVAILABLE KUNDNR THEN ASSIGN knr = KUNDNR.KUNDNR.
+   ELSE ASSIGN knr = 0.
+   
+   FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = ganv NO-LOCK NO-ERROR.
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      ASSIGN
+      namn = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN
+      telf = PERSONALTAB.TELEFON      
+      mtelf = PERSONALTAB.MOBILTEL.  
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+   END.   
+   ELSE DO:
+      ASSIGN
+      namn = ""
+      telf = ""
+      mtelf = "".
+   END.   
+   
+  {GDPRLOGGCLIENT.I}
+END PROCEDURE.       
+
+
+PROCEDURE ltrpsp_UI :                         
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.  
+   DEFINE INPUT PARAMETER lev AS CHARACTER NO-UNDO.   
+   DEFINE INPUT PARAMETER nbnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR ltrptemp.    
+   FIND FIRST ltrptemp WHERE ltrptemp.LEVKOD = lev AND ltrptemp.BESTNR = nbnr 
+   AND ltrptemp.DEP-NR = depnr AND ltrptemp.BERNR = 0
+   USE-INDEX BESTNR2 NO-LOCK NO-ERROR.
+   IF AVAILABLE ltrptemp THEN DO TRANSACTION:
+      FIND FIRST LEVTRP WHERE LEVTRP.LEVKOD = lev AND LEVTRP.BESTNR = nbnr 
+      AND LEVTRP.DEP-NR = depnr AND LEVTRP.BERNR = 0
+      USE-INDEX BESTNR2 EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE LEVTRP THEN DO:
+         CREATE LEVTRP.
+         BUFFER-COPY ltrptemp TO LEVTRP.
+      END.
+      ELSE DO:
+         BUFFER-COPY ltrptemp TO LEVTRP.
+      END.
+   END.
+   RELEASE LEVTRP NO-ERROR.
+END PROCEDURE.       
+
+PROCEDURE mhmt_UI :                         
+   DEFINE OUTPUT PARAMETER TABLE FOR levtemp.   
+   DEFINE OUTPUT PARAMETER TABLE FOR depatemp.   
+   DEFINE OUTPUT PARAMETER vem AS CHARACTER NO-UNDO.    
+   EMPTY TEMP-TABLE depatemp NO-ERROR.    
+   EMPTY TEMP-TABLE levtemp NO-ERROR.             
+   {DEPHMT.I}
+   FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+   IF AVAILABLE HUVUDLEV THEN DO:   
+      vem = HUVUDLEV.LEVKOD. 
+   END.
+   ELSE vem = "".
+   FOR EACH levtemp WHERE NO-LOCK:
+      {LEVTEMPORDNING.I}
+   END.
+END PROCEDURE.      
+
+PROCEDURE mkatexcel_UI :                         
+   DEFINE INPUT PARAMETER TABLE FOR mkattmp.      
+   DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.    
+   DEFINE INPUT PARAMETER svar AS LOGICAL NO-UNDO.    
+   
+   IF svar = TRUE THEN DO:
+      /* KPRIS = 0 bruttoprislista
+        fors har KPRIS = 1 för märkta kablar nettopris
+                 KPRIS = 2 för märkt övrtigt nettopris
+       ES vill ej att Kpris 0 skall uppdatera Kpris 1 eller kpris 2   */ 
+      OUTPUT TO VALUE(sparfilnamn) APPEND.
+      PUT UNFORMATTED  "Delete av mtrl start " + STRING(TIME,"hh:mm:ss") + " " + STRING(TODAY) SKIP.
+      OUTPUT CLOSE.   
+      FOR EACH MTRL WHERE MTRL.LEVKOD = leverant AND  MTRL.KALKNR = 0 AND MTRL.KPRIS = 0 EXCLUSIVE-LOCK:
+         DELETE MTRL.
+      END.
+      OUTPUT TO VALUE(sparfilnamn) APPEND.
+      PUT UNFORMATTED "Inläsning av mtrl start " + STRING(TIME,"hh:mm:ss") + " " + STRING(TODAY) SKIP.
+      OUTPUT CLOSE.
+      FOR EACH mkattmp:
+         DO TRANSACTION:
+            FIND FIRST MTRL WHERE MTRL.ENR =  mkattmp.ENR AND
+            MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               IF Guru.Konstanter:globforetag = "GRAN" AND MTRL.KPRIS = 1 THEN.
+               ELSE IF Guru.Konstanter:globforetag = "GRAN" AND MTRL.KPRIS = 2 THEN.
+               ELSE IF Guru.Konstanter:globforetag = "ELPA" AND MTRL.KPRIS = 1 THEN.
+               ELSE IF Guru.Konstanter:globforetag = "ELPA" AND MTRL.KPRIS = 2 THEN.
+               ELSE DO:            
+                  ASSIGN 
+                  MTRL.BENAMNING = mkattmp.BENAMNING 
+                  MTRL.BPRIS = mkattmp.BPRIS 
+                  MTRL.NPRIS = mkattmp.NPRIS.
+                  IF mkattmp.ENHET NE "" THEN MTRL.ENHET = mkattmp.ENHET.
+                  MTRL.KPRIS = 0.       /*bruttopris*/     
+                  IF mkattmp.NETTO = TRUE THEN MTRL.KUND = TRUE.
+                  ELSE IF mkattmp.NETTO = ? THEN MTRL.KUND = ?.
+               END.
+            END.
+            ELSE DO:                               
+               CREATE MTRL.
+               ASSIGN      
+               MTRL.ENR = mkattmp.ENR
+               MTRL.BENAMNING = mkattmp.BENAMNING
+               MTRL.ENHET = mkattmp.ENHET
+               MTRL.LEVKOD = leverant
+               MTRL.KALKNR = 0
+               MTRL.BPRIS = mkattmp.BPRIS
+               MTRL.NPRIS = mkattmp.NPRIS
+               MTRL.KPRIS = 0.       /*bruttopris*/     
+               IF MTRL.ENHET = "" THEN MTRL.ENHET = "ST".
+               IF mkattmp.NETTO = TRUE THEN MTRL.KUND = TRUE.
+               ELSE IF mkattmp.NETTO = ? THEN MTRL.KUND = ?.
+               {MTRLCREATE.I}
+            END.
+         END.
+      END.
+      OUTPUT TO VALUE(sparfilnamn) APPEND.
+      PUT UNFORMATTED "Inläsning av mtrl klart " + STRING(TIME,"hh:mm:ss") + " " + STRING(TODAY) SKIP.
+      OUTPUT CLOSE.
+      
+   END.
+   IF svar = FALSE THEN DO:
+      OUTPUT TO VALUE(sparfilnamn) APPEND.
+      PUT UNFORMATTED "Inläsning av mtrl start " + STRING(TIME,"hh:mm:ss") + " " + STRING(TODAY) SKIP.
+      OUTPUT CLOSE.
+      
+      FOR EACH mkattmp:
+         DO TRANSACTION:         
+            FIND FIRST MTRL WHERE MTRL.ENR =  mkattmp.ENR AND
+            MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               IF mkattmp.BENAMNING NE "" THEN ASSIGN MTRL.BENAMNING = mkattmp.BENAMNING. 
+               ASSIGN
+               MTRL.BPRIS = mkattmp.BPRIS 
+               MTRL.NPRIS = mkattmp.NPRIS.
+               IF mkattmp.ENHET NE "" THEN MTRL.ENHET = mkattmp.ENHET.
+               MTRL.KPRIS = 0.       /*bruttopris*/
+               IF Guru.Konstanter:globforetag = "orbi" THEN.
+               ELSE DO:     
+                  IF mkattmp.NETTO = TRUE THEN MTRL.KUND = TRUE.
+                  ELSE IF mkattmp.NETTO = ? THEN MTRL.KUND = ?.
+               END.  
+               {MTRLCREATE.I} 
+            END.
+            ELSE DO:                               
+               CREATE MTRL.
+               ASSIGN      
+               MTRL.ENR = mkattmp.ENR
+               MTRL.LEVKOD = leverant 
+               MTRL.KALKNR = 0        
+               MTRL.BENAMNING = mkattmp.BENAMNING 
+               MTRL.BPRIS = mkattmp.BPRIS      
+               MTRL.NPRIS = mkattmp.NPRIS 
+               MTRL.ENHET = mkattmp.ENHET
+               MTRL.KPRIS = 0.       /*bruttopris*/     
+               IF MTRL.ENHET = "" THEN MTRL.ENHET = "ST".
+               IF Guru.Konstanter:globforetag = "orbi" THEN.
+               ELSE DO:
+                  IF mkattmp.NETTO = TRUE THEN MTRL.KUND = TRUE.
+                  IF mkattmp.NETTO = ? THEN MTRL.KUND = ?.
+               END.  
+               {MTRLCREATE.I} 
+            END.   
+         END.
+      END.
+      OUTPUT TO VALUE(sparfilnamn) APPEND.
+      PUT UNFORMATTED "Inläsning av mtrl start " + STRING(TIME,"hh:mm:ss") + " " + STRING(TODAY) SKIP.
+      OUTPUT CLOSE.
+      
+   END.
+   
+   
+   
+END PROCEDURE.      
+
+
+PROCEDURE nettokabovrexcel_UI :                         
+   DEFINE INPUT PARAMETER TABLE FOR mkattmp.      
+   DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.       
+   DEFINE INPUT PARAMETER svar AS LOGICAL NO-UNDO.    
+   DEFINE INPUT PARAMETER kabovr AS INTEGER NO-UNDO.    
+   IF svar = TRUE THEN DO:
+      /* KPRIS = 0 bruttoprislista
+        fors har KPRIS = 1 för märkta kablar nettopris
+                 KPRIS = 2 för märkt övrtigt nettopris*/ 
+      OPEN QUERY dq FOR EACH MTRL WHERE MTRL.LEVKOD = leverant AND 
+      MTRL.KALKNR = 0 AND MTRL.KPRIS = kabovr NO-LOCK.
+      DO TRANSACTION:
+         GET FIRST dq EXCLUSIVE-LOCK.
+         IF AVAILABLE MTRL THEN DELETE MTRL.
+      END.
+      REPEAT:
+         DO TRANSACTION:
+            GET NEXT dq EXCLUSIVE-LOCK.
+            IF AVAILABLE MTRL THEN DELETE MTRL.
+            ELSE LEAVE.
+         END.
+      END.
+      FOR EACH mkattmp:
+         DO TRANSACTION:
+            FIND FIRST MTRL WHERE MTRL.ENR =  mkattmp.ENR AND
+            MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.BENAMNING = mkattmp.BENAMNING 
+               MTRL.BPRIS = mkattmp.BPRIS 
+               MTRL.NPRIS = mkattmp.NPRIS 
+               MTRL.ENHET = mkattmp.ENHET
+               MTRL.KPRIS = kabovr.       /*nettopris kabel*/          
+               IF mkattmp.NETTO = TRUE THEN MTRL.KUND = TRUE.
+               IF mkattmp.NETTO = ? THEN MTRL.KUND = ?.
+               {MTRLCREATE.I}
+            END.
+            ELSE DO:                               
+               CREATE MTRL.
+               ASSIGN      
+               MTRL.ENR = mkattmp.ENR
+               MTRL.BENAMNING = mkattmp.BENAMNING
+               MTRL.ENHET = mkattmp.ENHET
+               MTRL.LEVKOD = leverant
+               MTRL.KALKNR = 0
+               MTRL.BPRIS = mkattmp.BPRIS
+               MTRL.NPRIS = mkattmp.NPRIS
+               MTRL.KPRIS = kabovr.       /*nettopris kabel ovrigt*/          
+               IF mkattmp.NETTO = TRUE THEN MTRL.KUND = TRUE.
+               IF mkattmp.NETTO = ? THEN MTRL.KUND = ?.
+               {MTRLCREATE.I}
+            END.
+         END.
+      END.
+   END.
+   IF svar = FALSE THEN DO:
+      FOR EACH mkattmp:
+         DO TRANSACTION:         
+            FIND FIRST MTRL WHERE MTRL.ENR =  mkattmp.ENR AND
+            MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.BENAMNING = mkattmp.BENAMNING 
+               MTRL.BPRIS = mkattmp.BPRIS 
+               MTRL.NPRIS = mkattmp.NPRIS 
+               MTRL.ENHET = mkattmp.ENHET
+               MTRL.KPRIS = kabovr.       /*nettopris kabel*/          
+               IF mkattmp.NETTO = TRUE THEN MTRL.KUND = TRUE.
+               IF mkattmp.NETTO = ? THEN MTRL.KUND = ?.
+               {MTRLCREATE.I}
+            END.
+            ELSE DO:                               
+               CREATE MTRL.
+               ASSIGN      
+               MTRL.ENR = mkattmp.ENR
+               MTRL.LEVKOD = leverant 
+               MTRL.KALKNR = 0        
+               MTRL.BENAMNING = mkattmp.BENAMNING 
+               MTRL.BPRIS = mkattmp.BPRIS      
+               MTRL.NPRIS = mkattmp.NPRIS 
+               MTRL.ENHET = mkattmp.ENHET
+               MTRL.KPRIS = kabovr.       /*nettopris kabel*/          
+               IF mkattmp.NETTO = TRUE THEN MTRL.KUND = TRUE.
+               IF mkattmp.NETTO = ? THEN MTRL.KUND = ?.
+               {MTRLCREATE.I}
+            END.   
+         END.
+      END.
+   END.
+   
+   
+   
+END PROCEDURE.      
+
+
+PROCEDURE mmarkexcel_UI :                         
+   DEFINE INPUT PARAMETER TABLE FOR mkattmp.      
+   DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.       
+   DEFINE INPUT PARAMETER svar AS LOGICAL NO-UNDO.    
+   DEFINE INPUT PARAMETER svar4 AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER svar8 AS LOGICAL NO-UNDO.       
+   DEFINE OUTPUT PARAMETER TABLE FOR felex.
+   DEFINE VARIABLE farg12 AS LOGICAL NO-UNDO. 
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   
+   farg12 = TRUE.  /*färg1*/
+   IF svar8 = FALSE THEN farg12 = ?.  /*färg2*/
+   IF svar = TRUE THEN DO:
+      IF FORETAG.FORETAG = "ORBI"  THEN DO:
+         /* vill ta bort alla märkningar */
+         OPEN QUERY mmq FOR EACH MTRL WHERE MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 AND MTRL.KUND = farg12 USE-INDEX LEV NO-LOCK.
+         GET FIRST mmq NO-LOCK.
+         DO WHILE AVAILABLE(MTRL):
+            DO TRANSACTION:
+               GET CURRENT mmq EXCLUSIVE-LOCK.             
+               MTRL.KUND = FALSE.
+            END.
+            GET NEXT mmq NO-LOCK.
+         END.
+         CLOSE QUERY mmq.
+      END.
+      ELSE DO:            
+         /* endast för kpris = 0 bruttoprislista */
+         OPEN QUERY mmq FOR EACH MTRL WHERE MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 AND MTRL.KPRIS = 0 AND MTRL.KUND = farg12 USE-INDEX LEV NO-LOCK.
+         GET FIRST mmq NO-LOCK.
+         DO WHILE AVAILABLE(MTRL):
+            DO TRANSACTION:
+               GET CURRENT mmq EXCLUSIVE-LOCK.             
+               MTRL.KUND = FALSE.
+            END.
+            GET NEXT mmq NO-LOCK.
+         END.
+         CLOSE QUERY mmq.
+      END.   
+   END.
+   FOR EACH mkattmp:      
+      DO TRANSACTION:         
+         FIND FIRST MTRL WHERE MTRL.ENR =  mkattmp.ENR AND
+         MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE MTRL THEN DO:
+            /*MTRL.KUND = TRUE.         */
+            MTRL.KUND = mkattmp.NETTO.
+            IF svar4 = TRUE THEN DO:
+               IF mkattmp.NPRIS > 0 THEN ASSIGN MTRL.NPRIS = mkattmp.NPRIS.  
+            END.
+         END.            
+         ELSE DO:
+            /*es ahlsell har en inledande nolla*/
+            FIND FIRST MTRL WHERE MTRL.ENR =  SUBSTRING(mkattmp.ENR,2) AND
+            MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               /*MTRL.KUND = TRUE.*/
+               MTRL.KUND = mkattmp.NETTO.
+               IF svar4 = TRUE THEN DO:
+                  IF mkattmp.NPRIS > 0 THEN ASSIGN MTRL.NPRIS = mkattmp.NPRIS.  
+               END.
+            END.            
+         END.
+         IF NOT AVAILABLE MTRL THEN DO:         
+            CREATE felex.
+            ASSIGN   felex.ENR = mkattmp.ENR.
+            /*MESSAGE "felex" mkattmp.enr felex.enr VIEW-AS ALERT-BOX.*/
+         END.
+      END.
+   END.      
+END PROCEDURE.      
+
+
+PROCEDURE mtrladepbyt_UI:
+   DEFINE INPUT PARAMETER levtor AS CHARACTER NO-UNDO.        
+   DEFINE INPUT PARAMETER levkod2 AS CHARACTER NO-UNDO.        
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR spec_mtrl. 
+   DEFINE OUTPUT PARAMETER TABLE FOR espec_mtrl.
+   
+   DO TRANSACTION:
+      FOR EACH spec_mtrl WHERE spec_mtrl.LEVKOD = levtor:
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = levkod2 AND 
+         MTRL.ENR = spec_mtrl.ENR AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE MTRL THEN DO:                               
+            CREATE espec_mtrl.
+            BUFFER-COPY spec_mtrl TO espec_mtrl.
+         END.
+         ELSE DO:   
+            /*Niklas 20070403 Här skall ej pris ändras på lagerfördmateriel*/
+/*             ASSIGN                               */
+/*             spec_mtrl.BENAMNING = MTRL.BENAMNING */
+/*             spec_mtrl.NPRIS = MTRL.NPRIS         */
+/*             spec_mtrl.BPRIS = MTRL.BPRIS         */
+/*             spec_mtrl.ENHET = MTRL.ENHET         */
+/*             spec_mtrl.LEVKOD = MTRL.LEVKOD.         */
+            ASSIGN
+            spec_mtrl.BENAMNING = MTRL.BENAMNING            
+            spec_mtrl.ENHET = MTRL.ENHET
+            spec_mtrl.LEVKOD = MTRL.LEVKOD.
+         END.                          
+      END.     
+      
+   END.   
+END PROCEDURE.
+
+
+PROCEDURE mtrlbbhmt_UI:
+   /*RAPPORT DEPÅ*/
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.      
+   DEFINE INPUT PARAMETER valdelnr AS INTEGER NO-UNDO.       
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.   
+   DEFINE INPUT PARAMETER valnummer AS INTEGER NO-UNDO. 
+   DEFINE INPUT PARAMETER ny AS LOGICAL NO-UNDO. 
+   DEFINE OUTPUT PARAMETER nytt_bestnr2 AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR spec_mtrl.      
+   DEFINE OUTPUT PARAMETER TABLE FOR off_mtrl.      
+   DEFINE OUTPUT PARAMETER TABLE FOR gam_mtrl.      
+   
+   EMPTY TEMP-TABLE spec_mtrl NO-ERROR.
+   EMPTY TEMP-TABLE off_mtrl NO-ERROR.
+   EMPTY TEMP-TABLE gam_mtrl NO-ERROR.
+   IF ny = TRUE THEN DO:      
+      FIND LAST BERBEST WHERE BERBEST.DEPNR = depnr USE-INDEX BEST NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BERBEST THEN DO:
+         ASSIGN
+         nytt_bestnr2 = 1.        
+      END.
+      ELSE DO:   
+         ASSIGN
+         nytt_bestnr2 = BERBEST.BESTNR + 1.        
+      END.       
+   END.
+   ELSE DO:
+      nytt_bestnr2 = valnummer.
+      OPEN QUERY dq FOR EACH BERBEST WHERE BERBEST.AONR = valaonr AND
+      BERBEST.DELNR = valdelnr AND BERBEST.DEPNR = depnr AND
+      BERBEST.UTTAG = TRUE AND BERBEST.LEVDATUM NE ? AND 
+      BERBEST.BESTNR = valnummer NO-LOCK.      
+      GET FIRST dq NO-LOCK.
+      DO WHILE AVAILABLE(BERBEST):
+         IF BERBEST.OFFERT = FALSE THEN DO:
+            CREATE spec_mtrl.
+            ASSIGN
+            spec_mtrl.ENR = BERBEST.ENR
+            spec_mtrl.BENAMNING = SUBSTRING(BERBEST.BENAMNING,1,59)
+            spec_mtrl.ENHET = BERBEST.ENHET
+            spec_mtrl.SALDO = BERBEST.ANTAL
+            spec_mtrl.NPRIS = BERBEST.PRIS       
+            spec_mtrl.BPRIS = BERBEST.PRIS
+            spec_mtrl.LEVKOD = BERBEST.LEVKOD.
+         END.
+         ELSE DO:
+            CREATE off_mtrl.
+            off_mtrl.TOTALT = BERBEST.PRIS.
+            CREATE gam_mtrl.
+            ASSIGN
+            gam_mtrl.DATUM = BERBEST.BESTDATUM
+            gam_mtrl.DATUM2 = BERBEST.LEVDATUM
+            gam_mtrl.KOM = SUBSTRING(BERBEST.BENAMNING,1,59).                                     
+         END.   
+         GET NEXT dq NO-LOCK.
+      END.
+      CLOSE QUERY dq.
+      
+   END.
+   
+END PROCEDURE.
+
+
+PROCEDURE ltrp_UI :
+   DEFINE INPUT PARAMETER nytt_bestnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR ltrptemp.
+   EMPTY TEMP-TABLE ltrptemp NO-ERROR. 
+   FIND FIRST LEVTRP WHERE LEVTRP.BESTNR = nytt_bestnr AND LEVTRP.LEVKOD = vald_lev 
+   AND LEVTRP.DEP-NR = vald_depa AND LEVTRP.BERNR = 0 NO-LOCK NO-ERROR.
+   IF AVAILABLE LEVTRP THEN DO:
+      CREATE ltrptemp.
+      BUFFER-COPY LEVTRP TO ltrptemp. 
+   END.
+END PROCEDURE.
+PROCEDURE mtrlbhmt_UI:
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.    
+   /*DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.   */
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrldeptemp.      
+   DEFINE OUTPUT PARAMETER klev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER dbenamning AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER bnummer AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE mtrldeptemp NO-ERROR. 
+   /*
+   ASSIGN
+   nytab      = "mtrldeptemp"
+   orginaltab = "MTRLDEP". 
+   kommandoquery = "MTRLDEP.DEPNR = " + " depnr ".
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+   /*BUGG 9.1c FIX*/
+
+   ASSIGN extratemptabh = TEMP-TABLE mtrldeptemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   */
+   OPEN QUERY mtrlq FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = depnr 
+   AND MTRLDEP.IBDATUM = ? USE-INDEX DEPNR NO-LOCK. 
+   GET FIRST mtrlq NO-LOCK.
+   DO WHILE AVAILABLE(MTRLDEP):
+      CREATE mtrldeptemp.
+      ASSIGN          
+      mtrldeptemp.LAGER = MTRLDEP.LAGER
+      mtrldeptemp.DEPNR = MTRLDEP.DEPNR     
+      mtrldeptemp.ENR = MTRLDEP.ENR
+      mtrldeptemp.BENAMNING = MTRLDEP.BENAMNING
+      mtrldeptemp.ENHET = MTRLDEP.ENHET
+      mtrldeptemp.BESTKVANT = MTRLDEP.BESTKVANT
+      mtrldeptemp.BESTPUNKT = MTRLDEP.BESTPUNKT
+      mtrldeptemp.NPRIS = MTRLDEP.NPRIS  
+      mtrldeptemp.BPRIS = MTRLDEP.BPRIS 
+      mtrldeptemp.LEVKOD = MTRLDEP.LEVKOD 
+      mtrldeptemp.FACKID = MTRLDEP.FACKID  
+      mtrldeptemp.INVANT = MTRLDEP.INVANT
+      mtrldeptemp.OMSATT = MTRLDEP.OMSATT    
+      mtrldeptemp.IB  = MTRLDEP.IB     
+      mtrldeptemp.IBDATUM  = MTRLDEP.IBDATUM     
+      mtrldeptemp.INVDATUM  = MTRLDEP.INVDATUM           
+      mtrldeptemp.SALDO = MTRLDEP.SALDO.      
+      GET NEXT mtrlq NO-LOCK. 
+   END.
+   CLOSE QUERY mtrlq.
+
+   FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = depnr NO-LOCK NO-ERROR.   
+   IF AVAILABLE HUVUDLEV THEN DO:  
+      klev = HUVUDLEV.LEVKOD.
+   END.                              
+   ELSE DO:
+      FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+      IF AVAILABLE HUVUDLEV THEN DO:
+         klev = HUVUDLEV.LEVKOD.
+      END.
+      ELSE DO:      
+         FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD NE "0" 
+         AND LEVERANTOR.BORTTAG = FALSE NO-LOCK NO-ERROR.
+         klev = LEVERANTOR.LEVKOD.
+      END.
+   END.   
+   FIND FIRST DEPA WHERE DEPA.DEP-NR = depnr NO-LOCK NO-ERROR.  
+   dbenamning = DEPA.BENAMNING.
+   FIND LAST BESTDEP WHERE BESTDEP.DEPNR = depnr USE-INDEX BEST NO-LOCK NO-ERROR.
+   IF AVAILABLE BESTDEP THEN DO:
+     ASSIGN
+      bnummer = BESTDEP.BESTNR + 1.
+   END.
+   ELSE DO:
+      bnummer = 1.
+   END.
+   RUN objdelete_UI.
+END PROCEDURE.
+
+PROCEDURE mtrluhmt_UI:
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.    
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrldeptemp.      
+   DEFINE OUTPUT PARAMETER bnummer AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE mtrldeptemp NO-ERROR. 
+   
+   ASSIGN
+   nytab      = "mtrldeptemp"
+   orginaltab = "MTRLDEP". 
+   kommandoquery = "MTRLDEP.DEPNR = " +  STRING(depnr).
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+   /*BUGG 9.1c FIX*/
+
+   ASSIGN extratemptabh = TEMP-TABLE mtrldeptemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   FIND LAST BERBEST WHERE BERBEST.DEPNR = depnr USE-INDEX BEST NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE BERBEST THEN DO:
+      ASSIGN
+      bnummer = 1.        
+   END.
+   ELSE DO:   
+      ASSIGN
+      bnummer = BERBEST.BESTNR + 1.        
+   END.
+   RUN objdelete_UI.
+   /*FIFO*/   
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   
+   IF Guru.Konstanter:varforetypval[54] = 1 THEN DO:               
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+      FOR EACH mtrldeptemp WHERE mtrldeptemp.IBDATUM = ?:         
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "FIFO"                                  
+         inextradatatemp.HUVUDINT =  mtrldeptemp.DEPNR
+         inextradatatemp.HUVUDCH =  mtrldeptemp.ENR.                    
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp).             
+         datsok = TODAY + 1.
+         FOR EACH extradatatemp:
+            IF extradatatemp.SOKDAT[1] < datsok THEN DO:
+               datsok = extradatatemp.SOKDAT[1].
+            END.
+         END.
+         FIND FIRST extradatatemp WHERE extradatatemp.SOKDAT[1] = datsok NO-LOCK NO-ERROR.
+         IF AVAILABLE extradatatemp THEN mtrldeptemp.NPRIS = extradatatemp.SOKDEC[1].                     
+      END.
+      IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+      edataapph = ?.    
+   END.
+END PROCEDURE.
+
+PROCEDURE bestnrhmt_UI:
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.       
+   DEFINE OUTPUT PARAMETER bnummer AS INTEGER NO-UNDO.
+   
+   FIND LAST BERBEST WHERE BERBEST.DEPNR = depnr USE-INDEX BEST NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE BERBEST THEN DO:
+      ASSIGN
+      bnummer = 1.        
+   END.
+   ELSE DO:   
+      ASSIGN
+      bnummer = BERBEST.BESTNR + 1.        
+   END.
+   /*RUN objdelete_UI.*/
+   
+END PROCEDURE.
+
+PROCEDURE mtrldepdat_UI:
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.       
+   DEFINE OUTPUT PARAMETER invdat AS DATE NO-UNDO.
+   FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = depnr AND 
+   MTRLDEP.IBDATUM = ? AND MTRLDEP.LAGER = TRUE NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRLDEP THEN invdat = MTRLDEP.INVDATUM.
+   ELSE invdat = TODAY.
+END PROCEDURE.
+
+PROCEDURE mtrldepbyt_UI:
+   DEFINE INPUT PARAMETER levtor AS CHARACTER NO-UNDO.     
+   DEFINE INPUT PARAMETER lev2 AS CHARACTER NO-UNDO.     
+   DEFINE INPUT PARAMETER levkod2 AS CHARACTER NO-UNDO.     
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.     
+   DEFINE INPUT PARAMETER envar AS CHARACTER NO-UNDO. 
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR spec_mtrl.        
+   DO TRANSACTION:
+      /*FIND FIRST MTRLDEP WHERE MTRLDEP.LEVKOD = levtor AND   
+      MTRLDEP.DEPNR = depnr AND MTRLDEP.IBDATUM = ? AND 
+      MTRLDEP.ENR = envar EXCLUSIVE-LOCK NO-ERROR.*/
+      FIND FIRST spec_mtrl WHERE spec_mtrl.LEVKOD = levtor AND   
+      spec_mtrl.DEPNR = depnr AND spec_mtrl.ENR = envar EXCLUSIVE-LOCK NO-ERROR.
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = levkod2 AND   
+      MTRL.KALKNR = 0 AND MTRL.ENR = envar NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         /*Niklas 20070403 Här skall ej pris ändras på lagerfördmateriel*/
+/*             ASSIGN                               */
+/*             spec_mtrl.BENAMNING = MTRL.BENAMNING */
+/*             spec_mtrl.NPRIS = MTRL.NPRIS         */
+/*             spec_mtrl.BPRIS = MTRL.BPRIS         */
+/*             spec_mtrl.ENHET = MTRL.ENHET         */
+/*             spec_mtrl.LEVKOD = MTRL.LEVKOD.         */
+         ASSIGN                  
+         spec_mtrl.BENAMNING = MTRL.BENAMNING
+         spec_mtrl.ENHET = MTRL.ENHET 
+         spec_mtrl.LEVKOD = levkod2.
+      END.            
+   END.
+   RELEASE MTRLDEP NO-ERROR.   
+END PROCEDURE.
+
+PROCEDURE mtrldeplbyt_UI:
+   DEFINE INPUT PARAMETER levtor AS CHARACTER NO-UNDO.     
+   DEFINE INPUT PARAMETER lev2 AS CHARACTER NO-UNDO.     
+   DEFINE INPUT PARAMETER levkod2 AS CHARACTER NO-UNDO.     
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.     
+   DEFINE INPUT PARAMETER envar AS CHARACTER NO-UNDO.    
+   
+
+   DO TRANSACTION:
+      FIND FIRST MTRLDEP WHERE MTRLDEP.LEVKOD = levtor AND   
+      MTRLDEP.DEPNR = depnr AND MTRLDEP.IBDATUM = ? AND 
+      MTRLDEP.ENR = envar EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MTRLDEP THEN DO:      
+         ASSIGN
+         MTRLDEP.LEVKOD = levkod2.
+     END.
+   END.
+   RELEASE MTRLDEP NO-ERROR.   
+END PROCEDURE.
+
+
+PROCEDURE mtrldepkoll_UI:
+   DEFINE INPUT PARAMETER levtor AS CHARACTER NO-UNDO.     
+   DEFINE INPUT PARAMETER levtnamn AS CHARACTER NO-UNDO.     
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.       
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.   
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   
+   FIND FIRST MTRLDEP WHERE MTRLDEP.LEVKOD = levtor AND   
+   MTRLDEP.DEPNR = depnr AND MTRLDEP.IBDATUM = ? NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE MTRLDEP THEN DO:
+      CREATE felmeddtemp.  
+      ASSIGN               
+      felmeddtemp.FELMEDD = "Det finns inget materiel från " + levtnamn + " upplagt i depån.".             
+   END.
+
+      
+END PROCEDURE.
+
+
+PROCEDURE mtrlhmt_UI:   
+   DEFINE INPUT PARAMETER vlev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.   
+   FOR EACH mtrltemp WHERE mtrltemp.LEVKOD = vlev:
+      DELETE mtrltemp.
+   END.
+      
+   ASSIGN
+   nytab      = "mtrltemp"
+   orginaltab = "MTRL". 
+
+
+   kommandoquery = "MTRL.LEVKOD = " + "'" + STRING(vlev) + "'".
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+   /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE mtrltemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.
+   
+   
+END PROCEDURE.
+
+PROCEDURE mtrllevhmt_UI:   
+   DEFINE INPUT PARAMETER vlev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.   
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.   
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR.    
+   FOR EACH spec_mtrl:
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = vlev AND MTRL.ENR = spec_mtrl.ENR
+      AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         CREATE mtrltemp.
+         BUFFER-COPY MTRL TO mtrltemp.            
+         mtrltemp.ENHET = LC(mtrltemp.ENHET).
+      END.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE mtrllevhmtkoll_UI:   
+   DEFINE INPUT PARAMETER vlev AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.   
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR.       
+   FIND FIRST MTRL WHERE MTRL.LEVKOD = vlev AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      CREATE mtrltemp.
+      BUFFER-COPY MTRL TO mtrltemp.            
+      mtrltemp.ENHET = LC(mtrltemp.ENHET).
+   END.     
+END PROCEDURE.
+
+PROCEDURE mtrlhmtkab_UI:      
+   DEFINE INPUT PARAMETER vlev AS CHARACTER NO-UNDO.   
+   DEFINE INPUT PARAMETER kabovr AS INTEGER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER TABLE FOR emtrltemp.   
+   EMPTY TEMP-TABLE emtrltemp NO-ERROR.       
+   FOR EACH MTRL WHERE MTRL.LEVKOD = vlev AND MTRL.KALKNR = 0 AND MTRL.KPRIS = kabovr USE-INDEX ENR NO-LOCK:
+      CREATE emtrltemp.
+      BUFFER-COPY MTRL TO emtrltemp.            
+      emtrltemp.MTRLROW = ROWID(MTRL).      
+   END.     
+END PROCEDURE.
+
+
+PROCEDURE hamtaen_UI:
+   DEFINE INPUT PARAMETER vem AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR depatemp.   
+   EMPTY TEMP-TABLE depatemp NO-ERROR.    
+   
+   IF vem = ? THEN DO:
+      CREATE depatemp.      
+      RETURN.
+   END.
+   
+   ASSIGN
+   nytab      = "depatemp"
+   orginaltab = "DEPA".
+   /*IF vemid = "" THEN kommandoquery = "BESTTAB.VIBESTID = " + '"' + vem + '"'.
+   ELSE 
+   */
+   kommandoquery = "DEPA.DEP-NR = " + "'" + STRING(vem) + "'".
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+   /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE depatemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE). 
+   RUN objdelete_UI.
+
+   
+
+END PROCEDURE.
+
+
+PROCEDURE sokhmt_UI:
+   DEFINE INPUT PARAMETER begvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER aosok AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR sok_mtrl.   
+   EMPTY TEMP-TABLE sok_mtrl NO-ERROR.    
+   IF begvar = FALSE THEN                                                            
+   OPEN QUERY sok FOR EACH MTRL WHERE MTRL.BENAMNING MATCHES aosok AND 
+   MTRL.LEVKOD NE lev AND MTRL.KALKNR = 0 USE-INDEX BEN NO-LOCK.
+   ELSE 
+   OPEN QUERY sok FOR EACH MTRL WHERE MTRL.BENAMNING BEGINS aosok AND 
+   MTRL.LEVKOD NE lev AND MTRL.KALKNR = 0 USE-INDEX BEN NO-LOCK.                   
+   GET FIRST sok NO-LOCK.   
+   DO WHILE AVAILABLE(MTRL):                  
+      CREATE sok_mtrl.   
+      ASSIGN
+      sok_mtrl.ENR = MTRL.ENR
+      sok_mtrl.BENAMNING = MTRL.BENAMNING
+      sok_mtrl.ENHET = MTRL.ENHET 
+      sok_mtrl.NPRIS = MTRL.NPRIS 
+      sok_mtrl.BPRIS = MTRL.BPRIS
+      sok_mtrl.LEVKOD = MTRL.LEVKOD.                                           
+      GET NEXT sok NO-LOCK.                   
+   END.
+END PROCEDURE.
+
+
+PROCEDURE spmtrl_UI:
+   DEFINE INPUT PARAMETER enummer AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.   
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   
+   FIND FIRST MTRL WHERE MTRL.ENR = enummer AND
+   MTRL.LEVKOD = "99" AND MTRL.KALKNR = 0 USE-INDEX LEV 
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:                 
+      CREATE felmeddtemp.  
+      ASSIGN               
+      felmeddtemp.FELMEDD = "Det finns redan ett materiel med detta " + LC(Guru.Konstanter:genk) + ". Ange ett nytt.".       
+   END. 
+END PROCEDURE.
+
+PROCEDURE spmtrldep_UI:   
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER invdat AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+
+   FOR EACH spec_mtrl WHERE spec_mtrl.LAGER = TRUE:
+      DO TRANSACTION:      
+         FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = depnr AND
+         MTRLDEP.ENR = spec_mtrl.ENR AND MTRLDEP.LAGER = FALSE AND 
+         MTRLDEP.IBDATUM = ? EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE MTRLDEP THEN DO:
+            ASSIGN             
+            MTRLDEP.BESTPUNKT = spec_mtrl.BESTPUNKT 
+            MTRLDEP.BESTKV = spec_mtrl.BESTKVANT
+            MTRLDEP.FACKID = spec_mtrl.FACKID
+            MTRLDEP.OMSATT = spec_mtrl.OMSATT            
+            MTRLDEP.INVDATUM = invdat               
+            MTRLDEP.LAGER = TRUE.
+         END.
+         ELSE DO:               
+            CREATE MTRLDEP.
+            ASSIGN 
+            MTRLDEP.DEPNR = depnr
+            MTRLDEP.ENR = spec_mtrl.ENR
+            MTRLDEP.BENAMNING = spec_mtrl.BENAMNING
+            MTRLDEP.ENHET = spec_mtrl.ENHET
+            MTRLDEP.BESTPUNKT = spec_mtrl.BESTPUNKT 
+            MTRLDEP.BESTKV = spec_mtrl.BESTKVANT
+            MTRLDEP.FACKID = spec_mtrl.FACKID
+            MTRLDEP.OMSATT = spec_mtrl.OMSATT
+            MTRLDEP.NPRIS = spec_mtrl.NPRIS
+            MTRLDEP.BPRIS = spec_mtrl.NPRIS
+            MTRLDEP.INVDATUM = invdat
+            MTRLDEP.LEVKOD = spec_mtrl.LEVKOD
+            MTRLDEP.SALDO = spec_mtrl.SALDO
+            MTRLDEP.LAGER = TRUE.
+         END.
+      END.
+   END.
+   FOR EACH spec_mtrl WHERE spec_mtrl.LAGER = FALSE:
+      DO TRANSACTION:      
+         FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = depnr AND
+         MTRLDEP.ENR = spec_mtrl.ENR AND MTRLDEP.LAGER = FALSE AND 
+         MTRLDEP.IBDATUM = ? EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE MTRLDEP THEN DO:         
+            CREATE MTRLDEP.
+            ASSIGN 
+            MTRLDEP.DEPNR = depnr
+            MTRLDEP.ENR = spec_mtrl.ENR
+            MTRLDEP.BENAMNING = spec_mtrl.BENAMNING
+            MTRLDEP.ENHET = spec_mtrl.ENHET
+            MTRLDEP.BESTPUNKT = spec_mtrl.BESTPUNKT 
+            MTRLDEP.BESTKV = spec_mtrl.BESTKVANT
+            MTRLDEP.FACKID = spec_mtrl.FACKID
+            MTRLDEP.OMSATT = spec_mtrl.OMSATT
+            MTRLDEP.NPRIS = spec_mtrl.NPRIS
+            MTRLDEP.BPRIS = spec_mtrl.NPRIS
+            MTRLDEP.INVDATUM = invdat
+            MTRLDEP.LEVKOD = spec_mtrl.LEVKOD
+            MTRLDEP.SALDO = spec_mtrl.SALDO
+            MTRLDEP.LAGER = FALSE.
+         END.
+      END.
+   END.
+   RELEASE MTRLDEP  NO-ERROR.
+END PROCEDURE.
+
+
+
+PROCEDURE skspmtrl_UI:
+   DEFINE INPUT PARAMETER enummer AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER bnamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER enhet AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER pris AS DECIMAL NO-UNDO.
+   DEFINE INPUT PARAMETER antal AS DECIMAL NO-UNDO.
+   DEFINE INPUT PARAMETER lev AS CHARACTER NO-UNDO.
+   DO TRANSACTION:     
+      CREATE MTRL.
+      ASSIGN
+      MTRL.ENR = enummer
+      MTRL.BENAMNING = bnamn
+      MTRL.ENHET = enhet
+      MTRL.NPRIS = pris 
+      MTRL.BPRIS = antal  
+      MTRL.LEVKOD = lev.
+      {MTRLCREATE.I}  
+   END.
+   RELEASE MTRL NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE spmspec_UI :                         
+   DEFINE INPUT PARAMETER TABLE FOR emtrltemp.   
+   DEFINE INPUT PARAMETER mspmed AS CHARACTER NO-UNDO.    
+   FIND FIRST emtrltemp NO-ERROR.   
+   DO TRANSACTION:   
+      FIND FIRST MTRLSPEC WHERE MTRLSPEC.ENR = emtrltemp.ENR AND MTRLSPEC.LEVKOD = emtrltemp.LEVKOD
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MTRLSPEC THEN DO:
+         MTRLSPEC.MED = mspmed.
+      END.
+      ELSE DO:
+         CREATE MTRLSPEC.
+         ASSIGN MTRLSPEC.ENR = emtrltemp.ENR 
+         MTRLSPEC.LEVKOD = emtrltemp.LEVKOD
+         MTRLSPEC.MED = mspmed.
+      END.
+   END.
+   RELEASE MTRLSPEC.
+END PROCEDURE.      
+
+
+PROCEDURE uppghmt_UI:
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER kinamn AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER ktele AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER bnamn AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER bkontakt AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER btel AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER badr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER bpnr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER bort AS CHARACTER NO-UNDO.
+   
+   FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = ganv NO-LOCK NO-ERROR.
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      ASSIGN
+      kinamn = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN
+      ktele = PERSONALTAB.TELEFON.                           
+   END.                
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = vaonr AND AONRTAB.DELNR = vdelnr 
+   USE-INDEX AONR NO-LOCK NO-ERROR.
+   IF AVAILABLE AONRTAB THEN DO:
+      FIND FIRST BESTTAB WHERE BESTTAB.BESTID = AONRTAB.BESTID NO-LOCK NO-ERROR.
+      IF AVAILABLE BESTTAB THEN DO:
+         ASSIGN
+         bnamn = BESTTAB.BESTNAMN
+         bkontakt = BESTTAB.KONTAKT 
+         btel = BESTTAB.TEL
+         badr = BESTTAB.ADR
+         bpnr = BESTTAB.PNR
+         bort = BESTTAB.ORT.
+      END.         
+   END.
+END PROCEDURE.
+              
+PROCEDURE uppmtrldep_UI:
+   DEFINE INPUT PARAMETER TABLE FOR emtrldeptemp.
+   FIND FIRST emtrldeptemp NO-ERROR.
+   
+   DO TRANSACTION:      
+      FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = emtrldeptemp.DEPNR AND
+      MTRLDEP.ENR = emtrldeptemp.ENR AND MTRLDEP.IBDATUM = emtrldeptemp.IBDATUM  EXCLUSIVE-LOCK NO-ERROR.
+      ASSIGN MTRLDEP.SALDO = emtrldeptemp.SALDO.
+      /*ej lagerförd materiel*/
+      IF MTRLDEP.SALDO = 0 AND MTRLDEP.LAGER = FALSE THEN DELETE MTRLDEP.
+   END.
+   RELEASE MTRLDEP NO-ERROR.
+   
+END PROCEDURE.
+
+PROCEDURE uppmtrldeptr_UI:
+   DEFINE INPUT PARAMETER valddepa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER valenr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER utant AS INTEGER NO-UNDO.
+      
+   DO TRANSACTION:      
+      FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = valddepa AND
+      MTRLDEP.ENR = valenr AND MTRLDEP.IBDATUM = ?  EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MTRLDEP THEN DO:
+         IF  utant < MTRLDEP.SALDO THEN ASSIGN MTRLDEP.SALDO = MTRLDEP.SALDO - utant.
+         ELSE MTRLDEP.SALDO = 0.
+         /*ej lagerförd materiel*/
+         IF MTRLDEP.SALDO = 0 AND MTRLDEP.LAGER = FALSE THEN DELETE MTRLDEP.
+      END.   
+   END.
+   RELEASE MTRLDEP NO-ERROR.
+   
+END PROCEDURE.
+              
+PROCEDURE uppmtrldeppris_UI:
+   DEFINE INPUT PARAMETER TABLE FOR emtrldeptemp.
+   FOR EACH emtrldeptemp:
+      DO TRANSACTION:      
+         FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = emtrldeptemp.DEPNR AND
+         MTRLDEP.ENR = emtrldeptemp.ENR AND MTRLDEP.IBDATUM = emtrldeptemp.IBDATUM AND
+         MTRLDEP.LAGER = emtrldeptemp.LAGER   EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE MTRLDEP  THEN DO:         
+            ASSIGN 
+            MTRLDEP.NPRIS = emtrldeptemp.NPRIS
+            MTRLDEP.BPRIS = emtrldeptemp.BPRIS.
+         END.
+         
+         IF Guru.Konstanter:globforetag = "LULE" THEN DO:
+            /*UPPDATERA LEVERANTÖR 41 SOM ÄR EN SPEGLING AV DEPÅN*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = "41" AND
+            MTRL.ENR = emtrldeptemp.ENR AND MTRL.KALKNR = 0 EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = emtrldeptemp.NPRIS
+               MTRL.BPRIS = emtrldeptemp.NPRIS.
+            END.
+         END.
+         IF Guru.Konstanter:globforetag = "bode" OR Guru.Konstanter:globforetag = "KRAF" THEN DO:
+            /*UPPDATERA LEVERANTÖR 6 SOM ÄR EN SPEGLING AV DEPÅN*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = "6" AND
+            MTRL.ENR = emtrldeptemp.ENR AND MTRL.KALKNR = 0 EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = emtrldeptemp.NPRIS
+               MTRL.BPRIS = emtrldeptemp.NPRIS.
+            END.
+         END.
+         /*kalmar depåändring abc nu*/
+         IF Guru.Konstanter:globforetag = "GKAL" THEN DO:
+            /*UPPDATERA LEVERANTÖR 20 SOM ÄR EN SPEGLING AV DEPÅN*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = "20" AND
+            MTRL.ENR = emtrldeptemp.ENR AND MTRL.KALKNR = 0 EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = emtrldeptemp.NPRIS
+               MTRL.BPRIS = emtrldeptemp.NPRIS.
+            END.
+         END.
+         IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+            /*UPPDATERA LEVERANTÖR 20 SOM ÄR EN SPEGLING AV DEPÅN*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = "20" AND
+            MTRL.ENR = emtrldeptemp.ENR AND MTRL.KALKNR = 0 EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = emtrldeptemp.NPRIS
+               MTRL.BPRIS = emtrldeptemp.NPRIS.
+            END.
+         END.
+      END.
+   END.     
+   RELEASE MTRLDEP NO-ERROR.
+   RELEASE MTRL NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE uppdatkatpris_UI:   
+   DEFINE INPUT PARAMETER valddepa AS INTEGER NO-UNDO.
+   hjlev = "".
+   IF Guru.Konstanter:globforetag = "lule" then hjlev = "41".
+   IF Guru.Konstanter:globforetag = "bode" OR Guru.Konstanter:globforetag = "KRAF" then hjlev = "6".
+   /*kalmar depåändring abc nu*/
+   IF Guru.Konstanter:globforetag = "GKAL" then hjlev = "20".
+   IF Guru.Konstanter:globforetag = "cSNAT" THEN DO:
+      /*snatdepå   ska ej göras*/
+      IF valddepa = 1 THEN hjlev = "20".
+      IF valddepa = 4 THEN hjlev = "21".
+   END.
+   IF hjlev NE "" THEN DO:    
+      OPEN QUERY mq FOR EACH MTRL WHERE MTRL.LEVKOD = hjlev AND
+      MTRL.KALKNR = 0 NO-LOCK.
+      DO TRANSACTION:
+         GET FIRST mq EXCLUSIVE-LOCK.
+         IF AVAILABLE MTRL THEN DO:
+            DELETE MTRL.
+         END.
+      END.
+      REPEAT:
+         DO TRANSACTION:
+            GET NEXT mq EXCLUSIVE-LOCK.
+            IF AVAILABLE MTRL THEN DO:
+               DELETE MTRL.
+            END.
+            ELSE LEAVE.
+         END.
+      END.
+      OPEN QUERY dq FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = valddepa AND 
+      MTRLDEP.IBDATUM = ? NO-LOCK.
+      GET FIRST dq NO-LOCK.
+      IF AVAILABLE MTRLDEP THEN DO TRANSACTION:
+         CREATE MTRL.
+         ASSIGN
+         MTRL.LEVKOD = hjlev
+         MTRL.KALKNR = 0
+         MTRL.ENR = MTRLDEP.ENR
+         MTRL.BENAMNING = MTRLDEP.BENAMNING
+         MTRL.ENHET = MTRLDEP.ENHET
+         MTRL.NPRIS = MTRLDEP.NPRIS
+         MTRL.BPRIS = MTRLDEP.NPRIS.
+         {MTRLCREATE.I}
+      END.
+      REPEAT:
+         GET NEXT dq NO-LOCK.
+         IF AVAILABLE MTRLDEP THEN DO TRANSACTION:
+            CREATE MTRL.
+            ASSIGN
+            MTRL.LEVKOD = hjlev
+            MTRL.KALKNR = 0
+            MTRL.ENR = MTRLDEP.ENR
+            MTRL.BENAMNING = MTRLDEP.BENAMNING
+            MTRL.ENHET = MTRLDEP.ENHET
+            MTRL.NPRIS = MTRLDEP.NPRIS
+            MTRL.BPRIS = MTRLDEP.NPRIS.
+            {MTRLCREATE.I}
+         END.
+         ELSE LEAVE.
+      END.
+   END.   
+END PROCEDURE.              
+
+
+PROCEDURE kollmottrumma_UI :
+   DEFINE INPUT PARAMETER vdep AS INTEGER  NO-UNDO.
+   DEFINE INPUT PARAMETER pdep AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR eaotrum.
+   DEFINE OUTPUT PARAMETER motdatum AS DATE NO-UNDO.
+      
+   motdatum = ?.   
+   FIND FIRST eaotrum WHERE NO-LOCK NO-ERROR.      
+   IF AVAILABLE eaotrum THEN DO:
+      IF eaotrum.TRUMMANR > 0 THEN DO:
+         
+         FIND FIRST BESTDEPAO WHERE BESTDEPAO.DEPNR = eaotrum.DEPNR AND  BESTDEPAO.TRUMMANR = eaotrum.TRUMMANR
+         AND  BESTDEPAO.ANTAL = eaotrum.STMETER AND  BESTDEPAO.BESTDATUM = eaotrum.DATUMUT  NO-LOCK NO-ERROR.
+         IF AVAILABLE BESTDEPAO THEN DO:
+            motdatum = BESTDEPAO.LEVDATUM. 
+       
+         END.
+         ELSE DO:
+            /*depå 1 och 7 som inte har projektlager gör inte mottagning*/
+            motdatum = TODAY.
+         END.                                    
+      END.
+   END.         
+      
+END PROCEDURE.
+
+
+PROCEDURE tillbyggplats_UI :
+   DEFINE INPUT PARAMETER vdep AS INTEGER  NO-UNDO.
+   DEFINE INPUT PARAMETER pdep AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR eaotrum.   
+   DEFINE INPUT PARAMETER utlop AS INTEGER NO-UNDO.
+   FIND FIRST eaotrum WHERE NO-LOCK NO-ERROR.      
+   IF AVAILABLE eaotrum THEN DO TRANSACTION:       
+      IF eaotrum.TRUMMANR > 0 THEN DO:
+         /*Gäller även om trumman ej är lagd på pplats*/
+         /*BESTDEPAO.BESTTID = utlop  löpnr för uttaget på trumman 20190912*/         
+         FOR EACH BESTDEPAO WHERE BESTDEPAO.DEPNR = eaotrum.DEPNR AND BESTDEPAO.PROJDEPNR = pdep AND BESTDEPAO.TRUMMANR = eaotrum.TRUMMANR AND BESTDEPAO.LAGERPLATSI = eaotrum.LAGERPLATSI 
+         AND BESTDEPAO.UTTAGET = FALSE   EXCLUSIVE-LOCK:               
+            ASSIGN 
+            BESTDEPAO.UTTAGET = TRUE
+            BESTDEPAO.UTDATUM = TODAY.
+            /*om ej mottagen vid inventering - sätt mottagen*/
+            IF BESTDEPAO.LEVDATUM = ? THEN BESTDEPAO.LEVDATUM = TODAY.      
+         END.     
+         FIND FIRST LAGERPLATSKOPP WHERE LAGERPLATSKOPP.DEPNR = eaotrum.DEPNR AND LAGERPLATSKOPP.TRUMMANR = eaotrum.TRUMMANR AND LAGERPLATSKOPP.LAGERPLATSI = eaotrum.LAGERPLATSI  
+         AND LAGERPLATSKOPP.UTTAGET = FALSE EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE LAGERPLATSKOPP THEN DO:
+            ASSIGN 
+            LAGERPLATSKOPP.UTTAGET = TRUE
+            LAGERPLATSKOPP.UTDATUM = TODAY.                  
+         END. 
+      END.   
+      /*OM ALLA UTTAGNA SKAPA TOM LAGERPLATS*/
+      FIND FIRST LAGERPLATSKOPP  WHERE LAGERPLATSKOPP.LAGERPLATSI = eaotrum.LAGERPLATSI AND LAGERPLATSKOPP.UTTAGET = FALSE NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE LAGERPLATSKOPP THEN DO:
+         CREATE LAGERPLATSKOPPBUFF.
+         ASSIGN
+         LAGERPLATSKOPPBUFF.LAGERPLATSI = eaotrum.LAGERPLATSI
+         LAGERPLATSKOPPBUFF.LAGERPLATSC = eaotrum.LAGERPLATSC
+         LAGERPLATSKOPPBUFF.DEPNR = 0
+         LAGERPLATSKOPPBUFF.PROJDEPNR = pdep.      
+      END.
+      
+   END.   
+   RUN Reltab_UI.
+END PROCEDURE.
+   
+PROCEDURE kollpplatstr_UI :
+   DEFINE INPUT PARAMETER vdep AS INTEGER  NO-UNDO.
+   DEFINE INPUT PARAMETER pdep AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR eaotrum.   
+   FIND FIRST eaotrum WHERE NO-LOCK NO-ERROR.      
+   IF AVAILABLE eaotrum THEN DO TRANSACTION:
+      IF eaotrum.TRUMMANR > 0 THEN DO:
+         FIND FIRST LAGERPLATSKOPP WHERE LAGERPLATSKOPP.PROJDEPNR = pdep  AND LAGERPLATSKOPP.DEPNR = vdep  AND LAGERPLATSKOPP.TRUMMANR = eaotrum.TRUMMANR 
+         AND  LAGERPLATSKOPP.UTTAGET = FALSE  EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE LAGERPLATSKOPP THEN DO:
+            
+            FIND FIRST LAGERPLATSKOPPBUFF  WHERE LAGERPLATSKOPPBUFF.LAGERPLATSI = LAGERPLATSKOPP.LAGERPLATSI AND  LAGERPLATSKOPPBUFF.TRUMMANR NE  LAGERPLATSKOPP.TRUMMANR 
+            AND  LAGERPLATSKOPPBUFF.UTTAGET = FALSE NO-LOCK NO-ERROR.
+            IF AVAILABLE LAGERPLATSKOPPBUFF THEN DO:
+               DELETE LAGERPLATSKOPP.            
+            END.
+            ELSE DO:         
+               ASSIGN          
+               LAGERPLATSKOPP.DEPNR = 0
+               LAGERPLATSKOPP.AONRAONR = ""   
+               LAGERPLATSKOPP.AONRDELNR =    0
+               LAGERPLATSKOPP.TRUMMANR   =   0.                             
+            END.                
+         END.               
+         FIND FIRST BESTDEPAO WHERE BESTDEPAO.PROJDEPNR = pdep AND BESTDEPAO.DEPNR = vdep AND  BESTDEPAO.TRUMMANR = eaotrum.TRUMMANR 
+         AND  BESTDEPAO.ANTAL = eaotrum.STMETER AND BESTDEPAO.UTTAGET = FALSE EXCLUSIVE-LOCK NO-ERROR.         
+         IF AVAILABLE BESTDEPAO  THEN DO:
+            DELETE BESTDEPAO.
+         END.
+      END.
+   END.         
+   RUN Reltab_UI.   
+END PROCEDURE.
+   
+PROCEDURE kollev_UI :
+   DEFINE INPUT PARAMETER vlev AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER lnamn AS CHARACTER NO-UNDO.         
+   lnamn = "".
+   FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = vlev NO-LOCK NO-ERROR.
+   IF AVAILABLE LEVERANTOR THEN lnamn = LEVERANTOR.LEVNAMN.
+END PROCEDURE.
+
+PROCEDURE hmtkat_UI :
+   DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER lista AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.   
+   IF lista = 1 THEN DO:
+      OPEN QUERY satsq FOR EACH MTRL WHERE MTRL.LEVKOD = leverant AND
+      MTRL.KALKNR = 0 NO-LOCK.
+      GET FIRST satsq NO-LOCK.
+      DO WHILE AVAILABLE(MTRL): 
+         CREATE mtrltemp.
+         BUFFER-COPY MTRL TO mtrltemp. 
+         mtrltemp.ENHET = LC(mtrltemp.ENHET).
+         GET NEXT satsq NO-LOCK.
+      END.     
+      CLOSE QUERY satsq.
+   END.
+   ELSE IF lista = 2 THEN DO:      
+      OPEN QUERY satsq FOR EACH MTRL WHERE MTRL.LEVKOD = leverant AND
+      MTRL.KALKNR = 0 AND MTRL.KUND = TRUE NO-LOCK.
+      GET FIRST satsq NO-LOCK.
+      DO WHILE AVAILABLE(MTRL): 
+         CREATE mtrltemp.
+         BUFFER-COPY MTRL TO mtrltemp. 
+         mtrltemp.ENHET = LC(mtrltemp.ENHET).
+         GET NEXT satsq NO-LOCK.
+      END.     
+      CLOSE QUERY satsq.
+   END.
+   ELSE IF lista = 3 THEN DO:      
+      OPEN QUERY satsq FOR EACH MTRL WHERE MTRL.LEVKOD = leverant AND
+      MTRL.KALKNR = 0 AND MTRL.KUND = ? NO-LOCK.
+      GET FIRST satsq NO-LOCK.
+      DO WHILE AVAILABLE(MTRL): 
+         CREATE mtrltemp.
+         BUFFER-COPY MTRL TO mtrltemp. 
+         mtrltemp.ENHET = LC(mtrltemp.ENHET).
+         GET NEXT satsq NO-LOCK.
+      END.     
+      CLOSE QUERY satsq.
+   END.              
+     
+END PROCEDURE.
+PROCEDURE nykonsgrp_UI:
+   DEFINE OUTPUT PARAMETER nykonsgrp AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER nyord AS INTEGER NO-UNDO.
+   FIND LAST KONSTGRUPP USE-INDEX KOD.
+   nykonsgrp = KONSTGRUPP.KONSKOD + 1.
+   FIND LAST KONSTGRUPP USE-INDEX ORD.
+   nyord = KONSTGRUPP.ORDNING + 1.  
+END PROCEDURE.
+PROCEDURE Reltab_UI :
+   RELEASE LAGERPLATSKOPP NO-ERROR.
+   RELEASE LAGERPLATSKOPPBUFF NO-ERROR. 
+   RELEASE BESTDEPAO NO-ERROR.
+END PROCEDURE.
+

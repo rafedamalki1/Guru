@@ -1,0 +1,84 @@
+/*XNYTTAOAPP.P*/
+/*Laddar temptabeller åt nyttaonu.W */
+{AVDTEMP.I}
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omrvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER jid AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER TABLE FOR eavdtemp.
+   EMPTY TEMP-TABLE eavdtemp  NO-ERROR. 
+
+
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT globforetag).
+
+
+
+   ASSIGN
+   jid = "".   
+   IF varforetypval[18] = 1 THEN DO: 
+      IF omrvar = "" THEN DO: 
+         IF ganv NE "" THEN DO:         
+            FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = ganv NO-LOCK NO-ERROR.   
+            IF ANVANDARE.PERSONALKOD NE "" THEN DO:      
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD NO-LOCK NO-ERROR.
+            END.
+         END.
+         ELSE IF pkod NE "" THEN DO:
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+         END.
+         IF AVAILABLE PERSONALTAB THEN DO:
+            FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+            FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+            FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+            IF AVAILABLE JURPERS THEN DO:
+               IF AVAILABLE AVDELNING THEN DO:
+                  ASSIGN
+                  jid = JURPERS.JUDID.            
+               END.
+            END.        
+         END.           
+      END.
+      ELSE DO:
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = omrvar NO-LOCK NO-ERROR.
+         FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+         FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+         IF AVAILABLE JURPERS THEN DO:
+            IF AVAILABLE AVDELNING THEN DO:
+               ASSIGN
+               jid = JURPERS.JUDID.            
+            END.
+         END.
+      END.
+      IF globforetag = "CELPA" THEN DO: 
+         ASSIGN jid = "".
+      END.
+      IF globforetag = "SUND" THEN DO: 
+         IF ganv = "SEIEN" THEN DO: 
+            ASSIGN jid = "".
+         END.
+      END.      
+      IF globforetag = "LULE" THEN DO: 
+         IF ganv = "sgjn" THEN DO: 
+            ASSIGN jid = "".
+         END.
+      END.      
+      IF jid = ""  THEN jid = jid.
+      ELSE DO:
+         FOR EACH AVDELNING WHERE AVDELNING.KOSTMASK = 0 AND AVDELNING.POSTANST = jid NO-LOCK:
+            CREATE eavdtemp.
+            ASSIGN
+            eavdtemp.AVDELNINGNAMN = AVDELNING.AVDELNINGNAMN 
+            eavdtemp.AVDELNINGNR = AVDELNING.AVDELNINGNR.
+         END.      
+      END.
+   END.
+   
+

@@ -1,0 +1,1625 @@
+/*LEVAPPV.P*/
+
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{DEPATEMP.I}
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{ANVTEMPS.I}
+{MTRLTEMP.I}
+{SPECMTRLTEMP.I}
+{LAGERTRUM.I}
+{INKTEMP.I}
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(86)" NO-UNDO.    
+DEFINE VARIABLE str1 AS CHARACTER FORMAT "X(86)" NO-UNDO.
+DEFINE VARIABLE posvar AS INTEGER NO-UNDO.
+
+{TIDUTTTNEW.I}   
+{EXTRADATA.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+{DYNHMT.I}
+DEFINE VARIABLE best_nr_koll AS INTEGER NO-UNDO.
+DEFINE VARIABLE lev_nr_koll  AS INTEGER NO-UNDO.
+DEFINE VARIABLE invdat AS DATE NO-UNDO. 
+&Scoped-define NEW   
+&Scoped-define SHARED
+{bestnrtab.I}
+{LEVNRTAB.I}
+{aobestnrtab.I}
+{aoLEVNRTAB.I}
+{LAGERPLKOPP.I}
+{AOBESTMTRLDEP.I}
+{UAOTEMP.I}
+DEFINE NEW SHARED TEMP-TABLE off_mtrl NO-UNDO     
+    FIELD TOTALT AS DECIMAL.
+DEFINE TEMP-TABLE pristemp NO-UNDO
+   FIELD PRIS AS DECIMAL
+   FIELD ANTAL AS INTEGER.    
+DEFINE VARIABLE antalvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE antalvar2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE datsok AS DATE NO-UNDO.
+DEFINE VARIABLE totpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE berdatumvar AS DATE NO-UNDO.
+
+
+DEFINE BUFFER LAGERPLATSKOPPBUFF FOR LAGERPLATSKOPP.
+
+DEFINE BUFFER elagerplkoppbuff FOR elagerplkopp.
+DEFINE BUFFER BESTDEPAOBUFF FOR BESTDEPAO.
+
+ 
+DEFINE TEMP-TABLE utnr NO-UNDO
+    FIELD BESTNR AS INTEGER   
+    FIELD DEPNR AS INTEGER
+    FIELD PROJDEPNR AS INTEGER.
+/*DEFINE TEMP-TABLE lev_nr_tab NO-UNDO
+    FIELD BESTNR AS INTEGER LABEL "Bestnr"   
+    FIELD BESTDATUM AS DATE LABEL "Best-datum"
+    FIELD LEVNAMN AS CHARACTER LABEL "Leverantör"
+    FIELD LEVKOD AS CHARACTER 
+    FIELD BESTALLARE AS CHARACTER LABEL "Beställare"
+    FIELD BENAMNING AS CHARACTER 
+    FIELD AONR AS CHARACTER
+    FIELD DELNR AS INTEGER
+    INDEX BESTNR IS PRIMARY BESTNR DESCENDING.*/
+&Scoped-define NEW 
+&Scoped-define SHARED
+{BESTMTRLDEP.I}
+                  
+                                                         
+berdatumvar = TODAY.
+FIND FIRST VECKONATT WHERE SUBSTRING(VECKONATT.DAG_AR,1,3) = "DAG" AND
+VECKONATT.VECKOKORD = "w" + STRING(TODAY,"99999999") 
+USE-INDEX NATT NO-LOCK NO-ERROR.
+IF AVAILABLE VECKONATT THEN berdatumvar = TODAY + 1.
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN Guru.Konstanter:globforetag = FORETAG.FORETAG.                                                         
+
+
+PROCEDURE aobesthmt_UI:                                    
+   /*DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER pdepa AS INTEGER NO-UNDO.  
+   DEFINE INPUT PARAMETER vald_best AS INTEGER NO-UNDO.  
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.*/
+   
+   DEFINE INPUT PARAMETER TABLE FOR eaobest_nr_tab.
+   DEFINE OUTPUT PARAMETER TABLE FOR aobest_mtrl.
+
+   
+   FOR EACH aobest_mtrl:
+      DELETE aobest_mtrl.
+   END.
+   FIND FIRST eaobest_nr_tab NO-LOCK NO-ERROR.
+       
+   OPEN QUERY qbest FOR EACH BESTDEPAO WHERE BESTDEPAO.DEPNR = eaobest_nr_tab.DEPNR AND BESTDEPAO.PROJDEPNR = eaobest_nr_tab.PROJDEPNR AND
+   BESTDEPAO.INKBESTID = eaobest_nr_tab.INKBESTID AND BESTDEPAO.BESTNR = eaobest_nr_tab.BESTNR AND BESTDEPAO.TRUMMANR = eaobest_nr_tab.TRUMMANR
+   AND BESTDEPAO.AONRAONR = eaobest_nr_tab.AONRAONR AND BESTDEPAO.AONRDELNR = eaobest_nr_tab.AONRDELNR /* AND BESTDEPAO.LEVKOD = eaobest_nr_tab.LEVKOD*/ AND BESTDEPAO.LEVDATUM = ?  NO-LOCK.     
+      
+   GET FIRST qbest NO-LOCK.
+   
+   DO WHILE AVAILABLE(BESTDEPAO):     
+      CREATE aobest_mtrl.
+      BUFFER-COPY BESTDEPAO TO aobest_mtrl.
+      aobest_mtrl.REST = FALSE.
+      
+      
+      
+      GET NEXT qbest NO-LOCK. 
+   END.  
+   CLOSE QUERY qbest.
+END PROCEDURE.         
+
+PROCEDURE nylplats_UI:                         
+   DEFINE INPUT PARAMETER pdepa AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER lplats AS INTEGER NO-UNDO.
+   DEBUGGER:SET-BREAK().
+   /*dummy*/
+   
+   FIND FIRST LAGERPLATSKOPPBUFF NO-LOCK NO-ERROR.
+   FIND LAST LAGERPLATSKOPPBUFF WHERE LAGERPLATSKOPPBUFF.PROJDEPNR = pdepa USE-INDEX PROJDEPNR NO-LOCK NO-ERROR.
+   DO TRANSACTION:   
+      CREATE LAGERPLATSKOPP.
+      LAGERPLATSKOPP.PROJDEPNR = pdepa.    
+      IF NOT AVAILABLE LAGERPLATSKOPPBUFF THEN DO:
+                
+         LAGERPLATSKOPP.LAGERPLATSI = 1.
+      END.   
+      ELSE DO:
+         LAGERPLATSKOPP.LAGERPLATSI = LAGERPLATSKOPPBUFF.LAGERPLATSI + 1.
+      END.   
+      lplats = LAGERPLATSKOPP.LAGERPLATSI.
+   END.
+   RUN Reltab_UI.   
+   
+END PROCEDURE.
+
+PROCEDURE bortlplats_UI:                            
+   DEFINE INPUT  PARAMETER TABLE FOR elagerplkopp.
+   FIND FIRST elagerplkopp NO-LOCK NO-ERROR.    
+   DO TRANSACTION:
+      FIND FIRST LAGERPLATSKOPP WHERE LAGERPLATSKOPP.DEPNR = elagerplkopp.DEPNR AND LAGERPLATSKOPP.LAGERPLATSI = elagerplkopp.LAGERPLATSI  EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE LAGERPLATSKOPP THEN DO:
+         DELETE LAGERPLATSKOPP.
+      END.
+   END.    
+   RUN Reltab_UI.   
+END PROCEDURE.
+
+
+PROCEDURE utlagerkopp_UI:   
+   DEFINE INPUT-OUTPUT  PARAMETER TABLE FOR elagerplkopp.
+   FIND FIRST elagerplkopp WHERE NO-LOCK NO-ERROR.  
+   DO TRANSACTION:
+      IF elagerplkopp.BESTNR > 0 OR elagerplkopp.INKBESTID > 0  OR elagerplkopp.TRUMMANR > 0  THEN DO:     
+         FIND FIRST LAGERPLATSKOPP WHERE LAGERPLATSKOPP.INKBESTID = elagerplkopp.INKBESTID AND LAGERPLATSKOPP.BESTNR = elagerplkopp.BESTNR 
+         AND LAGERPLATSKOPP.TRUMMANR = elagerplkopp.TRUMMANR AND LAGERPLATSKOPP.LAGERPLATSI = elagerplkopp.LAGERPLATSI AND LAGERPLATSKOPP.UTTAGET = FALSE  EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE LAGERPLATSKOPP THEN DO:
+            ASSIGN 
+            LAGERPLATSKOPP.UTTAGET = TRUE
+            LAGERPLATSKOPP.UTDATUM = TODAY
+            elagerplkopp.UTTAGET = TRUE
+            elagerplkopp.UTDATUM = TODAY
+            elagerplkopp.UTANV =  Guru.Konstanter:globanv.      
+         END. 
+         FOR EACH BESTDEPAO WHERE  BESTDEPAO.INKBESTID = elagerplkopp.INKBESTID AND BESTDEPAO.BESTNR = elagerplkopp.BESTNR 
+         AND BESTDEPAO.TRUMMANR = elagerplkopp.TRUMMANR AND BESTDEPAO.LAGERPLATSI = elagerplkopp.LAGERPLATSI AND BESTDEPAO.UTTAGET = FALSE   EXCLUSIVE-LOCK:               
+            ASSIGN 
+            BESTDEPAO.UTTAGET = TRUE
+            BESTDEPAO.UTDATUM = TODAY
+            SUBSTRING(BESTDEPAO.BESTALLARE, 40) = Guru.Konstanter:globanv.
+            /*Spara vem som gjort Till Byggplats*/.      
+         END.
+      END.   
+      /*OM ALLA UTTAGNA SKAPA TOM LAGERPLATS*/
+      FIND FIRST LAGERPLATSKOPP  WHERE LAGERPLATSKOPP.LAGERPLATSI = elagerplkopp.LAGERPLATSI AND LAGERPLATSKOPP.UTTAGET = FALSE NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE LAGERPLATSKOPP THEN DO:
+         CREATE LAGERPLATSKOPPBUFF.
+         ASSIGN
+         LAGERPLATSKOPPBUFF.LAGERPLATSI = elagerplkopp.LAGERPLATSI
+         LAGERPLATSKOPPBUFF.LAGERPLATSC = elagerplkopp.LAGERPLATSC
+         LAGERPLATSKOPPBUFF.DEPNR = 0
+         LAGERPLATSKOPPBUFF.PROJDEPNR = elagerplkopp.PROJDEPNR.      
+      END.   
+   END.                         
+   RUN Reltab_UI.
+END PROCEDURE.
+
+PROCEDURE utlagerkopprest_UI:   
+   DEFINE INPUT-OUTPUT  PARAMETER TABLE FOR elagerplkopp.
+   FIND FIRST elagerplkopp WHERE NO-LOCK NO-ERROR.  
+   DO TRANSACTION:
+      IF  elagerplkopp.INKBESTID > 0  THEN DO:     
+         FIND FIRST LAGERPLATSKOPP WHERE LAGERPLATSKOPP.INKBESTID = elagerplkopp.INKBESTID  AND LAGERPLATSKOPP.LAGERPLATSI = elagerplkopp.LAGERPLATSI AND LAGERPLATSKOPP.UTTAGET = FALSE  EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE LAGERPLATSKOPP THEN DO:
+            CREATE LAGERPLATSKOPPBUFF.            
+            BUFFER-COPY LAGERPLATSKOPP TO LAGERPLATSKOPPBUFF.
+                       
+            ASSIGN 
+            LAGERPLATSKOPPBUFF.UTTAGET = TRUE
+            LAGERPLATSKOPPBUFF.UTDATUM = TODAY.
+           
+            ASSIGN 
+            LAGERPLATSKOPP.UTTAGET = FALSE 
+            LAGERPLATSKOPP.UTDATUM = ? 
+            elagerplkopp.UTTAGET = FALSE
+            elagerplkopp.UTDATUM = ?.    
+              
+         END. 
+         FOR EACH BESTDEPAO WHERE  BESTDEPAO.INKBESTID = elagerplkopp.INKBESTID AND BESTDEPAO.REST  = FALSE AND  
+          BESTDEPAO.LAGERPLATSI = elagerplkopp.LAGERPLATSI AND BESTDEPAO.UTTAGET = FALSE   EXCLUSIVE-LOCK:               
+            ASSIGN 
+            BESTDEPAO.UTTAGET = TRUE
+            BESTDEPAO.UTDATUM = TODAY.
+            SUBSTRING(BESTDEPAO.BESTALLARE, 40) = Guru.Konstanter:globanv.
+            /*Spara vem som gjort Till Byggplats*/                 
+         END.
+      END.   
+         
+   END.                         
+   RUN Reltab_UI.
+END PROCEDURE.
+
+
+PROCEDURE bortlagerkopp_UI:                            
+   DEFINE INPUT-OUTPUT  PARAMETER TABLE FOR elagerplkopp.
+   DO TRANSACTION:
+      FIND FIRST elagerplkopp  NO-ERROR.
+      IF elagerplkopp.INKBESTID > 0 THEN DO:     
+         FIND FIRST LAGERPLATSKOPP WHERE LAGERPLATSKOPP.INKBESTID = elagerplkopp.INKBESTID AND LAGERPLATSKOPP.LAGERPLATSI = elagerplkopp.LAGERPLATSI  EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE LAGERPLATSKOPP THEN DO:
+            FOR EACH BESTDEPAO WHERE BESTDEPAO.INKBESTID = elagerplkopp.INKBESTID AND BESTDEPAO.UTTAGET = FALSE  EXCLUSIVE-LOCK:      
+               ASSIGN 
+               BESTDEPAO.LAGERPLATSI = 0
+               BESTDEPAO.LAGERPLATSC = "".
+            END.   
+         END. 
+      END.
+      ELSE IF elagerplkopp.BESTNR > 0 THEN DO:     
+         FIND FIRST LAGERPLATSKOPP WHERE LAGERPLATSKOPP.PROJDEPNR = elagerplkopp.PROJDEPNR AND LAGERPLATSKOPP.DEPNR = elagerplkopp.DEPNR AND LAGERPLATSKOPP.BESTNR = elagerplkopp.BESTNR AND 
+         LAGERPLATSKOPP.LAGERPLATSI = elagerplkopp.LAGERPLATSI  EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE LAGERPLATSKOPP THEN DO:
+            FOR EACH BESTDEPAO WHERE BESTDEPAO.PROJDEPNR = elagerplkopp.PROJDEPNR AND BESTDEPAO.DEPNR = elagerplkopp.DEPNR AND BESTDEPAO.BESTNR = elagerplkopp.BESTNR  EXCLUSIVE-LOCK:      
+               ASSIGN 
+               BESTDEPAO.LAGERPLATSI = 0
+               BESTDEPAO.LAGERPLATSC = "".
+            END.   
+         END.
+      END.   
+      ELSE IF elagerplkopp.TRUMMANR > 0 THEN DO :     
+         FIND FIRST LAGERPLATSKOPP WHERE LAGERPLATSKOPP.PROJDEPNR = elagerplkopp.PROJDEPNR AND LAGERPLATSKOPP.DEPNR = elagerplkopp.DEPNR AND LAGERPLATSKOPP.TRUMMANR = elagerplkopp.TRUMMANR AND LAGERPLATSKOPP.LAGERPLATSI = elagerplkopp.LAGERPLATSI 
+         AND LAGERPLATSKOPP.UTTAGET = elagerplkopp.UTTAGET   AND LAGERPLATSKOPP.UTDATUM =  elagerplkopp.UTDATUM   EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE LAGERPLATSKOPP THEN DO:
+            FOR EACH BESTDEPAO WHERE BESTDEPAO.PROJDEPNR = elagerplkopp.PROJDEPNR AND BESTDEPAO.DEPNR = elagerplkopp.DEPNR AND BESTDEPAO.TRUMMANR = elagerplkopp.TRUMMANR
+            AND  BESTDEPAO.UTTAGET = elagerplkopp.UTTAGET AND  BESTDEPAO.UTDATUM = elagerplkopp.UTDATUM  
+             EXCLUSIVE-LOCK:      
+               ASSIGN 
+               BESTDEPAO.LAGERPLATSI = 0
+               BESTDEPAO.LAGERPLATSC = "".
+            END.   
+         END.
+      END.
+      
+      IF elagerplkopp.INKBESTID > 0 OR elagerplkopp.BESTNR > 0 OR elagerplkopp.TRUMMANR > 0 THEN DO:
+         IF AVAILABLE LAGERPLATSKOPP THEN DO:
+            
+            IF elagerplkopp.INKBESTID > 0 THEN DO:         
+               FIND FIRST LAGERPLATSKOPPBUFF  WHERE LAGERPLATSKOPPBUFF.LAGERPLATSI = elagerplkopp.LAGERPLATSI AND  LAGERPLATSKOPPBUFF.INKBESTID NE  elagerplkopp.INKBESTID 
+               AND LAGERPLATSKOPPBUFF.UTTAGET = FALSE EXCLUSIVE-LOCK NO-ERROR.
+            END.
+            ELSE IF elagerplkopp.BESTNR > 0 THEN DO:         
+               FIND FIRST LAGERPLATSKOPPBUFF  WHERE LAGERPLATSKOPPBUFF.LAGERPLATSI = elagerplkopp.LAGERPLATSI AND  LAGERPLATSKOPPBUFF.DEPNR =  elagerplkopp.DEPNR
+               AND  LAGERPLATSKOPPBUFF.BESTNR NE elagerplkopp.BESTNR AND LAGERPLATSKOPPBUFF.UTTAGET = FALSE EXCLUSIVE-LOCK NO-ERROR.
+            END.
+            ELSE IF elagerplkopp.TRUMMANR > 0 THEN DO:         
+               FIND FIRST LAGERPLATSKOPPBUFF  WHERE LAGERPLATSKOPPBUFF.LAGERPLATSI = elagerplkopp.LAGERPLATSI AND  LAGERPLATSKOPPBUFF.DEPNR =  elagerplkopp.DEPNR
+               AND  LAGERPLATSKOPPBUFF.TRUMMANR NE  elagerplkopp.TRUMMANR AND LAGERPLATSKOPPBUFF.UTTAGET = FALSE EXCLUSIVE-LOCK NO-ERROR.
+            END.   
+            IF AVAILABLE LAGERPLATSKOPPBUFF THEN DO:
+               DELETE LAGERPLATSKOPP.
+               DELETE elagerplkopp.
+            END.
+            ELSE DO:         
+               ASSIGN          
+               LAGERPLATSKOPP.AONRAONR = ""   
+               LAGERPLATSKOPP.AONRDELNR =    0
+               LAGERPLATSKOPP.INKBESTID   =   0
+               LAGERPLATSKOPP.BESTNR   =   0
+               LAGERPLATSKOPP.TRUMMANR   =   0
+               LAGERPLATSKOPP.DEPNR   =   0   
+               elagerplkopp.AONRAONR = ""   
+               elagerplkopp.AONRDELNR =    0
+               elagerplkopp.INKBESTID   =   0
+               elagerplkopp.BESTNR   =   0
+               elagerplkopp.TRUMMANR   =   0
+               elagerplkopp.DEPNR   =   0
+               elagerplkopp.BESTDATUM   =   ?
+               elagerplkopp.LEVDATUM   =   ?
+               elagerplkopp.LEVERANSDATUM   =   ? .              
+            END.
+         END.               
+      END.
+      ELSE DO:
+         /*INGEN BEST ELLER UTTAG, BARA PROJEKTBOKNING BORT*/
+          /*kontrollera om det är inlagt beställningar också, då ska koppling bort*/      
+         FIND FIRST LAGERPLATSKOPPBUFF  WHERE LAGERPLATSKOPPBUFF.LAGERPLATSI = elagerplkopp.LAGERPLATSI AND  LAGERPLATSKOPPBUFF.INKBESTID > 0 
+         AND LAGERPLATSKOPPBUFF.UTTAGET = FALSE NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE LAGERPLATSKOPPBUFF THEN DO:
+            FIND FIRST LAGERPLATSKOPPBUFF  WHERE LAGERPLATSKOPPBUFF.LAGERPLATSI = elagerplkopp.LAGERPLATSI AND  LAGERPLATSKOPPBUFF.BESTNR > 0 
+            AND LAGERPLATSKOPPBUFF.UTTAGET = FALSE NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE LAGERPLATSKOPPBUFF THEN DO:
+               FIND FIRST LAGERPLATSKOPPBUFF  WHERE LAGERPLATSKOPPBUFF.LAGERPLATSI = elagerplkopp.LAGERPLATSI AND  LAGERPLATSKOPPBUFF.TRUMMANR > 0 
+               AND LAGERPLATSKOPPBUFF.UTTAGET = FALSE NO-LOCK NO-ERROR.
+            END.
+         END.
+         IF NOT AVAILABLE LAGERPLATSKOPPBUFF THEN DO:
+            
+            FIND FIRST LAGERPLATSKOPP  WHERE LAGERPLATSKOPP.LAGERPLATSI = elagerplkopp.LAGERPLATSI AND LAGERPLATSKOPP.INKBESTID = 0 AND LAGERPLATSKOPP.BESTNR = 0 AND LAGERPLATSKOPP.TRUMMANR = 0 AND
+            LAGERPLATSKOPP.UTTAGET = FALSE  EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE LAGERPLATSKOPP THEN DO:
+                        
+               ASSIGN          
+               LAGERPLATSKOPP.AONRAONR = ""   
+               LAGERPLATSKOPP.AONRDELNR =    0
+               LAGERPLATSKOPP.INKBESTID   =   0
+               LAGERPLATSKOPP.BESTNR   =   0
+               LAGERPLATSKOPP.TRUMMANR   =   0
+               LAGERPLATSKOPP.DEPNR   =   0                                 
+               elagerplkopp.AONRAONR = ""   
+               elagerplkopp.AONRDELNR =    0
+               elagerplkopp.INKBESTID   =   0
+               elagerplkopp.BESTNR   =   0
+               elagerplkopp.TRUMMANR   =   0
+               elagerplkopp.DEPNR   =   0
+               elagerplkopp.BESTDATUM   =   ?
+               elagerplkopp.LEVDATUM   =   ?
+               elagerplkopp.LEVERANSDATUM   =   ? .
+                  
+                         
+            END.
+         END.
+         ELSE DO:
+            FIND FIRST LAGERPLATSKOPP  WHERE LAGERPLATSKOPP.LAGERPLATSI = elagerplkopp.LAGERPLATSI AND LAGERPLATSKOPP.INKBESTID = 0 OR LAGERPLATSKOPP.BESTNR = 0 OR LAGERPLATSKOPP.TRUMMANR = 0 AND
+            LAGERPLATSKOPP.UTTAGET = FALSE  EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE LAGERPLATSKOPP THEN DO:
+               DELETE LAGERPLATSKOPP.
+               DELETE elagerplkopp.
+            END.   
+         END.      
+      END.
+   END.   
+   
+   RUN Reltab_UI.      
+END PROCEDURE.
+PROCEDURE sparlpl_UI:                            
+   DEFINE INPUT  PARAMETER TABLE FOR elagerplkopp.
+   FIND FIRST elagerplkopp NO-LOCK NO-ERROR.    
+   FOR EACH  LAGERPLATSKOPP WHERE LAGERPLATSKOPP.PROJDEPNR = elagerplkopp.PROJDEPNR AND LAGERPLATSKOPP.LAGERPLATSI = elagerplkopp.LAGERPLATSI  EXCLUSIVE-LOCK:   
+      LAGERPLATSKOPP.LAGERPLATSC = elagerplkopp.LAGERPLATSC.
+   END.    
+END PROCEDURE.
+
+PROCEDURE lphmt_UI:                         
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER pdepa AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR lagerplkopp.
+   EMPTY TEMP-TABLE lagerplkopp NO-ERROR. 
+   FOR EACH LAGERPLATSKOPP WHERE LAGERPLATSKOPP.PROJDEPNR = pdepa NO-LOCK:
+      CREATE lagerplkopp .
+      BUFFER-COPY LAGERPLATSKOPP TO lagerplkopp.
+      FIND FIRST TRUMMADEP WHERE TRUMMADEP.DEPNR = lagerplkopp.DEPNR AND TRUMMADEP.TRUMMANR  = lagerplkopp.TRUMMANR  NO-LOCK NO-ERROR.
+      IF AVAILABLE TRUMMADEP THEN DO:
+         lagerplkopp.TRUMMAPLATS = TRUMMADEP.TRUMMAPLATS.
+      END.   
+   END.    
+   FOR EACH lagerplkopp WHERE lagerplkopp.INKBESTID > 0  NO-LOCK:
+      FIND FIRST BESTDEPAO WHERE BESTDEPAO.PROJDEPNR = lagerplkopp.PROJDEPNR AND BESTDEPAO.DEPNR = lagerplkopp.DEPNR AND BESTDEPAO.INKBESTID = lagerplkopp.INKBESTID 
+      /*AND BESTDEPAO.UTTAGET = FALSE*/ AND BESTDEPAO.REST = FALSE NO-LOCK NO-ERROR.
+      IF AVAILABLE BESTDEPAO  THEN DO:
+         ASSIGN
+         lagerplkopp.ORDERNUMMER = BESTDEPAO.ORDERNUMMER
+         lagerplkopp.BESTDATUM = BESTDEPAO.BESTDATUM
+         lagerplkopp.LEVDATUM = BESTDEPAO.LEVDATUM
+         lagerplkopp.LEVERANSDATUM = BESTDEPAO.LEVERANSDATUM
+         lagerplkopp.BESTALLARE = SUBSTRING(BESTDEPAO.BESTALLARE, 1,40)
+         lagerplkopp.UTANV = SUBSTRING(BESTDEPAO.BESTALLARE, 40).         
+      END.
+      FIND FIRST BESTDEPAO WHERE BESTDEPAO.PROJDEPNR = lagerplkopp.PROJDEPNR AND BESTDEPAO.DEPNR = lagerplkopp.DEPNR AND BESTDEPAO.INKBESTID = lagerplkopp.INKBESTID
+      AND BESTDEPAO.REST = TRUE  NO-LOCK NO-ERROR.
+      IF AVAILABLE BESTDEPAO  THEN DO:
+         lagerplkopp.REST = BESTDEPAO.REST. 
+      END.      
+   END.
+   FOR EACH lagerplkopp WHERE lagerplkopp.BESTNR > 0  NO-LOCK:
+      FIND FIRST BESTDEPAO WHERE BESTDEPAO.PROJDEPNR = lagerplkopp.PROJDEPNR AND BESTDEPAO.DEPNR = lagerplkopp.DEPNR AND  BESTDEPAO.BESTNR = lagerplkopp.BESTNR
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE BESTDEPAO  THEN DO:
+         ASSIGN
+         /*lagerplkopp.ORDERNUMMER = BESTDEPAO.ORDERNUMMER*/
+         lagerplkopp.BESTDATUM = BESTDEPAO.BESTDATUM
+         lagerplkopp.LEVDATUM = BESTDEPAO.LEVDATUM
+         lagerplkopp.LEVERANSDATUM = BESTDEPAO.LEVERANSDATUM                  
+         lagerplkopp.BESTALLARE = SUBSTRING(BESTDEPAO.BESTALLARE, 1,40)
+         lagerplkopp.UTANV = SUBSTRING(BESTDEPAO.BESTALLARE, 40).
+      END.   
+   END.
+   FOR EACH lagerplkopp WHERE lagerplkopp.TRUMMANR > 0  NO-LOCK:
+      FIND FIRST BESTDEPAO WHERE BESTDEPAO.PROJDEPNR = lagerplkopp.PROJDEPNR AND BESTDEPAO.DEPNR = lagerplkopp.DEPNR AND  BESTDEPAO.TRUMMANR = lagerplkopp.TRUMMANR
+      AND  BESTDEPAO.UTTAGET = lagerplkopp.UTTAGET AND  BESTDEPAO.UTDATUM = lagerplkopp.UTDATUM  
+      AND  BESTDEPAO.AONRAONR = lagerplkopp.AONRAONR AND  BESTDEPAO.AONRDELNR  = lagerplkopp.AONRDELNR    NO-LOCK NO-ERROR.
+      IF AVAILABLE BESTDEPAO  THEN DO:
+         ASSIGN
+         /*lagerplkopp.ORDERNUMMER = BESTDEPAO.ORDERNUMMER*/
+         lagerplkopp.BESTDATUM = BESTDEPAO.BESTDATUM
+         lagerplkopp.LEVDATUM = BESTDEPAO.LEVDATUM
+         lagerplkopp.LEVERANSDATUM = BESTDEPAO.LEVERANSDATUM              
+         lagerplkopp.BESTALLARE = SUBSTRING(BESTDEPAO.BESTALLARE, 1,40)
+         lagerplkopp.UTANV = SUBSTRING(BESTDEPAO.BESTALLARE, 40).    
+      END.   
+            
+            
+   END.
+END PROCEDURE.
+
+PROCEDURE kollplats_UI:                         
+   DEFINE INPUT PARAMETER TABLE FOR elagerplkopp .
+   DEFINE INPUT PARAMETER lpls AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmed AS CHARACTER NO-UNDO.
+   felmed = "".
+   FIND FIRST elagerplkopp  NO-LOCK NO-ERROR.
+   FIND FIRST LAGERPLATSKOPP WHERE LAGERPLATSKOPP.DEPNR = elagerplkopp.DEPNR AND LAGERPLATSKOPP.LAGERPLATSI NE  elagerplkopp.LAGERPLATSI
+   AND LAGERPLATSKOPP.LAGERPLATSC =  lpls NO-LOCK NO-ERROR.
+   IF AVAILABLE LAGERPLATSKOPP THEN DO:
+      felmed = "Denna benämning på lagerplats finns redan på lagerplats: " + STRING(LAGERPLATSKOPP.LAGERPLATSI).
+   END. 
+   /*ska benämningen få vara blank?   */
+   /*IF elagerplkopp.LAGERPLATSC = "" THEN felmed = "".  FEL*/  
+   
+
+END PROCEDURE.
+
+PROCEDURE splagerkopp_UI:                         
+   DEFINE INPUT PARAMETER TABLE FOR elagerplkopp .
+   /*DEFINE OUTPUT PARAMETER nyrad AS LOGICAL  NO-UNDO.
+   nyrad = FALSE.*/
+
+   DO TRANSACTION:
+      FIND FIRST elagerplkopp  NO-LOCK NO-ERROR.
+      FIND FIRST LAGERPLATSKOPP WHERE LAGERPLATSKOPP.PROJDEPNR = elagerplkopp.PROJDEPNR AND LAGERPLATSKOPP.LAGERPLATSI =  elagerplkopp.LAGERPLATSI
+      AND LAGERPLATSKOPP.INKBESTID = 0 AND LAGERPLATSKOPP.BESTNR = 0 AND LAGERPLATSKOPP.TRUMMANR = 0 AND LAGERPLATSKOPP.AONRAONR = "" AND 
+      LAGERPLATSKOPP.UTTAGET = FALSE  EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE LAGERPLATSKOPP THEN DO:
+         ASSIGN
+         LAGERPLATSKOPP.AONRAONR = elagerplkopp.AONRAONR  
+         LAGERPLATSKOPP.AONRDELNR =      elagerplkopp.AONRDELNR
+         LAGERPLATSKOPP.INKBESTID   =   elagerplkopp.INKBESTID
+         LAGERPLATSKOPP.BESTNR   =   elagerplkopp.BESTNR
+         LAGERPLATSKOPP.TRUMMANR   =   elagerplkopp.TRUMMANR    
+         LAGERPLATSKOPP.DEPNR =     elagerplkopp.DEPNR
+         LAGERPLATSKOPP.PROJDEPNR =     elagerplkopp.PROJDEPNR .
+      END.   
+      ELSE DO:
+         FIND FIRST LAGERPLATSKOPPBUFF WHERE LAGERPLATSKOPPBUFF.PROJDEPNR = elagerplkopp.PROJDEPNR AND LAGERPLATSKOPPBUFF.LAGERPLATSI =  elagerplkopp.LAGERPLATSI
+         AND LAGERPLATSKOPPBUFF.AONRAONR = elagerplkopp.AONRAONR AND LAGERPLATSKOPPBUFF.AONRDELNR = elagerplkopp.AONRDELNR AND LAGERPLATSKOPPBUFF.UTTAGET = FALSE  NO-LOCK NO-ERROR.
+         IF AVAILABLE LAGERPLATSKOPPBUFF THEN DO:
+            CREATE LAGERPLATSKOPP.
+            BUFFER-COPY LAGERPLATSKOPPBUFF TO LAGERPLATSKOPP.
+            ASSIGN
+            LAGERPLATSKOPP.INKBESTID  =    elagerplkopp.INKBESTID           
+            LAGERPLATSKOPP.DEPNR =     elagerplkopp.DEPNR 
+            LAGERPLATSKOPP.PROJDEPNR = elagerplkopp.PROJDEPNR 
+            LAGERPLATSKOPP.BESTNR   =  elagerplkopp.BESTNR
+            LAGERPLATSKOPP.TRUMMANR   =  elagerplkopp.TRUMMANR.
+            /*nyrad = TRUE.*/
+         END.
+      END.   
+      IF elagerplkopp.INKBESTID > 0 THEN DO:
+         FOR EACH BESTDEPAO WHERE BESTDEPAO.INKBESTID =  elagerplkopp.INKBESTID AND BESTDEPAO.UTTAGET = FALSE EXCLUSIVE-LOCK:   
+            ASSIGN
+            BESTDEPAO.LAGERPLATSI = elagerplkopp.LAGERPLATSI      
+            BESTDEPAO.LAGERPLATSC = elagerplkopp.LAGERPLATSC.
+         END.
+      END.
+      ELSE IF elagerplkopp.BESTNR > 0 THEN DO:
+         FOR EACH BESTDEPAO WHERE BESTDEPAO.PROJDEPNR =  elagerplkopp.PROJDEPNR AND BESTDEPAO.DEPNR =  elagerplkopp.DEPNR AND BESTDEPAO.BESTNR =  elagerplkopp.BESTNR EXCLUSIVE-LOCK:   
+            ASSIGN
+            BESTDEPAO.LAGERPLATSI = elagerplkopp.LAGERPLATSI      
+            BESTDEPAO.LAGERPLATSC = elagerplkopp.LAGERPLATSC.
+         END.
+      END.
+      ELSE IF elagerplkopp.TRUMMANR > 0 THEN DO:
+         FOR EACH BESTDEPAO WHERE BESTDEPAO.PROJDEPNR =  elagerplkopp.PROJDEPNR AND BESTDEPAO.DEPNR =  elagerplkopp.DEPNR AND  BESTDEPAO.TRUMMANR =  elagerplkopp.TRUMMANR
+         AND  BESTDEPAO.UTTAGET = elagerplkopp.UTTAGET AND  BESTDEPAO.UTDATUM = elagerplkopp.UTDATUM    EXCLUSIVE-LOCK:   
+            ASSIGN
+            BESTDEPAO.LAGERPLATSI = elagerplkopp.LAGERPLATSI      
+            BESTDEPAO.LAGERPLATSC = elagerplkopp.LAGERPLATSC.
+         END.
+      END.      
+   END.
+   RUN Reltab_UI.
+   /*hur göra för trumma ?? ingen bestdepao*/ 
+END PROCEDURE.
+
+PROCEDURE aobesthuvhmt_UI:                         
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER pdepa AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR aobest_nr_tab.
+   DEFINE OUTPUT PARAMETER TABLE FOR aolev_nr_tab.
+
+   EMPTY TEMP-TABLE aobest_nr_tab NO-ERROR.
+   EMPTY TEMP-TABLE aolev_nr_tab NO-ERROR.
+   FOR EACH BESTDEPAO WHERE BESTDEPAO.PROJDEPNR = pdepa  AND BESTDEPAO.LEVDATUM = ? USE-INDEX INKBESTID NO-LOCK:
+      IF BESTDEPAO.DEPNR = vald_depa AND BESTDEPAO.INKBESTID > 0 THEN DO:
+         FIND FIRST aobest_nr_tab WHERE aobest_nr_tab.INKBESTID = BESTDEPAO.INKBESTID NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE  aobest_nr_tab THEN DO:     
+            CREATE aobest_nr_tab.
+            BUFFER-COPY BESTDEPAO TO aobest_nr_tab.
+            FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = BESTDEPAO.LEVKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE LEVERANTOR THEN DO:
+               ASSIGN          
+               aobest_nr_tab.LEVNAMN = LEVERANTOR.LEVNAMN.
+            END.   
+            ELSE IF BESTDEPAO.LEVKOd = "0" THEN DO:
+               aobest_nr_tab.LEVNAMN = "Depå".
+            END.                 
+         END.
+      END.
+      ELSE IF BESTDEPAO.DEPNR = vald_depa AND BESTDEPAO.BESTNR > 0 THEN DO:
+         FIND FIRST aobest_nr_tab WHERE aobest_nr_tab.DEPNR = BESTDEPAO.DEPNR AND aobest_nr_tab.BESTNR = BESTDEPAO.BESTNR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE  aobest_nr_tab THEN DO:     
+            CREATE aobest_nr_tab.
+            BUFFER-COPY BESTDEPAO TO aobest_nr_tab.
+            FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = BESTDEPAO.LEVKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE LEVERANTOR THEN DO:
+               ASSIGN          
+               aobest_nr_tab.LEVNAMN = LEVERANTOR.LEVNAMN.
+            END.   
+         END.
+      END.
+      ELSE IF BESTDEPAO.DEPNR = vald_depa AND BESTDEPAO.TRUMMANR > 0 THEN DO:
+         FIND FIRST aobest_nr_tab WHERE aobest_nr_tab.DEPNR = BESTDEPAO.DEPNR AND aobest_nr_tab.TRUMMANR = BESTDEPAO.TRUMMANR
+         AND aobest_nr_tab.UTTAGET = BESTDEPAO.UTTAGET AND aobest_nr_tab.UTDATUM =  BESTDEPAO.UTDATUM
+         AND aobest_nr_tab.BESTDATUM = BESTDEPAO.BESTDATUM  AND aobest_nr_tab.KLOCKAN = BESTDEPAO.KLOCKAN     NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE  aobest_nr_tab THEN DO:     
+            CREATE aobest_nr_tab.
+            BUFFER-COPY BESTDEPAO TO aobest_nr_tab.
+            FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = BESTDEPAO.LEVKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE LEVERANTOR THEN DO:
+               ASSIGN          
+               aobest_nr_tab.LEVNAMN = LEVERANTOR.LEVNAMN.
+            END.                           
+            FIND FIRST TRUMMADEP WHERE TRUMMADEP.DEPNR =  aobest_nr_tab.DEPNR AND TRUMMADEP.TRUMMANR = aobest_nr_tab.TRUMMANR NO-LOCK NO-ERROR.
+            IF AVAILABLE TRUMMADEP THEN DO:
+               aobest_nr_tab.TRUMMAPLATS = TRUMMADEP.TRUMMAPLATS.
+            END.   
+              
+         END.
+      END.      
+   END.
+   FOR EACH BESTDEPAO WHERE BESTDEPAO.PROJDEPNR = pdepa  AND BESTDEPAO.LEVDATUM NE ? USE-INDEX INKBESTID NO-LOCK:
+      
+      IF BESTDEPAO.DEPNR = vald_depa AND BESTDEPAO.INKBESTID > 0 THEN DO:
+         FIND FIRST aolev_nr_tab WHERE aolev_nr_tab.INKBESTID = BESTDEPAO.INKBESTID NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE  aolev_nr_tab THEN DO:     
+            CREATE aolev_nr_tab.
+            BUFFER-COPY BESTDEPAO TO aolev_nr_tab.
+            FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = BESTDEPAO.LEVKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE LEVERANTOR THEN DO:
+               ASSIGN          
+               aolev_nr_tab.LEVNAMN = LEVERANTOR.LEVNAMN.
+            END.   
+         END.
+      END.
+      /*i färdiga lev ska uttag och trummor från alla depåer synas för att kunna byta p-plats. INTE INKÖP AHHSELL lena 20190514
+      det blir för rörigt! Visa bara uttag för respektive depå lena 20191002 */      
+      ELSE IF BESTDEPAO.DEPNR = vald_depa AND BESTDEPAO.BESTNR > 0 THEN DO:
+         FIND FIRST aolev_nr_tab WHERE aolev_nr_tab.DEPNR = BESTDEPAO.DEPNR AND  aolev_nr_tab.BESTNR = BESTDEPAO.BESTNR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE  aolev_nr_tab THEN DO:     
+            CREATE aolev_nr_tab.
+            BUFFER-COPY BESTDEPAO TO aolev_nr_tab.
+            FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = BESTDEPAO.LEVKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE LEVERANTOR THEN DO:
+               ASSIGN          
+               aolev_nr_tab.LEVNAMN = LEVERANTOR.LEVNAMN.
+            END.   
+         END.
+      END.
+      /*om man tar med trummor från alla depåer kan man inte sätta aotrum.Lagerplats och allstå inte spara lagerplatsen på trumman
+      Alltså! Trummor måste kopplas/kopplas om i respektive lager*/
+      ELSE IF BESTDEPAO.DEPNR = vald_depa AND  BESTDEPAO.TRUMMANR > 0 THEN DO:
+                  
+         FIND FIRST aolev_nr_tab WHERE aolev_nr_tab.DEPNR = BESTDEPAO.DEPNR AND aolev_nr_tab.TRUMMANR = BESTDEPAO.TRUMMANR 
+         AND aolev_nr_tab.UTTAGET = BESTDEPAO.UTTAGET AND aolev_nr_tab.UTDATUM =  BESTDEPAO.UTDATUM 
+         AND aolev_nr_tab.BESTDATUM = BESTDEPAO.BESTDATUM  AND aolev_nr_tab.KLOCKAN = BESTDEPAO.KLOCKAN NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE  aolev_nr_tab THEN DO:     
+            CREATE aolev_nr_tab.
+            BUFFER-COPY BESTDEPAO TO aolev_nr_tab.
+            FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = BESTDEPAO.LEVKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE LEVERANTOR THEN DO:
+               ASSIGN          
+               aolev_nr_tab.LEVNAMN = LEVERANTOR.LEVNAMN.
+            END.
+            FIND FIRST TRUMMADEP WHERE TRUMMADEP.DEPNR =  aolev_nr_tab.DEPNR AND TRUMMADEP.TRUMMANR = aolev_nr_tab.TRUMMANR NO-LOCK NO-ERROR.
+            IF AVAILABLE TRUMMADEP THEN DO:
+               aolev_nr_tab.TRUMMAPLATS = TRUMMADEP.TRUMMAPLATS.
+            END.   
+         END.
+      END.     
+            
+   END.
+         
+  
+END PROCEDURE.         
+
+         
+
+PROCEDURE uaohmt_UI:                            
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+    DEFINE INPUT PARAMETER pdepa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_best AS INTEGER NO-UNDO.         
+   DEFINE OUTPUT  PARAMETER TABLE FOR uaotemp.
+   EMPTY TEMP-TABLE uaotemp NO-ERROR. 
+   FOR EACH BESTDEPAO WHERE BESTDEPAO.PROJDEPNR = pdepa AND BESTDEPAO.DEPNR = vald_depa AND BESTDEPAO.BESTNR = vald_best NO-LOCK:
+      CREATE uaotemp.
+      BUFFER-COPY BESTDEPAO TO uaotemp.
+      ASSIGN
+      uaotemp.AONR = BESTDEPAO.AONRAONR
+      uaotemp.DELNR = BESTDEPAO.AONRDELNR.
+      
+      
+   END.   
+      
+END PROCEDURE.      
+
+
+PROCEDURE checkbdepaouttag_UI:                
+   DEFINE INPUT PARAMETER vaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.         
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER pdepa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_best AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER koppl AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmed AS CHARACTER NO-UNDO.
+   /*UTTAG*/
+   koppl = FALSE.
+   felmed = "".   
+   IF vald_best > 0 THEN DO:
+      FIND FIRST LAGERPLATSKOPP WHERE LAGERPLATSKOPP.DEPNR = vald_depa AND LAGERPLATSKOPP.PROJDEPNR = pdepa AND  LAGERPLATSKOPP.BESTNR = vald_best
+      AND  LAGERPLATSKOPP.AONRAONR = vaonr AND  LAGERPLATSKOPP.AONRDELNR = vdelnr    NO-LOCK NO-ERROR.
+      IF AVAILABLE LAGERPLATSKOPP THEN DO:
+         koppl = TRUE.
+      END.   
+   END.   
+   ELSE DO:
+      felmed = "Något gick fel du har inte fått något uttagsnummer- kontakta Elpool 090-184540".
+   END.         
+
+END PROCEDURE.
+
+PROCEDURE checkbdepaotrumma_UI:                
+
+   /*DEFINE INPUT PARAMETER vaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.         
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER pdepa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_best AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER koppl AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmed AS CHARACTER NO-UNDO.
+   /*TRUMMA*/
+   koppl = FALSE.
+   felmed = "".   
+   
+   IF vald_best > 0 THEN DO:
+      FIND FIRST LAGERPLATSKOPP WHERE LAGERPLATSKOPP.DEPNR = vald_depa AND LAGERPLATSKOPP.PROJDEPNR = pdepa AND  LAGERPLATSKOPP.TRUMMANR = vald_best
+      AND  LAGERPLATSKOPP.AONRAONR = vaonr AND  LAGERPLATSKOPP.AONRDELNR = vdelnr    NO-LOCK NO-ERROR.
+      IF AVAILABLE LAGERPLATSKOPP THEN DO:
+         koppl = TRUE.
+      END.   
+   END.   
+   ELSE DO:
+      felmed = "Något gick fel du har inte fått något TRUMMA - kontakta Elpool 090-184540".
+   END.         
+*/
+END PROCEDURE.
+
+
+
+PROCEDURE hmttrumbestdepao_UI:     
+   DEFINE INPUT  PARAMETER onummer AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER TABLE FOR ilagertrum.
+   DEFINE OUTPUT PARAMETER TABLE FOR eutaobest_mtrl.
+   EMPTY TEMP-TABLE ilagertrum NO-ERROR.
+   EMPTY TEMP-TABLE eutaobest_mtrl NO-ERROR. 
+   
+   FOR EACH BESTDEPAO WHERE BESTDEPAO.ORDERNUMMER = onummer NO-LOCK:
+      IF BESTDEPAO.TRUMMANR > 0 THEN DO:
+         FIND FIRST TRUMMADEP  WHERE TRUMMADEP.DEPNR = BESTDEPAO.DEPNR AND TRUMMADEP.TRUMMANR = BESTDEPAO.TRUMMANR AND TRUMMADEP.TRUMMA = "S"  NO-LOCK NO-ERROR.
+         IF AVAILABLE TRUMMADEP THEN DO:
+            CREATE ilagertrum.
+            BUFFER-COPY TRUMMADEP TO ilagertrum.
+         END.
+      END.    
+      ELSE IF BESTDEPAO.BESTNR > 0 THEN DO:
+         CREATE eutaobest_mtrl.
+         BUFFER-COPY BESTDEPAO TO eutaobest_mtrl.  
+      END.   
+   END.   
+   
+END PROCEDURE.   
+PROCEDURE inkbestdepao_UI:   
+   DEFINE INPUT PARAMETER TABLE FOR einkadresstemp.
+   DEFINE INPUT  PARAMETER pdepa AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER ganv AS CHARACTER NO-UNDO.
+   /*DEFINE INPUT PARAMETER TABLE FOR lagertrum.*/
+   DEFINE OUTPUT PARAMETER TABLE FOR eaobest_mtrl.
+   DEFINE OUTPUT PARAMETER uttagfinns AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER trummafinns AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE bnummer AS INTEGER NO-UNDO.   
+   EMPTY TEMP-TABLE eaobest_mtrl NO-ERROR.
+   EMPTY TEMP-TABLE etaobest_mtrl NO-ERROR.
+   EMPTY TEMP-TABLE utnr NO-ERROR.
+   DEBUGGER:SET-BREAK().  
+   bnummer = 0. 
+   uttagfinns = FALSE.
+   trummafinns = FALSE.
+   FIND FIRST einkadresstemp NO-ERROR.
+   IF AVAILABLE einkadresstemp THEN DO:
+      
+      
+      IF  einkadresstemp.INKBESTID > 0 THEN DO:
+         /*depnr = 8 direkt till byggplats utan att lägga på p-plats. Dvs -skapa inte BESTDEPAO */
+         IF einkadresstemp.DEP-NR = 8 THEN.
+         ELSE DO:
+            EMPTY TEMP-TABLE ekink_mtrl NO-ERROR. 
+            FOR EACH INKMTRL WHERE INKMTRL.INKBESTID = einkadresstemp.INKBESTID  NO-LOCK:
+               FIND FIRST ekink_mtrl WHERE  ekink_mtrl.ENR = INKMTRL.ENR  EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE ekink_mtrl THEN DO:
+                  ekink_mtrl.INKANTAL = ekink_mtrl.INKANTAL + INKMTRL.INKANTAL.
+               END.   
+               ELSE DO:
+                  CREATE ekink_mtrl.
+                  BUFFER-COPY INKMTRL TO ekink_mtrl.
+               END.   
+            END.
+            FOR EACH ekink_mtrl WHERE ekink_mtrl.INKBESTID = einkadresstemp.INKBESTID  NO-LOCK:
+               DO TRANSACTION:
+                  /* för inköpet Ahlsell sätt både DEPNR och PROJdepnr = Guru.GlobalaVariabler:GuruProjdepnr
+                  dvs det spelar ingen roll vilken depåadress man har valt, eller ska vi sätta felmeddelande om inte depå 1 är vald?
+                  20191011 sätt depnr = vald depå i inköpet BESTDEPAO.DEPNR = einkadresstemp.DEP-NR . dvs välj var inköpet hamnar */
+                  
+                  CREATE BESTDEPAO.
+                  BUFFER-COPY einkadresstemp TO BESTDEPAO .
+                  IF ekink_mtrl.DEPNRINK > 0 THEN BESTDEPAO.DEPNR = ekink_mtrl.DEPNRINK.
+                  ELSE BESTDEPAO.DEPNR = einkadresstemp.DEP-NR.                  
+                  ASSIGN                              
+                  BESTDEPAO.PROJDEPNR = pdepa
+                  BESTDEPAO.BESTALLARE = einkadresstemp.ANVANDARE 
+                  BESTDEPAO.ENR = ekink_mtrl.ENR
+                  BESTDEPAO.PRIS = ekink_mtrl.PRISINK
+                  BESTDEPAO.LEVKOD = ekink_mtrl.LEVKODINK 
+                  BESTDEPAO.ANTAL  = ekink_mtrl.INKANTAL
+                  BESTDEPAO.ENHET  = ekink_mtrl.ENHET  
+                  BESTDEPAO.BENAMNING = ekink_mtrl.BENAMNING 
+                  BESTDEPAO.ENR = ekink_mtrl.ENR.
+               
+                
+                  IF ekink_mtrl.DEPNRINK > 0 THEN DO:
+                     /*UTTAG OCH TRUMMOR- nolla BESTDEPAO.INKBESTID och sätt BESTDEPAO.BESTNR BESTDEPAO.TRUMMANR */
+                     /*trumma*/
+                     DEBUGGER:SET-BREAK().
+                     FIND FIRST TRUMMADEP  WHERE TRUMMADEP.DEPNR = BESTDEPAO.DEPNR AND TRUMMADEP.ENR = BESTDEPAO.ENR AND TRUMMADEP.TRUMMA = "S" 
+                     AND TRUMMADEP.AOKOPP = FALSE AND TRUMMADEP.LAGMETER > 0 NO-LOCK NO-ERROR.
+                     IF AVAILABLE TRUMMADEP THEN DO:                     
+                        ASSIGN 
+                        BESTDEPAO.TRUMMANR = 999
+                        BESTDEPAO.BESTNR = 0
+                        BESTDEPAO.INKBESTID = 0.
+                        CREATE etaobest_mtrl.
+                        BUFFER-COPY BESTDEPAO TO etaobest_mtrl.
+                        DELETE BESTDEPAO.                      
+                     END.
+                     ELSE DO:
+                        /*20190609 nollar visningsantal i lager om alla trummor uttagna för ett enr*/
+                        FIND FIRST TRUMMADEP  WHERE TRUMMADEP.DEPNR = BESTDEPAO.DEPNR AND TRUMMADEP.ENR = BESTDEPAO.ENR AND TRUMMADEP.TRUMMA = "S" 
+                        AND TRUMMADEP.AOKOPP = TRUE AND TRUMMADEP.LAGMETER > 0 NO-LOCK NO-ERROR.
+                        IF AVAILABLE TRUMMADEP THEN DO:
+                           /*alla trummor uttagna - ge felmeddelande om att göra det manuellt*/                     
+                           ASSIGN 
+                           BESTDEPAO.TRUMMANR = 998
+                           BESTDEPAO.BESTNR = 0
+                           BESTDEPAO.INKBESTID = 0.
+                           CREATE etaobest_mtrl.
+                           BUFFER-COPY BESTDEPAO TO etaobest_mtrl.
+                           DELETE BESTDEPAO.                      
+                        END.
+                           
+                        ELSE DO:
+                           /*Uttag*/   
+                           FIND FIRST utnr  WHERE utnr.PROJDEPNR = BESTDEPAO.PROJDEPNR AND utnr.DEPNR = BESTDEPAO.DEPNR NO-LOCK NO-ERROR.
+                           IF NOT AVAILABLE utnr THEN DO:                    
+                              FIND LAST BERBEST WHERE BERBEST.DEPNR = BESTDEPAO.DEPNR USE-INDEX BEST NO-LOCK NO-ERROR.
+                              IF NOT AVAILABLE BERBEST THEN bnummer = 1.                 
+                              ELSE bnummer = BERBEST.BESTNR + 1.
+                              ASSIGN 
+                              BESTDEPAO.BESTNR = bnummer
+                              BESTDEPAO.INKBESTID = 0
+                              BESTDEPAO.TRUMMANR = 0                        
+                              BESTDEPAO.INKID = 0
+                              /*BESTDEPAO.ORDERNUMMER = ""*/
+                              BESTDEPAO.BESTDATUM = TODAY                           
+                              /* uttag ska mottagas lena 20190514
+                              BESTDEPAO.LEVDATUM = TODAY*/
+                              BESTDEPAO.LEVDATUM = ?
+                              BESTDEPAO.LEVERANSDATUM = TODAY.
+                              
+                              CREATE utnr .
+                              ASSIGN
+                              utnr.BESTNR = BESTDEPAO.BESTNR
+                              utnr.DEPNR = BESTDEPAO.DEPNR
+                              utnr.PROJDEPNR = BESTDEPAO.PROJDEPNR.
+                           END.
+                           ELSE DO:
+                              ASSIGN 
+                              BESTDEPAO.BESTNR = utnr.BESTNR
+                              BESTDEPAO.INKBESTID = 0
+                              BESTDEPAO.TRUMMANR = 0                        
+                              BESTDEPAO.INKID = 0
+                              /*BESTDEPAO.ORDERNUMMER = ""*/
+                              BESTDEPAO.BESTDATUM = TODAY
+                              /* uttag ska mottagas lena 20190514
+                              BESTDEPAO.LEVDATUM = TODAY*/
+                              BESTDEPAO.LEVDATUM = ?                           
+                              BESTDEPAO.LEVERANSDATUM = TODAY.
+                              
+                           END.
+                      
+                           /*uppdatera saldo i depå efter uttag*/   
+                           FIND FIRST MTRLDEP  WHERE MTRLDEP.DEPNR = BESTDEPAO.DEPNR AND
+                           MTRLDEP.ENR = BESTDEPAO.ENR AND MTRLDEP.IBDATUM = ? EXCLUSIVE-LOCK NO-ERROR.            
+                           IF AVAILABLE MTRLDEP THEN DO:               
+                              MTRLDEP.SALDO = MTRLDEP.SALDO - BESTDEPAO.ANTAL.
+                              BESTDEPAO.LEVKOD  = MTRLDEP.LEVKOD.                                
+                           END.                        
+                        END.
+                     END.
+                  END.
+                  IF AVAILABLE BESTDEPAO THEN DO:   
+                     CREATE eaobest_mtrl.
+                     BUFFER-COPY BESTDEPAO TO eaobest_mtrl.
+                  END.      
+               END.   
+               RELEASE BESTDEPAO NO-ERROR.
+            END.   
+         END.
+      END.   
+       
+   END.         
+   EMPTY TEMP-TABLE off_mtrl NO-ERROR.
+   /*om det finns uttag - gör dessa */
+   FIND FIRST utnr WHERE NO-LOCK NO-ERROR.
+   IF AVAILABLE utnr THEN DO:
+      uttagfinns = TRUE.     
+      FOR EACH utnr NO-LOCK:
+         FIND FIRST eaobest_mtrl WHERE eaobest_mtrl.DEPNR = utnr.DEPNR NO-LOCK NO-ERROR.
+         RUN okubest_UI (INPUT eaobest_mtrl.AONRAONR, INPUT eaobest_mtrl.AONRDELNR,INPUT eaobest_mtrl.DEPNR , INPUT "" ,INPUT eaobest_mtrl.BESTNR ,INPUT 0,
+                            INPUT ganv, INPUT TABLE eaobest_mtrl , INPUT TABLE off_mtrl).
+      END.                      
+   END.
+   /*lägg tillbaka trummor- de skall kopplas till lagerplats*/
+   FOR EACH etaobest_mtrl :
+      trummafinns = TRUE.
+      CREATE eaobest_mtrl.
+      BUFFER-COPY etaobest_mtrl TO  eaobest_mtrl.
+   END.  
+   
+END PROCEDURE.
+
+PROCEDURE okubest_UI :    
+   /*uttagv.w  körs av gkal lule*/
+   /*UTTAG DET FINNS FLERA VARIANTER*/                          
+   DEFINE INPUT PARAMETER vaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vkund AS CHARACTER NO-UNDO.   
+   DEFINE INPUT PARAMETER nbestnr2 AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER rvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR eaobest_mtrl.       
+   DEFINE INPUT PARAMETER TABLE FOR off_mtrl.  
+   /*FIFO*/
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   ASSIGN Guru.Konstanter:globforetag = FORETAG.FORETAG.
+   
+   IF Guru.Konstanter:varforetypval[54] = 1 THEN DO:         
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+      FOR EACH eaobest_mtrl WHERE eaobest_mtrl.ANTAL > 0:
+         EMPTY TEMP-TABLE pristemp NO-ERROR. 
+         antalvar = eaobest_mtrl.ANTAL.
+         REPEAT WHILE antalvar > 0:                 
+            EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+            EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+            CREATE inextradatatemp.          
+            ASSIGN
+            inextradatatemp.PROGRAM = "FIFO"                                  
+            inextradatatemp.HUVUDINT =  depnr
+            inextradatatemp.HUVUDCH =  eaobest_mtrl.ENR.                    
+            RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+            FIND FIRST extradatatemp NO-ERROR.
+            IF NOT AVAILABLE extradatatemp THEN LEAVE.            
+            /*BORDE KANSKE VARA MED KLOCKSLAG*/
+            datsok = TODAY + 1.
+            FOR EACH extradatatemp:
+               IF extradatatemp.SOKDAT[1] < datsok THEN DO:
+                  datsok = extradatatemp.SOKDAT[1].
+               END.
+            END.                        
+            FIND FIRST extradatatemp WHERE extradatatemp.SOKDAT[1] = datsok NO-LOCK NO-ERROR.
+            IF AVAILABLE extradatatemp THEN DO:
+               IF antalvar <= extradatatemp.SOKINT[1] THEN DO:
+                  extradatatemp.SOKINT[1] = extradatatemp.SOKINT[1] - antalvar.
+                  CREATE pristemp.
+                  ASSIGN
+                  pristemp.PRIS = extradatatemp.SOKDEC[1] * antalvar
+                  pristemp.ANTAL = antalvar.
+                  antalvar = 0.
+                  EMPTY TEMP-TABLE inextradatatemp NO-ERROR.  
+                  CREATE inextradatatemp.
+                  BUFFER-COPY extradatatemp TO inextradatatemp.
+                  IF extradatatemp.SOKINT[1] = 0 THEN DO:               
+                     RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).
+                  END.
+                  ELSE DO:                                    
+                     RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).
+                  END.
+               END.
+               ELSE DO:
+                  antalvar = antalvar - extradatatemp.SOKINT[1].
+                  CREATE pristemp.
+                  ASSIGN
+                  pristemp.PRIS = extradatatemp.SOKDEC[1] * extradatatemp.SOKINT[1]
+                  pristemp.ANTAL = extradatatemp.SOKINT[1].
+                  EMPTY TEMP-TABLE inextradatatemp NO-ERROR.       
+                  CREATE inextradatatemp.
+                  BUFFER-COPY extradatatemp TO inextradatatemp.
+                  RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).
+               END.                           
+            END.
+         END.
+         ASSIGN
+         antalvar2 = 0
+         totpris = 0.
+         FOR EACH pristemp:
+            ASSIGN
+            totpris = totpris + pristemp.PRIS
+            antalvar2 = antalvar2 + pristemp.ANTAL.
+         END.
+         IF antalvar2 > 0 THEN eaobest_mtrl.PRIS = totpris / antalvar2.
+      END.
+      IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+      edataapph = ?. 
+   END.
+   FOR EACH eaobest_mtrl WHERE eaobest_mtrl.ANTAL > 0:
+      DO TRANSACTION:      
+         
+         CREATE BERBEST.                 
+         ASSIGN
+         BERBEST.BESTNR = nbestnr2 
+         BERBEST.REKNR = rvar
+         BERBEST.ENR = eaobest_mtrl.ENR 
+         SUBSTRING(BERBEST.BENAMNING,1,59) = eaobest_mtrl.BENAMNING
+         BERBEST.PRIS = eaobest_mtrl.PRIS
+         BERBEST.ENHET = eaobest_mtrl.ENHET
+         BERBEST.ANTAL = eaobest_mtrl.ANTAL 
+         BERBEST.LEVKOD = eaobest_mtrl.LEVKOD
+         BERBEST.AONR = vaonr
+         BERBEST.DELNR = vdelnr
+         BERBEST.BESTID = vkund
+         BERBEST.DEPNR = depnr
+         BERBEST.BESTDATUM = berdatumvar 
+         BERBEST.LEVDATUM = TODAY
+         SUBSTRING(BERBEST.BESTALLARE,1,59) = ganv
+         BERBEST.OFFERT = FALSE
+         BERBEST.UTTAG = TRUE.        
+      END.
+   END.        
+   FOR EACH off_mtrl:   
+      DO TRANSACTION:      
+         CREATE BERBEST.                 
+         ASSIGN
+         BERBEST.BESTNR = nbestnr2           
+         BERBEST.REKNR = rvar
+         BERBEST.PRIS = off_mtrl.TOTALT     
+         BERBEST.AONR = vaonr
+         BERBEST.DELNR = vdelnr
+         BERBEST.BESTID = vkund
+         BERBEST.DEPNR = depnr
+         BERBEST.BESTDATUM = berdatumvar 
+         BERBEST.LEVDATUM = TODAY
+         SUBSTRING(BERBEST.BESTALLARE,1,59) = ganv
+         BERBEST.UTTAG = TRUE
+         BERBEST.OFFERT = TRUE.  
+      END.
+   END.    
+   /*IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "GKAL" THEN DO:      
+      IF depnr = 1 THEN DO:      
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = vaonr AND 
+         AONRTAB.DELNR = vdelnr USE-INDEX AONR NO-LOCK NO-ERROR.   
+         IF AVAILABLE AONRTAB THEN DO TRANSACTION:     
+            FIND FIRST KOSTREG WHERE KOSTREG.AONR = AONRTAB.AONR AND 
+            KOSTREG.DELNR = AONRTAB.DELNR AND KOSTREG.KOSTAUTO = TRUE AND
+            KOSTREG.BOKKONTO = "Uttag" AND KOSTREG.FAKTURERAD = ? AND
+            YEAR(KOSTREG.REGDATUM) = YEAR(berdatumvar) AND MONTH(KOSTREG.REGDATUM) = MONTH(berdatumvar)
+            USE-INDEX KOST EXCLUSIVE-LOCK NO-ERROR.
+            IF NOT AVAILABLE KOSTREG THEN DO:         
+               FIND LAST KOSTREG WHERE KOSTREG.AONR = AONRTAB.AONR AND 
+               KOSTREG.DELNR = AONRTAB.DELNR
+               USE-INDEX KOST NO-LOCK NO-ERROR.  
+               rad = 1.                                                                      
+               IF AVAILABLE KOSTREG THEN rad = KOSTREG.RADNR + 1.          
+               CREATE KOSTREG.
+               ASSIGN  
+               KOSTREG.RADNR = rad
+               KOSTREG.AONR = AONRTAB.AONR
+               KOSTREG.DELNR = AONRTAB.DELNR.
+            END.
+            ASSIGN
+            KOSTREG.REGDATUM = DATE(MONTH(berdatumvar),01,YEAR(berdatumvar)) 
+            KOSTREG.BETDATUM = TODAY
+            KOSTREG.BENAMNING = "Uttag från depå"
+            KOSTREG.BOKKONTO = "Uttag"
+            KOSTREG.FAKTNR = ""
+            KOSTREG.FAKTURERAD = ?
+            KOSTREG.LEVKOD = "10"
+            SUBSTRING(KOSTREG.ANVANDARE,1,12) = ganv
+            KOSTREG.KOSTAUTO = TRUE. 
+            VALIDATE KOSTREG.                  
+            summa = 0.
+            FOR EACH eaobest_mtrl:
+               summa = summa + (eaobest_mtrl.SALDO * eaobest_mtrl.NPRIS).
+            END.
+            ASSIGN KOSTREG.MTRL = KOSTREG.MTRL + (summa + (summa * gkmovar)).          
+         END.
+         RELEASE KOSTREG NO-ERROR.
+      END.
+   END.*/  
+   RELEASE BERBEST NO-ERROR.   
+END PROCEDURE.
+
+
+PROCEDURE sparbdepaouttag_UI:                
+   DEFINE INPUT PARAMETER vaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.         
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.   
+   DEFINE INPUT PARAMETER pdepa AS INTEGER NO-UNDO.      
+   DEFINE INPUT PARAMETER vald_best AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ganv AS character NO-UNDO.      
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+   /*uttag*/
+   DO TRANSACTION:
+      IF vald_best > 0 THEN DO:
+         FOR EACH BESTDEPAO WHERE BESTDEPAO.BESTNR = vald_best AND BESTDEPAO.DEPNR = vald_depa AND BESTDEPAO.PROJDEPNR = pdepa EXCLUSIVE-LOCK:
+            DELETE BESTDEPAO.
+         END.
+      END.   
+      
+      FOR EACH spec_mtrl:
+         CREATE BESTDEPAO.
+         ASSIGN      
+         BESTDEPAO.BESTNR = vald_best
+         BESTDEPAO.TRUMMANR = 0
+         BESTDEPAO.INKBESTID = 0
+         BESTDEPAO.INKID = 0
+         BESTDEPAO.ORDERNUMMER = "Depå"
+         BESTDEPAO.BESTDATUM = TODAY
+         BESTDEPAO.KLOCKAN = STRING(TIME,"HH:MM:SS")
+         /* uttag ska mottagas lena 20190514
+         BESTDEPAO.LEVDATUM = TODAY*/
+         BESTDEPAO.LEVDATUM = ?
+         BESTDEPAO.LEVERANSDATUM = TODAY 
+         BESTDEPAO.AONRAONR = vaonr
+         BESTDEPAO.AONRDELNR = vdelnr      
+         BESTDEPAO.PROJDEPNR = pdepa             
+         BESTDEPAO.DEPNR = vald_depa
+         BESTDEPAO.BESTALLARE = ganv
+         BESTDEPAO.ENR = spec_mtrl.ENR
+         BESTDEPAO.PRIS = spec_mtrl.NPRIS
+         BESTDEPAO.LEVKOD = spec_mtrl.LEVKOD
+         BESTDEPAO.ANTAL  = spec_mtrl.SALDO
+         BESTDEPAO.ENHET  = spec_mtrl.ENHET  
+         BESTDEPAO.BENAMNING = spec_mtrl.BENAMNING.
+               
+      END.
+   END.      
+   RUN Reltab_UI.
+
+END PROCEDURE.
+
+PROCEDURE sparbdepaotrumma_UI:                
+   DEFINE INPUT PARAMETER vaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.         
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.   
+   DEFINE INPUT PARAMETER pdepa AS INTEGER NO-UNDO.      
+   DEFINE INPUT PARAMETER vald_best AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ganv AS character NO-UNDO.      
+   DEFINE INPUT PARAMETER TABLE FOR lplagertrum.
+   DEFINE INPUT PARAMETER onummer AS character NO-UNDO.
+   /*trumma*/
+   /*samma trumma kan skickas ut flera gånger- men bara 1 gång med samma saldo*/
+   DO TRANSACTION:
+      FIND FIRST lplagertrum NO-LOCK NO-ERROR.
+      IF vald_best > 0 THEN DO:
+         FOR EACH BESTDEPAO WHERE BESTDEPAO.TRUMMANR = vald_best AND BESTDEPAO.DEPNR = vald_depa AND BESTDEPAO.PROJDEPNR = pdepa 
+         AND BESTDEPAO.ANTAL = lplagertrum.LAGMETER AND BESTDEPAO.UTTAGET = FALSE  EXCLUSIVE-LOCK:
+            DELETE BESTDEPAO.
+         END.
+      END.   
+      FOR EACH lplagertrum:
+         
+         CREATE BESTDEPAO.
+         ASSIGN      
+         BESTDEPAO.TRUMMANR = vald_best
+         BESTDEPAO.BESTNR = 0
+         BESTDEPAO.INKBESTID = 0
+         BESTDEPAO.INKID = 0
+         BESTDEPAO.ORDERNUMMER = onummer
+         BESTDEPAO.BESTDATUM = TODAY
+         BESTDEPAO.KLOCKAN = STRING(TIME,"HH:MM:SS")
+         /* uttag ska mottagas lena 20190514
+         BESTDEPAO.LEVDATUM = TODAY*/
+         BESTDEPAO.LEVDATUM = ?      
+         BESTDEPAO.LEVERANSDATUM = TODAY 
+         BESTDEPAO.AONRAONR = vaonr
+         BESTDEPAO.AONRDELNR = vdelnr      
+         BESTDEPAO.PROJDEPNR = pdepa             
+         BESTDEPAO.DEPNR = vald_depa
+         BESTDEPAO.BESTALLARE = ganv
+         BESTDEPAO.ENR = lplagertrum.ENR
+         BESTDEPAO.PRIS = lplagertrum.PRIS      
+         BESTDEPAO.ANTAL  = lplagertrum.LAGMETER
+         BESTDEPAO.ENHET  = lplagertrum.ENHET  
+         BESTDEPAO.BENAMNING = lplagertrum.BENAMNING.
+         
+         
+         FIND FIRST MTRLDEP  WHERE MTRLDEP.DEPNR =  BESTDEPAO.DEPNR AND MTRLDEP.ENR =  BESTDEPAO.ENR AND MTRLDEP.IBDATUM = ?   NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE MTRLDEP THEN DO:
+            FIND FIRST MTRLDEP  WHERE MTRLDEP.DEPNR =  BESTDEPAO.DEPNR AND MTRLDEP.ENR =  BESTDEPAO.ENR  NO-LOCK NO-ERROR.
+         END.
+         IF AVAILABLE MTRLDEP  THEN DO:        
+            BESTDEPAO.LEVKOD = MTRLDEP.LEVKOD.
+         END.       
+          
+      END.   
+   END.
+   RUN Reltab_UI.
+
+END PROCEDURE.
+
+PROCEDURE bortbdepaotrumma_UI:                
+   DEFINE INPUT PARAMETER vaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.         
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER pdepa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_best AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ganv AS character NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR lplagertrum.
+   /*trumma*/
+   /*samma trumma kan skickas ut flera gånger- men bara 1 gång med samma saldo*/
+   DO TRANSACTION:
+      FIND FIRST lplagertrum NO-LOCK NO-ERROR.
+         
+      IF vald_best > 0 THEN DO:
+         FOR EACH BESTDEPAO  WHERE BESTDEPAO.DEPNR = vald_depa AND BESTDEPAO.PROJDEPNR = pdepa AND BESTDEPAO.TRUMMANR = vald_best AND BESTDEPAO.AONRAONR = vaonr AND BESTDEPAO.AONRDELNR = vdelnr 
+         AND BESTDEPAO.ANTAL = lplagertrum.LAGMETER EXCLUSIVE-LOCK:  
+            DELETE BESTDEPAO.
+         END.              
+         FIND FIRST LAGERPLATSKOPP WHERE LAGERPLATSKOPP.DEPNR = vald_depa AND LAGERPLATSKOPP.PROJDEPNR = pdepa AND  LAGERPLATSKOPP.TRUMMANR = vald_best    EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE LAGERPLATSKOPP THEN DO:            
+            FIND FIRST LAGERPLATSKOPPBUFF  WHERE LAGERPLATSKOPPBUFF.LAGERPLATSI = LAGERPLATSKOPP.LAGERPLATSI AND  LAGERPLATSKOPPBUFF.TRUMMANR NE  LAGERPLATSKOPP.TRUMMANR 
+            AND  LAGERPLATSKOPPBUFF.UTTAGET = FALSE  NO-LOCK NO-ERROR.
+            IF AVAILABLE LAGERPLATSKOPPBUFF THEN DO:
+               DELETE LAGERPLATSKOPP.            
+            END.
+            ELSE DO:         
+               ASSIGN          
+               LAGERPLATSKOPP.AONRAONR = ""   
+               LAGERPLATSKOPP.AONRDELNR =    0
+               LAGERPLATSKOPP.TRUMMANR   =   0.                             
+            END.      
+            
+         END.
+      END.
+   END.      
+   RUN Reltab_UI.
+END PROCEDURE.
+PROCEDURE bortbdepaouttag_UI:                
+   DEFINE INPUT PARAMETER vaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.         
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER pdepa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_best AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ganv AS character NO-UNDO.
+   /*uttag*/
+   DO TRANSACTION:
+      
+      IF vald_best > 0 THEN DO:
+         FOR EACH BESTDEPAO  WHERE BESTDEPAO.DEPNR = vald_depa AND BESTDEPAO.PROJDEPNR = pdepa AND BESTDEPAO.BESTNR = vald_best AND BESTDEPAO.AONRAONR = vaonr AND BESTDEPAO.AONRDELNR = vdelnr EXCLUSIVE-LOCK:  
+            DELETE BESTDEPAO.
+         END.              
+         FIND FIRST LAGERPLATSKOPP WHERE LAGERPLATSKOPP.DEPNR = vald_depa AND LAGERPLATSKOPP.PROJDEPNR = pdepa AND  LAGERPLATSKOPP.BESTNR = vald_best    EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE LAGERPLATSKOPP THEN DO:            
+            FIND FIRST LAGERPLATSKOPPBUFF  WHERE LAGERPLATSKOPPBUFF.LAGERPLATSI = LAGERPLATSKOPP.LAGERPLATSI AND  LAGERPLATSKOPPBUFF.BESTNR NE  LAGERPLATSKOPP.BESTNR 
+            AND  LAGERPLATSKOPPBUFF.UTTAGET = FALSE NO-LOCK NO-ERROR.
+            IF AVAILABLE LAGERPLATSKOPPBUFF THEN DO:
+               DELETE LAGERPLATSKOPP.            
+            END.
+            ELSE DO:         
+               ASSIGN          
+               LAGERPLATSKOPP.AONRAONR = ""   
+               LAGERPLATSKOPP.AONRDELNR =    0
+               LAGERPLATSKOPP.BESTNR   =   0
+               LAGERPLATSKOPP.DEPNR   =   0.
+                                            
+            END.      
+            
+         END.
+          
+      END.   
+   END.
+   RUN Reltab_UI.
+END PROCEDURE.
+
+
+PROCEDURE bortantbestdepao_UI:              
+              
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER pdepa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR eaobest_mtrl.
+   DO TRANSACTION:         
+      FIND FIRST eaobest_mtrl NO-ERROR.
+      IF eaobest_mtrl.INKBESTID > 0 THEN DO:
+         FIND FIRST BESTDEPAO WHERE BESTDEPAO.DEPNR = eaobest_mtrl.DEPNR AND BESTDEPAO.PROJDEPNR = eaobest_mtrl.PROJDEPNR AND
+         BESTDEPAO.INKBESTID = eaobest_mtrl.INKBESTID AND BESTDEPAO.BESTNR = eaobest_mtrl.BESTNR AND BESTDEPAO.TRUMMANR = eaobest_mtrl.TRUMMANR
+         AND BESTDEPAO.AONRAONR = eaobest_mtrl.AONRAONR AND BESTDEPAO.AONRDELNR = eaobest_mtrl.AONRDELNR  AND BESTDEPAO.LEVKOD = eaobest_mtrl.LEVKOD
+         AND BESTDEPAO.ENR = eaobest_mtrl.ENR /*AND BESTDEPAO.ANTAL = aobest_mtrl.ANTAL  AND BESTDEPAO.REST = aobest_mtrl.REST*/ 
+         AND BESTDEPAO.LEVDATUM = ? AND BESTDEPAO.BESTDATUM  = eaobest_mtrl.BESTDATUM  AND BESTDEPAO.KLOCKAN  = eaobest_mtrl.KLOCKAN  EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE BESTDEPAO  THEN DO:
+            DELETE BESTDEPAO.
+         END.   
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE aook_UI:              
+              
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER pdepa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_best AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR aobest_mtrl.
+   DEFINE OUTPUT PARAMETER invdat AS DATE NO-UNDO.
+
+   
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   Guru.Konstanter:globforetag = FORETAG.FORETAG.
+   DO TRANSACTION:   
+      
+      FOR EACH aobest_mtrl:
+         IF aobest_mtrl.INKBESTID > 0 THEN DO:
+            FIND FIRST BESTDEPAO WHERE BESTDEPAO.DEPNR = aobest_mtrl.DEPNR AND BESTDEPAO.PROJDEPNR = aobest_mtrl.PROJDEPNR AND
+            BESTDEPAO.INKBESTID = aobest_mtrl.INKBESTID AND BESTDEPAO.BESTNR = aobest_mtrl.BESTNR AND BESTDEPAO.TRUMMANR = aobest_mtrl.TRUMMANR
+            AND BESTDEPAO.AONRAONR = aobest_mtrl.AONRAONR AND BESTDEPAO.AONRDELNR = aobest_mtrl.AONRDELNR  AND BESTDEPAO.LEVKOD = aobest_mtrl.LEVKOD
+            AND BESTDEPAO.ENR = aobest_mtrl.ENR /*AND BESTDEPAO.ANTAL = aobest_mtrl.ANTAL  AND BESTDEPAO.REST = aobest_mtrl.REST*/ 
+            AND BESTDEPAO.LEVDATUM = ? AND BESTDEPAO.BESTDATUM  = aobest_mtrl.BESTDATUM  AND BESTDEPAO.KLOCKAN  = aobest_mtrl.KLOCKAN  EXCLUSIVE-LOCK NO-ERROR.
+         END.
+         ELSE DO:
+            FIND FIRST BESTDEPAO WHERE BESTDEPAO.DEPNR = aobest_mtrl.DEPNR AND BESTDEPAO.PROJDEPNR = aobest_mtrl.PROJDEPNR AND
+            BESTDEPAO.INKBESTID = aobest_mtrl.INKBESTID AND BESTDEPAO.BESTNR = aobest_mtrl.BESTNR AND BESTDEPAO.TRUMMANR = aobest_mtrl.TRUMMANR
+            AND BESTDEPAO.AONRAONR = aobest_mtrl.AONRAONR AND BESTDEPAO.AONRDELNR = aobest_mtrl.AONRDELNR  AND BESTDEPAO.LEVKOD = aobest_mtrl.LEVKOD
+            AND BESTDEPAO.ENR = aobest_mtrl.ENR AND BESTDEPAO.ANTAL = aobest_mtrl.ANTAL  /*AND BESTDEPAO.REST = aobest_mtrl.REST*/ 
+            AND BESTDEPAO.LEVDATUM = ? AND BESTDEPAO.BESTDATUM  = aobest_mtrl.BESTDATUM  AND BESTDEPAO.KLOCKAN  = aobest_mtrl.KLOCKAN  EXCLUSIVE-LOCK NO-ERROR.
+         END.      
+         IF AVAILABLE BESTDEPAO THEN DO:
+            BUFFER-COPY aobest_mtrl TO BESTDEPAO.         
+            IF aobest_mtrl.REST = FALSE THEN DO:
+               BESTDEPAO.LEVDATUM = TODAY.            
+            END.
+            ELSE DO:               
+               BESTDEPAO.LEVDATUM = ?.
+               /*REST- sätt BESTALLARE = GLOBANV   Lena 20200131 */               
+               IF SUBSTRING(BESTDEPAO.BESTALLARE,1,40) NE Guru.Konstanter:globanv THEN  SUBSTRING(BESTDEPAO.BESTALLARE,1,40) = Guru.Konstanter:globanv . 
+            END.
+         END.
+         IF NOT AVAILABLE BESTDEPAO  THEN DO:
+            IF aobest_mtrl.REST = TRUE THEN DO:
+               CREATE BESTDEPAO.
+               BUFFER-COPY aobest_mtrl TO BESTDEPAO.  
+               /*REST- sätt BESTALLARE = GLOBANV   Lena 20200131 */               
+               IF SUBSTRING(BESTDEPAO.BESTALLARE,1,40) NE Guru.Konstanter:globanv THEN  SUBSTRING(BESTDEPAO.BESTALLARE,1,40) = Guru.Konstanter:globanv .
+            END.  
+               
+         END.   
+      END.
+      
+    
+   END.   
+     
+   RUN Reltab_UI.
+   EMPTY TEMP-TABLE aobest_mtrl NO-ERROR. 
+END PROCEDURE.
+PROCEDURE tabortmott_UI :
+   DEFINE INPUT PARAMETER TABLE FOR elagerplkopp.
+   DEFINE OUTPUT PARAMETER felmed AS CHARACTER NO-UNDO.
+   FIND FIRST elagerplkopp  NO-LOCK NO-ERROR.
+   
+   FOR EACH BESTDEPAO WHERE BESTDEPAO.DEPNR = elagerplkopp.DEPNR AND BESTDEPAO.PROJDEPNR = elagerplkopp.PROJDEPNR AND
+   BESTDEPAO.INKBESTID = elagerplkopp.INKBESTID AND BESTDEPAO.BESTNR = elagerplkopp.BESTNR AND BESTDEPAO.TRUMMANR = elagerplkopp.TRUMMANR
+   AND BESTDEPAO.AONRAONR = elagerplkopp.AONRAONR AND BESTDEPAO.AONRDELNR = elagerplkopp.AONRDELNR 
+   AND BESTDEPAO.UTTAGET = FALSE  EXCLUSIVE-LOCK:
+       ASSIGN
+       BESTDEPAO.LEVDATUM = ?  
+       BESTDEPAO.REST = FALSE.             
+   END.
+   
+      
+END PROCEDURE.
+
+PROCEDURE tabortbyggplats_UI :
+   DEFINE INPUT PARAMETER TABLE FOR elagerplkopp.
+   DEFINE OUTPUT PARAMETER felmed AS CHARACTER NO-UNDO.
+   FIND FIRST elagerplkopp  NO-LOCK NO-ERROR.
+   
+   FOR EACH BESTDEPAO WHERE BESTDEPAO.DEPNR = elagerplkopp.DEPNR AND BESTDEPAO.PROJDEPNR = elagerplkopp.PROJDEPNR AND
+   BESTDEPAO.INKBESTID = elagerplkopp.INKBESTID AND BESTDEPAO.BESTNR = elagerplkopp.BESTNR AND BESTDEPAO.TRUMMANR = elagerplkopp.TRUMMANR
+   AND BESTDEPAO.AONRAONR = elagerplkopp.AONRAONR AND BESTDEPAO.AONRDELNR = elagerplkopp.AONRDELNR 
+   AND BESTDEPAO.UTTAGET = TRUE  EXCLUSIVE-LOCK:
+       ASSIGN
+       BESTDEPAO.UTDATUM = ?  
+       BESTDEPAO.UTTAGET = FALSE
+       BESTDEPAO.BESTALLARE = SUBSTRING(BESTDEPAO.BESTALLARE, 1,40).                
+   END.
+   FIND FIRST LAGERPLATSKOPP WHERE LAGERPLATSKOPP.INKBESTID = elagerplkopp.INKBESTID AND LAGERPLATSKOPP.BESTNR = elagerplkopp.BESTNR 
+   AND LAGERPLATSKOPP.TRUMMANR = elagerplkopp.TRUMMANR AND LAGERPLATSKOPP.LAGERPLATSI = elagerplkopp.LAGERPLATSI AND LAGERPLATSKOPP.UTTAGET = TRUE EXCLUSIVE-LOCK NO-ERROR.
+   IF AVAILABLE LAGERPLATSKOPP THEN DO:
+      ASSIGN 
+      LAGERPLATSKOPP.UTTAGET = FALSE 
+      LAGERPLATSKOPP.UTDATUM = ?.
+      FIND FIRST LAGERPLATSKOPP WHERE LAGERPLATSKOPP.aonraonr = "" 
+      AND LAGERPLATSKOPP.LAGERPLATSI = elagerplkopp.LAGERPLATSI AND LAGERPLATSKOPP.UTTAGET = FALSE  EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE LAGERPLATSKOPP THEN DO: 
+         DELETE LAGERPLATSKOPP.
+      END.   
+   END.
+      
+END PROCEDURE.
+
+
+PROCEDURE aook2_UI:                            
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER pdepa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR aobest_mtrl.
+   DEFINE INPUT PARAMETER invdat AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   FIND FIRST aobest_mtrl WHERE aobest_mtrl.REST = FALSE AND aobest_mtrl.ENR = enrvar NO-LOCK NO-ERROR.
+   DO TRANSACTION:         
+      IF FORETAG.FORETAG = "ELPA" OR FORETAG.FORETAG = "LULE" OR FORETAG.FORETAG = "BODE" OR Guru.Konstanter:globforetag = "gkal" OR Guru.Konstanter:globforetag = "KRAF" OR Guru.Konstanter:globforetag = "SNAT" THEN DO:
+        /*spegling uppdatering pris*/   
+         /*IF FORETAG.FORETAG = "SNAT" THEN DO:               
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = "20" AND MTRL.KALKNR = 0 AND 
+            MTRL.ENR = aobest_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = aobest_mtrl.PRIS
+               MTRL.BPRIS = aobest_mtrl.PRIS.
+            END.
+         END.*/
+         IF FORETAG.FORETAG = "LULE" THEN DO:
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = "41" AND MTRL.KALKNR = 0 AND 
+            MTRL.ENR = aobest_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = aobest_mtrl.PRIS
+               MTRL.BPRIS = aobest_mtrl.PRIS.
+            END.
+         END.
+         IF FORETAG.FORETAG = "bode" OR FORETAG.FORETAG = "KRAF" THEN DO:
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = "6" AND MTRL.KALKNR = 0 AND 
+            MTRL.ENR = aobest_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = aobest_mtrl.PRIS
+               MTRL.BPRIS = aobest_mtrl.PRIS.
+            END.
+         END.
+         IF FORETAG.FORETAG = "gkal" THEN DO:
+            /*om kalmar bestämmer sig för spegling*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = "20" AND MTRL.KALKNR = 0 AND 
+            MTRL.ENR = aobest_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = aobest_mtrl.PRIS
+               MTRL.BPRIS = aobest_mtrl.PRIS.
+            END.
+         END.
+         
+      END.
+      IF FORETAG.FORETAG = "csnat"   THEN DO:
+         /*vill snat ha uppdatering av Ahlsells katalog vid mottagning?*/
+         IF aobest_mtrl.LEVKOD = "12" THEN DO:
+            /*Ahlsell*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = "12" AND MTRL.KALKNR = 0 AND 
+            MTRL.ENR = aobest_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = aobest_mtrl.PRIS
+               MTRL.BPRIS = aobest_mtrl.PRIS.
+            END.
+         END.         
+      END.
+      IF FORETAG.FORETAG = "LULE"  THEN DO:
+         IF aobest_mtrl.LEVKOD = "5" THEN DO:
+            /*Onninen*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = "5" AND MTRL.KALKNR = 0 AND 
+            MTRL.ENR = aobest_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = aobest_mtrl.PRIS
+               MTRL.BPRIS = aobest_mtrl.PRIS.
+            END.
+         END.
+         IF aobest_mtrl.LEVKOD = "21" THEN DO:
+            /*Storel*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = "21" AND MTRL.KALKNR = 0 AND 
+            MTRL.ENR = aobest_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = aobest_mtrl.PRIS
+               MTRL.BPRIS = aobest_mtrl.PRIS.
+            END.
+         END.
+         IF aobest_mtrl.LEVKOD = "4" THEN DO:
+            /*Ahlsell verktyg*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = "4" AND MTRL.KALKNR = 0 AND 
+            MTRL.ENR = aobest_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = aobest_mtrl.PRIS
+               MTRL.BPRIS = aobest_mtrl.PRIS.
+            END.
+         END.
+         IF aobest_mtrl.LEVKOD = "2" THEN DO:
+            /*Ahlsell*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = "2" AND MTRL.KALKNR = 0 AND 
+            MTRL.ENR = aobest_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = aobest_mtrl.PRIS
+               MTRL.BPRIS = aobest_mtrl.PRIS.
+            END.
+         END.   
+      END.   
+      IF FORETAG.FORETAG = "bode" OR  FORETAG.FORETAG = "KRAF"  THEN DO:
+         /*nytt 20140207 lena  uppdatera ahlsells katalogen med mottaget pris*/
+         IF aobest_mtrl.LEVKOD = "2" THEN DO:
+            /*Ahlsell*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = "2" AND MTRL.KALKNR = 0 AND 
+            MTRL.ENR = aobest_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = aobest_mtrl.PRIS
+               MTRL.BPRIS = aobest_mtrl.PRIS.
+            END.
+         END.         
+      END.
+      /*kalmar depåändring abc*/
+      IF FORETAG.FORETAG = "ddgkal"  THEN DO:            
+         IF aobest_mtrl.LEVKOD = "10" THEN DO:
+            /*Depå Kalmar*/
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = "10" AND MTRL.KALKNR = 0 AND 
+            MTRL.ENR = aobest_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = aobest_mtrl.PRIS
+               MTRL.BPRIS = aobest_mtrl.PRIS.
+            END.
+         END. 
+         ELSE IF aobest_mtrl.LEVKOD = best_mtrl.LEVKOD THEN DO:
+            IF aobest_mtrl.LEVKOD = "1" THEN DO:
+               /*Onninen */
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = "1" AND MTRL.KALKNR = 0 AND 
+               MTRL.ENR = aobest_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE MTRL THEN DO:
+                  ASSIGN 
+                  MTRL.NPRIS = aobest_mtrl.PRIS
+                  MTRL.BPRIS = aobest_mtrl.PRIS.
+               END.
+            END.
+            IF aobest_mtrl.LEVKOD = "3" THEN DO:
+               /*Selga*/
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = "3" AND MTRL.KALKNR = 0 AND 
+               MTRL.ENR = aobest_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE MTRL THEN DO:
+                  ASSIGN 
+                  MTRL.NPRIS = aobest_mtrl.PRIS
+                  MTRL.BPRIS = aobest_mtrl.PRIS.
+               END.
+            END.
+            IF aobest_mtrl.LEVKOD = "4" THEN DO:
+               /*Elektroskandia*/
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = "4" AND MTRL.KALKNR = 0 AND 
+               MTRL.ENR = aobest_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE MTRL THEN DO:
+                  ASSIGN 
+                  MTRL.NPRIS = aobest_mtrl.PRIS
+                  MTRL.BPRIS = aobest_mtrl.PRIS.
+               END.
+            END.
+         END.
+         ELSE IF best_mtrl.LEVKOD = "1" OR best_mtrl.LEVKOD = "3" OR best_mtrl.LEVKOD = "4" THEN DO:
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = best_mtrl.LEVKOD AND MTRL.KALKNR = 0 AND 
+            MTRL.ENR = aobest_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.NPRIS = aobest_mtrl.PRIS
+               MTRL.BPRIS = aobest_mtrl.PRIS.
+            END.
+         END.                     
+      END.   
+                                 
+   END.
+   
+   EMPTY TEMP-TABLE aobest_mtrl NO-ERROR. 
+END PROCEDURE.
+
+
+PROCEDURE aoprisok_UI:                         
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER pdepa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_best AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR aobest_mtrl.
+   DEFINE OUTPUT PARAMETER invdat AS DATE NO-UNDO.
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   Guru.Konstanter:globforetag = FORETAG.FORETAG.
+   DO TRANSACTION:   
+      OPEN QUERY qbest FOR EACH BESTDEPAO WHERE BESTDEPAO.DEPNR = vald_depa AND BESTDEPAO.PROJDEPNR = pdepa AND
+      BESTDEPAO.INKBESTID = vald_best AND BESTDEPAO.LEVKOD = vald_lev AND BESTDEPAO.LEVDATUM = ? 
+      EXCLUSIVE-LOCK.
+      GET FIRST qbest EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(BESTDEPAO):   
+         DELETE BESTDEPAO. 
+         GET NEXT qbest EXCLUSIVE-LOCK.
+      END.   
+      CLOSE QUERY qbest.
+      FOR EACH aobest_mtrl:
+         CREATE BESTDEPAO.
+         BUFFER-COPY aobest_mtrl  TO BESTDEPAO.         
+         BESTDEPAO.LEVDATUM = ?.         
+      END. 
+   END.
+   RUN Reltab_UI.
+   EMPTY TEMP-TABLE aobest_mtrl NO-ERROR. 
+END PROCEDURE.
+
+PROCEDURE henr_UI:                               
+   DEFINE INPUT PARAMETER evar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdepa AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR elagertrum.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp. 
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   EMPTY TEMP-TABLE elagertrum NO-ERROR. 
+   FIND FIRST MTRLDEP  WHERE MTRLDEP.DEPNR = vdepa AND 
+   MTRLDEP.ENR = evar AND MTRLDEP.IBDATUM = ? USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRLDEP  THEN DO:
+      CREATE elagertrum.
+      ASSIGN elagertrum.ENR = evar
+      elagertrum.BENAMNING = MTRLDEP.BENAMNING
+      elagertrum.ENHET = MTRLDEP.ENHET
+      elagertrum.PRIS = MTRLDEP.NPRIS.   
+   END.
+   ELSE DO:
+      CREATE felmeddtemp.  
+      ASSIGN               
+      felmeddtemp.FELMEDD = "Artikel: " + evar + " finns inte i depå".      
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE hmtskap_UI :
+   DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR emtrltemp.
+   EMPTY TEMP-TABLE emtrltemp NO-ERROR. 
+   FIND FIRST MTRL WHERE MTRL.ENR = enrvar AND MTRL.LEVKOD = vald_lev 
+   AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      CREATE emtrltemp.
+      BUFFER-COPY MTRL TO emtrltemp.
+      ASSIGN emtrltemp.MTRLROW = ROWID(MTRL).               
+   END.
+
+END PROCEDURE.
+
+PROCEDURE kollmtrldep_UI :
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER deplev AS CHARACTER NO-UNDO.
+   deplev = "". 
+   FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa AND 
+   MTRLDEP.ENR = enrvar AND MTRLDEP.IBDATUM = ? USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRLDEP THEN DO:
+      deplev = MTRLDEP.LEVKOD.
+   END.   
+END PROCEDURE.
+PROCEDURE Reltab_UI :
+   RELEASE LAGERPLATSKOPP NO-ERROR.
+   RELEASE LAGERPLATSKOPPBUFF NO-ERROR. 
+   RELEASE BESTDEPAO NO-ERROR.
+END PROCEDURE.

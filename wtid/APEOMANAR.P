@@ -1,0 +1,322 @@
+/*APEOMANAR.P*/
+DEFINE NEW SHARED VARIABLE fnytid AS DECIMAL FORMAT "-99.99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE gvisatidpermanad AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE skrivut AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE tidtabrec AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE persrec2 AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE musz AS LOGICAL NO-UNDO.   
+DEFINE NEW SHARED VARIABLE regstart LIKE TIDREGITAB.START NO-UNDO. 
+DEFINE NEW SHARED VARIABLE regslut LIKE TIDREGITAB.SLUT NO-UNDO.
+DEFINE NEW SHARED VARIABLE regvnr AS INTEGER FORMAT "999" NO-UNDO.
+DEFINE NEW SHARED VARIABLE regdagnamn AS CHARACTER FORMAT "X(3)" NO-UNDO.        
+DEFINE NEW SHARED VARIABLE regdatum AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE regmnr AS INTEGER FORMAT "99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE regmannamn AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE regar AS INTEGER FORMAT "99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE regtotalt LIKE TIDREGITAB.TOTALT NO-UNDO.      
+DEFINE NEW SHARED VARIABLE bdatum AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE avdatum AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE nytid AS DECIMAL FORMAT "99.99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE sekunder AS INTEGER FORMAT "-9999999" NO-UNDO.
+DEFINE NEW SHARED VARIABLE regstartsek AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE regslutsek AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE frustarten AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE fruslutet AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE kaffestart AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE kaffeslut AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE lunchstarten AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE lunchslutet AS DECIMAL NO-UNDO.
+
+DEFINE VARIABLE periodtot AS DECIMAL FORMAT "99.99" NO-UNDO.
+DEFINE VARIABLE pekodtot AS DECIMAL FORMAT "99.99" NO-UNDO.
+DEFINE VARIABLE pertot AS INTEGER FORMAT "-9999999" NO-UNDO.
+DEFINE VARIABLE pkodtot AS INTEGER FORMAT "-9999999" NO-UNDO.
+DEFINE VARIABLE difftot AS DECIMAL FORMAT "-99.99" NO-UNDO.
+DEFINE VARIABLE totovman AS DECIMAL NO-UNDO.
+DEFINE VARIABLE totovar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE sppers AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hjstart LIKE TIDREGITAB.START NO-UNDO.  
+DEFINE VARIABLE hjslut LIKE TIDREGITAB.SLUT NO-UNDO.   
+DEFINE VARIABLE ehjstart LIKE TIDREGITAB.START NO-UNDO.
+DEFINE BUFFER tidbuff FOR TIDREGITAB.
+DEFINE BUFFER tidbuff2 FOR TIDREGITAB.
+&Scoped-define NEW NEW
+{TIDPERS.I}
+
+DEFINE TEMP-TABLE invartemp   
+   FIELD GA LIKE ANVANDARE.ANVANDARE 
+   FIELD GM AS LOGICAL 
+   FIELD SK AS LOGICAL 
+   FIELD TI AS RECID 
+   FIELD PER AS RECID 
+   FIELD PER2 AS RECID 
+   FIELD MU AS LOGICAL    
+   FIELD REGST LIKE TIDREGITAB.START 
+   FIELD REGSU LIKE TIDREGITAB.SLUT 
+   FIELD RV AS INTEGER FORMAT "999" 
+   FIELD RDAG AS CHARACTER FORMAT "X(3)"         
+   FIELD RD AS DATE 
+   FIELD RM AS INTEGER FORMAT "99" 
+   FIELD RMN AS CHARACTER  
+   FIELD REGA AS INTEGER FORMAT "99" 
+   FIELD RT LIKE TIDREGITAB.TOTALT       
+   FIELD BD AS DATE 
+   FIELD AD AS DATE 
+   FIELD NY AS DECIMAL 
+   FIELD SEK AS INTEGER FORMAT "-9999999" 
+   FIELD RSEK AS INTEGER 
+   FIELD REGS AS INTEGER 
+   FIELD GL LIKE FORETAG.FORETAG. 
+DEFINE TEMP-TABLE dagtemp
+   FIELD DATUM LIKE TIDREGITAB.DATUM  
+   FIELD OVERTIDAR AS DECIMAL
+   FIELD OVERTIDMAN AS DECIMAL
+   FIELD REGTIDTIDAR AS DECIMAL
+   FIELD REGTIDMAN AS DECIMAL
+   FIELD ORDARBAR AS DECIMAL
+   FIELD ORDARBMAN AS DECIMAL
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD    
+   FIELD NAMN AS CHARACTER FORMAT "X(30)"
+   FIELD OMRADE AS CHARACTER
+   FIELD GEOMRADE AS CHARACTER.
+         
+
+DEFINE TEMP-TABLE slutsum           
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD 
+   FIELD NAMN AS CHARACTER
+   FIELD OVAR AS DECIMAL
+   FIELD OVMAN AS DECIMAL.
+
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(90)" NO-UNDO.
+{TIDUTTTNEW.I}
+DEFINE QUERY tidq FOR TIDREGITAB.
+
+DEFINE INPUT PARAMETER TABLE FOR invartemp.
+DEFINE INPUT PARAMETER TABLE FOR tidpers.
+DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+FUNCTION klock60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) * 60 / 100 ).
+
+END FUNCTION.
+
+ASSIGN   str=                                                                              
+"======.===============================.===================.========================.".   
+EMPTY TEMP-TABLE tidut  NO-ERROR. 
+EMPTY TEMP-TABLE dagtemp NO-ERROR. 
+EMPTY TEMP-TABLE slutsum NO-ERROR. 
+FIND FIRST invartemp NO-ERROR.
+ASSIGN
+gvisatidpermanad = invartemp.GM 
+skrivut = invartemp.SK   
+tidtabrec = invartemp.TI   
+persrec = invartemp.PER   
+persrec2 = invartemp.PER2  
+musz = invartemp.MU      
+regstart = invartemp.REGST   
+regslut = invartemp.REGSU  
+regvnr = invartemp.RV   
+regdagnamn = invartemp.RDAG          
+regdatum = invartemp.RD   
+regmnr = invartemp.RM  
+regmannamn = invartemp.RMN  
+regar = invartemp.REGA  
+regtotalt = invartemp.RT        
+bdatum = invartemp.BD  
+avdatum = invartemp.AD  
+nytid = invartemp.NY 
+sekunder = invartemp.SEK 
+regstartsek = invartemp.RSEK  
+regslutsek = invartemp.REGS 
+Guru.Konstanter:globforetag = invartemp.GL.
+
+RUN huvud_UI.
+
+   {GDPRLOGGCLIENT.I}
+PROCEDURE huvud_UI :
+   CREATE tidut.
+   ASSIGN 
+   SUBSTRING(tidut.UT,4) = "Registrerad ej tolkad övertid vald månad och hela valda året: " + regmannamn + " " + STRING(regar) 
+   SUBSTRING(tidut.UT,80) = STRING(avdatum)   
+   SUBSTRING(tidut.UT,90) = STRING(TIME,"HH:MM:SS").
+   CREATE tidut.                        
+   ASSIGN
+   SUBSTRING(tidut.UT,48) = "Ej tolkad övertid".                         
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "ENHET/".
+   
+   CREATE tidut.                        
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "SIGN"
+   SUBSTRING(tidut.UT,8) = "NAMN"   
+   SUBSTRING(tidut.UT,40) = "Vald månad"
+   SUBSTRING(tidut.UT,60) = "Hela valda året".                
+
+   CREATE tidut.  
+   ASSIGN tidut.UT = str.   
+   FOR EACH tidpers USE-INDEX PERSONALKOD NO-LOCK:       
+      ASSIGN
+      persrec = tidpers.TIDPERSREC
+      regdatum = bdatum. 
+      FIND PERSONALTAB WHERE RECID(PERSONALTAB) = persrec NO-LOCK NO-ERROR.
+      IF PERSONALTAB.OVERTIDUTTAG = "I" THEN DO:
+          RUN avtal_UI.          
+          OPEN QUERY toq FOR EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = tidpers.PERSONALKOD
+          AND TIDREGITAB.DATUM GE DATE(01,01,regar) AND TIDREGITAB.DATUM LE DATE(12,31,regar) AND
+          TIDREGITAB.OVERTIDUTTAG = "I" AND TIDREGITAB.START NE TIDREGITAB.SLUT  NO-LOCK.          
+          GET FIRST toq NO-LOCK.
+          DO WHILE AVAILABLE (TIDREGITAB):
+             IF TIDREGITAB.PRISTYP = "RESTID..." THEN.
+             ELSE DO:
+                CREATE dagtemp.
+                ASSIGN    
+                dagtemp.PERSONALKOD = TIDREGITAB.PERSONALKOD
+                dagtemp.NAMN = SUBSTRING(tidpers.FORNAMN,1,10) + " " + SUBSTRING(tidpers.EFTERNAMN,1,20)                  
+                dagtemp.DATUM =  TIDREGITAB.DATUM.
+                IF Guru.Konstanter:globforetag = "cgkal" THEN DO:
+                   /*all tid*/
+                   dagtemp.REGTIDMAN = klock100(TIDREGITAB.TOTALT). 
+                END.
+                ELSE DO:
+                   /*tid utanför ordinarie tid*/                                                                                   
+                   IF TIDREGITAB.DAG = "LÖR" OR TIDREGITAB.DAG = "SÖN" THEN DO:
+                      dagtemp.OVERTIDAR = klock100(TIDREGITAB.TOTALT).
+                      IF TIDREGITAB.DATUM GE bdatum AND TIDREGITAB.DATUM LE avdatum THEN DO:               
+                         dagtemp.OVERTIDMAN = klock100(TIDREGITAB.TOTALT).         
+                      END.                                          
+                   END.
+                   ELSE IF TIDREGITAB.SLUT LE hjstart OR TIDREGITAB.START GE hjslut THEN DO:
+                      dagtemp.OVERTIDAR = klock100(TIDREGITAB.TOTALT).
+                      IF TIDREGITAB.DATUM GE bdatum AND TIDREGITAB.DATUM LE avdatum THEN DO:               
+                         dagtemp.OVERTIDMAN = klock100(TIDREGITAB.TOTALT).         
+                      END.                                                               
+                   END.
+                END.   
+             END.                                                         
+             GET NEXT toq NO-LOCK.
+          END.
+       END.         
+   END.
+   FOR EACH dagtemp BREAK BY dagtemp.PERSONALKOD:    
+      ACCUMULATE dagtemp.OVERTIDAR (TOTAL  BY dagtemp.PERSONALKOD).        
+      ACCUMULATE dagtemp.OVERTIDMAN (TOTAL  BY dagtemp.PERSONALKOD).        
+      IF LAST-OF(dagtemp.PERSONALKOD) THEN DO:      
+         CREATE slutsum.
+         ASSIGN         
+         slutsum.PERSONALKOD = dagtemp.PERSONALKOD                  
+         slutsum.NAMN = dagtemp.NAMN                  
+         slutsum.OVAR = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.OVERTIDAR).                  
+         slutsum.OVMAN = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.OVERTIDMAN).                                            
+      END.
+   END.        
+   ASSIGN
+   totovman = 0
+   totovar = 0.
+   FOR EACH slutsum WHERE slutsum.OVAR > 0 BY slutsum.PERSONALKOD :       
+      CREATE tidut.               
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = slutsum.PERSONALKOD
+      SUBSTRING(tidut.UT,8) = slutsum.NAMN               
+      SUBSTRING(tidut.UT,40) = STRING(klock60(slutsum.OVMAN),">99.99").
+      SUBSTRING(tidut.UT,60) = STRING(klock60(slutsum.OVAR),">99.99").     
+      ASSIGN
+      totovman = totovman + klock60(slutsum.OVMAN)
+      totovar = totovar + klock60(slutsum.OVAR).
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + slutsum.PERSONALKOD.
+   END.
+   IF totovar > 0 THEN DO:   
+      CREATE tidut.               
+      CREATE tidut.               
+      SUBSTRING(tidut.UT,40) = "========".
+      SUBSTRING(tidut.UT,60) = "========".
+      
+      CREATE tidut.               
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = "SUMMA"
+      
+      SUBSTRING(tidut.UT,36) = STRING(totovman,">>>>>99.99").
+      SUBSTRING(tidut.UT,56) = STRING(totovar,">>>>>99.99").     
+   END.   
+   FIND LAST tidut NO-LOCK NO-ERROR.   
+END PROCEDURE.
+
+PROCEDURE avtal_UI :    
+   FIND FIRST ANSTFORMTAB WHERE ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+   USE-INDEX ANSTF NO-LOCK NO-ERROR.             
+   FIND FIRST ORDARB WHERE ORDARB.ANSTALLNING = PERSONALTAB.ANSTALLNING 
+   USE-INDEX ORDARB NO-LOCK NO-ERROR.
+   IF AVAILABLE ORDARB THEN DO TRANSACTION:      
+      sekunder = ORDARB.START1.
+      RUN SEKTIM.P.
+      ASSIGN
+      hjstart = nytid
+      ehjstart = hjstart.
+      IF ORDARB.OBKOD NE "" THEN DO:
+         IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV"  OR Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:         
+            FIND FIRST FLEXAVT WHERE FLEXAVT.PERSONALKOD = PERSONALTAB.PERSONALKOD NO-LOCK NO-ERROR.
+            FIND FIRST FLEXREG WHERE FLEXREG.KOD = FLEXAVT.FLEXKOD NO-LOCK NO-ERROR.
+         END.
+         ELSE DO:         
+            FIND FIRST FLEXREG WHERE FLEXREG.KOD = ANSTFORMTAB.KOD NO-LOCK NO-ERROR.
+         END.
+         IF NOT AVAILABLE FLEXREG THEN DO:
+            FIND FIRST FLEXREG WHERE FLEXREG.KOD = "" NO-LOCK NO-ERROR.
+         END.      
+         IF AVAILABLE FLEXREG THEN DO:
+            IF MONTH(regdatum) > MONTH(FLEXREG.SOMMARST) AND MONTH(regdatum) < MONTH(FLEXREG.SOMMARSL) THEN DO:               
+               ASSIGN hjslut = DECIMAL(ORDARB.OBKOD).
+               IF Guru.Konstanter:globforetag = "SUND" AND FLEXREG.KOD BEGINS "T" THEN hjstart = 7.30.               
+               IF Guru.Konstanter:globforetag = "SUND" AND FLEXREG.KOD = "TU" THEN hjstart = ehjstart.               
+               IF Guru.Konstanter:globforetag = "SNAT" AND FLEXREG.KOD BEGINS "T" THEN hjstart = 7.30.                                             
+               IF Guru.Konstanter:globforetag = "MISV" AND FLEXREG.KOD = "T" THEN hjstart = 7.30.                                               
+            END.
+            ELSE IF MONTH(regdatum) = MONTH(FLEXREG.SOMMARSL) AND DAY(regdatum) <= DAY(FLEXREG.SOMMARSL) THEN DO:
+               ASSIGN hjslut = DECIMAL(ORDARB.OBKOD).
+               IF Guru.Konstanter:globforetag = "SUND" AND FLEXREG.KOD BEGINS "T" THEN hjstart = 7.30.
+               IF Guru.Konstanter:globforetag = "SUND" AND FLEXREG.KOD = "TU" THEN hjstart = ehjstart.                  
+               IF Guru.Konstanter:globforetag = "SNAT" AND FLEXREG.KOD BEGINS "T" THEN hjstart = 7.30.                    
+               IF Guru.Konstanter:globforetag = "MISV" AND FLEXREG.KOD = "T" THEN hjstart = 7.30.                                 
+            END.
+            ELSE IF MONTH(regdatum) = MONTH(FLEXREG.SOMMARST) AND DAY(regdatum) >= DAY(FLEXREG.SOMMARST) THEN DO: 
+               ASSIGN hjslut = DECIMAL(ORDARB.OBKOD).
+               IF Guru.Konstanter:globforetag = "SUND" AND FLEXREG.KOD BEGINS "T" THEN hjstart = 7.30.
+               IF Guru.Konstanter:globforetag = "SUND" AND FLEXREG.KOD = "TU" THEN hjstart = ehjstart.               
+               IF Guru.Konstanter:globforetag = "SNAT" AND FLEXREG.KOD BEGINS "T" THEN hjstart = 7.30.                              
+               IF Guru.Konstanter:globforetag = "MISV" AND FLEXREG.KOD = "T" THEN hjstart = 7.30.                                            
+            END.
+            ELSE DO:
+               sekunder = ORDARB.STOPP1.
+               RUN SEKTIM.P.
+               hjslut = nytid.                   
+            END. 
+         END. 
+         ELSE DO:
+            sekunder = ORDARB.STOPP1.
+            RUN SEKTIM.P.
+            hjslut = nytid.            
+         END.  
+      END. 
+      ELSE DO:
+         sekunder = ORDARB.STOPP1.
+         RUN SEKTIM.P.
+         hjslut = nytid.         
+      END.   
+   END.  
+END PROCEDURE.

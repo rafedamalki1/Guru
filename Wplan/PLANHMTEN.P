@@ -1,0 +1,45 @@
+/*PLANHMTEN.P*/
+&Scoped-define NEW NEW
+{PLANNRTEMP.I}  
+DEFINE INPUT PARAMETER plannrvar AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER artalvar AS INTEGER NO-UNDO.
+DEFINE OUTPUT PARAMETER varfinns AS LOGICAL NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR valplantemp.
+DEFINE TEMP-TABLE valtemp NO-UNDO LIKE PLANNRTAB.
+varfinns = TRUE.
+{DYNHMT.I}
+
+kommandoquery = "PLANNRTAB.PLANNR = " + " STRING(""" + plannrvar + """) ".
+RUN and_UI.
+kommandoquery = kommandoquery + " PLANNRTAB.ARTAL = " + STRING(artalvar).
+ASSIGN
+orginaltab = "PLANNRTAB"
+nytab      = "valtemp".
+
+ASSIGN
+kommandoquery = "FOR EACH " + orginaltab + " WHERE " + kommandoquery + " NO-LOCK".
+/*BUGG 9.1c FIX*/
+ASSIGN extratemptabh = TEMP-TABLE valtemp:DEFAULT-BUFFER-HANDLE.
+
+RUN dynquery_UI (INPUT FALSE,INPUT FALSE).
+FOR EACH valtemp: 
+   FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = valtemp.PLANNR AND 
+   PLANNRTAB.ARTAL = artalvar NO-LOCK NO-ERROR.      
+   IF AVAILABLE PLANNRTAB THEN DO:
+      CREATE valplantemp.
+      BUFFER-COPY PLANNRTAB TO valplantemp. 
+      BUFFER-COPY valtemp TO valplantemp.            
+   END.
+   IF valplantemp.KOPPAO = TRUE THEN DO:
+      FIND FIRST AONRTAB WHERE AONRTAB.PLANNR = valtemp.PLANNR AND 
+      AONRTAB.ARTAL = valtemp.ARTAL NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DO:
+         ASSIGN
+         valplantemp.AONR = AONRTAB.AONR 
+         valplantemp.DELNR = AONRTAB.DELNR.
+      END.
+   END.
+END.
+FIND FIRST valplantemp NO-ERROR.
+IF NOT AVAILABLE valplantemp THEN varfinns = FALSE.
+RUN objdelete_UI.

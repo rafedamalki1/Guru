@@ -1,0 +1,47 @@
+/*xberedansv.p*/
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+{EXTRADATA.I}
+{EXTRATAB.I}  
+FOR EACH aonrtab  NO-LOCK:
+   IF AONRTAB.STARTDAG NE "" THEN DO:
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = AONRTAB.STARTDAG NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB  THEN DO:
+      
+         FIND FIRST BEREDAONR WHERE BEREDAONR.PERSONALKOD = PERSONALTAB.PERSONALKOD NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE BEREDAONR THEN DO:
+            CREATE BEREDAONR.
+            ASSIGN 
+            BEREDAONR.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            BEREDAONR.FORNAMN = PERSONALTAB.FORNAMN
+            BEREDAONR.EFTERNAMN = PERSONALTAB.EFTERNAMN. 
+         END.
+         FIND FIRST ANSVAONR WHERE ANSVAONR.PERSONALKOD = PERSONALTAB.PERSONALKOD NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE ANSVAONR THEN DO:
+            CREATE ANSVAONR.
+            ASSIGN ANSVAONR.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            ANSVAONR.FORNAMN = PERSONALTAB.FORNAMN
+            ANSVAONR.EFTERNAMN = PERSONALTAB.EFTERNAMN. 
+         END.
+
+         
+         RUN EXTRADATAHMT.P PERSISTENT SET edataapph.                  
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "AOPROJ"                   
+         inextradatatemp.HUVUDCH = PERSONALTAB.PERSONALKOD              
+         inextradatatemp.HUVUDINT =  ?.   
+         RUN finnsextra_UI IN edataapph (INPUT TABLE inextradatatemp,OUTPUT musz).        
+         IF musz = FALSE THEN DO:        
+            RUN sparaextra_UI IN edataapph (INPUT TABLE inextradatatemp).
+         END.
+         IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+         edataapph = ?. 
+         
+
+      END.
+   END.
+   END.
+

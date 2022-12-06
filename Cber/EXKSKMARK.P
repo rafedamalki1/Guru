@@ -1,0 +1,137 @@
+/*EXKSKMARK.P UTLÄSNING AV DEPÅLAGER TILL EXCEL*/   
+
+                              
+                              
+
+DEFINE SHARED VARIABLE valaonr AS CHARACTER NO-UNDO.
+DEFINE SHARED VARIABLE valdelnr AS INTEGER NO-UNDO.
+DEFINE SHARED VARIABLE valort AS CHARACTER NO-UNDO.
+DEFINE VARIABLE chExcelApplication      AS COM-HANDLE.
+DEFINE VARIABLE chWorkbook              AS COM-HANDLE.
+DEFINE VARIABLE chWorksheet             AS COM-HANDLE.
+DEFINE VARIABLE chChart                 AS COM-HANDLE.
+DEFINE VARIABLE chWorksheetRange        AS COM-HANDLE.
+DEFINE VARIABLE iCount                  AS INTEGER.
+DEFINE VARIABLE iIndex                  AS INTEGER.
+DEFINE VARIABLE iMonth                  AS INTEGER.
+DEFINE VARIABLE dAnnualQuota            AS DECIMAL.
+DEFINE VARIABLE dTotalSalesAmount       AS DECIMAL.
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 0.
+DEFINE VARIABLE cColumn                 AS CHARACTER.
+DEFINE VARIABLE cRange                  AS CHARACTER.  
+DEFINE VARIABLE felexcel AS LOGICAL NO-UNDO.
+DEFINE VARIABLE hjtext AS CHARACTER NO-UNDO.
+DEFINE VARIABLE link AS CHARACTER NO-UNDO.
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{GLOBVAR2DEL1.I}   
+&Scoped-define SHARED SHARED
+{LISTMTRL.I}
+{KONVALTEMP.I}
+{KONID.I} 
+{FRITEMP.I} 
+   CREATE "Excel.Application" chExcelApplication.
+   chExcelApplication:Visible = TRUE NO-ERROR.
+   chWorkbook = chExcelApplication:Workbooks:Add() NO-ERROR.
+   chWorkSheet = chExcelApplication:Sheets:Item(1) NO-ERROR.
+   chWorkSheet:Columns("A"):ColumnWidth = 40 NO-ERROR.
+   chWorkSheet:Columns("B"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("C"):ColumnWidth = 20 NO-ERROR.
+   chWorkSheet:Columns("D"):ColumnWidth = 10 NO-ERROR.   
+   RUN imageexcel2_UI.      
+   ASSIGN   
+   chWorkSheet:Range("A6:E6"):Font:Bold = TRUE NO-ERROR.
+   cRange = "A" + cColumn.
+   chWorkSheet:Range(cRange):NumberFormat = "@" NO-ERROR.     
+   IF Guru.GlobalaVariabler:plusaonr = "" OR Guru.GlobalaVariabler:plusaonr = ? THEN DO:      
+      chWorkSheet:Range("A6"):Value = "Beredning nr: " + STRING(valaonr) + " " + valort NO-ERROR.
+   END.
+   ELSE DO:      
+      chWorkSheet:Range("A6"):Value = Guru.Konstanter:gaok + ": " + Guru.GlobalaVariabler:plusaonr + " " + STRING(Guru.GlobalaVariabler:plusdnr,Guru.Konstanter:varforetypchar[1]) + " Beredning nr: " + STRING(valaonr) NO-ERROR.
+   END.   
+   chWorkSheet:Range("A8:E8"):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range("A8"):Value = "Adress" NO-ERROR.
+   chWorkSheet:Range("B8"):Value = "Typ" NO-ERROR.
+   chWorkSheet:Range("C8"):Value = "Kabeltyp" NO-ERROR.  
+   chWorkSheet:Range("D8"):Value = "Säkring" NO-ERROR.  
+   {EXCELFEL.I}
+   chWorkSheet:Range("A1:A300"):NumberFormat = "@".
+   chWorkSheet:Range("B1:B300"):NumberFormat = "@".
+   chWorkSheet:Range("C1:C300"):NumberFormat = "@".
+   chWorkSheet:Range("D1:D300"):NumberFormat = "@".   
+   ASSIGN
+   iColumn = 8.
+   FOR EACH kon_val WHERE kon_val.KSKAP = FALSE.
+      {EXCELFEL.I}      
+      iColumn = iColumn + 2.
+      cColumn = STRING(iColumn).
+      cRange = "A" + cColumn.            
+      chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+      FIND FIRST kon_id WHERE kon_id.NUM = kon_val.NUM NO-LOCK NO-ERROR.
+      IF AVAILABLE kon_id THEN DO:         
+         IF kon_id.GRUPP = 0 THEN hjtext = "Kabelskåp:".
+         ELSE  hjtext = "Nätstaion:".
+         cRange = "A" + cColumn.
+         chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+         IF kon_id.FRI3 NE "" THEN DO:
+            chWorkSheet:Range(cRange):Value = hjtext + "  " + kon_id.FRI3  NO-ERROR.
+         END.
+         ELSE DO:
+            chWorkSheet:Range(cRange):Value = hjtext + " " + STRING(kon_id.FRI2) NO-ERROR.               
+         END.
+         iColumn = iColumn + 1.
+         cColumn = STRING(iColumn).
+         cRange = "A" + cColumn.
+         chWorkSheet:Range(cRange):Value = "Märkning:" NO-ERROR.
+         FOR EACH fri_temp WHERE fri_temp.NUM = kon_id.NUM  USE-INDEX NUM:  
+            iColumn = iColumn + 1.
+            cColumn = STRING(iColumn).
+            cRange = "A" + cColumn.
+            chWorkSheet:Range(cRange):Value = fri_temp.KABADR NO-ERROR.
+            cRange = "B" + cColumn.
+            chWorkSheet:Range(cRange):Value = fri_temp.TYP NO-ERROR.
+            cRange = "C" + cColumn.
+            chWorkSheet:Range(cRange):Value = fri_temp.BENAMNING NO-ERROR.
+            cRange = "D" + cColumn.
+            IF fri_temp.SAKR NE ? AND fri_temp.SAKR NE 0 THEN
+            chWorkSheet:Range(cRange):Value = STRING(fri_temp.SAKR) + "A" NO-ERROR.               
+         END.
+      END.      
+      ELSE DO:
+         FIND FIRST kon_id  NO-LOCK NO-ERROR.
+      END.
+   END. 
+   RELEASE OBJECT chWorksheetRange NO-ERROR.   
+   RELEASE OBJECT chExcelApplication NO-ERROR.      
+   RELEASE OBJECT chWorkbook NO-ERROR.
+   RELEASE OBJECT chWorksheet NO-ERROR.
+
+PROCEDURE imageexcel_UI.   
+   ASSIGN iColumn = iColumn + 1.
+   cColumn = STRING(iColumn).
+   cRange = "A" + cColumn.
+   chWorkSheet:Range(cRange):SELECT NO-ERROR.  
+   IF link NE  ? THEN DO:
+      chWorksheetRange = chWorkSheet:Pictures:INSERT(link) NO-ERROR.
+      chWorksheetRange:TOP = 1.
+      chWorksheetRange:LEFT = 1.
+   END.
+   chExcelApplication:VISIBLE = TRUE NO-ERROR.
+   ASSIGN iColumn = iColumn + 7.
+   {EXCELFEL.I}
+END PROCEDURE.
+
+   PROCEDURE imageexcel2_UI:
+      /*FOREBILDER*/
+      {LOGGOR.I}
+      ASSIGN iColumn = iColumn + 1.
+      chWorkSheet:rows(iColumn):SELECT NO-ERROR.   
+      IF link NE  ? THEN chWorkSheetRange = chWorkSheet:Pictures:INSERT(link) NO-ERROR. 
+      ELSE RETURN.     
+      chWorkSheetRange:TOP = 1 NO-ERROR.
+      chWorkSheetRange:LEFT = 1 NO-ERROR.
+      RELEASE OBJECT chWorkSheetRange NO-ERROR.
+      chWorkSheetRange = ?.  
+      chExcelApplication:VISIBLE = TRUE NO-ERROR.
+      {EXCELFEL.I}
+   END PROCEDURE.

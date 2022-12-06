@@ -1,0 +1,258 @@
+/*SYMBRIOWEBCLIENT.P*/
+DEFINE INPUT  PARAMETER infill AS LONGCHAR NO-UNDO.
+DEFINE OUTPUT PARAMETER resultvar AS LONGCHAR NO-UNDO.
+DEFINE OUTPUT PARAMETER webtjanstok AS LOGICAL NO-UNDO.
+
+
+
+
+DEFINE VARIABLE hServer AS HANDLE      NO-UNDO.
+DEFINE VARIABLE lReturn AS LOGICAL     NO-UNDO.
+DEFINE VARIABLE SymbrioPortType AS HANDLE NO-UNDO.
+DEFINE VARIABLE hMainSoapHeader AS HANDLE.
+
+DEFINE VARIABLE dbconn AS LOGICAL NO-UNDO.
+DEFINE VARIABLE felrapp AS CHARACTER   NO-UNDO.
+DEFINE VARIABLE hSoapFault AS HANDLE.
+DEFINE VARIABLE hSOAPFaultDetail AS HANDLE.
+DEFINE VARIABLE HeaderXML AS LONGCHAR VIEW-AS EDITOR SIZE 70 BY 15 LARGE.
+DEFINE VARIABLE hIOrderOngoingImportService  AS HANDLE      NO-UNDO.
+
+
+DEFINE VARIABLE hTMMWebSvcs AS HANDLE NO-UNDO.
+DEFINE VARIABLE hXdoc AS HANDLE.
+DEFINE VARIABLE hXnoderef1 AS HANDLE.
+DEFINE VARIABLE hXnoderef2 AS HANDLE.
+DEFINE VARIABLE hXnoderef3 AS HANDLE.
+DEFINE VARIABLE hXtext AS HANDLE.
+DEFINE VARIABLE cUsername AS CHARACTER INIT "OneNordic".
+DEFINE VARIABLE cPassword AS CHARACTER INIT "OneNordic1609".
+DEFINE VARIABLE g_header AS HANDLE.
+
+
+RUN BuildRequestHeader (OUTPUT g_header).
+CREATE SERVER hServer.
+DEBUGGER:SET-BREAK().
+/*
+/* test miljö*/
+lReturn = hServer:CONNECT("-WSDL 'https://stagingnew.symbrio.com/Symbrio.WebServicesNew/OrderOngoingImportService.svc?wsdl' -SOAPEndpointUserid 'OneNordic' -SOAPEndpointPassword 'OneNordic1609'  
+ -nohostverify ").
+*/
+lReturn = hServer:CONNECT("-WSDL 'https://webservices.symbrio.com/Symbrio.Webservices/orderongoingimportservice.svc?wsdl' -SOAPEndpointUserid 'OneNordic' -SOAPEndpointPassword 'OneNordic1609' -nohostverify ").
+
+/*ny test.
+lReturn = hServer:CONNECT("-WSDL 'https://stagingwebservicesnew.symbrio.com/Symbrio.WebServicesNew/OrderOngoingImportService.svc?wsdl' -SOAPEndpointUserid 'OneNordic' -SOAPEndpointPassword 'OneNordic1609' -nohostverify ").                                 
+  */          
+ 
+ 
+IF lReturn = NO THEN DO:         
+   webtjanstok = FALSE.
+   resultvar = "OBS!!! Webtjänsten är inte i drift! Inget har skickats. " + "Kontakta Elpool 090/184540".
+   DELETE OBJECT hIOrderOngoingImportService NO-ERROR.
+   hServer:DISCONNECT() NO-ERROR.
+   DELETE OBJECT hServer NO-ERROR.
+   APPLY "CLOSE":U TO THIS-PROCEDURE.
+   RETURN.
+END.
+
+RUN IOrderOngoingImportService SET hIOrderOngoingImportService ON SERVER hServer.
+hIOrderOngoingImportService:SET-CALLBACK-PROCEDURE("REQUEST-HEADER","ReqHandler").
+
+RUN ImportOrderOngoing IN hIOrderOngoingImportService (INPUT infill, OUTPUT resultvar) NO-ERROR.
+/*RUN ErrorInfo.*/
+IF resultvar = "" OR resultvar = ? THEN DO:
+   resultvar = "OBS!! Något har gått fel med filen! Inget har skickats. " + "Kontakta Elpool 090/184540".
+   webtjanstok = FALSE.
+   
+END.   
+ELSE DO:
+   webtjanstok = TRUE.
+END.    
+
+
+DELETE OBJECT hIOrderOngoingImportService NO-ERROR.
+hServer:DISCONNECT() NO-ERROR.
+DELETE OBJECT hServer NO-ERROR.
+
+PROCEDURE ReqHandler:
+   /* Define procedure parameters */
+   DEFINE OUTPUT PARAMETER hHeader AS HANDLE.
+   DEFINE INPUT PARAMETER cNamespace AS CHARACTER.
+   DEFINE INPUT PARAMETER cLocalNS AS CHARACTER.
+   DEFINE OUTPUT PARAMETER lDeleteOnDone AS LOGICAL.
+
+   /* Pass in global header reused for every request */
+   hHeader = g_header.
+   lDeleteOnDone = FALSE.
+END PROCEDURE.
+PROCEDURE BuildRequestHeader:
+   /* Define procedure parameter */
+   DEFINE OUTPUT PARAMETER hHeader AS HANDLE.
+   DEFINE VARIABLE hHeaderEntryref AS HANDLE.
+   DEFINE VARIABLE ClientNS AS CHARACTER INITIAL "http://ServiceHost/SOAPHeader" .
+
+   ClientNS = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd".               
+   /* Create SOAP header and server objects */
+   CREATE SOAP-HEADER hHeader.
+   CREATE SOAP-HEADER-ENTRYREF hHeaderEntryref.
+
+   /* Create x-doc objects to build header */
+   CREATE X-DOCUMENT hXdoc.
+   CREATE X-NODEREF hXnoderef1.
+   CREATE X-NODEREF hXnoderef2.
+   CREATE X-NODEREF hXnoderef3.
+   CREATE X-NODEREF hXtext.
+
+   /* Create the header entry */
+   hHeader:ADD-HEADER-ENTRY(hHeaderEntryref).
+
+   /* Create the header namespace data */
+   hXdoc:CREATE-NODE-NAMESPACE(hXnoderef3, ClientNS, "Security", "ELEMENT").
+   hXdoc:CREATE-NODE-NAMESPACE(hXnoderef1, ClientNS, "UsernameToken", "ELEMENT").
+   hXdoc:INSERT-BEFORE(hXnoderef1, ?).
+
+   /* Create the Username/Password data */
+   hXdoc:CREATE-NODE-NAMESPACE(hXnoderef2, ClientNS, "Username", "ELEMENT").
+   hXnoderef1:APPEND-CHILD(hXnoderef2).
+   hXdoc:CREATE-NODE(hXtext,"","text").
+   hXnoderef2:APPEND-CHILD(hXtext).
+   hXtext:NODE-VALUE = cUsername.
+   hXdoc:CREATE-NODE-NAMESPACE(hXnoderef2, ClientNS, "Password", "ELEMENT").
+   hXnoderef1:APPEND-CHILD(hXnoderef2).
+   hXdoc:CREATE-NODE(hXtext, "", "text").
+   hXnoderef2:APPEND-CHILD(hXtext).
+   hXtext:NODE-VALUE = cPassword.
+   hXnoderef3:APPEND-CHILD( hXnoderef1 ).
+
+   /* Fill the header entry using a deep copy */
+   hHeaderEntryref:SET-NODE(hXnoderef3).
+   hHeaderEntryref:SET-MUST-UNDERSTAND ( TRUE ).
+      
+   /* Procedure/header cleanup */ 
+   DELETE OBJECT hXdoc.
+   DELETE OBJECT hXnoderef1.
+   DELETE OBJECT hXnoderef2.
+   DELETE OBJECT hXtext.
+   DELETE OBJECT hHeaderEntryref.
+END PROCEDURE.
+
+PROCEDURE ErrorInfo:
+  DEFINE VARIABLE k AS INTEGER.
+  DEFINE VARIABLE hSOAPFault AS HANDLE.
+  DEFINE VARIABLE hSOAPFaultDetail AS HANDLE.
+  DEFINE VARIABLE HeaderXML AS LONGCHAR VIEW-AS EDITOR SIZE 52 BY 5 LARGE.
+  IF ERROR-STATUS:NUM-MESSAGES > 0 THEN DO:
+     DO k = 1 TO ERROR-STATUS:NUM-MESSAGES:
+        MESSAGE ERROR-STATUS:GET-MESSAGE(k) VIEW-AS ALERT-BOX.
+     END.
+     IF VALID-HANDLE(ERROR-STATUS:ERROR-OBJECT-DETAIL) THEN DO:      
+        hSOAPFault = ERROR-STATUS:ERROR-OBJECT-DETAIL.
+        MESSAGE 
+        "Fault Code: "   hSOAPFault:SOAP-FAULT-CODE        SKIP
+        "Fault String: " hSOAPFault:SOAP-FAULT-STRING      SKIP
+        "Fault Actor: "  hSOAPFault:SOAP-FAULT-ACTOR       SKIP
+        "Error Type: "   hSOAPFault:TYPE VIEW-AS ALERT-BOX.
+        IF VALID-HANDLE(hSOAPFault:SOAP-FAULT-DETAIL) THEN DO:
+           hSOAPFaultDetail = hSOAPFault:SOAP-FAULT-DETAIL.
+           MESSAGE  "Error Type: " hSOAPFaultDetail:TYPE VIEW-AS ALERT-BOX.
+           HeaderXML = hSOAPFaultDetail:GET-SERIALIZED().
+           DISPLAY HeaderXML LABEL "Serialized SOAP fault detail" WITH FRAME a.
+        END.
+     END. 
+  END. 
+END PROCEDURE.
+/*
+lReturn = hServer:CONNECT("-WSDL https://stagingweb01.symbrio.com:8080/Symbrio.WebServicesNew/OrderOngoingImportService.svc?wsdl -SOAPEndpointUserid 'OneNordic' -SOAPEndpointPassword 'OneNordic1609'").
+bprowsdldoc https://stagingnew.symbrio.com/Symbrio.WebServicesNew/orderongoingimportservice.svc?wsdl
+http://stagingnew.symbrio.com/Symbrio.WebServicesNew/orderongoingimportservice.svc -SOAPEndpointUserid 'OneNordic' -SOAPEndpointPassword 'OneNordic1609'
+https://stagingnew.symbrio.com/Symbrio.WebServicesNew/orderongoingimportservice.svc
+https://stagingnew.symbrio.com/Symbrio.WebServicesNew/OrderOngoingImportService.svc?wsdl
+-SOAPEndpointUserid 'OneNordic' -SOAPEndpointPassword 'OneNordic1609' -nohostverify -nosessionreuse").
+lReturn = hServer:CONNECT("-WSDL https://stagingnew.symbrio.com/Symbrio.WebServicesNew/OrderOngoingImportService.svc?wsdl 
+ -WSDLUserid 'OneNordic' -WSDLPassword 'OneNordic1609' -nohostverify -nosessionreuse").
+*/
+/*)
+lReturn = hServer:CONNECT("-WSDL 'https://stagingnew.symbrio.com/Symbrio.WebServicesNew/OrderOngoingImportService.svc?wsdl'
+-nohostverify -WSDLUserid 'OneNordic' -WSDLPassword 'OneNordic1609' ").
+lReturn = hServer:CONNECT("-WSDL 'https://stagingnew.symbrio.com/Symbrio.WebServicesNew/OrderOngoingImportService.svc?wsdl'
+-SOAPEndpointUserid 'OneNordic' -SOAPEndpointPassword 'OneNordic1609' -WSDLUserid 'OneNordic' -WSDLPassword 'OneNordic1609' -nohostverify ").
+lReturn = hServer:CONNECT("-WSDL 'https://stagingnew.symbrio.com/Symbrio.WebServicesNew/OrderOngoingImportService.svc?wsdl' -nohostverify ").
+
+*/
+
+/*
+hIOrderOngoingImportService:SET-CALLBACK-PROCEDURE("RESPONSE-HEADER","myResponsehandler").
+*/
+/*
+
+
+PROCEDURE fel_UI :
+  infill = '<?xml version="1.0" encoding="utf-8"?>
+<OrderOngoingInterchange xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <InterchangeID xmlns="http://schemas.symbrio.com/integration/Common/v2010.1/">00000000-0000-0000-0000-000000000000</InterchangeID>
+  <Routing DocumentName="OrderOngoingInterchange" SourceValue="OO" SourceType="ZZ" DestinationValue="OneNordic" DestinationType="ZZ" xmlns="http://schemas.symbrio.com/integration/Common/v2010.1/" />
+  <OrderOngoing xmlns="http://schemas.symbrio.com/integration/OrderOngoingInterchange/v2010.1/">
+    <RequisitionNo>2013-01-14_714</RequisitionNo>
+    <OrderCreatorEmploymentNo>70064831</OrderCreatorEmploymentNo>
+    <PurchaserCompanyCode>401</PurchaserCompanyCode>
+    <OrderCreatedDate>2013-01-14T14:03:18.761678+01:00</OrderCreatedDate>
+    <CrossDocking />
+    <GoodsLabel />
+    <ProjectNo>90245900</ProjectNo>
+    <DeliveryReceiver>One Nordic AB</DeliveryReceiver>
+    <DeliveryAddress>Boholmsstigen 4</DeliveryAddress>
+    <DeliveryPostalCode>11846</DeliveryPostalCode>
+    <DeliveryCity>Lidingö</DeliveryCity>
+    <DeliveryCountry>SE</DeliveryCountry>
+    <DeliveryAddressNoteText>Leverans baksidan</DeliveryAddressNoteText>
+    <Currency>SEK</Currency>
+    <OrderOngoingLines>
+      <OrderOngoingLine>
+        <ArticleNo>1426063</ArticleNo>
+        <ArticleName>Artikel X</ArticleName>
+        <Quantity>1</Quantity>
+        <QuantityMeasurement>stk</QuantityMeasurement>
+        <DeliveryDate>2013-01-15T14:03:18.7772858+01:00</DeliveryDate>
+        <AgreementNo />
+        <SupplierIdentification>52454832</SupplierIdentification>
+        <AccountRef1 />
+        <AccountRef2 />
+        <AccountRef3 />
+        <AccountRef4 />
+        <SupplierMessage>SupplierNote by SMG</SupplierMessage>
+      </OrderOngoingLine>
+    </OrderOngoingLines>
+  </OrderOngoing>
+</OrderOngoingInterchange>'.
+  
+   MESSAGE ERROR-STATUS:ERROR-OBJECT-DETAIL:SOAP-FAULT-STRING 
+   VIEW-AS ALERT-BOX.
+   MESSAGE 
+      "Fault Code:"   ERROR-STATUS:ERROR-OBJECT-DETAIL:SOAP-FAULT-CODE   SKIP
+      "Fault Actor:"  ERROR-STATUS:ERROR-OBJECT-DETAIL:SOAP-FAULT-ACTOR  SKIP
+      "Fault String:" ERROR-STATUS:ERROR-OBJECT-DETAIL:SOAP-FAULT-STRING
+   VIEW-AS ALERT-BOX.
+
+      
+   
+
+/*
+
+ DEF VAR hFault AS HANDLE.
+ DEF VAR hDetail AS HANDLE.
+DEF VAR hMsg AS HANDLE.
+ 
+CREATE X-NODEREF hFault.
+CREATE X-NODEREF hDetail.
+CREATE X-NODEREF hMsg.
+ERROR-STATUS:ERROR-OBJECT-DETAIL:SOAP-FAULT-DETAIL:GET-NODE(hFault).
+IF VALID-HANDLE(hFault) THEN DO:
+    hFault:GET-CHILD(hDetail, 1).
+    hDetail:GET-CHILD(hMsg, 1).
+    MESSAGE  hMsg:NODE-VALUE
+    VIEW-AS ALERT-BOX.
+   
+END.
+*/
+END PROCEDURE.
+*/   

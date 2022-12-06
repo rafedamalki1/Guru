@@ -1,0 +1,25 @@
+/*FLYTTAWWW2EGNAIP.p*/
+/*Anders Olsson Elpool i Umeå AB  7 aug 2017 11:31:12 
+ska flytta db och zip till nas 
+*/
+
+DEFINE VARIABLE dbfilename AS CHARACTER NO-UNDO.
+DEFINE VARIABLE prognamnque AS CHARACTER NO-UNDO.
+DEFINE VARIABLE prognamnque2 AS CHARACTER NO-UNDO.
+
+{Computer_LanIP.I}   
+{FLYTTABCK.I}
+
+QUIT.
+
+
+
+
+
+PROCEDURE ut_UI :
+   DEFINE INPUT  PARAMETER instart AS CHARACTER NO-UNDO.
+   OUTPUT TO VALUE(prognamnque) APPEND.
+   PUT UNFORMATTED instart " " TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+   OUTPUT CLOSE.
+END PROCEDURE.
+

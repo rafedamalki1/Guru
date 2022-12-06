@@ -1,0 +1,135 @@
+/*
+     Filename: FOREAPP.P
+      Created: 03.07.0003 10:13ELPAO     
+     Modified: 
+*/
+
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{STORTEMP.I}
+{AVDELNINGTEMP.I}
+
+/********************************** STORFORE.W *********************************/
+
+PROCEDURE storforebtnbort_UI :
+   DEFINE INPUT PARAMETER avdnr AS INTEGER NO-UNDO.
+   
+   FIND AVDELNING WHERE AVDELNING.AVDELNINGNR = avdnr EXCLUSIVE-LOCK NO-ERROR.
+   OPEN QUERY oq FOR EACH STORDISTRIKT WHERE STORDISTRIKT.AVDELNINGNR = AVDELNING.AVDELNINGNR NO-LOCK.
+   GET FIRST oq EXCLUSIVE-LOCK.
+   DO WHILE AVAILABLE(STORDISTRIKT):
+      OPEN QUERY sq FOR EACH KUNDSTOR WHERE KUNDSTOR.DISTRIKTID = STORDISTRIKT.DISTRIKTID AND
+      KUNDSTOR.ARTAL = STORDISTRIKT.ARTAL NO-LOCK.
+      GET FIRST sq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(KUNDSTOR):
+         DELETE KUNDSTOR.
+         GET NEXT sq EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY sq.
+      OPEN QUERY aq FOR EACH LEDNINGSDATA WHERE LEDNINGSDATA.DISTRIKTID = STORDISTRIKT.DISTRIKTID AND
+      LEDNINGSDATA.ARTAL = STORDISTRIKT.ARTAL  NO-LOCK.
+      GET FIRST aq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(LEDNINGSDATA):
+         DELETE LEDNINGSDATA.
+         GET NEXT aq EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY aq.
+      OPEN QUERY dq FOR EACH STORNINGSTAB WHERE STORNINGSTAB.DISTRIKTID = STORDISTRIKT.DISTRIKTID NO-LOCK.
+      GET FIRST dq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(STORNINGSTAB):
+         OPEN QUERY bq FOR EACH BORTKOPPLAD WHERE BORTKOPPLAD.STORNUMMERID =
+         STORNINGSTAB.STORNUMMERID USE-INDEX STORNUMMERID NO-LOCK.
+         GET FIRST bq EXCLUSIVE-LOCK.
+         DO WHILE AVAILABLE(BORTKOPPLAD):
+            DELETE BORTKOPPLAD.
+            GET NEXT bq EXCLUSIVE-LOCK.
+         END.
+         CLOSE QUERY bq.
+         DELETE STORNINGSTAB.
+         GET NEXT dq EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY dq.
+      DELETE STORDISTRIKT.
+      GET NEXT oq EXCLUSIVE-LOCK.
+   END.
+   CLOSE QUERY oq.
+   DELETE AVDELNING.   
+END PROCEDURE. 
+
+/********************************** NYSFORE.W *********************************/
+
+PROCEDURE nysforebtnok_UI :
+   DEFINE INPUT PARAMETER andra AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER sparkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fillkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fillben AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR avdelningtemp.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR stordistemp.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   felmedd = "".
+   IF fillkod = 0 THEN DO:
+      felmedd = "Nummer kan inte vara blank! Välj nytt nummer.". 
+   END.
+   ELSE DO:
+      IF andra = FALSE THEN DO:         
+         FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = fillkod NO-LOCK NO-ERROR.
+         IF AVAILABLE AVDELNING THEN DO:
+            felmedd = "Nummret finns redan upplagt! Välj nytt nummer.".
+         END.
+         ELSE DO:
+            CREATE AVDELNING.
+            ASSIGN
+            AVDELNING.AVDELNINGNR = fillkod
+            AVDELNING.AVDELNINGNAMN = fillben
+            AVDELNING.KOSTMASK = 1.
+
+            CREATE avdelningtemp.
+            ASSIGN
+            avdelningtemp.AVDELNINGNR = fillkod
+            avdelningtemp.AVDELNINGNAMN = fillben
+            avdelningtemp.KOSTMASK = 1.  
+         END.
+      END.
+      ELSE DO:        
+         IF sparkod NE fillkod THEN DO:
+            FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = fillkod NO-LOCK NO-ERROR.
+            IF AVAILABLE AVDELNING THEN DO:
+               felmedd = "Nummret finns redan upplagt! Välj nytt nummer.".
+            END.
+            ELSE DO:          
+               FIND AVDELNING WHERE AVDELNING.AVDELNINGNR = sparkod EXCLUSIVE-LOCK NO-ERROR.
+               OPEN QUERY oq FOR EACH STORDISTRIKT WHERE STORDISTRIKT.AVDELNINGNR = AVDELNING.AVDELNINGNR NO-LOCK.
+               GET FIRST oq EXCLUSIVE-LOCK.
+               DO WHILE AVAILABLE(STORDISTRIKT):     
+                  STORDISTRIKT.AVDELNINGNR = fillkod.
+                  GET NEXT oq EXCLUSIVE-LOCK.
+               END.   
+               CLOSE QUERY oq.
+               ASSIGN
+               AVDELNING.AVDELNINGNR = fillkod
+               AVDELNING.AVDELNINGNAMN = fillben.
+
+               FIND avdelningtemp WHERE avdelningtemp.AVDELNINGNR = sparkod EXCLUSIVE-LOCK NO-ERROR.
+               OPEN QUERY oqt FOR EACH stordistemp WHERE stordistemp.AVDELNINGNR = avdelningtemp.AVDELNINGNR NO-LOCK.
+               GET FIRST oqt NO-LOCK.
+               DO WHILE AVAILABLE(stordistemp):     
+                  stordistemp.AVDELNINGNR = fillkod.
+                  GET NEXT oqt NO-LOCK.
+               END.   
+               CLOSE QUERY oqt.
+               ASSIGN        
+               avdelningtemp.AVDELNINGNR = fillkod
+               avdelningtemp.AVDELNINGNAMN = fillben.
+            END.
+         END.
+         ELSE DO:
+            FIND AVDELNING WHERE AVDELNING.AVDELNINGNR = sparkod EXCLUSIVE-LOCK NO-ERROR.
+            AVDELNING.AVDELNINGNAMN = fillben.
+            FIND avdelningtemp WHERE avdelningtemp.AVDELNINGNR = sparkod EXCLUSIVE-LOCK NO-ERROR.
+            avdelningtemp.AVDELNINGNAMN = fillben.           
+         END.                 
+      END.   
+   END.      
+   IF AVAILABLE AVDELNING THEN RELEASE AVDELNING.
+   IF AVAILABLE STORDISTRIKT THEN RELEASE STORDISTRIKT.
+END PROCEDURE. 

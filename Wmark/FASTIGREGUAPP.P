@@ -1,0 +1,313 @@
+/*FASTIGREGUAPP.P*/
+{STARTFORAPP.I}
+{MARKTEMP.I}
+{ANVPERS.I}
+{FASTIGHET.I}
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{ANSVMARK.I}
+{LANKOM.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{EXTRADATA.I}
+IF NOT VALID-HANDLE(edataapph) THEN DO:
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.                           
+END.
+PROCEDURE fastavs_UI :
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph NO-ERROR. 
+END PROCEDURE.
+PROCEDURE markkoll_UI :
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   felmedd = "".
+   
+   FOR EACH FASTVARD WHERE FASTVARD.VARDNR = valvardnr NO-LOCK:
+      FIND FIRST MARKFAST WHERE MARKFAST.BETECKNING = FASTVARD.BETECKNING USE-INDEX FAST NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE MARKFAST THEN DO:
+         ASSIGN felmedd = "Markägare är inte upplagd för '" + FASTVARD.BETECKNING + "'. Använd fastighetsregistret för att koppla markägare".
+         RETURN.
+      END.
+   END.
+
+END PROCEDURE.
+
+PROCEDURE markminderarig_UI :
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE malder AS INTEGER NO-UNDO.
+   felmedd = "".
+   
+   FOR EACH FASTVARD WHERE FASTVARD.VARDNR = valvardnr NO-LOCK,
+   EACH  MARKFAST WHERE MARKFAST.BETECKNING = FASTVARD.BETECKNING USE-INDEX FAST NO-LOCK.
+      FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = MARKFAST.MARKNR NO-LOCK NO-ERROR.
+      IF AVAILABLE MARKAGARE THEN DO:         
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).
+         malder = (( TODAY  - DATE(SUBSTRING(MARKAGARE.PERSONNUMMER,1,6)) ) / 365 ) NO-ERROR.
+         IF malder < 18 AND malder > 0 THEN DO:
+            ASSIGN felmedd = "Markägare är minderårig för " + FASTVARD.BETECKNING  +  " " + STRING(malder) + " . Använd fastighetsregistret för att åtgärda".
+            RETURN.
+         END.   
+      END.
+   END.
+   
+   Guru.GlobalaVariabler:GDPRtyp = "M". 
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+PROCEDURE fastighmt.
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR varderingtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR fastvardtemp.
+   EMPTY TEMP-TABLE varderingtemp NO-ERROR. 
+   EMPTY TEMP-TABLE fastvardtemp NO-ERROR. 
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = valvardnr NO-LOCK NO-ERROR.
+   IF AVAILABLE VARDERING THEN DO:
+      CREATE varderingtemp.
+      BUFFER-COPY VARDERING TO varderingtemp.
+      /*     vardrec = RECID(VARDERING). */      
+   END.
+   
+   OPEN QUERY fastq FOR EACH FASTVARD WHERE FASTVARD.VARDNR = valvardnr USE-INDEX FAST NO-LOCK.
+   GET FIRST fastq NO-LOCK.
+   DO WHILE AVAILABLE(FASTVARD):
+      CREATE fastvardtemp.
+      BUFFER-COPY FASTVARD TO fastvardtemp.
+      GET NEXT fastq NO-LOCK.
+   END.
+   CLOSE QUERY fastq.
+   /* borde bara behöva öppna fastvard som hör till given värdering
+   OPEN QUERY fastq FOR EACH FASTVARD USE-INDEX FAST NO-LOCK.
+   GET FIRST fastq NO-LOCK.
+   DO WHILE AVAILABLE(FASTVARD):
+      CREATE fastvardtemp.
+      BUFFER-COPY FASTVARD TO fastvardtemp.
+      GET NEXT fastq NO-LOCK.
+   END.
+   CLOSE QUERY fastq.*/
+END PROCEDURE.
+
+
+PROCEDURE fasthmt.
+   DEFINE INPUT PARAMETER valdlan AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valdkommun AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR fastighettemp.   
+   EMPTY TEMP-TABLE fastighettemp NO-ERROR. 
+   IF valdkommun NE "Alla" AND valdlan NE "Alla" THEN DO:
+      OPEN QUERY fastq FOR EACH FASTIGHET WHERE FASTIGHET.KOMMUN = valdkommun AND FASTIGHET.VAKER = valdlan USE-INDEX FAST NO-LOCK.
+      GET FIRST fastq NO-LOCK.
+      DO WHILE AVAILABLE(FASTIGHET):
+         CREATE fastighettemp.
+         BUFFER-COPY FASTIGHET TO fastighettemp.
+         GET NEXT fastq NO-LOCK.
+      END.
+      CLOSE QUERY fastq.
+   END.
+   ELSE IF valdkommun NE "Alla" AND valdlan = "Alla" THEN DO:
+      OPEN QUERY fastq FOR EACH FASTIGHET WHERE FASTIGHET.KOMMUN = valdkommun USE-INDEX FAST NO-LOCK.
+      GET FIRST fastq NO-LOCK.
+      DO WHILE AVAILABLE(FASTIGHET):
+         CREATE fastighettemp.
+         BUFFER-COPY FASTIGHET TO fastighettemp.
+         GET NEXT fastq NO-LOCK.
+      END.
+      CLOSE QUERY fastq.
+   END.
+   ELSE IF valdlan NE "Alla" THEN DO:
+      OPEN QUERY fastq FOR EACH FASTIGHET WHERE FASTIGHET.VAKER = valdlan USE-INDEX FAST NO-LOCK.
+      GET FIRST fastq NO-LOCK.
+      DO WHILE AVAILABLE(FASTIGHET):
+         CREATE fastighettemp.
+         BUFFER-COPY FASTIGHET TO fastighettemp.
+         GET NEXT fastq NO-LOCK.
+      END.
+      CLOSE QUERY fastq.
+   END.
+   ELSE  IF valdlan = "Alla" AND valdkommun = "Alla"  THEN DO:   
+      OPEN QUERY fastq FOR EACH FASTIGHET USE-INDEX FAST NO-LOCK.
+      GET FIRST fastq NO-LOCK.
+      DO WHILE AVAILABLE(FASTIGHET):
+         CREATE fastighettemp.
+         BUFFER-COPY FASTIGHET TO fastighettemp.
+         GET NEXT fastq NO-LOCK.
+      END.
+      CLOSE QUERY fastq.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE koppfastvard.
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fasthetbet AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER valdfast AS RECID NO-UNDO.
+   FIND FIRST FASTVARD WHERE FASTVARD.VARDNR = valvardnr AND 
+   FASTVARD.BETECKNING = fasthetbet NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE FASTVARD THEN DO TRANSACTION:
+      CREATE FASTVARD.
+      ASSIGN     
+      FASTVARD.VARDNR = valvardnr
+      FASTVARD.BETECKNING = fasthetbet.
+      FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = fasthetbet NO-LOCK NO-ERROR.
+      IF AVAILABLE FASTIGHET THEN ASSIGN valdfast = RECID(FASTIGHET).
+   END.
+   RELEASE FASTVARD NO-ERROR.
+
+END PROCEDURE.
+
+PROCEDURE bort.
+   DEFINE INPUT PARAMETER fasthetbet AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   FIND FIRST SKOGVARD WHERE SKOGVARD.BETECKNING = fasthetbet USE-INDEX VARDNR
+   NO-LOCK NO-ERROR.
+   FIND FIRST VOLSKOG WHERE VOLSKOG.BETECKNING = fasthetbet USE-INDEX VARDNR
+   NO-LOCK NO-ERROR.
+   FIND FIRST AKERVARD WHERE AKERVARD.BETECKNING = fasthetbet USE-INDEX VARDNR
+   NO-LOCK NO-ERROR.
+   FIND FIRST AKERKAB WHERE AKERKAB.BETECKNING = fasthetbet USE-INDEX VARDNR
+   NO-LOCK NO-ERROR.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR.   
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "VARDFAST"     
+   inextradatatemp.HUVUDINT = ?
+   inextradatatemp.HUVUDCH = fasthetbet.         
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+   DEBUGGER:SET-BREAK().
+   FOR EACH extradatatemp :
+      IF extradatatemp.SOKCHAR[1] = "" AND extradatatemp.SOKCHAR[2] = ""  AND extradatatemp.SOKCHAR[3] = ""  AND extradatatemp.SOKCHAR[4] = ""  AND extradatatemp.SOKCHAR[5] = ""
+      AND extradatatemp.SOKCHAR[6] = "" AND extradatatemp.SOKCHAR[7] = ""  AND extradatatemp.SOKCHAR[8] = ""  AND extradatatemp.SOKCHAR[9] = ""  AND extradatatemp.SOKCHAR[10] = "" THEN .
+      ELSE DO:         
+         FIND FIRST VARDERING WHERE VARDERING.VARDNR = extradatatemp.HUVUDINT NO-LOCK NO-ERROR.
+         IF AVAILABLE VARDERING THEN DO:   
+            CREATE felmeddtemp.
+            ASSIGN 
+            felmeddtemp.FELMEDD = "Extra uppgifter är upplagda på värdering: " + STRING(extradatatemp.HUVUDINT)  + " för "    + STRING(extradatatemp.HUVUDCH)  + ". Ta bort detta först. "
+            felmeddtemp.VAL = 7.
+            RETURN.
+         END.
+      END.      
+   END.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR.   
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "VARDFAST2"     
+   inextradatatemp.HUVUDINT = ?
+   inextradatatemp.HUVUDCH = fasthetbet.         
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+   FOR EACH extradatatemp :
+      IF extradatatemp.SOKCHAR[1] = "" AND extradatatemp.SOKCHAR[2] = ""  AND extradatatemp.SOKCHAR[3] = ""  AND extradatatemp.SOKCHAR[4] = ""  AND extradatatemp.SOKCHAR[5] = ""
+      AND extradatatemp.SOKCHAR[6] = "" AND extradatatemp.SOKCHAR[7] = ""  AND extradatatemp.SOKCHAR[8] = ""  AND extradatatemp.SOKCHAR[9] = ""  AND extradatatemp.SOKCHAR[10] = "" THEN .
+      ELSE DO:
+         
+         FIND FIRST VARDERING WHERE VARDERING.VARDNR = extradatatemp.HUVUDINT NO-LOCK NO-ERROR.
+         IF AVAILABLE VARDERING THEN DO:            
+            CREATE felmeddtemp.
+            ASSIGN 
+            felmeddtemp.FELMEDD = "Extra uppgifter är upplagda på värdering: "  + STRING(extradatatemp.HUVUDINT)  + " för "  + STRING(extradatatemp.HUVUDCH)  + ". Ta bort detta först."
+            felmeddtemp.VAL = 8.
+            RETURN.
+         END.
+      END.      
+   END.    
+   IF AVAILABLE SKOGVARD THEN DO: 
+      CREATE felmeddtemp.
+      ASSIGN 
+      felmeddtemp.FELMEDD = "Förenklad skogsnorm är upplagd för fastigheten på värdering:"  + STRING(SKOGVARD.VARDNR)  + ". Ta bort denna först."
+      felmeddtemp.VAL = 1.
+      RETURN.      
+   END.
+   ELSE IF AVAILABLE VOLSKOG THEN DO: 
+      CREATE felmeddtemp.
+      ASSIGN 
+      felmeddtemp.FELMEDD = "Volymberäkning är upplagd för fastigheten på värdering:" + STRING(VOLSKOG.VARDNR) + ". Ta bort denna först."
+      felmeddtemp.VAL = 2.
+      RETURN.     
+   END.   
+   ELSE IF AVAILABLE AKERVARD AND AKERVARD.L5 = 0 THEN DO:      
+      CREATE felmeddtemp.
+      ASSIGN 
+      felmeddtemp.FELMEDD = "Åkervärdering är upplagd för fastigheten på värdering:" + STRING(AKERVARD.VARDNR) + ". Ta bort denna först."
+      felmeddtemp.VAL = 3.
+      RETURN.           
+   END.
+   ELSE IF AVAILABLE AKERKAB THEN DO: 
+      CREATE felmeddtemp.
+      ASSIGN 
+      felmeddtemp.FELMEDD = "Åker i mark är upplagd för fastigheten på värdering:" + STRING(AKERKAB.VARDNR) + " . Ta bort denna först."
+      felmeddtemp.VAL = 4.
+      RETURN.             
+   END.
+   ELSE DO:
+      FIND FIRST FASTVARD WHERE FASTVARD.BETECKNING = fasthetbet USE-INDEX FAST NO-LOCK NO-ERROR.
+      IF AVAILABLE FASTVARD THEN DO:
+         CREATE felmeddtemp.
+         ASSIGN 
+         felmeddtemp.FELMEDD = "Det finns en värdering:" + STRING(FASTVARD.VARDNR) + " kopplad till denna fastighet. Vill du ta bort kopplingen också ?"
+         felmeddtemp.VAL = 5.
+         RETURN.
+      END.
+      ELSE DO:
+         CREATE felmeddtemp.
+         ASSIGN felmeddtemp.VAL = 6.
+         RETURN.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE delmarkfast.
+   DEFINE INPUT PARAMETER fasthetbet AS CHARACTER NO-UNDO.
+   OPEN QUERY markq FOR EACH MARKFAST WHERE MARKFAST.BETECKNING = fasthetbet
+   USE-INDEX FAST NO-LOCK. 
+   GET FIRST markq EXCLUSIVE-LOCK.
+   DO WHILE AVAILABLE(MARKFAST):                
+      DELETE MARKFAST.     
+      GET NEXT markq EXCLUSIVE-LOCK. 
+   END.              
+   CLOSE QUERY markq.     
+   OPEN QUERY fastq FOR EACH FASTVARD WHERE FASTVARD.BETECKNING = fasthetbet
+   USE-INDEX FAST NO-LOCK. 
+   GET FIRST fastq EXCLUSIVE-LOCK.
+   DO WHILE AVAILABLE(FASTVARD):                
+      DELETE FASTVARD.     
+      GET NEXT fastq EXCLUSIVE-LOCK. 
+   END.              
+   CLOSE QUERY fastq.                      
+END PROCEDURE.
+
+PROCEDURE lankomhmt.
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR lantemp.
+   DEFINE OUTPUT PARAMETER hmtkommun AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER hmtlan AS CHARACTER NO-UNDO.
+   FIND FIRST FORETAG  NO-LOCK NO-ERROR.
+   IF FORETAG.FORETAG = "UMEA" OR FORETAG.FORETAG = "UMBR" THEN hmtlan = "Västerbottens län". 
+   ELSE hmtlan = "Alla". 
+   ASSIGN hmtkommun = "Alla". 
+   
+   FIND FIRST FASTVARD WHERE FASTVARD.VARDNR = valvardnr USE-INDEX FAST NO-LOCK NO-ERROR.
+   IF AVAILABLE FASTVARD THEN DO:     
+      FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = FASTVARD.BETECKNING AND FASTIGHET.VAKER NE "" NO-LOCK NO-ERROR.
+      IF AVAILABLE FASTIGHET THEN DO:
+         hmtkommun = FASTIGHET.KOMMUN.
+         FIND FIRST lantemp WHERE lantemp.BENAMNING = FASTIGHET.VAKER NO-LOCK NO-ERROR.
+         IF AVAILABLE lantemp THEN DO:
+            ASSIGN hmtlan = FASTIGHET.VAKER.
+         END.
+         ELSE DO:
+            lan:
+            REPEAT:
+               FIND NEXT FASTIGHET WHERE FASTIGHET.BETECKNING = FASTVARD.BETECKNING AND FASTIGHET.VAKER NE "" NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE FASTIGHET THEN LEAVE lan.               
+               FIND FIRST lantemp WHERE lantemp.BENAMNING = FASTIGHET.VAKER NO-LOCK NO-ERROR.
+               IF AVAILABLE lantemp THEN DO:
+                  ASSIGN hmtlan = FASTIGHET.VAKER.
+                  LEAVE lan.
+               END.
+            END.
+         END.
+         
+      END.
+   END.
+   
+END PROCEDURE.

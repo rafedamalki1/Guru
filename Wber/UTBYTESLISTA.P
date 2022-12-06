@@ -1,0 +1,325 @@
+
+/*------------------------------------------------------------------------
+    File        : UTBYTESLISTA.P
+    Purpose     : 
+
+    Syntax      :         
+                                                                       UPPLÄGGETS LEV            UPPLÄGGETS ENR    BEREDNINGENS LEV   HITTAT MATREL  
+    Description :  RUN UTBYTESLISTA.P (INPUT Revers, INPUT listnr,INPUT list_mtrl.LEVKOD,INPUT list_mtrl.ENR,INPUT valdberlev, OUTPUT mrID). 
+                   RUN UTBYTESLISTA.P (INPUT Revers, INPUT listnr,INPUT list_mtrl2.LEVKOD,INPUT list_mtrl2.ENR,INPUT ValdBerLev, OUTPUT mrID).                                                     BEREDMATRIALIAL LlEV      BEREDNINGENS ENR    BEREDNINGENS LEV   HITTAT MATREL 
+                   RUN UTBYTESLISTA.P (INPUT Revers, INPUT listnr,INPUT BER_mtrl.LEVKOD,INPUT BER_mtrl.ENR,INPUT valdberlev, OUTPUT mrID).
+    Author(s)   : 
+      
+     se mera längst ner i detta program
+       
+       
+   
+  
+  ----------------------------------------------------------------------*/
+
+ DEFINE INPUT  PARAMETER Revers AS CHARACTER NO-UNDO.  /*kundlista från beredninshuvudet*/ 
+ DEFINE INPUT  PARAMETER utbytid AS INTEGER NO-UNDO.  /*kundlista från beredninshuvudet*/ 
+ DEFINE INPUT  PARAMETER valtmtrlev AS CHARACTER NO-UNDO. /*byt från lev*/  /*ÅTER  list_mtrl2.LEVKOD*/ /*DET SOM STÅR PÅ VALT MTRL*/
+ DEFINE INPUT  PARAMETER valtmtrEnr AS CHARACTER NO-UNDO.    /*från enr*/   /*ÅTER  list_mtrl2.ENR*/
+ DEFINE INPUT  PARAMETER berdninglev AS CHARACTER NO-UNDO. /*till lev*/     /*ÅTER  OINTRESANT HUVULEV*/  /*BEREDNINGENS HUVUDLEVERANTÖR*/
+ DEFINE OUTPUT PARAMETER mtrlrowID AS ROWID NO-UNDO.
+  
+
+IF Revers = "UPPERSATT" THEN RUN UtByt_UI. /*upplägg ska bytas*/
+ELSE IF Revers = "ÅTERUPP" THEN RUN ReUtByt_UI. /*återställer vid import kopiering */
+ELSE IF Revers = "GbNb" THEN RUN UtBytGmtrNymtr_UI. /* OM MTRL FINNS I ERSÄTTNINGSLIS FÖR LEVERANTÖR MED SAMMA LEV*/
+PROCEDURE UtByt_UI :
+   RELEASE UTBYTESLISTA NO-ERROR. 
+   /*från *UPPLÄGGES lev och enr TILL kund LEV OCH kund ENR*/
+   
+   IF utbytid  > 0 THEN DO:
+      /*finns uppläggets mtrl i kundlistan*/
+      FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = utbytid  AND
+      UTBYTESLISTA.ORGLEVKOD = valtmtrlev AND UTBYTESLISTA.ORGENR =  valtmtrEnr 
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE UTBYTESLISTA THEN DO:
+           /*kunds lev och kunds enr*/
+         IF UTBYTESLISTA.ORGLEVKOD NE UTBYTESLISTA.BYTTILLLEVKOD THEN DO:
+            RUN MtrllSok_UI (INPUT UTBYTESLISTA.BYTTILLLEVKOD, INPUT UTBYTESLISTA.BYTTILLENR).
+            IF mtrlrowID NE ? THEN RETURN.  /*träff*/
+         END.
+         /*beredning lev och kunds enr*/
+         
+         RUN MtrllSok_UI (INPUT berdninglev, INPUT UTBYTESLISTA.BYTTILLENR).
+         IF mtrlrowID NE ? THEN RETURN.
+         /*UPPLÄGGETS lev och kunds enr om inte vald lev har enr*/
+         RUN MtrllSok_UI (INPUT valtmtrlev, INPUT UTBYTESLISTA.BYTTILLENR).
+         IF mtrlrowID NE ? THEN RETURN.    
+      END.
+      ELSE DO:
+         FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = utbytid  AND
+         UTBYTESLISTA.BYTTILLLEVKOD = valtmtrlev AND  UTBYTESLISTA.BYTTILLENR = valtmtrEnr   NO-LOCK NO-ERROR.
+         IF AVAILABLE UTBYTESLISTA THEN DO:
+             RUN MtrllSok_UI (INPUT UTBYTESLISTA.BYTTILLLEVKOD, INPUT UTBYTESLISTA.BYTTILLENR).
+             IF mtrlrowID NE ? THEN RETURN.
+          END.          
+          ELSE IF valtmtrlev = berdninglev AND berdninglev NE Guru.Konstanter:HuvudLeverantor THEN DO:
+             FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = utbytid  AND
+             UTBYTESLISTA.ORGLEVKOD = Guru.Konstanter:HuvudLeverantor AND UTBYTESLISTA.ORGENR =  valtmtrEnr       NO-LOCK NO-ERROR.             
+             IF AVAILABLE UTBYTESLISTA THEN DO:
+                RUN MtrllSok_UI (INPUT valtmtrlev, INPUT UTBYTESLISTA.BYTTILLENR).
+                IF mtrlrowID NE ? THEN RETURN.
+                RUN MtrllSok_UI (INPUT Guru.Konstanter:HuvudLeverantor, INPUT UTBYTESLISTA.BYTTILLENR).
+                IF mtrlrowID NE ? THEN RETURN.
+             END.
+          END.
+          ELSE DO:
+            utbytid  = 0.
+         END.      
+      END.           
+      /*kundlista, men mtrl finns inte med i kundlistan utan skall bytas pg levbyte*/        
+   END.         
+   /*från *UPPLÄGGES lev och enr TILL BEREDNINGENS LEV OCH LEV ENR*/
+   /*som tidigare byte mellan leverantörer se betplan*/
+  
+   IF utbytid = 0 THEN DO:
+      FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = utbytid  AND
+      UTBYTESLISTA.ORGLEVKOD = valtmtrlev AND UTBYTESLISTA.ORGENR =  valtmtrEnr AND  
+      UTBYTESLISTA.BYTTILLLEVKOD = berdninglev    NO-LOCK NO-ERROR.
+      /*finns uppläggets enr i utbyteslistan*/
+      IF AVAILABLE UTBYTESLISTA THEN DO:
+         RUN MtrllSok_UI (INPUT berdninglev, INPUT UTBYTESLISTA.BYTTILLENR).
+         IF mtrlrowID NE ? THEN RETURN.
+      END.
+      ELSE DO:
+          IF berdninglev NE Guru.Konstanter:HuvudLeverantor THEN DO:  
+             IF valtmtrlev = Guru.Konstanter:HuvudLeverantor THEN DO:
+                RUN MtrllSok_UI (INPUT berdninglev, INPUT valtmtrEnr).
+                IF mtrlrowID NE ? THEN RETURN.
+             END.   
+          END.
+          RUN MtrllSok_UI (INPUT valtmtrlev, INPUT valtmtrEnr).
+          IF mtrlrowID NE ? THEN RETURN.     
+      END.      
+   END.
+   /*berednings lev och uppläggets enr*/
+   RUN MtrllSok_UI (INPUT berdninglev, INPUT valtmtrEnr).
+   IF mtrlrowID NE ? THEN RETURN.
+   /*uppläggets lev och uppläggets enr*/
+   RUN MtrllSok_UI (INPUT valtmtrlev, INPUT valtmtrEnr).
+   IF mtrlrowID NE ? THEN RETURN.
+   mtrlrowID = ?.
+   RETURN.
+END PROCEDURE.
+
+/*för kopiering av konsruktion*/
+/*återställer till uppläggets val kör sedan UtByt_UI*/ 
+PROCEDURE ReUtByt_UI :
+   RELEASE UTBYTESLISTA NO-ERROR. 
+   /*från *bredningens  lev och enr TILL kund LEV OCH  kund ENR*/
+   
+   IF utbytid > 0 THEN DO:
+      /*finns uppläggets mtrl i kundlistan*/
+      FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = utbytid AND
+      UTBYTESLISTA.BYTTILLLEVKOD = valtmtrlev AND  UTBYTESLISTA.BYTTILLENR = valtmtrEnr   NO-LOCK NO-ERROR.
+      IF AVAILABLE UTBYTESLISTA THEN DO:
+         /*kunds enr OCH LEV*/
+         RUN MtrllSok_UI (INPUT UTBYTESLISTA.ORGLEVKOD, INPUT UTBYTESLISTA.ORGENR).
+         IF mtrlrowID NE ? THEN RETURN.
+      END.
+      FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = utbytid AND
+      UTBYTESLISTA.BYTTILLLEVKOD =  UTBYTESLISTA.ORGLEVKOD AND  UTBYTESLISTA.BYTTILLENR = valtmtrEnr   NO-LOCK NO-ERROR.   
+      IF AVAILABLE UTBYTESLISTA THEN DO:
+         /*kunds enr */        
+         RUN MtrllSok_UI (INPUT UTBYTESLISTA.ORGLEVKOD, INPUT UTBYTESLISTA.ORGENR).
+         IF mtrlrowID NE ? THEN RETURN.
+      END.
+           
+      /*dublett??
+      FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = utbytid AND
+      UTBYTESLISTA.BYTTILLLEVKOD = valtmtrlev AND  UTBYTESLISTA.BYTTILLENR = valtmtrEnr   NO-LOCK NO-ERROR.   
+      IF AVAILABLE UTBYTESLISTA THEN DO:         
+         /*kunds enr OCH BER LEV*/
+         RUN MtrllSok_UI (INPUT UTBYTESLISTA.ORGLEVKOD, INPUT UTBYTESLISTA.ORGENR).
+         IF mtrlrowID NE ? THEN RETURN.
+      END.*/
+      utbytid = 0.
+   END.   
+   
+   
+   /*från BEREDNINGENS  lev och enr TILL UPPLÄGGES LEV OCH LEV ENR*/
+   
+   IF utbytid = 0 THEN DO:
+      IF Guru.SharedVariable:KopiFranBerLeverantor = "" AND Guru.SharedVariable:KopiTillBerLeverantor = "" THEN DO:
+         /*allt utom kopiering*/
+         IF valtmtrlev = berdninglev THEN DO:
+            RUN MtrllSok_UI (INPUT  valtmtrlev, INPUT valtmtrEnr).
+            IF mtrlrowID NE ? THEN RETURN.
+         END.   
+          
+         FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = utbytid AND
+         UTBYTESLISTA.BYTTILLLEVKOD = valtmtrlev AND UTBYTESLISTA.BYTTILLENR = valtmtrEnr  
+         AND UTBYTESLISTA.ORGLEVKOD = Guru.Konstanter:HuvudLeverantor   NO-LOCK NO-ERROR.
+         IF AVAILABLE UTBYTESLISTA THEN DO:
+            RUN MtrllSok_UI (INPUT  UTBYTESLISTA.ORGLEVKOD, INPUT UTBYTESLISTA.ORGENR).
+            IF mtrlrowID NE ? THEN RETURN.
+         END.
+      END.
+      ELSE DO:
+         /*kopiering av beredning*/
+         IF Guru.SharedVariable:KopiFranBerLeverantor = Guru.SharedVariable:KopiTillBerLeverantor THEN DO:
+            RUN MtrllSok_UI (INPUT  valtmtrlev, INPUT valtmtrEnr).
+            IF mtrlrowID NE ? THEN RETURN.            
+         END.
+         IF Guru.SharedVariable:KopiFranBerLeverantor NE Guru.SharedVariable:KopiTillBerLeverantor THEN DO:
+            IF Guru.SharedVariable:KopiFranBerLeverantor = Guru.Konstanter:HuvudLeverantor THEN DO:               
+               RUN MtrllSok_UI (INPUT  valtmtrlev, INPUT valtmtrEnr).
+               IF mtrlrowID NE ? THEN RETURN.                                
+            END.   
+            IF Guru.SharedVariable:KopiTillBerLeverantor =  Guru.Konstanter:HuvudLeverantor THEN DO:
+               /*ej från huvudlev , men till huvudlev- återställ*/
+               FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = utbytid AND
+               UTBYTESLISTA.BYTTILLLEVKOD = valtmtrlev AND UTBYTESLISTA.BYTTILLENR = valtmtrEnr 
+               AND UTBYTESLISTA.ORGLEVKOD = Guru.Konstanter:HuvudLeverantor NO-LOCK NO-ERROR.
+               IF AVAILABLE UTBYTESLISTA THEN DO:
+                  RUN MtrllSok_UI (INPUT  UTBYTESLISTA.ORGLEVKOD, INPUT UTBYTESLISTA.ORGENR).
+                  IF mtrlrowID NE ? THEN RETURN.
+               END.                          
+            END.
+            ELSE DO:
+               /*ej från huvudlev - återställ*/
+               FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = utbytid AND
+               UTBYTESLISTA.BYTTILLLEVKOD = valtmtrlev AND UTBYTESLISTA.BYTTILLENR = valtmtrEnr 
+               AND UTBYTESLISTA.ORGLEVKOD = Guru.SharedVariable:KopiFranBerLeverantor NO-LOCK NO-ERROR.
+               IF AVAILABLE UTBYTESLISTA THEN DO:
+                  RUN MtrllSok_UI (INPUT  UTBYTESLISTA.ORGLEVKOD, INPUT UTBYTESLISTA.ORGENR).
+                  IF mtrlrowID NE ? THEN RETURN.
+               END.
+            END.      
+         END.          
+      END.         
+   END.
+   IF Guru.SharedVariable:KopiFranBerLeverantor = "" THEN.
+   ELSE IF Guru.SharedVariable:KopiFranBerLeverantor = valtmtrlev THEN DO:
+      RUN MtrllSok_UI (INPUT berdninglev, INPUT valtmtrEnr).
+      IF mtrlrowID NE ? THEN RETURN.
+   END.   
+   IF valtmtrlev NE berdninglev THEN DO:
+      RUN MtrllSok_UI (INPUT valtmtrlev, INPUT valtmtrEnr).
+      IF mtrlrowID NE ? THEN RETURN.
+   END.   
+   RUN MtrllSok_UI (INPUT Guru.SharedVariable:ValdmtrlLeverantor, INPUT valtmtrEnr).
+   IF mtrlrowID NE ? THEN RETURN.
+   /*berednings lev och uppläggets enr*/
+   RUN MtrllSok_UI (INPUT berdninglev, INPUT valtmtrEnr).
+   IF mtrlrowID NE ? THEN RETURN.
+   /*uppläggets lev och uppläggets enr*/
+   RUN MtrllSok_UI (INPUT valtmtrlev, INPUT valtmtrEnr).
+   IF mtrlrowID NE ? THEN RETURN.
+   mtrlrowID = ?.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE UtBytGmtrNymtr_UI :
+   RELEASE UTBYTESLISTA NO-ERROR. 
+   /*från *bredningens  lev och enr TILL kund LEV OCH kund ENR*/
+   
+   IF utbytid = 0 THEN DO:
+      FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = utbytid AND
+      UTBYTESLISTA.ORGLEVKOD  = valtmtrlev AND UTBYTESLISTA.ORGENR = valtmtrEnr 
+      AND UTBYTESLISTA.BYTTILLLEVKOD  = valtmtrlev
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE UTBYTESLISTA THEN DO:
+         RUN MtrllSok_UI (INPUT  UTBYTESLISTA.BYTTILLLEVKOD, INPUT UTBYTESLISTA.BYTTILLENR ).
+         IF mtrlrowID NE ? THEN RETURN.
+      END.   
+   END.
+   RUN MtrllSok_UI (INPUT valtmtrlev, INPUT valtmtrEnr).
+   IF mtrlrowID NE ? THEN RETURN.
+   
+END PROCEDURE.
+
+PROCEDURE MtrllSok_UI :
+   DEFINE INPUT  PARAMETER levvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER enrvar AS CHARACTER NO-UNDO.
+   FIND FIRST MTRL WHERE MTRL.LEVKOD = levvar AND MTRL.ENR = enrvar AND
+   MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      mtrlrowID = ROWID(MTRL).
+      RETURN.
+   END.
+   mtrlrowID = ?.
+   
+END PROCEDURE.
+
+/*
+ Created     : Thu Aug 13 08:56:50 CEST 2020
+    Notes       :"UPPERSATT" = FRÅN UPPLÄGG TILL ERSÄTTNINGLISTA
+                 "ÅTERUPP"  = OM DU KOPIERAR ELLER IMPORTERAR STARTA MED ATT FÅ ALLT ENLIGT UPPLÄGGET SEDAN "UPPERSATT"   
+  KLARA för test
+  BERHMTKONMTRL.P 
+  BERSPARKONMTR.P
+  KABELANDBER.P
+  INKBERAPP.P
+  NETTOMARK.P
+  KSKAPAPP.P
+  NYKABUA.P
+  MTRLBAPP.P
+  MTXTILLYAPP.P
+    BYTXTY.P
+   KOPIMTRLAPP.P
+   KONSKOLL4.P
+   KONSKOLL5.P
+  MÅSTE FIXAS nu
+   HUR GÖR VI VID KOPI BERE KOPI KONSTRUKTION
+   EN KONST I SAMMA BEREDNING.
+   1. HAMTA MTRL OCH KALKYLKODER BERHMTKONMTRL.P hmt kalk BERHMTKALK.P 
+   2. COPIERA DESSA NYTT NUM SÄTTS 
+   3   SPARA
+   Behöver ej fixas.
+   HUR GÖR VI VID KOPI BERE KONSTRUKTION annan beredning
+   1. hämta mtrl BERHMTKONMTRL.P hmt kalk BERHMTKALK.P 
+   2. COPIERA DESSA NYTT NUM SÄTTS 
+   3   SPARA du får enligt översättning
+   kopieRar du från någon beredning med annat leV alt kundlista får du din lev  och kundlista, men 
+   om tEx ett enr har bytt lev så byts inte det tillbaka .
+   se  ReUtByt_UI
+   fIXAT SÅ ATT BEREDNINNG FRÅN MATERIEL återställs till ursprunget så gått det går och breddning till går igenom  UtByt_UI
+   
+   Hur Kopiera beredning
+   NYBERAPP.P
+   LEV OCH UTBYTESLISTA SÄTTS.
+   KOPIBER.P
+   fIXAT SÅ ATT BEREDNINNG FRÅN MATERIEL återställs till ursprunget så gått det går och breddning till går igenom  UtByt_UI
+   Hur import.
+   EXPIMPBERDS.W  NYBEREU.W EXPORTAVBER.P VBYTLEVAPP3.P
+   VI LÅSER VAL AV LISTA I
+    NYBEREU.W 
+    VBYTLEVAPP3.P /*VID IMORT FRÅN ANNAT FÖRETAG OCH ÅTGÄRDER I BEREDNINGEN*/ OBS GÖR MAN ÅTGÄRDER KAN DETTA SABBA ERSÄTTNINGSLISTA
+  BERKOLL2.p BEHÖVS EJ  
+    BERKOLLU2.P
+  
+  BERVALAPPK.P ska ej köras i det nya. 
+  HENRAPP.P
+   SPECSOL3.P
+   SPECSOL5.P
+  MÅSTE FIXAS
+  
+ 
+  
+  
+  IMPMTRLSKVT2.P
+  
+  importprog av utbytes behös ej  om man gör ett import i Utbyt.cls 
+  kan dessa tas bort
+  INLASERSATT.P  
+  INLASERSATTAHON.P    
+  INLASERSATTELON.P
+  INLASERSATTONAH.P
+  INLASERSATTV.P
+  
+  
+  BEREDNINGDS.P ÄR EJ UP TO DATE FÖR ATT FIXAS
+  
+  SKA EJ FIXAS
+  MTRLHMT.P
+  ADMERSATTAPP.P
+  ADMERSATTNAPP.P
+  FAKMEDF.P
+  */
+

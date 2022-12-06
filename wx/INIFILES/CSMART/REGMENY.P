@@ -1,0 +1,162 @@
+/*REGMENY.P*/
+ FUNCTION brwval RETURNS LOGICAL
+  ( /* parameter-definitions */ )  FORWARD.     
+{ALLDEF.I}
+{GLOBVAR2DEL1.I}
+{REGWID.I}
+{FORETEMP.I}
+DEFINE SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE vartpro AS CHARACTER FORMAT "X(3)" NO-UNDO.
+DEFINE SHARED VARIABLE vart AS CHARACTER FORMAT "X(3)" NO-UNDO.
+DEFINE VARIABLE status-ok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE rvisaraknare  AS INTEGER NO-UNDO.
+DEFINE VARIABLE rvisatemph AS HANDLE NO-UNDO.
+DEFINE VARIABLE skrivskydd AS LOGICAL NO-UNDO.
+ 
+
+DEFINE SHARED TEMP-TABLE Rvisa NO-UNDO
+   FIELD UT AS CHARACTER    
+   FIELD TYP AS CHARACTER       
+   FIELD ORDNING AS INTEGER
+   FIELD UPPFOLJVAL AS INTEGER
+   FIELD KUURVAL AS LOGICAL
+   FIELD DELNRKOLL AS LOGICAL
+   INDEX ORDNING IS PRIMARY ORDNING KUURVAL
+   INDEX UT UT.
+{HOPPSEK2W.I}
+
+rvisatemph = TEMP-TABLE rvisa:DEFAULT-BUFFER-HANDLE. 
+skrivskydd = FALSE.
+
+ON 'CHOOSE':U OF BTN_AVB PERSISTENT RUN avb_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_KOR PERSISTENT RUN val_UI IN THIS-PROCEDURE.
+ON 'MOUSE-SELECT-DBLCLICK':U OF BRW_REG PERSISTENT RUN val_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF BRW_REG PERSISTENT RUN vcbrwreg_UI IN THIS-PROCEDURE.
+{OMSTARTAVGURUH.I}
+RUN main_UI.
+{musarrow.i}
+
+PROCEDURE vcbrwreg_UI :
+RUN selectfoc_UI. 
+END PROCEDURE.
+PROCEDURE selectfoc_UI :
+   DEFINE VARIABLE brwrowid AS ROWID NO-UNDO.
+   DEFINE VARIABLE brwrecid AS RECID NO-UNDO.
+   IF NOT VALID-HANDLE(rvisatemph) THEN DO:
+      rvisatemph = TEMP-TABLE rvisa:DEFAULT-BUFFER-HANDLE.
+   END.
+   RUN selectrowid_UI IN brwproc[1] (OUTPUT brwrowid).
+   RUN selectrecid_UI IN brwproc[1] (OUTPUT brwrecid).
+   FIND FIRST rvisa WHERE ROWID(rvisa) = brwrowid NO-LOCK NO-ERROR.   
+END PROCEDURE.
+PROCEDURE val_UI :
+   DEFINE VARIABLE status-mus2 AS LOGICAL NO-UNDO.
+   {OMSTARTAVGURUH.I}
+   c-win:TITLE = "Register" + "-" + "Systemsupport 090/184540    elpool.ume@elpool.se  " + foretemp.ATRHOME.
+   {AVBGOM2.I}     
+   RUN selectfoc_UI.
+   IF AVAILABLE rvisa THEN DO:      
+      IF rvisa.UT = "Organisation" THEN RUN ORGREG.W.
+      ELSE IF rvisa.UT = Guru.Konstanter:gbestl THEN RUN BESTREG.W.
+      ELSE IF rvisa.UT = "Leverantör" THEN RUN LEVREG.W.
+      ELSE IF rvisa.UT = Guru.Konstanter:gpriok THEN RUN PRIREG.W.
+      ELSE IF rvisa.UT = "Kontonamn och konton" THEN RUN KONTOREG.W.
+      ELSE IF rvisa.UT = "Kontonamn" THEN RUN KTONAMN.W.
+      ELSE IF rvisa.UT = "Konto" THEN RUN KTOREG.W.
+      ELSE IF rvisa.UT = "Kontosträng" THEN RUN KSTRREG.W.
+      ELSE IF rvisa.UT = "Anläggning" THEN RUN ANLREG.W.      
+      ELSE IF rvisa.UT = Guru.Konstanter:gartk THEN RUN ARBAREG2.W (INPUT-OUTPUT skrivskydd).
+      ELSE IF rvisa.UT = Guru.Konstanter:gtidlk THEN RUN TIDLAGE.W.
+      ELSE IF rvisa.UT = "Texter till övertid" THEN RUN OVERTEX.W.
+      ELSE IF rvisa.UT = "Prislistor för fakturor" THEN RUN DEFPRISL.W.
+      ELSE IF rvisa.UT = "Konton för fakturering" THEN RUN FAKKOREG.W.   
+      ELSE IF rvisa.UT = "Nummerserie för fakturor och " + LC(Guru.Konstanter:gaok) THEN DO:
+         {AVBFRAM2.I}
+         RUN SKARPNRN.W.   
+      END.
+      ELSE IF rvisa.UT = "Omkostnadstal" THEN RUN OMKREG.W.
+      ELSE IF rvisa.UT = "Tillstånd/Avtal/Dokument" THEN RUN AVTREG.W.
+      ELSE IF rvisa.UT = "Språkverktyg" THEN DO:
+         status-mus2 = SESSION:SET-WAIT-STATE("").
+         IF Guru.GlobalaVariabler:retvalkoll = TRUE THEN DO:
+            RUN SetDefaultCursors IN Guru.Konstanter:hpApi.
+            Guru.GlobalaVariabler:retvalkoll = FALSE.
+         END.
+         
+         RUN Modules\Register\RegisterClasserStart.P (INPUT "SPRAK").
+      END.   
+      ELSE IF rvisa.UT = "Skrivare" THEN RUN SKRIVUPP.W.
+   END.
+   {AVBFRAM2.I}
+   {musarrow.i}
+
+END PROCEDURE.
+PROCEDURE PlaceraKnapp_UI :
+   Guru.GlobalaVariabler:StartRadForKnappar = BRW_REG:ROW.
+   Guru.Konstanter:PlaceraKnapparLodratt(BTN_KOR).
+   Guru.GlobalaVariabler:StartKolumnForKnappar = BRW_REG:COLUMN + BRW_REG:WIDTH-CHARS + 3. 
+   Guru.Konstanter:PlaceraKnapparVagratt(BTN_KOR,FALSE).
+   
+END PROCEDURE.
+PROCEDURE main_UI :
+   C-Win:TITLE = "Register" + "-" + "Systemsupport 090/184540    elpool.ume@elpool.se".
+   RUN VISMEDDU.W.
+   FIND FIRST rvisa WHERE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE rvisa THEN DO:  
+      IF NOT VALID-HANDLE(brwproc[1]) THEN  RUN DYNBRW.P PERSISTENT SET brwproc[1] (INPUT BRW_REG). 
+      RUN brwsetupstop_UI IN brwproc[1] (INPUT 3).                                                  
+      IF Guru.Konstanter:regsekvar[1] = TRUE THEN RUN rvisa_UI (INPUT "Organisation") .
+      IF Guru.Konstanter:regsekvar[2] = TRUE THEN RUN rvisa_UI (INPUT Guru.Konstanter:gbestl) . 
+      IF Guru.Konstanter:regsekvar[3] = TRUE THEN RUN rvisa_UI (INPUT "Leverantör") .  
+      IF Guru.Konstanter:regsekvar[5] = TRUE OR Guru.Konstanter:regsekvar[6] = TRUE OR Guru.Konstanter:regsekvar[7] = TRUE THEN RUN rvisa_UI (INPUT "Kontonamn och konton") .
+      IF Guru.Konstanter:regsekvar[10] = TRUE THEN RUN rvisa_UI (INPUT Guru.Konstanter:gtidlk) .           
+      IF Guru.Konstanter:regsekvar[12] = TRUE THEN RUN rvisa_UI (INPUT "Prislistor för fakturor") .           
+      IF Guru.Konstanter:regsekvar[13] = TRUE THEN RUN rvisa_UI (INPUT "Konton för fakturering") .           
+      IF Guru.Konstanter:regsekvar[14] = TRUE THEN RUN rvisa_UI (INPUT "Nummerserie för fakturor och " + LC(Guru.Konstanter:gaok)) .           
+      IF Guru.Konstanter:regsekvar[8] = TRUE THEN RUN rvisa_UI (INPUT "Anläggning") .              
+      IF Guru.Konstanter:regsekvar[9] = TRUE THEN RUN rvisa_UI (INPUT Guru.Konstanter:gartk) .     
+      IF Guru.Konstanter:regsekvar[4] = TRUE THEN RUN rvisa_UI (INPUT Guru.Konstanter:gpriok) .     
+      IF Guru.Konstanter:regsekvar[15] = TRUE THEN RUN rvisa_UI (INPUT "Omkostnadstal") .
+      IF Guru.Konstanter:regsekvar[16] = TRUE THEN RUN rvisa_UI (INPUT "Tillstånd/Avtal/Dokument") .
+      IF Guru.Konstanter:regsekvar[16] = FALSE THEN DO:
+         IF Guru.Konstanter:globforetag = "TRAS" THEN RUN rvisa_UI (INPUT "Tillstånd/Avtal/Dokument") .         
+      END.
+      IF Guru.Konstanter:regsekvar[17] = TRUE THEN RUN rvisa_UI (INPUT "Skrivare") .            
+      RUN  rvisa_UI (INPUT "Språkverktyg") .
+      FIND LAST rvisa NO-LOCK NO-ERROR.
+      RUN setcolindex_UI IN brwproc[1] (INPUT "ORDNING").
+      RUN openbdynspec_UI IN brwproc[1].
+      RUN getnumresult_UI IN brwproc[1] (OUTPUT rvisaraknare). 
+      RUN getfirst_UI IN brwproc[1].     
+      RUN lastselectdyn_UI IN brwproc[1].
+      IF rvisaraknare < 23 THEN DO:
+         IF rvisaraknare < 5 THEN rvisaraknare = 5. 
+         BRW_REG:HEIGHT = rvisaraknare + 0.5.
+      END.   
+      ELSE BRW_REG:HEIGHT = 23 + 0.5.             
+      IF BRW_REG:HEIGHT < 3 THEN BRW_REG:HEIGHT = 3.
+   END.
+END PROCEDURE.
+PROCEDURE avb_UI : 
+   MESSAGE "Du avslutar nu " + SUBSTRING(foretemp.VERSION,1,10)
+   VIEW-AS ALERT-BOX QUESTION BUTTONS OK-CANCEL UPDATE val AS LOGICAL.   
+   IF val = FALSE THEN RETURN NO-APPLY.
+   RUN avb_UI IN huvprogh.   
+END PROCEDURE.
+
+PROCEDURE rvisa_UI :
+   DEFINE INPUT PARAMETER varut AS CHARACTER NO-UNDO.
+   rvisaraknare = rvisaraknare + 1.
+   CREATE rvisa.       
+   ASSIGN
+   rvisa.ORDNING = rvisaraknare
+   rvisa.UT = varut.
+END PROCEDURE.
+PROCEDURE borthand_UI :
+   {BORTBRWPROC.I}   
+   rvisatemph:EMPTY-TEMP-TABLE()  NO-ERROR.    
+   IF VALID-HANDLE(rvisatemph) THEN   DELETE OBJECT rvisatemph NO-ERROR.
+   rvisatemph = ?.
+
+END PROCEDURE.  
+

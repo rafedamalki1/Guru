@@ -1,0 +1,24 @@
+DEFINE NEW SHARED VARIABLE globforetag AS CHARACTER NO-UNDO.
+{VALDBDEF.I}
+{VALDBGRAN.I}
+OPEN QUERY vq FOR EACH valdbtemp WHERE valdbtemp.DBNAMN NE "UTBI"  
+NO-LOCK.
+GET FIRST vq NO-LOCK.
+DO WHILE AVAILABLE(valdbtemp): 
+   RUN val_UI.
+   
+   IF CONNECTED(LDBNAME(1)) THEN DO:   
+      CREATE ALIAS RT9 FOR DATABASE VALUE(LDBNAME(1)) NO-ERROR.
+      globforetag = valdbtemp.GFORETAG.
+      IF globforetag = "GRAN"  THEN DO:
+         RUN FAKMEDF.P.
+         
+      END.
+      DELETE ALIAS rt9.
+      DISCONNECT VALUE(LDBNAME(1)) NO-ERROR. 
+   END.
+   GET NEXT vq NO-LOCK.
+END.
+PROCEDURE val_UI :
+   CONNECT VALUE(valdbtemp.DBCON) NO-ERROR.         
+END PROCEDURE.

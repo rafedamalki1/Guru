@@ -1,0 +1,22 @@
+/* p-apply.p */
+
+DEFINE QUERY custq FOR customer.
+DEFINE BROWSE custb QUERY custq DISPLAY cust-num name WITH 15 DOWN.
+
+FORM
+   customer EXCEPT comments
+   WITH FRAME y SIDE-LABELS.
+
+ON VALUE-CHANGED OF BROWSE custb
+  DO:
+     DISPLAY customer EXCEPT comments WITH FRAME y.
+  END.
+
+OPEN QUERY custq FOR EACH Customer.
+ENABLE custb WITH FRAME x.
+
+APPLY "VALUE-CHANGED" TO BROWSE custb.
+
+ENABLE ALL WITH FRAME y.
+
+WAIT-FOR WINDOW-CLOSE OF CURRENT-WINDOW.

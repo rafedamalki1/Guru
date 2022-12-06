@@ -1,0 +1,7 @@
+/*OMSTARTAVGURUO.I*/   
+/*EJ I HUVUDMENYN MEN I TEX BEREDNING*/
+
+Guru.Konstanter:Omstart(FALSE).
+IF Guru.Konstanter:globanvbyt = {LOSENKOLLFEL10.I} THEN DO:
+   APPLY "CLOSE" TO THIS-PROCEDURE.   
+END.   

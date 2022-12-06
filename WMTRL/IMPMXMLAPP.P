@@ -1,0 +1,375 @@
+/*IMPMXMLAPP.P*/
+
+DEFINE TEMP-TABLE Ovrigt NO-UNDO
+   FIELD Enummer  AS CHARACTER
+   FIELD Benamning AS CHARACTER   
+   FIELD Enhet     AS CHARACTER
+   FIELD Pris AS DECIMAL.
+   
+
+DEFINE TEMP-TABLE felmex   
+   FIELD ENR                AS CHARACTER 
+   FIELD BENAMNING          AS CHARACTER 
+   FIELD ENHET              AS CHARACTER
+   FIELD BPRIS              AS DECIMAL
+   FIELD NPRIS              AS DECIMAL
+   INDEX ENR IS PRIMARY ENR.
+DEFINE VARIABLE hjvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kollpris AS DECIMAL NO-UNDO.
+
+
+EMPTY TEMP-TABLE felmex NO-ERROR. 
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+
+PROCEDURE mkatXML_UI :                         
+   DEFINE INPUT PARAMETER TABLE FOR Ovrigt.      
+   DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.    
+   DEFINE INPUT PARAMETER svar AS LOGICAL NO-UNDO.    
+   DEFINE INPUT PARAMETER netto AS LOGICAL NO-UNDO.    
+   DEFINE OUTPUT PARAMETER inlant AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER hjkat AS INTEGER NO-UNDO.    
+   DEFINE OUTPUT PARAMETER TABLE FOR felmex.
+   EMPTY TEMP-TABLE felmex NO-ERROR. 
+   FOR EACH Ovrigt:
+      IF FORETAG.FORETAG = "sund" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "ORBI" OR FORETAG.FORETAG = "celpa" THEN DO:
+         IF SUBSTRING(Ovrigt.Enummer,1,1) NE  "E" THEN Ovrigt.Enummer = "E" + Ovrigt.Enummer.
+      END.
+      ELSE IF SUBSTRING(Ovrigt.Enummer,1,1) = "E" THEN Ovrigt.Enummer = SUBSTRING(Ovrigt.Enummer,2).
+      kollpris = DECIMAL(Ovrigt.PRIS) NO-ERROR.   
+      IF ERROR-STATUS:ERROR = TRUE THEN DO:      
+         CREATE felmex.
+         ASSIGN
+         felmex.ENR =  Ovrigt.Enummer               
+         felmex.BENAMNING =  Ovrigt.BENAMNING        
+         felmex.ENHET = Ovrigt.ENHET              
+         felmex.NPRIS = Ovrigt.PRIS             
+         felmex.BPRIS = Ovrigt.PRIS.                      
+         DELETE Ovrigt.
+      END.
+      ERROR-STATUS:ERROR = FALSE.
+   END.
+   inlant = 0.
+
+   IF svar = TRUE THEN DO:
+      /* KPRIS = 0 bruttoprislista
+        fors har KPRIS = 1 för märkta kablar nettopris
+                 KPRIS = 2 för märkt övrtigt nettopris
+       ES vill ej att Kpris 0 skall uppdatera Kpris 1 eller kpris 2   */ 
+      OPEN QUERY dq FOR EACH MTRL WHERE MTRL.LEVKOD = leverant AND 
+      MTRL.KALKNR = 0 AND MTRL.KPRIS = hjkat NO-LOCK.
+      DO TRANSACTION:
+         GET FIRST dq EXCLUSIVE-LOCK.
+         IF AVAILABLE MTRL THEN DELETE MTRL.
+      END.
+      REPEAT:
+         DO TRANSACTION:
+            GET NEXT dq EXCLUSIVE-LOCK.
+            IF AVAILABLE MTRL THEN DELETE MTRL.
+            ELSE LEAVE.
+         END.
+      END.
+      FOR EACH Ovrigt:
+         inlant = inlant + 1.
+         DO TRANSACTION:
+            FIND FIRST MTRL WHERE MTRL.ENR =  Ovrigt.Enummer AND
+            MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               IF hjkat = 0 AND  MTRL.KPRIS = 1 THEN.
+               ELSE IF hjkat = 0 AND  MTRL.KPRIS = 2 THEN.
+               ELSE DO:            
+                  ASSIGN 
+                  MTRL.BENAMNING = Ovrigt.BENAMNING 
+                  MTRL.BPRIS = Ovrigt.PRIS 
+                  MTRL.NPRIS = Ovrigt.PRIS.
+                  IF Ovrigt.ENHET NE "" THEN MTRL.ENHET = Ovrigt.ENHET.
+                  MTRL.KPRIS = hjkat.       /*bruttopris*/     
+                  IF netto = TRUE THEN MTRL.KUND = TRUE.
+                  {MTRLCREATE.I} 
+               END.
+            END.
+            ELSE DO:                               
+               CREATE MTRL.
+               ASSIGN      
+               MTRL.ENR = Ovrigt.ENUMMER
+               MTRL.BENAMNING = Ovrigt.BENAMNING
+               MTRL.ENHET = Ovrigt.ENHET
+               MTRL.LEVKOD = leverant
+               MTRL.KALKNR = 0
+               MTRL.BPRIS = Ovrigt.PRIS
+               MTRL.NPRIS = Ovrigt.PRIS
+               MTRL.KPRIS = hjkat.       /*bruttopris*/     
+               IF MTRL.ENHET = "" THEN MTRL.ENHET = "ST".
+               IF netto = TRUE THEN MTRL.KUND = TRUE.
+               {MTRLCREATE.I} 
+            END.
+         END.
+      END.
+   END.
+   IF svar = FALSE THEN DO:
+      FOR EACH Ovrigt:
+         inlant = inlant + 1.
+         DO TRANSACTION:         
+            FIND FIRST MTRL WHERE MTRL.ENR =  Ovrigt.enummer AND
+            MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN 
+               MTRL.BENAMNING = Ovrigt.BENAMNING 
+               MTRL.BPRIS = Ovrigt.PRIS 
+               MTRL.NPRIS = Ovrigt.PRIS.
+               IF Ovrigt.ENHET NE "" THEN MTRL.ENHET = Ovrigt.ENHET.
+               MTRL.KPRIS = hjkat.       /*bruttopris*/     
+               IF netto = TRUE THEN MTRL.KUND = TRUE.
+               ELSE MTRL.KUND = FALSE.
+               {MTRLCREATE.I} 
+            END.
+            ELSE DO:                               
+               CREATE MTRL.
+               ASSIGN      
+               MTRL.ENR = Ovrigt.enummer
+               MTRL.LEVKOD = leverant 
+               MTRL.KALKNR = 0        
+               MTRL.BENAMNING = Ovrigt.BENAMNING 
+               MTRL.BPRIS = Ovrigt.PRIS      
+               MTRL.NPRIS = Ovrigt.PRIS 
+               MTRL.ENHET = Ovrigt.ENHET
+               MTRL.KPRIS = hjkat.       /*bruttopris*/     
+               IF MTRL.ENHET = "" THEN MTRL.ENHET = "ST".
+               IF netto = TRUE THEN MTRL.KUND = TRUE.
+               ELSE MTRL.KUND = FALSE.
+               {MTRLCREATE.I} 
+            END.   
+         END.
+      END.
+   END.
+   
+   
+   
+END PROCEDURE.      
+
+PROCEDURE fremkatXML_UI :                         
+   DEFINE INPUT PARAMETER TABLE FOR Ovrigt.      
+   DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.    
+   DEFINE INPUT PARAMETER svar AS LOGICAL NO-UNDO.    
+   DEFINE INPUT PARAMETER netto AS LOGICAL NO-UNDO.    
+   DEFINE OUTPUT PARAMETER inlant AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER hjkat AS INTEGER NO-UNDO.    
+   DEFINE OUTPUT PARAMETER TABLE FOR felmex.
+   EMPTY TEMP-TABLE felmex NO-ERROR. 
+   FOR EACH Ovrigt:
+      IF FORETAG.FORETAG = "sund" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "ORBI" OR FORETAG.FORETAG = "celpa" THEN DO:
+         IF SUBSTRING(Ovrigt.Enummer,1,1) NE  "E" THEN Ovrigt.Enummer = "E" + Ovrigt.Enummer.
+      END.
+      ELSE IF SUBSTRING(Ovrigt.Enummer,1,1) = "E" THEN Ovrigt.Enummer = SUBSTRING(Ovrigt.Enummer,2).
+      kollpris = DECIMAL(Ovrigt.PRIS) NO-ERROR.   
+      IF ERROR-STATUS:ERROR = TRUE THEN DO:      
+         CREATE felmex.
+         ASSIGN
+         felmex.ENR =  Ovrigt.Enummer               
+         felmex.BENAMNING =  Ovrigt.BENAMNING        
+         felmex.ENHET = Ovrigt.ENHET              
+         felmex.NPRIS = Ovrigt.PRIS             
+         felmex.BPRIS = Ovrigt.PRIS.                      
+         DELETE Ovrigt.
+      END.
+      ERROR-STATUS:ERROR = FALSE.
+   END.
+   inlant = 0.
+
+   IF svar = TRUE THEN DO:
+      /* KPRIS = 0 bruttoprislista
+        fors har KPRIS = 1 för märkta kablar nettopris
+                 KPRIS = 2 för märkt övrtigt nettopris
+       ES vill ej att Kpris 0 skall uppdatera Kpris 1 eller kpris 2   */ 
+      /* endast för kpris = 0 bruttoprislista */
+      OPEN QUERY mmq FOR EACH MTRL WHERE MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 AND MTRL.KPRIS = 0 AND MTRL.KUND = TRUE USE-INDEX LEV NO-LOCK.
+      GET FIRST mmq NO-LOCK.
+      DO WHILE AVAILABLE(MTRL):
+         DO TRANSACTION:
+            GET CURRENT mmq EXCLUSIVE-LOCK.             
+            MTRL.KUND = FALSE.
+         END.
+         GET NEXT mmq NO-LOCK.
+      END.
+      CLOSE QUERY mmq.
+      
+
+      FOR EACH Ovrigt:
+         inlant = inlant + 1.
+         DO TRANSACTION:
+            FIND FIRST MTRL WHERE MTRL.ENR =  Ovrigt.Enummer AND
+            MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               IF netto = TRUE THEN MTRL.KUND = TRUE.    
+               {MTRLCREATE.I}          
+            END.
+            ELSE DO:                               
+               /*finns inte materielet i frekventa listan redan i katalog- SKAPA  Mats Johansson 20090820*/
+               CREATE MTRL.
+               ASSIGN      
+               MTRL.ENR = Ovrigt.ENUMMER
+               MTRL.BENAMNING = Ovrigt.BENAMNING
+               MTRL.ENHET = Ovrigt.ENHET
+               MTRL.LEVKOD = leverant
+               MTRL.KALKNR = 0
+               MTRL.BPRIS = Ovrigt.PRIS
+               MTRL.NPRIS = Ovrigt.PRIS
+               MTRL.KPRIS = hjkat.       /*bruttopris*/     
+               IF MTRL.ENHET = "" THEN MTRL.ENHET = "ST".
+               IF netto = TRUE THEN MTRL.KUND = TRUE.
+               {MTRLCREATE.I} 
+            END.
+         END.
+      END.
+   END.
+   IF svar = FALSE THEN DO:
+      FOR EACH Ovrigt:
+         inlant = inlant + 1.
+         DO TRANSACTION:         
+            FIND FIRST MTRL WHERE MTRL.ENR =  Ovrigt.enummer AND
+            MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               IF netto = TRUE THEN MTRL.KUND = TRUE.
+               {MTRLCREATE.I} 
+            END.
+            ELSE DO:                               
+               CREATE MTRL.
+               ASSIGN      
+               MTRL.ENR = Ovrigt.enummer
+               MTRL.LEVKOD = leverant 
+               MTRL.KALKNR = 0        
+               MTRL.BENAMNING = Ovrigt.BENAMNING 
+               MTRL.BPRIS = Ovrigt.PRIS      
+               MTRL.NPRIS = Ovrigt.PRIS 
+               MTRL.ENHET = Ovrigt.ENHET
+               MTRL.KPRIS = hjkat.       /*bruttopris*/     
+               IF MTRL.ENHET = "" THEN MTRL.ENHET = "ST".
+               IF netto = TRUE THEN MTRL.KUND = TRUE.
+               {MTRLCREATE.I}                
+            END.   
+         END.
+      END.
+   END.
+  
+END PROCEDURE.      
+
+
+/*FOR EACH tidin:
+   IF FORETAG.FORETAG = "sund" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "celpa" THEN DO:
+      IF SUBSTRING(tidin.ENR,1,1) NE  "E" THEN tidin.ENR = "E" + tidin.ENR.
+   END.
+   ELSE IF SUBSTRING(tidin.ENR,1,1) = "E" THEN tidin.ENR = SUBSTRING(tidin.ENR,2).
+   /*tidin.ENR  = REPLACE(tidin.ENR,"E","").    */
+   tidin.ENR = REPLACE(tidin.ENR," ","").   
+   tidin.BPRIS = REPLACE(tidin.BPRIS,",",".").   
+   tidin.BPRIS = REPLACE(tidin.BPRIS," ","").   
+   tidin.NPRIS = REPLACE(tidin.NPRIS,",",".").   
+   tidin.NPRIS = REPLACE(tidin.NPRIS," ","").      
+   IF SUBSTRING(tidin.BENAMNING,1,1) = '"' THEN tidin.BENAMNING = SUBSTRING(tidin.BENAMNING,2).   
+   IF SUBSTRING(tidin.BENAMNING,1,1) = "," THEN tidin.BENAMNING = SUBSTRING(tidin.BENAMNING,2).   
+   IF SUBSTRING(tidin.BENAMNING,1,1) = '"' THEN tidin.BENAMNING = SUBSTRING(tidin.BENAMNING,2).   
+   IF SUBSTRING(tidin.BENAMNING,1,1) = "," THEN tidin.BENAMNING = SUBSTRING(tidin.BENAMNING,2).   
+
+END.
+FOR EACH tidin:
+   CREATE tidin2.
+   ASSIGN
+   tidin2.ENR = tidin.ENR .
+   tidin2.BENAMNING  = tidin.BENAMNING .
+   tidin2.ENHET = tidin.ENHET.
+   tidin2.BPRIS = DECIMAL(tidin.BPRIS) NO-ERROR.
+   tidin2.NPRIS = DECIMAL(tidin.NPRIS) NO-ERROR.   
+   IF ERROR-STATUS:ERROR = TRUE THEN DO:
+      IF AVAILABLE tidin2 THEN DO:              
+         CREATE felmex.
+         BUFFER-COPY tidin2 TO felmex.
+         DELETE tidin2.
+      END.
+      ERROR-STATUS:ERROR = FALSE.
+   END.
+END.
+IF svar5 = TRUE THEN DO:
+   OPEN QUERY dq FOR EACH MTRL WHERE MTRL.LEVKOD = leverant AND 
+   MTRL.KALKNR = 0 AND MTRL.KPRIS = mkat NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST dq EXCLUSIVE-LOCK.
+      IF AVAILABLE MTRL THEN DELETE MTRL.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT dq EXCLUSIVE-LOCK.
+         IF AVAILABLE MTRL THEN DELETE MTRL.
+         ELSE LEAVE.
+      END.
+   END.
+   FOR EACH tidin2:
+      DO TRANSACTION:
+         FIND FIRST MTRL WHERE MTRL.ENR =  tidin2.ENR AND
+         MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE MTRL THEN DO:
+            IF FORETAG.FORETAG = "GRAN" AND MTRL.KPRIS = 1 THEN.
+            ELSE IF FORETAG.FORETAG = "GRAN" AND MTRL.KPRIS = 2 THEN.
+            ELSE IF FORETAG.FORETAG = "ELPA" AND MTRL.KPRIS = 1 THEN.
+            ELSE IF FORETAG.FORETAG = "ELPA" AND MTRL.KPRIS = 2 THEN.
+            ELSE DO:            
+               ASSIGN 
+               MTRL.BENAMNING = tidin2.BENAMNING 
+               MTRL.BPRIS = tidin2.BPRIS 
+               MTRL.NPRIS = tidin2.NPRIS 
+               MTRL.ENHET = tidin2.ENHET
+               MTRL.KPRIS = mkat.
+               IF mkat = 1 OR mkat = 2 THEN MTRL.KUND = TRUE.
+            END.
+         END.
+         ELSE DO:                               
+            CREATE MTRL.
+            ASSIGN      
+            MTRL.ENR = tidin2.ENR
+            MTRL.BENAMNING = tidin2.BENAMNING
+            MTRL.ENHET = tidin2.ENHET
+            MTRL.LEVKOD = leverant
+            MTRL.KALKNR = 0
+            MTRL.BPRIS = tidin2.BPRIS
+            MTRL.NPRIS = tidin2.NPRIS
+            MTRL.KPRIS = mkat.
+            IF mkat = 1 OR mkat = 2 THEN MTRL.KUND = TRUE.
+         END.
+      END.
+   END.
+END.
+ELSE DO:
+   FOR EACH tidin2:
+      DO TRANSACTION:         
+         FIND FIRST MTRL WHERE MTRL.ENR =  tidin2.ENR AND
+         MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE MTRL THEN DO:
+            ASSIGN 
+            MTRL.BENAMNING = tidin2.BENAMNING 
+            MTRL.BPRIS = tidin2.BPRIS 
+            MTRL.NPRIS = tidin2.NPRIS 
+            MTRL.ENHET = tidin2.ENHET
+            MTRL.KPRIS = mkat.
+            IF mkat = 1 OR mkat = 2 THEN MTRL.KUND = TRUE.
+         END.
+         ELSE DO:                               
+            CREATE MTRL.
+            ASSIGN      
+            MTRL.ENR = tidin2.ENR
+            MTRL.LEVKOD = leverant 
+            MTRL.KALKNR = 0        
+            MTRL.BENAMNING = tidin2.BENAMNING 
+            MTRL.BPRIS = tidin2.BPRIS 
+            MTRL.NPRIS = tidin2.NPRIS 
+            MTRL.ENHET = tidin2.ENHET
+            MTRL.KPRIS = mkat.
+            IF mkat = 1 OR mkat = 2 THEN MTRL.KUND = TRUE.
+         END.   
+      END.
+   END.
+END.
+  */

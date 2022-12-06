@@ -1,0 +1,130 @@
+ 
+ /*------------------------------------------------------------------------
+    File        : SharedVariable
+    Purpose     : 
+    Syntax      : Guru.SharedVariable:KopiTillBerLeverantor
+    Description : Guru.SharedVariable:KopiFranBerLeverantor
+                  Guru.SharedVariable:ExtradataAppServerHandle
+       
+       
+       
+    
+    Author(s)   : elpao
+    Created     : Thu Aug 26 11:10:15 CEST 2021
+    Notes       : får settas och användas set och reset
+
+
+  ----------------------------------------------------------------------*/
+
+USING Progress.Lang.*.
+
+
+
+CLASS Guru.SharedVariable: 
+   /*start*/
+   DEFINE PUBLIC STATIC PROPERTY iCopies          AS INTEGER NO-UNDO
+      PUBLIC GET.    PUBLIC SET.
+   
+   DEFINE PUBLIC STATIC PROPERTY globmaxforand    AS DECIMAL  NO-UNDO
+      PUBLIC GET.    PUBLIC SET.  
+   
+   DEFINE PUBLIC STATIC PROPERTY btnaonrh          AS HANDLE   NO-UNDO   /*BERMENY.P*/
+      PUBLIC GET.    PUBLIC SET. 
+   DEFINE PUBLIC STATIC PROPERTY btnberh          AS HANDLE   NO-UNDO   /*BERMENY.P*/
+      PUBLIC GET.    PUBLIC SET. 
+   DEFINE PUBLIC STATIC PROPERTY btnkalkh          AS HANDLE   NO-UNDO   /*KALKMENY.P*/
+      PUBLIC GET.    PUBLIC SET.
+   DEFINE PUBLIC STATIC PROPERTY btnfakth          AS HANDLE   NO-UNDO   /*FAKTMENY.P*/
+      PUBLIC GET.    PUBLIC SET.   
+   DEFINE PUBLIC STATIC PROPERTY btnmarkh          AS HANDLE   NO-UNDO   /*MARKMENY.P*/
+      PUBLIC GET.    PUBLIC SET.
+   DEFINE PUBLIC STATIC PROPERTY btnmtrlh          AS HANDLE   NO-UNDO   /*MTRLMENY.P*/
+      PUBLIC GET.    PUBLIC SET.
+   DEFINE PUBLIC STATIC PROPERTY btndepah          AS HANDLE   NO-UNDO   /*DEPAMENY.P*/
+      PUBLIC GET.    PUBLIC SET.  
+   DEFINE PUBLIC STATIC PROPERTY btntidh          AS HANDLE   NO-UNDO   /*TIDMENY.P*/
+      PUBLIC GET.    PUBLIC SET.    
+   DEFINE PUBLIC STATIC PROPERTY btnupph          AS HANDLE   NO-UNDO   /*UPPMENY.P*/
+      PUBLIC GET.    PUBLIC SET.               
+   DEFINE PUBLIC STATIC PROPERTY btnpersh          AS HANDLE   NO-UNDO   /*PERSMENY.P*/
+      PUBLIC GET.    PUBLIC SET. 
+   DEFINE PUBLIC STATIC PROPERTY btnsekh          AS HANDLE   NO-UNDO   /*SEKMENY.P*/
+      PUBLIC GET.    PUBLIC SET.
+   DEFINE PUBLIC STATIC PROPERTY btnregh          AS HANDLE   NO-UNDO   /*REGMENY.P*/
+      PUBLIC GET.    PUBLIC SET.       
+   DEFINE PUBLIC STATIC PROPERTY btnplanh          AS HANDLE   NO-UNDO   /*PLANMENY.P*/
+      PUBLIC GET.    PUBLIC SET.
+   DEFINE PUBLIC STATIC PROPERTY btnstorh          AS HANDLE   NO-UNDO   /*STORMENY.P*/
+      PUBLIC GET.    PUBLIC SET.
+   DEFINE PUBLIC STATIC PROPERTY demokvar          AS LOGICAL   NO-UNDO   /*valdbtemp.GFORETAG = "classELPA" demok db*/
+      PUBLIC GET.    PUBLIC SET.                          
+   DEFINE PUBLIC STATIC PROPERTY singel          AS LOGICAL   NO-UNDO   /*specielt för de som körde Personal db*/
+       PUBLIC GET.    PUBLIC SET.
+  /*EXTRADATA*/
+    
+    DEFINE PUBLIC STATIC PROPERTY ExtradataAppServerHandle     AS HANDLE  NO-UNDO  
+      PUBLIC GET.    PUBLIC SET.  
+    
+    DEFINE PUBLIC STATIC PROPERTY ExtraDataDS     AS HANDLE  NO-UNDO  
+      PUBLIC GET.    PUBLIC SET.  
+    DEFINE PUBLIC STATIC PROPERTY ExtradataDsttH     AS HANDLE  NO-UNDO  
+      PUBLIC GET.    PUBLIC SET. 
+    DEFINE PUBLIC STATIC PROPERTY ExtradataDsbufftH     AS HANDLE  NO-UNDO  
+      PUBLIC GET.    PUBLIC SET.   
+    
+   /*Beredning mtrl*/
+   
+   DEFINE PUBLIC STATIC PROPERTY ValdmtrlLeverantor     AS CHARACTER NO-UNDO  /*LEVKOD VALD LEV */
+      PUBLIC GET.    PUBLIC SET.  
+   DEFINE PUBLIC STATIC PROPERTY ValdmtrlLeverantorName AS CHARACTER NO-UNDO
+      PUBLIC GET.    PUBLIC SET. 
+   DEFINE PUBLIC STATIC PROPERTY ValdAvCADdb     AS CHARACTER NO-UNDO  /*LEVKOD VALD LEV */
+      PUBLIC GET.    PUBLIC SET.    
+    
+   DEFINE PUBLIC STATIC PROPERTY KopiTillMtrlLeverantor     AS CHARACTER NO-UNDO  /*LEVKOD VALD LEV */
+       PUBLIC GET.    PUBLIC SET. 
+    
+   DEFINE PUBLIC STATIC PROPERTY KopiTillBerLeverantor     AS CHARACTER NO-UNDO  /*LEVKOD VALD LEV */
+       PUBLIC GET.    PUBLIC SET.
+   DEFINE PUBLIC STATIC PROPERTY KopiFranBerLeverantor     AS CHARACTER NO-UNDO  /*LEVKOD VALD LEV */
+       PUBLIC GET.    PUBLIC SET.
+   DEFINE PUBLIC STATIC PROPERTY KopiTillListnr     AS INTEGER NO-UNDO  /*kundlistnr på ny ber */
+       PUBLIC GET.    PUBLIC SET.
+   DEFINE PUBLIC STATIC PROPERTY KopiFranListnr     AS INTEGER NO-UNDO  /*kundlistnr på kopierad ber */
+       PUBLIC GET.    PUBLIC SET.        
+       
+END CLASS.
+/*
+DEFINE {&NEW} SHARED VARIABLE regmnr AS INTEGER FORMAT "99" NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE regmannamn AS CHARACTER NO-UNDO.
+
+DEFINE {&NEW} SHARED VARIABLE regstart AS DECIMAL NO-UNDO. 
+DEFINE {&NEW} SHARED VARIABLE regslut AS DECIMAL NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE regvnr AS INTEGER FORMAT "999" NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE regdagnamn AS CHARACTER FORMAT "X(3)" NO-UNDO.        
+DEFINE {&NEW} SHARED VARIABLE regdatum AS DATE NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE regar AS INTEGER FORMAT "99" NO-UNDO.
+
+
+DEFINE {&NEW} SHARED VARIABLE bdatum AS DATE NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE avdatum AS DATE NO-UNDO. 
+DEFINE {&NEW} SHARED VARIABLE regtotalt AS DECIMAL NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE frustarten AS DECIMAL NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE fruslutet AS DECIMAL NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE kaffestart AS DECIMAL NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE kaffeslut AS DECIMAL NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE lunchstarten AS DECIMAL NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE lunchslutet AS DECIMAL NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE nytid AS DECIMAL FORMAT "99.99" NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE sekunder AS INTEGER NO-UNDO.    
+DEFINE {&NEW} SHARED VARIABLE regstartsek AS INTEGER NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE regslutsek AS INTEGER NO-UNDO.
+
+DEFINE NEW SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+
+   
+   DEFINE PUBLIC STATIC PROPERTY regdatum AS DATE 
+   PUBLIC GET. PUBLIC SET.
+   DEFINE PUBLIC STATIC PROPERTY regdagnamn AS CHARACTER  
+   PUBLIC GET. PUBLIC SET. 
+*/

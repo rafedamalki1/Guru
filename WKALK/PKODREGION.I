@@ -1,0 +1,8 @@
+/*PKODREGION.I */
+IF SUBSTRING(ptemp.ARBKOD,1,1) = " " THEN DO:
+   IF INTEGER(ptemp.ARBKOD) < 99 THEN ptemp.REGION = TRUE.
+END.
+/*IF SUBSTRING(ptemp.TYP) = 6 THEN DO:
+   IF INTEGER(ptemp.ARBKOD) < 99 THEN ptemp.REGION = TRUE.
+END.*/
+

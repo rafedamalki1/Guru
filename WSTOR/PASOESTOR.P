@@ -1,0 +1,446 @@
+
+/*------------------------------------------------------------------------
+    File        : PASOESTOR.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Tue Sep 22 14:16:22 CEST 2015
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+/* ***************************  Definitions  ************************** */
+&SCOPED-DEFINE NEW NEW 
+&SCOPED-DEFINE SHARED SHARED
+
+
+  
+{GLOBVAR2DEL1.I}
+{STORTEMP.I}
+&SCOPED-DEFINE NEW
+&SCOPED-DEFINE SHARED  
+
+{AVDELNINGTEMP.I}
+{DRIFTTEMP.I}
+{TIDUTTTNEW.I}
+ DEFINE VARIABLE kant AS INTEGER NO-UNDO.
+DEFINE VARIABLE utrec AS RECID NO-UNDO.
+DEFINE VARIABLE utrec2 AS RECID NO-UNDO.
+DEFINE VARIABLE sidlangd AS INTEGER NO-UNDO.
+DEFINE VARIABLE antaletkunder AS INTEGER NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE endsum AS LOGICAL NO-UNDO.
+DEFINE VARIABLE valfore AS LOGICAL NO-UNDO.
+DEFINE VARIABLE treminuter AS LOGICAL NO-UNDO.
+DEFINE VARIABLE vallista AS INTEGER NO-UNDO.
+DEFINE VARIABLE alla AS LOGICAL NO-UNDO.
+DEFINE VARIABLE alla2 AS LOGICAL NO-UNDO.
+DEFINE VARIABLE allaspann AS LOGICAL NO-UNDO.
+DEFINE VARIABLE forvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE skrivut AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.         
+DEFINE VARIABLE regvnr AS INTEGER FORMAT "999" NO-UNDO.
+DEFINE VARIABLE regdagnamn AS CHARACTER FORMAT "X(3)" NO-UNDO.        
+DEFINE VARIABLE regdatum AS DATE NO-UNDO.
+DEFINE VARIABLE bdatum AS DATE NO-UNDO.
+DEFINE VARIABLE avdatum AS DATE NO-UNDO.
+DEFINE VARIABLE uttyp AS INTEGER NO-UNDO.
+DEFINE VARIABLE period AS INTEGER NO-UNDO.
+DEFINE VARIABLE distvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE driftvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE spannvar AS INTEGER NO-UNDO.
+DEFINE TEMP-TABLE slut_allt
+   FIELD SPANID AS INTEGER
+   FIELD FELOID AS INTEGER
+   FIELD ADELID AS INTEGER.
+
+DEFINE TEMP-TABLE slut_allt2
+   FIELD SPANID AS INTEGER
+   FIELD FELOID AS INTEGER
+   FIELD ADELID AS INTEGER
+   FIELD ANTAL AS INTEGER.
+
+DEFINE TEMP-TABLE slut_allt3
+   FIELD SPANID AS INTEGER
+   FIELD FELOID AS INTEGER
+   FIELD ADELID AS INTEGER
+   FIELD ANTAL AS INTEGER.
+DEFINE TEMP-TABLE summ_temp
+   FIELD SPANID LIKE STORNINGSTAB.FELSPANID
+   FIELD FELOID LIKE STORNINGSTAB.FELOID
+   FIELD ADELID LIKE STORNINGSTAB.ADELID.
+DEFINE TEMP-TABLE avd_temp
+   FIELD AVDELNINGNR AS INTEGER
+   FIELD NAMN AS CHARACTER
+   INDEX AVD IS PRIMARY AVDELNINGNR.
+
+DEFINE TEMP-TABLE spann_temp    
+   FIELD SPANID AS INTEGER
+   FIELD NAMN AS CHARACTER
+   INDEX SPAN SPANID. 
+
+DEFINE TEMP-TABLE spann_temp2    
+   FIELD SPANID AS INTEGER
+   FIELD NAMN AS CHARACTER
+   INDEX SPAN SPANID. 
+
+DEFINE VARIABLE strproch AS HANDLE NO-UNDO.
+      IF NOT VALID-HANDLE(strproch) THEN DO:
+         RUN STORHMT.P PERSISTENT SET strproch.       
+         RUN laddatemptables_UI.
+      END.
+ OPEN QUERY sysq FOR EACH inlastabtemp WHERE inlastabtemp.INKOD = "D" NO-LOCK.
+   GET FIRST sysq NO-LOCK.
+   DO WHILE AVAILABLE(inlastabtemp):
+      IF inlastabtemp.INKODPOSCH NE "" THEN DO:
+         IF inlastabtemp.INKODTYP = "1" THEN DO:
+            FIND FIRST spanningsnivtemp WHERE spanningsnivtemp.INKODID = 
+            inlastabtemp.INKODID NO-LOCK NO-ERROR.
+            IF AVAILABLE spanningsnivtemp THEN DO:
+               CREATE spann_temp.
+               ASSIGN
+               spann_temp.NAMN = spanningsnivtemp.NAMN
+               spann_temp.SPANID = spanningsnivtemp.SPANID.                              
+            END.
+         END.         
+      END.
+      GET NEXT sysq NO-LOCK.         
+   END.    
+   
+      FOR EACH spann_temp:
+         CREATE spann_temp2.
+         ASSIGN
+         spann_temp2.SPANID = spann_temp.SPANID
+         spann_temp2.NAMN = spann_temp.NAMN.
+         /*slå ihop spänning*/
+         IF spann_temp.SPANID = 21 THEN DO:
+            FIND FIRST utgspanningsnivtemp WHERE utgspanningsnivtemp.SPANID = 20 NO-LOCK NO-ERROR.
+            IF AVAILABLE utgspanningsnivtemp THEN DO:
+               CREATE spann_temp2.
+               ASSIGN
+               spann_temp2.SPANID = utgspanningsnivtemp.SPANID
+               spann_temp2.NAMN = utgspanningsnivtemp.NAMN.
+            END.
+         END.
+      END.
+      ASSIGN
+      allaspann = TRUE.  
+      valfore = no.
+      distvar = 0.
+      bdatum = 01/01/99.
+      avdatum = 12/31/99.
+      period = 1.
+      uttyp = 3.
+      driftvar = 2.
+      alla = YES.
+      spannvar = 1.
+      treminuter = NO.
+      RUN felorsak_UI (INPUT "Åska",1).
+   RUN felorsak_UI (INPUT "Övrigt väder",2).
+   RUN felorsak_UI (INPUT "Åverkan",3).
+   RUN felorsak_UI (INPUT "Mtrl metod",4).
+   RUN felorsak_UI (INPUT "Personal",5).
+   RUN felorsak_UI (INPUT "Överlast",6).
+   RUN felorsak_UI (INPUT "Återv.last",7).
+   RUN felorsak_UI (INPUT "Säkr.brott",9).
+   RUN felorsak_UI (INPUT "Okänd",8).
+      
+      
+      
+      
+      RUN valelalla_UI.
+      RUN DriftAnlaggOleauto2.p (INPUT TABLE spann_temp2,INPUT TABLE anlaggningsdeltemp,INPUT TABLE felorsaktt,INPUT TABLE drift_tempE2,INPUT TABLE drift_tempE3).
+   /*   
+  FOR EACH drift_tempE2 WHERE NO-LOCK:
+     DISPLAY drift_tempE2.
+  END.
+  FOR EACH drift_tempE3 WHERE NO-LOCK:
+     DISPLAY drift_tempE3.
+  END.
+  */
+ PROCEDURE felorsak_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+    DEFINE INPUT  PARAMETER orsakvar AS CHARACTER NO-UNDO.
+    DEFINE INPUT  PARAMETER felvar AS INTEGER NO-UNDO.
+    
+    CREATE felorsaktt.
+    felorsaktt.NAMN = orsakvar.
+    felorsaktt.FELOID = felvar.  
+      
+ END PROCEDURE.
+     
+     PROCEDURE storning_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+     
+      RUN STORSUM5.P 
+      (INPUT TABLE avd_temp, INPUT valfore, INPUT distvar, INPUT bdatum, INPUT avdatum, INPUT period,
+      INPUT uttyp, INPUT driftvar, INPUT alla, 
+      INPUT spannvar, INPUT-OUTPUT TABLE summ_temp, INPUT treminuter).
+       
+END PROCEDURE.
+
+PROCEDURE valelalla_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   FIND FIRST stordriftomrtemp WHERE stordriftomrtemp.STDRIFTID = 2 NO-LOCK NO-ERROR.
+   CREATE tidut.
+   SUBSTRING(tidut.UT,1) = stordriftomrtemp.NAMN.
+  
+   CREATE tidut.
+        
+   FOR EACH spann_temp2 USE-INDEX SPAN:
+      EMPTY TEMP-TABLE summ_temp NO-ERROR.       
+      ASSIGN
+      spannvar = spann_temp2.SPANID
+      driftvar = stordriftomrtemp.STDRIFTID
+      endsum = FALSE.
+      RUN storning_UI.   
+      RUN storning3_UI.
+      
+   END.
+   
+   RUN slutomr_UI.      
+ END PROCEDURE.
+
+PROCEDURE storning3_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/   
+   EMPTY TEMP-TABLE drift_temp NO-ERROR. 
+   EMPTY TEMP-TABLE drift_temp2 NO-ERROR. 
+   EMPTY TEMP-TABLE drift_temp3 NO-ERROR.    
+   FOR EACH summ_temp:      
+      CREATE drift_temp.
+      ASSIGN
+      drift_temp.ADELID = summ_temp.ADELID
+      drift_temp.FELOID = summ_temp.FELOID
+      drift_temp.SPANID = summ_temp.SPANID.         
+   END.
+   FOR EACH summ_temp:      
+      CREATE slut_allt.
+      ASSIGN
+      slut_allt.ADELID = summ_temp.ADELID
+      slut_allt.FELOID = summ_temp.FELOID
+      slut_allt.SPANID = summ_temp.SPANID.         
+   END.
+   
+   FOR EACH drift_temp BREAK BY drift_temp.ADELID BY drift_temp.FELOID:      
+      ACCUMULATE drift_temp.SPANID (COUNT BY drift_temp.ADELID BY drift_temp.FELOID).      
+      IF LAST-OF(drift_temp.FELOID) THEN DO TRANSACTION:
+         CREATE drift_temp2.
+         ASSIGN                                 
+         drift_temp2.ADELID = drift_temp.ADELID
+         drift_temp2.FELOID = drift_temp.FELOID.
+         drift_temp2.ANTAL = (ACCUM COUNT BY drift_temp.FELOID drift_temp.SPANID).         
+      END.     
+   END. 
+   FOR EACH drift_temp BREAK BY drift_temp.ADELID:      
+      ACCUMULATE drift_temp.SPANID (COUNT BY drift_temp.ADELID).      
+      IF LAST-OF(drift_temp.ADELID) THEN DO TRANSACTION:
+         CREATE drift_temp3.
+         ASSIGN                                 
+         drift_temp3.ADELID = drift_temp.ADELID
+         drift_temp3.FELOID = drift_temp.FELOID.
+         drift_temp3.ANTAL = (ACCUM COUNT BY drift_temp.ADELID drift_temp.SPANID).         
+      END.     
+   END.
+   RUN spann_UI.
+END PROCEDURE.
+
+PROCEDURE spann_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+  
+   IF endsum = FALSE THEN DO:
+      CREATE tidut.
+      utrec = RECID(tidut).
+      SUBSTRING(tidut.UT,1) = spann_temp2.NAMN.
+      CREATE tidut.
+      kant = 2.
+      OPEN QUERY aq FOR EACH anlaggningsdeltemp USE-INDEX ADELID NO-LOCK.
+      GET FIRST aq NO-LOCK.
+      DO WHILE AVAILABLE(anlaggningsdeltemp):
+         FIND FIRST drift_temp2 WHERE drift_temp2.ADELID = anlaggningsdeltemp.ADELID
+         USE-INDEX ADELID NO-LOCK NO-ERROR.
+         IF AVAILABLE drift_temp2 THEN DO:
+            FIND FIRST drift_temp3 WHERE drift_temp3.ADELID = anlaggningsdeltemp.ADELID
+            USE-INDEX ADELID NO-LOCK NO-ERROR.
+            CREATE tidut.
+            kant = kant + 1.
+            SUBSTRING(tidut.UT,4) = SUBSTRING(anlaggningsdeltemp.NAMN,1,20).
+            FOR EACH drift_temp2 WHERE drift_temp2.ADELID = anlaggningsdeltemp.ADELID
+            USE-INDEX ADELID NO-LOCK:
+                    END.
+         END.
+         GET NEXT aq NO-LOCK.
+      END.
+      CLOSE QUERY aq.
+      
+      kant = kant + 1.
+      
+      
+      
+      RUN slutspann_UI.
+   END.   
+END PROCEDURE.
+
+PROCEDURE slutomr_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   EMPTY TEMP-TABLE slut_allt2 NO-ERROR. 
+   EMPTY TEMP-TABLE slut_allt3 NO-ERROR.    
+   FOR EACH slut_allt BREAK BY slut_allt.FELOID:      
+      ACCUMULATE slut_allt.SPANID (COUNT BY slut_allt.FELOID).      
+      IF LAST-OF(slut_allt.FELOID) THEN DO TRANSACTION:
+         CREATE slut_allt2.
+         ASSIGN                                          
+         slut_allt2.FELOID = slut_allt.FELOID.
+         slut_allt2.ANTAL = (ACCUM COUNT BY slut_allt.FELOID slut_allt.SPANID).         
+      END.     
+   END.
+   FIND FIRST slut_allt NO-LOCK NO-ERROR.
+   IF AVAILABLE slut_allt THEN DO:
+      FOR EACH slut_allt:      
+         ACCUMULATE slut_allt.SPANID (COUNT).            
+      END.
+      CREATE slut_allt3.   
+      slut_allt3.ANTAL = (ACCUM COUNT slut_allt.SPANID).
+   END.
+   IF endsum = FALSE THEN DO:
+      CREATE tidut.
+      kant = kant + 1.
+      SUBSTRING(tidut.UT,1) = "SA: " + stordriftomrtemp.NAMN. 
+      FIND FIRST slut_allt2 NO-LOCK NO-ERROR.
+      IF AVAILABLE slut_allt2 THEN DO:
+         FIND FIRST slut_allt3 NO-LOCK NO-ERROR.         
+         FOR EACH slut_allt2 NO-LOCK:
+         END.
+      END.
+      CREATE tidut.
+      kant = kant + 1.
+   END.
+END PROCEDURE.
+
+ 
+PROCEDURE slutspann_UI :
+   EMPTY TEMP-TABLE drift_temp2 NO-ERROR. 
+   EMPTY TEMP-TABLE drift_temp3 NO-ERROR.    
+   FOR EACH drift_temp BREAK BY drift_temp.FELOID:      
+      ACCUMULATE drift_temp.SPANID (COUNT BY drift_temp.FELOID).      
+      IF LAST-OF(drift_temp.FELOID) THEN DO TRANSACTION:
+         CREATE drift_temp2.
+         ASSIGN                                          
+         drift_temp2.FELOID = drift_temp.FELOID.
+         drift_temp2.ANTAL = (ACCUM COUNT BY drift_temp.FELOID drift_temp.SPANID).         
+      END.     
+   END.
+   FIND FIRST drift_temp NO-LOCK NO-ERROR.
+   IF AVAILABLE drift_temp THEN DO:
+      FOR EACH drift_temp:      
+         ACCUMULATE drift_temp.SPANID (COUNT).            
+      END.
+      CREATE drift_temp3.   
+      drift_temp3.ANTAL = (ACCUM COUNT drift_temp.SPANID).
+   END.
+   IF endsum = FALSE THEN DO:
+      CREATE tidut.
+      kant = kant + 1.
+      FOR EACH drift_temp2 WHERE NO-LOCK:
+         CREATE drift_tempE2.
+         BUFFER-COPY drift_temp2 TO drift_tempE2.
+         drift_tempE2.SPANID = spann_temp2.SPANID.
+      END.
+      FOR EACH drift_temp3 WHERE NO-LOCK:
+         CREATE drift_tempE3.
+         BUFFER-COPY drift_temp3 TO drift_tempE3.
+         drift_tempE3.SPANID = spann_temp2.SPANID.
+      END.
+
+
+      SUBSTRING(tidut.UT,1) = "SA: " + spann_temp2.NAMN. 
+      FIND FIRST drift_temp2 NO-LOCK NO-ERROR.
+      IF AVAILABLE drift_temp2 THEN DO:
+         FIND FIRST drift_temp3 NO-LOCK NO-ERROR.         
+         FOR EACH drift_temp2 NO-LOCK:
+         END.
+      END.
+      
+      kant = kant + 1.
+   END.
+END PROCEDURE.
+     
+ PROCEDURE laddatemptables_UI :
+    DEFINE VARIABLE tthandle AS HANDLE NO-UNDO.
+   tthandle = TEMP-TABLE stordistemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "STORDISTRIKT").
+   FIND LAST stordistemp WHERE NO-LOCK NO-ERROR.
+   tthandle = TEMP-TABLE inlastabtemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "INLASTAB").
+   tthandle = TEMP-TABLE spanningsnivtemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "SPANNINGSNIV").
+   tthandle = TEMP-TABLE brytorgantemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "BRYTORGAN").
+   tthandle = TEMP-TABLE sektioneringtemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "SEKTIONERING").
+   tthandle = TEMP-TABLE utlosningskyddtemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "UTLOSNINGSKYDD").
+   tthandle = TEMP-TABLE relaindikeringtemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "RELAINDIKERING").
+   tthandle = TEMP-TABLE stordriftomrtemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "STORDRIFTOMR").
+   tthandle = TEMP-TABLE nattyptemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "NATTYP").
+   tthandle = TEMP-TABLE anlaggningstyptemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "ANLAGGNINGSTYP").
+   tthandle = TEMP-TABLE anlaggningsdeltemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "ANLAGGNINGSDEL").
+   tthandle = TEMP-TABLE grundfeltyptemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "GRUNDFELTYP").
+   tthandle = TEMP-TABLE felorsaktemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "FELORSAK").
+   tthandle = TEMP-TABLE bortkoppladtemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "BORTKOPPLAD").                                                                 
+   tthandle = TEMP-TABLE anvandartemp:HANDLE.
+   RUN laddatemp_UI IN strproch (INPUT-OUTPUT TABLE-HANDLE tthandle, INPUT "ANVANDARE").       
+   RUN laddaavdelningtemp_UI IN strproch (OUTPUT TABLE avdelningtemp).
+   /*slå ihop spänning*/
+     
+   FIND FIRST spanningsnivtemp WHERE spanningsnivtemp.SPANID = 9 NO-LOCK NO-ERROR.
+   IF AVAILABLE spanningsnivtemp THEN DELETE spanningsnivtemp.
+   FIND FIRST spanningsnivtemp WHERE spanningsnivtemp.SPANID = 20 NO-LOCK NO-ERROR.
+   IF AVAILABLE spanningsnivtemp THEN DO: 
+      CREATE utgspanningsnivtemp.
+      BUFFER-COPY spanningsnivtemp TO utgspanningsnivtemp.
+      DELETE spanningsnivtemp.
+   END.
+  
+   
+   
+END PROCEDURE.
+   
+/* ********************  Preprocessor Definitions  ******************** */
+
+
+/* ***************************  Main Block  *************************** */

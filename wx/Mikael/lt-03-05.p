@@ -1,0 +1,19 @@
+/* lt-03-02.p */
+DEFINE VARIABLE Field1 AS CHARACTER INITIAL "Hello".
+DEFINE VARIABLE Field2 AS CHARACTER INITIAL "Progress".
+DEFINE VARIABLE Field3 AS CHARACTER INITIAL "World!".
+
+DISPLAY SKIP(1) Field1 SKIP(1) Field2 SKIP(1) Field3
+   WITH SIDE-LABELS CENTERED NO-BOX.
+/*DISPLAY SKIP(3) Field1 SKIP(2) Field2 SKIP(2) Field3
+   WITH SIDE-LABELS CENTERED NO-BOX. */
+
+ENABLE Field1 Field2 Field3.
+
+/* Trigger */
+ON ENTRY OF Field3
+DO:
+   MESSAGE "Press Return in Field3 to exit the procedure.".
+END.
+
+WAIT-FOR RETURN OF Field3

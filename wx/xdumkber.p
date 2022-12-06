@@ -1,0 +1,13 @@
+
+OUTPUT TO c:\kalkber.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq FOR EACH KALKBER WHERE KALKBER.KATAR = ? NO-LOCK.
+   GET FIRST kq NO-LOCK.
+   DO WHILE AVAILABLE(KALKBER):
+      EXPORT KALKBER.
+      GET NEXT kq NO-LOCK.
+   END.
+   CLOSE QUERY kq.
+   OUTPUT CLOSE.
+
+
+   

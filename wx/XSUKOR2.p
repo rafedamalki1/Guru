@@ -1,0 +1,15 @@
+/*XSUKOR2.P. STANSKÖRNING sundsvall*/
+
+
+DEFINE NEW SHARED VARIABLE appcon AS LOGICAL NO-UNDO.
+
+
+
+CREATE SERVER Guru.Konstanter:apphand.
+appcon = Guru.Konstanter:apphand:CONNECT("-AppService appnsund -H BEREDNING1 -S 2518",CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79),"KAGGEN","sundn9") NO-ERROR.     
+RUN Xnprojsu.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT.
+
+
+IF Guru.Konstanter:appcon THEN Guru.Konstanter:appcon = Guru.Konstanter:apphand:DISCONNECT().
+DELETE OBJECT Guru.Konstanter:apphand.
+appcon = FALSE.

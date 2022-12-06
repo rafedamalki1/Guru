@@ -1,0 +1,428 @@
+/*
+     Filename: MARKHMT.P
+      Created: 03.04.0007 15:31ELPAO     
+     Modified: 
+*/
+
+DEFINE VARIABLE retvalue AS LOGICAL NO-UNDO.
+
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+
+{GLOBVAR2DEL1.I}
+
+{SOKDEF.I}
+{MARKTEMP.I}
+{DYNHMT.I}
+{ANSVMARK.I}
+{JURPERST.I}
+{BOLAGSEKSTART.I}
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.   
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+PROCEDURE anvglob_UI :
+   DEFINE INPUT PARAMETER anvglob AS CHARACTER NO-UNDO.
+   /*Guru.Konstanter:globanv = anvglob.*/
+END PROCEDURE.
+PROCEDURE hmtalla : /*Hämtar flera poster, urvalssökning*/
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR urvardtemp. 
+   FIND FIRST valsoktemp NO-ERROR.
+   IF NOT AVAILABLE valsoktemp THEN RETURN NO-APPLY.
+   EMPTY TEMP-TABLE urvardtemp NO-ERROR.    
+   kommandoquery = "".   
+   FIND FIRST VARDERING NO-LOCK NO-ERROR. 
+   IF AVAILABLE VARDERING THEN DO:
+      IF STRING(valsoktemp.SOKCHAR[1]) NE "ALLA" THEN DO:
+         kommandoquery = kommandoquery + " VARDERING.OMRADE = " + 
+            """" + STRING(valsoktemp.SOKCHAR[1]) + """".
+      END.
+      IF STRING(valsoktemp.SOKCHAR[2]) NE "Alla" THEN DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " SUBSTRING(VARDERING.ANVANDARE,1,39) = " + 
+            """" + STRING(valsoktemp.SOKCHAR[2]) + """".
+      END.
+      IF STRING(valsoktemp.SOKCHAR[3]) NE "" THEN DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " VARDERING.VARDANV = " + 
+            """" + STRING(valsoktemp.SOKCHAR[3]) + """".
+      END.
+      IF valsoktemp.SOKLOG[1] = valsoktemp.SOKLOG[2] THEN DO:         
+      END.
+      ELSE IF valsoktemp.SOKLOG[1] = TRUE THEN DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " VARDERING.AKTIV = TRUE".
+      END.
+      ELSE DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " VARDERING.AKTIV = FALSE".
+      END.  
+      RUN skapaq_UI.
+   END.
+   RUN objdelete_UI.
+   RUN aonrsekkoll_UI (INPUT 1).
+END PROCEDURE.
+
+PROCEDURE aonrsekkoll_UI :
+   DEFINE INPUT PARAMETER vad AS INTEGER NO-UNDO.
+   IF Guru.Konstanter:varforetypchar[4] = "" AND Guru.Konstanter:varforetypval[18] = 0 THEN DO:
+      RETURN.
+   END.
+   IF Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)   THEN RETURN.
+   IF Guru.Konstanter:varforetypchar[4] = "ja" THEN DO:
+      IF vad = 1 THEN DO:
+         FOR EACH urvardtemp:
+            FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = Guru.Konstanter:globanv AND OFFERT.OMRADE = urvardtemp.OMRADE NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE OFFERT THEN DO:
+               FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = Guru.Konstanter:globanv AND OFFERT.AONR = urvardtemp.AONR AND OFFERT.DELNR = urvardtemp.DELNR
+               NO-LOCK NO-ERROR.
+               
+               IF NOT AVAILABLE OFFERT THEN DO:
+                  FIND FIRST VARDERING WHERE VARDERING.VARDNR = urvardtemp.VARDNR AND VARDERING.OMRADE = urvardtemp.OMRADE NO-LOCK NO-ERROR.
+                  IF AVAILABLE VARDERING THEN DO:
+                     IF VARDERING.ANVANDARE = Guru.Konstanter:globanv AND urvardtemp.AONR = ? THEN.
+                     ELSE DELETE urvardtemp.  
+                  END.   
+                  ELSE DELETE urvardtemp.
+               END.
+            END.
+               
+         END.
+      END.
+      IF vad = 2 THEN DO:
+         FOR EACH valvardtemp:
+            FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = Guru.Konstanter:globanv AND OFFERT.OMRADE = valvardtemp.OMRADE NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE OFFERT THEN DO:
+               FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = Guru.Konstanter:globanv AND OFFERT.AONR = valvardtemp.AONR AND OFFERT.DELNR = valvardtemp.DELNR
+               NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE OFFERT THEN DO:
+                  FIND FIRST VARDERING WHERE VARDERING.VARDNR = valvardtemp.VARDNR AND VARDERING.OMRADE = valvardtemp.OMRADE NO-LOCK NO-ERROR.
+                  IF AVAILABLE VARDERING THEN DO:
+                     IF VARDERING.ANVANDARE = Guru.Konstanter:globanv AND valvardtemp.AONR = ? THEN.
+                     ELSE DELETE valvardtemp.  
+                  END.   
+                  ELSE DELETE valvardtemp.
+               END.
+            END.
+         END.
+      END.
+      RETURN.
+   END.
+   
+   IF Guru.Konstanter:varforetypval[18] = 1 THEN DO:
+      IF vad = 1 THEN DO:
+         FOR EACH urvardtemp:
+            FIND FIRST omvtemp WHERE omvtemp.OMRADE = urvardtemp.OMRADE NO-LOCK NO-ERROR.
+            IF AVAILABLE omvtemp THEN DO:
+               FIND FIRST BOLAGSEK WHERE BOLAGSEK.OMRADE = omvtemp.JUDID AND BOLAGSEK.ANVANDARE = Guru.Konstanter:globanv NO-LOCK NO-ERROR. 
+               IF NOT AVAILABLE BOLAGSEK THEN DELETE urvardtemp.               
+            END.
+            ELSE DO:
+               IF urvardtemp.OMRADE NE "" THEN DELETE urvardtemp.  
+            END.
+         END.
+      END.
+      IF vad = 2 THEN DO:
+         FOR EACH valvardtemp:
+            FIND FIRST omvtemp WHERE omvtemp.OMRADE = valvardtemp.OMRADE NO-LOCK NO-ERROR.
+            IF AVAILABLE omvtemp THEN DO:
+               FIND FIRST BOLAGSEK WHERE BOLAGSEK.OMRADE = omvtemp.JUDID AND BOLAGSEK.ANVANDARE = Guru.Konstanter:globanv NO-LOCK NO-ERROR. 
+               IF NOT AVAILABLE BOLAGSEK THEN DELETE valvardtemp.               
+            END.
+            ELSE DO:
+               IF valvardtemp.OMRADE NE "" THEN DELETE valvardtemp.  
+            END.
+         END.
+      END.
+      RETURN.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE uppdatvalvard_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valvardtemp. 
+   FOR EACH valvardtemp,
+   EACH VARDERING WHERE VARDERING.VARDNR = valvardtemp.VARDNR NO-LOCK:
+      BUFFER-COPY VARDERING TO valvardtemp.
+   END.
+END PROCEDURE.
+PROCEDURE hmten : /*Hämtar en post från databasen*/
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valvardtemp. 
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = valvardnr NO-LOCK NO-ERROR.    
+   IF AVAILABLE VARDERING THEN DO:
+      FIND FIRST valvardtemp WHERE valvardtemp.VARDNR = VARDERING.VARDNR NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE valvardtemp THEN DO:
+         CREATE valvardtemp.
+      END.
+      BUFFER-COPY VARDERING TO valvardtemp.
+   END.
+   RUN aonrsekkoll_UI (INPUT 2).
+END PROCEDURE.
+
+PROCEDURE hmtenAPPEN : /*Hämtar en post från databasen*/
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR valvardtemp.
+   EMPTY TEMP-TABLE valvardtemp NO-ERROR. 
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = valvardnr NO-LOCK NO-ERROR.    
+   IF AVAILABLE VARDERING THEN DO:
+      FIND FIRST valvardtemp WHERE valvardtemp.VARDNR = VARDERING.VARDNR NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE valvardtemp THEN DO:
+         CREATE valvardtemp.
+      END.
+      BUFFER-COPY VARDERING TO valvardtemp.
+   END.
+   RUN aonrsekkoll_UI (INPUT 2).
+END PROCEDURE.
+
+PROCEDURE hmtmarkaonr_UI : /*Hämtar en post från databasen*/
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR valvardtemp.
+   EMPTY TEMP-TABLE valvardtemp NO-ERROR. 
+   IF delnrvar NE ? THEN DO:
+      FOR EACH VARDERING WHERE VARDERING.AONR = aonrvar AND 
+      VARDERING.DELNR = delnrvar USE-INDEX AONR NO-LOCK:
+         CREATE valvardtemp.
+         BUFFER-COPY VARDERING TO valvardtemp.      
+      END.   
+   END.
+   ELSE DO:
+      FOR EACH VARDERING WHERE VARDERING.AONR = aonrvar USE-INDEX AONR NO-LOCK:
+         CREATE valvardtemp.
+         BUFFER-COPY VARDERING TO valvardtemp.      
+      END.
+   END.
+   RUN aonrsekkoll_UI (INPUT 2).
+END PROCEDURE.
+
+PROCEDURE andrapost : /*Ändrar em post temptabellen.*/
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valvardtemp. 
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = valvardnr NO-LOCK NO-ERROR.
+   IF AVAILABLE VARDERING THEN DO:
+      FIND FIRST valvardtemp WHERE valvardtemp.VARDNR = valvardnr NO-LOCK NO-ERROR.
+      IF AVAILABLE valvardtemp THEN DO:
+         BUFFER-COPY VARDERING TO valvardtemp.
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE andrapostao : /*Ändrar em post temptabellen.*/
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valvardtemp. 
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = valvardnr NO-LOCK NO-ERROR.
+   IF AVAILABLE VARDERING THEN DO:
+      FIND FIRST valvardtemp WHERE valvardtemp.AONR = VARDERING.AONR AND 
+      valvardtemp.DELNR = VARDERING.DELNR NO-LOCK NO-ERROR.
+      IF AVAILABLE valvardtemp THEN DO:
+         BUFFER-COPY VARDERING TO valvardtemp.
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE hmtkoppling : /**Hämtar markvärdering utifrån aonr*/
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valvardtemp. 
+   FOR EACH valvardtemp:
+      FIND FIRST VARDERING WHERE VARDERING.AONR = valvardtemp.AONR AND
+         VARDERING.DELNR = valvardtemp.DELNR NO-LOCK NO-ERROR. 
+      IF AVAILABLE VARDERING THEN DO:
+         BUFFER-COPY VARDERING TO valvardtemp.
+      END.
+      ELSE DO:
+         ASSIGN 
+         valvardtemp.VARDNR = ?.         
+         valvardtemp.BENAMNING = ?.
+      END.
+      valvardtemp.AKTIV = TRUE.
+   END.
+END PROCEDURE.
+
+PROCEDURE akervardcheck : /**AKERVARD check..*/
+   DEFINE INPUT PARAMETER tempvardnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER templog AS LOGICAL NO-UNDO.
+   FIND FIRST AKERVARD WHERE AKERVARD.VARDNR = tempvardnr 
+      USE-INDEX VARDNR NO-LOCK NO-ERROR.
+   IF AVAILABLE AKERVARD THEN templog = TRUE.
+   ELSE templog = FALSE.
+END PROCEDURE.
+
+PROCEDURE hmtaonrrec : /**Hämtar aonr recid*/
+   DEFINE INPUT PARAMETER tempaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER tempdelnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER tempaorec AS RECID NO-UNDO. 
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = tempaonr AND
+         AONRTAB.DELNR = tempdelnr NO-LOCK NO-ERROR. 
+   IF AVAILABLE AONRTAB THEN tempaorec = RECID(AONRTAB).      
+END PROCEDURE.
+
+PROCEDURE bortkontroll : /*Kontrollera kopplingar och annat....*/
+   DEFINE INPUT PARAMETER vardnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felval AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER valdfast AS CHARACTER NO-UNDO.
+   felmedd = "".
+   felval = 0.
+   
+   FIND FIRST AOVARD WHERE AOVARD.VARDNR = vardnr USE-INDEX VARDNR NO-LOCK NO-ERROR.
+   FIND FIRST SKOGVARD WHERE SKOGVARD.VARDNR = vardnr USE-INDEX VARDNR
+   NO-LOCK NO-ERROR.
+   FIND FIRST VOLSKOG WHERE VOLSKOG.VARDNR = vardnr USE-INDEX VARDNR
+   NO-LOCK NO-ERROR.
+   FIND FIRST AKERVARD WHERE AKERVARD.VARDNR = vardnr USE-INDEX VARDNR
+   NO-LOCK NO-ERROR.
+   FIND FIRST AKERKAB WHERE AKERKAB.VARDNR = vardnr USE-INDEX VARDNR
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE AOVARD THEN DO:
+      IF AOVARD.AONR NE ? THEN DO:
+         felval = 6.         
+      END.   
+   END.
+   ELSE IF AVAILABLE SKOGVARD THEN DO: 
+      FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = SKOGVARD.BETECKNING NO-LOCK NO-ERROR.
+      valdfast = FASTIGHET.BETECKNING.
+      felmedd = "Förenklad skogsnorm är upplagd på värderingen för fastighet:" + SKOGVARD.BETECKNING + CHR(10) +
+         "För att ta bort värderingsnummer måste förenklad skogsnorm vara borttagen." + CHR(10) +
+         "Vill du ta bort förenklad skogsnorm direkt?".
+      felval = 1.
+   END.
+   ELSE IF AVAILABLE VOLSKOG THEN DO:  
+      /*MESSAGE "Volymberäkning är upplagd för värderingen. Ta bort denna först."
+      VIEW-AS ALERT-BOX.         */
+      FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = VOLSKOG.BETECKNING NO-LOCK NO-ERROR.
+      valdfast = FASTIGHET.BETECKNING.
+      felmedd = "Volymberäkning är upplagd på värderingen för fastighet:" + VOLSKOG.BETECKNING + CHR(10) +
+              "För att ta bort värderingsnummer måste volymberäkning vara borttagen." + CHR(10) +
+              "Vill du ta bort volymberäkning direkt?".      
+      felval = 2.
+   END.   
+   ELSE IF AVAILABLE AKERVARD AND AKERVARD.L5 = 0 THEN DO:    
+      /*MESSAGE "Åkervärdering är upplagd för värderingen. Ta bort denna först."
+      VIEW-AS ALERT-BOX.      */
+      FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = AKERVARD.BETECKNING NO-LOCK NO-ERROR.
+      valdfast = FASTIGHET.BETECKNING.
+      felmedd = "Åkervärdering är upplagd på värderingen för fastighet:" + AKERVARD.BETECKNING + CHR(10) + 
+             "För att ta bort värderingsnummer måste åkervärdering vara borttagen." + CHR(10) +
+             "Vill du ta bort åkervärdering direkt?".
+      felval = 3.
+   END.
+   ELSE IF AVAILABLE AKERVARD AND AKERVARD.L5 = 1 THEN DO:    
+      /*MESSAGE "Station är upplagd för värderingen. Ta bort denna först."
+      VIEW-AS ALERT-BOX.      */
+      FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = AKERVARD.BETECKNING NO-LOCK NO-ERROR.
+      valdfast = FASTIGHET.BETECKNING.
+      felmedd = "Station är upplagd på värderingen för fastighet:" + AKERVARD.BETECKNING + CHR(10) +
+         "För att ta bort värderingsnummer måste stationsvärdering vara borttagen." + CHR(10) + 
+         "Vill du ta bort station direkt?".
+      felval = 5.      
+   END.
+   ELSE IF AVAILABLE AKERKAB THEN DO:    
+      /*MESSAGE "Åker i mark är upplagd för värderingen. Ta bort denna först."
+      VIEW-AS ALERT-BOX.     */
+      FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = AKERKAB.BETECKNING NO-LOCK NO-ERROR.
+      valdfast = FASTIGHET.BETECKNING.
+      felmedd = "Kabel i mark är upplagd för värderingen för fastighet:" + AKERKAB.BETECKNING + CHR(10) +
+         "För att ta bort värderingsnummer måste kabelvärdering vara borttagen." + CHR(10) + 
+         "Vill du ta bort kabel i mark direkt?".
+      felval = 4.      
+   END.
+   
+   
+END PROCEDURE.
+
+PROCEDURE borttag : /*Tar bort en markvärdering*/
+   DEFINE INPUT PARAMETER vardnr AS INTEGER NO-UNDO.      
+   DO TRANSACTION:
+      FOR EACH FASTVARD WHERE FASTVARD.VARDNR = vardnr 
+      USE-INDEX VARDNR EXCLUSIVE-LOCK:
+         IF AVAILABLE FASTVARD THEN DO:
+            DELETE FASTVARD.
+         END.
+      END.
+   END.      
+   DO TRANSACTION:
+      FIND FIRST MARKOVR WHERE MARKOVR.VARDNR =  vardnr
+      USE-INDEX VARDNR EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MARKOVR THEN DO:
+         DELETE MARKOVR.
+      END.                       
+   END.   
+   DO TRANSACTION:
+      FIND VARDERING WHERE VARDERING.VARDNR = vardnr EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE VARDERING THEN DO:
+         DELETE VARDERING.  
+      END.
+   END.                         
+END PROCEDURE.
+
+PROCEDURE aktivinaktiv : /*Ändrar aktiv/inaktiv*/
+   DEFINE INPUT PARAMETER vardnr AS INTEGER NO-UNDO.
+   DO TRANSACTION:
+      FIND VARDERING WHERE VARDERING.VARDNR = vardnr EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE VARDERING THEN VARDERING.AKTIV = NOT VARDERING.AKTIV.
+   END.
+   RELEASE VARDERING NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE skapaq_UI :
+   ASSIGN
+   nytab      = "urvardtemp"
+   orginaltab = "VARDERING".
+   ASSIGN
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".   
+/*    MESSAGE kommandoquery. */
+   /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE urvardtemp:DEFAULT-BUFFER-HANDLE.
+   ASSIGN extratemptabh2 = TEMP-TABLE valsoktemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).
+END PROCEDURE.
+
+PROCEDURE ansvmarkhmt :
+   DEFINE OUTPUT PARAMETER TABLE FOR ansvmarktemp.
+   EMPTY TEMP-TABLE ansvmarktemp NO-ERROR.    
+   OPEN QUERY ansq FOR EACH PERSONALTAB USE-INDEX PERSONALKOD NO-LOCK.
+   GET FIRST ansq NO-LOCK.
+   DO WHILE AVAILABLE(PERSONALTAB):
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+   
+      CREATE ansvmarktemp.
+      ASSIGN 
+      ansvmarktemp.NAMN = PERSONALTAB.EFTERNAMN + " " + PERSONALTAB.FORNAMN
+      ansvmarktemp.FORNAMN = PERSONALTAB.FORNAMN 
+      ansvmarktemp.EFTERNAMN = PERSONALTAB.EFTERNAMN 
+      ansvmarktemp.PERSONALKOD = PERSONALTAB.PERSONALKOD. 
+      GET NEXT ansq NO-LOCK.
+   END.
+   {GDPRLOGGCLIENT.I}
+   CLOSE QUERY ansq. 
+END PROCEDURE.
+
+PROCEDURE imphmtmv_UI :
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR valvardtemp.
+   EMPTY TEMP-TABLE valvardtemp NO-ERROR. 
+   FIND FIRST valsoktemp NO-LOCK NO-ERROR.
+   IF AVAILABLE valsoktemp THEN DO:
+      IF valsoktemp.SOKVAL = 4 THEN DO:  /*Hämtar en VARDERING via import....*/
+         FIND FIRST VARDERING WHERE VARDERING.VARDNR = valsoktemp.SOKINT[1] AND
+         VARDERING.OMRADE = valsoktemp.SOKCHAR[1] NO-LOCK NO-ERROR. 
+         IF AVAILABLE VARDERING THEN DO:
+            CREATE valvardtemp.
+            BUFFER-COPY VARDERING TO valvardtemp.
+         END.
+      END.
+   END.
+END PROCEDURE.
+
+
+
+
+PROCEDURE delnrhmt :
+   DEFINE INPUT PARAMETER vardanr AS CHARACTER  NO-UNDO.
+   DEFINE OUTPUT PARAMETER flerdelnr  AS LOGICAL NO-UNDO.
+   flerdelnr = FALSE.
+   FIND FIRST VARDERING WHERE VARDERING.AONR =  vardanr AND VARDERING.DELNR > 0 NO-LOCK NO-ERROR.
+   IF AVAILABLE VARDERING THEN flerdelnr = TRUE.
+      
+      
+END PROCEDURE.

@@ -1,0 +1,84 @@
+
+/*------------------------------------------------------------------------
+    File        : SNATBERGETSTART.P
+    Purpose     : startar från sundsvalls server
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Wed May 17 10:32:38 CEST 2017
+    Notes       :
+  ----------------------------------------------------------------------*/
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+{VALDBDEF.I}
+{VALDBSUNDNAT.I}
+DEFINE VARIABLE sundfiler AS CHARACTER NO-UNDO.
+DEFINE VARIABLE prognamnque AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE prognamnque2 AS CHARACTER NO-UNDO. 
+
+sundfiler = "D:\delad\server\pro10s\".    
+prognamnque = sundfiler + "FileImpExp.txt".
+
+FIND FIRST valdbtemp WHERE valdbtemp.GFORETAG = "SUNDNAT" NO-LOCK NO-ERROR.
+
+DEFINE VARIABLE ivar AS INTEGER NO-UNDO.
+DEFINE VARIABLE utbivar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE conappvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE gforetag AS CHARACTER NO-UNDO.
+DEFINE VARIABLE BergetAppH AS HANDLE NO-UNDO.
+DEFINE VARIABLE localAppH AS HANDLE NO-UNDO.
+DEFINE TEMP-TABLE fileTT NO-UNDO
+   FIELD SERCHMAPPKOMP AS CHARACTER
+   FIELD NAMEFILE  AS CHARACTER
+   FIELD DATA AS CLOB.
+ASSIGN
+gforetag = valdbtemp.GFORETAG
+conappvar = valdbtemp.APPCON.
+
+CREATE SERVER Guru.Konstanter:apphand.
+Guru.Konstanter:appcon = Guru.Konstanter:apphand:CONNECT(conappvar,{APPCON1.i},{APPCON2.i},gforetag) NO-ERROR.
+
+IF NOT Guru.Konstanter:appcon THEN DO:
+   RUN textut_UI (INPUT "ingen appserver", INPUT prognamnque). 
+   QUIT.
+END.
+RUN textut_UI (INPUT "appserver ok",INPUT prognamnque).
+ 
+
+RUN SNATBERGET.P PERSISTENT SET BergetAppH ON Guru.Konstanter:apphand TRANSACTION DISTINCT .
+
+RUN SNATBERGET.P PERSISTENT SET localAppH .
+
+/*HÄMTARFILER FRÅN BERGET till sundsavalls server*/
+
+RUN FileFromDisk_UI IN BergetAppH (INPUT "C:\DELAD\pro10s\SNATBERGET\EXPORT\", INPUT " ",OUTPUT TABLE fileTT).
+FIND FIRST fileTT  WHERE NO-LOCK NO-ERROR.
+IF AVAILABLE fileTT THEN  RUN textut_UI (INPUT "filer finns för att hämta", INPUT prognamnque).
+ELSE RUN textut_UI (INPUT "filer finns inte för att hämta", INPUT prognamnque).
+/*SKRIVER FILERNA PÅ LOKAL SERVER*/
+RUN FileToDisk_UI IN localAppH (INPUT TABLE fileTT).
+EMPTY TEMP-TABLE fileTT NO-ERROR. 
+/*TAR FILER FRÅN LOKAL SERVER*/
+RUN FileFromDisk_UI IN localAppH (INPUT "D:\delad\server\pro10s\IMPORT\",INPUT "D:\delad\server\pro10s\backimport\", OUTPUT TABLE fileTT).
+/*SKICKAR FILERNA TILL BERGET*/
+FIND FIRST fileTT  WHERE NO-LOCK NO-ERROR.
+IF AVAILABLE fileTT THEN  RUN textut_UI (INPUT "filer finns för att skicka", INPUT prognamnque).
+ELSE RUN textut_UI (INPUT "filer finns inte för att skicka", INPUT prognamnque). 
+RUN FileToDisk_UI IN BergetAppH (INPUT TABLE fileTT).
+
+
+
+IF Guru.Konstanter:appcon THEN Guru.Konstanter:appcon = Guru.Konstanter:apphand:DISCONNECT().
+DELETE OBJECT Guru.Konstanter:apphand NO-ERROR.
+
+PROCEDURE textut_UI:
+   DEFINE INPUT PARAMETER meddvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER tilllogfil AS CHARACTER NO-UNDO.
+    
+   OUTPUT TO VALUE(tilllogfil) APPEND.
+   PUT UNFORMATTED meddvar " + " TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+   OUTPUT CLOSE.
+END PROCEDURE.

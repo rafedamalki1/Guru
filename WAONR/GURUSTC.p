@@ -1,0 +1,85 @@
+/*GURUSTC.P*/
+{VALDBTEMP.I} 
+{VALDBALL.I} 
+{VALDBELPADPLUS.I}
+
+
+DEFINE VARIABLE gftag AS CHARACTER NO-UNDO FORMAT "X(10)".
+DEFINE VARIABLE databasnamn AS CHARACTER NO-UNDO.
+{NAMNDB.I}
+Guru.GlobalaVariabler:GDPRvem = "".
+
+Guru.SharedVariable:singel = TRUE.
+
+   
+/*
+{LDALIAS8.I}
+RUN SETKUND.P.
+*/
+DEFINE VARIABLE ffah AS HANDLE NO-UNDO.
+CREATE BUFFER ffah FOR TABLE "FORETAG" .
+
+databasnamn = namndb().
+ffah:FIND-FIRST("WHERE  ",NO-LOCK) NO-ERROR.
+
+/*Anders Olsson Elpool i Umeå AB  27 jan 2020 09:54:49 
+OM MAN ANVÄNDER EN DATBAS SOM FINNS I VALDBTEMP , MEN HAR FEL GFÖRETAG PG KOPIERING JMF FORVER.P 
+*/
+FIND FIRST valdbtemp WHERE valdbtemp.FORETAG = ffah:BUFFER-FIELD("FORETAG"):BUFFER-VALUE AND valdbtemp.DBNAMN = databasnamn AND  
+valdbtemp.GFORETAG =  TRIM(SUBSTRING(ffah:BUFFER-FIELD("VERSION"):BUFFER-VALUE,20,10)) NO-LOCK NO-ERROR. 
+IF NOT AVAILABLE valdbtemp THEN DO:
+   FIND FIRST valdbtemp WHERE valdbtemp.FORETAG = ffah:BUFFER-FIELD("FORETAG"):BUFFER-VALUE AND valdbtemp.DBNAMN = databasnamn   
+   NO-LOCK NO-ERROR. 
+END.
+IF AVAILABLE valdbtemp  THEN DO:
+   IF valdbtemp.GFORETAG =  TRIM(SUBSTRING(ffah:BUFFER-FIELD("VERSION"):BUFFER-VALUE,20,10)) THEN. 
+   ELSE DO:
+      gftag = TRIM(SUBSTRING(ffah:BUFFER-FIELD("VERSION"):BUFFER-VALUE,20,10)).
+      REPEAT: 
+         DISPLAY valdbtemp.GFORETAG  LABEL "valdbtemp värde" WITH FRAME CC.
+         UPDATE gftag LABEL "databasvärde" WITH FRAME CC.
+         FIND FIRST valdbtemp WHERE valdbtemp.FORETAG = ffah:BUFFER-FIELD("FORETAG"):BUFFER-VALUE AND valdbtemp.DBNAMN = databasnamn AND valdbtemp.GFORETAG =  gftag NO-LOCK NO-ERROR.
+         IF AVAILABLE valdbtemp THEN DO:
+             DO TRANSACTION:
+               ffah:FIND-CURRENT (EXCLUSIVE-LOCK) NO-ERROR.
+               ASSIGN
+               ffah:BUFFER-FIELD("FORETAG"):BUFFER-VALUE = valdbtemp.FORETAG
+               ffah:BUFFER-FIELD("ATRHOME"):BUFFER-VALUE = valdbtemp.VALDB.
+               SUBSTRING(ffah:BUFFER-FIELD("VERSION"):BUFFER-VALUE,20,70) = "".
+               SUBSTRING(ffah:BUFFER-FIELD("VERSION"):BUFFER-VALUE,20,10) = gftag.
+               SUBSTRING(ffah:BUFFER-FIELD("VERSION"):BUFFER-VALUE,32) = valdbtemp.APPCON.
+            END.
+         END.
+         ELSE DO:
+            FIND FIRST valdbtemp WHERE valdbtemp.FORETAG = ffah:BUFFER-FIELD("FORETAG"):BUFFER-VALUE AND valdbtemp.GFORETAG =  gftag NO-LOCK NO-ERROR.
+            IF AVAILABLE valdbtemp THEN DO:
+                DO TRANSACTION:
+                  ffah:FIND-CURRENT (EXCLUSIVE-LOCK) NO-ERROR.
+                  SUBSTRING(ffah:BUFFER-FIELD("VERSION"):BUFFER-VALUE,20,70) = "".
+                  SUBSTRING(ffah:BUFFER-FIELD("VERSION"):BUFFER-VALUE,20,10) = gftag.
+                  SUBSTRING(ffah:BUFFER-FIELD("VERSION"):BUFFER-VALUE,32) = valdbtemp.APPCON.
+               END.
+            END.
+         END.   
+         LEAVE.   
+      END.
+     
+      ffah:FIND-CURRENT (NO-LOCK) NO-ERROR.
+   END.
+END.
+
+RUN Spring.p (FALSE, SUBSTRING(ffah:BUFFER-FIELD("VERSION"):BUFFER-VALUE,20,10) ).
+ /*     
+FIND FIRST FORETAG  WHERE NO-LOCK NO-ERROR.
+*/
+/*OM VERSION ÄR FEL SÄTT IN RÄTT HÄR
+RUN Spring.p (FALSE, "efla").
+RUN Spring.p (FALSE, SUBSTRING(ffah:BUFFER-FIELD("VERSION"):BUFFER-VALUE,20,10) ).
+
+MESSAGE ffah:BUFFER-FIELD("VERSION"):BUFFER-VALUE
+VIEW-AS ALERT-BOX.
+RUN Spring.p (FALSE, "LABE").
+*/
+
+
+{DELALIAS.I}

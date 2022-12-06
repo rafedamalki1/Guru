@@ -1,0 +1,20 @@
+/*INKMTRLDEP.I*/
+   
+   DEFINE TEMP-TABLE inkmtrldep NO-UNDO
+   FIELD INKID        AS INTEGER
+   FIELD INKBESTID        AS INTEGER /*UNIK I HELA DATABASEN EFTER BESTÄLLNING*/
+   FIELD AONRAONR     AS CHARACTER
+   FIELD AONRDELNR    AS INTEGER   
+   FIELD LEVKODINK    AS CHARACTER
+   FIELD ENR          AS CHARACTER
+   FIELD INKANTAL     AS DECIMAL
+   INDEX INKBESTID levkodink inkid inkbestid  
+   INDEX ENR IS PRIMARY ENR.
+   
+   DEFINE TEMP-TABLE einkmtrldep LIKE inkmtrldep.
+   
+   
+   
+                    
+        
+   

@@ -1,0 +1,67 @@
+/*APANDGOD.P*/
+ {ANDGODUT.I}
+
+FOR EACH appmarkpers NO-LOCK:
+   IF gvisatidpermanad = TRUE THEN DO:      
+      OPEN QUERY tidq FOR EACH 
+      TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = appmarkpers.PERSONALKOD AND
+      YEAR(TIDREGITAB.DATUM) = regar AND MONTH(TIDREGITAB.DATUM) = regmnr AND
+      TIDREGITAB.VECKOKORD = ""   
+      NO-LOCK.
+   END.
+   ELSE DO:
+      OPEN QUERY tidq FOR EACH 
+      TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = appmarkpers.PERSONALKOD AND
+      TIDREGITAB.VECKONUMMER = appmarkpers.VECKONUMMER AND TIDREGITAB.VECKOKORD = ""   
+      USE-INDEX PVNR NO-LOCK.
+   END.
+   GET FIRST tidq NO-LOCK.
+   IF NOT AVAILABLE TIDREGITAB THEN DO:
+      IF gvisatidpermanad = TRUE THEN RUN god_UI.
+      NEXT.
+   END.
+   ELSE RUN tidgodk_UI.   
+END.
+PROCEDURE god_UI:   
+   DO TRANSACTION:
+      FIND FIRST GODKOLL WHERE 
+      GODKOLL.PERSONALKOD = appmarkpers.PERSONALKOD AND               
+      GODKOLL.DATAR = regar AND GODKOLL.DATMAN = regmnr 
+      USE-INDEX PKODAR EXCLUSIVE-LOCK NO-ERROR.          
+      IF AVAILABLE GODKOLL THEN DO:
+         FIND LAST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = appmarkpers.PERSONALKOD AND
+         YEAR(TIDREGITAB.DATUM) = regar AND MONTH(TIDREGITAB.DATUM) = regmnr AND
+         TIDREGITAB.VECKOKORD NE ""
+         USE-INDEX PSTART NO-LOCK NO-ERROR.          
+         IF AVAILABLE TIDREGITAB THEN DO:
+            ASSIGN 
+            GODKOLL.DATUM = TIDREGITAB.DATUM
+            GODKOLL.KLAR = FALSE.
+         END.
+         ELSE DO:
+            DELETE GODKOLL.
+         END.       
+      END.      
+   END.
+END PROCEDURE.
+
+PROCEDURE tidgodk_UI:
+   DO TRANSACTION:
+      GET FIRST tidq EXCLUSIVE-LOCK.
+      IF AVAILABLE TIDREGITAB THEN DO:               
+         ASSIGN TIDREGITAB.GODKAND = "".               
+      END.
+   END.
+   DO WHILE AVAILABLE(TIDREGITAB):
+      DO TRANSACTION:
+         GET NEXT tidq EXCLUSIVE-LOCK.
+         IF AVAILABLE TIDREGITAB THEN DO:               
+            ASSIGN TIDREGITAB.GODKAND = "".               
+         END.
+      END.
+   END.              
+   CLOSE QUERY tidq.           
+   IF gvisatidpermanad = TRUE THEN DO:                        
+      RUN god_UI.            
+   END.
+END PROCEDURE.

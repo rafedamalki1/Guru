@@ -1,0 +1,236 @@
+/*LONBLANKETT.P*/
+DEFINE VARIABLE markag AS INTEGER NO-UNDO.
+DEFINE VARIABLE extrarader AS INTEGER NO-UNDO.
+DEFINE VARIABLE extrarader2 AS INTEGER FORMAT "-9999999" NO-UNDO.
+DEFINE VARIABLE extram AS INTEGER NO-UNDO.
+DEFINE VARIABLE emg AS INTEGER NO-UNDO.
+DEFINE VARIABLE uColumn  AS INTEGER INITIAL 0.
+DEFINE VARIABLE fnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE fnamn2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE link AS CHARACTER NO-UNDO.
+DEFINE VARIABLE bytcol AS LOGICAL NO-UNDO.
+DEFINE VARIABLE bytacol AS CHARACTER NO-UNDO.
+DEFINE VARIABLE bytbcol AS CHARACTER NO-UNDO.
+DEFINE VARIABLE bytccol AS CHARACTER NO-UNDO.
+DEFINE VARIABLE bytgcol AS CHARACTER NO-UNDO.
+DEFINE VARIABLE bythcol AS CHARACTER NO-UNDO.    
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE chWord AS COM-HANDLE     NO-UNDO.
+DEFINE VARIABLE chDoc  AS COM-HANDLE     NO-UNDO. 
+DEFINE VARIABLE chWord2 AS COM-HANDLE     NO-UNDO.
+DEFINE VARIABLE chDoc2  AS COM-HANDLE     NO-UNDO.
+DEFINE VARIABLE SELECTION AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE bokvalue AS CHARACTER NO-UNDO.
+DEFINE VARIABLE bokname AS CHARACTER NO-UNDO.
+DEFINE VARIABLE momskr AS DECIMAL NO-UNDO.
+DEFINE VARIABLE otbeordapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE sattfore AS CHARACTER NO-UNDO.
+DEFINE VARIABLE etotal AS DECIMAL NO-UNDO.
+DEFINE VARIABLE tider AS CHARACTER NO-UNDO. 
+{GLOBVAR2DEL1.I}
+&SCOPED-DEFINE NEW 
+&SCOPED-DEFINE SHARED 
+{TIDALLT.I}
+&Scoped-define SHARED SHARED
+{PHMT.I}
+{DIRDEF.I}
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{BLOB.I}
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE blobproch AS HANDLE NO-UNDO.
+
+DEFINE VARIABLE cDocPath AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cDocName AS CHARACTER NO-UNDO.
+DEFINE VARIABLE wdGoToBookmark AS INTEGER NO-UNDO INITIAL -1.
+DEFINE INPUT PARAMETER TABLE FOR  etidallt.
+DEFINE VARIABLE kommando2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE ktovht AS CHARACTER NO-UNDO.
+
+FIND FIRST etidallt  NO-LOCK NO-ERROR.             
+IF Guru.Konstanter:appcon THEN DO:                           
+   RUN OVERTIDBRDAPP.P PERSISTENT SET otbeordapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT.
+END.
+ELSE DO:
+   RUN OVERTIDBRDAPP.P PERSISTENT SET otbeordapph.
+END.
+RUN perbolag_UI IN otbeordapph (INPUT etidallt.PERSONALKOD,OUTPUT sattfore).
+
+tider = REPLACE(STRING(TIME,"HH:MM"),":","").
+         
+
+IF Guru.Konstanter:globforetag = "SNAT" THEN DO:       
+   IF AVAILABLE etidallt THEN DO: 
+      IF etidallt.VILART = "820" OR  etidallt.VILART = "821" or etidallt.VILART = "822" OR  etidallt.VILART = "823" THEN DO:
+          fnamn = "PUElnät_repr.doc".
+          fnamn2 = "PUElnät_repr" + STRING(TODAY,"99999999") + tider +  ".doc". 
+      END.    
+      ELSE IF etidallt.VILART = "825" OR  etidallt.VILART = "831" or etidallt.VILART = "832" or etidallt.VILART = "812" THEN DO:
+          fnamn = "PUElnät_övr.doc".
+          fnamn2 = "PUElnät_övr" + STRING(TODAY,"99999999") + tider +  ".doc".
+      END.    
+      ELSE DO:
+         MESSAGE "Markerad löneart skall ej ut i denna mall"
+         VIEW-AS ALERT-BOX.
+         RETURN.
+      END.   
+   END.                           
+END.
+
+IF Guru.Konstanter:globforetag = "sund"  THEN DO:
+   IF sattfore = "SEAB" THEN DO: 
+      IF AVAILABLE etidallt AND etidallt.LONTILLAGG = "950" THEN DO:
+          fnamn = "LoneavdragSEAB.doc".
+          fnamn2 = "LoneavdragSEAB" + STRING(TODAY,"99999999") + tider +  ".doc".
+      END.                   
+      ELSE DO:
+          fnamn = "PUseab" + STRING(TODAY,"99999999") + tider +  ".docx".
+          fnamn2 = "PUseab.docx".
+      END.                   
+   END.
+   
+END.   
+IF Guru.Konstanter:globforetag = "misv" OR Guru.Konstanter:globforetag = "elpa" THEN DO: 
+   IF AVAILABLE etidallt AND etidallt.LONTILLAGG = "950" THEN DO:
+       fnamn = "LoneavdragMISV.doc".
+       fnamn2 = "LoneavdragMISV" + STRING(TODAY,"99999999") + tider +  ".doc".
+   END.                   
+   ELSE DO:
+       fnamn = "PersonligautläggMISV.doc".
+       fnamn2 = "PersonligautläggMISV" + STRING(TODAY,"99999999") + tider +  ".doc".
+   END.                   
+END.
+
+IF Guru.Konstanter:appcon THEN RUN FINNSTABELL.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT (INPUT "BLOBINFO", OUTPUT bloblog).
+ELSE RUN FINNSTABELL.P (INPUT "BLOBINFO", OUTPUT bloblog).
+
+IF bloblog = TRUE THEN DO:
+   {FINNSDYNBLOB.I}
+   DEFINE VARIABLE resid AS INTEGER NO-UNDO.
+   RUN blobfil_UI IN blobproch (INPUT fnamn, OUTPUT resid).
+   IF resid = ? THEN DO:
+      kommando = SEARCH(fnamn).      
+   END.
+   ELSE DO:
+      FIND FIRST blobinfotemp WHERE blobinfotemp.ID = resid NO-LOCK NO-ERROR.
+      RUN blobopen_UI IN blobproch (INPUT blobinfotemp.FILNAMN, OUTPUT kommando).
+   END.
+   RUN deleteproc_UI IN blobproch.
+   IF VALID-HANDLE(blobproch) THEN DELETE PROCEDURE blobproch NO-ERROR.
+END.
+ELSE kommando = SEARCH(fnamn). 
+IF kommando BEGINS "." THEN kommando = Guru.Konstanter:guruvar + SUBSTRING(kommando,2).
+IF kommando = ? THEN DO:
+   MESSAGE "Hittade inte " fnamn VIEW-AS ALERT-BOX.
+   RETURN.       
+END.   
+kommando2 = SESSION:TEMP-DIRECTORY + Guru.Konstanter:globanv + "\".
+
+{SESSIONTEMPDIR.I}
+
+IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN kommando2 = webclienttempdir.
+
+OS-CREATE-DIR VALUE(kommando2) NO-ERROR.
+ 
+kommando2 = kommando2 + fnamn2.
+
+OS-COPY VALUE(kommando) VALUE(kommando2).
+kommando = kommando2.
+CREATE "Word.Application" chWord NO-ERROR.
+
+IF ERROR-STATUS:ERROR = FALSE THEN DO:
+   chDoc = chWord:Documents:Open(kommando,,,,,,,,,).
+   chWord:VISIBLE = TRUE.
+   chDoc = chWord:ActiveDocument.
+   chDoc:Protect(2) NO-ERROR.
+
+   FIND FIRST etidallt NO-LOCK NO-ERROR.
+   FIND FIRST personaltemp WHERE personaltemp.PERSONALKOD = etidallt.PERSONALKOD NO-LOCK NO-ERROR.
+   
+   RUN inbokvalue_UI (INPUT "Namn" ,INPUT personaltemp.FORNAMN + " " + personaltemp.EFTERNAMN).     
+   RUN inbokvalue_UI (INPUT "Namn2" ,INPUT personaltemp.FORNAMN + " " + personaltemp.EFTERNAMN).     
+   RUN inbokvalue_UI (INPUT "Personnummer" ,INPUT STRING(personaltemp.PERSONNUMMER,"999999-9999")).        
+   RUN inbokvalue_UI (INPUT "Personnummer2" ,INPUT STRING(personaltemp.PERSONNUMMER,"999999-9999")).        
+   RUN inbokvalue_UI (INPUT "Datum" ,INPUT STRING(etidallt.DATUM,"9999/99/99")).
+   FIND FIRST etidallt  WHERE etidallt.RESMAL NE "" NO-LOCK NO-ERROR.
+   IF AVAILABLE etidallt THEN DO:
+      RUN inbokvalue_UI (INPUT "utlaggavser" ,INPUT etidallt.RESMAL).
+   END.     
+   etotal = 0.
+   FOR EACH etidallt NO-LOCK:
+      FIND FIRST utsokaonr WHERE utsokaonr.AONR = etidallt.AONR AND utsokaonr.DELNR = etidallt.DELNR NO-LOCK NO-ERROR.
+      RUN aovht_UI IN otbeordapph (INPUT etidallt.AONR, INPUT etidallt.DELNR, OUTPUT ktovht).
+      IF etidallt.LONTILLAGG = "822" THEN  DO:
+         IF AVAILABLE utsokaonr THEN DO:
+            IF ktovht NE "" THEN RUN inbokvalue_UI (INPUT "vhtö822" ,INPUT ktovht).
+            RUN inbokvalue_UI (INPUT "projektö822" ,INPUT utsokaonr.AONR).     
+         END.
+         RUN inbokvalue_UI (INPUT "beloppö822" ,INPUT etidallt.LONTILLANTAL).        
+      END.
+      ELSE IF etidallt.LONTILLAGG = "823" THEN  DO:
+         IF AVAILABLE utsokaonr THEN DO:     
+            IF ktovht NE "" THEN RUN inbokvalue_UI (INPUT "vhtö823" ,INPUT ktovht).     
+            RUN inbokvalue_UI (INPUT "projektö823" ,INPUT utsokaonr.AONR).     
+         END.
+         RUN inbokvalue_UI (INPUT "beloppö823" ,INPUT etidallt.LONTILLANTAL).        
+      END.
+      ELSE IF etidallt.LONTILLAGG = "820" OR etidallt.LONTILLAGG = "8700"   THEN  DO:
+         IF AVAILABLE utsokaonr THEN DO:     
+            IF ktovht NE "" THEN RUN inbokvalue_UI (INPUT "vhtö820" ,INPUT ktovht).         
+            RUN inbokvalue_UI (INPUT "projektö820" ,INPUT utsokaonr.AONR).     
+         END.
+         RUN inbokvalue_UI (INPUT "beloppö820" ,INPUT etidallt.LONTILLANTAL).        
+      END.
+      ELSE IF etidallt.LONTILLAGG = "821" THEN  DO:
+         IF AVAILABLE utsokaonr THEN DO:     
+            IF ktovht NE "" THEN RUN inbokvalue_UI (INPUT "vhtö821" ,INPUT ktovht).           
+            RUN inbokvalue_UI (INPUT "projektö821" ,INPUT utsokaonr.AONR).     
+         END.
+         RUN inbokvalue_UI (INPUT "beloppö821" ,INPUT etidallt.LONTILLANTAL).        
+      END.
+      ELSE DO:
+         IF AVAILABLE utsokaonr THEN DO:                
+            IF ktovht NE "" THEN RUN inbokvalue_UI (INPUT "vhtö1" ,INPUT ktovht).
+            RUN inbokvalue_UI (INPUT "projektö1" ,INPUT utsokaonr.AONR).              
+         END.
+         IF etidallt.LONTILLAGG = "950" THEN DO:
+            RUN inbokvalue_UI (INPUT "beloppö1" ,INPUT TRUNCATE(0.80 * etidallt.LONTILLANTAL,2)).          
+            RUN inbokvalue_UI (INPUT "moms" ,INPUT TRUNCATE(0.20 * etidallt.LONTILLANTAL,2)).          
+         END.
+         ELSE DO:      
+            IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+               IF etidallt.VILART = "825" OR  etidallt.VILART = "831" or etidallt.VILART = "832" or etidallt.VILART = "812" THEN RUN inbokvalue_UI (INPUT "beloppö1" ,INPUT etidallt.LONTILLANTAL).
+            END.
+            ELSE DO:   
+               RUN inbokvalue_UI (INPUT "beloppö1" ,INPUT etidallt.LONTILLANTAL).
+            END.             
+         END.      
+         
+      END.
+      etotal = etotal + etidallt.LONTILLANTAL.      
+      RUN inbokvalue_UI (INPUT "komm" ,INPUT etidallt.resmal).
+   END.
+   RUN inbokvalue_UI (INPUT "summa" ,INPUT etotal).
+   RUN inbokvalue_UI (INPUT "summa2" ,INPUT etotal).          
+   RUN inbokvalue_UI (INPUT "summa2" ,INPUT etotal).    
+   RELEASE OBJECT chDoc NO-ERROR.
+END.
+
+RELEASE OBJECT chWord NO-ERROR.
+IF VALID-HANDLE(otbeordapph) THEN DO:
+    RUN borthandle_UI IN otbeordapph.
+    DELETE PROCEDURE otbeordapph NO-ERROR.
+    otbeordapph = ?.
+END.      
+
+
+PROCEDURE inbokvalue_UI.
+   DEFINE INPUT PARAMETER bokname AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER bokvalue AS CHARACTER NO-UNDO.
+   IF chDoc:Bookmarks:EXISTS( bokname ) = TRUE THEN DO:
+      IF bokvalue <> ? THEN DO:
+         chDoc:FormFields:item(bokname):RESULT = bokvalue NO-ERROR .
+      END.      
+   END.
+END PROCEDURE.
+

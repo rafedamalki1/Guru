@@ -1,0 +1,104 @@
+DEFINE TEMP-TABLE tempmarkfast NO-UNDO   /*markfasttemp*/
+   FIELD BETECKNING  AS CHARACTER 
+   FIELD MARKNR      AS INTEGER   
+   FIELD PROCENT     AS INTEGER
+
+   FIELD PERSONNUMMER   AS CHARACTER 
+
+   FIELD ANDEL       AS CHARACTER  /*extradata  "MARKFASTANDEL*/
+   FIELD ANDEL1      AS INTEGER   
+   FIELD ANDEL2      AS INTEGER   
+   FIELD PRODEL      AS DECIMAL
+
+   FIELD NMARKNR      AS  INTEGER.  /*NYTT MARKNR*/  
+   
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE marknrvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE tabort AS LOGICAL NO-UNDO.
+DEFINE VARIABLE ponr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tempmarkfasth AS HANDLE NO-UNDO.
+tempmarkfasth = TEMP-TABLE tempmarkfast:HANDLE:DEFAULT-BUFFER-HANDLE.
+
+tempmarkfasth:READ-XML ("FILE", "C:\PROTEMP11\TEMARK.XML", "MERGE",?, FALSE).
+
+
+{EXTRADATA.I}   
+ RUN EXTRADATAHMT.P PERSISTENT SET edataapph.    
+
+OUTPUT TO C:\PROTEMP11\SAKNP.D.
+DEFINE VARIABLE finns AS LOGICAL NO-UNDO.
+FOR EACH tempmarkfasT WHERE tempmarkfast.PERSONNUMMER NE "0000000000":
+     
+   FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING =  tempmarkfasT.BETECKNING NO-LOCK NO-ERROR.
+   IF AVAILABLE FASTIGHET THEN DO:
+      finns = FALSE.
+      FOR EACH MARKAGARE WHERE MARKAGARE.PERSONNUMMER = tempmarkfasT.PERSONNUMMER NO-LOCK:
+         FIND FIRST MARKFAST WHERE MARKFAST.BETECKNING = tempmarkfasT.BETECKNING AND MARKFAST.MARKNR = MARKAGARE.MARKNR  NO-ERROR.
+         IF AVAILABLE MARKFAST  THEN finns = TRUE.
+      END.
+      IF finns = FALSE THEN DO:
+         PUT UNFORMATTED tempmarkfast.BETECKNING AT 1 tempmarkfast.MARKNR AT 50  tempmarkfast.PERSONNUMMER AT 70 SKIP.
+      END.   
+      ELSE DELETE tempmarkfast.
+   END.       
+END.   
+ OUTPUT CLOSE.
+ OUTPUT TO C:\PROTEMP11\F.TXT.
+ FOR EACH tempmarkfast WHERE NO-LOCK:
+   FIND FIRST MARKAGARE WHERE MARKAGARE.PERSONNUMMER = tempmarkfasT.PERSONNUMMER NO-LOCK NO-ERROR.
+   IF AVAILABLE MARKAGARE THEN DO:
+   
+       CREATE MARKFAST.
+       ASSIGN
+       MARKFAST.MARKNR = MARKAGARE.MARKNR
+       MARKFAST.BETECKNING = tempmarkfast.BETECKNING
+       MARKFAST.PROCENT = tempmarkfast.PROCENT.
+       EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+       IF tempmarkfast.ANDEL = "" THEN.
+       ELSE DO:
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "MARKFASTANDEL"                   
+         inextradatatemp.HUVUDINT = MARKAGARE.MARKNR
+         inextradatatemp.HUVUDCH = tempmarkfast.BETECKNING
+         inextradatatemp.SOKCHAR[1] = tempmarkfast.ANDEL
+         inextradatatemp.SOKINT[1] = tempmarkfast.ANDEL1
+         inextradatatemp.SOKINT[2] = tempmarkfast.ANDEL2
+         inextradatatemp.SOKDEC[1] = tempmarkfast.PRODEL.   
+         RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).
+       END.  
+    END.
+    
+    ELSE DO:
+      PUT UNFORMATTED tempmarkfasT.PERSONNUMMER AT 1 tempmarkfasT.BETECKNING AT 30 SKIP.
+    END.       
+ END. 
+ OUTPUT CLOSE.
+ 
+        
+/*      CREATE tempmarkfast.
+      BUFFER-COPY MARKFAST TO tempmarkfast.
+      ASSIGN tempmarkfasT.PERSONNUMMER = MARKAGARE.PERSONNUMMER.
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "MARKFASTANDEL"                   
+      inextradatatemp.HUVUDINT = MARKFAST.MARKNR.                    
+      inextradatatemp.HUVUDCH = MARKFAST.BETECKNING.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO:      
+         ASSIGN
+         tempmarkfast.ANDEL = extradatatemp.SOKCHAR[1]               
+         tempmarkfast.PRODEL = extradatatemp.SOKDEC[1]
+         tempmarkfast.ANDEL1 = extradatatemp.SOKINT[1]
+         tempmarkfast.ANDEL2 = extradatatemp.SOKINT[2].          
+      END.       
+
+      GET NEXT mfq NO-LOCK.
+   END.
+   CLOSE QUERY mfq.
+   OUTPUT TO C:\MFAST.TXT.
+   FOR EACH TEMPMARKFAST:
+   DISP TEMPMARKFAST.
+   END.*/

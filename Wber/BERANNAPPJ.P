@@ -1,0 +1,244 @@
+/*BERANNAPPJ.P*/
+
+{BERANN.I}
+{ANNAMN.I}
+{EXTRADATA.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE QUERY linjeq FOR BERLINJE.
+DEFINE QUERY natq FOR BERNAT.
+
+PROCEDURE annamn_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR annamntemp.
+   EMPTY TEMP-TABLE annamntemp NO-ERROR. 
+   OPEN QUERY aq FOR EACH ANNNAMN USE-INDEX TAB1 NO-LOCK.
+   GET FIRST aq NO-LOCK.
+   DO WHILE AVAILABLE(ANNNAMN):
+      CREATE annamntemp.
+      BUFFER-COPY ANNNAMN TO annamntemp.
+      GET NEXT aq NO-LOCK.
+   END.
+   CLOSE QUERY aq.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE ladda_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR berfortemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR berlinjetemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR bernattemp.
+   EMPTY TEMP-TABLE berfortemp NO-ERROR. 
+   EMPTY TEMP-TABLE berlinjetemp NO-ERROR. 
+   EMPTY TEMP-TABLE bernattemp NO-ERROR. 
+   OPEN QUERY berq FOR EACH BERFOR USE-INDEX FORNR NO-LOCK.
+   GET FIRST berq NO-LOCK.
+   DO WHILE AVAILABLE(BERFOR):
+      CREATE berfortemp.
+      BUFFER-COPY BERFOR TO berfortemp.
+      ASSIGN berfortemp.FORROW = ROWID(BERFOR).
+      GET NEXT berq NO-LOCK.
+   END.
+   CLOSE QUERY berq.
+   OPEN QUERY linq FOR EACH BERLINJE USE-INDEX FORNR NO-LOCK.
+   GET FIRST linq NO-LOCK.
+   DO WHILE AVAILABLE(BERLINJE):
+      CREATE berlinjetemp.
+      BUFFER-COPY BERLINJE TO berlinjetemp.
+      ASSIGN berlinjetemp.LINROW = ROWID(BERLINJE).
+      GET NEXT linq NO-LOCK.
+   END.
+   CLOSE QUERY linq.
+   OPEN QUERY natq FOR EACH BERNAT USE-INDEX NATNR NO-LOCK.
+   GET FIRST natq NO-LOCK.
+   DO WHILE AVAILABLE(BERNAT):
+      CREATE bernattemp.
+      BUFFER-COPY BERNAT TO bernattemp.
+      ASSIGN bernattemp.NATROW = ROWID(BERNAT).
+      GET NEXT natq NO-LOCK.
+   END.
+   CLOSE QUERY natq.
+   RUN FINNSTABELL.P (INPUT "EXTRADATA", OUTPUT bloblog).
+   IF bloblog = FALSE THEN RETURN.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.                  
+   RUN extraomr_UI (INPUT ?).      
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+   edataapph = ?.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE laddaberforen_UI :
+   DEFINE INPUT PARAMETER andrakod AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR berfortemp.
+   EMPTY TEMP-TABLE berfortemp NO-ERROR. 
+   FOR EACH BERFOR WHERE BERFOR.FORNR = andrakod NO-LOCK.
+      CREATE berfortemp.
+      BUFFER-COPY BERFOR TO berfortemp.   
+   END.   
+   RUN FINNSTABELL.P (INPUT "EXTRADATA", OUTPUT bloblog).
+   IF bloblog = FALSE THEN RETURN.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.                  
+   RUN extraomr_UI (INPUT andrakod).         
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+   edataapph = ?.
+END PROCEDURE.
+
+PROCEDURE extraomr_UI :
+   DEFINE INPUT PARAMETER andrakod AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "ANLOMR"                   
+   inextradatatemp.HUVUDCH = andrakod
+   inextradatatemp.HUVUDINT = ?.
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp,OUTPUT TABLE extradatatemp).
+   
+   FOR EACH extradatatemp,
+   EACH berfortemp WHERE berfortemp.FORNR = extradatatemp.HUVUDCH:
+      berfortemp.OMRADE = extradatatemp.SOKCHAR[1].
+   END.
+
+   FOR EACH berfortemp,
+   EACH OMRADETAB WHERE OMRADETAB.OMRADE = berfortemp.OMRADE NO-LOCK,
+   EACH AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK,
+   EACH JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK:
+      ASSIGN
+      berfortemp.AVDNR = STRING(AVDELNING.AVDELNINGNR)
+      berfortemp.JUDID = JURPERS.JUDID
+      berfortemp.VIJUDID = JURPERS.VIJUDID.      
+   END.
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   
+END PROCEDURE.
+
+PROCEDURE laddaberlinen_UI:
+   DEFINE INPUT PARAMETER valford AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER andrakod AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR berlinjetemp.
+   EMPTY TEMP-TABLE berlinjetemp NO-ERROR. 
+   FOR EACH BERLINJE WHERE BERLINJE.FORNR = valford AND  BERLINJE.LINNR = andrakod NO-LOCK.
+      CREATE berlinjetemp.
+      BUFFER-COPY BERLINJE TO berlinjetemp.
+   END.   
+END PROCEDURE.
+
+PROCEDURE laddaberlin_UI:
+   DEFINE INPUT PARAMETER valford AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR berlinjetemp.
+   EMPTY TEMP-TABLE berlinjetemp NO-ERROR. 
+   FOR EACH BERLINJE WHERE BERLINJE.FORNR = valford NO-LOCK.
+      CREATE berlinjetemp.
+      BUFFER-COPY BERLINJE TO berlinjetemp.
+   END.   
+END PROCEDURE.
+
+PROCEDURE laddabernat_UI :
+   DEFINE INPUT PARAMETER valford AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR bernattemp.
+   EMPTY TEMP-TABLE bernattemp NO-ERROR. 
+   FOR EACH BERNAT WHERE BERNAT.FORNR = valford NO-LOCK.
+      CREATE bernattemp.
+      BUFFER-COPY BERNAT TO bernattemp.   
+   END.   
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE laddabernatlinj_UI :
+   DEFINE INPUT PARAMETER valford AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vallinje AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR bernattemp.
+   EMPTY TEMP-TABLE bernattemp NO-ERROR. 
+   FOR EACH BERNAT WHERE BERNAT.FORNR = valford AND BERNAT.LINNR = vallinje NO-LOCK.
+      CREATE bernattemp.
+      BUFFER-COPY BERNAT TO bernattemp.   
+   END.   
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE laddabernaten_UI :
+   DEFINE INPUT PARAMETER valford AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vallinje AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER andrakod AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR bernattemp.
+   EMPTY TEMP-TABLE bernattemp NO-ERROR. 
+   FOR EACH BERNAT WHERE BERNAT.FORNR = valford AND BERNAT.LINNR = vallinje AND BERNAT.NATNR = andrakod NO-LOCK.
+      CREATE bernattemp.
+      BUFFER-COPY BERNAT TO bernattemp.   
+   END.   
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE bortberfor_UI :
+   DEFINE INPUT PARAMETER andrakod AS CHARACTER NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST BERFOR WHERE BERFOR.FORNR = andrakod EXCLUSIVE-LOCK NO-ERROR.
+      OPEN QUERY linjeq FOR EACH BERLINJE WHERE BERLINJE.FORNR = BERFOR.FORNR NO-LOCK.
+      GET FIRST linjeq NO-LOCK.
+      DO WHILE AVAILABLE(BERLINJE):
+         GET CURRENT linjeq EXCLUSIVE-LOCK.
+         OPEN QUERY natq FOR EACH BERNAT WHERE BERNAT.LINNR = BERLINJE.LINNR AND
+         BERNAT.FORNR = BERLINJE.FORNR NO-LOCK.
+         GET FIRST natq NO-LOCK.
+         DO WHILE AVAILABLE(BERNAT):
+            GET CURRENT natq EXCLUSIVE-LOCK.
+            DELETE BERNAT.
+            GET NEXT natq NO-LOCK.
+         END.
+         CLOSE QUERY natq.
+         DELETE BERLINJE.
+         GET NEXT linjeq NO-LOCK.
+      END.
+      CLOSE QUERY linjeq.      
+      DELETE BERFOR.
+   END.   
+   RUN extromrbort_UI (INPUT andrakod).
+END PROCEDURE.
+
+PROCEDURE extromrbort_UI :
+   DEFINE INPUT PARAMETER valfor AS CHARACTER NO-UNDO.
+   RUN FINNSTABELL.P (INPUT "EXTRADATA", OUTPUT bloblog).
+   IF bloblog = FALSE THEN RETURN.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "ANLOMR"                   
+   inextradatatemp.HUVUDCH = valfor              
+   inextradatatemp.HUVUDINT =  ?.      
+   RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).        
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.
+   edataapph = ?.
+END PROCEDURE.
+
+PROCEDURE bortberlin_UI :
+   DEFINE INPUT PARAMETER valford AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER andrakod AS CHARACTER NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST BERLINJE WHERE BERLINJE.FORNR = valford AND  BERLINJE.LINNR = andrakod EXCLUSIVE-LOCK NO-ERROR.   
+      IF AVAILABLE BERLINJE THEN DO:
+         OPEN QUERY natq FOR EACH BERNAT WHERE BERNAT.LINNR = BERLINJE.LINNR AND
+         BERNAT.FORNR = BERLINJE.FORNR NO-LOCK.
+         GET FIRST natq NO-LOCK.
+         DO WHILE AVAILABLE(BERNAT):
+            GET CURRENT natq EXCLUSIVE-LOCK.
+            DELETE BERNAT.
+            GET NEXT natq NO-LOCK.
+         END.
+         CLOSE QUERY natq.
+         DELETE BERLINJE.                                    
+      END.
+   END.   
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE bortnat_UI :
+   DEFINE INPUT PARAMETER valford AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vallinje AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER andrakod AS CHARACTER NO-UNDO.
+   FOR EACH BERNAT WHERE BERNAT.FORNR = valford AND BERNAT.LINNR = vallinje AND BERNAT.NATNR = andrakod EXCLUSIVE-LOCK:
+      DELETE BERNAT.       
+   END.   
+   RETURN.
+END PROCEDURE.
+

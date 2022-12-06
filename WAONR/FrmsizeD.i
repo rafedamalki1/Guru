@@ -1,0 +1,8 @@
+/*FRMSIZED.I för dialogboxar med en frame */
+
+ON esc OF FRAME {&FRAME-NAME} ANYWHERE  DO:
+   RETURN NO-APPLY.
+END.
+
+RUN DYNFRAMESIZED.P PERSISTENT SET framesizeh
+   (INPUT FRAME {&FRAME-NAME}:HANDLE).

@@ -1,0 +1,171 @@
+/*BERTRIMBLEEXELIN.P*/
+{trimbletemp.I}
+{trimblekabtemp.I}
+&Scoped-define NEW   
+{GLOBVAR2DEL1.I}
+
+
+   
+DEFINE VARIABLE antvar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE utskriv AS LOGICAL NO-UNDO.
+DEFINE VARIABLE artecken AS LOGICAL NO-UNDO.
+DEFINE VARIABLE rakn AS INTEGER NO-UNDO.
+DEFINE VARIABLE idfri AS CHARACTER NO-UNDO.
+DEFINE VARIABLE rnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE vflik AS INTEGER NO-UNDO.
+{EXECLIN2.I}
+DEFINE INPUT PARAMETER filnamn AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR trimbletemp.
+
+EMPTY TEMP-TABLE trimbletemp NO-ERROR. 
+{AMERICANEUROPEAN.I}
+IF Guru.Konstanter:globforetag = "GKAL"  THEN DO:
+   RUN startkab_UI.
+   rakn = 0.
+   idfri = "".
+   FOR EACH trimblekabtemp WHERE NO-LOCK:
+      MESSAGE trimblekabtemp.KABTYP trimblekabtemp.METERKAB
+      VIEW-AS ALERT-BOX.
+   END.
+   /*FOR EACH trimbletemp  USE-INDEX RADNR:
+      IF idfri NE trimbletemp.FRIID OR trimbletemp.FRIID = ""  THEN DO:
+         rakn = rakn + 1.   
+         idfri = trimbletemp.FRIID.
+      END.
+      trimbletemp.BYGGID = rakn.                      
+   END.*/
+END.
+  
+   
+      
+{EUROPEANAMERICAN.I}
+ 
+
+PROCEDURE startkab_UI:   
+   ASSIGN
+   vflik = 2
+   startc = "A"
+   slutc = "O"
+   iRad = 1.    
+   rnr = 0.
+   RUN readexcelstartvflik_UI (INPUT filnamn, vflik).
+   RUN valjblad_UI (vflik).
+   MESSAGE chWorkSheet:Name
+   VIEW-AS ALERT-BOX.
+      
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      IF allacolumtext[4] NE "" THEN DO:                              
+         allacolumtext[12] = REPLACE(allacolumtext[12],",",".") NO-ERROR.               
+         rnr = rnr + 1.      
+         CREATE trimblekabtemp.                                                          
+         trimblekabtemp.METERKAB = DECIMAL(allacolumtext[12]) NO-ERROR.
+         trimblekabtemp.KABTYP = allacolumtext[4].
+         
+      END.   
+   END.        
+   RUN slutreadexcel_UI.           
+END PROCEDURE.
+
+PROCEDURE startingran_UI:
+   ASSIGN
+   startc = "A"
+   slutc = "h"
+   iRad = 1.    
+   rnr = 0.
+   RUN readexcelstart_UI (INPUT filnamn).   
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.
+      IF allacolumtext[1] NE "" THEN DO:
+         RUN goromDec_UI(INPUT-OUTPUT allacolumtext[1]).
+         /*allacolumtext[1] = REPLACE(allacolumtext[1]," ","") NO-ERROR.    /*ta bort ev tusenavgränsare*/*/                                                               
+         allacolumtext[1] = REPLACE(allacolumtext[1]," ","") NO-ERROR.                          
+         allacolumtext[1] = REPLACE(allacolumtext[1],CHR(9),"")NO-ERROR.                        
+         RUN isSiffraBokstav_UI (INPUT SUBSTRING(allacolumtext[1],1,1),OUTPUT artecken). 
+         IF artecken = FALSE THEN allacolumtext[1] = SUBSTRING(allacolumtext[1],2).                                            
+         IF SUBSTRING(allacolumtext[1],1,1) = "E" THEN allacolumtext[1] = SUBSTRING(allacolumtext[1],2).                                     
+         rnr = rnr + 1.      
+         CREATE trimbletemp.
+         trimbletemp.UPPLAG = ?.                                        
+         antvar = INTEGER(allacolumtext[8]) NO-ERROR.
+         IF antvar < 1 THEN trimbletemp.UPPLAG = 1.
+         ELSE IF antvar = 0 THEN.
+         ELSE trimbletemp.UPPLAG = antvar .
+         trimbletemp.FRIID = allacolumtext[6].
+         /*trimbletemp.PROJ = allacolumtext[6].*/
+         
+                 
+         trimbletemp.ENR = allacolumtext[1].
+         trimbletemp.BENAMNING = allacolumtext[2].
+         trimbletemp.LEVKOD = allacolumtext[7].
+         antvar = INTEGER(allacolumtext[4]) NO-ERROR.
+         IF antvar < 1 THEN trimbletemp.ANTAL = 1.
+         ELSE trimbletemp.ANTAL = antvar .
+         trimbletemp.ENHET = allacolumtext[3].
+         antvar = INTEGER(allacolumtext[5]) NO-ERROR.
+         trimbletemp.BYGGID = antvar.
+         /*trimbletemp.PRIS = DECIMAL(allacolumtext[8]).*/
+         trimbletemp.RADNR = rnr.
+      END.   
+   END.        
+   RUN slutreadexcel_UI.
+   
+      
+              
+END PROCEDURE.
+
+
+PROCEDURE isSiffraBokstav_UI :
+   DEFINE INPUT PARAMETER varde AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER artecken AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE ascivarde AS INTEGER NO-UNDO.   
+   ascivarde = ASC(varde).
+   /*siffror*/
+   IF ascivarde >= 48 AND ascivarde <= 57 THEN artecken = TRUE.   
+   /*stora bokstäver*/
+   ELSE IF ascivarde >= 65 AND ascivarde <= 90 THEN artecken = TRUE.   
+   /*små bokstäver*/
+   ELSE IF ascivarde >= 97 AND ascivarde <= 122 THEN artecken = TRUE.   
+   /*Å Ä Ö å ä ö*/
+   ELSE IF ascivarde = 197 OR ascivarde = 196 OR ascivarde = 214 OR ascivarde = 229 OR 
+      ascivarde = 228 OR ascivarde = 246 THEN artecken = TRUE.
+   ELSE artecken = FALSE.
+END PROCEDURE.
+
+PROCEDURE goromDec_UI :
+   DEFINE INPUT-OUTPUT PARAMETER varde AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE ascivarde AS INTEGER NO-UNDO.
+   DEFINE VARIABLE artecken AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE vardearray AS CHARACTER EXTENT 50 NO-UNDO.
+   DEFINE VARIABLE langd AS INTEGER NO-UNDO.
+   DEFINE VARIABLE i AS INTEGER NO-UNDO.
+   i = 1.
+   langd = LENGTH(varde).
+   DO WHILE i <= (langd):
+      vardearray[i] = SUBSTRING(varde,1, 1).
+      varde = SUBSTRING(varde,2).
+      i = i + 1.
+   END.
+   varde = "".
+   i = 1.
+   DO WHILE i <= langd:
+      ascivarde = ASC(vardearray[i]).
+      /*siffror*/
+      IF ascivarde >= 48 AND ascivarde <= 57 THEN artecken = TRUE.
+      ELSE artecken = FALSE.   
+      IF artecken = FALSE THEN DO:         
+      END.
+      ELSE varde = varde + vardearray[i].      
+      IF vardearray[i] = "," THEN DO:
+         vardearray[i] = ".".
+         varde = varde + vardearray[i].
+      END.
+      IF vardearray[i] = "." THEN DO:
+         varde = varde + vardearray[i].
+      END.          
+      i = i + 1.      
+  END.      
+END PROCEDURE.
+

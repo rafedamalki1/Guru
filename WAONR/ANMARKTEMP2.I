@@ -1,0 +1,6 @@
+/*ANMARKTEMP2.I*/
+DEFINE {&NEW} {&SHARED} TEMP-TABLE fastanmtemp NO-UNDO
+  {ANMARKTEMPF.I}
+
+
+   

@@ -1,0 +1,211 @@
+/*AONRDOK.P*/
+
+&Scoped-define NEW 
+{GLOBVAR2DEL1.I}
+{WHANDLTEMP.I}
+
+
+DEFINE INPUT PARAMETER huvprogh AS HANDLE NO-UNDO.
+DEFINE INPUT PARAMETER framesizeh AS HANDLE NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR whandltemp.
+
+DEFINE VARIABLE brwproc AS HANDLE EXTENT 25 NO-UNDO.
+DEFINE VARIABLE CMB_DOKTYP AS HANDLE NO-UNDO.
+DEFINE VARIABLE CMB_DOKSTATUS AS HANDLE NO-UNDO.
+DEFINE VARIABLE FRAME-KOPP AS HANDLE NO-UNDO.
+DEFINE VARIABLE BTN_EXPMARK  AS HANDLE NO-UNDO.
+DEFINE VARIABLE BRW_KOPP AS HANDLE NO-UNDO.
+
+DEFINE VARIABLE ordnr AS INTEGER NO-UNDO.
+{DOKU.I} 
+FIND FIRST whandltemp WHERE NO-LOCK NO-ERROR.
+ordnr = 1.
+RUN whout_UI (OUTPUT FRAME-KOPP).                
+RUN whout_UI (OUTPUT CMB_DOKTYP).    
+RUN whout_UI (OUTPUT CMB_DOKSTATUS).    
+RUN whout_UI (OUTPUT BTN_EXPMARK).
+RUN whout_UI (OUTPUT BRW_KOPP). 
+ON 'VALUE-CHANGED' OF FRAME-KOPP PERSISTENT RUN fixastorlek_UI IN THIS-PROCEDURE. /*ddd*/
+ON 'VALUE-CHANGED' OF CMB_DOKTYP PERSISTENT RUN dokfiltertyp_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED' OF CMB_DOKSTATUS PERSISTENT RUN dokfilterstatus_UI IN THIS-PROCEDURE.
+
+DEFINE VARIABLE brwh AS HANDLE NO-UNDO EXTENT 50. /*ddd*/
+
+RUN skapabrw_UI (INPUT 21, INPUT TEMP-TABLE DOKUMENTtemp:DEFAULT-BUFFER-HANDLE). /*brwproc 21*/
+RUN fixastorlek_UI.
+
+PROCEDURE skapabrw_UI :
+   DEFINE INPUT PARAMETER brvnr AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER tthandlez AS HANDLE NO-UNDO.   
+   DEFINE VARIABLE x-multi AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE y-multi AS DECIMAL NO-UNDO. 
+   
+   RUN fylladok_UI.
+   
+   RUN DYNBRWINIT.P PERSISTENT SET brwproc[brvnr].
+   RUN newbrw_UI IN brwproc[brvnr] (INPUT THIS-PROCEDURE).
+   RUN brw_UI IN brwproc[brvnr] (OUTPUT brwh[brvnr]).
+   
+   IF brvnr = 21 THEN DO:
+      RUN brwegenskap_UI IN brwproc[brvnr] (INPUT tthandlez,INPUT "BRW_DOKU", INPUT 124, INPUT 10, INPUT TRUE, INPUT TRUE, INPUT "Dokument", INPUT FRAME-KOPP).
+      /*Menyer för denna brw*/
+      RUN setmenudyn_UI IN brwproc[brvnr] (INPUT 1,INPUT "Öppna",INPUT "dokmenuopen_UI", INPUT THIS-PROCEDURE).
+      RUN setmenudyn_UI IN brwproc[brvnr] (INPUT 2,INPUT "Ta Bort",INPUT "dokmenubort_UI", INPUT THIS-PROCEDURE).
+      RUN setmenudyn_UI IN brwproc[brvnr] (INPUT 3,INPUT "Ersätt",INPUT "dokmenureplace_UI", INPUT THIS-PROCEDURE).
+      RUN setmenudyn_UI IN brwproc[brvnr] (INPUT 4,INPUT "Lägg Till",INPUT "dokmenuadd_UI", INPUT THIS-PROCEDURE).     
+      /*slut menyer*/      
+      RUN getsizf_UI IN framesizeh (OUTPUT x-multi, OUTPUT y-multi).
+      /*                                     bredd     höjd     kol      rad*/
+      RUN brwstorlek_UI IN brwproc[brvnr](INPUT 32, INPUT 10, INPUT 1.5, INPUT 1.9, INPUT x-multi, INPUT y-multi).
+      RUN fieldinit_UI IN brwproc[brvnr].
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "Benamning", INPUT "Dokumentnamn", INPUT 10, INPUT "x(256)", INPUT TRUE).
+      /*RUN vcextra_UI IN brwproc[brvnr] (INPUT "vcbrwkon_UI", INPUT THIS-PROCEDURE).*/
+      RUN brwsetupstop_UI IN brwproc[brvnr] (INPUT 1).                 
+   END.
+   RUN fieldslut_UI IN brwproc[brvnr].
+   
+   
+END PROCEDURE.   
+
+PROCEDURE fixastorlek_UI :
+   /* BRW_DOKU */
+   brwh[21]:COLUMN = BTN_EXPMARK:COLUMN + BTN_EXPMARK:WIDTH + 0.5.
+   brwh[21]:ROW = BRW_KOPP:ROW.
+END PROCEDURE.
+
+
+
+PROCEDURE fylladok_UI :
+     
+   CREATE statusdoktemp.
+   statusdoktemp.STATUSID = 1.
+   statusdoktemp.BENAMNING = "Skickad".
+   statusdoktemp.aktiv = TRUE.
+   CREATE statusdoktemp.
+   statusdoktemp.STATUSID = 2.
+   statusdoktemp.BENAMNING = "Mottagen".
+   statusdoktemp.aktiv = TRUE.   
+   CREATE metadoktemp.
+   metadoktemp.metaid = 1.
+   metadoktemp.benamning = "Ordrar".
+   metadoktemp.aktiv = TRUE.
+   CREATE metadoktemp.
+   metadoktemp.metaid = 2.
+   metadoktemp.benamning = "Övriga".
+   metadoktemp.aktiv = TRUE.   
+   CREATE typdoktemp.
+   typdoktemp.typid = 1.
+   typdoktemp.benamning = "Beredning".
+   CREATE typdoktemp.
+   typdoktemp.typid = 2.
+   typdoktemp.benamning = "Kalkyl".
+   
+   CREATE dokumenttemp.
+   dokumenttemp.DOKID = 1.
+   dokumenttemp.benamning = "test1.txt".
+   
+   CREATE dokumenttemp.
+   dokumenttemp.DOKID = 2.
+   dokumenttemp.benamning = "test2.txt".
+   
+   RUN dokmetastatus_UI.
+      
+END PROCEDURE.
+
+PROCEDURE dokmetastatus_UI :
+   FOR EACH METADOKtemp WHERE METADOKtemp.AKTIV = TRUE NO-LOCK:
+      CMB_DOKTYP:ADD-LAST(METADOKtemp.BENAMNING).
+   END.
+   FOR EACH STATUSDOKtemp WHERE STATUSDOKtemp.AKTIV = TRUE NO-LOCK:
+      CMB_DOKSTATUS:ADD-LAST(STATUSDOKtemp.BENAMNING).
+   END.
+   
+   CMB_DOKTYP:ADD-LAST("Alla").
+   CMB_DOKSTATUS:ADD-LAST("Alla").
+   
+   CMB_DOKTYP:SCREEN-VALUE = "Alla".
+   CMB_DOKSTATUS:SCREEN-VALUE = "Alla".
+     
+END PROCEDURE.
+
+PROCEDURE dokopen_UI :
+END PROCEDURE.
+
+PROCEDURE dokfiltertyp_UI :
+END PROCEDURE.
+
+PROCEDURE dokfilterstatus_UI :
+END PROCEDURE.
+
+PROCEDURE dokmenuopen_UI :     
+   DEFINE VARIABLE brwrowut AS ROWID NO-UNDO.
+   /*hämta -> ladda DOKUMENT.DATA -> SKAPA LOKAL -> öppna */
+   COPY-LOB FROM FILE "c:\saker\docs\test.txt" TO DOKUMENTtemp.DATA.    
+   RUN fetrowid_UI IN brwproc[21] (INPUT 1, OUTPUT brwrowut).   
+   FIND FIRST DOKUMENTtemp WHERE ROWID(DOKUMENTtemp) = brwrowut NO-LOCK NO-ERROR.   
+   MESSAGE DOKUMENTtemp.BENAMNING + " Öppnas.." VIEW-AS ALERT-BOX.   
+   COPY-LOB DOKUMENTtemp.DATA TO FILE "c:\temp\" + DOKUMENTtemp.BENAMNING.
+   
+   RUN OPENDOC.P ("c:\temp\" + DOKUMENTtemp.BENAMNING,"","",NO).   
+   
+END PROCEDURE.
+
+PROCEDURE dokmenubort_UI :
+   MESSAGE "tas bort.."
+   VIEW-AS ALERT-BOX.
+END PROCEDURE.
+
+/* Lägg till nytt dokuemnt */
+PROCEDURE dokmenuadd_UI :
+   /*
+   DEFINE VARIABLE tzt AS System.Windows.Forms.OpenFileDialog NO-UNDO.   
+   DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.               
+   DEFINE VARIABLE nyform AS Aonr.NyttDoku NO-UNDO.           
+   DEFINE VARIABLE metaid AS INTEGER NO-UNDO.
+   DEFINE VARIABLE statusid AS INTEGER NO-UNDO.
+   DEFINE VARIABLE nyform2 AS Aonr.NyttDokud NO-UNDO.     
+   tzt = NEW System.Windows.Forms.OpenFileDialog().
+   tzt:InitialDirectory = SESSION:TEMP-DIRECTORY + "//" + Guru.Konstanter:globanv.
+   WAIT-FOR tzt:ShowDialog().               
+   filnamn = tzt:FILENAME.   
+   IF (appcon) THEN nyform = NEW Aonr.NyttDoku(Guru.Konstanter:apphand).
+   ELSE nyform = NEW Aonr.NyttDoku().
+   WAIT-FOR nyform:ShowDialog().   
+   metaid = nyform:MetaDokVal.
+   statusid = nyform:StatusDokVal.      
+   /*nyform2 = NEW Aonr.NyttDokud().
+   WAIT-FOR nyform2:ShowDialog().*/
+      */
+END PROCEDURE.
+
+
+/* skriv över befintligt dokuemnt */
+PROCEDURE dokmenureplace_UI :
+   DEFINE VARIABLE brwrowut AS ROWID NO-UNDO.
+   DEFINE VARIABLE tzt     AS CLASS     System.Windows.Forms.OpenFileDialog NO-UNDO.
+   DEFINE VARIABLE datz    AS DATETIME  NO-UNDO.
+   DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.      
+   
+   COPY-LOB FROM FILE "c:\saker\docs\test.txt" TO DOKUMENTtemp.DATA.
+   RUN fetrowid_UI IN brwproc[21] (INPUT 1, OUTPUT brwrowut).
+   FIND FIRST DOKUMENTtemp WHERE ROWID(DOKUMENTtemp) = brwrowut NO-LOCK NO-ERROR.
+   
+   IF NOT AVAILABLE DOKUMENTtemp THEN DO:
+      MESSAGE "Markera något att ersätta först."  VIEW-AS ALERT-BOX.
+      RETURN NO-APPLY.
+   END.
+   
+   tzt = NEW System.Windows.Forms.OpenFileDialog().
+   tzt:InitialDirectory = SESSION:TEMP-DIRECTORY + "//" + Guru.Konstanter:globanv.
+   WAIT-FOR tzt:ShowDialog().      
+   datz = System.IO.File:GetLastWriteTime(tzt:FileName). /* Tiden då filen senast ändrades på PC */   
+   filnamn = tzt:FILENAME.   
+   MESSAGE filnamn  + " " + STRING(datz) VIEW-AS ALERT-BOX.
+          
+END PROCEDURE.
+
+PROCEDURE whout_UI :
+   DEFINE OUTPUT PARAMETER wih AS HANDLE NO-UNDO.
+   wih = whandltemp.WF[ordnr].
+   ordnr = ordnr + 1.
+END PROCEDURE.

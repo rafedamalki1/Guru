@@ -1,0 +1,159 @@
+/*PERPRISKOLL.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{UPPGHMT.I}
+{PHMT.I}
+{PERBEF.I}
+DEFINE TEMP-TABLE ptemp NO-UNDO
+   FIELD PERSONALKOD  AS CHARACTER
+   FIELD BEFATTNING   AS CHARACTER
+   FIELD NAMN         AS CHARACTER
+   FIELD PRIS         AS DECIMAL
+   FIELD STARTDATUM   AS DATE
+   INDEX PKOD IS PRIMARY PERSONALKOD BEFATTNING STARTDATUM
+   INDEX NAMN NAMN
+   INDEX BEF BEFATTNING.
+DEFINE TEMP-TABLE atemp NO-UNDO
+   FIELD BEFATTNING   AS CHARACTER
+   FIELD NAMN         AS CHARACTER
+   FIELD PRIS         AS DECIMAL
+   FIELD STARTDATUM   AS DATE
+   INDEX BEF IS PRIMARY BEFATTNING
+   INDEX NAMN NAMN.
+
+{TIDUTTTNEW.I}
+
+DEFINE INPUT PARAMETER TABLE FOR valperstemp.
+DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+DEFINE VARIABLE befvar AS CHARACTER NO-UNDO.
+FOR EACH valperstemp,
+EACH PERSONALPRIS WHERE PERSONALPRIS.PERSONALKOD = valperstemp.PERSONALKOD NO-LOCK:
+   FIND FIRST ptemp WHERE ptemp.PERSONALKOD = valperstemp.PERSONALKOD AND 
+   ptemp.BEFATTNING = PERSONALPRIS.BEFATTNING NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE ptemp THEN DO:
+      CREATE ptemp.
+      ASSIGN
+      ptemp.PERSONALKOD = valperstemp.PERSONALKOD
+      ptemp.BEFATTNING  = PERSONALPRIS.BEFATTNING
+      ptemp.PRIS        = PERSONALPRIS.PRIS
+      ptemp.STARTDATUM  = PERSONALPRIS.STARTDATUM.
+   END.
+   ELSE IF ptemp.STARTDATUM < PERSONALPRIS.STARTDATUM THEN DO:
+      ASSIGN
+      ptemp.PERSONALKOD = valperstemp.PERSONALKOD
+      ptemp.BEFATTNING  = PERSONALPRIS.BEFATTNING
+      ptemp.PRIS        = PERSONALPRIS.PRIS
+      ptemp.STARTDATUM  = PERSONALPRIS.STARTDATUM.
+   END.
+   FIND FIRST atemp WHERE atemp.BEFATTNING = PERSONALPRIS.BEFATTNING NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE atemp THEN DO:
+      CREATE atemp.
+      ASSIGN
+      atemp.BEFATTNING  = PERSONALPRIS.BEFATTNING
+      atemp.PRIS        = PERSONALPRIS.PRIS
+      atemp.STARTDATUM  = PERSONALPRIS.STARTDATUM.
+   END.
+   ELSE IF atemp.STARTDATUM < PERSONALPRIS.STARTDATUM THEN DO:
+      ASSIGN
+      atemp.PRIS        = PERSONALPRIS.PRIS
+      atemp.STARTDATUM  = PERSONALPRIS.STARTDATUM.
+   END.
+   /*
+   ELSE IF atemp.STARTDATUM = PERSONALPRIS.STARTDATUM AND atemp.PRIS = PERSONALPRIS.PRIS THEN DO:
+      
+   END.
+   ELSE DO:
+    FIND LAST ptemp WHERE ptemp.PERSONALKOD = valperstemp.PERSONALKOD AND ptemp.BEFATTNING = valperstemp.BEFATTNING 
+      USE-INDEX PKOD NO-LOCK NO-ERROR.
+      IF atemp.PRIS = PERSONALPRIS.PRIS THEN DO:
+      END.
+      ELSE IF atemp.STARTDATUM > PERSONALPRIS.STARTDATUM THEN DO:
+         CREATE atemp.
+         ASSIGN
+         atemp.BEFATTNING  = PERSONALPRIS.BEFATTNING
+         atemp.PRIS        = PERSONALPRIS.PRIS
+         atemp.STARTDATUM  = PERSONALPRIS.STARTDATUM.
+      END.
+      
+   END. 
+   */    
+END.
+
+REPEAT:
+   FIND FIRST atemp WHERE atemp.NAMN = "" NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE atemp THEN LEAVE.
+   IF atemp.BEFATTNING = "RESTID..." THEN DO:
+      FOR EACH atemp WHERE atemp.BEFATTNING = "RESTID...":
+         atemp.NAMN = "RESTID...".
+      END.      
+      FOR EACH ptemp WHERE ptemp.BEFATTNING = "RESTID...":
+         ptemp.NAMN = "RESTID...".
+      END.      
+   END.
+   ELSE IF atemp.BEFATTNING = "FRÅNVARO." THEN DO:
+      FOR EACH atemp WHERE atemp.BEFATTNING = "FRÅNVARO.":
+         atemp.NAMN = "FRÅNVARO.".
+      END.      
+      FOR EACH ptemp WHERE ptemp.BEFATTNING = "FRÅNVARO.":
+         ptemp.NAMN = "FRÅNVARO.".
+      END.      
+   END.
+   ELSE DO:
+      FIND FIRST BEFATTNINGSTAB WHERE BEFATTNINGSTAB.BEFATTNING = atemp.BEFATTNING NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BEFATTNINGSTAB THEN DO:
+         befvar = atemp.BEFATTNING.
+         FOR EACH atemp WHERE atemp.BEFATTNING = befvar:
+            atemp.NAMN = befvar.
+         END.
+         FOR EACH ptemp WHERE ptemp.BEFATTNING = befvar:
+            ptemp.NAMN = befvar.
+         END.
+      END.
+      ELSE DO:
+         FOR EACH atemp WHERE atemp.BEFATTNING = BEFATTNINGSTAB.BEFATTNING:
+            atemp.NAMN = BEFATTNINGSTAB.NAMN.
+         END.
+         FOR EACH ptemp WHERE ptemp.BEFATTNING = BEFATTNINGSTAB.BEFATTNING:
+            ptemp.NAMN = BEFATTNINGSTAB.NAMN.
+         END.
+      END.
+      
+   END.
+END.
+
+CREATE tidut.
+tidut.UT = "Senaste pris och startdatum för olika befattningar som finns.!".
+/*
+CREATE tidut.           
+tidut.UT = "Finns det två av samma befattning har flera personer med".
+
+CREATE tidut.            
+tidut.UT = " samma befattningar olika startdatum och pris!".
+*/
+CREATE tidut.            
+FOR EACH atemp BY atemp.NAMN BY atemp.STARTDATUM:
+   CREATE tidut.            
+   ASSIGN
+   SUBSTRING(tidut.UT,1,20) = atemp.NAMN 
+   SUBSTRING(tidut.UT,22,4) = STRING(atemp.PRIS,">>>9")
+   SUBSTRING(tidut.UT,27,8) = STRING(atemp.STARTDATUM).
+END.
+CREATE tidut.
+CREATE tidut.            
+tidut.UT = "Personer som aviker mot den senaste prislistan".
+CREATE tidut.
+FOR EACH ptemp BY ptemp.PERSONALKOD BY ptemp.BEFATTNING BY ptemp.STARTDATUM:
+   FIND FIRST atemp WHERE atemp.BEFATTNING = ptemp.BEFATTNING NO-LOCK NO-ERROR.
+   IF /*atemp.STARTDATUM = ptemp.STARTDATUM AND*/ atemp.PRIS = ptemp.PRIS THEN DO:
+   END.
+   ELSE DO:
+      CREATE tidut.            
+      ASSIGN
+      SUBSTRING(tidut.UT,1,20) = ptemp.NAMN 
+      SUBSTRING(tidut.UT,22,4) = STRING(atemp.PRIS,">>>9")
+      SUBSTRING(tidut.UT,27,8) = STRING(ptemp.STARTDATUM)
+      SUBSTRING(tidut.UT,36,8) = STRING(ptemp.PERSONALKOD).   
+   END.   
+END.
+   
+

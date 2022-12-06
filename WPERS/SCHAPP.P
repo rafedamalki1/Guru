@@ -1,0 +1,283 @@
+/*
+     Filename: SCHAPP.P
+      Created: 2003.10.17 13:12ELPAO     
+     Modified: 
+*/
+DEFINE VARIABLE lastrulid AS INTEGER NO-UNDO INITIAL ?.
+DEFINE VARIABLE arregvnr AS INTEGER NO-UNDO.
+&Scoped-define NEW NEW
+{REGVAR.I}
+&Scoped-define NEW 
+&Scoped-define SHARED
+{RHMT.I}
+{VHMT.I}
+{DHMT.I}
+ 
+
+
+PROCEDURE laddatemp_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR arbtidtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR veckoarbtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR rullvectemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR rullschtemp.
+   EMPTY TEMP-TABLE arbtidtemp NO-ERROR. 
+   EMPTY TEMP-TABLE veckoarbtemp NO-ERROR. 
+   EMPTY TEMP-TABLE rullvectemp NO-ERROR. 
+   EMPTY TEMP-TABLE rullschtemp NO-ERROR. 
+   OPEN QUERY aq FOR EACH ARBETSTIDTAB USE-INDEX ARBTIDKOD EXCLUSIVE-LOCK.
+   GET FIRST aq NO-LOCK.
+   DO WHILE AVAILABLE(ARBETSTIDTAB):
+      CREATE arbtidtemp.                        
+      BUFFER-COPY ARBETSTIDTAB TO arbtidtemp.   
+      GET NEXT aq NO-LOCK.                      
+   END.
+   CLOSE QUERY aq.
+   OPEN QUERY vq FOR EACH VECKOARBETID USE-INDEX VECKOSCHEMA EXCLUSIVE-LOCK.
+   GET FIRST vq NO-LOCK.
+   DO WHILE AVAILABLE(VECKOARBETID):
+      CREATE veckoarbtemp.
+      BUFFER-COPY VECKOARBETID TO veckoarbtemp.
+      GET NEXT vq NO-LOCK.
+   END.
+   CLOSE QUERY vq.
+   FIND FIRST RULLVECKO NO-LOCK NO-ERROR.
+   IF AVAILABLE RULLVECKO THEN DO:
+      OPEN QUERY rq FOR EACH RULLVECKO USE-INDEX RULLID EXCLUSIVE-LOCK.
+      GET FIRST rq NO-LOCK.
+      DO WHILE AVAILABLE(RULLVECKO):
+         FOR EACH RULLVECKO:
+            CREATE rullvectemp.
+            ASSIGN
+            rullvectemp.RULLID = RULLVECKO.RULLID
+            rullvectemp.VECKOSCHEMA = RULLVECKO.VECKOSCHEMA
+            rullvectemp.ORDNING = RULLVECKO.ORDNING 
+            rullvectemp.ANDDATUM = RULLVECKO.ANDDATUM
+            rullvectemp.ANVANDARE = RULLVECKO.ANVANDARE.
+            GET NEXT rq NO-LOCK.
+         END.
+      END.
+      CLOSE QUERY rq.
+   END.
+   ELSE LEAVE.
+   FIND FIRST RULLSCHEMA NO-LOCK NO-ERROR.
+   IF AVAILABLE RULLSCHEMA THEN DO:
+      OPEN QUERY cq FOR EACH RULLSCHEMA USE-INDEX RULLID EXCLUSIVE-LOCK.
+      GET FIRST cq NO-LOCK.
+      DO WHILE AVAILABLE(RULLSCHEMA):
+         FOR EACH RULLSCHEMA:
+            CREATE rullschtemp.
+            ASSIGN
+            rullschtemp.RULLID = RULLSCHEMA.RULLID           
+            rullschtemp.BENAMNING = RULLSCHEMA.BENAMNING 
+            rullschtemp.ANTAL = RULLSCHEMA.ANTAL.
+            GET NEXT cq NO-LOCK.
+         END.
+      END.
+      CLOSE QUERY cq.
+   END.   
+END PROCEDURE.
+
+PROCEDURE tabortdag_UI:
+   DEFINE INPUT PARAMETER arbtid AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   felmedd = "".
+   FIND FIRST VECKOARBETID WHERE 
+   VECKOARBETID.ARBTIDMAN = arbtid OR VECKOARBETID.ARBTIDTIS = arbtid OR
+   VECKOARBETID.ARBTIDONS = arbtid OR VECKOARBETID.ARBTIDTOR = arbtid OR
+   VECKOARBETID.ARBTIDFRE = arbtid OR VECKOARBETID.ARBTIDLOR = arbtid OR 
+   VECKOARBETID.ARBTIDSON = arbtid USE-INDEX VECKOSCHEMA NO-LOCK NO-ERROR. 
+   IF AVAILABLE VECKOARBETID THEN DO:
+      felmedd = "Det går inte att ta bort detta schema för att det ingår i veckoschema " + 
+         STRING(VECKOARBETID.VECKOSCHEMA).
+   END.
+   ELSE DO:
+      FIND FIRST ARBETSTIDTAB WHERE ARBETSTIDTAB.ARBTIDKOD = arbtid EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE ARBETSTIDTAB THEN DELETE ARBETSTIDTAB.      
+   END.   
+END PROCEDURE.
+
+PROCEDURE skapadag_UI:
+   DEFINE INPUT PARAMETER arbkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR arbtidtemp.
+
+   FIND FIRST arbtidtemp WHERE arbtidtemp.ARBTIDKOD = arbkod NO-LOCK NO-ERROR.
+   IF AVAILABLE arbtidtemp THEN DO:
+      CREATE ARBETSTIDTAB.
+      BUFFER-COPY arbtidtemp TO ARBETSTIDTAB.
+   END.   
+   RELEASE ARBETSTIDTAB.
+END PROCEDURE.
+
+PROCEDURE sparadag_UI:
+   DEFINE INPUT PARAMETER TABLE FOR arbtidtemp.
+   FOR EACH arbtidtemp:
+      DO TRANSACTION:
+         FIND FIRST ARBETSTIDTAB WHERE ARBETSTIDTAB.ARBTIDKOD = arbtidtemp.ARBTIDKOD
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE ARBETSTIDTAB THEN CREATE ARBETSTIDTAB.        
+         BUFFER-COPY arbtidtemp TO ARBETSTIDTAB.
+      END.
+      RELEASE ARBETSTIDTAB.
+   END.   
+END PROCEDURE.
+
+PROCEDURE tabortvec_UI:
+   DEFINE INPUT PARAMETER vesch AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   felmedd = "".
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.VECKOSCHEMA = vesch AND PERSONALTAB.AKTIV = TRUE USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      felmedd = "Detta veckoschema används av en eller flera personer och kan ej tas bort!".      
+   END.    
+   ELSE DO:
+      /*FIND FIRST VECKOARBAV WHERE VECKOARBAV.VECKOSCHEMA = vesch
+      USE-INDEX VECKOSCHEMA NO-LOCK NO-ERROR.
+      IF AVAILABLE VECKOARBAV THEN DO:
+         felmedd = "Detta veckoschema används av en eller flera personer och kan ej tas bort!".
+      END.
+      IF AVAILABLE VECKOARBAV THEN DO:
+         felmedd = "Detta veckoschema används av en eller flera personer och kan ej tas bort!".
+      END.
+      */
+      regdatum = TODAY. 
+      RUN REGVEC.P.
+      arregvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(regvnr,"999")).
+      FOR LAST VECKOARBAV WHERE VECKOARBAV.VECKOSCHEMA = vesch  NO-LOCK BY VECKOARBAV.VECKONUMMER:         
+         IF arregvnr  - VECKOARBAV.VECKONUMMER < 200 THEN DO:    
+            felmedd = "Detta veckoschema används av en eller flera personer och kan ej tas bort! T.ex " + VECKOARBAV.PERSONALKOD + " " + STRING(VECKOARBAV.VECKONUMMER,"999999").     
+         END.   
+      END.   
+      IF felmedd = "" THEN DO:
+         DO TRANSACTION:
+            FIND FIRST VECKOARBETID WHERE VECKOARBETID.VECKOSCHEMA = vesch EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE VECKOARBETID THEN DELETE VECKOARBETID.         
+         END.
+      END.   
+   END.
+END PROCEDURE.
+
+PROCEDURE skaparull_UI:
+   DEFINE OUTPUT PARAMETER rulid AS INTEGER NO-UNDO.
+   
+   FIND LAST RULLSCHEMA USE-INDEX RULLID NO-LOCK NO-ERROR.
+   IF AVAILABLE RULLSCHEMA THEN DO:
+      rulid = RULLSCHEMA.RULLID + 1.
+   END.
+   ELSE rulid = 1.
+   CREATE RULLSCHEMA.
+   ASSIGN
+   RULLSCHEMA.RULLID = rulid
+   lastrulid = rulid. /*Används för att veta om rullschemat är nyskapat*/
+END PROCEDURE.
+
+PROCEDURE spararull_UI:
+   DEFINE INPUT PARAMETER val AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER rulid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER globanv AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER lrulid AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR rullschtemp.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR rullvectemp.
+   DEFINE VARIABLE ant AS INTEGER NO-UNDO.
+   ASSIGN
+   lrulid = ?
+   ant = 0.
+   IF val = TRUE THEN DO:
+      DO TRANSACTION:
+         FOR EACH RULLVECKO WHERE RULLVECKO.RULLID = rulid EXCLUSIVE-LOCK:
+            DELETE RULLVECKO.
+         END.
+         FOR EACH rullvectemp WHERE rullvectemp.RULLID = rulid NO-LOCK:
+            ant = ant + 1.
+            CREATE RULLVECKO.
+            FIND CURRENT RULLVECKO EXCLUSIVE-LOCK NO-ERROR.
+            ASSIGN
+            RULLVECKO.RULLID = rullvectemp.RULLID
+            RULLVECKO.VECKOSCHEMA = rullvectemp.VECKOSCHEMA
+            RULLVECKO.ORDNING = rullvectemp.ORDNING
+            RULLVECKO.ANDDATUM = TODAY
+            RULLVECKO.ANVANDARE = Guru.Konstanter:globanv.
+         END.
+         FIND FIRST RULLSCHEMA WHERE RULLSCHEMA.RULLID = rulid EXCLUSIVE-LOCK.
+         FIND FIRST rullschtemp WHERE rullschtemp.RULLID = rulid NO-LOCK.
+         IF AVAILABLE RULLSCHEMA AND AVAILABLE rullschtemp THEN DO:
+            ASSIGN
+            rullschtemp.ANTAL = ant
+            RULLSCHEMA.ANTAL = ant
+            RULLSCHEMA.BENAMNING = rullschtemp.BENAMNING.
+         END.
+      END.    
+      lastrulid = ?. /* Om rullschemat är nu SKARPT sparat */ 
+   END.
+   ELSE DO:
+      IF lastrulid = ? THEN DO: /* ? om rullschemat EJ är nyskapad*/
+         EMPTY TEMP-TABLE rullvectemp NO-ERROR. 
+         OPEN QUERY rq FOR EACH RULLVECKO USE-INDEX RULLID EXCLUSIVE-LOCK.
+         GET FIRST rq NO-LOCK.
+         DO WHILE AVAILABLE(RULLVECKO):
+            FOR EACH RULLVECKO:
+               CREATE rullvectemp.
+               ASSIGN
+               rullvectemp.RULLID = RULLVECKO.RULLID
+               rullvectemp.VECKOSCHEMA = RULLVECKO.VECKOSCHEMA
+               rullvectemp.ORDNING = RULLVECKO.ORDNING 
+               rullvectemp.ANDDATUM = RULLVECKO.ANDDATUM
+               rullvectemp.ANVANDARE = RULLVECKO.ANVANDARE.
+               GET NEXT rq NO-LOCK.
+            END.
+         END.
+         CLOSE QUERY rq. 
+      END.
+      ELSE DO:
+         IF rulid = lastrulid THEN DO TRANSACTION:
+            FOR EACH RULLVECKO WHERE RULLVECKO.RULLID = rulid EXCLUSIVE-LOCK:
+               DELETE RULLVECKO.
+            END.
+            FOR EACH rullvectemp WHERE rullvectemp.RULLID = rulid NO-LOCK:
+               DELETE rullvectemp.
+            END.
+            FIND FIRST RULLSCHEMA WHERE RULLSCHEMA.RULLID = rulid EXCLUSIVE-LOCK.
+            IF AVAILABLE RULLSCHEMA THEN DO:
+               DELETE RULLSCHEMA.
+            END.
+            FIND FIRST rullschtemp WHERE rullschtemp.RULLID = rulid NO-LOCK.
+            IF AVAILABLE rullschtemp THEN DO:
+               DELETE rullschtemp.
+            END.
+            lrulid = lastrulid.
+         END.
+      END.    
+   END.
+END PROCEDURE.
+
+PROCEDURE kollpers_UI:
+   DEFINE INPUT PARAMETER rulid AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   
+   felmedd = "".
+   FIND FIRST RULLPERS WHERE RULLPERS.RULLID = rulid AND RULLPERS.SLUT > TODAY NO-LOCK NO-ERROR.
+   IF AVAILABLE RULLPERS THEN DO:
+      felmedd = "Schemat går inte att ändra, används av personal".      
+   END.
+END PROCEDURE.
+
+
+PROCEDURE tabortrull_UI:
+   DEFINE INPUT PARAMETER rulid AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   
+   felmedd = "".
+   FIND FIRST RULLPERS WHERE RULLPERS.RULLID = rulid AND 
+      RULLPERS.SLUT > TODAY NO-LOCK NO-ERROR.
+   IF AVAILABLE RULLPERS THEN DO:
+      felmedd = "Schemat går inte att ta bort, används av personal! Tex " + RULLPERS.PERSONALKOD.      
+   END.
+   ELSE DO TRANSACTION:
+      FOR EACH RULLVECKO WHERE RULLVECKO.RULLID = rulid EXCLUSIVE-LOCK:
+         DELETE RULLVECKO.
+      END.
+      FOR EACH RULLSCHEMA WHERE RULLSCHEMA.RULLID = rulid EXCLUSIVE-LOCK:
+         DELETE RULLSCHEMA.
+      END.
+   END.
+   lastrulid = ?.
+END PROCEDURE.

@@ -1,0 +1,217 @@
+
+/*------------------------------------------------------------------------
+    File        : IMPORTAVBER.P
+    Purpose     : 
+
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Tue Apr 25 16:04:00 CEST 2017
+    Notes       :
+  ----------------------------------------------------------------------*/
+{KALKYLKAT.I}
+DEFINE INPUT  PARAMETER klogidvar AS INTEGER NO-UNDO.
+DEFINE INPUT  PARAMETER bernrv AS INTEGER NO-UNDO.
+DEFINE INPUT  PARAMETER omrv  AS CHARACTER NO-UNDO.
+DEFINE INPUT  PARAMETER globanv AS CHARACTER NO-UNDO.
+DEFINE INPUT  PARAMETER DATASET-HANDLE dynDS . 
+DEFINE OUTPUT PARAMETER TABLE FOR KalkylimportTT.
+
+
+
+
+DEFINE VARIABLE LocalAppServerHandle AS HANDLE NO-UNDO.
+&Scoped-define PUBLIC
+CREATE WIDGET-POOL "DynTableiIB" NO-ERROR.
+
+
+/*
+{KALKYLKATH.i}
+{KALKYLKATTTH.i}
+*/
+DEFINE VARIABLE nyKalkNrvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE felmedd AS CHARACTER NO-UNDO.
+DEFINE VARIABLE ejstart AS LOGICAL NO-UNDO.
+DEFINE VARIABLE iEntry AS INTEGER NO-UNDO.
+
+DEFINE TEMP-TABLE xmltabelfile NO-UNDO
+   FIELD BufferH AS HANDLE
+   FIELD TempttH AS HANDLE
+   FIELD NodtabName AS CHARACTER
+
+   FIELD ORDNING AS INTEGER
+   INDEX ORDNING ORDNING.  
+
+RUN SkapaKalk_UI.
+
+RUN avslut_UI.
+
+PROCEDURE SkapaKalk_UI :
+   
+   REPEAT: 
+      iEntry = iEntry + 1.
+      IF dynDS:GET-BUFFER-HANDLE(iEntry) = ? THEN LEAVE.
+      ELSE DO:
+         CREATE xmltabelfile.
+         xmltabelfile.BufferH = dynDS:GET-BUFFER-HANDLE(iEntry).
+         xmltabelfile.TempttH = xmltabelfile.BufferH:TABLE-HANDLE.
+         xmltabelfile.NodtabName = xmltabelfile.BufferH:XML-NODE-NAME.
+
+      END.
+         
+   END.   
+   
+   FIND FIRST xmltabelfile WHERE xmltabelfile.NodtabName = "Berkalkkopptt" NO-LOCK NO-ERROR.
+   
+   IF AVAILABLE xmltabelfile THEN DO:
+      xmltabelfile.BufferH:FIND-FIRST("WHERE  ",NO-LOCK) NO-ERROR.
+      IF xmltabelfile.BufferH:AVAILABLE THEN .
+      ELSE RETURN.
+   END.   
+   ELSE RETURN.    
+   /*kalkhuv och berkoppla skapas*/ 
+   RUN KalkyleraiBeredningStart.p PERSISTENT SET LocalAppServerHandle (INPUT Guru.Konstanter:globanv). 
+   RUN KalkyleraiBeredning_UI IN LocalAppServerHandle(INPUT klogidvar,INPUT bernrv,INPUT omrv,OUTPUT felmedd,OUTPUT nyKalkNrvar, OUTPUT ejstart).
+   IF ejstart = TRUE THEN DO :
+      RUN avslut_UI.
+      RETURN.
+   END.
+   RUN copycat_UI.
+   RUN copyrel_UI.
+   
+     
+                         
+END PROCEDURE.
+
+
+PROCEDURE copyrel_UI :
+   RELEASE KALKFAKTORER NO-ERROR.
+   RELEASE KALKEGNAPRISE NO-ERROR.
+   RELEASE KALKMTRL NO-ERROR.
+   RELEASE KALKNUM NO-ERROR.
+   RELEASE KALKNUMSUB NO-ERROR.
+END PROCEDURE.
+
+      
+
+/*SJÄLVA KOPIERA*/
+PROCEDURE copycat_UI :
+   DEFINE VARIABLE qh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE q2h AS HANDLE NO-UNDO.
+   DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE kommandoquery2 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE tth AS HANDLE NO-UNDO.
+   DEFINE VARIABLE tth2 AS HANDLE NO-UNDO.
+   FIND FIRST KALKHUV WHERE KALKHUV.KALKNR = nyKalkNrvar AND KALKHUV.OMRADE = omrv NO-LOCK NO-ERROR.
+   FIND FIRST xmltabelfile WHERE xmltabelfile.NodtabName = "kalkfaktorertt" NO-LOCK NO-ERROR.
+   IF AVAILABLE xmltabelfile THEN DO:
+      tth = xmltabelfile.BufferH.
+      kommandoquery = "FOR EACH " + tth:TABLE + " WHERE " + " NO-LOCK". 
+      RUN CreateCustomQuery(INPUT tth,INPUT kommandoquery,OUTPUT qh).
+      qH:GET-FIRST().  
+      DO WHILE qH:QUERY-OFF-END = FALSE:
+         DO TRANSACTION:
+            CREATE KALKFAKTORER.
+            BUFFER KALKFAKTORER:HANDLE:BUFFER-COPY(tth).
+            ASSIGN
+            KALKFAKTORER.KALKNR  = nyKalkNrvar  
+            KALKFAKTORER.OMRADE  = omrv.
+         END.   
+         qH:GET-NEXT().         
+      END.
+   END.   
+   FOR EACH KALKYLKATALOGSUB WHERE KALKYLKATALOGSUB.KLOGID = KALKHUV.KLOGID AND KALKYLKATALOGSUB.AVSLUTAD = FALSE NO-LOCK:
+      FOR EACH KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND KALKYLPRISER.EGENPRISUPP = TRUE NO-LOCK:
+         CREATE KALKEGNAPRISER.
+         BUFFER-COPY KALKYLPRISER TO KALKEGNAPRISER.
+         ASSIGN
+         KALKEGNAPRISER.KALKNR  = nyKalkNrvar  
+         KALKEGNAPRISER.OMRADE  = omrv.
+      END.         
+   END. 
+       
+   FIND FIRST xmltabelfile WHERE xmltabelfile.NodtabName = "kalktmtrlTT" NO-LOCK NO-ERROR.
+   IF AVAILABLE xmltabelfile THEN DO:
+      tth = xmltabelfile.BufferH.
+      kommandoquery = "FOR EACH " + tth:TABLE + " WHERE " + " NO-LOCK". 
+      RUN CreateCustomQuery(INPUT tth,INPUT kommandoquery,OUTPUT qh).
+      qH:GET-FIRST().  
+      DO WHILE qH:QUERY-OFF-END = FALSE:
+         DO TRANSACTION:
+            CREATE KALKMTRL.
+            BUFFER KALKMTRL:HANDLE:BUFFER-COPY(tth).
+            ASSIGN
+            KALKMTRL.KALKNR  = nyKalkNrvar  
+            KALKMTRL.OMRADE  = omrv.
+         END.    
+         qH:GET-NEXT().         
+      END.
+   END.   
+   FIND FIRST xmltabelfile WHERE xmltabelfile.NodtabName = "kalknumtt" NO-LOCK NO-ERROR.
+   IF AVAILABLE xmltabelfile THEN DO:
+      tth = xmltabelfile.BufferH.
+      kommandoquery = "FOR EACH " + tth:TABLE + " WHERE " + " NO-LOCK". 
+      RUN CreateCustomQuery(INPUT tth,INPUT kommandoquery,OUTPUT qh).
+      qH:GET-FIRST().  
+      DO WHILE qH:QUERY-OFF-END = FALSE:
+         IF tth:BUFFER-FIELD("ARBKOD"):BUFFER-VALUE = "EGEN" THEN DO TRANSACTION:
+            CREATE KALKNUM.
+            BUFFER KALKNUM:HANDLE:BUFFER-COPY(tth).
+            ASSIGN
+            KALKNUM.KALKNR  = nyKalkNrvar  
+            KALKNUM.OMRADE  = omrv.
+            FIND FIRST xmltabelfile WHERE xmltabelfile.NodtabName = "kalknumsubtt" NO-LOCK NO-ERROR.
+            IF AVAILABLE xmltabelfile THEN DO:
+               tth2 = xmltabelfile.BufferH.
+                
+               kommandoquery2 = "FOR EACH " + tth2:TABLE + " WHERE NUM = " + STRING(tth:BUFFER-FIELD("NUM"):BUFFER-VALUE) +  " NO-LOCK". 
+               RUN CreateCustomQuery(INPUT tth2,INPUT kommandoquery2,OUTPUT q2h).
+               q2h:GET-FIRST().  
+               DO WHILE q2h:QUERY-OFF-END = FALSE:
+                  CREATE KALKNUMSUB.
+                  BUFFER KALKNUMSUB:HANDLE:BUFFER-COPY(tth2).
+                  ASSIGN
+                  KALKNUMSUB.KALKNR  = nyKalkNrvar  
+                  KALKNUMSUB.OMRADE  = omrv.   
+                  q2h:GET-NEXT().         
+               END. 
+            END.   
+         END.  
+         ELSE DO:
+            CREATE KalkylimportTT.
+            BUFFER KalkylimportTT:HANDLE:BUFFER-COPY(tth).
+            ASSIGN
+            KalkylimportTT.KALKNR  = nyKalkNrvar  
+            KalkylimportTT.OMRADE  = omrv. 
+            
+         END.     
+         qH:GET-NEXT().         
+      END.
+   END.    
+END PROCEDURE.
+
+
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh IN WIDGET-POOL "DynTableiIB".
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+
+PROCEDURE avslut_UI :
+   DELETE WIDGET-POOL "DynTableiIB" NO-ERROR.
+   IF VALID-HANDLE(LocalAppServerHandle) THEN DO:
+      RUN avsluta_UI IN LocalAppServerHandle.
+      DELETE PROCEDURE LocalAppServerHandle.
+   END.  
+   LocalAppServerHandle = ?.
+END PROCEDURE.
+
+
+

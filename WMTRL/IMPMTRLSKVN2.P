@@ -1,0 +1,347 @@
+/*IMPMTRLSKVN2.P*/
+DEFINE TEMP-TABLE tidin   
+   FIELD ENR                AS CHARACTER 
+   FIELD BENAMNING          AS CHARACTER 
+   FIELD ENHET              AS CHARACTER
+   FIELD BPRIS              AS CHARACTER
+   FIELD NPRIS              AS CHARACTER
+   FIELD MARK               AS CHARACTER
+   INDEX ENR IS PRIMARY ENR.
+
+DEFINE TEMP-TABLE tidin2   
+   FIELD ENR                AS CHARACTER 
+   FIELD BENAMNING          AS CHARACTER 
+   FIELD ENHET              AS CHARACTER
+   FIELD BPRIS              AS DECIMAL   
+   FIELD NPRIS              AS DECIMAL
+   FIELD MARK               AS CHARACTER
+   INDEX ENR IS PRIMARY ENR.
+
+DEFINE TEMP-TABLE felmex   
+   FIELD ENR                AS CHARACTER 
+   FIELD BENAMNING          AS CHARACTER 
+   FIELD ENHET              AS CHARACTER
+   FIELD BPRIS              AS DECIMAL
+   FIELD NPRIS              AS DECIMAL
+   INDEX ENR IS PRIMARY ENR.
+DEFINE VARIABLE hjvar AS CHARACTER NO-UNDO.
+
+DEFINE INPUT PARAMETER TABLE FOR tidin.
+DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER svar5 AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER mkat AS INTEGER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR felmex.
+DEFINE INPUT PARAMETER svar10 AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER svar12 AS LOGICAL NO-UNDO.
+DEFINE VARIABLE sparfilnamn AS CHARACTER NO-UNDO.
+sparfilnamn = SESSION:TEMP-DIRECTORY + "inmtrl.txt".
+
+EMPTY TEMP-TABLE felmex NO-ERROR. 
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+
+FOR EACH tidin:
+   IF FORETAG.FORETAG = "sund" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "cORBI" OR FORETAG.FORETAG = "celpa" THEN DO:
+      IF SUBSTRING(tidin.ENR,1,1) NE  "E" THEN tidin.ENR = "E" + tidin.ENR.
+   END.
+   ELSE IF SUBSTRING(tidin.ENR,1,1) = "E" THEN tidin.ENR = SUBSTRING(tidin.ENR,2).
+   /*tidin.ENR  = REPLACE(tidin.ENR,"E","").    */
+   tidin.ENR = REPLACE(tidin.ENR," ","").   
+   tidin.BPRIS = REPLACE(tidin.BPRIS,",",".").   
+   tidin.BPRIS = REPLACE(tidin.BPRIS," ","").   
+   tidin.NPRIS = REPLACE(tidin.NPRIS,",",".").   
+   tidin.NPRIS = REPLACE(tidin.NPRIS," ","").      
+   IF SUBSTRING(tidin.BENAMNING,1,1) = '"' THEN tidin.BENAMNING = SUBSTRING(tidin.BENAMNING,2).   
+   IF SUBSTRING(tidin.BENAMNING,1,1) = "," THEN tidin.BENAMNING = SUBSTRING(tidin.BENAMNING,2).   
+   IF SUBSTRING(tidin.BENAMNING,1,1) = '"' THEN tidin.BENAMNING = SUBSTRING(tidin.BENAMNING,2).   
+   IF SUBSTRING(tidin.BENAMNING,1,1) = "," THEN tidin.BENAMNING = SUBSTRING(tidin.BENAMNING,2).   
+
+   IF tidin.ENHET = "EA" THEN tidin.ENHET = "ST".
+   IF tidin.ENHET = "PK" THEN tidin.ENHET = "FP".
+   IF tidin.ENHET = "MTR" THEN tidin.ENHET = "M".
+   IF tidin.ENHET = "PR" THEN tidin.ENHET = "PAR".
+   IF tidin.ENHET = "RO" THEN tidin.ENHET = "RLE".      
+
+   IF tidin.ENHET = "BG" THEN tidin.ENHET = "PÅS".      
+   IF tidin.ENHET = "MKT" THEN tidin.ENHET = "M2".      
+   IF tidin.ENHET = "LTR" THEN tidin.ENHET = "L".      
+   IF tidin.ENHET = "KGM" THEN tidin.ENHET = "KG".     
+
+END.
+DEBUGGER:SET-BREAK().
+FOR EACH tidin:
+   CREATE tidin2.
+   ASSIGN
+   tidin2.ENR = tidin.ENR .
+   tidin2.BENAMNING  = tidin.BENAMNING .
+   tidin2.ENHET = tidin.ENHET.
+   tidin2.BPRIS = DECIMAL(tidin.BPRIS) NO-ERROR.
+   tidin2.NPRIS = DECIMAL(tidin.NPRIS) NO-ERROR.   
+   IF FORETAG.FORETAG = "REJI" THEN DO:
+      tidin2.BPRIS = 0.
+      tidin2.NPRIS = 0.
+   END.   
+   tidin2.MARK = tidin.MARK .
+
+   IF ERROR-STATUS:ERROR = TRUE THEN DO:
+      
+      IF AVAILABLE tidin2 THEN DO:              
+         CREATE felmex.
+         BUFFER-COPY tidin2 TO felmex.
+         DELETE tidin2.
+      END.
+      ERROR-STATUS:ERROR = FALSE.
+   END.
+END.
+IF svar5 = TRUE THEN DO:
+   /*
+   OPEN QUERY dq FOR EACH MTRL WHERE MTRL.LEVKOD = leverant AND 
+   MTRL.KALKNR = 0 AND MTRL.KPRIS = mkat NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST dq EXCLUSIVE-LOCK.
+      IF AVAILABLE MTRL THEN DELETE MTRL.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT dq EXCLUSIVE-LOCK.
+         IF AVAILABLE MTRL THEN DELETE MTRL.
+         ELSE LEAVE.
+      END.
+   END.
+   */
+   
+   DEFINE VARIABLE DUBRAK AS INTEGER NO-UNDO.
+   OUTPUT TO VALUE(sparfilnamn) APPEND.
+   PUT UNFORMATTED  "Delete av mtrl start " + STRING(TIME,"hh:mm:ss") + " " + STRING(TODAY) SKIP.
+   OUTPUT CLOSE.   
+   FOR EACH MTRL WHERE MTRL.LEVKOD = leverant AND  MTRL.KALKNR = 0 AND MTRL.KPRIS = mkat EXCLUSIVE-LOCK:
+      DELETE MTRL.
+   END.
+   IF FORETAG.FORETAG = "FORS" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "ELTE" THEN DO:
+      /*företag med totala materielfiler där alla poster ska rensas innan. Lena 20180618*/
+      FOR EACH MTRL WHERE MTRL.LEVKOD = leverant AND  MTRL.KALKNR = 0 EXCLUSIVE-LOCK:
+         DELETE MTRL.
+      END.
+   END.   
+   
+   OUTPUT TO VALUE(sparfilnamn) APPEND.
+   PUT UNFORMATTED "Inläsning av mtrl start " + STRING(TIME,"hh:mm:ss") + " " + STRING(TODAY) SKIP.
+   OUTPUT CLOSE.
+   FOR EACH tidin2:
+      
+      DO TRANSACTION:
+         FIND FIRST MTRL WHERE MTRL.ENR =  tidin2.ENR AND
+         MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE MTRL THEN DO:
+            DUBRAK = DUBRAK + 1.
+            IF FORETAG.FORETAG = "GRAN" AND MTRL.KPRIS = 1 THEN.
+            ELSE IF FORETAG.FORETAG = "GRAN" AND MTRL.KPRIS = 2 THEN.
+            ELSE IF FORETAG.FORETAG = "KRIN" AND mkat = 0 AND MTRL.KPRIS = 1 THEN.
+            ELSE IF FORETAG.FORETAG = "KRIN" AND mkat = 0 AND MTRL.KPRIS = 2 THEN.
+                        
+            ELSE DO:            
+               IF tidin2.BENAMNING NE "" THEN  MTRL.BENAMNING = tidin2.BENAMNING.
+               ASSIGN 
+               MTRL.BPRIS = tidin2.BPRIS 
+               MTRL.NPRIS = tidin2.NPRIS 
+               MTRL.ENHET = tidin2.ENHET
+               MTRL.KPRIS = mkat.
+               {MTRLCREATE.I} 
+               IF svar12 = TRUE THEN DO:
+                 /*KRAFTRINGEN 2 FÄRGER I SAMMA FIL 
+                  Färg 1 = turkos = Onninen
+                  Färg 2 = grå = Onninen*/                  
+                  /*färg 1*/        
+                  IF FORETAG.FORETAG = "gran" THEN DO:
+                     IF tidin2.MARK = "A" THEN MTRL.KUND = ?.
+                     ELSE IF tidin2.MARK = "B" THEN MTRL.KUND = TRUE.
+                     ELSE  MTRL.KUND = FALSE.
+                  END.
+                  ELSE DO:                            
+                     IF tidin2.MARK = "Ja" THEN MTRL.KUND = TRUE.
+                     ELSE IF tidin2.MARK = "?" OR tidin2.MARK = ? THEN MTRL.KUND = ?.
+                     ELSE MTRL.KUND = FALSE.
+                 END.    
+               END.
+               ELSE DO:   
+                  IF svar10 = TRUE THEN DO:
+                     /*sundsvall elnät 
+                     Färg 1 = turkos = Onninen
+                     Färg 2 = grön = Ahlsell*/                  
+                     /*färg 1*/
+                                                     
+                     IF tidin2.MARK NE "" THEN MTRL.KUND = TRUE.
+                     ELSE MTRL.KUND = FALSE.
+                        
+                  END.
+                  ELSE DO:
+                     /*färg2*/
+                     IF tidin2.MARK NE "" THEN MTRL.KUND = ?.
+                     ELSE MTRL.KUND = FALSE.                  
+                  END.
+               END.                           
+               IF mkat = 1 OR mkat = 2 THEN DO:
+                   MTRL.KUND = TRUE.                 
+                  IF FORETAG.FORETAG = "krin" THEN MTRL.KUND = ?.
+               END.   
+               
+            END.
+         END.
+         ELSE DO:                               
+            CREATE MTRL.
+            ASSIGN      
+            MTRL.ENR = tidin2.ENR
+            MTRL.BENAMNING = tidin2.BENAMNING
+            MTRL.ENHET = tidin2.ENHET
+            MTRL.LEVKOD = leverant
+            MTRL.KALKNR = 0
+            MTRL.BPRIS = tidin2.BPRIS
+            MTRL.NPRIS = tidin2.NPRIS
+            MTRL.KPRIS = mkat.
+            {MTRLCREATE.I} 
+            IF svar12 = TRUE THEN DO:
+              /*KRAFTRINGEN 2 FÄRGER I SAMMA FIL 
+               Färg 1 = turkos = Onninen
+               Färg 2 = grå = Onninen*/                  
+               /*färg 1*/ 
+               IF FORETAG.FORETAG = "gran" THEN DO:
+                  IF tidin2.MARK = "A" THEN MTRL.KUND = ?.
+                  ELSE IF tidin2.MARK = "B" THEN MTRL.KUND = TRUE.
+                  ELSE  MTRL.KUND = FALSE.
+               END.
+               ELSE DO:                               
+                  IF tidin2.MARK = "Ja" THEN MTRL.KUND = TRUE.
+                  ELSE IF tidin2.MARK = "?" OR tidin2.MARK = ? THEN MTRL.KUND = ?.
+                  ELSE MTRL.KUND = FALSE.
+               END.   
+            END.
+            ELSE DO:
+               IF svar10 = TRUE THEN DO: 
+                  /*färg 1*/                      
+                  IF tidin2.MARK NE "" THEN MTRL.KUND = TRUE.
+                  ELSE MTRL.KUND = FALSE.
+               END.
+               ELSE DO:
+                  /*färg2*/
+                  IF tidin2.MARK NE "" THEN MTRL.KUND = ?.
+                  ELSE MTRL.KUND = FALSE.
+               END.
+            END.                           
+            IF mkat = 1 OR mkat = 2 THEN DO:
+                MTRL.KUND = TRUE.
+                IF FORETAG.FORETAG = "krin" THEN MTRL.KUND = ?.
+            END.    
+         END.
+      END.
+   END.
+   OUTPUT TO VALUE(sparfilnamn) APPEND.
+   PUT UNFORMATTED "Inläsning av mtrl klar " + STRING(TIME,"hh:mm:ss") + " " + STRING(TODAY) SKIP.
+   OUTPUT CLOSE.
+   
+END.
+ELSE DO:
+   OUTPUT TO VALUE(sparfilnamn) APPEND.
+   PUT UNFORMATTED "Inläsning av mtrl start " + STRING(TIME,"hh:mm:ss") + " " + STRING(TODAY) SKIP.
+   OUTPUT CLOSE.
+   
+   FOR EACH tidin2:
+      DO TRANSACTION:         
+         FIND FIRST MTRL WHERE MTRL.ENR =  tidin2.ENR AND
+         MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE MTRL THEN DO:                        
+            IF tidin2.BENAMNING NE "" THEN  MTRL.BENAMNING = tidin2.BENAMNING. 
+            MTRL.BENAMNING = tidin2.BENAMNING.
+            {MTRLCREATE.I} 
+            IF FORETAG.FORETAG = "GRAN" THEN DO:            
+               IF tidin2.BPRIS = 0 AND MTRL.BPRIS > 0 THEN.
+               ELSE IF tidin2.nPRIS = 0 AND MTRL.NPRIS > 0 THEN.
+               ELSE DO:            
+                  ASSIGN
+                  MTRL.BPRIS = tidin2.BPRIS 
+                  MTRL.NPRIS = tidin2.NPRIS. 
+               END.
+            END.
+            ELSE DO:
+               ASSIGN
+               MTRL.BPRIS = tidin2.BPRIS 
+               MTRL.NPRIS = tidin2.NPRIS.  
+            END.
+            ASSIGN
+            MTRL.ENHET = tidin2.ENHET
+            MTRL.KPRIS = mkat.
+            
+            IF mkat = 1 OR mkat = 2 THEN DO:
+                MTRL.KUND = TRUE.
+                IF FORETAG.FORETAG = "krin" THEN MTRL.KUND = ?.
+            END.    
+            ELSE MTRL.KUND = FALSE.
+            IF svar12 = TRUE THEN DO:
+              /*KRAFTRINGEN 2 FÄRGER I SAMMA FIL 
+               Färg 1 = turkos = Onninen
+               Färg 2 = grå = Onninen*/                  
+               /*färg 1*/                                
+               IF tidin2.MARK = "Ja" THEN MTRL.KUND = TRUE.
+               ELSE IF tidin2.MARK = "?" OR tidin2.MARK = ? THEN MTRL.KUND = ?.
+               ELSE MTRL.KUND = FALSE.
+            END.
+            ELSE DO:
+               IF svar10 = TRUE THEN DO: 
+                  /*färg 1*/
+                  /*om felmärkt går det inte att sätta tillbaka*/
+                  IF tidin2.MARK NE "" THEN MTRL.KUND = TRUE.
+               END.
+               ELSE DO:
+                  /*färg2*/
+                  /*om felmärkt går det inte att sätta tillbaka*/
+                  IF tidin2.MARK NE "" THEN MTRL.KUND = ?.
+               END.                  
+            END.
+         END.
+         ELSE DO:                               
+            CREATE MTRL.
+            ASSIGN      
+            MTRL.ENR = tidin2.ENR
+            MTRL.LEVKOD = leverant 
+            MTRL.KALKNR = 0        
+            MTRL.BENAMNING = tidin2.BENAMNING 
+            MTRL.BPRIS = tidin2.BPRIS 
+            MTRL.NPRIS = tidin2.NPRIS 
+            MTRL.ENHET = tidin2.ENHET
+            MTRL.KPRIS = mkat.
+            {MTRLCREATE.I} 
+            IF svar12 = TRUE THEN DO:
+              /*KRAFTRINGEN 2 FÄRGER I SAMMA FIL 
+               Färg 1 = turkos = Onninen
+               Färg 2 = grå = Onninen*/                  
+               /*färg 1*/                                
+               IF tidin2.MARK = "Ja" THEN MTRL.KUND = TRUE.
+               ELSE IF tidin2.MARK = "?" OR tidin2.MARK = ? THEN MTRL.KUND = ?.
+               ELSE MTRL.KUND = FALSE.
+            END.
+            ELSE DO:
+               IF svar10 = TRUE THEN DO: 
+                  /*färg 1*/
+                  IF tidin2.MARK NE "" THEN MTRL.KUND = TRUE.
+                  ELSE MTRL.KUND = FALSE.
+               END.
+               ELSE DO:
+                  /*färg 2*/
+                  IF tidin2.MARK NE "" THEN MTRL.KUND = ?.
+                  ELSE MTRL.KUND = FALSE.               
+               END.
+            END.                           
+            IF mkat = 1 OR mkat = 2 THEN DO:
+                MTRL.KUND = TRUE.
+                IF FORETAG.FORETAG = "krin" THEN MTRL.KUND = ?.
+            END.    
+         END.   
+      END.
+   END.
+   OUTPUT TO VALUE(sparfilnamn) APPEND.
+   PUT UNFORMATTED "Inläsning av mtrl klar " + STRING(TIME,"hh:mm:ss") + " " + STRING(TODAY) SKIP.
+   OUTPUT CLOSE.
+   
+END.
+/*MESSAGE DUBRAK
+   VIEW-AS ALERT-BOX.*/

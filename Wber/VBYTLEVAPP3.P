@@ -1,0 +1,385 @@
+/*VBYTLEVAPP3.P*/
+{STARTFORAPP.I}
+{ANMARKD.I}
+{LISTDEF.I} 
+&Scoped-define NEW
+&Scoped-define SHARED 
+{LISTMTRL.I}
+DEFINE VARIABLE skrivut AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.          
+DEFINE VARIABLE valaonr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE valomrade AS CHARACTER NO-UNDO.  
+DEFINE VARIABLE lev1 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lev2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE antmtrlbyt AS INTEGER NO-UNDO.
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO. 
+
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(130)" NO-UNDO. 
+   
+DEFINE TEMP-TABLE kons_mtrl
+    FIELD KTYPKOD LIKE MTRLBER.KTYPKOD
+    FIELD KONSKOD LIKE KONSTRUKTION.KONSKOD     
+    FIELD ENR LIKE MTRLBER.ENR
+    FIELD BENAMNING LIKE MTRLBER.BENAMNING
+    FIELD ENHET LIKE MTRLBER.ENHET
+    FIELD ANTAL LIKE MTRLBER.ANTAL
+    FIELD LINKAB LIKE MTRLBER.LINKAB
+    FIELD MODUL LIKE MTRLBER.MODUL
+    FIELD TYPBER LIKE MTRLBER.TYPBER
+    FIELD DIAMETER LIKE MTRLBER.DIAMETER
+    INDEX KOD KONSKOD KTYPKOD ENR
+    INDEX ENR ENR.    
+
+{TIDUTTTNEW.I}
+DEFINE VARIABLE inkberh AS HANDLE NO-UNDO.
+DEFINE VARIABLE fragavar AS CHARACTER NO-UNDO. 
+  
+{INKSUMBERTEMP.I}  
+{INKKOLL3.I}
+{DYNPOSTFINNS.I}
+
+PROCEDURE skapalistaatg_UI :
+   /*VID IMORT FRÅN ANNAT FÖRETAG OCH ÅTGÄRDER I BEREDNINGEN*/ 
+   DEFINE INPUT PARAMETER valaonr2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade2 AS CHARACTER NO-UNDO.      
+   DEFINE INPUT PARAMETER lkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER antmtrlber AS INTEGER  NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR elist_mtrl.
+   DEFINE OUTPUT PARAMETER musz2 AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+  
+   EMPTY TEMP-TABLE tidut NO-ERROR. 
+   EMPTY TEMP-TABLE kons_mtrl NO-ERROR. 
+   ASSIGN 
+   str=
+"======================================================================================="
+   valaonr = valaonr2
+   valomrade = valomrade2         
+   musz = FALSE.
+   RUN huvud_UI.   
+   IF musz = FALSE THEN DO:
+      RUN UtbytStart_UI (INPUT lkod,INPUT antmtrlber).
+   END.   
+   musz2 = musz.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE huvud_UI :
+
+   DO TRANSACTION:     
+      IF musz = TRUE THEN musz = musz.         
+      ELSE DO:                                                                 
+         CREATE tidut.  
+         ASSIGN
+         SUBSTRING(tidut.UT,50) = STRING(TODAY)
+         SUBSTRING(tidut.UT,60) = STRING(TIME,"HH:MM:SS").              
+         CREATE tidut.                                             
+         CREATE tidut.
+      END.
+   END.          
+END PROCEDURE.
+
+
+PROCEDURE rubrik2_UI :
+   ASSIGN
+   str=                                                                    
+"===========.========================================.===".                        
+   CREATE tidut.           
+   ASSIGN                                                                               
+   SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:genk) 
+   SUBSTRING(tidut.UT,13) = "BENÄMNING"        
+   SUBSTRING(tidut.UT,54) = "ENH".                         
+   CREATE tidut.       
+   SUBSTRING(tidut.UT,1) = str.    
+END PROCEDURE.
+
+PROCEDURE rubrikatg_UI :
+   ASSIGN
+   str=                                                                    
+"===========.========================================.===".                        
+   CREATE tidut.           
+   ASSIGN                                                                               
+   SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:genk) 
+   SUBSTRING(tidut.UT,13) = "BENÄMNING"        
+   SUBSTRING(tidut.UT,54) = "ENH".                         
+   CREATE tidut.       
+   SUBSTRING(tidut.UT,1) = str.    
+END PROCEDURE.
+
+     
+PROCEDURE inkop_UI:
+   DEFINE VARIABLE inkaonr AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE inkdelnr AS INTEGER NO-UNDO.
+   RUN INKBERAPP.P PERSISTENT SET inkberh.
+   /*RUN finnspostdyn_UI (INPUT "INKMTRL",INPUT fragavar,OUTPUT musz).*/
+   RUN faltvarde_UI (INPUT "AONRAONR",OUTPUT fragavar).
+   inkaonr = fragavar.
+   RUN faltvarde_UI (INPUT "AONRDELNR",OUTPUT fragavar).
+   inkdelnr = INTEGER(fragavar).
+   IF inkaonr = "" THEN.
+   ELSE RUN beredningskontroll_UI IN inkberh (INPUT inkaonr,INPUT inkdelnr,OUTPUT TABLE sumbernum_mtrl,OUTPUT TABLE sumberskapnum_mtrl).                
+   IF VALID-HANDLE(inkberh) THEN DO: 
+      RUN InkAvs_UI IN inkberh.
+      DELETE PROCEDURE inkberh NO-ERROR.
+   END.   
+END PROCEDURE. 
+
+
+PROCEDURE gamminkop_UI :
+   /*dummy*/
+END PROCEDURE.
+
+PROCEDURE UtbytStart_UI :
+   DEFINE INPUT PARAMETER lkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER antmtrlber AS INTEGER  NO-UNDO.
+   DEFINE VARIABLE enrvar AS CHARACTER NO-UNDO. 
+   DEFINE VARIABLE inkaofenrUB AS LOGICAL NO-UNDO.
+   IF inkopkollvar = TRUE THEN DO: 
+      RUN inkop_UI.
+   END. 
+   FOR EACH elist_mtrl: 
+      IF Guru.Konstanter:globforetag = "gran" AND elist_mtrl.LEVKOD = "30" THEN.
+      ELSE IF Guru.Konstanter:globforetag = "gran" AND elist_mtrl.LEVKOD = "31" THEN.
+      ELSE IF Guru.Konstanter:globforetag = "gran" AND elist_mtrl.LEVKOD = "32" THEN.
+      ELSE DO:
+         FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr AND BERMTRL.OMRADE = valomrade 
+         AND BERMTRL.LEVKOD = elist_mtrl.LEVKOD AND BERMTRL.ENR = elist_mtrl.ENR  EXCLUSIVE-LOCK:          
+            FIND FIRST sumberskapnum_mtrl WHERE sumberskapnum_mtrl.NUM = BERMTRL.NUM AND 
+            sumberskapnum_mtrl.SKAPNUM = BERMTRL.SKAPNUM AND
+            sumberskapnum_mtrl.ENRORG = BERMTRL.ENR AND  
+            sumberskapnum_mtrl.LEVKOD = BERMTRL.LEVKOD 
+            NO-LOCK NO-ERROR.    
+            IF NOT AVAILABLE sumberskapnum_mtrl THEN DO:
+               FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = 0 AND UTBYTESLISTA.ORGLEVKOD = elist_mtrl.LEVKOD AND UTBYTESLISTA.ORGENR = BERMTRL.ENR AND
+               UTBYTESLISTA.BYTTILLLEVKOD = lkod NO-LOCK NO-ERROR.
+               IF AVAILABLE UTBYTESLISTA THEN DO:                               
+                  FIND FIRST MTRL WHERE MTRL.LEVKOD = lkod AND MTRL.ENR = UTBYTESLISTA.BYTTILLENR AND
+                  MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                  IF AVAILABLE MTRL THEN DO:                      
+                     ASSIGN
+                     BERMTRL.ENR = MTRL.ENR
+                     BERMTRL.BENAMNING = MTRL.BENAMNING
+                     BERMTRL.ENHET = MTRL.ENHET
+                     BERMTRL.PRIS = MTRL.NPRIS
+                     BERMTRL.LEVKOD = MTRL.LEVKOD.               
+                  END.
+                  ELSE DO:               
+                     FIND FIRST MTRL WHERE MTRL.LEVKOD = lkod AND MTRL.ENR = BERMTRL.ENR AND
+                     MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                     IF AVAILABLE MTRL THEN DO:
+                        ASSIGN
+                        BERMTRL.ENR = MTRL.ENR
+                        BERMTRL.BENAMNING = MTRL.BENAMNING
+                        BERMTRL.ENHET = MTRL.ENHET
+                        BERMTRL.PRIS = MTRL.NPRIS
+                        BERMTRL.LEVKOD = MTRL.LEVKOD.
+                     END.
+                     ELSE DO:
+                        CREATE kons_mtrl.
+                        ASSIGN         
+                        kons_mtrl.ENR = BERMTRL.ENR
+                        kons_mtrl.BENAMNING = BERMTRL.BENAMNING
+                        kons_mtrl.ENHET = BERMTRL.ENHET.                           
+                     END.
+                  END.               
+               END.
+               ELSE DO:
+                  IF lkod = "0" THEN BERMTRL.LEVKOD = lkod.
+                  ELSE DO:
+                     FIND FIRST MTRL WHERE MTRL.LEVKOD = lkod AND MTRL.ENR = BERMTRL.ENR AND
+                     MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                     IF AVAILABLE MTRL THEN DO:
+                        ASSIGN
+                        BERMTRL.ENR = MTRL.ENR
+                        BERMTRL.BENAMNING = MTRL.BENAMNING
+                        BERMTRL.ENHET = MTRL.ENHET
+                        BERMTRL.PRIS = MTRL.NPRIS
+                        BERMTRL.LEVKOD = MTRL.LEVKOD.
+                     END.
+                     ELSE DO:
+                        /*tillägg för att kolla om någon av katalogerna har E framför  /Lena 2008-05-06*/
+                        IF BERMTRL.ENR BEGINS "E" THEN DO:               
+                           FIND FIRST MTRL WHERE MTRL.LEVKOD = lkod AND MTRL.ENR = SUBSTRING(BERMTRL.ENR,2) AND
+                           MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                           IF AVAILABLE MTRL THEN DO:
+                              ASSIGN
+                              BERMTRL.ENR = MTRL.ENR
+                              BERMTRL.BENAMNING = MTRL.BENAMNING
+                              BERMTRL.ENHET = MTRL.ENHET
+                              BERMTRL.PRIS = MTRL.NPRIS
+                              BERMTRL.LEVKOD = MTRL.LEVKOD.
+                           END.
+                        END.
+                        ELSE DO:
+                           FIND FIRST MTRL WHERE MTRL.LEVKOD = lkod AND MTRL.ENR =  'E' + BERMTRL.ENR AND
+                           MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                           IF AVAILABLE MTRL THEN DO:
+                              ASSIGN
+                              BERMTRL.ENR = MTRL.ENR
+                              BERMTRL.BENAMNING = MTRL.BENAMNING
+                              BERMTRL.ENHET = MTRL.ENHET
+                              BERMTRL.PRIS = MTRL.NPRIS
+                              BERMTRL.LEVKOD = MTRL.LEVKOD.
+                           END.
+                        END.
+                     END.
+                     IF NOT AVAILABLE MTRL  THEN DO:            
+                        CREATE kons_mtrl.
+                        ASSIGN         
+                        kons_mtrl.ENR = BERMTRL.ENR
+                        kons_mtrl.BENAMNING = BERMTRL.BENAMNING
+                        kons_mtrl.ENHET = BERMTRL.ENHET.                        
+                     END.
+                  END.   
+               END.
+            END.   
+         END.
+      END.
+   END.   
+   FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = lkod NO-LOCK NO-ERROR.
+   FIND FIRST kons_mtrl NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE kons_mtrl THEN DO:
+      IF AVAILABLE LEVERANTOR THEN DO:        
+         CREATE tidut.
+         SUBSTRING(tidut.UT,1) = "ALLA ARTIKLAR FANNS HOS LEVERANTÖR " + LEVERANTOR.LEVNAMN.
+      END.   
+      ELSE DO:
+         CREATE tidut.
+         SUBSTRING(tidut.UT,1) = "ALLA ARTIKLAR FANNS HOS LEVERANTÖR ".
+      END.   
+   END.  
+   ELSE DO:
+      CREATE tidut.
+      CREATE tidut.
+      IF AVAILABLE LEVERANTOR THEN DO:
+         SUBSTRING(tidut.UT,1) = "ARTIKLAR SOM SAKNAS HOS LEVERANTÖR " + LEVERANTOR.LEVNAMN + ". MANUELLT BYTE KRÄVS.".
+      END.
+      ELSE DO:
+         SUBSTRING(tidut.UT,1) = "ARTIKLAR SOM SAKNAS HOS LEVERANTÖR. MANUELLT BYTE KRÄVS.".
+      END.      
+      CREATE tidut.
+      RUN rubrikatg_UI.
+      enrvar = " ".
+      FOR EACH kons_mtrl USE-INDEX ENR:
+         IF kons_mtrl.ENR NE enrvar THEN DO:
+            CREATE tidut.      
+            ASSIGN             
+            SUBSTRING(tidut.UT,1) = kons_mtrl.ENR  
+            SUBSTRING(tidut.UT,13) = SUBSTRING(kons_mtrl.BENAMNING,1,40)
+            SUBSTRING(tidut.UT,54) = kons_mtrl.ENHET
+            enrvar = kons_mtrl.ENR.
+         END.
+      END.   
+   END.         
+   ASSIGN    
+   antmtrlbyt = 0.
+   FOR EACH elist_mtrl:
+      antmtrlbyt = antmtrlbyt + 1.
+   END.
+   /*om man byter leverantör för alla rader så byts även huvudleverantör för beredningen*/       
+   IF antmtrlber = antmtrlbyt AND antmtrlbyt > 0 THEN DO:
+      FIND FIRST BETFRIA WHERE BETFRIA.BETNR = INTEGER(valaonr) AND
+      BETFRIA.FAKTTEXT = valomrade EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE BETFRIA THEN DO:
+         CREATE BETFRIA.
+         ASSIGN
+         BETFRIA.BETNR = INTEGER(valaonr) /*beredningsnummer*/
+         BETFRIA.FAKTTEXT = valomrade. /*beredningens område*/
+         BETFRIA.OANTAL = Guru.Konstanter:varforetypval[16].
+      END.
+      IF lkod NE "0" THEN BETFRIA.TYP = lkod. /*vald leverantör för beredningen*/      
+    
+      RELEASE BETFRIA.
+      
+      /*Om allt materiel är markerat - byt även leverantör för artiklar med noll i antal  Lena20190102*/
+      FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr AND BERMTRL.OMRADE = valomrade 
+      AND BERMTRL.LEVKOD NE  lkod AND BERMTRL.ANTAL = 0  EXCLUSIVE-LOCK:
+         IF Guru.Konstanter:globforetag = "gran" AND BERMTRL.LEVKOD = "30" THEN.
+         ELSE IF Guru.Konstanter:globforetag = "gran" AND BERMTRL.LEVKOD = "31" THEN.
+         ELSE IF Guru.Konstanter:globforetag = "gran" AND BERMTRL.LEVKOD = "32" THEN.
+         ELSE DO:  
+            FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = 0 AND UTBYTESLISTA.ORGLEVKOD = BERMTRL.LEVKOD AND UTBYTESLISTA.ORGENR = BERMTRL.ENR AND
+            UTBYTESLISTA.BYTTILLLEVKOD = lkod NO-LOCK NO-ERROR.
+            IF AVAILABLE UTBYTESLISTA THEN DO:               
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = lkod AND MTRL.ENR = UTBYTESLISTA.BYTTILLENR AND
+               MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+               IF AVAILABLE MTRL THEN DO:
+                  ASSIGN
+                  BERMTRL.ENR = MTRL.ENR
+                  BERMTRL.BENAMNING = MTRL.BENAMNING
+                  BERMTRL.ENHET = MTRL.ENHET
+                  BERMTRL.PRIS = MTRL.NPRIS
+                  BERMTRL.LEVKOD = MTRL.LEVKOD.               
+               END.
+               ELSE DO:               
+                  FIND FIRST MTRL WHERE MTRL.LEVKOD = lkod AND MTRL.ENR = BERMTRL.ENR AND
+                  MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                  IF AVAILABLE MTRL THEN DO:
+                     ASSIGN
+                     BERMTRL.ENR = MTRL.ENR
+                     BERMTRL.BENAMNING = MTRL.BENAMNING
+                     BERMTRL.ENHET = MTRL.ENHET
+                     BERMTRL.PRIS = MTRL.NPRIS
+                     BERMTRL.LEVKOD = MTRL.LEVKOD.
+                  END.               
+               END.               
+            END.
+            ELSE DO:
+               IF lkod = "0" THEN BERMTRL.LEVKOD = lkod.
+               ELSE DO:
+                  FIND FIRST MTRL WHERE MTRL.LEVKOD = lkod AND MTRL.ENR = BERMTRL.ENR AND
+                  MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                  IF AVAILABLE MTRL THEN DO:
+                     ASSIGN
+                     BERMTRL.ENR = MTRL.ENR
+                     BERMTRL.BENAMNING = MTRL.BENAMNING
+                     BERMTRL.ENHET = MTRL.ENHET
+                     BERMTRL.PRIS = MTRL.NPRIS
+                     BERMTRL.LEVKOD = MTRL.LEVKOD.
+                  END.
+                  ELSE DO:
+                     /*tillägg för att kolla om någon av katalogerna har E framför  /Lena 2008-05-06*/
+                     IF BERMTRL.ENR BEGINS "E" THEN DO:               
+                        FIND FIRST MTRL WHERE MTRL.LEVKOD = lkod AND MTRL.ENR = SUBSTRING(BERMTRL.ENR,2) AND
+                        MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                        IF AVAILABLE MTRL THEN DO:
+                           ASSIGN
+                           BERMTRL.ENR = MTRL.ENR
+                           BERMTRL.BENAMNING = MTRL.BENAMNING
+                           BERMTRL.ENHET = MTRL.ENHET
+                           BERMTRL.PRIS = MTRL.NPRIS
+                           BERMTRL.LEVKOD = MTRL.LEVKOD.
+                        END.
+                     END.
+                     ELSE DO:
+                        FIND FIRST MTRL WHERE MTRL.LEVKOD = lkod AND MTRL.ENR =  'E' + BERMTRL.ENR AND
+                        MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                        IF AVAILABLE MTRL THEN DO:
+                           ASSIGN
+                           BERMTRL.ENR = MTRL.ENR
+                           BERMTRL.BENAMNING = MTRL.BENAMNING
+                           BERMTRL.ENHET = MTRL.ENHET
+                           BERMTRL.PRIS = MTRL.NPRIS
+                           BERMTRL.LEVKOD = MTRL.LEVKOD.
+                        END.
+                     END.
+                  END.
+               END.               
+            END.
+         END.
+      END.   
+   END.
+
+END PROCEDURE.
+
+
+
+PROCEDURE hamtlev_UI :
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valbernr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.   
+   FIND FIRST BETFRIA WHERE BETFRIA.FAKTTEXT = valomrade AND
+   BETFRIA.BETNR = valbernr NO-LOCK NO-ERROR. 
+   IF AVAILABLE BETFRIA THEN vald_lev = BETFRIA.TYP.         
+   ELSE vald_lev = "".
+END PROCEDURE.

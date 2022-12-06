@@ -1,0 +1,198 @@
+/*NYTTPLANAPP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+{REGVAR.I}
+
+{PLANNRTEMP.I}
+{AVTPLANTEMP.I}
+{PHMT.I}
+{DIRDEF.I}
+
+DEFINE BUFFER planbuff FOR PLANNRTAB.
+
+PROCEDURE spara_UI :
+   DEFINE INPUT PARAMETER plannrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER artalvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER cmbartal AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   DEFINE INPUT PARAMETER TABLE FOR plankonttemp.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR upplantemp.
+   DEFINE VARIABLE musz AS LOGICAL NO-UNDO. 
+    EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   FIND FIRST upplantemp WHERE upplantemp.PLANNR = plannrvar AND 
+   upplantemp.ARTAL = artalvar NO-LOCK NO-ERROR.
+   IF AVAILABLE upplantemp THEN DO:
+      IF upplantemp.TIDANSV NE upplantemp.ARBANSVARIG THEN DO TRANSACTION:
+         FIND FIRST ANSVAONR WHERE ANSVAONR.PERSONALKOD = upplantemp.ARBANSVARIG 
+         USE-INDEX PERSONALKOD EXCLUSIVE-LOCK NO-ERROR.   
+         IF NOT AVAILABLE ANSVAONR THEN DO:
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = upplantemp.ARBANSVARIG 
+            USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE PERSONALTAB THEN DO:
+               RUN fel_UI (INPUT 1).
+               RETURN.
+            END.
+            CREATE ANSVAONR.
+            ASSIGN ANSVAONR.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            ANSVAONR.FORNAMN = PERSONALTAB.FORNAMN
+            ANSVAONR.EFTERNAMN = PERSONALTAB.EFTERNAMN.          
+         END.
+         FIND FIRST PLANNRTAB WHERE PLANNRTAB.ARBANSVARIG = upplantemp.TIDANSV NO-LOCK NO-ERROR.    
+         IF NOT AVAILABLE PLANNRTAB THEN DO:
+            FIND FIRST ANSVAONR WHERE ANSVAONR.PERSONALKOD = upplantemp.TIDANSV 
+            USE-INDEX PERSONALKOD EXCLUSIVE-LOCK NO-ERROR.     
+            IF AVAILABLE ANSVAONR THEN DO:
+               DELETE ANSVAONR.            
+            END.
+         END.                                      
+      END.
+      IF upplantemp.UPP = TRUE AND upplantemp.UPPNR = TRUE THEN DO TRANSACTION:
+         FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = upplantemp.PLANNR AND
+         PLANNRTAB.ARTAL = upplantemp.ARTAL + 1 EXCLUSIVE-LOCK NO-ERROR.
+         RUN uppdel_UI.
+      END.
+      IF upplantemp.UPP = TRUE AND upplantemp.UPPNR = FALSE THEN DO TRANSACTION:
+         FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = upplantemp.PLANNR AND
+         PLANNRTAB.ARTAL = upplantemp.ARTAL - 1 EXCLUSIVE-LOCK NO-ERROR.
+         RUN uppdel_UI.
+      END.
+      DO TRANSACTION:
+         FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = plannrvar AND 
+         PLANNRTAB.ARTAL = artalvar EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE PLANNRTAB THEN DO:
+            CREATE PLANNRTAB.
+         END.
+         BUFFER-COPY upplantemp TO PLANNRTAB.                                                                                                                                                                                                                                                                                                                                                                                                      
+      END.
+      DO TRANSACTION:
+         OPEN QUERY paq FOR EACH PLANKONTO WHERE PLANKONTO.PLANNR = plannrvar AND 
+         PLANKONTO.ARTAL = artalvar USE-INDEX PLANKONT NO-LOCK.
+         GET FIRST paq EXCLUSIVE-LOCK.
+         DO WHILE AVAILABLE(PLANKONTO):
+            DELETE PLANKONTO.  
+            GET NEXT paq EXCLUSIVE-LOCK.
+         END.
+         FIND FIRST plankonttemp WHERE plankonttemp.PLANNR = plannrvar AND 
+         plankonttemp.ARTAL = artalvar NO-LOCK NO-ERROR.
+         IF AVAILABLE plankonttemp THEN DO:
+            OPEN QUERY aq FOR EACH plankonttemp WHERE plankonttemp.PLANNR = plannrvar AND 
+            plankonttemp.ARTAL = artalvar USE-INDEX PLANKONT NO-LOCK.
+            GET FIRST aq NO-LOCK.
+            DO WHILE AVAILABLE(plankonttemp):
+               CREATE PLANKONTO.              
+               ASSIGN
+               PLANKONTO.PLANNR = plankonttemp.PLANNR
+               PLANKONTO.ARTAL = plankonttemp.ARTAL
+               PLANKONTO.K1 = plankonttemp.K1  
+               PLANKONTO.K2 = plankonttemp.K2 
+               PLANKONTO.K3 = plankonttemp.K3 
+               PLANKONTO.K4 = plankonttemp.K4 
+               PLANKONTO.K5 = plankonttemp.K5
+               PLANKONTO.SATS% = plankonttemp.SATS%.            
+               GET NEXT aq NO-LOCK.
+            END.                          
+            CLOSE QUERY aq. 
+         END.
+         FIND FIRST PLANKONTO WHERE PLANKONTO.PLANNR = plannrvar AND
+         PLANKONTO.ARTAL = artalvar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE PLANKONTO THEN DO:
+            FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PLANNRTAB.OMRADE
+            USE-INDEX OMR NO-LOCK NO-ERROR.
+            IF OMRADETAB.KONTOOB = TRUE THEN DO:
+               CREATE felmeddtemp.
+               ASSIGN 
+               felmeddtemp.FELMEDD = "Det måste finnas en kontosträng på varje " + LC(Guru.Konstanter:gplk) + ".".
+               RETURN.
+            END.
+         END.
+      END.
+   END.
+   RETURN.
+
+END PROCEDURE.
+
+PROCEDURE flytta_UI :
+   DEFINE INPUT PARAMETER plannrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER artalvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER cmbartal AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR plankonttemp.
+   EMPTY TEMP-TABLE plankonttemp NO-ERROR. 
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   FIND FIRST planbuff WHERE 
+   planbuff.PLANNR = plannrvar AND
+   planbuff.ARTAL = cmbartal USE-INDEX OMRADE NO-LOCK NO-ERROR.
+   IF AVAILABLE planbuff THEN DO:
+      RUN fel_UI (INPUT 2).
+      RETURN.
+   END.
+   ELSE DO TRANSACTION:
+      FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = plannrvar AND 
+      PLANNRTAB.ARTAL = artalvar EXCLUSIVE-LOCK NO-ERROR. 
+      IF AVAILABLE PLANNRTAB THEN DO:        
+         OPEN QUERY kq FOR EACH PLANKONTO WHERE PLANKONTO.PLANNR = plannrvar AND
+         PLANKONTO.ARTAL = artalvar USE-INDEX PLANKONT NO-LOCK. 
+         GET FIRST kq EXCLUSIVE-LOCK.
+         DO WHILE AVAILABLE(PLANKONTO):
+            PLANKONTO.ARTAL = cmbartal.
+            CREATE plankonttemp.
+            BUFFER-COPY PLANKONTO TO plankonttemp.
+            
+            GET NEXT kq EXCLUSIVE-LOCK.
+         END.
+         CLOSE QUERY kq.         
+         OPEN QUERY koppq FOR EACH KALKAONR WHERE KALKAONR.PLANNR = plannrvar AND
+         KALKAONR.ARTAL = artalvar NO-LOCK.
+         GET FIRST koppq EXCLUSIVE-LOCK.
+         DO WHILE AVAILABLE(KALKAONR):
+            KALKAONR.ARTAL = cmbartal.            
+            FIND FIRST FASTSPEC WHERE FASTSPEC.KALKNR = KALKAONR.KALKNR
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE FASTSPEC THEN do:               
+               FASTSPEC.ARTAL = cmbartal.               
+            END.
+            GET NEXT koppq EXCLUSIVE-LOCK.
+         END.
+         CLOSE QUERY koppq.
+         IF PLANNRTAB.KOPPAO = TRUE THEN DO:
+            OPEN QUERY aoq FOR EACH AONRTAB WHERE AONRTAB.PLANNR = plannrvar AND
+            AONRTAB.ARTAL = artalvar NO-LOCK.
+            GET FIRST aoq EXCLUSIVE-LOCK.
+            DO WHILE AVAILABLE(AONRTAB):
+               AONRTAB.ARTAL = cmbartal.
+               GET NEXT aoq EXCLUSIVE-LOCK.
+            END.
+            CLOSE QUERY aoq.
+         END.
+         ASSIGN PLANNRTAB.ARTAL = cmbartal.  
+      END.
+   END.
+
+END PROCEDURE.
+PROCEDURE uppdel_UI.
+   ASSIGN      
+   PLANNRTAB.ANLNR = upplantemp.ANLNR  
+   PLANNRTAB.ARBANSVARIG = upplantemp.ARBANSVARIG
+   PLANNRTAB.ARBARTKOD = upplantemp.ARBARTKOD      
+   PLANNRTAB.OMRADE = upplantemp.OMRADE 
+   PLANNRTAB.ORT = upplantemp.ORT
+   PLANNRTAB.PKOD = upplantemp.PKOD
+   PLANNRTAB.PRISTYP = upplantemp.PRISTYP      
+   PLANNRTAB.SLUTVNR = upplantemp.SLUTVNR      
+   PLANNRTAB.STARTVNR = upplantemp.STARTVNR  
+   PLANNRTAB.BESTID = upplantemp.TIDBESTID. 
+END PROCEDURE.
+
+PROCEDURE fel_UI:
+   DEFINE INPUT PARAMETER vartvar AS INTEGER NO-UNDO.
+   IF vartvar = 1 THEN DO:
+      CREATE felmeddtemp.
+      felmeddtemp.FELMEDD = "Ingen ansvarig med enhet " + upplantemp.ARBANSVARIG + " finns i registret!".      
+   END.
+   IF vartvar = 2 THEN DO:
+      CREATE felmeddtemp.
+      felmeddtemp.FELMEDD = "Obs! " + LC(Guru.Konstanter:gplk) + " finns redan.".
+   END.
+END PROCEDURE.
+

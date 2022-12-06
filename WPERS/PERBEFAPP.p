@@ -1,0 +1,59 @@
+/*PERBEFAPP.P*/
+/*SPARA OCH TARBORT*/
+&Scoped-define NEW NEW
+{UPPGHMT.I}
+
+{PERBEF.I}
+DEFINE BUFFER prisbuff FOR PERSONALPRIS.
+DEFINE INPUT PARAMETER vagora AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR perspristemp.
+FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+IF vagora = 2 THEN DO: 
+   FOR EACH perspristemp WHERE perspristemp.BORT = TRUE:
+      DO TRANSACTION:
+         FIND FIRST PERSONALPRIS WHERE 
+         PERSONALPRIS.PERSONALKOD = perspristemp.PERSONALKOD AND 
+         PERSONALPRIS.BEFATTNING = perspristemp.BEFATTNING AND
+         PERSONALPRIS.STARTDATUM = perspristemp.STARTDATUM 
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALPRIS THEN DELETE PERSONALPRIS.
+      END.
+      DELETE perspristemp.
+   END.
+   FOR EACH perspristemp:
+      DO TRANSACTION:
+         FIND FIRST PERSONALPRIS WHERE 
+         PERSONALPRIS.PERSONALKOD = perspristemp.PERSONALKOD AND 
+         PERSONALPRIS.BEFATTNING = perspristemp.BEFATTNING AND
+         PERSONALPRIS.STARTDATUM = perspristemp.STARTDATUM 
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE PERSONALPRIS THEN DO:
+            /*
+            IF FORETAG.FORETAG = "SUND" THEN DO:
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = perspristemp.PERSONALKOD NO-LOCK NO-ERROR.
+               IF PERSONALTAB.BEFATTNING = perspristemp.BEFATTNING THEN CREATE PERSONALPRIS.
+            END.   
+            ELSE CREATE PERSONALPRIS.
+            */   
+            CREATE PERSONALPRIS.
+         END.
+         IF AVAILABLE PERSONALPRIS THEN DO:   
+            BUFFER-COPY perspristemp EXCEPT perspristemp.SLUTDATUM perspristemp.KLAR TO PERSONALPRIS.
+            PERSONALPRIS.STARTAD = TRUE.
+            IF PERSONALPRIS.SLUTDATUM = ? THEN PERSONALPRIS.KLAR = FALSE.
+            FIND FIRST prisbuff WHERE prisbuff.KLAR = FALSE AND 
+            prisbuff.STARTAD = TRUE AND 
+            prisbuff.PERSONALKOD = PERSONALPRIS.PERSONALKOD AND
+            prisbuff.BEFATTNING = PERSONALPRIS.BEFATTNING AND 
+            prisbuff.STARTDATUM < PERSONALPRIS.STARTDATUM
+            EXCLUSIVE-LOCK NO-ERROR.        
+            IF AVAILABLE prisbuff THEN DO:
+               ASSIGN
+               prisbuff.SLUTDATUM = PERSONALPRIS.STARTDATUM - 1
+               prisbuff.KLAR = TRUE.
+            END.
+         END.                    
+      END.
+      DELETE perspristemp.
+   END.
+END.

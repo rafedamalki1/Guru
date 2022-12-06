@@ -1,0 +1,682 @@
+/*MENYBERAPP.P*/
+/*{STARTFORAPP.I}*/
+
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{SOKDEF.I}
+{DYNHMT.I}
+{BERTEMPTAB.I}
+{GLOBVAR2DEL1.I}
+{EXTRATAB.I}
+{dppowtemp.I}
+/*{trimbletemp.I}*/
+FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+{BOLAGSEKSTART.I}
+PROCEDURE anvglob_UI :
+   DEFINE INPUT PARAMETER anvglob AS CHARACTER NO-UNDO.
+   /*Guru.Konstanter:globanv = anvglob.*/
+END PROCEDURE.
+PROCEDURE hmtaonrrec_UI:
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omradevar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER aonrrec AS RECID NO-UNDO.
+   FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = aonrvar AND
+   BEREDNING.OMRADE = omradevar NO-LOCK NO-ERROR.
+   IF AVAILABLE BEREDNING THEN DO:
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = BEREDNING.AONR AND 
+      AONRTAB.DELNR = BEREDNING.DELNR NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DO:
+         ASSIGN aonrrec = RECID(AONRTAB).
+      END.
+   END.
+
+END PROCEDURE.
+PROCEDURE schkoll_UI :
+   DEFINE OUTPUT PARAMETER schlg AS LOGICAL NO-UNDO.
+   RUN FINNSTABELL.P (INPUT "HDKALK", OUTPUT schlg).
+   IF schlg = FALSE THEN DO:
+      schlg = TRUE.
+      RETURN. 
+   END.   
+   RUN SCHKOLL.P (OUTPUT schlg).
+   
+END PROCEDURE.
+PROCEDURE attestera_UI :
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omradevar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER meddelande AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE berdatum AS DATE NO-UNDO.
+   FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = aonrvar AND
+   BEREDNING.OMRADE = omradevar NO-LOCK NO-ERROR.
+   FIND LAST BERMTRL WHERE BERMTRL.AONR = aonrvar AND 
+   BERMTRL.OMRADE = omradevar AND BERMTRL.INKOP = FALSE 
+   USE-INDEX DATUM NO-LOCK NO-ERROR.
+   IF AVAILABLE BERMTRL THEN DO:
+      berdatum = BERMTRL.DATUM.
+      FIND FIRST TIDSLAGE WHERE TIDSLAGE.TIDLAGE = "ATTEST" NO-LOCK NO-ERROR.
+      FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.IDTIDLAG = TIDSLAGE.IDTIDLAG AND 
+      AONRTIDLAGE.DATUM1 = berdatum AND AONRTIDLAGE.AONR = BEREDNING.AONR AND
+      AONRTIDLAGE.DELNR = BEREDNING.DELNR NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTIDLAGE THEN DO:
+         IF AONRTIDLAGE.DATUM2 = ? THEN DO:
+            meddelande = "".
+         END.
+         ELSE DO:
+            meddelande = "Denna beredning är redan attesterad.".
+         END.         
+      END.
+      ELSE DO:
+         meddelande = "Denna beredning är ej begärd attest för.".
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE battestn_UI :
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omradevar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER globanv AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER meddelande AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER anamn AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER vlaonr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER vldelnr AS INTEGER NO-UNDO.
+   DEFINE VARIABLE berdatum AS DATE NO-UNDO.
+   FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = aonrvar AND
+   BEREDNING.OMRADE = omradevar NO-LOCK NO-ERROR.
+   IF AVAILABLE BEREDNING  THEN DO:
+      ASSIGN
+      vlaonr = BEREDNING.AONR 
+      vldelnr = BEREDNING.DELNR.
+   END.
+   FIND LAST BERMTRL WHERE BERMTRL.AONR = aonrvar AND 
+   BERMTRL.OMRADE = omradevar AND BERMTRL.INKOP = FALSE 
+   USE-INDEX DATUM NO-LOCK NO-ERROR.
+   IF AVAILABLE BERMTRL THEN DO:
+      berdatum = BERMTRL.DATUM.
+      FIND FIRST TIDSLAGE WHERE TIDSLAGE.TIDLAGE = "ATTEST" NO-LOCK NO-ERROR.
+      FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.IDTIDLAG = TIDSLAGE.IDTIDLAG AND 
+      AONRTIDLAGE.DATUM1 = berdatum AND AONRTIDLAGE.AONR = BEREDNING.AONR AND
+      AONRTIDLAGE.DELNR = BEREDNING.DELNR NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTIDLAGE THEN DO:
+         meddelande = "Denna beredning är redan skickad för attest".
+      END.
+      ELSE DO:
+         meddelande = "".
+      END.
+   END.   
+   FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = globanv NO-LOCK NO-ERROR.      
+   IF AVAILABLE ANVANDARE THEN DO:
+      anamn = ANVANDARE.AV-NAMN.
+   END.   
+END PROCEDURE.
+
+
+PROCEDURE battest_UI :
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omradevar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER meddelande AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE berdatum AS DATE NO-UNDO.
+   FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = aonrvar AND
+   BEREDNING.OMRADE = omradevar NO-LOCK NO-ERROR.
+   FIND LAST BERMTRL WHERE BERMTRL.AONR = aonrvar AND 
+   BERMTRL.OMRADE = omradevar AND BERMTRL.INKOP = FALSE 
+   USE-INDEX DATUM NO-LOCK NO-ERROR.
+   IF AVAILABLE BERMTRL THEN DO:
+      berdatum = BERMTRL.DATUM.
+      FIND FIRST TIDSLAGE WHERE TIDSLAGE.TIDLAGE = "ATTEST" NO-LOCK NO-ERROR.
+      FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.IDTIDLAG = TIDSLAGE.IDTIDLAG AND 
+      AONRTIDLAGE.DATUM1 = berdatum AND AONRTIDLAGE.AONR = BEREDNING.AONR AND
+      AONRTIDLAGE.DELNR = BEREDNING.DELNR NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTIDLAGE THEN DO:
+         meddelande = "Denna beredning är redan skickad för attest".
+      END.
+      ELSE DO:
+         meddelande = "".
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE bort_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valsoktemp.
+   /*aonr bort mm*/
+   FIND FIRST valsoktemp NO-ERROR.
+   IF AVAILABLE valsoktemp THEN DO:
+      IF valsoktemp.SOKVAL = 3 THEN DO:
+         FIND FIRST BERANV WHERE BERANV.AONR = STRING(valsoktemp.SOKINT[1]) AND 
+         BERANV.OMRADE = valsoktemp.SOKCHAR[1] USE-INDEX OMR NO-LOCK NO-ERROR.
+         IF AVAILABLE BERANV THEN DO: 
+            valsoktemp.SOKINT[10] = 1.
+            FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = SUBSTRING(BERANV.ANVANDARE,1,40) NO-LOCK NO-ERROR.      
+            valsoktemp.SOKCHAR[10] = "Beredningen används av " + ANVANDARE.AV-NAMN + ". Funktionen ej möjlig att utföra.".            
+         END.
+         ELSE DO:
+            valsoktemp.SOKINT[10] = 0.
+            DO TRANSACTION:
+               FIND FIRST BEREDNING WHERE BEREDNING.BERNR = valsoktemp.SOKINT[1] AND
+               BEREDNING.OMRADE = valsoktemp.SOKCHAR[1] EXCLUSIVE-LOCK NO-ERROR. 
+               IF AVAILABLE BEREDNING THEN DO:
+                  DELETE BEREDNING.
+               END.                  
+               FIND FIRST BETFRIA WHERE BETFRIA.BETNR = valsoktemp.SOKINT[1] AND
+               BETFRIA.FAKTTEXT = valsoktemp.SOKCHAR[1] EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE BETFRIA THEN DO:
+                  DELETE BETFRIA. 
+               END.                        
+            END.   
+         END.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE urberhmt_UI :
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR eurberedningtemp.
+   EMPTY TEMP-TABLE eurberedningtemp NO-ERROR. 
+   FIND FIRST valsoktemp NO-ERROR.
+   kommandoquery = "".
+   IF AVAILABLE valsoktemp THEN DO:
+      IF valsoktemp.SOKVAL = 1 THEN DO: /*Hämta alla inom ett område och aktiv/inaktiv*/
+         EMPTY TEMP-TABLE urberedningtemp NO-ERROR. 
+         FIND FIRST BEREDNING NO-LOCK NO-ERROR. 
+         IF AVAILABLE BEREDNING THEN DO:
+            IF STRING(valsoktemp.SOKCHAR[1]) NE "ALLA" THEN DO:
+               kommandoquery = kommandoquery + " BEREDNING.OMRADE = '" + STRING(valsoktemp.SOKCHAR[1]) + "'".
+            END.
+            IF STRING(valsoktemp.SOKCHAR[2]) NE "Alla" THEN DO:
+               RUN and_UI.
+               kommandoquery = kommandoquery + " BEREDNING.ANVANDARE = '" + STRING(valsoktemp.SOKCHAR[2]) + "'".
+            END.
+            IF valsoktemp.SOKLOG[3] = TRUE THEN DO:
+               RUN and_UI.
+               kommandoquery = kommandoquery + " BEREDNING.AONR = ?".
+            END.
+            IF valsoktemp.SOKLOG[1] = valsoktemp.SOKLOG[2] THEN DO:         
+            END.
+            ELSE IF valsoktemp.SOKLOG[1] = TRUE THEN DO:
+               RUN and_UI.
+               kommandoquery = kommandoquery + " BEREDNING.AKTIV = TRUE".
+            END.
+            ELSE DO:
+               RUN and_UI.
+               kommandoquery = kommandoquery + " BEREDNING.AKTIV = FALSE".
+            END. 
+            RUN skapaq_UI.
+            IF valsoktemp.SOKCHAR[1] = "ALLA" THEN DO:
+               IF valsoktemp.SOKCHAR[4] = "ALLA" THEN DO:
+                  IF valsoktemp.SOKCHAR[3] = "ALLA" THEN DO:  
+                     FOR EACH urberedningtemp:
+                        CREATE eurberedningtemp.
+                        BUFFER-COPY urberedningtemp TO eurberedningtemp.
+                     END.
+                  END.
+                  ELSE DO:                        
+                     FOR EACH AVDELNING WHERE AVDELNING.POSTANST = valsoktemp.SOKCHAR[3] NO-LOCK,
+                     EACH OMRADETAB WHERE OMRADETAB.AVDELNINGNR = AVDELNING.AVDELNINGNR NO-LOCK,
+                     EACH urberedningtemp WHERE urberedningtemp.OMRADE = OMRADETAB.OMRADE:
+                        CREATE eurberedningtemp.
+                        BUFFER-COPY urberedningtemp TO eurberedningtemp.
+                     END.
+                  END.
+               END.
+               ELSE DO:
+                  FOR EACH AVDELNING WHERE AVDELNING.AVDELNINGNR = INTEGER(valsoktemp.SOKCHAR[4]) NO-LOCK,
+                  EACH OMRADETAB WHERE OMRADETAB.AVDELNINGNR = AVDELNING.AVDELNINGNR NO-LOCK,
+                  EACH urberedningtemp WHERE urberedningtemp.OMRADE = OMRADETAB.OMRADE:
+                      CREATE eurberedningtemp.
+                      BUFFER-COPY urberedningtemp TO eurberedningtemp.
+                  END.
+               END.
+            END.
+            ELSE DO:
+               FOR EACH urberedningtemp:
+                  CREATE eurberedningtemp.
+                  BUFFER-COPY urberedningtemp TO eurberedningtemp.
+               END.
+            END.
+         END.            
+      END.
+   END.
+   RUN aonrsekkoll_UI (INPUT 1).
+   IF valsoktemp.SOKLOG[4] THEN RUN SCHAKTHMT.P (INPUT-OUTPUT TABLE eurberedningtemp).
+END PROCEDURE.                  
+PROCEDURE uppdatvalber_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valberedningtemp.  
+   FOR EACH valberedningtemp:
+      FIND FIRST BEREDNING WHERE BEREDNING.BERNR = valberedningtemp.BERNR AND BEREDNING.OMRADE = valberedningtemp.OMRADE NO-LOCK NO-ERROR.
+      IF AVAILABLE BEREDNING THEN DO:
+         BUFFER-COPY BEREDNING TO valberedningtemp.
+      END.
+      ELSE DELETE valberedningtemp.
+   END.
+   RUN aonrsekkoll_UI (INPUT 2).
+END PROCEDURE.
+/*KALKYL-BEREDNING SUNDSVALL*/
+PROCEDURE valberhmtenKB_UI :
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR valberedningtemp.      
+   EMPTY TEMP-TABLE valberedningtemp NO-ERROR. 
+   FIND FIRST valsoktemp NO-LOCK NO-ERROR.
+   IF AVAILABLE valsoktemp THEN DO:
+      IF valsoktemp.SOKCHAR[1] = "Alla" THEN DO:
+         OPEN QUERY tempq FOR EACH BEREDNING WHERE BEREDNING.BERNR = valsoktemp.SOKINT[1] NO-LOCK.     
+         GET FIRST tempq NO-LOCK.
+         IF NOT AVAILABLE BEREDNING THEN DO:
+            RETURN NO-APPLY.
+         END.
+         DO WHILE AVAILABLE(BEREDNING):
+            CREATE valberedningtemp.
+            BUFFER-COPY BEREDNING TO valberedningtemp.
+            GET NEXT tempq NO-LOCK.
+         END.
+      END.
+      ELSE DO:
+         IF valsoktemp.SOKVAL = 3 THEN DO:
+            FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = valsoktemp.SOKCHAR[1] AND OMRADETAB.ELVOMRKOD = 0  NO-LOCK NO-ERROR.
+         END.
+         ELSE DO:
+            FIND FIRST OMRADETAB WHERE OMRADETAB.NAMN = valsoktemp.SOKCHAR[1] AND OMRADETAB.ELVOMRKOD = 0 NO-LOCK NO-ERROR.
+         END.
+         IF NOT AVAILABLE OMRADETAB THEN DO:
+            FIND FIRST OMRADETAB WHERE OMRADETAB.NAMN = valsoktemp.SOKCHAR[1] NO-LOCK NO-ERROR.
+         END.
+         IF AVAILABLE OMRADETAB THEN DO:
+            FIND FIRST BEREDNING WHERE BEREDNING.BERNR = valsoktemp.SOKINT[1] AND 
+            BEREDNING.OMRADE = OMRADETAB.OMRADE NO-LOCK NO-ERROR.
+            IF AVAILABLE BEREDNING THEN DO:
+               CREATE valberedningtemp.
+               BUFFER-COPY BEREDNING TO valberedningtemp.
+            END.
+         END.
+      END.
+   END.
+   
+   RUN aonrsekkoll_UI (INPUT 22).
+END PROCEDURE.
+
+PROCEDURE valberhmten_UI :
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR valberedningtemp. 
+   EMPTY TEMP-TABLE eurberedningtemp NO-ERROR.      
+   EMPTY TEMP-TABLE valberedningtemp NO-ERROR. 
+   FIND FIRST valsoktemp NO-LOCK NO-ERROR.
+   IF AVAILABLE valsoktemp THEN DO:
+      IF valsoktemp.SOKCHAR[1] = "Alla" THEN DO:
+         OPEN QUERY tempq FOR EACH BEREDNING WHERE BEREDNING.BERNR = valsoktemp.SOKINT[1] NO-LOCK.     
+         GET FIRST tempq NO-LOCK.
+         IF NOT AVAILABLE BEREDNING THEN DO:
+            RETURN NO-APPLY.
+         END.
+         DO WHILE AVAILABLE(BEREDNING):
+            CREATE valberedningtemp.
+            BUFFER-COPY BEREDNING TO valberedningtemp.
+            GET NEXT tempq NO-LOCK.
+         END.
+      END.
+      ELSE DO:
+         IF valsoktemp.SOKVAL = 3 THEN DO:
+            FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = valsoktemp.SOKCHAR[1] AND OMRADETAB.ELVOMRKOD = 0  NO-LOCK NO-ERROR.
+         END.
+         ELSE DO:
+            FIND FIRST OMRADETAB WHERE OMRADETAB.NAMN = valsoktemp.SOKCHAR[1] AND OMRADETAB.ELVOMRKOD = 0 NO-LOCK NO-ERROR.
+         END.
+         IF NOT AVAILABLE OMRADETAB THEN DO:
+            FIND FIRST OMRADETAB WHERE OMRADETAB.NAMN = valsoktemp.SOKCHAR[1] NO-LOCK NO-ERROR.
+         END.
+         IF AVAILABLE OMRADETAB THEN DO:
+            FIND FIRST BEREDNING WHERE BEREDNING.BERNR = valsoktemp.SOKINT[1] AND 
+            BEREDNING.OMRADE = OMRADETAB.OMRADE NO-LOCK NO-ERROR.
+            IF AVAILABLE BEREDNING THEN DO:
+               CREATE valberedningtemp.
+               BUFFER-COPY BEREDNING TO valberedningtemp.
+            END.
+         END.
+      END.
+   END.
+
+   RUN aonrsekkoll_UI (INPUT 2).
+END PROCEDURE.
+
+PROCEDURE hmtberaonr_UI :
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR valberedningtemp.      
+   EMPTY TEMP-TABLE valberedningtemp NO-ERROR. 
+   EMPTY TEMP-TABLE eurberedningtemp NO-ERROR. 
+   IF delnrvar NE ? THEN DO:
+      FOR EACH BEREDNING WHERE BEREDNING.AONR = aonrvar AND 
+      BEREDNING.DELNR = delnrvar NO-LOCK.
+         CREATE valberedningtemp.
+         BUFFER-COPY BEREDNING TO valberedningtemp.   
+      END.   
+   END.
+   ELSE DO:
+      FOR EACH BEREDNING WHERE BEREDNING.AONR = aonrvar NO-LOCK.
+         CREATE valberedningtemp.
+         BUFFER-COPY BEREDNING TO valberedningtemp.   
+      END.   
+   END.
+   RUN aonrsekkoll_UI (INPUT 2).
+END PROCEDURE.
+/*KALKYL-BEREDNING SUNDSVALL*/
+PROCEDURE SundKalkBer_UI :
+   DEFINE VARIABLE fbestapph AS HANDLE NO-UNDO.
+   DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+   RUN EXTRATABHMT.P PERSISTENT SET fbestapph. 
+   EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+   /*KALKYL-BEREDNING SUNDSVALL*/
+   FOR EACH eurberedningtemp WHERE NO-LOCK:
+      CREATE inextrakopptemp.          
+      ASSIGN
+      inextrakopptemp.PROGRAM = "KALKBER"                   
+      inextrakopptemp.KOPPLACHAR1 = ? 
+      inextrakopptemp.KOPPLAINT1 = ?
+      inextrakopptemp.KOPPLACHAR2 = eurberedningtemp.OMRADE
+      inextrakopptemp.KOPPLAINT2 =  eurberedningtemp.BERNR.
+      RUN finnsextra_UI IN fbestapph (INPUT TABLE inextrakopptemp, OUTPUT bloblog).
+      IF bloblog = TRUE THEN DELETE eurberedningtemp.
+      EMPTY TEMP-TABLE inextrakopptemp NO-ERROR.
+   END.
+   FOR EACH valberedningtemp WHERE NO-LOCK:
+      CREATE inextrakopptemp.          
+      ASSIGN
+      inextrakopptemp.PROGRAM = "KALKBER"                   
+      inextrakopptemp.KOPPLACHAR1 = ? 
+      inextrakopptemp.KOPPLAINT1 = ?
+      inextrakopptemp.KOPPLACHAR2 = valberedningtemp.OMRADE
+      inextrakopptemp.KOPPLAINT2 =  valberedningtemp.BERNR.
+      RUN finnsextra_UI IN fbestapph (INPUT TABLE inextrakopptemp, OUTPUT bloblog).
+       
+      IF Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)   THEN RETURN. 
+      ELSE IF bloblog = TRUE THEN DELETE valberedningtemp.
+      EMPTY TEMP-TABLE inextrakopptemp NO-ERROR.
+   END.
+   IF VALID-HANDLE(fbestapph) THEN DELETE PROCEDURE fbestapph NO-ERROR.   
+END PROCEDURE.
+PROCEDURE aonrsekkoll_UI :
+   DEFINE INPUT PARAMETER vad AS INTEGER NO-UNDO.
+   IF vad = 22 THEN vad = 2.
+   ELSE DO:
+      
+      RUN SundKalkBer_UI.
+   END.  
+      
+   IF Guru.Konstanter:varforetypchar[4] = "" AND Guru.Konstanter:varforetypval[18] = 0 THEN DO:
+      RETURN.
+   END.
+   IF Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)   THEN RETURN.
+   IF Guru.Konstanter:varforetypchar[4] = "ja" THEN DO:
+      IF vad = 1 THEN DO:
+         FOR EACH eurberedningtemp:
+            IF eurberedningtemp.OMRADE = "" THEN.
+            ELSE DO:
+               /*omradebehörighet*/
+               FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = Guru.Konstanter:globanv AND 
+               OFFERT.OMRADE = eurberedningtemp.OMRADE NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE OFFERT THEN DO:
+                  /*aobehörighet*/
+                  FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = Guru.Konstanter:globanv AND 
+                  OFFERT.AONR = eurberedningtemp.AONR AND OFFERT.DELNR = eurberedningtemp.DELNR
+                  NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE OFFERT THEN DO:
+                     FIND FIRST BEREDNING WHERE BEREDNING.BERNR = eurberedningtemp.BERNR AND BEREDNING.OMRADE = eurberedningtemp.OMRADE NO-LOCK NO-ERROR.
+                     IF AVAILABLE BEREDNING THEN DO:
+                        IF BEREDNING.ANVANDARE = Guru.Konstanter:globanv AND BEREDNING.AONR = ? THEN.
+                        ELSE DELETE eurberedningtemp.  
+                     END.   
+                     ELSE DELETE eurberedningtemp.
+                  END.
+               END.
+            END.
+         END.
+      END.
+      IF vad = 2 THEN DO:
+         
+         FOR EACH valberedningtemp:
+            IF valberedningtemp.OMRADE = "" THEN.
+            ELSE DO:
+               FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = Guru.Konstanter:globanv AND 
+               OFFERT.OMRADE = valberedningtemp.OMRADE NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE OFFERT THEN DO:
+                  FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = Guru.Konstanter:globanv AND 
+                  OFFERT.AONR = valberedningtemp.AONR AND OFFERT.DELNR = valberedningtemp.DELNR
+                  NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE OFFERT THEN DO:
+                     DELETE valberedningtemp.
+                  END.
+               END.
+            END.
+         END.
+      END.
+   END.
+   IF Guru.Konstanter:varforetypval[18] = 1 THEN DO:
+      IF vad = 1 THEN DO:
+         FOR EACH eurberedningtemp:
+            FIND FIRST omvtemp WHERE omvtemp.OMRADE = eurberedningtemp.OMRADE NO-LOCK NO-ERROR.
+            IF AVAILABLE omvtemp THEN DO:
+               FIND FIRST BOLAGSEK WHERE BOLAGSEK.OMRADE = omvtemp.JUDID AND BOLAGSEK.ANVANDARE = Guru.Konstanter:globanv NO-LOCK NO-ERROR. 
+               IF NOT AVAILABLE BOLAGSEK THEN DELETE eurberedningtemp.               
+            END.
+            ELSE DO:
+               IF eurberedningtemp.OMRADE NE "" THEN DELETE eurberedningtemp.  
+            END.
+         END.
+      END.
+      IF vad = 2 THEN DO:
+         FOR EACH valberedningtemp:
+            FIND FIRST omvtemp WHERE omvtemp.OMRADE = valberedningtemp.OMRADE NO-LOCK NO-ERROR.
+            IF AVAILABLE omvtemp THEN DO:
+               FIND FIRST BOLAGSEK WHERE BOLAGSEK.OMRADE = omvtemp.JUDID AND BOLAGSEK.ANVANDARE = Guru.Konstanter:globanv NO-LOCK NO-ERROR. 
+               IF NOT AVAILABLE BOLAGSEK THEN DELETE valberedningtemp.               
+            END.
+            ELSE DO:
+               IF valberedningtemp.OMRADE NE "" THEN DELETE valberedningtemp.  
+            END.
+         END.
+      END.
+      RETURN.
+   END.
+END PROCEDURE.
+
+
+PROCEDURE imphmt_UI :
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR valberedningtemp.
+   EMPTY TEMP-TABLE valberedningtemp NO-ERROR. 
+   FIND FIRST valsoktemp NO-LOCK NO-ERROR.
+   IF AVAILABLE valsoktemp THEN DO:
+      IF valsoktemp.SOKVAL = 4 THEN DO:  /*Hämtar en BEREDNING via import....*/
+         FIND FIRST BEREDNING WHERE BEREDNING.BERNR = valsoktemp.SOKINT[1] AND
+            BEREDNING.OMRADE = valsoktemp.SOKCHAR[1] NO-LOCK NO-ERROR. 
+         IF AVAILABLE BEREDNING THEN DO:
+            CREATE valberedningtemp.
+            BUFFER-COPY BEREDNING TO valberedningtemp.
+         END.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE berprojhmt_UI :
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valberedningtemp.
+   FIND FIRST valsoktemp NO-LOCK NO-ERROR.
+   IF AVAILABLE valsoktemp THEN DO:
+      IF valsoktemp.SOKVAL = 5 THEN DO:  /*Hämtar Beredningar utifrån projnr*/
+         FOR EACH valberedningtemp:
+            FIND FIRST BEREDNING WHERE BEREDNING.AONR = valberedningtemp.AONR AND
+               BEREDNING.DELNR = valberedningtemp.DELNR NO-LOCK NO-ERROR. 
+            IF AVAILABLE BEREDNING THEN DO:
+               BUFFER-COPY BEREDNING TO valberedningtemp.
+            END.
+            ELSE DO:
+               ASSIGN 
+               valberedningtemp.BERNR = ?.         
+               valberedningtemp.BENAMNING = ?.
+               valberedningtemp.AKTIV = TRUE.
+            END.
+         END.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE impber_UI :
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.   
+   DEFINE INPUT PARAMETER TABLE FOR dppowtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmex.
+   DEFINE VARIABLE tillbernr  AS INTEGER NO-UNDO.
+   DEFINE VARIABLE hjuppl AS INTEGER NO-UNDO.
+   DEFINE VARIABLE hjbygg AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE felmex NO-ERROR. 
+   FIND FIRST AONRTAB  WHERE AONRTAB.AONR = aonrvar AND AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.
+   IF AVAILABLE AONRTAB THEN DO:      
+      FIND LAST BEREDNING WHERE BEREDNING.OMRADE = AONRTAB.OMRADE    USE-INDEX BERNR NO-LOCK NO-ERROR.   
+      IF AVAILABLE BEREDNING THEN tillbernr = BEREDNING.BERNR + 1.
+      ELSE tillbernr = 1. 
+      FIND FIRST dppowtemp WHERE NO-LOCK NO-ERROR.
+      /*MESSAGE tillbernr AONRTAB.OMRADE
+      VIEW-AS ALERT-BOX.*/
+      DO TRANSACTION:      
+         CREATE BEREDNING.        
+         ASSIGN
+         BEREDNING.BERNR = tillbernr
+         BEREDNING.BERAO = STRING(tillbernr)
+         BEREDNING.AONR = aonrvar
+         BEREDNING.DELNR = delnrvar
+         BEREDNING.OMRADE = AONRTAB.OMRADE
+         BEREDNING.BENAMNING = AONRTAB.ORT
+         BEREDNING.AKTIV = TRUE 
+         BEREDNING.ANVANDARE = ganv.         
+         
+         
+         FIND FIRST HUVUDLEV WHERE HUVUDLEV.Dep-Nr = 999 NO-LOCK NO-ERROR.        
+         FIND FIRST BETFRIA WHERE BETFRIA.BETNR = BEREDNING.BERNR AND
+         BETFRIA.FAKTTEXT = BEREDNING.OMRADE 
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE BETFRIA THEN DO:
+            CREATE BETFRIA.
+            ASSIGN
+            BETFRIA.BETNR = BEREDNING.BERNR /*beredningsnummer*/
+            BETFRIA.FAKTTEXT = BEREDNING.OMRADE. /*beredningens område*/
+            BETFRIA.OANTAL = Guru.Konstanter:varforetypval[16].
+         END.
+         BETFRIA.TYP = HUVUDLEV.LEVKOD. /*vald leverantör för beredningen*/
+      
+      END.
+      hjuppl = 0.
+      hjbygg = 0.
+      FOR EACH dppowtemp USE-INDEX UPPLAG:
+         IF dppowtemp.BYGGID NE hjbygg THEN DO TRANSACTION:
+            CREATE BERVAL.
+            ASSIGN 
+            BERVAL.AONR = BEREDNING.BERAO
+            BERVAL.OMRADE = AONRTAB.OMRADE
+            BERVAL.ANVANDARE = ganv          
+            BERVAL.ID = TRUE     
+            BERVAL.KONSKOD = 33
+            BERVAL.KSKAP = FALSE 
+            BERVAL.KTYPKOD = "Lista"
+            BERVAL.NUM = dppowtemp.BYGGID
+            BERVAL.SKAPNUM = 0
+            BERVAL.TYP = 0
+            BERVAL.UPPLAG = dppowtemp.UPPLAG.
+            IF Guru.Konstanter:globforetag = "vast" THEN BERVAL.KONSKOD = 32. 
+            CREATE BERORD.
+            ASSIGN
+            BERORD.AONR = BEREDNING.BERAO
+            BERORD.OMRADE = AONRTAB.OMRADE
+            BERORD.NUM = dppowtemp.BYGGID
+            BERORD.ORD = dppowtemp.BYGGID.
+            
+            CREATE BERID.
+            ASSIGN
+            BERID.AONR = BEREDNING.BERAO
+            BERID.OMRADE = AONRTAB.OMRADE
+            BERID.NUM = dppowtemp.BYGGID
+            BERID.FRI1 = ?
+            BERID.FRI2 = dppowtemp.BYGGID
+            BERID.FRI3 = dppowtemp.FRIID.
+            BERORD.ORD = dppowtemp.BYGGID.
+            CREATE BERID2.
+            ASSIGN
+            BERID2.AONR = BEREDNING.BERAO
+            BERID2.OMRADE = AONRTAB.OMRADE
+            BERID2.NUM = dppowtemp.BYGGID.
+            
+         END.     
+             
+         IF dppowtemp.UPPLAG NE hjuppl AND dppowtemp.UPPLAG > 0 THEN DO TRANSACTION:
+            CREATE BERUPP.
+            ASSIGN 
+            BERUPP.AONR = BEREDNING.BERAO
+            BERUPP.DELNR = 0
+            BERUPP.OMRADE = AONRTAB.OMRADE
+            BERUPP.UPPLAG = dppowtemp.UPPLAG.
+            CREATE BERPUNKT.
+            ASSIGN 
+            BERPUNKT.KONSTRUKTIONUPPLAG = FALSE
+            BERPUNKT.AONR = BEREDNING.BERAO
+            BERPUNKT.DELNR = 0
+            BERPUNKT.OMRADE = AONRTAB.OMRADE
+            BERPUNKT.NUM  = dppowtemp.UPPLAG.
+         END.
+         hjbygg = dppowtemp.BYGGID.
+         hjuppl = dppowtemp.UPPLAG.
+            
+      END.   
+      FIND FIRST HUVUDLEV WHERE HUVUDLEV.Dep-Nr = 999 NO-LOCK NO-ERROR.
+      FOR EACH dppowtemp USE-INDEX UPPLAG:
+         IF dppowtemp.ENR NE "" THEN DO TRANSACTION:
+                
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = dppowtemp.LEVKOD AND MTRL.KALKNR = 0
+            AND MTRL.Enr = dppowtemp.ENR NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE MTRL THEN DO:            
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = HUVUDLEV.LEVKOD AND MTRL.KALKNR = 0
+               AND MTRL.Enr = dppowtemp.ENR NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE MTRL THEN DO:
+                  FIND FIRST MTRL WHERE  MTRL.KALKNR = 0 AND MTRL.Enr = dppowtemp.ENR NO-LOCK NO-ERROR.
+               END.
+            END.   
+            IF AVAILABLE MTRL THEN DO:
+               CREATE BERMTRL.                             
+               ASSIGN
+               BERMTRL.AONR = BEREDNING.BERAO
+               BERMTRL.OMRADE = AONRTAB.OMRADE
+               BERMTRL.NUM = dppowtemp.BYGGID
+               BERMTRL.ENR = dppowtemp.ENR
+               BERMTRL.ANTAL = dppowtemp.ANTAL
+               BERMTRL.BENAMNING = MTRL.Benamning
+               BERMTRL.BESTANT = 0
+               BERMTRL.DATUM = TODAY
+               BERMTRL.ENHET = MTRL.ENHET
+               BERMTRL.INKOP = FALSE
+               BERMTRL.KLAR = FALSE
+               BERMTRL.LEVKOD = MTRL.LEVKOD.   
+               
+               IF Guru.Konstanter:globforetag = "LULE" THEN.
+               ELSE DO:
+                  BERMTRL.PRIS = MTRL.NPRIS.  
+               END.        
+            END.
+            ELSE DO:
+               CREATE felmex.
+               BUFFER-COPY dppowtemp TO felmex.
+            END.   
+         END.
+      END.               
+   END.         
+END PROCEDURE.
+PROCEDURE skapaq_UI :
+   ASSIGN
+   nytab      = "urberedningtemp"
+   orginaltab = "BEREDNING".
+   ASSIGN
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".   
+/*    MESSAGE kommandoquery. */
+   /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE urberedningtemp:DEFAULT-BUFFER-HANDLE.
+   ASSIGN extratemptabh2 = TEMP-TABLE valsoktemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).
+   RUN objdelete_UI.
+END 

@@ -1,0 +1,5 @@
+/*VARFORETYP.I används som ouput var */
+
+DEFINE VARIABLE varforetypval AS INTEGER EXTENT 100 NO-UNDO.     
+DEFINE VARIABLE varforetypchar AS CHARACTER EXTENT 100 NO-UNDO.  
+

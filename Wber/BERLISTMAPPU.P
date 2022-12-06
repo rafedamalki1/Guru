@@ -1,0 +1,239 @@
+/*BERLISTMAPPU.P*/
+{STARTFORAPP.I}
+{ANMARKD.I}
+{LISTDEF.I} 
+{KONVALTEMP.I}
+{SOKDEF.I}
+DEFINE VARIABLE valkonst AS LOGICAL NO-UNDO.
+DEFINE VARIABLE skrivut AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.          
+DEFINE VARIABLE valaonr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE valdelnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE valomrade AS CHARACTER NO-UNDO.  
+DEFINE VARIABLE lin_recid AS RECID NO-UNDO.   
+
+
+DEFINE VARIABLE arrhjsum AS DECIMAL NO-UNDO.    
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(130)" NO-UNDO. 
+DEFINE VARIABLE str2 AS CHARACTER FORMAT "X(130)" NO-UNDO.
+DEFINE VARIABLE totalt AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE sumpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE sumantal AS INTEGER NO-UNDO.
+   
+DEFINE TEMP-TABLE mtrlut   
+   FIELD ENR AS CHARACTER
+   FIELD BENAMNING AS CHARACTER
+   INDEX ENR IS PRIMARY ENR ASCENDING.
+
+DEFINE TEMP-TABLE mtrlinfo  
+   FIELD KTYPKOD AS CHARACTER
+   FIELD ENR AS CHARACTER
+   FIELD BENAMNING AS CHARACTER
+   FIELD NUM AS INTEGER
+   FIELD FRI1 AS INTEGER
+   FIELD FRI2 AS CHARACTER 
+   FIELD FRI3 AS CHARACTER
+   FIELD ANTAL AS DECIMAL
+   INDEX ENR IS PRIMARY ENR ASCENDING.
+
+DEFINE TEMP-TABLE mtrlinfo2  
+   FIELD KTYPKOD AS CHARACTER
+   FIELD ENR AS CHARACTER
+   FIELD BENAMNING AS CHARACTER
+   FIELD NUM AS INTEGER
+   FIELD FRI1 AS INTEGER
+   FIELD FRI2 AS CHARACTER 
+   FIELD FRI3 AS CHARACTER
+   FIELD ANTAL AS DECIMAL
+   FIELD PRIS AS DECIMAL
+   FIELD LEVKOD AS CHARACTER
+   FIELD UPPLAG AS INTEGER
+   INDEX ENR IS PRIMARY ENR ASCENDING.
+
+
+DEFINE TEMP-TABLE mtrl_temp2   
+   {MTRLTEMP2TT.I}
+
+{TIDUTTTNEW.I}
+
+DEFINE QUERY mtrlprisq FOR BERMTRL. 
+
+PROCEDURE htmkonval_UI:
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrlinfo.
+   DEFINE VARIABLE datvar AS DATE NO-UNDO.
+   EMPTY TEMP-TABLE mtrlinfo NO-ERROR. 
+
+   FIND LAST BERMTRL WHERE BERMTRL.AONR = valaonr AND 
+   BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE 
+   USE-INDEX DATUM NO-LOCK NO-ERROR.
+   IF AVAILABLE BERMTRL THEN DO:
+      datvar = BERMTRL.DATUM.
+   END.     
+   ELSE DO:
+      datvar = TODAY.
+   END.
+   
+   FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr AND BERMTRL.INKOP = FALSE
+   AND BERMTRL.DATUM = datvar AND
+   BERMTRL.OMRADE = valomrade AND BERMTRL.ENR = enrvar NO-LOCK:
+      FIND FIRST BERVAL WHERE BERVAL.AONR = BERMTRL.AONR AND BERVAL.OMRADE = BERMTRL.OMRADE AND
+      BERVAL.NUM = BERMTRL.NUM NO-LOCK NO-ERROR.
+      IF AVAILABLE BERVAL THEN DO:
+         CREATE mtrlinfo.
+         ASSIGN
+         mtrlinfo.ANTAL = BERMTRL.ANTAL
+         mtrlinfo.ENR = BERMTRL.ENR
+         mtrlinfo.BENAMNING = BERMTRL.BENAMNING
+         mtrlinfo.KTYPKOD = BERVAL.KTYPKOD.
+         FIND FIRST BERID WHERE BERID.OMRADE = BERVAL.OMRADE AND 
+         BERID.AONR = BERVAL.AONR AND BERID.NUM = BERVAL.NUM NO-LOCK NO-ERROR.
+         IF AVAILABLE BERID THEN DO:
+            ASSIGN 
+            mtrlinfo.NUM = BERID.NUM
+            mtrlinfo.FRI1 = BERID.FRI1
+            mtrlinfo.FRI2 = STRING(BERID.FRI2)
+            mtrlinfo.FRI3 = BERID.FRI3.
+            IF mtrlinfo.FRI2 = ? THEN mtrlinfo.FRI2 = BERID.NATNR.
+            
+         END.
+      END.
+   END.  
+END PROCEDURE.
+
+PROCEDURE htmkonval2_UI:
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrlinfo2.
+   DEFINE VARIABLE datvar AS DATE NO-UNDO.
+   EMPTY TEMP-TABLE mtrlinfo2 NO-ERROR. 
+
+   FIND LAST BERMTRL WHERE BERMTRL.AONR = valaonr AND 
+   BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE 
+   USE-INDEX DATUM NO-LOCK NO-ERROR.
+   IF AVAILABLE BERMTRL THEN DO:
+      datvar = BERMTRL.DATUM.
+   END.     
+   ELSE DO:
+      datvar = TODAY.
+   END.
+   
+   FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr AND BERMTRL.INKOP = FALSE
+   AND BERMTRL.DATUM = datvar AND
+   BERMTRL.OMRADE = valomrade AND BERMTRL.ENR = enrvar NO-LOCK:
+      FIND FIRST BERVAL WHERE BERVAL.AONR = BERMTRL.AONR AND BERVAL.OMRADE = BERMTRL.OMRADE AND
+      BERVAL.NUM = BERMTRL.NUM AND BERVAL.KSKAP = FALSE NO-LOCK NO-ERROR.
+      IF AVAILABLE BERVAL THEN DO:
+         CREATE mtrlinfo2.
+         ASSIGN
+         mtrlinfo2.NUM = BERVAL.NUM
+         mtrlinfo2.ANTAL = BERMTRL.ANTAL
+         mtrlinfo2.ENR = BERMTRL.ENR
+         mtrlinfo2.BENAMNING = BERMTRL.BENAMNING
+         mtrlinfo2.KTYPKOD = BERVAL.KTYPKOD
+         mtrlinfo2.UPPLAG = BERVAL.UPPLAG
+         mtrlinfo2.PRIS = BERMTRL.PRIS
+         mtrlinfo2.LEVKOD = BERMTRL.LEVKOD.
+
+         FIND FIRST BERID WHERE BERID.OMRADE = BERVAL.OMRADE AND 
+         BERID.AONR = BERVAL.AONR AND BERID.NUM = BERVAL.NUM NO-LOCK NO-ERROR.
+         IF AVAILABLE BERID THEN DO:
+            ASSIGN 
+            mtrlinfo2.NUM = BERID.NUM
+            mtrlinfo2.FRI1 = BERID.FRI1
+            mtrlinfo2.FRI2 = STRING(BERID.FRI2)
+            mtrlinfo2.FRI3 = BERID.FRI3.
+            IF mtrlinfo2.FRI2 = ? THEN mtrlinfo2.FRI2 = BERID.NATNR.
+            
+         END.
+      END.
+   END.  
+END PROCEDURE.
+
+
+PROCEDURE skapalista_UI :
+   DEFINE INPUT PARAMETER valaonr2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valkonst2 AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR kon_val.
+   DEFINE OUTPUT PARAMETER musz2 AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrlut.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrl_temp2.
+   EMPTY TEMP-TABLE mtrlut NO-ERROR. 
+   EMPTY TEMP-TABLE mtrl_temp2 NO-ERROR. 
+   ASSIGN 
+   valaonr = valaonr2
+   valomrade = valomrade2
+   musz = FALSE
+   valkonst = valkonst2.   
+   RUN skapa_UI.
+   musz2 = musz.
+   RETURN.
+END PROCEDURE.
+
+
+PROCEDURE skapa_UI :
+   ASSIGN
+   sumantal = 0.  
+   IF valkonst = FALSE THEN DO:
+      RUN LISTPROG.P
+      (INPUT valaonr, INPUT valomrade, OUTPUT TABLE mtrl_temp, OUTPUT TABLE lin_upp, 
+      OUTPUT TABLE lin_temp).
+   END.   
+   ELSE DO:
+      RUN LISTPROG2U.P
+         (INPUT TABLE kon_val, OUTPUT TABLE mtrl_temp, OUTPUT TABLE lin_upp, 
+         OUTPUT TABLE lin_temp).
+   END.
+   FOR EACH mtrl_temp BREAK BY mtrl_temp.ENR: 
+      ACCUMULATE mtrl_temp.TOTPRIS (TOTAL BY mtrl_temp.ENR). 
+      ACCUMULATE mtrl_temp.ANTAL (TOTAL BY mtrl_temp.ENR).       
+      IF LAST-OF(mtrl_temp.ENR) THEN DO:
+         CREATE mtrl_temp2.
+         ASSIGN 
+         mtrl_temp2.ENR = mtrl_temp.ENR
+         mtrl_temp2.BENAMNING = mtrl_temp.BENAMNING 
+         mtrl_temp2.ENHET = mtrl_temp.ENHET 
+         mtrl_temp2.PRIS = mtrl_temp.PRIS
+         mtrl_temp2.NUM = mtrl_temp.NUM
+         mtrl_temp2.TOTPRIS = (ACCUM TOTAL mtrl_temp.TOTPRIS) - sumpris                       
+         mtrl_temp2.ANTAL = (ACCUM TOTAL mtrl_temp.ANTAL) - sumantal                
+         sumpris = ACCUM TOTAL mtrl_temp.TOTPRIS 
+         sumantal = ACCUM TOTAL mtrl_temp.ANTAL.                       
+      END.     
+   END.    
+   FOR EACH lin_upp:
+      FIND FIRST mtrl_temp2 WHERE mtrl_temp2.ENR = lin_upp.ENR NO-LOCK NO-ERROR.
+      IF AVAILABLE mtrl_temp2 THEN DO:                      
+         ASSIGN
+         mtrl_temp2.ANTAL = mtrl_temp2.ANTAL + lin_upp.TOTMETER
+         mtrl_temp2.TOTPRIS = mtrl_temp2.TOTPRIS + lin_upp.TOTPRIS.
+      END.
+      ELSE DO:                    
+         CREATE mtrl_temp2.
+         ASSIGN 
+         mtrl_temp2.ENR = lin_upp.ENR
+         mtrl_temp2.BENAMNING = lin_upp.BENAMNING 
+         mtrl_temp2.ENHET = lin_upp.ENHET 
+         mtrl_temp2.PRIS = lin_upp.PRIS
+         mtrl_temp2.TOTPRIS = lin_upp.TOTPRIS                       
+         mtrl_temp2.ANTAL = lin_upp.TOTMETER.
+      END.
+   END.                
+   FOR EACH mtrl_temp2: 
+      IF mtrl_temp2.ANTAL = 0 THEN DO:
+         musz = musz.
+      END.   
+      ELSE DO:
+         CREATE mtrlut.
+         ASSIGN
+         mtrlut.ENR = mtrl_temp2.ENR              
+         mtrlut.BENAMNING = SUBSTRING(mtrl_temp2.BENAMNING,1,40).
+      END.   
+   END.  
+                                                                                 
+   
+END PROCEDURE.

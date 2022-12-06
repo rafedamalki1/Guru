@@ -1,0 +1,117 @@
+/*FAKTFRIM.P*/
+{FAKTFRIWID.I}
+{FAKTPLANTEMP.I}
+DEFINE SHARED VARIABLE fakthmth AS HANDLE NO-UNDO.
+DEFINE VARIABLE brwh AS HANDLE NO-UNDO EXTENT 50.
+DEFINE SHARED VARIABLE startdatvar AS DATE NO-UNDO.
+DEFINE SHARED VARIABLE slutdatvar AS DATE NO-UNDO.
+DEFINE SHARED VARIABLE regmnr AS INTEGER NO-UNDO.
+DEFINE SHARED VARIABLE regmannamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE manvar AS CHARACTER NO-UNDO EXTENT 12.
+DEFINE VARIABLE manlicvar AS CHARACTER NO-UNDO  EXTENT 12.
+DEFINE VARIABLE arvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE moni AS INTEGER NO-UNDO.
+DEFINE VARIABLE mondat AS DATE NO-UNDO.
+
+moni = 1.
+mondat = startdatvar + 1.
+
+REPEAT:
+   IF mondat > slutdatvar THEN LEAVE.
+   regmnr = MONTH(mondat).
+   RUN MANNAMN.P.
+   manvar[moni] = "Guru " + regmannamn.
+   manlicvar[moni] = "Guru månadslicens " + regmannamn.
+   IF MONTH(mondat) = 12 THEN  mondat = DATE(01,DAY(mondat), YEAR(mondat)).
+   ELSE mondat = DATE(MONTH(mondat) +  1,DAY(mondat), YEAR(mondat)).
+   moni = moni + 1. 
+   IF moni > 12 THEN LEAVE.
+END.
+mondat = startdatvar + 1.
+arvar = "Guru " + STRING(YEAR(mondat)).
+
+PROCEDURE startclient_UI :
+   RUN main_UI.
+END PROCEDURE. 
+PROCEDURE main_UI :
+   DEBUGGER:SET-BREAK().
+   RUN frifakt_UI IN fakthmth (INPUT startdatvar, INPUT slutdatvar,INPUT TABLE vfaktplantemp,OUTPUT TABLE  faktfriatemp).
+  
+   IF RAD_KRFRI = 4 THEN DO:
+      FOR EACH faktfriatemp WHERE :
+         FIND FIRST vfaktplantemp WHERE vfaktplantemp.FAKTNR = faktfriatemp.FAKTNR AND vfaktplantemp.PROJEKTKOD = "www2" NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE vfaktplantemp THEN DO:
+            DELETE faktfriatemp.
+         END.
+            
+      END.
+      FOR EACH faktfriatemp WHERE :
+         faktfriatemp.FAKTURERAD = ?.
+      END.
+      DEBUGGER:SET-BREAK().
+      moni = 1.
+      REPEAT:  
+         FOR EACH faktfriatemp WHERE faktfriatemp.FAKTTEXT BEGINS manvar[moni] NO-LOCK:
+            faktfriatemp.FAKTURERAD = TRUE.
+         END.
+         FOR EACH faktfriatemp WHERE faktfriatemp.FAKTTEXT BEGINS manlicvar[moni] NO-LOCK:
+            faktfriatemp.FAKTURERAD = TRUE.
+         END.
+         moni = moni + 1.
+         IF moni > 12 THEN LEAVE.
+         IF manvar[moni] = "" THEN LEAVE.
+      END.   
+    
+      FOR EACH faktfriatemp WHERE faktfriatemp.FAKTTEXT BEGINS arvar NO-LOCK:
+         faktfriatemp.FAKTURERAD = TRUE.
+      END.
+      FOR EACH faktfriatemp WHERE faktfriatemp.FAKTURERAD = ?:
+         DELETE faktfriatemp.
+      END.
+   END.   
+   RUN skapabrw_UI (INPUT 1, TEMP-TABLE faktfriatemp:DEFAULT-BUFFER-HANDLE).     
+   ON 'CHOOSE' OF BTN_OK PERSISTENT RUN btnok_UI IN THIS-PROCEDURE.
+END PROCEDURE.
+PROCEDURE skapabrw_UI : 
+   DEFINE INPUT  PARAMETER brvnr AS INTEGER NO-UNDO.  
+   DEFINE INPUT  PARAMETER tthandlez AS HANDLE NO-UNDO.
+   DEFINE VARIABLE brwantal AS INTEGER NO-UNDO.
+   DEFINE VARIABLE x-multi AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE y-multi AS DECIMAL NO-UNDO. 
+   DEFINE VARIABLE radvar AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE colvar AS DECIMAL NO-UNDO.
+   IF VALID-HANDLE(huvprogh) THEN RUN musw IN huvprogh.
+    
+   RUN DYNBRWINIT.P PERSISTENT SET brwproc[brvnr].
+   RUN newbrw_UI IN brwproc[brvnr] (INPUT THIS-PROCEDURE).
+   RUN brw_UI IN brwproc[brvnr] (OUTPUT brwh[brvnr]).
+   
+   IF brvnr = 1 THEN DO:
+      RUN brwegenskap_UI IN brwproc[brvnr] (INPUT tthandlez,INPUT "BRW_FRI", INPUT 124, INPUT 10, INPUT TRUE, INPUT TRUE, INPUT "Fakturerade Fria poster", INPUT DEFAULT-FRAME).
+      brwh[brvnr]:PRIVATE-DATA = "ejh".
+      RUN getsizf_UI IN framesizeh (OUTPUT x-multi, OUTPUT y-multi).
+      /*                                     bredd     höjd     kol      rad*/
+      RUN brwstorlek_UI IN brwproc[brvnr](INPUT 120, INPUT 25, INPUT 1.5, INPUT 1.5, INPUT x-multi, INPUT y-multi).
+      RUN fieldinit_UI IN brwproc[brvnr].              
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "FAKTNR", INPUT "Faktura plan", INPUT 8, INPUT ">>>>9", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "NAMN", INPUT "Namn", INPUT 55, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "BOKDATUM", INPUT "Fakturadatum", INPUT 10, INPUT "9999/99/99", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "VFAKTNR", INPUT "Faktura nr", INPUT 15, INPUT ">>>>9", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "VKREDIT", INPUT "Kredit Faktura nr", INPUT 15, INPUT ">>>>9", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "FAKTTEXT", INPUT "Fakt.text", INPUT 55, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "ANTAL", INPUT "Antal", INPUT 10, INPUT "->>>>>9.99", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "PRIS_ENHET", INPUT "Pris/enhet", INPUT 10, INPUT "->>>>>9.99", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "TOTALT", INPUT "Tot.pris", INPUT 10, INPUT "->>>>>9.99", INPUT TRUE).
+                            
+   END.  
+   RUN fieldslut_UI IN brwproc[brvnr].
+   IF VALID-HANDLE(huvprogh) THEN  RUN musa IN huvprogh.
+END PROCEDURE.
+
+PROCEDURE fixastorlek_UI :  
+     
+      
+END PROCEDURE.
+PROCEDURE btnok_UI :
+   RUN avsluta_UI IN huvprogh.
+END PROCEDURE.

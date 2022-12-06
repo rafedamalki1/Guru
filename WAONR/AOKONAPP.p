@@ -1,0 +1,264 @@
+/*AOKONAPP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+{REGVAR.I}
+
+{AVTPLANTEMP.I}
+
+DEFINE TEMP-TABLE kontotemp
+   FIELD KKBENAMNING AS CHARACTER FORMAT "X(10)"
+   FIELD KK1 LIKE KONTOSTRANG.K1
+   FIELD KK2 LIKE KONTOSTRANG.K2
+   FIELD KK3 LIKE KONTOSTRANG.K3
+   FIELD KK4 LIKE KONTOSTRANG.K4 
+   FIELD KK5 LIKE KONTOSTRANG.K5 
+   INDEX konttemp IS PRIMARY KKBENAMNING ASCENDING.
+DEFINE TEMP-TABLE seltemp
+   FIELD KONTO LIKE KONTO.KONTO 
+   FIELD KONTONR LIKE KONTO.KONTONR 
+   FIELD BENAMNING LIKE KONTO.BENAMNING
+   INDEX KONTO  IS PRIMARY KONTO KONTONR ASCENDING.
+DEFINE TEMP-TABLE aokont
+   FIELD AONR AS CHARACTER
+   FIELD DELNR AS INTEGER
+   FIELD K1 AS CHARACTER
+   FIELD K2 AS CHARACTER
+   FIELD K3 AS CHARACTER
+   FIELD K4 AS CHARACTER 
+   FIELD K5 AS CHARACTER 
+   FIELD SATS% AS INTEGER
+   FIELD RECTIDVIS AS RECID.   
+DEFINE TEMP-TABLE aotemp
+   FIELD AONR AS CHARACTER
+   FIELD DELNR AS INTEGER
+   FIELD OMRADE AS CHARACTER.
+
+DEFINE TEMP-TABLE omtemp
+   FIELD OMRADE AS CHARACTER
+   FIELD AVDELNINGNR AS INTEGER
+   FIELD KONTOOB AS LOGICAL.
+
+DEFINE INPUT PARAMETER vartvar AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER plannrvar AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER artalvar AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER omrvar AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER RAD_FAST AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER cforetag AS CHARACTER NO-UNDO.  /*Guru.Konstanter:globforetag*/
+DEFINE OUTPUT PARAMETER TABLE FOR kontotemp.
+DEFINE OUTPUT PARAMETER TABLE FOR seltemp.
+DEFINE OUTPUT PARAMETER TABLE FOR aokont.
+DEFINE OUTPUT PARAMETER TABLE FOR aotemp.
+DEFINE OUTPUT PARAMETER TABLE FOR plankonttemp.
+DEFINE OUTPUT PARAMETER TABLE FOR omtemp.
+
+IF vartvar = 1 THEN DO:   
+   FIND AONRTAB WHERE AONRTAB.AONR = aonrvar AND
+   AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = omrvar NO-LOCK NO-ERROR.
+   CREATE aotemp.
+   ASSIGN
+   aotemp.AONR = AONRTAB.AONR
+   aotemp.DELNR = AONRTAB.DELNR
+   aotemp.OMRADE = OMRADETAB.OMRADE.
+   /*FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = AONRTAB.OMRADE NO-LOCK NO-ERROR.*/
+   CREATE omtemp.
+   ASSIGN
+   omtemp.OMRADE = OMRADETAB.OMRADE
+   omtemp.AVDELNINGNR = OMRADETAB.AVDELNINGNR
+   omtemp.KONTOOB = OMRADETAB.KONTOOB .
+   FIND FIRST KBENAMNING USE-INDEX KBEN NO-LOCK NO-ERROR.
+   IF RAD_FAST = FALSE THEN DO:
+      OPEN QUERY ktsq FOR EACH KONTOSTRANG WHERE KONTOSTRANG.OMRADE = OMRADETAB.OMRADE
+      USE-INDEX KONTOB NO-LOCK.
+      GET FIRST ktsq NO-LOCK.
+      DO WHILE AVAILABLE(KONTOSTRANG):      
+         CREATE kontotemp.
+         ASSIGN 
+         kontotemp.KKBENAMNING = KONTOSTRANG.BENAMNING
+         kontotemp.KK1 = KONTOSTRANG.K1
+         kontotemp.KK2 = KONTOSTRANG.K2
+         kontotemp.KK3 = KONTOSTRANG.K3
+         kontotemp.KK4 = KONTOSTRANG.K4
+         kontotemp.KK5 = KONTOSTRANG.K5.
+         GET NEXT ktsq NO-LOCK. 
+      END.
+   END.
+   ELSE DO:
+      IF AONRTAB.OMRADE = "" THEN DO:
+         OPEN QUERY ktsq FOR EACH KONTOSTRANG USE-INDEX KONTOB NO-LOCK.      
+         GET FIRST ktsq NO-LOCK.
+         DO WHILE AVAILABLE(KONTOSTRANG):    
+            FIND FIRST kontotemp WHERE kontotemp.KKBENAMNING = KONTOSTRANG.BENAMNING
+            USE-INDEX konttemp NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE kontotemp THEN DO:
+               CREATE kontotemp.
+               ASSIGN 
+               kontotemp.KKBENAMNING = KONTOSTRANG.BENAMNING
+               kontotemp.KK1 = KONTOSTRANG.K1
+               kontotemp.KK2 = KONTOSTRANG.K2
+               kontotemp.KK3 = KONTOSTRANG.K3
+               kontotemp.KK4 = KONTOSTRANG.K4
+               kontotemp.KK5 = KONTOSTRANG.K5. 
+            END. 
+            GET NEXT ktsq NO-LOCK. 
+         END.  
+      END.
+      ELSE DO:
+         OPEN QUERY ktsq FOR EACH KONTOSTRANG WHERE KONTOSTRANG.OMRADE = OMRADETAB.OMRADE
+         USE-INDEX KONTOB NO-LOCK.
+         GET FIRST ktsq NO-LOCK.
+         DO WHILE AVAILABLE(KONTOSTRANG):
+            CREATE kontotemp.
+            ASSIGN 
+            kontotemp.KKBENAMNING = KONTOSTRANG.BENAMNING
+            kontotemp.KK1 = KONTOSTRANG.K1
+            kontotemp.KK2 = KONTOSTRANG.K2
+            kontotemp.KK3 = KONTOSTRANG.K3
+            kontotemp.KK4 = KONTOSTRANG.K4
+            kontotemp.KK5 = KONTOSTRANG.K5. 
+            GET NEXT ktsq NO-LOCK. 
+         END.   
+      END.
+   END.           
+   OPEN QUERY aokq FOR EACH AONRKONTKOD WHERE AONRKONTKOD.AONR = AONRTAB.AONR AND 
+   AONRKONTKOD.DELNR = AONRTAB.DELNR USE-INDEX AONRKONT NO-LOCK.
+   GET FIRST aokq NO-LOCK.
+   DO WHILE AVAILABLE(AONRKONTKOD):   
+      IF cforetag = "cELPA" OR cforetag = "cSUND" THEN DO:
+         FIND FIRST kontotemp WHERE 
+         kontotemp.KK1 = AONRKONTKOD.K1 AND  
+         kontotemp.KK2 = AONRKONTKOD.K2 AND 
+         kontotemp.KK3 = AONRKONTKOD.K3 AND 
+         kontotemp.KK4 = "" AND 
+         kontotemp.KK5 = AONRKONTKOD.K5 NO-ERROR.
+      END.
+      ELSE DO:
+         FIND FIRST kontotemp WHERE 
+         kontotemp.KK1 = AONRKONTKOD.K1 AND  
+         kontotemp.KK2 = AONRKONTKOD.K2 AND 
+         kontotemp.KK3 = AONRKONTKOD.K3 AND 
+         kontotemp.KK4 = AONRKONTKOD.K4 AND 
+         kontotemp.KK5 = AONRKONTKOD.K5 NO-ERROR.
+      END.
+     /* IF AVAILABLE kontotemp THEN DELETE kontotemp.*/ 
+      CREATE aokont.
+      BUFFER-COPY AONRKONTKOD TO aokont.
+      ASSIGN aokont.RECTIDVIS = RECID(AONRKONTKOD).
+      GET NEXT aokq NO-LOCK.
+   END.                          
+   CLOSE QUERY aokq.   
+   OPEN QUERY kontq FOR EACH KONTO WHERE KONTO.AKTIV = TRUE USE-INDEX KONTO NO-LOCK.
+   GET FIRST kontq NO-LOCK.
+   DO WHILE AVAILABLE(KONTO):
+      CREATE seltemp.
+      ASSIGN
+      seltemp.KONTO = KONTO.KONTO 
+      seltemp.KONTONR = KONTO.KONTONR
+      seltemp.BENAMNING = KONTO.BENAMNING.
+      GET NEXT kontq NO-LOCK.
+   END.
+END.
+
+IF vartvar = 2 THEN DO:
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = omrvar NO-LOCK NO-ERROR.
+   CREATE omtemp.
+   ASSIGN
+   omtemp.OMRADE = OMRADETAB.OMRADE
+   omtemp.AVDELNINGNR = OMRADETAB.AVDELNINGNR
+   omtemp.KONTOOB = OMRADETAB.KONTOOB.
+   FIND FIRST KBENAMNING USE-INDEX KBEN NO-LOCK NO-ERROR.
+
+   IF RAD_FAST = FALSE THEN DO:
+      OPEN QUERY ktsq FOR EACH KONTOSTRANG WHERE KONTOSTRANG.OMRADE = omrvar
+      USE-INDEX KONTOB NO-LOCK.
+      GET FIRST ktsq NO-LOCK.
+      DO WHILE AVAILABLE(KONTOSTRANG):      
+         CREATE kontotemp.
+         ASSIGN 
+         kontotemp.KKBENAMNING = KONTOSTRANG.BENAMNING
+         kontotemp.KK1 = KONTOSTRANG.K1
+         kontotemp.KK2 = KONTOSTRANG.K2
+         kontotemp.KK3 = KONTOSTRANG.K3
+         kontotemp.KK4 = KONTOSTRANG.K4
+         kontotemp.KK5 = KONTOSTRANG.K5.
+         GET NEXT ktsq NO-LOCK. 
+      END.
+   END.
+   ELSE DO:
+      IF omrvar = "" THEN DO:
+         OPEN QUERY ktsq FOR EACH KONTOSTRANG USE-INDEX KONTOB NO-LOCK.      
+         GET FIRST ktsq NO-LOCK.
+         DO WHILE AVAILABLE(KONTOSTRANG):    
+            FIND FIRST kontotemp WHERE kontotemp.KKBENAMNING = KONTOSTRANG.BENAMNING
+            USE-INDEX konttemp NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE kontotemp THEN DO:
+               CREATE kontotemp.
+               ASSIGN 
+               kontotemp.KKBENAMNING = KONTOSTRANG.BENAMNING
+               kontotemp.KK1 = KONTOSTRANG.K1
+               kontotemp.KK2 = KONTOSTRANG.K2
+               kontotemp.KK3 = KONTOSTRANG.K3
+               kontotemp.KK4 = KONTOSTRANG.K4
+               kontotemp.KK5 = KONTOSTRANG.K5. 
+            END. 
+            GET NEXT ktsq NO-LOCK. 
+         END.  
+      END.
+      ELSE DO:
+         OPEN QUERY ktsq FOR EACH KONTOSTRANG WHERE KONTOSTRANG.OMRADE = omrvar
+         USE-INDEX KONTOB NO-LOCK.
+         GET FIRST ktsq NO-LOCK.
+         DO WHILE AVAILABLE(KONTOSTRANG):
+            CREATE kontotemp.
+            ASSIGN 
+            kontotemp.KKBENAMNING = KONTOSTRANG.BENAMNING
+            kontotemp.KK1 = KONTOSTRANG.K1
+            kontotemp.KK2 = KONTOSTRANG.K2
+            kontotemp.KK3 = KONTOSTRANG.K3
+            kontotemp.KK4 = KONTOSTRANG.K4
+            kontotemp.KK5 = KONTOSTRANG.K5. 
+            GET NEXT ktsq NO-LOCK. 
+         END.   
+      END.
+   END.           
+   OPEN QUERY plkq FOR EACH PLANKONTO WHERE PLANKONTO.PLANNR = plannrvar AND 
+   PLANKONTO.ARTAL = artalvar USE-INDEX PLANKONT NO-LOCK.
+   GET FIRST plkq NO-LOCK.
+   DO WHILE AVAILABLE(PLANKONTO):   
+      IF Guru.Konstanter:globforetag = "cELPA" OR Guru.Konstanter:globforetag = "cSUND" THEN DO:
+         FIND FIRST kontotemp WHERE 
+         kontotemp.KK1 = PLANKONTO.K1 AND  
+         kontotemp.KK2 = PLANKONTO.K2 AND 
+         kontotemp.KK3 = PLANKONTO.K3 AND 
+         kontotemp.KK4 = "" AND 
+         kontotemp.KK5 = PLANKONTO.K5 NO-ERROR.
+      END.
+      ELSE DO:
+         FIND FIRST kontotemp WHERE 
+         kontotemp.KK1 = PLANKONTO.K1 AND  
+         kontotemp.KK2 = PLANKONTO.K2 AND 
+         kontotemp.KK3 = PLANKONTO.K3 AND 
+         kontotemp.KK4 = PLANKONTO.K4 AND 
+         kontotemp.KK5 = PLANKONTO.K5 NO-ERROR.
+      END.
+      /*IF AVAILABLE kontotemp THEN DELETE kontotemp. */
+      CREATE plankonttemp.
+      BUFFER-COPY PLANKONTO TO plankonttemp.
+      ASSIGN plankonttemp.RECTIDVIS = RECID(PLANKONTO).
+      GET NEXT plkq NO-LOCK.
+   END.                          
+   CLOSE QUERY plkq.
+   OPEN QUERY kontq FOR EACH KONTO WHERE KONTO.AKTIV = TRUE USE-INDEX KONTO NO-LOCK.
+   GET FIRST kontq NO-LOCK.
+   DO WHILE AVAILABLE(KONTO):
+      CREATE seltemp.
+      ASSIGN
+      seltemp.KONTO = KONTO.KONTO 
+      seltemp.KONTONR = KONTO.KONTONR
+      seltemp.BENAMNING = KONTO.BENAMNING.
+      GET NEXT kontq NO-LOCK.
+   END.
+END.

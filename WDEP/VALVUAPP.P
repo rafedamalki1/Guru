@@ -1,0 +1,177 @@
+/*VALVUAPP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+&Scoped-define NEW   
+&Scoped-define SHARED
+{ANVTEMPS.I}
+{LEVTEMP.I}
+{LTRPTEMP.I}
+{DEPATEMP.I}
+{DEPSEKTEMP.I}
+{SPECMTRLTEMP.I}
+DEFINE TEMP-TABLE off_mtrl NO-UNDO    
+    FIELD TOTALT AS DECIMAL.  
+DEFINE TEMP-TABLE gam_mtrl NO-UNDO
+   FIELD DATUM AS DATE
+   FIELD DATUM2 AS DATE
+   FIELD KOM AS CHARACTER.    
+
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(86)" NO-UNDO.    
+DEFINE VARIABLE str1 AS CHARACTER FORMAT "X(86)" NO-UNDO.
+
+{bestnrtab.I}
+
+{TIDUTTTNEW.I} 
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+{DYNHMT.I}
+PROCEDURE hmtbest_UI :        
+   DEFINE INPUT PARAMETER haonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER hdelnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER best_nr_koll AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR best_nr_tab.
+   IF depnr = ? THEN DO:
+      FIND FIRST BERBEST WHERE BERBEST.AONR = haonr AND
+      BERBEST.DELNR = hdelnr AND
+      BERBEST.UTTAG = TRUE AND BERBEST.LEVDATUM NE ? 
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE BERBEST THEN DO:     
+         best_nr_koll = BERBEST.BESTNR.
+         CREATE best_nr_tab.
+         ASSIGN 
+         best_nr_tab.bestnr = BERBEST.BESTNR
+         best_nr_tab.bestdatum = BERBEST.BESTDATUM
+         best_nr_tab.bestallare = SUBSTRING(BERBEST.BESTALLARE,1,59).
+      END.            
+      DO WHILE AVAILABLE BERBEST:
+         FIND NEXT BERBEST WHERE BERBEST.BESTNR NE best_nr_koll AND BERBEST.AONR = haonr AND
+         BERBEST.DELNR = hdelnr AND 
+         BERBEST.UTTAG = TRUE AND BERBEST.LEVDATUM NE ? 
+         NO-LOCK NO-ERROR.      
+         IF AVAILABLE BERBEST THEN DO:
+            CREATE best_nr_tab.
+            ASSIGN 
+            best_nr_tab.bestnr = BERBEST.BESTNR
+            best_nr_tab.bestdatum = BERBEST.BESTDATUM
+            best_nr_tab.bestallare = SUBSTRING(BERBEST.BESTALLARE,1,59)
+            best_nr_koll = BERBEST.BESTNR.
+         END.        
+      END.
+   END.
+   ELSE DO:   
+      FIND FIRST BERBEST WHERE BERBEST.AONR = haonr AND
+      BERBEST.DELNR = hdelnr AND BERBEST.DEPNR = depnr AND
+      BERBEST.UTTAG = TRUE AND BERBEST.LEVDATUM NE ? 
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE BERBEST THEN DO:     
+         best_nr_koll = BERBEST.BESTNR.
+         CREATE best_nr_tab.
+         ASSIGN 
+         best_nr_tab.bestnr = BERBEST.BESTNR
+         best_nr_tab.bestdatum = BERBEST.BESTDATUM
+         best_nr_tab.bestallare = SUBSTRING(BERBEST.BESTALLARE,1,59).
+      END.            
+      DO WHILE AVAILABLE BERBEST:
+         FIND NEXT BERBEST WHERE BERBEST.BESTNR NE best_nr_koll AND BERBEST.AONR = haonr AND
+         BERBEST.DELNR = hdelnr AND BERBEST.DEPNR = depnr AND
+         BERBEST.UTTAG = TRUE AND BERBEST.LEVDATUM NE ? 
+         NO-LOCK NO-ERROR.      
+         IF AVAILABLE BERBEST THEN DO:
+            CREATE best_nr_tab.
+            ASSIGN 
+            best_nr_tab.bestnr = BERBEST.BESTNR
+            best_nr_tab.bestdatum = BERBEST.BESTDATUM
+            best_nr_tab.bestallare = SUBSTRING(BERBEST.BESTALLARE,1,59)
+            best_nr_koll = BERBEST.BESTNR.
+         END.        
+      END.
+   END.
+END PROCEDURE.         
+PROCEDURE mtrlbbhmt_UI:
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.      
+   DEFINE INPUT PARAMETER valdelnr AS INTEGER NO-UNDO.       
+   /*DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.   */
+   DEFINE INPUT PARAMETER valnummer AS INTEGER NO-UNDO.    
+   DEFINE OUTPUT PARAMETER TABLE FOR spec_mtrl.      
+   DEFINE OUTPUT PARAMETER TABLE FOR off_mtrl.      
+   DEFINE OUTPUT PARAMETER TABLE FOR gam_mtrl.      
+   
+   EMPTY TEMP-TABLE spec_mtrl NO-ERROR.
+   EMPTY TEMP-TABLE off_mtrl NO-ERROR.
+   EMPTY TEMP-TABLE gam_mtrl NO-ERROR.   
+   OPEN QUERY dq FOR EACH BERBEST WHERE BERBEST.AONR = valaonr AND
+   BERBEST.DELNR = valdelnr /*AND BERBEST.DEPNR = depnr*/ AND
+   BERBEST.UTTAG = TRUE AND BERBEST.LEVDATUM NE ? AND 
+   BERBEST.BESTNR = valnummer NO-LOCK.      
+   GET FIRST dq NO-LOCK.
+   DO WHILE AVAILABLE(BERBEST):
+      IF BERBEST.OFFERT = FALSE THEN DO:
+         CREATE spec_mtrl.
+         ASSIGN
+         spec_mtrl.ENR = BERBEST.ENR
+         spec_mtrl.BENAMNING = SUBSTRING(BERBEST.BENAMNING,1,59)
+         spec_mtrl.ENHET = BERBEST.ENHET
+         spec_mtrl.SALDO = BERBEST.ANTAL
+         spec_mtrl.NPRIS = BERBEST.PRIS       
+         spec_mtrl.BPRIS = BERBEST.PRIS
+         spec_mtrl.LEVKOD = BERBEST.LEVKOD.
+      END.
+      ELSE DO:
+         CREATE off_mtrl.
+         off_mtrl.TOTALT = BERBEST.PRIS.
+         CREATE gam_mtrl.
+         ASSIGN
+         gam_mtrl.DATUM = BERBEST.BESTDATUM
+         gam_mtrl.DATUM2 = BERBEST.LEVDATUM
+         gam_mtrl.KOM = SUBSTRING(BERBEST.BENAMNING,1,59).                                     
+      END.   
+      GET NEXT dq NO-LOCK.
+   END.
+   CLOSE QUERY dq.   
+END PROCEDURE.
+
+
+/*PROCEDURE bortbest_UI :        
+   DEFINE INPUT PARAMETER haonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER hdelnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER depnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER best_nr_koll AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR best_nr_tab.
+      
+   DO TRANSACTION:
+      OPEN QUERY dq FOR EACH BERBEST WHERE BERBEST.AONR = haonr AND
+      BERBEST.DELNR = hdelnr AND BERBEST.DEPNR = depnr AND
+      BERBEST.UTTAG = TRUE AND BERBEST.LEVDATUM NE ? AND 
+      BERBEST.BESTNR = best_nr_koll NO-LOCK.      
+      GET FIRST dq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(BERBEST):
+         DELETE BERBEST.
+         GET NEXT dq EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY dq.   
+      DELETE best_nr_tab.
+   END.
+   RELEASE BERBEST.
+END PROCEDURE.         
+
+PROCEDURE bestkoll_UI :        
+   DEFINE INPUT PARAMETER benr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER bedatum AS DATE NO-UNDO.   
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.
+   
+   FIND FIRST BERBEST WHERE BERBEST.BESTNR = benr AND 
+   BERBEST.BESTDATUM =  bedatum NO-LOCK NO-ERROR.
+   IF AVAILABLE BERBEST THEN DO:
+      IF SUBSTRING(BERBEST.BESTALLARE,60,1) = "W" THEN DO:
+         CREATE felmeddtemp.  
+         ASSIGN               
+         felmeddtemp.FELMEDD = "Denna beställning är överläst till ekonomisystem. Ändring är ej möjlig".         
+      END.
+   END. 
+END PROCEDURE.         */
+

@@ -1,0 +1,348 @@
+/*
+               KSV Editor
+    Copyright: (C) 2000-2001 Serguey Klimoff (bulkl0DD)
+     Filename: MSVAONRIN.P
+      Comment: <comment>
+   Parameters:
+         Uses:
+      Used by:
+      Created: 2009.11.02 11:13 ELPAO   
+     Modified: 2009.11.19 14:13 ELPAO    
+     Modified: 2009.12.03 10:21 ELPAO    
+     Modified: 2010.02.18 11:36 ELPAO    
+     Modified: 
+*/
+/*DEFINE INPUT PARAMETER prognamnque AS CHARACTER NO-UNDO.*/
+DEFINE NEW SHARED VARIABLE prognamnque AS CHARACTER NO-UNDO.
+
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+DEFINE NEW SHARED VARIABLE appcon AS LOGICAL NO-UNDO.
+
+
+  
+DEFINE NEW SHARED VARIABLE quotervar AS CHARACTER FORMAT "X(256)" NO-UNDO.
+
+
+
+
+DEFINE VARIABLE dirnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dirspar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE dynxml AS HANDLE NO-UNDO.
+DEFINE VARIABLE filnamnuppxml AS CHARACTER NO-UNDO.
+DEFINE VARIABLE servervar AS CHARACTER LABEL "Smtp Server" NO-UNDO.
+DEFINE VARIABLE franvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tillepost AS CHARACTER NO-UNDO.
+DEFINE STREAM dirstrom.
+
+
+DEFINE TEMP-TABLE temporderb
+   FIELD Projektnummer     AS CHARACTER     
+   FIELD Delnr             AS INTEGER
+   FIELD Benamning         AS CHARACTER
+   FIELD Ansvarig          AS CHARACTER
+   FIELD Bestallare        AS CHARACTER
+   FIELD Avslutdatum       AS CHARACTER   
+   FIELD Borttaget         AS LOGICAL
+   INDEX Projektnummer Projektnummer.
+DEFINE TEMP-TABLE tempnamn NO-UNDO
+   FIELD NAMNH AS HANDLE
+   FIELD TORGTH AS HANDLE
+   FIELD NODTAB AS CHARACTER.   
+DEFINE TEMP-TABLE imptemp NO-UNDO
+   FIELD INVAR AS CHARACTER
+   FIELD INDIR AS CHARACTER
+   INDEX INVAR INVAR.
+
+DEFINE TEMP-TABLE feltemp NO-UNDO
+   FIELD AONR AS CHARACTER
+   FIELD POST AS CHARACTER
+   FIELD FELMEDD AS CHARACTER
+   INDEX AONR AONR.
+
+DEFINE TEMP-TABLE eposttemp NO-UNDO
+   FIELD EPOST AS CHARACTER
+   FIELD MEDD AS CHARACTER
+   INDEX EPOST EPOST.
+
+{SMTPDEF3.I}
+
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+globforetag = FORETAG.FORETAG.
+
+/*IF globforetag = "MISV" THEN DO:
+   prognamnque = "C:\elpool\delad\pro10s\db\" + "autoaonr.txt". 
+END.
+ELSE DO:
+   prognamnque = "c:\pro9\guru\db\" + "autoaonr.txt". 
+END.*/
+
+
+RUN textut_UI ("Start in").
+RUN PROVAG.P.
+
+IF globforetag = "MISV" THEN DO:
+   ASSIGN
+   dirnamn = "C:\elpool\delad\pro10s\import\projin\"
+   dirspar = "C:\elpool\delad\pro10s\backimport\projin\".
+END.
+ELSE DO:
+   ASSIGN
+   dirnamn = "C:\Pro9\GURU\DB\import\projin\"
+   dirspar = "C:\Pro9\GURU\DB\backimport\projin\".
+END.
+
+/*
+ASSIGN
+dirnamn = "C:\delad\pro9s\import\aonrin\"
+dirspar = "C:\delad\pro9s\importkopia\aonrin\".
+  */
+OS-CREATE-DIR VALUE(dirnamn) NO-ERROR. 
+OS-CREATE-DIR VALUE(dirspar) NO-ERROR. 
+   
+RUN textut_UI ("Start xml").
+RUN inxml_UI.
+
+FIND FIRST imptemp NO-LOCK NO-ERROR.
+IF NOT AVAILABLE imptemp THEN DO:
+   RETURN.
+END.
+CREATE tempnamn.        
+tempnamn.NAMNH = BUFFER Projekt:HANDLE.       
+tempnamn.TORGTH = TEMP-TABLE Projekt:HANDLE.
+tempnamn.NODTAB = "Projekt".
+
+RUN UTXMLDYN.P PERSISTENT SET dynxml (INPUT FALSE).
+FOR EACH imptemp:
+   filnamnuppxml = imptemp.INDIR + imptemp.INVAR.
+   RUN xmlinstart_UI IN dynxml (INPUT TABLE tempnamn,INPUT filnamnuppxml).
+END.
+RUN xmlslut_UI IN dynxml.
+FOR EACH imptemp:
+   RUN textut_UI ("Filer bort " + imptemp.INDIR + imptemp.INVAR).
+   OS-DELETE VALUE(imptemp.INDIR + imptemp.INVAR) NO-ERROR.
+END.
+ 
+RUN aonr_UI.
+
+
+
+IF VALID-HANDLE(dynxml) THEN DELETE PROCEDURE dynxml.    
+PROCEDURE textut_UI:
+   DEFINE INPUT PARAMETER meddvar AS CHARACTER NO-UNDO.
+   OUTPUT TO VALUE(prognamnque) APPEND.
+   PUT UNFORMATTED meddvar " " TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+   OUTPUT CLOSE.
+END PROCEDURE.
+
+
+
+
+PROCEDURE aonr_UI :
+
+   FOR EACH Projekt:
+      IF Projekt.Projektnummer BEGINS "16"  THEN.
+      ELSE DO:      
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = Projekt.Projektnummer AND AONRTAB.DELNR = Projekt.Delnr EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE AONRTAB THEN DO: 
+            IF Projekt.Avslutdatum NE "" THEN NEXT.
+            CREATE AONRTAB.
+            ASSIGN
+            AONRTAB.AONR          = Projekt.Projektnummer 
+            AONRTAB.DELNR         = Projekt.Delnr
+            AONRTAB.OMRADE        = "SVAB".
+         END.
+         FIND FIRST BESTTAB WHERE BESTTAB.BESTNAMN = Projekt.Bestallare AND BESTTAB.BESTNAMN NE ""  NO-LOCK NO-ERROR.
+         IF AVAILABLE BESTTAB THEN DO:         
+            IF AONRTAB.BESTID NE BESTTAB.BESTID  THEN ASSIGN AONRTAB.BESTID  =  BESTTAB.BESTID.
+         END.
+         ELSE DO: 
+            IF Projekt.Bestallare = "MittSverige Vatten AB" THEN DO:
+               IF AONRTAB.BESTID NE AONRTAB.OMRADE  THEN ASSIGN AONRTAB.BESTID   = AONRTAB.OMRADE.
+            END.
+            ELSE DO:         
+               IF AONRTAB.BESTID NE AONRTAB.OMRADE THEN ASSIGN AONRTAB.BESTID = AONRTAB.OMRADE.
+               CREATE feltemp.
+               ASSIGN 
+               feltemp.AONR = Projekt.Projektnummer
+               feltemp.POST = Projekt.Bestallare
+               FELTEMP.FELMEDD = "Projektet saknar giltig beställare".
+            END.
+   
+         END.
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONNUMMER = SUBSTRING(Projekt.Ansvarig,3,10) AND PERSONALTAB.PERSONNUMMER NE "" NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB  THEN DO:
+            IF AONRTAB.STARTDAG NE PERSONALTAB.PERSONALKOD  THEN DO:         
+               ASSIGN
+               AONRTAB.STARTDAG = PERSONALTAB.PERSONALKOD
+               AONRTAB.BEREDARE   = PERSONALTAB.PERSONALKOD
+               AONRTAB.ARBANSVARIG = PERSONALTAB.PERSONALKOD.                      
+            END.
+         END.
+         ELSE DO:
+            IF globforetag = "MISV" THEN DO:         
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = "ETN" NO-LOCK NO-ERROR.
+            END.
+            IF globforetag = "ELPA" THEN DO:         
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = "6677" NO-LOCK NO-ERROR.
+            END.
+            IF AVAILABLE PERSONALTAB THEN DO:            
+               IF AONRTAB.STARTDAG = "" THEN AONRTAB.STARTDAG = PERSONALTAB.PERSONALKOD.
+               IF AONRTAB.BEREDARE = "" THEN AONRTAB.BEREDARE   = PERSONALTAB.PERSONALKOD.
+               IF AONRTAB.ARBANSVARIG = "" THEN AONRTAB.ARBANSVARIG = PERSONALTAB.PERSONALKOD.                      
+            END.
+            CREATE feltemp.
+            ASSIGN 
+            feltemp.AONR = Projekt.Projektnummer
+            feltemp.POST = Projekt.Ansvarig
+            feltemp.FELMEDD = "Projektet saknar giltig ansvarig".
+         END.         
+   
+         Projekt.Benamning = REPLACE(Projekt.Benamning,"\","").
+         Projekt.Benamning = REPLACE(Projekt.Benamning,"/","").
+         Projekt.Benamning = REPLACE(Projekt.Benamning,":","").
+         Projekt.Benamning = REPLACE(Projekt.Benamning,"*","x").
+         Projekt.Benamning = REPLACE(Projekt.Benamning,">","").
+         Projekt.Benamning = REPLACE(Projekt.Benamning,"<","").
+         Projekt.Benamning = REPLACE(Projekt.Benamning,"|","").
+         IF AONRTAB.ORT NE Projekt.Benamning THEN ASSIGN AONRTAB.ORT = Projekt.Benamning.
+         
+         IF Projekt.Avslutdatum = "" THEN DO:
+            IF AONRTAB.AONRAVDATUM NE 01/01/91 THEN DO:
+               RUN ejavslut_UI (INPUT TRUE).
+            END.
+            IF AONRTAB.AONRAVDATUM NE 01/01/91 THEN ASSIGN AONRTAB.AONRAVDATUM = 01/01/91.
+            FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.AONR = AONRTAB.AONR AND 
+            AONRTIDLAGE.DELNR = AONRTAB.DELNR AND AONRTIDLAGE.IDTIDLAG = "AONRAVSL" EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE AONRTIDLAGE THEN DELETE AONRTIDLAGE.
+         END.
+         ELSE DO:
+            IF AONRTAB.AONRAVDATUM NE DATE(INTEGER(SUBSTRING(Projekt.Avslutdatum,5,2)),INTEGER(SUBSTRING(Projekt.Avslutdatum,7,2)),INTEGER(SUBSTRING(Projekt.Avslutdatum,1,4))) THEN DO:         
+               AONRTAB.AONRAVDATUM = DATE(INTEGER(SUBSTRING(Projekt.Avslutdatum,5,2)),INTEGER(SUBSTRING(Projekt.Avslutdatum,7,2)),INTEGER(SUBSTRING(Projekt.Avslutdatum,1,4))).
+               RUN TLAGAUTO.P (INPUT "AUTOMATISKT", INPUT RECID(AONRTAB), INPUT "AONRAVSL").                  
+               FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.AONR = AONRTAB.AONR AND 
+               AONRTIDLAGE.DELNR = AONRTAB.DELNR AND AONRTIDLAGE.IDTIDLAG = "AONRAVSL" EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE AONRTIDLAGE THEN DO:
+                  AONRTIDLAGE.DATUM1 = DATE(INTEGER(SUBSTRING(Projekt.Avslutdatum,5,2)),INTEGER(SUBSTRING(Projekt.Avslutdatum,7,2)),INTEGER(SUBSTRING(Projekt.Avslutdatum,1,4))).
+               END.
+               RUN ejavslut_UI (INPUT FALSE).
+            END.
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.AONR = Projekt.Projektnummer AND TIDREGITAB.DELNR = 0 AND TIDREGITAB.TIDLOG = TRUE
+            AND TIDREGITAB.DATUM > AONRTAB.AONRAVDATUM NO-LOCK NO-ERROR.
+            IF AVAILABLE TIDREGITAB THEN DO:               
+               CREATE feltemp.
+               ASSIGN 
+               feltemp.AONR = Projekt.Projektnummer
+               feltemp.POST = "AVSLUT"
+               feltemp.FELMEDD = "Tid finns skriven efter projektets avslutdatum på  t.ex " +  TIDREGITAB.PERSONALKOD + " " + STRING(TIDREGITAB.DATUM).
+
+            END.
+         END.
+         
+         IF Projekt.Borttaget = TRUE  THEN DO:
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.AONR = Projekt.Projektnummer AND TIDREGITAB.DELNR = 0 NO-LOCK NO-ERROR.
+            IF AVAILABLE TIDREGITAB THEN DO:
+               AONRTAB.AONRAVDATUM = TODAY.
+               RUN TLAGAUTO.P (INPUT "AUTOMATISKT", INPUT RECID(AONRTAB), INPUT "AONRAVSL").                  
+               FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.AONR = AONRTAB.AONR AND 
+               AONRTIDLAGE.DELNR = AONRTAB.DELNR AND AONRTIDLAGE.IDTIDLAG = "AONRAVSL" EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE AONRTIDLAGE THEN DO:
+                  AONRTIDLAGE.DATUM1 = DATE(INTEGER(SUBSTRING(Projekt.Avslutdatum,5,2)),INTEGER(SUBSTRING(Projekt.Avslutdatum,7,2)),INTEGER(SUBSTRING(Projekt.Avslutdatum,1,4))).
+               END.
+               RUN ejavslut_UI (INPUT FALSE).
+              
+            END.
+            ELSE DO:
+               DELETE AONRTAB.
+            END.
+         END.
+      END.
+      
+   END.   
+END PROCEDURE.
+
+PROCEDURE ejavslut_UI : 
+   DEFINE INPUT PARAMETER aktivvar AS LOGICAL NO-UNDO.
+   FOR EACH KALKAONR WHERE KALKAONR.AONR = AONRTAB.AONR AND KALKAONR.DELNR = AONRTAB.DELNR NO-LOCK,
+   EACH FASTSPEC WHERE FASTSPEC.KALKNR = KALKAONR.KALKNR EXCLUSIVE-LOCK.
+      FASTSPEC.AKTIV = aktivvar.         
+   END.
+   FOR EACH KALKSPEC WHERE KALKSPEC.AONR = AONRTAB.AONR AND KALKSPEC.DELNR = AONRTAB.DELNR USE-INDEX AONR EXCLUSIVE-LOCK.
+      KALKSPEC.AKTIV = aktivvar.         
+   END.
+   FOR EACH KALKAONR WHERE KALKAONR.AONR = AONRTAB.AONR AND KALKAONR.DELNR = AONRTAB.DELNR USE-INDEX AONR EXCLUSIVE-LOCK.
+      KALKAONR.AKTIV = aktivvar.
+   END.
+   DO TRANSACTION:
+      FIND FIRST BEREDNING WHERE BEREDNING.AONR = AONRTAB.AONR AND BEREDNING.DELNR = AONRTAB.DELNR 
+      USE-INDEX AONR EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BEREDNING THEN BEREDNING.AKTIV = aktivvar.  
+      FIND FIRST AOVARD WHERE AOVARD.AONR = AONRTAB.AONR AND AOVARD.DELNR = AONRTAB.DELNR
+      USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF AVAILABLE AOVARD THEN DO:
+         IF AOVARD.VARDNR = ? THEN musz = musz.
+         ELSE DO:
+            FIND FIRST VARDERING WHERE VARDERING.VARDNR = AOVARD.VARDNR USE-INDEX VARDNR
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE VARDERING THEN DO:
+               ASSIGN VARDERING.AKTIV = aktivvar.
+            END.
+         END.
+      END.            
+   END.
+   RELEASE KALKSPEC NO-ERROR.
+   RELEASE FASTSPEC NO-ERROR.
+   RELEASE KALKAONR NO-ERROR.
+   RELEASE BEREDNING NO-ERROR.
+   RELEASE VARDERING NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE inxml_UI :
+   DEFINE VARIABLE mvar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE tmpfilnamn AS CHARACTER FORMAT "X(78)" NO-UNDO.
+   DEFINE VARIABLE tmpdirlist AS CHARACTER FORMAT "X(78)" NO-UNDO.
+   DEFINE VARIABLE tmpattrlist AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE kommando AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE imptemp NO-ERROR. 
+   mvar = "*.xml".
+   ASSIGN
+   tmpfilnamn = ""
+   tmpattrlist = ""
+   tmpdirlist = "".
+   IF dirnamn = "" THEN RETURN.
+   INPUT STREAM dirstrom FROM OS-DIR(dirnamn) NO-ECHO.
+   REPEAT:
+      /*Hämtar filnamn, hela sökvägen och vilken typ av fil det är*/
+      SET STREAM dirstrom tmpfilnamn tmpdirlist tmpattrlist.
+      IF tmpfilnamn MATCHES mvar THEN DO:
+         
+         FIND FIRST imptemp WHERE imptemp.INVAR = tmpfilnamn NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE imptemp THEN DO:
+            CREATE imptemp.
+            ASSIGN
+            imptemp.INDIR = dirnamn
+            imptemp.INVAR = tmpfilnamn.
+         END.
+      END.
+   END.
+   INPUT STREAM dirstrom CLOSE. 
+   OUTPUT TO VALUE(dirspar + "inao.txt") APPEND.
+   PUT " " AT 1 SKIP .
+   PUT TODAY AT 1  STRING(TIME,"hh:mm:ss") AT 12 SKIP.
+   OUTPUT CLOSE.
+   FOR EACH imptemp:
+      kommando = "".
+      kommando = "COPY " + dirspar + "inao.txt + " + imptemp.INDIR + imptemp.INVAR + " " + dirspar + "inao.txt".  
+      OS-COMMAND SILENT VALUE(kommando).
+      OUTPUT TO VALUE(dirspar + "inao.txt") APPEND.
+      PUT " " AT 1 SKIP .
+      OUTPUT CLOSE.
+   END.
+
+   
+END PROCEDURE.
+
+

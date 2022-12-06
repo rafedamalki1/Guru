@@ -1,0 +1,288 @@
+/*ENRKONSTU31.P*/
+/*BYT ARTIKEL X TILL ARTIKEL Y*/
+{STARTFORAPP.I}
+{SMTRL.I}
+{BMTRL.I}
+DEFINE TEMP-TABLE grupp_temp NO-UNDO
+   FIELD KONSKOD AS INTEGER
+   FIELD BENAMNING AS CHARACTER.    
+DEFINE VARIABLE valgrupp AS INTEGER NO-UNDO.
+/*DEFINE INPUT PARAMETER valgrupp LIKE KONSTGRUPP.KONSKOD NO-UNDO.*/
+DEFINE INPUT PARAMETER TABLE FOR grupp_temp.
+DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+DEFINE OUTPUT PARAMETER TABLE FOR byt_mtrl.
+DEFINE INPUT PARAMETER valla AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER erslev AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kabelskapup AS LOGICAL NO-UNDO.
+DEFINE QUERY mtrlq FOR MTRLBER.
+DEFINE QUERY kq FOR KONSTRUKTION.
+
+FIND FIRST byt_mtrl NO-LOCK NO-ERROR.        
+FIND FIRST spec_mtrl NO-LOCK NO-ERROR.
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+globforetag = FORETAG.FORETAG.
+
+FOR EACH grupp_temp:
+   valgrupp = grupp_temp.KONSKOD.  
+   IF valgrupp = 0 THEN kabelskapup = TRUE.
+   OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = valgrupp NO-LOCK.
+   GET FIRST kq NO-LOCK.
+   DO WHILE AVAILABLE(KONSTRUKTION):
+      IF globforetag = "ELPA" /*{GLOBVES.I}*/ THEN DO:
+         IF spec_mtrl.LEVKOD = "1" OR spec_mtrl.LEVKOD = "11" THEN DO:
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+            MTRLBER.ENR = spec_mtrl.ENR AND
+            (MTRLBER.LEVKOD = "1" OR MTRLBER.LEVKOD = "11") NO-LOCK.         
+         END.
+         ELSE DO:
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+            MTRLBER.ENR = spec_mtrl.ENR AND
+            MTRLBER.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+         END.
+      END.
+      ELSE DO:
+         OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+         MTRLBER.ENR = spec_mtrl.ENR AND
+         MTRLBER.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+      END.       
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         CREATE byt_mtrl.
+         ASSIGN
+         byt_mtrl.KTYPKOD = MTRLBER.KTYPKOD
+         byt_mtrl.F1 = MTRLBER.F1
+         byt_mtrl.F2 = MTRLBER.F2
+         byt_mtrl.F3 = MTRLBER.F3
+         byt_mtrl.F4 = MTRLBER.F4
+         byt_mtrl.F5 = MTRLBER.F5
+         byt_mtrl.ANTAL = MTRLBER.ANTAL
+         byt_mtrl.ENR = MTRLBER.ENR
+         byt_mtrl.LEVKOD = MTRLBER.LEVKOD.
+         
+         
+         GET NEXT mtrlq NO-LOCK.
+      END.
+      CLOSE QUERY mtrlq.
+      GET NEXT kq NO-LOCK.
+   END.
+   CLOSE QUERY kq.
+   
+   /*skåpupp*/
+   IF kabelskapup = TRUE THEN DO:
+      kabelskapup = FALSE.
+      IF globforetag = "ELPA" /*{GLOBVES.I}*/ THEN DO:
+         IF spec_mtrl.LEVKOD = "1" OR spec_mtrl.LEVKOD = "11" THEN DO:
+            OPEN QUERY mskapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND
+            (BERSKAP.LEVKOD = "1" OR BERSKAP.LEVKOD = "11") NO-LOCK.         
+         END.
+         ELSE DO:
+            OPEN QUERY mskapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND
+            BERSKAP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+         END.
+      END.
+      ELSE DO:
+         OPEN QUERY mskapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND
+         BERSKAP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+      END.         
+      GET FIRST mskapq NO-LOCK.
+      DO WHILE AVAILABLE(BERSKAP):
+         CREATE byt_mtrl.
+         ASSIGN
+         byt_mtrl.KTYPKOD = BERSKAP.KTYPKOD
+         byt_mtrl.F1 = BERSKAP.KOD
+         byt_mtrl.ANTAL = BERSKAP.ANTAL
+         byt_mtrl.ENR = BERSKAP.ENR
+         byt_mtrl.LEVKOD = BERSKAP.LEVKOD.
+         GET NEXT mskapq NO-LOCK.
+      END.
+      CLOSE QUERY mskapq.
+   END.
+   IF erslev = TRUE THEN DO:
+     /* Med översättning från huvudleverantör*/
+      /*ERSÄTTNING*/
+      FIND FIRST  BETPLAN WHERE BETPLAN.OMRADE = spec_mtrl.ENR AND BETPLAN.BESTID = spec_mtrl.LEVKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE BETPLAN THEN DO:
+         OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = valgrupp NO-LOCK.
+         GET FIRST kq NO-LOCK.
+         DO WHILE AVAILABLE(KONSTRUKTION):
+            
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+            MTRLBER.ENR = BETPLAN.ANVANDARE AND
+            MTRLBER.LEVKOD = BETPLAN.NAMN NO-LOCK.         
+            
+            GET FIRST mtrlq NO-LOCK.
+            DO WHILE AVAILABLE(MTRLBER):
+               CREATE byt_mtrl.
+               ASSIGN
+               byt_mtrl.KTYPKOD = MTRLBER.KTYPKOD
+               byt_mtrl.F1 = MTRLBER.F1
+               byt_mtrl.F2 = MTRLBER.F2
+               byt_mtrl.F3 = MTRLBER.F3
+               byt_mtrl.F4 = MTRLBER.F4
+               byt_mtrl.F5 = MTRLBER.F5
+               byt_mtrl.ANTAL = MTRLBER.ANTAL
+               byt_mtrl.ENR = MTRLBER.ENR
+               byt_mtrl.LEVKOD = MTRLBER.LEVKOD.
+               GET NEXT mtrlq NO-LOCK.
+            END.
+            CLOSE QUERY mtrlq.
+            GET NEXT kq NO-LOCK.
+         END.
+         CLOSE QUERY kq.
+         
+      END.
+   END.
+
+END.   
+IF valla = TRUE THEN DO:
+   /*stolpar trafo*/
+   IF globforetag = "ELPA" /*{GLOBVES.I}*/ THEN DO:
+      IF spec_mtrl.LEVKOD = "1" OR spec_mtrl.LEVKOD = "11" THEN DO:
+         OPEN QUERY mstolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND
+         (BERSTOLP.LEVKOD = "1" OR BERSTOLP.LEVKOD = "11") NO-LOCK.         
+      END.
+      ELSE DO:
+         OPEN QUERY mstolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND
+         BERSTOLP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+      END.
+   END.
+   ELSE DO:
+      OPEN QUERY mstolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND
+      BERSTOLP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+   END.         
+   GET FIRST mstolpq NO-LOCK.
+   DO WHILE AVAILABLE(BERSTOLP):
+      CREATE byt_mtrl.
+      IF BERSTOLP.STOLPE = TRUE THEN byt_mtrl.KTYPKOD = "Stolpar".
+      ELSE byt_mtrl.KTYPKOD = "Transformatorer". 
+      ASSIGN      
+      byt_mtrl.ANTAL = BERSTOLP.ANTAL
+      byt_mtrl.ENR = BERSTOLP.ENR
+      byt_mtrl.LEVKOD = BERSTOLP.LEVKOD.
+      
+      GET NEXT mstolpq NO-LOCK.
+   END.
+   CLOSE QUERY mstolpq.
+END.
+
+FOR EACH byt_mtrl:
+   FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = byt_mtrl.KTYPKOD
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE KONSTRUKTION THEN DO:
+      FIND FIRST KONSTGRUPP WHERE KONSTGRUPP.KONSKOD = KONSTRUKTION.KONSKOD
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE KONSTGRUPP THEN DO:
+         ASSIGN
+         byt_mtrl.KONSKOD = KONSTGRUPP.KONSKOD
+         byt_mtrl.BENAMNING = KONSTGRUPP.BENAMNING.
+         byt_mtrl.KTYPKOD = byt_mtrl.KTYPKOD + " " + KONSTRUKTION.BENAMNING.
+      END.
+      ELSE IF byt_mtrl.KTYPKOD = "Stolpar" THEN DO: 
+         
+      END.
+      ELSE IF byt_mtrl.KTYPKOD = "Transformatorer" THEN DO: 
+         
+      END.
+   END.
+   /*MESSAGE "KONS" byt_mtrl.KONSKOD "KTYP"  byt_mtrl.KTYPKOD "F1" byt_mtrl.F1 "F2" byt_mtrl.F2 "F3" byt_mtrl.F3 "F4" byt_mtrl.F4 "F5" byt_mtrl.F5 "ENR" byt_mtrl.ENR "LEVKOD" byt_mtrl.LEVKOD VIEW-AS ALERT-BOX.*/
+END.
+
+
+   /*       GAMMALT
+IF valgrupp = ? THEN DO:
+   IF globforetag = "ELPA" {GLOBVES.I} THEN DO:
+      IF spec_mtrl.LEVKOD = "1" OR spec_mtrl.LEVKOD = "11" THEN DO:
+         OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.ENR = spec_mtrl.ENR AND
+         (MTRLBER.LEVKOD = "1" OR MTRLBER.LEVKOD = "11") NO-LOCK.            
+      END.
+      ELSE DO:
+         OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.ENR = spec_mtrl.ENR AND
+         MTRLBER.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.            
+      END.
+   END.
+   ELSE DO:
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.ENR = spec_mtrl.ENR AND
+      MTRLBER.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.            
+   END.      
+   GET FIRST mtrlq NO-LOCK.
+   IF AVAILABLE MTRLBER THEN DO:
+      CREATE byt_mtrl.
+      ASSIGN
+      byt_mtrl.KTYPKOD = MTRLBER.KTYPKOD
+      byt_mtrl.F1 = MTRLBER.F1
+      byt_mtrl.F2 = MTRLBER.F2
+      byt_mtrl.F3 = MTRLBER.F3
+      byt_mtrl.F4 = MTRLBER.F4
+      byt_mtrl.F5 = MTRLBER.F5
+      byt_mtrl.ANTAL = MTRLBER.ANTAL.
+   END.      
+   REPEAT:         
+      GET NEXT mtrlq NO-LOCK. 
+      IF AVAILABLE MTRLBER THEN DO:
+         CREATE byt_mtrl.
+         ASSIGN
+         byt_mtrl.KTYPKOD = MTRLBER.KTYPKOD
+         byt_mtrl.F1 = MTRLBER.F1
+         byt_mtrl.F2 = MTRLBER.F2
+         byt_mtrl.F3 = MTRLBER.F3
+         byt_mtrl.F4 = MTRLBER.F4
+         byt_mtrl.F5 = MTRLBER.F5
+         byt_mtrl.ANTAL = MTRLBER.ANTAL.
+      END.
+      ELSE LEAVE.         
+   END.      
+   CLOSE QUERY mtrlq.   
+END.
+ELSE DO:           
+   OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = valgrupp NO-LOCK.
+   GET FIRST kq NO-LOCK.
+   DO WHILE AVAILABLE(KONSTRUKTION):
+      IF globforetag = "ELPA" {GLOBVES.I} THEN DO:
+         IF spec_mtrl.LEVKOD = "1" OR spec_mtrl.LEVKOD = "11" THEN DO:
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+            MTRLBER.ENR = spec_mtrl.ENR AND
+            (MTRLBER.LEVKOD = "1" OR MTRLBER.LEVKOD = "11") NO-LOCK.         
+         END.
+         ELSE DO:
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+            MTRLBER.ENR = spec_mtrl.ENR AND
+            MTRLBER.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+         END.
+      END.
+      ELSE DO:
+         OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+         MTRLBER.ENR = spec_mtrl.ENR AND
+         MTRLBER.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+      END.         
+      GET FIRST mtrlq NO-LOCK.
+      IF AVAILABLE MTRLBER THEN DO:
+         CREATE byt_mtrl.
+         ASSIGN
+         byt_mtrl.KTYPKOD = MTRLBER.KTYPKOD
+         byt_mtrl.F1 = MTRLBER.F1
+         byt_mtrl.F2 = MTRLBER.F2
+         byt_mtrl.F3 = MTRLBER.F3
+         byt_mtrl.F4 = MTRLBER.F4
+         byt_mtrl.F5 = MTRLBER.F5
+         byt_mtrl.ANTAL = MTRLBER.ANTAL.
+      END.         
+      REPEAT:                                                          
+         GET NEXT mtrlq NO-LOCK.
+         IF AVAILABLE MTRLBER THEN DO:
+            CREATE byt_mtrl.
+            ASSIGN
+            byt_mtrl.KTYPKOD = MTRLBER.KTYPKOD
+            byt_mtrl.F1 = MTRLBER.F1
+            byt_mtrl.F2 = MTRLBER.F2
+            byt_mtrl.F3 = MTRLBER.F3
+            byt_mtrl.F4 = MTRLBER.F4
+            byt_mtrl.F5 = MTRLBER.F5
+            byt_mtrl.ANTAL = MTRLBER.ANTAL.
+         END.
+         ELSE LEAVE.            
+      END.
+      CLOSE QUERY mtrlq.
+      GET NEXT kq NO-LOCK.
+   END.
+   CLOSE QUERY kq.
+END.   */

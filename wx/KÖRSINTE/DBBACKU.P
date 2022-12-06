@@ -1,0 +1,97 @@
+
+/*DBBACKU.P körs ej*/
+DEFINE TEMP-TABLE felmeddftptemp 
+   FIELD FELMEDD AS CHARACTER
+   FIELD VAL AS INTEGER.
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE prognamnold AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamnold2 AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE namevar AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE progflytt AS CHARACTER NO-UNDO.
+
+DEFINE INPUT PARAMETER prognamnque AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER dbfilename AS CHARACTER NO-UNDO.  /*dabasnamn*/
+DEFINE INPUT PARAMETER dbbackupp AS CHARACTER NO-UNDO.   /*vart kopian ska*/
+DEFINE VARIABLE dbkopianamn AS CHARACTER NO-UNDO.
+prognamnque = LC(prognamnque).
+dbfilename  = LC(dbfilename).
+dbbackupp = LC(dbbackupp).
+dbkopianamn = dbfilename.
+IF WEEKDAY(TODAY) = 1 THEN dbkopianamn = dbkopianamn + "son".
+ELSE IF WEEKDAY(TODAY) = 2 THEN dbkopianamn = dbkopianamn + "mon".
+ELSE IF WEEKDAY(TODAY) = 3 THEN dbkopianamn = dbkopianamn + "tis".
+ELSE IF WEEKDAY(TODAY) = 4 THEN dbkopianamn = dbkopianamn + "ons".
+ELSE IF WEEKDAY(TODAY) = 5 THEN dbkopianamn = dbkopianamn + "tor".
+ELSE IF WEEKDAY(TODAY) = 6 THEN dbkopianamn = dbkopianamn + "fre".
+ELSE IF WEEKDAY(TODAY) = 7 THEN dbkopianamn = dbkopianamn + "lor".
+IF DAY(TODAY) = 1 THEN DO:
+   dbkopianamn = dbfilename.
+   dbkopianamn = dbkopianamn + STRING(MONTH(TODAY)).
+END.
+/*Anders Olsson Elpool i Umeå AB  11 jan 2018 17:02:22 
+vi tar inga årsbackupper längre 
+IF DAY(TODAY) = 31 AND MONTH(TODAY) = 12 THEN DO:
+   dbkopianamn = dbfilename.
+   dbkopianamn = dbkopianamn + STRING(YEAR(TODAY)).
+END.
+*/
+
+progflytt = SUBSTRING(prognamnque,1,INDEX(prognamnque,"autotid.txt") - 1).
+namevar = LC(dbfilename + " AI").
+RUN ut_UI (INPUT namevar).
+prognamnold = progflytt + "AI/" + dbfilename + ".A1".
+prognamnold2 = progflytt + dbbackupp + dbfilename + ".A1".
+OS-COPY VALUE(LC(prognamnold)) VALUE(LC(prognamnold2)).
+prognamnold = progflytt + "AI/" + dbfilename + ".A2".
+prognamnold2 = progflytt + dbbackupp + dbfilename + ".A2".
+OS-COPY VALUE(LC(prognamnold)) VALUE(LC(prognamnold2)).
+namevar = dbfilename + " EMP".
+RUN ut_UI (INPUT namevar).
+kommando = "rfutil " + progflytt + "db9/" + dbfilename + " -C aimage extent empty".
+RUN os_UI.
+namevar = dbfilename + " BK".
+RUN ut_UI (INPUT namevar).
+kommando = "probkup online " + progflytt + "db9/" + dbfilename + " " + progflytt + dbbackupp + dbfilename + ".bck -com".
+RUN os_UI.
+RUN ut_UI (INPUT "extra backup"). 
+OS-COPY VALUE(progflytt + dbbackupp + dbfilename + ".bck") VALUE(progflytt + dbbackupp + dbkopianamn + ".bck").
+RUN ut_UI (INPUT dbfilename). 
+IF dbfilename = "FORS" THEN DO:
+   RUN ftp_UI.  
+END.
+
+PROCEDURE ftp_UI :
+   DEFINE VARIABLE prognamn AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE prognamn2 AS CHARACTER NO-UNDO.
+   
+   prognamn = progflytt + dbbackupp + dbfilename + ".bck".
+   prognamn2 = "FORTUM\" + dbfilename + ".bck".
+   RUN FTPFILE.P (INPUT CHR(101) + CHR(108) + CHR(112) + CHR(97) + CHR(111), INPUT CHR(107) + CHR(97) + CHR(103) + CHR(103) + CHR(101) + CHR(110), INPUT TRUE, INPUT 2,
+                     INPUT prognamn, INPUT prognamn2,
+                     INPUT "www.guruonweb.se", OUTPUT TABLE felmeddftptemp).
+   RUN ftpsvar_UI.
+   prognamn = progflytt + dbbackupp + dbkopianamn + ".bck".
+   prognamn2 = "FORTUM\" + dbkopianamn + ".bck".
+   RUN FTPFILE.P (INPUT CHR(101) + CHR(108) + CHR(112) + CHR(97) + CHR(111), INPUT CHR(107) + CHR(97) + CHR(103) + CHR(103) + CHR(101) + CHR(110), INPUT TRUE, INPUT 2,
+                     INPUT prognamn, INPUT prognamn2,
+                     INPUT "www.guruonweb.se", OUTPUT TABLE felmeddftptemp).
+   RUN ftpsvar_UI.   
+END PROCEDURE.
+
+PROCEDURE ftpsvar_UI :
+   FOR EACH felmeddftptemp:
+      RUN ut_UI (INPUT felmeddftptemp.FELMEDD).
+      DELETE felmeddftptemp.
+   END.
+END PROCEDURE.
+PROCEDURE os_UI:
+   OS-COMMAND SILENT VALUE(kommando) .
+END PROCEDURE.
+PROCEDURE ut_UI:
+   DEFINE INPUT PARAMETER uttxt AS CHARACTER FORMAT "X(20)" NO-UNDO.
+   OUTPUT TO VALUE(prognamnque) APPEND.
+   PUT UNFORMATTED uttxt " " TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+   OUTPUT CLOSE.
+END PROCEDURE.
+
+

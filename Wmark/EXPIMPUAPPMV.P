@@ -1,0 +1,872 @@
+/*EXPIMPUAPPMV.P*/
+{STARTFORAPP.I}
+{BEREDNINGTEMP.I}
+{TTEXPIMPMV.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE marknrvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE tabort AS LOGICAL NO-UNDO.
+DEFINE VARIABLE ponr AS CHARACTER NO-UNDO.
+{EXTRADATA.I}
+
+DEFINE TEMP-TABLE kon_grupp
+   FIELD KONSKOD AS INTEGER
+   FIELD BENAMNING AS CHARACTER.
+
+PROCEDURE omrkoll_UI :
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER okvar AS LOGICAL NO-UNDO.
+   okvar = FALSE.
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = valomrade NO-LOCK NO-ERROR.
+   IF AVAILABLE OMRADETAB THEN DO:
+      okvar = TRUE.
+   END.
+END PROCEDURE.
+
+
+PROCEDURE skapaexport_UI :   
+   DEFINE INPUT PARAMETER valaonr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempvard.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempfastighet.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempfastvard.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempfastextra.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempfastextra2.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempmarkagare.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempmarkfast.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempakerkab.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempakervard.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempskogvard.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempvolskog.
+   DEFINE OUTPUT PARAMETER TABLE FOR temprevavtal.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempnatproj.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempnatproj2.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempnathsand.
+
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   OPEN QUERY bq FOR EACH VARDERING WHERE VARDERING.VARDNR = valaonr AND
+   VARDERING.OMRADE = valomrade NO-LOCK.
+   GET FIRST bq NO-LOCK.
+   DO WHILE AVAILABLE(VARDERING):
+      DO TRANSACTION:      
+         CREATE tempvard.
+         BUFFER-COPY VARDERING TO tempvard.
+      END.
+      GET NEXT bq NO-LOCK.
+   END.
+   CLOSE QUERY bq.
+   OUTPUT CLOSE.
+   
+   OPEN QUERY bq FOR EACH VARDERING WHERE VARDERING.VARDNR = valaonr AND
+   VARDERING.OMRADE = valomrade NO-LOCK.
+   GET FIRST bq NO-LOCK.
+   DO WHILE AVAILABLE(VARDERING):
+      DO TRANSACTION:      
+         IF VARDERING.AONR = "" OR VARDERING.AONR = ? THEN.
+         ELSE DO:
+            FIND FIRST AONRTAB WHERE AONRTAB.AONR = VARDERING.AONR AND AONRTAB.DELNR = VARDERING.DELNR NO-LOCK NO-ERROR.
+            IF AVAILABLE AONRTAB THEN DO:
+               ponr = "".
+               EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+               EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+               CREATE inextradatatemp.          
+               ASSIGN
+               inextradatatemp.PROGRAM = "AOREF"                   
+               inextradatatemp.HUVUDCH = AONRTAB.AONR              
+               inextradatatemp.HUVUDINT =  AONRTAB.DELNR.         
+               RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+               FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+               IF AVAILABLE extradatatemp THEN DO:
+                  ASSIGN                  
+                  ponr = extradatatemp.SOKCHAR[1].
+               END.
+               EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+               EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+               IF ponr NE "" THEN DO:                  
+                  EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+                  EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+                  CREATE inextradatatemp.          
+                  ASSIGN
+                  inextradatatemp.PROGRAM = "NATPROJ"                   
+                  inextradatatemp.HUVUDCH = ponr.                    
+                  RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+                  FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+                  IF AVAILABLE extradatatemp THEN DO:                                    
+                     CREATE tempnatproj.      
+                     ASSIGN      
+                     tempnatproj.PONR = ponr
+                     tempnatproj.SOKCHAR1 = extradatatemp.SOKCHAR[1] 
+                     tempnatproj.SOKCHAR2 = extradatatemp.SOKCHAR[2] 
+                     tempnatproj.SOKCHAR3 = extradatatemp.SOKCHAR[3]             
+                     tempnatproj.SOKCHAR4 = extradatatemp.SOKCHAR[4]
+                     tempnatproj.SOKCHAR5 = extradatatemp.SOKCHAR[5]
+                     tempnatproj.SOKDATE1 = extradatatemp.SOKDATE[1]     
+                     tempnatproj.SOKCHAR6 = extradatatemp.SOKCHAR[6]     
+                     tempnatproj.SOKCHAR7 = extradatatemp.SOKCHAR[7]
+                     tempnatproj.SOKCHAR8 = extradatatemp.SOKCHAR[8]
+                     tempnatproj.SOKCHAR9 = extradatatemp.SOKCHAR[9]
+                     tempnatproj.SOKCHAR10 = extradatatemp.SOKCHAR[10]
+                     tempnatproj.SOKINT1 = extradatatemp.SOKINT[1]. 
+                     tempnatproj.SOKINT2 = extradatatemp.SOKINT[2]. 
+                     tempnatproj.SOKINT3 = extradatatemp.SOKINT[3]. 
+                  END.
+                  EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+                  EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+                  CREATE inextradatatemp.          
+                  ASSIGN
+                  inextradatatemp.PROGRAM = "NATPROJ2"                   
+                  inextradatatemp.HUVUDCH = ponr.                    
+                  RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+                  FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+                  IF AVAILABLE extradatatemp THEN DO:                                                         
+                     CREATE tempnatproj2.      
+                     ASSIGN      
+                     tempnatproj2.PONR = ponr
+                     tempnatproj2.SOKCHAR1 = extradatatemp.SOKCHAR[1] 
+                     tempnatproj2.SOKCHAR2 = extradatatemp.SOKCHAR[2] 
+                     tempnatproj2.SOKCHAR3 = extradatatemp.SOKCHAR[3].                                   
+                  END.
+                  EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+                  EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+                  CREATE inextradatatemp.          
+                  ASSIGN
+                  inextradatatemp.PROGRAM = "PROJHSAND"                   
+                  inextradatatemp.HUVUDCH = ponr.                    
+                  RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+                  FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+                  IF AVAILABLE extradatatemp THEN DO:                                                                      
+                     CREATE tempnathsand.      
+                     ASSIGN      
+                     tempnathsand.PONR = ponr
+                     tempnathsand.SOKCHAR1 = extradatatemp.SOKCHAR[1] 
+                     tempnathsand.SOKCHAR2 = extradatatemp.SOKCHAR[2] 
+                     tempnathsand.SOKCHAR3 = extradatatemp.SOKCHAR[3]                                 
+                     tempnathsand.SOKDATE1 = extradatatemp.SOKDATE[1]                          
+                     tempnathsand.SOKINT1 = extradatatemp.SOKINT[1]. 
+                     tempnathsand.SOKINT2 = extradatatemp.SOKINT[2]. 
+                     tempnathsand.SOKINT3 = extradatatemp.SOKINT[3].
+                     tempnathsand.SOKINT4 = extradatatemp.SOKINT[4]. 
+                  END.
+                  EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+                  EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+               END.   
+            END.   
+         END.   
+      END.
+      GET NEXT bq NO-LOCK.
+   END.
+   CLOSE QUERY bq.
+   OUTPUT CLOSE.
+
+   OPEN QUERY fvq FOR EACH FASTVARD WHERE FASTVARD.VARDNR = valaonr NO-LOCK.
+   GET FIRST fvq NO-LOCK.
+   DO WHILE AVAILABLE(FASTVARD):
+      CREATE tempfastvard.
+      BUFFER-COPY FASTVARD TO tempfastvard.
+      GET NEXT fvq NO-LOCK.
+   END.
+   CLOSE QUERY fvq.
+
+   
+   OPEN QUERY fq FOR EACH tempfastvard NO-LOCK,
+   EACH FASTIGHET WHERE FASTIGHET.BETECKNING = tempfastvard.BETECKNING NO-LOCK.
+   GET FIRST fq NO-LOCK.
+   DO WHILE AVAILABLE(FASTIGHET):
+      CREATE tempfastighet.
+      BUFFER-COPY FASTIGHET TO tempfastighet.
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "FASTLOPNR"                   
+      inextradatatemp.HUVUDCH = tempfastighet.BETECKNING.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO:      
+         ASSIGN
+         tempfastighet.LOPNR = extradatatemp.SOKCHAR[1]
+         tempfastighet.ABOXEN = extradatatemp.SOKCHAR[2]
+         tempfastighet.ATELEFON = extradatatemp.SOKCHAR[3]
+         tempfastighet.ATELEFON2 = extradatatemp.SOKCHAR[4]
+         tempfastighet.ATELEFONM = extradatatemp.SOKCHAR[5]
+         tempfastighet.AMAIL = extradatatemp.SOKCHAR[6]         
+         tempfastighet.KONTAKT = extradatatemp.SOKINT[1].         
+      END. 
+      GET NEXT fq NO-LOCK.
+   END.
+   CLOSE QUERY fq.
+
+       
+   EMPTY TEMP-TABLE tempfastextra NO-ERROR. 
+   FOR EACH tempfastvard NO-LOCK:
+      FIND FIRST tempfastextra WHERE tempfastextra.BETECKNING = tempfastvard.BETECKNING NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE tempfastextra THEN DO:
+         CREATE tempfastextra.
+         ASSIGN
+         tempfastextra.VARDNR = tempfastvard.VARDNR
+         tempfastextra.BETECKNING = tempfastvard.BETECKNING.
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "VARDFAST"     
+         inextradatatemp.HUVUDINT = tempfastvard.VARDNR
+         inextradatatemp.HUVUDCH = tempfastvard.BETECKNING.         
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+         FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+         IF AVAILABLE extradatatemp THEN DO:      
+            ASSIGN
+            tempfastextra.VARDNR = extradatatemp.HUVUDINT
+            tempfastextra.BETECKNING = extradatatemp.HUVUDCH
+            tempfastextra.CH1 = extradatatemp.SOKCH[1]
+            tempfastextra.CH2 = extradatatemp.SOKCH[2]
+            tempfastextra.CH3 = extradatatemp.SOKCH[3]
+            tempfastextra.CH4 = extradatatemp.SOKCH[4]
+            tempfastextra.CH5 = extradatatemp.SOKCH[5]
+            tempfastextra.CH6 = extradatatemp.SOKCH[6]
+            tempfastextra.CH7 = extradatatemp.SOKCH[7]
+            tempfastextra.CH8 = extradatatemp.SOKCH[8]
+            tempfastextra.CH9 = extradatatemp.SOKCH[9]
+            tempfastextra.CH10 = extradatatemp.SOKCH[10].         
+         END.
+      END.
+   END.
+   
+   EMPTY TEMP-TABLE tempfastextra2 NO-ERROR. 
+   FOR EACH tempfastvard NO-LOCK:
+      FIND FIRST tempfastextra2 WHERE tempfastextra2.BETECKNING = tempfastvard.BETECKNING NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE tempfastextra2 THEN DO:
+         CREATE tempfastextra2.
+         ASSIGN
+         tempfastextra2.VARDNR = tempfastvard.VARDNR
+         tempfastextra2.BETECKNING = tempfastvard.BETECKNING.
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "VARDFAST2"     
+         inextradatatemp.HUVUDINT = tempfastvard.VARDNR
+         inextradatatemp.HUVUDCH = tempfastvard.BETECKNING.         
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+         FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+         IF AVAILABLE extradatatemp THEN DO:      
+            ASSIGN
+            tempfastextra2.VARDNR = extradatatemp.HUVUDINT
+            tempfastextra2.BETECKNING = extradatatemp.HUVUDCH
+            tempfastextra2.CH1 = extradatatemp.SOKCH[1]
+            tempfastextra2.LOG1 = extradatatemp.SOKLOG[1]
+            tempfastextra2.LOG2 = extradatatemp.SOKLOG[2]
+            tempfastextra2.LOG3 = extradatatemp.SOKLOG[3]
+            tempfastextra2.INT1 = extradatatemp.SOKINT[1]
+            tempfastextra2.INT2 = extradatatemp.SOKINT[2]
+            tempfastextra2.INT3 = extradatatemp.SOKINT[3].                                                
+         END.
+      END.
+   END.
+   
+   EMPTY TEMP-TABLE temprevavtal NO-ERROR. 
+   FOR EACH tempfastvard NO-LOCK:
+      FIND FIRST temprevavtal WHERE temprevavtal.BETECKNING = tempfastvard.BETECKNING NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE temprevavtal THEN DO:
+         
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "REVAVTAL"              
+         inextradatatemp.HUVUDINT = tempfastvard.VARDNR
+         inextradatatemp.HUVUDCH = tempfastvard.BETECKNING.                               
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+         FOR EACH extradatatemp :
+            IF extradatatemp.SOKDEC[2] > 0 THEN DO:
+               CREATE temprevavtal.
+               ASSIGN
+               temprevavtal.VARDNR = tempfastvard.VARDNR
+               temprevavtal.BETECKNING = tempfastvard.BETECKNING                           
+               temprevavtal.SOKINT1  = extradatatemp.SOKINT[1]
+               temprevavtal.SOKDEC1 = extradatatemp.SOKDEC[1]
+               temprevavtal.SOKDEC2 = extradatatemp.SOKDEC[2]
+               temprevavtal.SOKDEC3 = extradatatemp.SOKDEC[3].
+            END.      
+         END.         
+      END.
+   END.
+   
+   
+   OPEN QUERY mfq FOR EACH tempfastvard NO-LOCK,
+   EACH MARKFAST WHERE MARKFAST.BETECKNING = tempfastvard.BETECKNING NO-LOCK.
+   GET FIRST mfq NO-LOCK.
+   DO WHILE AVAILABLE(MARKFAST):
+      CREATE tempmarkfast.
+      BUFFER-COPY MARKFAST TO tempmarkfast.
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "MARKFASTANDEL"                   
+      inextradatatemp.HUVUDINT = MARKFAST.MARKNR.                    
+      inextradatatemp.HUVUDCH = MARKFAST.BETECKNING.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO:      
+         ASSIGN
+         tempmarkfast.ANDEL = extradatatemp.SOKCHAR[1]               
+         tempmarkfast.PRODEL = extradatatemp.SOKDEC[1]
+         tempmarkfast.ANDEL1 = extradatatemp.SOKINT[1]
+         tempmarkfast.ANDEL2 = extradatatemp.SOKINT[2].          
+      END.       
+
+      GET NEXT mfq NO-LOCK.
+   END.
+   CLOSE QUERY mfq.
+
+   OPEN QUERY mq FOR EACH tempmarkfast NO-LOCK,
+   EACH MARKAGARE WHERE MARKAGARE.MARKNR = tempmarkfast.MARKNR NO-LOCK.
+   GET FIRST mq NO-LOCK.
+   DO WHILE AVAILABLE(MARKAGARE):
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).
+      CREATE tempmarkagare.
+      BUFFER-COPY MARKAGARE TO tempmarkagare.
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "MARKAG"                   
+      inextradatatemp.HUVUDINT = tempmarkagare.MARKNR.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO:      
+         ASSIGN
+         tempmarkagare.MOBIL = extradatatemp.SOKCHAR[1]
+         tempmarkagare.MAIL = extradatatemp.SOKCHAR[2]
+         tempmarkagare.MAKA = extradatatemp.SOKCHAR[3]
+         tempmarkagare.MBANKKONTO = extradatatemp.SOKCHAR[4]
+         tempmarkagare.MBANKNAMN = extradatatemp.SOKCHAR[5].
+      END. 
+      GET NEXT mq NO-LOCK.
+   END.
+   CLOSE QUERY mq.
+   
+   OPEN QUERY akabq FOR EACH AKERKAB WHERE AKERKAB.VARDNR = valaonr  NO-LOCK.
+   GET FIRST akabq NO-LOCK.
+   DO WHILE AVAILABLE(AKERKAB):
+      DO TRANSACTION:      
+         CREATE tempakerkab.
+         BUFFER-COPY AKERKAB TO tempakerkab.
+      END.
+      GET NEXT akabq NO-LOCK.
+   END.
+   CLOSE QUERY akabq.
+   OUTPUT CLOSE.
+
+   OPEN QUERY avarq FOR EACH AKERVARD WHERE AKERVARD.VARDNR = valaonr  NO-LOCK.
+   GET FIRST avarq NO-LOCK.
+   DO WHILE AVAILABLE(AKERVARD):
+      DO TRANSACTION:      
+         CREATE tempakervard.
+         BUFFER-COPY AKERVARD TO tempakervard.
+      END.
+      GET NEXT avarq NO-LOCK.
+   END.
+   CLOSE QUERY avarq.
+   OUTPUT CLOSE.
+
+   OPEN QUERY skogq FOR EACH SKOGVARD WHERE SKOGVARD.VARDNR = valaonr  NO-LOCK.
+   GET FIRST skogq NO-LOCK.
+   DO WHILE AVAILABLE(SKOGVARD):
+      DO TRANSACTION:      
+         CREATE tempskogvard.
+         BUFFER-COPY SKOGVARD TO tempskogvard.
+
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "FSVOL"                   
+         inextradatatemp.HUVUDINT = SKOGVARD.VARDNR                    
+         inextradatatemp.HUVUDCH = SKOGVARD.BETECKNING.   
+         inextradatatemp.SOKINT[1] = SKOGVARD.BESTAND.
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+         FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+         IF AVAILABLE extradatatemp THEN DO:
+            ASSIGN
+            tempskogvard.SOKCHAR1  = extradatatemp.SOKCHAR[1] 
+            tempskogvard.SOKDEC1  = extradatatemp.SOKDEC[1] 
+            tempskogvard.SOKINT2  = extradatatemp.SOKINT[2] 
+            tempskogvard.SOKINT3  = extradatatemp.SOKINT[3] 
+            tempskogvard.SOKDEC2  = extradatatemp.SOKDEC[2] 
+            tempskogvard.SOKDEC3  = extradatatemp.SOKDEC[3].          
+         END.
+      END.
+      GET NEXT skogq NO-LOCK.
+   END.
+   CLOSE QUERY skogq.
+   OUTPUT CLOSE.
+
+   OPEN QUERY volq FOR EACH VOLSKOG WHERE VOLSKOG.VARDNR = valaonr  NO-LOCK.
+   GET FIRST volq NO-LOCK.
+   DO WHILE AVAILABLE(VOLSKOG):
+      DO TRANSACTION:      
+         CREATE tempvolskog.
+         BUFFER-COPY VOLSKOG TO tempvolskog.
+      END.
+      GET NEXT volq NO-LOCK.
+   END.
+   CLOSE QUERY volq.
+   OUTPUT CLOSE.
+   Guru.GlobalaVariabler:GDPRtyp = "M". 
+   {GDPRLOGGCLIENT.I}
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+   edataapph = ?.
+
+   
+END PROCEDURE.
+
+PROCEDURE skapaimp_UI :
+   DEFINE INPUT PARAMETER TABLE FOR tempvard.
+   DEFINE INPUT PARAMETER TABLE FOR tempfastighet.
+   DEFINE INPUT PARAMETER TABLE FOR tempfastvard.
+   DEFINE INPUT PARAMETER TABLE FOR tempfastextra.
+   DEFINE INPUT PARAMETER TABLE FOR tempfastextra2.
+   DEFINE INPUT PARAMETER TABLE FOR tempmarkagare.
+   DEFINE INPUT PARAMETER TABLE FOR tempmarkfast.
+   DEFINE INPUT PARAMETER TABLE FOR tempakerkab.
+   DEFINE INPUT PARAMETER TABLE FOR tempakervard.
+   DEFINE INPUT PARAMETER TABLE FOR tempskogvard.
+   DEFINE INPUT PARAMETER TABLE FOR tempvolskog.
+   DEFINE INPUT PARAMETER TABLE FOR temprevavtal.
+   DEFINE INPUT PARAMETER TABLE FOR tempnatproj.
+   DEFINE INPUT PARAMETER TABLE FOR tempnatproj2.
+   DEFINE INPUT PARAMETER TABLE FOR tempnathsand.
+   DEFINE OUTPUT PARAMETER TABLE FOR dubfastighet.
+   EMPTY TEMP-TABLE dubfastighet NO-ERROR. 
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   FOR EACH tempvard WHERE  tempvard.VARDNR > 0:
+      DO TRANSACTION:
+         CREATE VARDERING.
+         BUFFER-COPY tempvard TO VARDERING.
+      END.
+   END.
+   FOR EACH  tempfastighet:
+      FIND FIRST tempfastighet2 WHERE tempfastighet2.BETECKNING = tempfastighet.BETECKNING AND RECID(tempfastighet2) NE RECID(tempfastighet) NO-LOCK NO-ERROR.
+      IF AVAILABLE tempfastighet2 THEN DELETE tempfastighet.
+   END.
+   FOR EACH tempfastighet WHERE tempfastighet.BETECKNING NE "":
+      DO TRANSACTION:
+         FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = tempfastighet.BETECKNING NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE FASTIGHET THEN DO:         
+            CREATE FASTIGHET.
+            BUFFER-COPY tempfastighet TO FASTIGHET.
+
+            EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+            CREATE inextradatatemp.          
+            ASSIGN
+            inextradatatemp.PROGRAM = "FASTLOPNR"                   
+            inextradatatemp.HUVUDCH = tempfastighet.BETECKNING
+            inextradatatemp.SOKCHAR[1] = tempfastighet.LOPNR
+            inextradatatemp.SOKCHAR[2] = tempfastighet.ABOXEN
+            inextradatatemp.SOKCHAR[3] = tempfastighet.ATELEFON
+            inextradatatemp.SOKCHAR[4] = tempfastighet.ATELEFON2 
+            inextradatatemp.SOKCHAR[5] = tempfastighet.ATELEFONM 
+            inextradatatemp.SOKCHAR[6] = tempfastighet.AMAIL.            
+            inextradatatemp.SOKINT[1] = tempfastighet.KONTAKT.         
+            RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp). 
+         
+         END.
+         ELSE DO:
+            CREATE dubfastighet.
+            BUFFER-COPY tempfastighet TO dubfastighet.
+         END.
+      END.
+   END.
+   FOR EACH tempfastvard WHERE tempfastvard.BETECKNING NE "":
+      FIND FIRST FASTIGHET WHERE FASTIGHET.BETECKNING = tempfastvard.BETECKNING NO-LOCK NO-ERROR.
+      IF AVAILABLE FASTIGHET THEN DO:
+         FIND FIRST FASTVARD WHERE FASTVARD.BETECKNING = tempfastvard.BETECKNING AND FASTVARD.VARDNR = tempfastvard.VARDNR  NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE FASTVARD THEN DO:      
+            DO TRANSACTION:
+               CREATE FASTVARD.
+               BUFFER-COPY tempfastvard TO FASTVARD.
+            END.
+         END.
+      END.
+   END.
+   FOR EACH tempfastextra WHERE tempfastextra.VARDNR > 0:
+      DO TRANSACTION:
+         IF tempfastextra.CH1 NE "" OR tempfastextra.CH2 NE "" OR tempfastextra.CH3 NE "" OR tempfastextra.CH4 NE "" OR tempfastextra.CH5 NE "" OR
+         tempfastextra.CH6 NE "" OR tempfastextra.CH7 NE "" OR tempfastextra.CH8 NE "" OR tempfastextra.CH9 NE "" OR tempfastextra.CH10 NE "" THEN DO:
+            EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+            CREATE inextradatatemp.          
+            ASSIGN
+            inextradatatemp.PROGRAM = "VARDFAST"                            
+            inextradatatemp.HUVUDINT = tempfastextra.VARDNR
+            inextradatatemp.HUVUDCH = tempfastextra.BETECKNING         
+            inextradatatemp.SOKCH[1]  =      tempfastextra.CH1 
+            inextradatatemp.SOKCH[2]  =      tempfastextra.CH2 
+            inextradatatemp.SOKCH[3]  =      tempfastextra.CH3 
+            inextradatatemp.SOKCH[4]  =      tempfastextra.CH4 
+            inextradatatemp.SOKCH[5]  =      tempfastextra.CH5 
+            inextradatatemp.SOKCH[6]  =      tempfastextra.CH6 
+            inextradatatemp.SOKCH[7]  =      tempfastextra.CH7 
+            inextradatatemp.SOKCH[8]  =      tempfastextra.CH8 
+            inextradatatemp.SOKCH[9]  =      tempfastextra.CH9 
+            inextradatatemp.SOKCH[10] =    tempfastextra.CH10.
+            RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp). 
+         END.         
+      END.
+   END.
+   FOR EACH tempfastextra2 WHERE tempfastextra2.VARDNR > 0:
+      DO TRANSACTION:         
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "VARDFAST2"                            
+         inextradatatemp.HUVUDINT = tempfastextra2.VARDNR
+         inextradatatemp.HUVUDCH = tempfastextra2.BETECKNING                     
+         inextradatatemp.SOKCH[1]  =      tempfastextra2.CH1 
+         inextradatatemp.SOKLOG[1]  =      tempfastextra2.LOG1 
+         inextradatatemp.SOKLOG[2]  =      tempfastextra2.LOG2
+         inextradatatemp.SOKLOG[3]  =      tempfastextra2.LOG3 
+         inextradatatemp.SOKINT[1]  =      tempfastextra2.INT1 
+         inextradatatemp.SOKINT[2]  =      tempfastextra2.INT2
+         inextradatatemp.SOKINT[3]  =      tempfastextra2.INT3.             
+         RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).                  
+      END.
+   END.
+   
+   FOR EACH tempnatproj WHERE tempnatproj.PONR NE "":
+      DO TRANSACTION:         
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "NATPROJ"                                     
+         inextradatatemp.HUVUDCH = tempnatproj.PONR                     
+         inextradatatemp.SOKCHAR[1]  =      tempnatproj.SOKCHAR1
+         inextradatatemp.SOKCHAR[2]  =      tempnatproj.SOKCHAR2
+         inextradatatemp.SOKCHAR[3]  =      tempnatproj.SOKCHAR3
+         inextradatatemp.SOKCHAR[4]  =      tempnatproj.SOKCHAR4
+         inextradatatemp.SOKCHAR[5]  =      tempnatproj.SOKCHAR5
+         inextradatatemp.SOKCHAR[6]  =      tempnatproj.SOKCHAR6
+         inextradatatemp.SOKCHAR[7]  =      tempnatproj.SOKCHAR7
+         inextradatatemp.SOKCHAR[8]  =      tempnatproj.SOKCHAR8
+         inextradatatemp.SOKCHAR[9]  =      tempnatproj.SOKCHAR9
+         inextradatatemp.SOKCHAR[10]  =      tempnatproj.SOKCHAR10 
+          
+         inextradatatemp.SOKINT[1]  =      tempnatproj.SOKINT1 
+         inextradatatemp.SOKINT[2]  =      tempnatproj.SOKINT2
+         inextradatatemp.SOKINT[3]  =      tempnatproj.SOKINT3
+         inextradatatemp.SOKDATE[1]  =      tempnatproj.SOKDATE1.                      
+         RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).                  
+      END.
+   END.
+   FOR EACH tempnatproj2 WHERE tempnatproj2.PONR NE "":
+      DO TRANSACTION:         
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "NATPROJ2"                                     
+         inextradatatemp.HUVUDCH = tempnatproj2.PONR                     
+         inextradatatemp.SOKCHAR[1]  =      tempnatproj2.SOKCHAR1
+         inextradatatemp.SOKCHAR[2]  =      tempnatproj2.SOKCHAR2
+         inextradatatemp.SOKCHAR[3]  =      tempnatproj2.SOKCHAR3.           
+                 
+         RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).                  
+      END.
+   END.
+   FOR EACH tempnatproj2 WHERE tempnatproj2.PONR NE "":
+      DO TRANSACTION:         
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "PROJHSAND"                                     
+         inextradatatemp.HUVUDCH = tempnathsand.PONR                     
+         inextradatatemp.SOKCHAR[1]  =      tempnathsand.SOKCHAR1
+         inextradatatemp.SOKCHAR[2]  =      tempnathsand.SOKCHAR2
+         inextradatatemp.SOKCHAR[3]  =      tempnathsand.SOKCHAR3
+         inextradatatemp.SOKINT[1]  =      tempnathsand.SOKINT1 
+         inextradatatemp.SOKINT[2]  =      tempnathsand.SOKINT2
+         inextradatatemp.SOKINT[3]  =      tempnathsand.SOKINT3
+         inextradatatemp.SOKINT[4]  =      tempnathsand.SOKINT4
+         inextradatatemp.SOKDATE[1]  =      tempnathsand.SOKDATE1.                  
+                 
+         RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).                  
+      END.
+   END.
+ 
+  FOR EACH temprevavtal WHERE temprevavtal.VARDNR > 0:
+      DO TRANSACTION:         
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "REVAVTAL"                            
+         inextradatatemp.HUVUDINT = temprevavtal.VARDNR
+         inextradatatemp.HUVUDCH = temprevavtal.BETECKNING   
+         inextradatatemp.SOKINT[1]  =      temprevavtal.SOKINT1                   
+         inextradatatemp.SOKDEC[1]  =      temprevavtal.SOKDEC1
+         inextradatatemp.SOKDEC[2]  =      temprevavtal.SOKDEC2
+         inextradatatemp.SOKDEC[3]  =      temprevavtal.SOKDEC3.           
+         RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).                  
+      END.
+   END.
+ 
+ 
+   FIND LAST MARKAGARE USE-INDEX MARKNR NO-LOCK NO-ERROR.
+   IF AVAILABLE MARKAGARE THEN ASSIGN  marknrvar = MARKAGARE.MARKNR + 1. 
+   ELSE marknrvar = 1.        
+   
+   FOR EACH tempmarkfast WHERE tempmarkfast.MARKNR > 0:
+      DO TRANSACTION:
+         FIND FIRST dubfastighet WHERE dubfastighet.BETECKNING = tempmarkfast.BETECKNING NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE dubfastighet THEN DO:                   
+            FIND FIRST tempmarkagare WHERE tempmarkagare.MARKNR = tempmarkfast.MARKNR NO-ERROR.
+            IF AVAILABLE tempmarkagare THEN DO:
+               IF tempmarkagare.NMARKNR > 0 THEN DO:
+                  tempmarkfast.NMARKNR = tempmarkagare.NMARKNR.
+               END.
+               ELSE DO:
+                  ASSIGN
+                  tempmarkfast.NMARKNR = marknrvar
+                  tempmarkagare.NMARKNR = marknrvar.
+                  marknrvar = marknrvar + 1.
+               END.
+               FIND FIRST tempfastighet WHERE tempfastighet.BETECKNING = tempmarkfast.BETECKNING NO-LOCK NO-ERROR.
+               IF AVAILABLE tempfastighet AND tempfastighet.KONTAKT > 0 THEN DO:
+                  IF tempfastighet.KONTAKT = tempmarkfast.MARKNR  THEN DO:                    
+                     tempfastighet.KONTAKT = tempmarkfast.NMARKNR.
+                     EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+                     CREATE inextradatatemp.          
+                     ASSIGN
+                     inextradatatemp.PROGRAM = "FASTLOPNR"                   
+                     inextradatatemp.HUVUDCH = tempfastighet.BETECKNING
+                     inextradatatemp.SOKCHAR[1] = tempfastighet.LOPNR
+                     inextradatatemp.SOKCHAR[2] = tempfastighet.ABOXEN
+                     inextradatatemp.SOKCHAR[3] = tempfastighet.ATELEFON
+                     inextradatatemp.SOKCHAR[4] = tempfastighet.ATELEFON2 
+                     inextradatatemp.SOKCHAR[5] = tempfastighet.ATELEFONM 
+                     inextradatatemp.SOKCHAR[6] = tempfastighet.AMAIL.                        
+                     inextradatatemp.SOKINT[1] = tempfastighet.KONTAKT.
+                     RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp). 
+                  END.            
+               END.           
+            END.            
+         END.
+         ELSE DO:       
+            FOR EACH tempmarkagare WHERE tempmarkagare.MARKNR = tempmarkfast.MARKNR:
+               FIND FIRST MARKAGARE WHERE MARKAGARE.PERSONNUMMER = tempmarkagare.PERSONNUMMER EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE MARKAGARE THEN DO:
+                  Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).
+                  /*UPPDATERA MARKÄGARE OM REDAN INLÄST LENA 20140526*/
+                  IF tempmarkagare.MARKAGARE NE "" THEN MARKAGARE.MARKAGARE = tempmarkagare.MARKAGARE.
+                  IF tempmarkagare.GATUADRESS NE "" THEN MARKAGARE.GATUADRESS = tempmarkagare.GATUADRESS.
+                  IF tempmarkagare.POSTNUMMER NE "" THEN MARKAGARE.POSTNUMMER = tempmarkagare.POSTNUMMER.
+                  IF tempmarkagare.POSTADRESS NE "" THEN MARKAGARE.POSTADRESS = tempmarkagare.POSTADRESS.
+                  IF tempmarkagare.TELEFON NE "" THEN MARKAGARE.TELEFON = tempmarkagare.TELEFON.
+                  IF tempmarkagare.TELEFON2 NE "" THEN MARKAGARE.TELEFON2 = tempmarkagare.TELEFON2.
+                  EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+                  CREATE inextradatatemp.          
+                  ASSIGN
+                  inextradatatemp.PROGRAM = "MARKAG"                   
+                  inextradatatemp.HUVUDINT = MARKAGARE.MARKNR
+                  inextradatatemp.SOKCHAR[1] = tempmarkagare.MOBIL
+                  inextradatatemp.SOKCHAR[2] = tempmarkagare.MAIL
+                  inextradatatemp.SOKCHAR[3] = tempmarkagare.MAKA.
+                  inextradatatemp.SOKCHAR[4] = tempmarkagare.MBANKKONTO.
+                  inextradatatemp.SOKCHAR[5] = tempmarkagare.MBANKNAMN.
+                  RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp). 
+               END.  
+               DELETE tempmarkagare.
+            END.            
+            DELETE tempmarkfast.
+            
+            /*FIND FIRST tempmarkagare WHERE tempmarkagare.MARKNR = tempmarkfast.MARKNR NO-ERROR.
+            IF AVAILABLE tempmarkagare THEN DO:
+               tabort = FALSE.
+               FIND FIRST tempmarkagare2 WHERE tempmarkagare2.PERSONNUMMER = tempmarkagare.PERSONNUMMER AND RECID(tempmarkagare2) NE RECID(tempmarkagare) NO-LOCK NO-ERROR.
+               IF AVAILABLE tempmarkagare2 THEN tabort = TRUE.
+               FIND FIRST MARKFAST WHERE MARKFAST.BETECKNING = tempmarkfast.BETECKNING NO-LOCK NO-ERROR.
+               IF AVAILABLE MARKFAST THEN tabort = TRUE.
+               IF tabort = TRUE THEN DO: 
+                  tabort = FALSE.
+                  MESSAGE tempmarkagare.marknr VIEW-AS ALERT-BOX.
+                  DELETE tempmarkagare.              
+               END.
+            END.
+            tabort = FALSE.
+            FIND FIRST tempmarkfast2 WHERE tempmarkfast2.BETECKNING = tempmarkfast.BETECKNING AND
+            tempmarkfast2.MARKNR = tempmarkfast.MARKNR AND RECID(tempmarkfast2) NE RECID(tempmarkfast) NO-LOCK NO-ERROR.
+            IF AVAILABLE tempmarkfast2 THEN tabort = TRUE.               
+            FIND FIRST MARKFAST WHERE MARKFAST.BETECKNING = tempmarkfast.BETECKNING NO-LOCK NO-ERROR.
+            IF AVAILABLE MARKFAST THEN tabort = TRUE.                              
+            IF tabort = TRUE THEN DO: 
+               tabort = FALSE.
+               DELETE tempmarkfast.
+            END.*/
+
+            
+         END.   
+
+         /* innan lena
+         FIND FIRST dubfastighet WHERE dubfastighet.BETECKNING = tempmarkfast.BETECKNING NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE dubfastighet THEN DO:
+            tempmarkfast.NMARKNR = marknrvar.
+            FIND FIRST tempmarkagare WHERE tempmarkagare.MARKNR = tempmarkfast.MARKNR NO-ERROR.
+            IF AVAILABLE tempmarkagare THEN DO:
+               ASSIGN tempmarkagare.NMARKNR = marknrvar.
+            END.
+            FIND FIRST tempfastextra WHERE tempfastextra.MARKNR = tempfastextra.MARKNR NO-ERROR.
+            IF AVAILABLE tempfastextra THEN DO:
+               ASSIGN tempfastextra.NMARKNR = marknrvar.
+            END.
+            marknrvar = marknrvar + 1.
+         END.
+         ELSE DO:
+            FIND FIRST tempmarkagare WHERE tempmarkagare.MARKNR = tempmarkfast.MARKNR NO-ERROR.
+            IF AVAILABLE tempmarkagare THEN DO:
+               DELETE tempmarkagare.
+               DELETE tempmarkfast.
+            END.
+         END.*/
+      END.
+   END.
+   FOR EACH tempmarkfast WHERE tempmarkfast.MARKNR > 0:      
+      FIND FIRST MARKFAST WHERE MARKFAST.BETECKNING = tempmarkfast.BETECKNING AND MARKFAST.MARKNR = tempmarkfast.NMARKNR NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE MARKFAST THEN DO:      
+         DO TRANSACTION:
+            CREATE MARKFAST.
+            BUFFER-COPY tempmarkfast TO MARKFAST.         
+            ASSIGN MARKFAST.MARKNR = tempmarkfast.NMARKNR.
+         END.
+         IF tempmarkfast.ANDEL = " "  THEN.
+         ELSE DO TRANSACTION:         
+            EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+            CREATE inextradatatemp.          
+            ASSIGN
+            inextradatatemp.PROGRAM = "MARKFASTANDEL"                   
+            inextradatatemp.HUVUDINT = tempmarkfast.NMARKNR
+            inextradatatemp.HUVUDCH = tempmarkfast.BETECKNING
+            inextradatatemp.SOKCHAR[1] = tempmarkfast.ANDEL
+            inextradatatemp.SOKINT[1] = tempmarkfast.ANDEL1
+            inextradatatemp.SOKINT[2] = tempmarkfast.ANDEL2
+            inextradatatemp.SOKDEC[1] = tempmarkfast.PRODEL.
+            RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp). 
+         END.      
+      END.
+   END.
+
+   FOR EACH tempmarkagare WHERE tempmarkagare.NMARKNR > 0:
+      DO TRANSACTION:
+
+         CREATE MARKAGARE.
+         BUFFER-COPY tempmarkagare TO MARKAGARE.
+         ASSIGN MARKAGARE.MARKNR = tempmarkagare.NMARKNR.
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "MARKAG"                   
+         inextradatatemp.HUVUDINT = tempmarkagare.NMARKNR
+         inextradatatemp.SOKCHAR[1] = tempmarkagare.MOBIL
+         inextradatatemp.SOKCHAR[2] = tempmarkagare.MAIL
+         inextradatatemp.SOKCHAR[3] = tempmarkagare.MAKA.
+         inextradatatemp.SOKCHAR[4] = tempmarkagare.MBANKKONTO.
+         inextradatatemp.SOKCHAR[5] = tempmarkagare.MBANKNAMN.
+         RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp). 
+      END.
+   END.
+   
+   FOR EACH tempakerkab WHERE tempakerkab.VARDNR > 0 :
+      DO TRANSACTION:
+         CREATE AKERKAB.
+         BUFFER-COPY tempakerkab TO AKERKAB.
+      END.
+   END.
+   FOR EACH tempakervard WHERE tempakervard.VARDNR > 0:
+      DO TRANSACTION:
+         CREATE AKERVARD.
+         BUFFER-COPY tempakervard TO AKERVARD.
+      END.
+   END.
+   FOR EACH tempskogvard WHERE tempskogvard.VARDNR > 0:
+      DO TRANSACTION:
+         CREATE SKOGVARD.
+         BUFFER-COPY tempskogvard TO SKOGVARD.
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "FSVOL"                   
+         inextradatatemp.HUVUDINT = tempskogvard.VARDNR                    
+         inextradatatemp.HUVUDCH = tempskogvard.BETECKNING                    
+         inextradatatemp.SOKINT[1] = tempskogvard.BESTAND
+         inextradatatemp.SOKCHAR[1] = tempskogvard.SOKCHAR1
+         inextradatatemp.SOKDEC[1] = tempskogvard.SOKDEC1
+         inextradatatemp.SOKINT[2] = tempskogvard.SOKINT2                
+         inextradatatemp.SOKINT[3] = tempskogvard.SOKINT3
+         inextradatatemp.SOKDEC[2] = tempskogvard.SOKDEC2                                           
+         inextradatatemp.SOKDEC[3] = tempskogvard.SOKDEC3.                                           
+         RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp). 
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+      END.
+   END.
+   FOR EACH tempvolskog WHERE tempvolskog.VARDNR > 0:
+      DO TRANSACTION:
+         CREATE VOLSKOG.
+         BUFFER-COPY tempvolskog TO VOLSKOG.
+      END.
+   END.
+   Guru.GlobalaVariabler:GDPRtyp = "M". 
+   {GDPRLOGGCLIENT.I}
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+   edataapph = ?.
+
+END PROCEDURE.
+
+
+PROCEDURE kexpimp_UI :
+   DEFINE INPUT PARAMETER valbernr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER finns AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER finns2 AS LOGICAL NO-UNDO.
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = valomrade NO-LOCK NO-ERROR.
+   IF AVAILABLE OMRADETAB THEN DO:
+      finns2 = TRUE.
+   END.
+   ELSE DO:
+      finns2 = FALSE.
+   END.
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = valbernr AND
+   VARDERING.OMRADE = valomrade USE-INDEX VARDNR NO-LOCK NO-ERROR.
+   IF AVAILABLE VARDERING THEN finns = TRUE.
+   ELSE finns = FALSE.
+END PROCEDURE.
+
+
+PROCEDURE nyvardomr_UI :
+   DEFINE INPUT PARAMETER nyttnr AS INTEGER  NO-UNDO.
+   DEFINE OUTPUT PARAMETER varomrade AS CHARACTER NO-UNDO. 
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = nyttnr NO-LOCK NO-ERROR.
+   IF AVAILABLE VARDERING THEN DO:
+      varomrade = VARDERING.OMRADE. 
+   END.
+END PROCEDURE.
+PROCEDURE nyvard_UI :
+   DEFINE INPUT PARAMETER varomrade AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER nyttnr AS INTEGER NO-UNDO.   
+   DO TRANSACTION:   
+      FIND FIRST VARDINT WHERE VARDINT.OMRADE = varomrade USE-INDEX OMRADE EXCLUSIVE-LOCK NO-ERROR.                
+      IF NOT AVAILABLE VARDINT THEN DO:
+       
+      END.     
+      ELSE IF VARDINT.VARDINT2 < VARDINT.VARDSIST THEN DO:
+        /* MESSAGE "Det går inte att lägga upp värderingar på detta " + LC(Guru.Konstanter:gomrk) + "." VIEW-AS ALERT-BOX.
+         ASSIGN FILL-IN_VARDNR = 0.
+         DISPLAY FILL-IN_VARDNR WITH FRAME {&FRAME-NAME}.
+         RETURN NO-APPLY.                                  
+         APPLY "CHOOSE" TO BTN_AVS IN FRAME {&FRAME-NAME}. */
+      END.
+      ELSE DO: 
+         ASSIGN
+         nyttnr = VARDINT.VARDSIST
+         VARDINT.VARDSIST = VARDINT.VARDSIST + 1.
+      END.
+   END.
+   RELEASE VARDINT.
+   
+   
+END PROCEDURE.
+

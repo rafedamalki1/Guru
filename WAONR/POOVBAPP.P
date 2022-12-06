@@ -1,0 +1,560 @@
+/*POOVBAPP.P*/
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+
+DEFINE BUFFER tidbuff FOR TIDREGITAB.
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+&Scoped-define NEW NEW
+{FAKTTYPDEF.I}
+&Scoped-define NEW 
+{FAKTTYPSKAP.I}
+FUNCTION klockan100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+
+FUNCTION klockan60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ):
+  RETURN TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) / 100) * 60 . 
+
+END FUNCTION.
+DEFINE VARIABLE superhandle AS HANDLE.
+DEFINE VARIABLE vartvar AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE kalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE intkalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE exkalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE summakostvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE hjalpvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE sppekod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sptim AS DECIMAL NO-UNDO.
+DEFINE VARIABLE spbertim AS DECIMAL NO-UNDO.
+DEFINE VARIABLE spnodfall AS DECIMAL NO-UNDO.
+
+DEFINE QUERY sq FOR SUMTID.
+DEFINE QUERY stq FOR TIDREGITAB.
+/*DEFINE QUERY tq FOR TIDREGITAB.*/
+{DIRDEF.I}
+{PHMT.I}
+{KALKTEMP.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+
+{TIDUTTT.I}
+
+
+DEFINE TEMP-TABLE kalksumsum   
+   FIELD TYP AS INTEGER
+   FIELD MASKGBELOPP AS DECIMAL
+   FIELD MONTBELOPP  AS DECIMAL
+   FIELD MONTTIMMAR  AS DECIMAL
+   FIELD BERBELOPP   AS DECIMAL
+   FIELD AONR LIKE KOSTREG.AONR 
+   FIELD DELNR LIKE KOSTREG.DELNR     
+   FIELD ORT AS CHARACTER    
+   FIELD BOKKONTO LIKE KOSTREG.BOKKONTO   
+   FIELD FAKTNR LIKE KOSTREG.FAKTNR    
+   FIELD REGDATUM LIKE KOSTREG.REGDATUM    
+   FIELD BENAMNING LIKE KOSTREG.BENAMNING
+   FIELD BELOPP LIKE KOSTREG.MTRL   
+   FIELD MBELOPP LIKE KOSTREG.MTRL   
+   FIELD TBELOPP LIKE KOSTREG.MTRL   
+   FIELD MTRL LIKE KOSTREG.MTRL   
+   FIELD OVRKR LIKE KOSTREG.MTRL 
+   FIELD INKOMST LIKE KOSTREG.MTRL 
+   FIELD TIMMAR LIKE KOSTREG.MTRL 
+   FIELD BTIMMAR LIKE KOSTREG.MTRL
+   FIELD OTIMMAR LIKE KOSTREG.MTRL
+   FIELD OBELOPP LIKE KOSTREG.MTRL
+   FIELD LONKOST LIKE KOSTREG.MTRL
+   INDEX BOK IS PRIMARY BOKKONTO REGDATUM
+   INDEX AONR AONR DELNR.
+
+
+DEFINE TEMP-TABLE dagtemp
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD
+   FIELD NAMN AS CHARACTER 
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR 
+   FIELD ORT LIKE AONRTAB.ORT
+   FIELD PERSMASK LIKE SUMTIDDAG.PERSMASK
+   FIELD BELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"           
+   FIELD START AS DECIMAL
+   FIELD SLUT AS DECIMAL
+   FIELD DATUM AS DATE
+   FIELD TIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"         
+   FIELD BEREDTIM LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"
+   FIELD NODFALL LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"
+   FIELD RESMAL AS CHARACTER.         
+   
+
+DEFINE TEMP-TABLE slutsum           
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD 
+   FIELD NAMN AS CHARACTER 
+   FIELD PRIS LIKE TIDREGITAB.PRIS     
+   FIELD PRISTYP LIKE TIDREGITAB.PRISTYP 
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR 
+   FIELD ORT LIKE AONRTAB.ORT
+   FIELD TIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD BEREDTIM LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"
+   FIELD NODFALL LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"
+   INDEX PERSONALKOD IS PRIMARY PERSONALKOD AONR DELNR ASCENDING.   
+
+DEFINE TEMP-TABLE sumsum           
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD 
+   FIELD MASKGBELOPP AS DECIMAL
+   FIELD MONTTIMMAR  AS DECIMAL
+   FIELD PRIS LIKE TIDREGITAB.PRIS     
+   FIELD PRISTYP LIKE TIDREGITAB.PRISTYP 
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR 
+   FIELD TIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"  
+   FIELD BEREDTIM LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"
+   FIELD NODFALL LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"   
+   INDEX PERSONALKOD IS PRIMARY PERSONALKOD ASCENDING.    
+   
+DEFINE INPUT PARAMETER TABLE FOR uppvaltemp.
+DEFINE INPUT PARAMETER TABLE FOR valperstemp.
+DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+/*DEFINE OUTPUT PARAMETER str2 AS CHARACTER FORMAT "X(92)" NO-UNDO.
+DEFINE OUTPUT PARAMETER str3 AS CHARACTER FORMAT "X(92)" NO-UNDO.*/
+DEFINE NEW SHARED VARIABLE fastrec AS RECID NO-UNDO.
+DEFINE VARIABLE offert AS LOGICAL NO-UNDO.
+DEFINE VARIABLE xtypmtrl AS INTEGER NO-UNDO.
+DEFINE VARIABLE monpris LIKE EBRPRIS.MONT NO-UNDO.
+DEFINE VARIABLE berpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE kalkvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE breddantal AS INTEGER NO-UNDO.
+DEFINE VARIABLE utnr AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE bredd AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE nrcol AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE ingakostver AS LOGICAL NO-UNDO.
+DEFINE VARIABLE stim AS DECIMAL NO-UNDO.   
+DEFINE VARIABLE o50 AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE o75 AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE o100 AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE stimk AS DECIMAL NO-UNDO.   
+DEFINE VARIABLE o50k AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE o75k AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE o100k AS DECIMAL NO-UNDO.
+
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(256)" NO-UNDO.
+DEFINE VARIABLE pekod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE aokod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE delkod AS INTEGER NO-UNDO.
+DEFINE VARIABLE bertid AS DECIMAL NO-UNDO.
+/*BEREDNING*/
+{LISTDEF.I} 
+
+/*SLUT BEREDNING*/
+
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR. 
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+EMPTY TEMP-TABLE dagtemp  NO-ERROR. 
+EMPTY TEMP-TABLE slutsum NO-ERROR. 
+EMPTY TEMP-TABLE sumsum NO-ERROR. 
+EMPTY TEMP-TABLE tidut NO-ERROR. 
+
+FIND FIRST uppvaltemp NO-ERROR.
+
+OPEN QUERY aq FOR EACH valperstemp NO-LOCK. 
+GET FIRST aq NO-LOCK.
+GET NEXT aq  NO-LOCK.
+IF AVAILABLE valperstemp THEN ingakostver = TRUE.
+ELSE ingakostver = FALSE.
+IF uppvaltemp.DELNRKOLL = FALSE THEN ingakostver = TRUE.
+GET FIRST aq NO-LOCK.
+DO WHILE AVAILABLE(valperstemp):      
+   {SUTIOPEN.I}   
+   GET NEXT aq NO-LOCK.
+END.      
+RUN summa_UI.
+RUN huvud_UI.
+
+{GDPRLOGGCLIENT.I}
+PROCEDURE huvud_UI :  
+   CREATE tidut. 
+   SUBSTRING(tidut.UT,60) = STRING(TODAY) + " " + STRING(TIME,"HH:MM").
+   CREATE tidut.
+   CREATE tidut.
+   tidut.UT = uppvaltemp.VALDLISTA. 
+   IF uppvaltemp.VISPERAR = TRUE THEN DO: 
+      SUBSTRING(tidut.UT,64) = "ÅR " + STRING(YEAR(uppvaltemp.STARTDATUM),"9999").
+   END.                        
+   ELSE IF uppvaltemp.VISPERAR = FALSE THEN DO:
+      SUBSTRING(tidut.UT,64) = "PERIOD " +  STRING(uppvaltemp.STARTDATUM) + 
+      " - " + STRING(uppvaltemp.SLUTDATUM).     
+   END.
+   ELSE DO:
+      SUBSTRING(tidut.UT,64) = "VISNING AV ALLT".
+   END.
+   CREATE tidut.
+   {KUURV.I}
+   IF Guru.Konstanter:globforetag = "snat" THEN DO:
+      ASSIGN   
+      nrcol[4] = 5   
+      nrcol[22] = 6   
+      nrcol[28] = 1         
+      nrcol[6] = 2
+      nrcol[7] = 3   
+      nrcol[8] = 4  
+      nrcol[9] = 8
+      nrcol[10] = 9
+      nrcol[11] = 10
+      nrcol[12] = 11
+      nrcol[13] = 7
+                
+      breddantal = 11   /*antal kolumner*/
+      bredd[1] = 30
+      bredd[2] = 12
+      bredd[3] = 10
+      bredd[4] = 10
+      bredd[5] = 12
+      bredd[6] = 25
+      bredd[7] = 25
+      bredd[8] = 7
+      bredd[9] = 6
+      bredd[10] = 50
+      bredd[11] = 60.
+   END.
+   ELSE DO:
+      ASSIGN   
+      nrcol[4] = 5   
+      nrcol[22] = 6   
+      nrcol[28] = 1         
+      nrcol[6] = 2
+      nrcol[7] = 3   
+      nrcol[8] = 4  
+      nrcol[9] = 7
+      nrcol[10] = 8
+      nrcol[11] = 9
+      nrcol[12] = 10          
+      breddantal = 10   /*antal kolumner*/
+      bredd[1] = 30
+      bredd[2] = 12
+      bredd[3] = 10
+      bredd[4] = 10
+      bredd[5] = 12
+      bredd[6] = 25
+      bredd[7] = 7
+      bredd[8] = 6
+      bredd[9] = 50
+      bredd[10] = 60.
+   END.         
+   
+   ASSIGN
+   i = 2.     
+   utnr[nrcol[28]] = 1.
+   
+   DO WHILE i <= breddantal:             
+      utnr[i] = utnr[i - 1] + bredd[i - 1] + 1.            
+      i = i + 1.
+   END.   
+   ASSIGN
+   str = "".  
+   i = 1.
+   DO WHILE i <= utnr[breddantal] + bredd[breddantal] - 1:
+      str = str + "=".     
+      i = i + 1.
+   END.   
+   i = 2.      
+   DO WHILE i <= breddantal:             
+      SUBSTRING(str,(utnr[i] - 1),1) = ".".      
+      i = i + 1.
+   END.          
+   CREATE tidut.  
+   CREATE tidut.   
+   CREATE tidut.                
+   IF Guru.Konstanter:globforetag = "snat" THEN DO:
+      CREATE tidut.      
+      ASSIGN                                  
+      SUBSTRING(tidut.UT,utnr[nrcol[28]]) = "Enhet/Sign"   
+      SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "Övertid"     
+      SUBSTRING(tidut.UT,utnr[nrcol[22]]) = "Varav under beredskap"
+      SUBSTRING(tidut.UT,utnr[nrcol[13]]) = "Varav nödfallsövertid"
+      SUBSTRING(tidut.UT,utnr[nrcol[6]]) = "Datum"   
+      SUBSTRING(tidut.UT,utnr[nrcol[7]]) = "Start"     
+      SUBSTRING(tidut.UT,utnr[nrcol[8]]) = "Slut". 
+      SUBSTRING(tidut.UT,utnr[nrcol[9]]) = Guru.Konstanter:gaok.
+      SUBSTRING(tidut.UT,utnr[nrcol[10]]) = Guru.Konstanter:gdelnrk.
+      SUBSTRING(tidut.UT,utnr[nrcol[11]]) = "Ort/Benämning".
+      SUBSTRING(tidut.UT,utnr[nrcol[12]]) = "Kommentar".
+   END.
+   ELSE DO:      
+      CREATE tidut.      
+      ASSIGN                                  
+      SUBSTRING(tidut.UT,utnr[nrcol[28]]) = "Enhet/Sign"   
+      SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "Övertid"     
+      SUBSTRING(tidut.UT,utnr[nrcol[22]]) = "Varav under beredskap"
+      SUBSTRING(tidut.UT,utnr[nrcol[6]]) = "Datum"   
+      SUBSTRING(tidut.UT,utnr[nrcol[7]]) = "Start"     
+      SUBSTRING(tidut.UT,utnr[nrcol[8]]) = "Slut". 
+      SUBSTRING(tidut.UT,utnr[nrcol[9]]) = Guru.Konstanter:gaok.
+      SUBSTRING(tidut.UT,utnr[nrcol[10]]) = Guru.Konstanter:gdelnrk.
+      SUBSTRING(tidut.UT,utnr[nrcol[11]]) = "Ort/Benämning".
+      SUBSTRING(tidut.UT,utnr[nrcol[12]]) = "Kommentar".
+  END.                   
+   
+   CREATE tidut.      
+   tidut.UT = str.
+   CREATE sumsum.   
+   IF Guru.Konstanter:globforetag = "snat" THEN DO:
+      pekod = "".
+      FOR EACH slutsum USE-INDEX PERSONALKOD,
+      EACH dagtemp WHERE dagtemp.PERSONALKOD = slutsum.PERSONALKOD.
+         IF slutsum.PERSONALKOD NE pekod  THEN DO:      
+            IF pekod NE "" THEN DO:
+               CREATE tidut.                                       
+               ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[28]]) = "Summa " + sppekod.                 
+               ASSIGN
+               SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING( sptim,">>>>>9.99")
+               SUBSTRING(tidut.UT,utnr[nrcol[22]]) = STRING(spbertim,">>>>>9.99")
+               SUBSTRING(tidut.UT,utnr[nrcol[13]]) = STRING(spnodfall,">>>>>9.99").                                                                                                       
+               CREATE tidut. 
+            END.
+            FIND FIRST sumsum  NO-ERROR.                  
+            ASSIGN  
+            sumsum.TIMMAR =  sumsum.TIMMAR  + slutsum.TIMMAR  
+            sumsum.BEREDTIM =  sumsum.BEREDTIM  +  slutsum.BEREDTIM.
+            sumsum.NODFALL =  sumsum.NODFALL  +  slutsum.NODFALL.                   
+         END.
+         IF uppvaltemp.ENDBEST = TRUE THEN DO:  
+            /*TOG_ARBF = val om all övertid skall ut, annars bara övertid vid beredskap*/
+            CREATE tidut.            
+            ASSIGN 
+            SUBSTRING(tidut.UT,utnr[nrcol[28]]) = slutsum.PERSONALKOD + " " + SUBSTRING(slutsum.NAMN,1,30)
+            SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(dagtemp.TIMMAR,">>>>>9.99")
+            SUBSTRING(tidut.UT,utnr[nrcol[22]]) = STRING(dagtemp.BEREDTIM,">>>>>9.99")
+            SUBSTRING(tidut.UT,utnr[nrcol[13]]) = STRING(dagtemp.NODFALL,">>>>>9.99")                                                                                             
+            SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(dagtemp.DATUM,"9999/99/99")
+            SUBSTRING(tidut.UT,utnr[nrcol[7]]) = STRING(dagtemp.START,">9.99")
+            SUBSTRING(tidut.UT,utnr[nrcol[8]]) = STRING(dagtemp.SLUT,">9.99")
+            SUBSTRING(tidut.UT,utnr[nrcol[9]]) = dagtemp.AONR
+            SUBSTRING(tidut.UT,utnr[nrcol[10]]) = STRING(dagtemp.DELNR,">>9")
+            SUBSTRING(tidut.UT,utnr[nrcol[11]]) = dagtemp.ORT
+            SUBSTRING(tidut.UT,utnr[nrcol[12]]) = dagtemp.RESMAL.  
+            Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + slutsum.PERSONALKOD.       
+            
+         END.    
+         ELSE DO:
+            IF dagtemp.BEREDTIM > 0 OR dagtemp.NODFALL > 0 THEN DO:      
+               CREATE tidut.            
+               ASSIGN 
+               SUBSTRING(tidut.UT,utnr[nrcol[28]]) = slutsum.PERSONALKOD + " " + SUBSTRING(slutsum.NAMN,1,30)
+               SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(dagtemp.TIMMAR,">>>>>9.99")
+               SUBSTRING(tidut.UT,utnr[nrcol[22]]) = STRING(dagtemp.BEREDTIM,">>>>>9.99")
+               SUBSTRING(tidut.UT,utnr[nrcol[13]]) = STRING(dagtemp.NODFALL,">>>>>9.99")                                                                                              
+               SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(dagtemp.DATUM,"9999/99/99")
+               SUBSTRING(tidut.UT,utnr[nrcol[7]]) = STRING(dagtemp.START,">9.99")
+               SUBSTRING(tidut.UT,utnr[nrcol[8]]) = STRING(dagtemp.SLUT,">9.99")
+               SUBSTRING(tidut.UT,utnr[nrcol[9]]) = dagtemp.AONR
+               SUBSTRING(tidut.UT,utnr[nrcol[10]]) = STRING(dagtemp.DELNR,">>9")
+               SUBSTRING(tidut.UT,utnr[nrcol[11]]) = dagtemp.ORT
+               SUBSTRING(tidut.UT,utnr[nrcol[12]]) = dagtemp.RESMAL. 
+               Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + slutsum.PERSONALKOD.                                                                    
+            END.
+         END.   
+         ASSIGN
+         sppekod = slutsum.PERSONALKOD + " " + SUBSTRING(slutsum.NAMN,1,30)
+         sptim = slutsum.TIMMAR
+         spbertim = slutsum.BEREDTIM
+         spnodfall = slutsum.NODFALL
+         pekod = slutsum.PERSONALKOD.
+      END.
+      IF pekod NE "" THEN DO:
+         CREATE tidut.                                       
+         ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[28]]) = "Summa " + sppekod.                 
+         ASSIGN
+         SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING( sptim,">>>>>9.99")
+         SUBSTRING(tidut.UT,utnr[nrcol[22]]) = STRING(spbertim,">>>>>9.99").
+         SUBSTRING(tidut.UT,utnr[nrcol[13]]) = STRING(spnodfall,">>>>>9.99").  
+                                                                                                              
+         CREATE tidut. 
+      END.
+      FIND FIRST sumsum NO-LOCK NO-ERROR.
+      CREATE tidut.                                       
+      CREATE tidut.  
+      tidut.UT = str.
+      CREATE tidut.                                       
+      ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[28]]) = "TOTALT".                 
+      ASSIGN
+      SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING( sumsum.TIMMAR,">>>>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[22]]) = STRING(sumsum.BEREDTIM,">>>>>9.99").
+      SUBSTRING(tidut.UT,utnr[nrcol[13]]) = STRING(sumsum.NODFALL,">>>>>9.99").                                                                   
+   
+   END.
+   ELSE DO:   
+      pekod = "".
+      FOR EACH slutsum USE-INDEX PERSONALKOD,
+      EACH dagtemp WHERE dagtemp.PERSONALKOD = slutsum.PERSONALKOD.
+         IF slutsum.PERSONALKOD NE pekod  THEN DO:      
+            IF pekod NE "" THEN DO:
+               CREATE tidut.                                       
+               ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[28]]) = "Summa " + sppekod.                 
+               ASSIGN
+               SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING( sptim,">>>>>9.99")
+               SUBSTRING(tidut.UT,utnr[nrcol[22]]) = STRING(spbertim,">>>>>9.99").                                                                                                       
+               CREATE tidut. 
+            END.
+            FIND FIRST sumsum  NO-ERROR.                  
+            ASSIGN  
+            sumsum.TIMMAR =  sumsum.TIMMAR  + slutsum.TIMMAR  
+            sumsum.BEREDTIM =  sumsum.BEREDTIM  +  slutsum.BEREDTIM.
+            sumsum.NODFALL =  sumsum.NODFALL  +  slutsum.NODFALL.                   
+         END.
+         IF uppvaltemp.ENDBEST = TRUE THEN DO:  
+            /*TOG_ARBF = val om all övertid skall ut, annars bara övertid vid beredskap*/
+            CREATE tidut.            
+            ASSIGN 
+            SUBSTRING(tidut.UT,utnr[nrcol[28]]) = slutsum.PERSONALKOD + " " + SUBSTRING(slutsum.NAMN,1,30)
+            SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(dagtemp.TIMMAR,">>>>>9.99")
+            SUBSTRING(tidut.UT,utnr[nrcol[22]]) = STRING(dagtemp.BEREDTIM,">>>>>9.99")
+            /*SUBSTRING(tidut.UT,utnr[nrcol[22]]) = STRING(dagtemp.NODFALL,">>>>>9.99")*/                                                                                              
+            SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(dagtemp.DATUM,"9999/99/99")
+            SUBSTRING(tidut.UT,utnr[nrcol[7]]) = STRING(dagtemp.START,">9.99")
+            SUBSTRING(tidut.UT,utnr[nrcol[8]]) = STRING(dagtemp.SLUT,">9.99")
+            SUBSTRING(tidut.UT,utnr[nrcol[9]]) = dagtemp.AONR
+            SUBSTRING(tidut.UT,utnr[nrcol[10]]) = STRING(dagtemp.DELNR,">>9")
+            SUBSTRING(tidut.UT,utnr[nrcol[11]]) = dagtemp.ORT
+            SUBSTRING(tidut.UT,utnr[nrcol[12]]) = dagtemp.RESMAL.  
+            Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + slutsum.PERSONALKOD.       
+            
+         END.    
+         ELSE DO:
+            IF dagtemp.BEREDTIM > 0 OR dagtemp.NODFALL > 0 THEN DO:      
+               CREATE tidut.            
+               ASSIGN 
+               SUBSTRING(tidut.UT,utnr[nrcol[28]]) = slutsum.PERSONALKOD + " " + SUBSTRING(slutsum.NAMN,1,30)
+               SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(dagtemp.TIMMAR,">>>>>9.99")
+               SUBSTRING(tidut.UT,utnr[nrcol[22]]) = STRING(dagtemp.BEREDTIM,">>>>>9.99")
+               /*SUBSTRING(tidut.UT,utnr[nrcol[22]]) = STRING(dagtemp.NODFALL,">>>>>9.99")*/                                                                                              
+               SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(dagtemp.DATUM,"9999/99/99")
+               SUBSTRING(tidut.UT,utnr[nrcol[7]]) = STRING(dagtemp.START,">9.99")
+               SUBSTRING(tidut.UT,utnr[nrcol[8]]) = STRING(dagtemp.SLUT,">9.99")
+               SUBSTRING(tidut.UT,utnr[nrcol[9]]) = dagtemp.AONR
+               SUBSTRING(tidut.UT,utnr[nrcol[10]]) = STRING(dagtemp.DELNR,">>9")
+               SUBSTRING(tidut.UT,utnr[nrcol[11]]) = dagtemp.ORT
+               SUBSTRING(tidut.UT,utnr[nrcol[12]]) = dagtemp.RESMAL. 
+               Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + slutsum.PERSONALKOD.                                                                    
+            END.
+         END.   
+         ASSIGN
+         sppekod = slutsum.PERSONALKOD + " " + SUBSTRING(slutsum.NAMN,1,30)
+         sptim = slutsum.TIMMAR
+         spbertim = slutsum.BEREDTIM
+         spnodfall = slutsum.NODFALL
+         pekod = slutsum.PERSONALKOD.
+      END.
+      IF pekod NE "" THEN DO:
+         CREATE tidut.                                       
+         ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[28]]) = "Summa " + sppekod.                 
+         ASSIGN
+         SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING( sptim,">>>>>9.99")
+         SUBSTRING(tidut.UT,utnr[nrcol[22]]) = STRING(spbertim,">>>>>9.99").
+         /*SUBSTRING(tidut.UT,utnr[nrcol[22]]) = STRING(spNODFALL,">>>>>9.99").*/  
+                                                                                                              
+         CREATE tidut. 
+      END.
+      FIND FIRST sumsum NO-LOCK NO-ERROR.
+      CREATE tidut.                                       
+      CREATE tidut.  
+      tidut.UT = str.
+      CREATE tidut.                                       
+      ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[28]]) = "TOTALT".                 
+      ASSIGN
+      SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING( sumsum.TIMMAR,">>>>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[22]]) = STRING(sumsum.BEREDTIM,">>>>>9.99").
+      /*SUBSTRING(tidut.UT,utnr[nrcol[22]]) = STRING(sumsum.NODFALL,">>>>>9.99").*/                                                                   
+   END.
+END PROCEDURE.
+
+
+PROCEDURE kontokoll_UI:
+   DEFINE INPUT PARAMETER varkont LIKE KOSTREG.BOKKONTO NO-UNDO.
+   DEFINE OUTPUT PARAMETER varvart AS CHARACTER NO-UNDO.
+   RUN SUPER (INPUT varkont,OUTPUT varvart).
+END PROCEDURE.
+
+PROCEDURE skapadagdag_UI :
+   GET FIRST stq NO-LOCK.
+   DO WHILE AVAILABLE(TIDREGITAB):  
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = TIDREGITAB.PERSONALKOD NO-LOCK NO-ERROR.
+      CREATE dagtemp.
+      ASSIGN         
+      dagtemp.PERSONALKOD = TIDREGITAB.PERSONALKOD
+      dagtemp.NAMN = SUBSTRING(PERSONALTAB.FORNAMN,1,1) + "." + 
+      SUBSTRING(PERSONALTAB.EFTERNAMN,1,30)           
+      dagtemp.START = TIDREGITAB.START
+      dagtemp.SLUT = TIDREGITAB.SLUT
+      dagtemp.DATUM = TIDREGITAB.DATUM
+      dagtemp.AONR = TIDREGITAB.AONR
+      dagtemp.DELNR = TIDREGITAB.DELNR
+      dagtemp.RESMAL = SUBSTRING(TIDREGITAB.RESMAL,1,60).
+      dagtemp.TIMMAR = klockan100(TIDREGITAB.OANT1) + klockan100(TIDREGITAB.OANT2) + klockan100(TIDREGITAB.OANT3).
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = TIDREGITAB.AONR AND AONRTAB.DELNR = TIDREGITAB.DELNR  NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DO:
+         dagtemp.ORT = AONRTAB.ORT.
+      END.   
+      IF TIDREGITAB.NODF = TRUE THEN dagtemp.NODFALL = dagtemp.TIMMAR.
+      dagtemp.BEREDTIM = 0.
+      bertid = 0.
+      FOR EACH tidbuff WHERE tidbuff.PERSONALKOD = TIDREGITAB.PERSONALKOD AND
+      tidbuff.DATUM = TIDREGITAB.DATUM AND tidbuff.BEREDSKAP NE "" USE-INDEX PSTART NO-LOCK:
+         IF TIDREGITAB.START GE tidbuff.BEREDSKAPSTART AND
+         TIDREGITAB.START < tidbuff.BEREDSKAPSLUT THEN DO:
+            IF TIDREGITAB.SLUT > tidbuff.BEREDSKAPSTART AND
+            TIDREGITAB.SLUT LE tidbuff.BEREDSKAPSLUT THEN DO:  
+               bertid = bertid + klockan100(TIDREGITAB.OANT1) + klockan100(TIDREGITAB.OANT2) + klockan100(TIDREGITAB.OANT3).
+             /*  MESSAGE "1" bertid TIDREGITAB.DATUM TIDREGITAB.START TIDREGITAB.SLUT TIDREGITAB.TOTALT klockan100(TIDREGITAB.TOTALT)  VIEW-AS ALERT-BOX.*/
+            END.
+            ELSE DO:          
+               IF klockan100(tidbuff.BEREDSKAPSLUT) - klockan100(TIDREGITAB.START) > 0 THEN 
+               bertid = bertid + klockan100(tidbuff.BEREDSKAPSLUT) - klockan100(TIDREGITAB.START).               
+             /*  MESSAGE "2" bertid TIDREGITAB.DATUM TIDREGITAB.START TIDREGITAB.SLUT TIDREGITAB.TOTALT klockan100(TIDREGITAB.TOTALT)  VIEW-AS ALERT-BOX.*/
+            END.
+         END.
+         ELSE IF TIDREGITAB.SLUT > tidbuff.BEREDSKAPSTART AND
+         TIDREGITAB.SLUT LE tidbuff.BEREDSKAPSLUT THEN DO:  
+            IF klockan100(TIDREGITAB.SLUT) - klockan100(tidbuff.BEREDSKAPSTART) > 0 THEN
+            bertid = bertid + klockan100(TIDREGITAB.SLUT) - klockan100(tidbuff.BEREDSKAPSTART).
+            /*MESSAGE "3" bertid TIDREGITAB.DATUM TIDREGITAB.START TIDREGITAB.SLUT TIDREGITAB.TOTALT klockan100(TIDREGITAB.TOTALT)  VIEW-AS ALERT-BOX.*/
+         END.                
+         
+      END.      
+      dagtemp.BEREDTIM = bertid.
+      GET NEXT stq NO-LOCK.
+   END.
+ END PROCEDURE.
+PROCEDURE summa_UI.
+   /*PERSONER*/
+   FOR EACH dagtemp NO-LOCK 
+   BREAK BY dagtemp.PERSONALKOD BY dagtemp.PERSMASK: 
+      ACCUMULATE dagtemp.BELOPP (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.PERSMASK). 
+      ACCUMULATE dagtemp.TIMMAR (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.PERSMASK). 
+      ACCUMULATE dagtemp.BEREDTIM (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.PERSMASK).
+      ACCUMULATE dagtemp.NODFALL (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.PERSMASK).       
+      IF LAST-OF(dagtemp.PERSMASK) THEN DO:
+         CREATE slutsum.
+         ASSIGN 
+         slutsum.PERSONALKOD = dagtemp.PERSONALKOD
+         slutsum.NAMN = dagtemp.NAMN         
+         slutsum.AONR =dagtemp.AONR
+         slutsum.DELNR = dagtemp.DELNR      
+         slutsum.TIMMAR = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.TIMMAR) 
+         slutsum.BEREDTIM = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.BEREDTIM)
+         slutsum.NODFALL = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.NODFALL).          
+      END.     
+   END.
+   
+END PROCEDURE.
+
+   
+

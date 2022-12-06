@@ -1,0 +1,67 @@
+/* p-br14.p */
+
+DEFINE VARIABLE wh AS WIDGET-HANDLE.
+DEFINE VARIABLE eprice AS DECIMAL.
+DEFINE VARIABLE initial-color AS LOGICAL.
+DEFINE VARIABLE method-return AS LOGICAL. 
+DEFINE VARIABLE toggle1 AS LOGICAL LABEL "Check to Back Order" VIEW-AS TOGGLE-BOX.
+
+DEFINE QUERY q1 FOR order-line SCROLLING.
+DEFINE BROWSE b1 QUERY q1 DISPLAY order-num backorder line-num item-num
+      price qty (price * qty) @ eprice COLUMN-LABEL "Extended Price"
+      ENABLE backorder line-num item-num price qty
+      WITH 10 DOWN WIDTH 68 SEPARATORS TITLE "Order Detail Information".
+
+DEFINE FRAME f1
+    b1
+    toggle1 AT ROW 2 COLUMN 2
+        WITH THREE-D NO-BOX SIDE-LABELS ROW 2 CENTERED.
+
+ON SCROLL-NOTIFY OF b1 IN FRAME f1
+DO:
+  RUN TOGGLE-PLACEMENT.
+END.
+
+ON ENTRY OF backorder IN BROWSE b1
+DO:
+  RUN toggle-placement.
+END.
+
+ON LEAVE OF backorder IN BROWSE b1
+DO:
+  toggle1:VISIBLE IN FRAME f1 = FALSE.  
+END.
+
+ON VALUE-CHANGED OF toggle1 IN FRAME f1
+DO:
+  toggle1:VISIBLE IN FRAME f1 = FALSE.
+  
+  IF toggle1:CHECKED THEN BACKORDER:SCREEN-VALUE IN BROWSE b1 = "YES".
+  ELSE BACKORDER:SCREEN-VALUE IN BROWSE b1  = "NO".
+
+  APPLY "ENTRY" TO BACKORDER IN BROWSE b1.
+END.
+
+OPEN QUERY q1 FOR EACH order-line.
+ASSIGN toggle1:HIDDEN IN FRAME f1 = TRUE
+       toggle1:SENSITIVE IN FRAME f1 = TRUE.
+ENABLE b1 WITH FRAME f1.   
+WAIT-FOR WINDOW-CLOSE OF CURRENT-WINDOW. 
+      
+ 
+PROCEDURE toggle-placement:
+
+ASSIGN WH = backorder:HANDLE IN BROWSE b1.
+
+IF wh:X < 0 THEN toggle1:VISIBLE IN FRAME f1 = FALSE.
+ELSE toggle1:X IN FRAME f1 = wh:X + b1:X.
+
+IF wh:Y < 0 THEN toggle1:VISIBLE IN FRAME f1 = FALSE.
+ELSE toggle1:Y IN FRAME f1 = wh:Y + b1:Y.
+  
+IF backorder:SCREEN-VALUE = "" THEN toggle1:CHECKED = FALSE.
+ELSE toggle1:SCREEN-VALUE = backorder:SCREEN-VALUE.  
+      
+IF wh:X >= 0 and wh:Y >= 0 THEN toggle1:VISIBLE IN FRAME f1 = TRUE.
+  
+END PROCEDURE.

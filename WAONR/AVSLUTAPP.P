@@ -1,0 +1,325 @@
+/*AVslutapp.P*/
+{DIRDEF.I}
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{AVTAONRTEMP.I}
+{REGVAR.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE globanv AS CHARACTER NO-UNDO.
+PROCEDURE relaonr:
+   IF AVAILABLE AONRTAB THEN DO:
+      RELEASE AONRTAB.
+   END.
+   RETURN.
+END PROCEDURE.
+PROCEDURE laddabrw.
+   DEFINE OUTPUT PARAMETER TABLE FOR aoresttemp.
+   EMPTY TEMP-TABLE aoresttemp NO-ERROR. 
+   OPEN QUERY aq FOR EACH AORESTRAPP NO-LOCK.
+   GET FIRST aq NO-LOCK.
+   DO WHILE AVAILABLE(AORESTRAPP):
+      CREATE aoresttemp.
+      BUFFER-COPY AORESTRAPP TO aoresttemp.
+      GET NEXT aq NO-LOCK.
+   END.
+   CLOSE QUERY aq.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE koll.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER regdatum AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   ASSIGN Guru.Konstanter:globforetag = gforetag.
+   
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+   AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR. 
+   IF AONRTAB.DELNR = 0 THEN DO:      
+     IF Guru.Konstanter:globforetag = "GRAN" OR Guru.Konstanter:globforetag = "elpa" OR Guru.Konstanter:globforetag = "GKAL" THEN DO:         
+        FIND LAST TIDREGITAB WHERE TIDREGITAB.AONR = AONRTAB.AONR 
+        USE-INDEX AONR NO-LOCK NO-ERROR.
+     END.
+     ELSE DO:
+        FIND LAST TIDREGITAB WHERE 
+        TIDREGITAB.AONR = AONRTAB.AONR AND TIDREGITAB.DELNR = AONRTAB.DELNR
+        USE-INDEX AONR NO-LOCK NO-ERROR.
+     END.
+  END.
+  ELSE DO:
+     FIND LAST TIDREGITAB WHERE 
+     TIDREGITAB.AONR = AONRTAB.AONR AND TIDREGITAB.DELNR = AONRTAB.DELNR
+     USE-INDEX AONR NO-LOCK NO-ERROR.
+  END.
+  IF AVAILABLE TIDREGITAB THEN DO:
+    IF TIDREGITAB.DATUM > regdatum THEN DO:
+       CREATE felmeddtemp.
+       ASSIGN
+       felmeddtemp.FELMEDD = Guru.Konstanter:gaol + " " + TIDREGITAB.AONR + "" + STRING(TIDREGITAB.DELNR,Guru.Konstanter:varforetypchar[1]) +
+       " går inte att avsluta " + STRING(regdatum) + " för att " + TIDREGITAB.PERSONALKOD +
+       " har skrivit tid på detta " + Guru.Konstanter:gaok + " " + STRING(TIDREGITAB.DAG) + " vecka " +
+       STRING(TIDREGITAB.VECKONUMMER) + " Vill du se övriga personer med tidskrivning?"
+       felmeddtemp.VAL = 1.
+       RETURN.
+     END.     
+  END.
+  RUN kollok (INPUT aonrvar,INPUT delnrvar,INPUT Guru.Konstanter:globforetag,INPUT regdatum).
+END PROCEDURE.
+
+PROCEDURE kollok. 
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER regdatum AS DATE NO-UNDO.
+   ASSIGN Guru.Konstanter:globforetag = gforetag.
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+   AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR. 
+   IF AVAILABLE AONRTAB THEN DO:
+      /*gäller alla 2004-02-04 anders*/
+      /*ONENOUTBI  Lena -vill kunna avsluta utan meddelande*/
+      IF Guru.Konstanter:globforetag = "GRAN"  THEN.
+      ELSE DO:
+         IF AONRTAB.DELNR = 0 THEN DO:
+            CREATE felmeddtemp.
+            ASSIGN felmeddtemp.FELMEDD = "Samtliga delnr för detta " + Guru.Konstanter:gaol + " kommer att avslutas. Vill du det?"
+            felmeddtemp.VAL = 2.
+            RETURN.           
+         END.
+      END.    
+         /*
+      IF Guru.Konstanter:globforetag = "GRAN" OR Guru.Konstanter:globforetag = "elpa" OR Guru.Konstanter:globforetag = "GKAL" THEN DO:         
+         IF AONRTAB.DELNR = 0 THEN DO:
+            CREATE felmeddtemp.
+            ASSIGN felmeddtemp.FELMEDD = "Samtliga delnr för detta " + Guru.Konstanter:gaol + " kommer att avslutas. Vill du det?"
+            felmeddtemp.VAL = 2.
+            RETURN.           
+         END.
+         
+      END.
+      */
+      RUN avskopp (INPUT RECID(AONRTAB),INPUT Guru.Konstanter:globforetag,INPUT regdatum, INPUT globanv).        
+   END.
+END PROCEDURE.
+
+PROCEDURE allaao.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER regdatum AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   ASSIGN Guru.Konstanter:globforetag = gforetag
+   globanv = ganv.
+   OPEN QUERY aq FOR EACH AONRTAB WHERE AONRTAB.AONR = aonrvar AND
+   AONRTAB.AONRAVDATUM = 01/01/91 NO-LOCK.
+   GET FIRST aq NO-LOCK.
+   DO WHILE AVAILABLE(AONRTAB):
+      RUN avskopp (INPUT RECID(AONRTAB),INPUT Guru.Konstanter:globforetag,INPUT regdatum, INPUT ganv).   
+      GET NEXT aq NO-LOCK.
+   END.
+END PROCEDURE.
+
+PROCEDURE vaonrfix :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valdaao.
+   FOR EACH valdaao,
+   EACH AONRTAB WHERE AONRTAB.AONR = valdaao.AONR AND AONRTAB.DELNR = valdaao.DELNR NO-LOCK:
+      ASSIGN
+      valdaao.AONRAVDATUM = AONRTAB.AONRAVDATUM
+      valdaao.AUTOREG = AONRTAB.AUTOREG.    
+   END.
+END PROCEDURE.
+PROCEDURE fballaao.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER regdatum AS DATE NO-UNDO.
+    DEFINE BUFFER adelnrbuff FOR AONRTAB.
+   ASSIGN Guru.Konstanter:globforetag = gforetag.
+   /*AVLSUT "FBAONR"*/
+   RUN avfbaonr (INPUT aonrvar,INPUT delnrvar,INPUT regdatum).
+   IF delnrvar = 0 THEN DO:
+      FOR EACH adelnrbuff WHERE adelnrbuff.AONR = aonrvar AND adelnrbuff.AONRAVDATUM = regdatum:
+         IF adelnrbuff.DELNR > 0 THEN RUN avfbaonr (INPUT aonrvar,INPUT adelnrbuff.DELNR,INPUT regdatum).
+      END.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE avfbaonr:
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE VARIABLE avslutainte AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER regdatum AS DATE NO-UNDO.
+   DEFINE BUFFER abuff FOR AONRTAB.
+   DEFINE BUFFER ebuff FOR EXTRAKOPPLINGAR.
+   FOR EACH EXTRAKOPPLINGAR WHERE 
+   EXTRAKOPPLINGAR.PROGRAM = "FBAONR" AND EXTRAKOPPLINGAR.KOPPLACHAR1 = aonrvar AND EXTRAKOPPLINGAR.KOPPLAINT1 =  delnrvar NO-LOCK:
+      avslutainte = FALSE.
+      FOR EACH ebuff WHERE ebuff.PROGRAM = "FBAONR" AND ebuff.KOPPLACHAR2 = EXTRAKOPPLINGAR.KOPPLACHAR2 AND
+      ebuff.KOPPLAINT2 = EXTRAKOPPLINGAR.KOPPLAINT2 NO-LOCK:
+         IF avslutainte = FALSE THEN DO:
+            /*ÄR ANDRA KOPPLINGAR AVSLUTADE*/
+            FIND FIRST abuff WHERE abuff.AONR = ebuff.KOPPLACHAR1 AND abuff.DELNR = ebuff.KOPPLAINT1
+            NO-LOCK NO-ERROR.
+            IF AVAILABLE abuff THEN DO:
+               IF abuff.AONRAVDATUM = 01/01/91 THEN avslutainte = TRUE.
+               ELSE avslutainte = FALSE.            
+            END.
+         END.
+      END.
+      IF avslutainte = FALSE THEN DO:
+         FOR EACH abuff WHERE abuff.AONR = EXTRAKOPPLINGAR.KOPPLACHAR2 AND 
+         abuff.DELNR = EXTRAKOPPLINGAR.KOPPLAINT2 NO-LOCK.
+            EMPTY TEMP-TABLE felmeddtemp  NO-ERROR. 
+            RUN koll (INPUT abuff.AONR,INPUT abuff.DELNR,INPUT Guru.Konstanter:globforetag,INPUT regdatum,OUTPUT TABLE felmeddtemp).               
+         END.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE avskopp.
+   DEFINE INPUT PARAMETER aonrrec AS RECID NO-UNDO.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER regdatum AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   ASSIGN Guru.Konstanter:globforetag = gforetag
+   globanv = ganv.
+   RUN kalk (INPUT aonrrec).
+   FIND FIRST AONRTAB WHERE RECID(AONRTAB) = aonrrec NO-LOCK NO-ERROR.
+   IF AVAILABLE AONRTAB THEN DO:
+      DO TRANSACTION:
+         FIND FIRST BEREDNING WHERE BEREDNING.AONR = AONRTAB.AONR AND
+         BEREDNING.DELNR = AONRTAB.DELNR USE-INDEX AONR
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE BEREDNING THEN BEREDNING.AKTIV = FALSE.
+      END.
+      RELEASE BEREDNING NO-ERROR.
+      IF Guru.Konstanter:globforetag = "GRAN" OR  Guru.Konstanter:globforetag = "VAST" OR  
+      Guru.Konstanter:globforetag = "UMEA" OR 
+      Guru.Konstanter:globforetag = "elpa" OR Guru.Konstanter:globforetag = "GKAL" OR 
+      Guru.Konstanter:globforetag = "BHEL" OR Guru.Konstanter:globforetag = "ESKO" OR Guru.Konstanter:globforetag = "GETB" OR Guru.Konstanter:globforetag = "PICA" OR 
+      Guru.Konstanter:globforetag = "PINN" OR Guru.Konstanter:globforetag = "VEKA" OR  Guru.Konstanter:globforetag = "TECT" OR Guru.Konstanter:globforetag = "NYLB" OR
+      Guru.Konstanter:globforetag = "SKOK" OR Guru.Konstanter:globforetag = "JSBF" OR Guru.Konstanter:globforetag = "GREL" OR Guru.Konstanter:globforetag = "REJI" OR Guru.Konstanter:globforetag = "ELPC" OR Guru.Konstanter:globforetag = "ETSA" OR Guru.Konstanter:globforetag = "HANA" OR Guru.Konstanter:globforetag = "SWEO"  THEN DO:
+         FIND FIRST AOVARD WHERE AOVARD.AONR = AONRTAB.AONR AND AOVARD.DELNR = AONRTAB.DELNR
+         USE-INDEX AONR NO-LOCK NO-ERROR.
+         IF AVAILABLE AOVARD THEN DO:
+            IF AOVARD.VARDNR = ? THEN musz = musz.
+            ELSE DO TRANSACTION:
+               FIND FIRST VARDERING WHERE VARDERING.VARDNR = AOVARD.VARDNR USE-INDEX VARDNR
+               EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE VARDERING THEN DO:
+                  ASSIGN VARDERING.AKTIV = FALSE.
+               END.
+            END.
+            RELEASE VARDERING NO-ERROR.
+         END.         
+      END.    
+      DO TRANSACTION:
+         FIND CURRENT AONRTAB EXCLUSIVE-LOCK NO-ERROR.
+         ASSIGN 
+         AONRTAB.AONRAVDATUM = regdatum
+         AONRTAB.AUTOREG = TRUE.
+      END.
+      FIND CURRENT AONRTAB NO-LOCK NO-ERROR.
+      RUN TLAGAUTO.P (INPUT ganv, INPUT RECID(AONRTAB), INPUT "AONRAVSL").
+   END.
+END PROCEDURE.
+
+PROCEDURE kalk.
+   DEFINE INPUT PARAMETER aonrrec AS RECID NO-UNDO.
+   FIND FIRST AONRTAB WHERE RECID(AONRTAB) = aonrrec NO-LOCK NO-ERROR.
+   
+   
+   
+   OPEN QUERY fkalkq FOR EACH KALKSPEC WHERE KALKSPEC.AONR = AONRTAB.AONR AND
+   KALKSPEC.DELNR = AONRTAB.DELNR USE-INDEX AONR NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST fkalkq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(KALKSPEC):
+         KALKSPEC.AKTIV = FALSE.
+         GET NEXT fkalkq EXCLUSIVE-LOCK.
+      END.
+   END.
+   CLOSE QUERY fkalkq.
+   RELEASE KALKSPEC NO-ERROR.
+   OPEN QUERY kalkaoq FOR EACH KALKAONR WHERE KALKAONR.AONR = AONRTAB.AONR AND
+   KALKAONR.DELNR = AONRTAB.DELNR USE-INDEX AONR NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST kalkaoq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(KALKAONR):
+         FOR EACH FASTSPEC WHERE FASTSPEC.KALKNR = KALKAONR.KALKNR AND
+         FASTSPEC.OMRADE = KALKAONR.OMRADE EXCLUSIVE-LOCK.
+            FASTSPEC.AKTIV = FALSE.
+         END.
+         RELEASE FASTSPEC NO-ERROR.
+         KALKAONR.AKTIV = FALSE.
+         GET NEXT kalkaoq EXCLUSIVE-LOCK.
+      END.
+   END.
+   CLOSE QUERY kalkaoq.
+   RELEASE KALKAONR NO-ERROR.
+   DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE LocalAppServerHandle AS HANDLE NO-UNDO.
+   RUN FINNSTABELL.P (INPUT "KALKHUV", OUTPUT bloblog).
+   IF bloblog = TRUE THEN DO:
+      /*
+      RUN KALKBERAPPDS.p PERSISTENT SET LocalAppServerHandle (INPUT "").
+      */
+      OPEN QUERY kalkaoq FOR EACH KALKAONR WHERE KALKAONR.AONR = AONRTAB.AONR AND
+      KALKAONR.DELNR = AONRTAB.DELNR USE-INDEX AONR NO-LOCK. 
+      GET FIRST kalkaoq NO-LOCK.
+      DO WHILE AVAILABLE(KALKAONR):
+         /*
+         RUN kalkaktiv_UI IN LocalAppServerHandle (INPUT KALKAONR.KALKNR, INPUT KALKAONR.AKTIV).
+         */
+         
+         DO TRANSACTION:
+            FIND FIRST KALKHUV WHERE KALKHUV.KALKNR = KALKAONR.KALKNR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE KALKHUV THEN DO:
+               KALKHUV.AKTIV = KALKAONR.AKTIV.
+            END.   
+         END.
+         RELEASE KALKHUV NO-ERROR.  
+         GET NEXT kalkaoq NO-LOCK.
+      END.
+      IF VALID-HANDLE(LocalAppServerHandle) THEN DO:
+         RUN avsluta_UI IN LocalAppServerHandle.
+         DELETE PROCEDURE LocalAppServerHandle.
+      END.      
+   END.    
+END PROCEDURE.
+
+PROCEDURE sumtidkoll.
+   FIND FIRST SUMTIDDAG WHERE SUMTIDDAG.AUTODATUM = TODAY - 1 NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE SUMTIDDAG THEN DO:
+       CREATE felmeddtemp.
+       ASSIGN felmeddtemp.FELMEDD = "Nattkörningen har ej fungerat i natt. Det går ej att restrapportera.
+       Kontakta ansvarig eller ring elpool 090/184540".          
+       RETURN.
+   END.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE restrapp.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER restbdatum AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   FIND FIRST TIDREGITAB WHERE TIDREGITAB.AONR = aonrvar AND
+   TIDREGITAB.DELNR = delnrvar USE-INDEX AONR NO-LOCK NO-ERROR. 
+   IF AVAILABLE TIDREGITAB THEN DO: 
+      restbdatum = TIDREGITAB.DATUM.
+   END. 
+   ELSE DO:
+      CREATE felmeddtemp.
+      ASSIGN felmeddtemp.FELMEDD = aonrvar + "" + STRING(delnrvar,Guru.Konstanter:varforetypchar[1]) +  
+      " Har ingen tidskrivning och kan ej restrapporteras.".          
+   END.
+END PROCEDURE.

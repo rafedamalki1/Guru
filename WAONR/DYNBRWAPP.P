@@ -1,0 +1,346 @@
+/*DYNBRWAPP.P*/
+DEFINE VARIABLE sokvarhelp AS CHARACTER NO-UNDO.
+{SOKDEF.I}
+
+DEFINE VARIABLE tempbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE tempbufmerah AS HANDLE NO-UNDO.
+DEFINE VARIABLE ttcopyh AS HANDLE NO-UNDO.
+
+DEFINE VARIABLE orgbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE appqueh AS HANDLE NO-UNDO.
+DEFINE VARIABLE appquetemph AS HANDLE NO-UNDO.
+DEFINE VARIABLE valdkommandoquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tempquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE orgtab AS CHARACTER NO-UNDO.
+DEFINE VARIABLE extrafalth3 AS HANDLE NO-UNDO.
+DEFINE VARIABLE extrafalth5 AS HANDLE NO-UNDO.
+DEFINE VARIABLE rowidfaltnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE orgfraga AS CHARACTER NO-UNDO.
+DEFINE VARIABLE faltvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE startpos AS INTEGER NO-UNDO.
+DEFINE VARIABLE nyaquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE begvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE sokstring AS CHARACTER FORMAT "x(40)" EXTENT 10 NO-UNDO.
+DEFINE VARIABLE sparfalt AS CHARACTER NO-UNDO.
+DEFINE VARIABLE temptab AS CHARACTER NO-UNDO.
+DEFINE VARIABLE enhetfalth AS HANDLE NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+
+DELETE WIDGET-POOL "dynpool" NO-ERROR.
+CREATE WIDGET-POOL "dynpool" PERSISTENT.
+DEFINE INPUT PARAMETER TABLE FOR valsoktemp.   
+DEFINE INPUT-OUTPUT PARAMETER TABLE-HANDLE apptthtemp.
+DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+
+tempbufh = apptthtemp:DEFAULT-BUFFER-HANDLE.
+CREATE TEMP-TABLE ttcopyh. 
+ttcopyh:CREATE-LIKE(tempbufh).
+ttcopyh:TEMP-TABLE-PREPARE("ttkopia").
+tempbufmerah = ttcopyh:DEFAULT-BUFFER-HANDLE.
+DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE qH AS HANDLE NO-UNDO.
+ /*
+ kommandoquery = "FOR EACH " + tempbufh:NAME + " NO-LOCK". 
+   RUN CreateCustomQuery(INPUT tempbufh,INPUT kommandoquery,OUTPUT qh).
+   qH:GET-FIRST().
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      MESSAGE "W1" tempbufh:BUFFER-FIELD("ENR"):BUFFER-VALUE tempbufh:BUFFER-FIELD("LEVKOD"):BUFFER-VALUE 
+      VIEW-AS ALERT-BOX.
+      qH:GET-NEXT().
+   END.
+   */  
+FIND FIRST valsoktemp NO-LOCK NO-ERROR.
+IF AVAILABLE valsoktemp THEN DO:
+   
+   ASSIGN
+   orgtab         = valsoktemp.SOKCHAR[1]
+   orgfraga       = valsoktemp.SOKCHAR[2]
+   faltvar        = valsoktemp.SOKCHAR[3]  /*SOKFALT*/
+   rowidfaltnamn  = valsoktemp.SOKCHAR[4]
+   sokstring[1]      = valsoktemp.SOKCHAR[5]  /*SOKVÄRDE FRÅN FILL-IN*/
+   felmedd = ""
+   startpos = 0.       
+   /*Skapar buffers för temptabell och skarp tabell*/
+   tempbufh = apptthtemp:DEFAULT-BUFFER-HANDLE.
+   IF tempbufh:NAME BEGINS "mtrltemp" OR  tempbufh:NAME BEGINS "berstolp" THEN DO:
+      enhetfalth = tempbufh:BUFFER-FIELD("ENHET").
+      RUN sokoch_UI (sokstring[1]).
+   END.
+   
+   CREATE BUFFER orgbufh FOR TABLE orgtab IN WIDGET-POOL "dynpool".
+  
+   /* Skapar query för temptabell och kopplar Queryn till temp-tabellens buffer */
+   IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.  
+   /*
+   CREATE QUERY appquetemph IN WIDGET-POOL "dynpool".
+   appquetemph:SET-BUFFERS(tempbufh).
+   tempquery = "FOR EACH " + tempbufh:TABLE + " NO-LOCK.".
+   appquetemph:QUERY-PREPARE(tempquery).
+   appquetemph:QUERY-OPEN().
+*/
+   /*Ta bort WHERE från orgfraga om... */
+   startpos = INDEX(orgfraga,"WHERE",1).
+   IF startpos NE 0 THEN DO:
+      orgfraga = SUBSTRING(orgfraga,startpos + 5,LENGTH(orgfraga)).
+      /*Ta bort USE-INDEX från orgfraga om... */
+      RUN bortuseindex_UI.      
+   END.
+   ELSE DO:
+      /*Ta bort USE-INDEX från orgfraga om... */
+      
+      RUN bortuseindex_UI.      
+   END.
+   RUN starwars_UI (INPUT sokstring[1]).
+   IF begvar = ? THEN RETURN.
+   IF rowidfaltnamn NE "" THEN extrafalth3 = tempbufh:BUFFER-FIELD(rowidfaltnamn).
+   RUN kommandoskap_UI (INPUT sokstring[1]).
+   /* Skapar query och kopplar queryn till den skarpa tabellens buffer */
+   CREATE QUERY appqueh IN WIDGET-POOL "dynpool".
+   appqueh:SET-BUFFERS(orgbufh).
+   appqueh:QUERY-PREPARE(valdkommandoquery).
+   appqueh:QUERY-OPEN().      
+   appqueh:GET-FIRST(NO-LOCK).
+   IF appqueh:QUERY-OFF-END = TRUE THEN DO:
+      IF valsoktemp.SOKCHAR[1] = "MTRL" AND valsoktemp.SOKCHAR[3] = "ENR" AND begvar = TRUE THEN DO:
+         
+         sokvarhelp  = sokstring[1].
+         IF SUBSTRING(sokstring[1],1,1) = "E" THEN DO:
+            sokstring[1] = SUBSTRING(sokvarhelp,2).
+            RUN kommandoskap_UI (INPUT sokstring[1]).
+            /* Skapar query och kopplar queryn till den skarpa tabellens buffer */
+            CREATE QUERY appqueh IN WIDGET-POOL "dynpool".
+            appqueh:SET-BUFFERS(orgbufh).
+            appqueh:QUERY-PREPARE(valdkommandoquery).
+            appqueh:QUERY-OPEN().      
+            appqueh:GET-FIRST(NO-LOCK).
+            IF appqueh:QUERY-OFF-END = TRUE THEN felmedd = "Det finns inget på sökbegreppet.". 
+         END.   
+         ELSE IF ASC(SUBSTRING(sokstring[1],1,1)) >= 48 AND ASC(SUBSTRING(sokstring[1],1,1)) <= 57 THEN DO:
+            sokstring[1] = "E" + sokvarhelp.
+            RUN kommandoskap_UI (INPUT sokstring[1]).
+            /* Skapar query och kopplar queryn till den skarpa tabellens buffer */
+            CREATE QUERY appqueh IN WIDGET-POOL "dynpool".
+            appqueh:SET-BUFFERS(orgbufh).
+            appqueh:QUERY-PREPARE(valdkommandoquery).
+            appqueh:QUERY-OPEN().      
+            appqueh:GET-FIRST(NO-LOCK).
+            IF appqueh:QUERY-OFF-END = TRUE THEN felmedd = "Det finns inget på sökbegreppet.". 
+         END.
+         ELSE felmedd = "Det finns inget på sökbegreppet.".                              
+      END.   
+      ELSE felmedd = "Det finns inget på sökbegreppet.".      
+   END.
+   IF felmedd = ""  THEN DO:
+      tempbufh:EMPTY-TEMP-TABLE  NO-ERROR.
+      DO WHILE appqueh:QUERY-OFF-END = FALSE:
+         tempbufh:BUFFER-CREATE().
+         tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+         IF rowidfaltnamn NE "" THEN DO:
+            extrafalth3:BUFFER-VALUE = orgbufh:ROWID.
+         END.
+         IF VALID-HANDLE(enhetfalth) THEN DO:
+            enhetfalth:BUFFER-VALUE = LC(enhetfalth:BUFFER-VALUE).
+         END.
+         appqueh:GET-NEXT(NO-LOCK).
+      END.   
+            
+   END.
+END.
+
+IF sokstring[2] = "" THEN .
+ELSE RUN sokmera_UI.
+
+
+
+
+/*
+kommandoquery = "FOR EACH " + tempbufh:NAME + " NO-LOCK". 
+   RUN CreateCustomQuery(INPUT tempbufh,INPUT kommandoquery,OUTPUT qh).
+   qH:GET-FIRST().
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      MESSAGE "W" tempbufh:BUFFER-FIELD("ENR"):BUFFER-VALUE tempbufh:BUFFER-FIELD("LEVKOD"):BUFFER-VALUE 
+      VIEW-AS ALERT-BOX.
+      qH:GET-NEXT().
+   END. 
+DELETE OBJECT appqueh NO-ERROR.
+DELETE OBJECT apptthtemp .
+DELETE OBJECT extrafalth3 NO-ERROR.
+
+ASSIGN
+apptthtemp = ?
+extrafalth3 = ?.   
+*/
+DELETE WIDGET-POOL "dynpool" NO-ERROR.
+RUN disconnectdb_UI.
+
+   
+
+RETURN.
+PROCEDURE sokmera_UI :
+   DEFINE VARIABLE rkollvar AS INTEGER NO-UNDO.
+   DELETE WIDGET-POOL "dynpool" NO-ERROR.
+   nyaquery = "".
+   rkollvar = 2.
+   REPEAT: 
+      orgbufh = tempbufh.
+      IF sokstring[rkollvar] = "" THEN LEAVE.
+      RUN starwars_UI (INPUT sokstring[rkollvar]).
+      IF begvar = ? THEN LEAVE.
+      RUN kommandoskap_UI (INPUT sokstring[rkollvar]).
+      /* Skapar query och kopplar queryn till den skarpa tabellens buffer */
+      CREATE QUERY appqueh.
+      appqueh:SET-BUFFERS(orgbufh).
+      appqueh:QUERY-PREPARE(valdkommandoquery).
+      appqueh:QUERY-OPEN().      
+      appqueh:GET-FIRST(NO-LOCK).
+      IF appqueh:QUERY-OFF-END = TRUE THEN DO:
+         orgbufh:EMPTY-TEMP-TABLE  NO-ERROR.
+         felmedd = "Det finns inget på sökbegreppet.". 
+         LEAVE.     
+      END.
+      ELSE DO:
+         tempbufmerah:EMPTY-TEMP-TABLE  NO-ERROR.
+         DO WHILE appqueh:QUERY-OFF-END = FALSE:
+            tempbufmerah:BUFFER-CREATE().
+            tempbufmerah:BUFFER-COPY(orgbufh) NO-ERROR.
+            appqueh:GET-NEXT(NO-LOCK).
+         END.         
+      END.
+      orgbufh:EMPTY-TEMP-TABLE  NO-ERROR.
+      CREATE QUERY appqueh.
+      appqueh:SET-BUFFERS(tempbufmerah).
+      appqueh:QUERY-PREPARE("FOR EACH " + tempbufmerah:TABLE).
+      appqueh:QUERY-OPEN().      
+      appqueh:GET-FIRST(NO-LOCK).
+      DO WHILE appqueh:QUERY-OFF-END = FALSE:
+         orgbufh:BUFFER-CREATE().
+         orgbufh:BUFFER-COPY(tempbufmerah) NO-ERROR.
+         appqueh:GET-NEXT(NO-LOCK).             
+      END.      
+      tempbufmerah:EMPTY-TEMP-TABLE  NO-ERROR.
+      rkollvar = rkollvar + 1.
+      IF rkollvar > 10 THEN LEAVE.
+   END.  
+   
+END PROCEDURE.
+PROCEDURE sokoch_UI :
+   DEFINE INPUT  PARAMETER sokstringorg AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE forsta AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE sista AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE kollvar AS INTEGER NO-UNDO.
+   DEFINE VARIABLE rkollvar AS INTEGER NO-UNDO.
+   IF INDEX(sokstringorg,"&&") = 0  THEN RETURN.
+   IF SUBSTRING(sokstringorg,1,1) = "*" THEN  forsta = "*".
+   IF SUBSTRING(sokstringorg,LENGTH(sokstringorg),1) = "*" THEN  sista = "*".
+   sokstringorg = REPLACE(sokstringorg,"*","").
+   rkollvar = 1.
+   kollvar = 1.
+   REPEAT: 
+      IF kollvar >= LENGTH(sokstringorg) THEN LEAVE.
+      IF rkollvar > 1 THEN DO:
+         ASSIGN
+         forsta = "*"
+         sista = "*".
+      END.   
+      IF INDEX(sokstringorg,"&&",kollvar) = 0 THEN DO: 
+         sokstring[rkollvar] = TRIM(forsta + SUBSTRING(sokstringorg,kollvar) + sista).
+         LEAVE.
+      END.
+      sokstring[rkollvar] = TRIM(forsta + SUBSTRING(sokstringorg,kollvar,INDEX(sokstringorg,"&&",kollvar) - kollvar) + sista).
+      kollvar = INDEX(sokstringorg,"&&",kollvar) + 2.
+      rkollvar = rkollvar + 1.
+      IF rkollvar > 10 THEN LEAVE.
+   END.  
+END PROCEDURE.
+
+
+PROCEDURE bortuseindex_UI:
+   /*Ta bort USE-INDEX från orgfraga om... */
+   startpos = INDEX(orgfraga,"USE-INDEX",1).
+   IF startpos NE 0 THEN DO:
+      nyaquery = SUBSTRING(orgfraga,1,startpos - 1).      
+   END.
+   ELSE nyaquery = orgfraga.
+END PROCEDURE.
+
+PROCEDURE starwars_UI:
+   DEFINE INPUT  PARAMETER stringkoll AS CHARACTER NO-UNDO.
+   IF INDEX(stringkoll,"*",1) = 0 THEN DO:
+      begvar = TRUE.
+      RETURN.
+   END.
+   IF SUBSTRING(stringkoll,1,1) = "*" THEN DO:
+      begvar = FALSE.
+      RETURN.      
+   END.  
+   
+END PROCEDURE.
+
+PROCEDURE kommandoskap_UI :
+   DEFINE INPUT  PARAMETER sokmera AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE extrafalth5 AS HANDLE NO-UNDO.
+   valdkommandoquery = "".
+   IF sokstring[1] NE "" THEN DO:
+      extrafalth5 = tempbufh:BUFFER-FIELD(faltvar).
+      IF begvar = FALSE THEN DO:
+         IF extrafalth5:DATA-TYPE = "CHARACTER" THEN DO:
+            IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES '" + sokmera + "'".
+            ELSE valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES '" + sokmera + "' AND " + nyaquery.
+         END.
+         ELSE IF extrafalth5:DATA-TYPE = "INTEGER" THEN DO: 
+            IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES " + STRING(sokmera).
+            ELSE valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES " + STRING(sokmera) + " AND " + nyaquery.
+         END.
+         ELSE IF extrafalth5:DATA-TYPE = "LOGICAL" THEN DO: 
+            IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES " + STRING(sokmera).
+            ELSE valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES " + STRING(sokmera) + " AND " + nyaquery.
+         END.          
+         ELSE IF extrafalth5:DATA-TYPE = "DECIMAL" THEN DO: 
+            IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES " + STRING(sokmera).
+            ELSE valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES " + STRING(sokmera) + " AND " + nyaquery.
+         END.          
+      END.
+      ELSE DO:
+         IF extrafalth5:DATA-TYPE = "CHARACTER" THEN DO:
+            IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " BEGINS '" + sokmera + "'".
+            ELSE valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " BEGINS '" + sokmera + "' AND " +  nyaquery.
+         END.
+         ELSE IF extrafalth5:DATA-TYPE = "INTEGER" THEN DO: 
+            IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " BEGINS " + STRING(sokmera).
+            ELSE valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " BEGINS " + STRING(sokmera) + " AND " + nyaquery.
+         END.
+         ELSE IF extrafalth5:DATA-TYPE = "LOGICAL" THEN DO: 
+            IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " BEGINS " + STRING(sokmera).
+            ELSE valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " BEGINS " + STRING(sokmera) + " AND " + nyaquery.
+         END.       
+         ELSE IF extrafalth5:DATA-TYPE = "DECIMAL" THEN DO: 
+            IF nyaquery = "" THEN valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " BEGINS " + STRING(sokmera).
+            ELSE valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " BEGINS " + STRING(sokmera) + " AND " + nyaquery.
+         END.       
+      END.
+      DELETE OBJECT extrafalth5 NO-ERROR. 
+      extrafalth5 = ?.
+   END.
+   ELSE DO:
+      valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + nyaquery.
+   END.
+END PROCEDURE.
+
+PROCEDURE disconnectdb_UI.
+      DELETE OBJECT appqueh NO-ERROR.      
+      DELETE OBJECT extrafalth3 NO-ERROR. 
+      DELETE OBJECT appquetemph NO-ERROR.     
+      DELETE OBJECT orgbufh NO-ERROR.
+      DELETE WIDGET-POOL "dynpool" NO-ERROR. 
+      extrafalth3 = ?.
+   
+END PROCEDURE.
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh .
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE

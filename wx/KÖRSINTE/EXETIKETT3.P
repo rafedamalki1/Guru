@@ -1,0 +1,314 @@
+/*C:\PRO9\WRK\EXETIKETT3.P*/
+
+DEFINE VARIABLE vman AS CHARACTER NO-UNDO.
+DEFINE VARIABLE utvar AS CHARACTER NO-UNDO.
+{IMPFAST.I}
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{BLOB.I}
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE blobproch AS HANDLE NO-UNDO.
+
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE kommando2 AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE pristext                AS CHARACTER.
+DEFINE VARIABLE valvardnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE omravd AS INTEGER NO-UNDO.
+DEFINE VARIABLE aovar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE delnrvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE ortvar AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE fkommun AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE fvaker AS CHARACTER NO-UNDO.   
+DEFINE VAR myText AS CHAR. 
+DEFINE VARIABLE wordAppl AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE chDoc  AS COM-HANDLE     NO-UNDO. 
+DEFINE VARIABLE strang AS CHARACTER NO-UNDO.
+DEFINE VARIABLE forsta AS LOGICAL NO-UNDO.
+DEFINE VARIABLE mrak AS INTEGER NO-UNDO.
+DEFINE VARIABLE mrk AS INTEGER NO-UNDO.
+DEFINE VARIABLE mrk1 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE mrk2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE mrk3 AS INTEGER NO-UNDO.
+DEFINE VARIABLE forbryt AS LOGICAL NO-UNDO.
+DEFINE VARIABLE trak AS INTEGER NO-UNDO.
+DEFINE VARIABLE radrakn AS INTEGER NO-UNDO.
+DEFINE VARIABLE fnamn AS CHARACTER NO-UNDO.
+
+DEFINE TEMP-TABLE marktmp3 NO-UNDO
+FIELD MARKNR AS INTEGER
+FIELD MARKAGARE1    AS CHARACTER 
+FIELD GATUADRESS1   AS CHARACTER 
+FIELD POSTNUMMER1   AS CHARACTER 
+FIELD POSTADRESS1   AS CHARACTER 
+FIELD MARKAGARE2    AS CHARACTER 
+FIELD GATUADRESS2   AS CHARACTER 
+FIELD POSTNUMMER2   AS CHARACTER 
+FIELD POSTADRESS2   AS CHARACTER 
+FIELD MARKAGARE3   AS CHARACTER 
+FIELD GATUADRESS3   AS CHARACTER 
+FIELD POSTNUMMER3   AS CHARACTER 
+FIELD POSTADRESS3   AS CHARACTER. 
+
+DEFINE INPUT PARAMETER TABLE FOR marktmp.
+{GLOBVAR2DEL1.I}        
+
+ fnamn = "etikett.Doc".
+ IF Guru.Konstanter:appcon THEN RUN FINNSTABELL.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT (INPUT "BLOBINFO", OUTPUT bloblog).
+ELSE RUN FINNSTABELL.P (INPUT "BLOBINFO", OUTPUT bloblog).
+IF bloblog = TRUE THEN DO:
+   {FINNSDYNBLOB.I}
+   DEFINE VARIABLE resid AS INTEGER NO-UNDO.
+   RUN blobfil_UI IN blobproch (INPUT fnamn, OUTPUT resid).
+   IF resid = ? THEN DO:
+      kommando = SEARCH(fnamn).      
+   END.
+   ELSE DO:
+      FIND FIRST blobinfotemp WHERE blobinfotemp.ID = resid NO-LOCK NO-ERROR.
+      RUN blobopen_UI IN blobproch (INPUT blobinfotemp.FILNAMN, OUTPUT kommando).
+   END.
+   RUN deleteproc_UI IN blobproch.
+   IF VALID-HANDLE(blobproch) THEN DELETE PROCEDURE blobproch NO-ERROR.
+END.
+ELSE kommando = SEARCH(fnamn).   
+IF kommando = ? THEN DO:
+   MESSAGE "Hittade inte " fnamn VIEW-AS ALERT-BOX.
+   RETURN.       
+END.   
+kommando2 = SESSION:TEMP-DIRECTORY + Guru.Konstanter:globanv + "\".
+{SESSIONTEMPDIR.I}
+IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN kommando2 = webclienttempdir.
+OS-CREATE-DIR VALUE(kommando2) NO-ERROR.
+IF Guru.GlobalaVariabler:plusaonr = "" OR Guru.GlobalaVariabler:plusaonr = ? THEN kommando2 = kommando2 + fnamn.
+ELSE kommando2 = kommando2 + TRIM (Guru.GlobalaVariabler:plusaonr) + TRIM(STRING(Guru.GlobalaVariabler:plusdnr,Guru.Konstanter:varforetypchar[1])) + fnamn.
+OS-COPY VALUE(kommando) VALUE(kommando2).
+kommando = kommando2.
+CREATE "Word.Application" wordAppl NO-ERROR.
+
+IF ERROR-STATUS:ERROR = FALSE THEN DO:
+   chDoc = wordAppl:Documents:Open(kommando,,,,,,,,,).
+   wordAppl:VISIBLE = TRUE.
+   chDoc = wordAppl:ActiveDocument.
+
+
+
+ /*CREATE "Word.Application" wordAppl.
+ wordAppl:Documents:Add().*/
+ trak = 0.
+ radrakn = 0.
+ /*FOR EACH marktmp NO-LOCK:      
+    radrakn = radrakn + 1. 
+    IF trak = 0 THEN DO:
+       CREATE marktmp3.
+       ASSIGN 
+       marktmp3.MARKAGARE1 = marktmp.MARKAGARE
+       marktmp3.GATUADRESS1 = marktmp.GATUADRESS
+       marktmp3.POSTNUMMER1 = marktmp.POSTNUMMER
+       marktmp3.POSTADRESS1 = marktmp.POSTADRESS.
+    END.
+    ELSE IF trak = 1 THEN DO:       
+       ASSIGN 
+       marktmp3.MARKAGARE2 = marktmp.MARKAGARE
+       marktmp3.GATUADRESS2 = marktmp.GATUADRESS
+       marktmp3.POSTNUMMER2 = marktmp.POSTNUMMER
+       marktmp3.POSTADRESS2 = marktmp.POSTADRESS.
+    END.
+    ELSE IF trak = 2 THEN DO:       
+       ASSIGN 
+       marktmp3.MARKAGARE3 = marktmp.MARKAGARE
+       marktmp3.GATUADRESS3 = marktmp.GATUADRESS
+       marktmp3.POSTNUMMER3 = marktmp.POSTNUMMER
+       marktmp3.POSTADRESS3 = marktmp.POSTADRESS.
+    END.
+    trak = trak + 1.
+    radrakn = radrakn + 1.
+    IF trak = 3 THEN trak = 0.
+ END.*/
+ ASSIGN
+ forsta = TRUE
+ mrak = 1
+ forbryt = TRUE
+ mrk = 0.
+ FOR EACH marktmp NO-LOCK:      
+    mrk = mrk + 1.
+ END.
+ ASSIGN
+ mrk1 = mrk / 6
+ mrk2 = TRUNCATE(mrk1,0)
+ mrk3 = mrk - ( mrk2 * 6). 
+
+ FOR EACH marktmp  NO-LOCK BY marktmp.MARKNR DESCENDING:         
+
+    IF forsta = TRUE THEN DO:
+       forsta = FALSE.
+    END.
+    ELSE DO:      
+       myText = "". 
+       wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+       wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+       wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+       myText = "". 
+       wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+       wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+       wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+       myText = "". 
+       wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+       wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+       wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+       myText = "". 
+       wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+       wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+       wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+       myText = "". 
+       wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+       wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+       wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+    END.
+    IF forbryt = TRUE AND mrk3 = 0 THEN DO:
+      forbryt = FALSE.
+      mrak = 0.
+   END.
+   IF forbryt = TRUE AND mrak = mrk3 + 1 THEN DO:      
+      forbryt = FALSE.
+      mrak = 0.
+      myText = "". 
+      wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+      wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+      wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+      myText = "". 
+      wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+      wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+      wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+
+   END.
+   IF mrak = 6 THEN DO:      
+      mrak = 0.
+      myText = "". 
+      wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+      wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+      wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+      myText = "". 
+      wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+      wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+      wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+   END.
+   myText = STRING(marktmp.POSTNUMMER,"999 99") + "  " + marktmp.POSTADRESS .   
+   wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+   wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+   wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):FONT:SIZE = 12.
+   wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+
+   myText = marktmp.GATUADRESS.
+   wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+   wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+   wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):FONT:SIZE = 12.
+   wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+   
+
+   myText = marktmp.MARKAGARE.
+   wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).   
+   wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+   wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):FONT:SIZE = 12.
+   wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+   mrak = mrak + 1.
+  /* myText = "". 
+   wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+   wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+   wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      */
+
+
+END.
+
+ /*FOR EACH marktmp3  NO-LOCK BY marktmp3.MARKNR DESCENDING:         
+
+    IF forsta = TRUE THEN DO:
+       forsta = FALSE.
+    END.
+    ELSE DO:      
+       myText = "". 
+       wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+       wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+       wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+       myText = "". 
+       wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+       wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+       wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+       myText = "". 
+       wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+       wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+       wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+       myText = "". 
+       wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+       wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+       wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+       myText = "". 
+       wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+       wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+       wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+    END.
+    IF forbryt = TRUE AND mrk3 = 0 THEN DO:
+      forbryt = FALSE.
+      mrak = 0.
+   END.
+   IF forbryt = TRUE AND mrak = mrk3 + 1 THEN DO:      
+      forbryt = FALSE.
+      mrak = 0.
+      myText = "". 
+      wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+      wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+      wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+      myText = "". 
+      wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+      wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+      wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+
+   END.
+   IF mrak = 6 THEN DO:      
+      mrak = 0.
+      myText = "". 
+      wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+      wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+      wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+      myText = "". 
+      wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+      wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+      wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+   END.
+   myText = STRING(marktmp3.POSTNUMMER1,"999 99") + "  " + marktmp3.POSTADRESS1  +
+   CHR(9) + STRING(marktmp3.POSTNUMMER2,"999 99") + "  " + marktmp3.POSTADRESS2  + 
+   CHR(9) + STRING(marktmp3.POSTNUMMER3,"999 99") + "  " + marktmp3.POSTADRESS3 .   
+   wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+   wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+   wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):FONT:SIZE = 12.
+   wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+
+   myText = marktmp3.GATUADRESS1 + CHR(9) + marktmp3.GATUADRESS2 + CHR(9) + marktmp3.GATUADRESS3 + CHR(9).
+   wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+   wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+   wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):FONT:SIZE = 12.
+   wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+   
+
+   myText = marktmp3.MARKAGARE1 + CHR(9) + marktmp3.MARKAGARE2 + CHR(9) + marktmp3.MARKAGARE3.
+   wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).   
+   wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+   wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):FONT:SIZE = 12.
+   wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      
+   mrak = mrak + 1.
+  /* myText = "". 
+   wordAppl:Documents:Item(1):Range(0,0):InsertAfter(myText).
+   wordAppl:Documents:Item(1):Range(0,wordAppl:Documents:Item(1):Characters:Count):font:NAME = "Arial".
+   wordAppl:Documents:Item(1):Range(0,0):InsertParagraphAfter.                                      */
+
+
+END.*/
+END.
+
+
+ wordAppl:Visible = true.
+ 
+ 
+ RELEASE OBJECT wordAppl.
+
+
+
+

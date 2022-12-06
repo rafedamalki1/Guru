@@ -1,0 +1,1148 @@
+/*UPPMENY.P*/
+{ALLDEF.I}
+{GLOBVAR2DEL1.I}
+{UPPWID.I}
+{FORETEMP.I}
+&Scoped-define NEW 
+&Scoped-define SHARED SHARED
+DEFINE {&NEW} SHARED VARIABLE SEL_UPP AS CHARACTER INITIAL ?  NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE FILL-IN-STARTDAT AS DATE FORMAT "99/99/99":U    NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE FILL-IN-STOPPDAT AS DATE FORMAT "99/99/99":U   NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE RAD_ALLVAL AS INTEGER                         NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE RAD_PERIOD AS INTEGER                NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE RAD_SORT AS INTEGER         NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE RAD_TYP AS INTEGER  NO-UNDO.
+DEFINE {&NEW} SHARED VARIABLE CMB_OMR AS CHARACTER FORMAT "X(256)":U INITIAL ? NO-UNDO.
+
+
+
+DEFINE SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE omr AS LOGICAL NO-UNDO. 
+DEFINE SHARED VARIABLE typ_val AS INTEGER NO-UNDO.
+DEFINE VARIABLE vadladd AS CHARACTER NO-UNDO.
+{BEFTEMP.I}
+{SOKDEF.I}
+{AVDTEMP.I}
+{ARBATE.I}
+{ANSPROJBER.I}
+{OMRTEMPW.I}
+{PHMT.I}
+{DIRDEF.I}
+DEFINE {&NEW} {&SHARED} TEMP-TABLE valdaaotemp NO-UNDO  LIKE utsokaonr.
+{OTIDBEORD.I}
+{BESTKUNDALLT.I}
+{VISUPPTMP.I}
+{PERSTEMP.I}
+
+DEFINE TEMP-TABLE valtemp
+   FIELD VALDLISTA AS CHARACTER
+   FIELD BAVAL AS INTEGER
+   FIELD ALLTID AS LOGICAL
+   FIELD STARTDATUM AS DATE
+   FIELD SLUTDATUM AS DATE.
+DEFINE TEMP-TABLE vispers
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD FORNAMN AS CHARACTER
+   FIELD EFTERNAMN AS CHARACTER
+   INDEX PKOD IS PRIMARY PERSONALKOD.   
+DEFINE VARIABLE status-ok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE outanvanv AS CHARACTER NO-UNDO.
+DEFINE VARIABLE outdatornamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE vallista AS INTEGER NO-UNDO.
+DEFINE VARIABLE uppfapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE visatemph AS HANDLE NO-UNDO.
+DEFINE VARIABLE utvaltab AS CHARACTER NO-UNDO.
+DEFINE VARIABLE urq AS HANDLE NO-UNDO.
+DEFINE VARIABLE dynok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE dynqueh AS HANDLE NO-UNDO.
+      
+visatemph = TEMP-TABLE visaupp:DEFAULT-BUFFER-HANDLE. 
+
+ON 'MOUSE-SELECT-DBLCLICK':U OF BRW_UPP PERSISTENT RUN visa_UI IN THIS-PROCEDURE.
+ON 'RIGHT-MOUSE-CLICK':U OF BRW_UPP PERSISTENT RUN dispedit_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF BRW_UPP PERSISTENT RUN vcbrwupp_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_VISA PERSISTENT RUN visa_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_AVB PERSISTENT RUN avb_UI IN THIS-PROCEDURE.
+{OMSTARTAVGURUH.I}
+RUN main_UI.
+{musarrow.i}
+
+
+PROCEDURE selectfoc_UI :
+   DEFINE VARIABLE brwrowid AS ROWID NO-UNDO.
+   DEFINE VARIABLE brwrecid AS RECID NO-UNDO.
+   IF NOT VALID-HANDLE(visatemph) THEN DO:
+      visatemph = TEMP-TABLE visaupp:DEFAULT-BUFFER-HANDLE.
+   END.
+   RUN selectrowid_UI IN brwproc[1] (OUTPUT brwrowid).
+   RUN selectrecid_UI IN brwproc[1] (OUTPUT brwrecid).
+   FIND FIRST visaupp WHERE ROWID(visaupp) = brwrowid NO-LOCK NO-ERROR.
+END PROCEDURE.
+PROCEDURE vcbrwupp_UI :
+   RUN selectfoc_UI.   
+   IF AVAILABLE visaupp THEN DO:
+      BRW_UPP:TOOLTIP = "Högerklicka för mer information.".
+   END.    
+END PROCEDURE.
+PROCEDURE dispedit_UI :
+   DEFINE VARIABLE urbrwh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE urqueh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE urbufh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE urfalth AS HANDLE NO-UNDO.
+   DEFINE VARIABLE selnr AS INTEGER NO-UNDO.
+   urbrwh = BRW_UPP.
+   selnr = urbrwh:NUM-SELECTED-ROWS.
+   IF selnr = 0 THEN DO:                                     
+      RETURN.                
+   END.   
+   urbrwh:FETCH-SELECTED-ROW(1).
+   urqueh = urbrwh:QUERY.
+   urbufh = urqueh:GET-BUFFER-HANDLE().
+   urfalth = urbufh:BUFFER-FIELD("TYP").
+   RUN  TEXTEDIT.W (INPUT urfalth:BUFFER-VALUE).
+END PROCEDURE.   
+
+PROCEDURE visa_UI :
+   {OMSTARTAVGURUH.I}  
+   RUN selectfoc_UI.
+   IF NOT AVAILABLE visaupp THEN DO:
+      MESSAGE "Du måste välja någon lista!" VIEW-AS ALERT-BOX.
+      RETURN.
+   END.
+   ASSIGN
+   SEL_UPP = visaupp.UT
+   vallista = visaupp.UPPFOLJVAL.
+   DEFINE VARIABLE val1 AS LOGICAL.
+   {AVBGOM2.I} 
+   /* Projektnummer */
+   {AMERICANEUROPEAN.I}
+   
+   IF vallista = 1 OR vallista = 2 OR vallista = 3 OR vallista = 31 OR vallista = 4 OR vallista = 41 OR vallista = 5 OR
+   vallista = 6 OR vallista = 8 OR vallista = 21 OR vallista = 26 OR vallista = 28 OR vallista = 34 OR vallista = 37 OR
+   vallista = 38 OR vallista = 51 OR vallista = 52 OR vallista = 312 OR vallista = 60 OR vallista = 330 OR vallista = 401 OR vallista = 54 THEN DO:  
+      FIND FIRST visaupp WHERE visaupp.UPPFOLJVAL = vallista NO-LOCK NO-ERROR.
+      FIND FIRST uppvaltemp WHERE uppvaltemp.VALDLISTA = visaupp.UT NO-ERROR.
+      IF NOT AVAILABLE uppvaltemp THEN FIND FIRST uppvaltemp NO-ERROR. 
+      IF NOT AVAILABLE uppvaltemp THEN DO:
+         CREATE uppvaltemp.
+         ASSIGN         
+         uppvaltemp.ENDBEST = ?
+         uppvaltemp.DELNRKOLL = visaupp.DELNRKOLL
+         uppvaltemp.VISPERAR = TRUE
+         uppvaltemp.STARTDATUM = DATE(01,01,YEAR(TODAY))
+         uppvaltemp.SLUTDATUM  = TODAY
+         uppvaltemp.AVSLUTSTART = DATE(01,01,YEAR(TODAY))
+         uppvaltemp.AVSLUTSLUT = TODAY
+         uppvaltemp.TILLFALLFAST = 1
+         SUBSTRING(uppvaltemp.PROJEKTOR,1,20) = "ALLA"
+         uppvaltemp.BEREDARE = "ALLA"
+         uppvaltemp.ARBANSVARIG = "ALLA"
+         uppvaltemp.BESTNAMN = "ALLA"
+         uppvaltemp.OMRNAMN = "ALLA"
+         uppvaltemp.AVDNAMN = "ALLA"
+         uppvaltemp.AVDNR = "ALLA"
+         uppvaltemp.FAKTTYP = "ALLA"
+         uppvaltemp.PAAV = 1
+         uppvaltemp.MANUPPD = FALSE.
+         IF Guru.Konstanter:globforetag = "GKAL" AND vallista = 21 THEN DO:
+            ASSIGN
+            uppvaltemp.STARTDATUM = DATE(MONTH(TODAY),DAY(TODAY),(YEAR(TODAY) - 1))         
+            uppvaltemp.AVSLUTSTART = DATE(MONTH(TODAY),DAY(TODAY),(YEAR(TODAY) - 1)).                
+         END.    
+      END.
+      IF vallista = 4 OR vallista = 28 OR vallista = 34 OR vallista = 37 OR vallista = 54  THEN DO:
+         ASSIGN uppvaltemp.DELNRKOLL = FALSE.
+      END.
+      uppvaltemp.VALDLISTA = visaupp.UT.
+      IF vadladd = "FAK" THEN RUN fakao_UI.
+      ELSE IF vadladd = "PLAN" THEN RUN planrao_UI.
+      ELSE RUN aoao_UI.
+      RUN MKUURVALU.W (INPUT-OUTPUT vallista,
+       INPUT-OUTPUT TABLE uppvaltemp, 
+       INPUT-OUTPUT TABLE bestkundallt,
+       INPUT-OUTPUT TABLE omrtemp, 
+       INPUT-OUTPUT TABLE avdtemp).       
+   END.
+   ELSE IF vallista = 7  THEN DO:        
+      FIND FIRST visaupp WHERE visaupp.UPPFOLJVAL = vallista NO-LOCK NO-ERROR.
+      FIND FIRST uppvaltemp WHERE uppvaltemp.VALDLISTA = visaupp.UT NO-ERROR.
+      IF NOT AVAILABLE uppvaltemp THEN FIND FIRST uppvaltemp NO-ERROR. 
+      IF NOT AVAILABLE uppvaltemp THEN DO:
+         CREATE uppvaltemp.
+         ASSIGN         
+         uppvaltemp.ENDBEST = ?
+         uppvaltemp.DELNRKOLL = visaupp.DELNRKOLL
+         uppvaltemp.VISPERAR = TRUE
+         uppvaltemp.STARTDATUM = DATE(01,01,YEAR(TODAY))
+         uppvaltemp.SLUTDATUM  = TODAY
+         uppvaltemp.AVSLUTSTART = DATE(01,01,YEAR(TODAY))
+         uppvaltemp.AVSLUTSLUT = TODAY
+         uppvaltemp.TILLFALLFAST = 1
+         SUBSTRING(uppvaltemp.PROJEKTOR,1,20) = "ALLA"
+         uppvaltemp.BEREDARE = "ALLA"
+         uppvaltemp.ARBANSVARIG = "ALLA"
+         uppvaltemp.BESTNAMN = "ALLA"
+         uppvaltemp.OMRNAMN = "ALLA"
+         uppvaltemp.AVDNAMN = "ALLA"
+         uppvaltemp.AVDNR = "ALLA"
+         uppvaltemp.FAKTTYP = "ALLA"
+         uppvaltemp.PAAV = 1
+         uppvaltemp.MANUPPD = FALSE.              
+      END.     
+      uppvaltemp.VALDLISTA = visaupp.UT.
+      IF vadladd = "FAK" THEN RUN fakao_UI.
+      ELSE IF vadladd = "PLAN" THEN RUN planrao_UI.
+      ELSE RUN aoao_UI.
+      RUN MKUURVALU.W 
+      (INPUT-OUTPUT vallista,
+       INPUT-OUTPUT TABLE uppvaltemp, 
+       INPUT-OUTPUT TABLE bestkundallt,
+       INPUT-OUTPUT TABLE omrtemp, 
+       INPUT-OUTPUT TABLE avdtemp).       
+   END.
+   /* Område */
+   ELSE IF vallista = 10 OR vallista = 11 OR vallista = 12 OR vallista = 13 OR vallista = 14 THEN DO:              
+      RUN OMRVALU.W (INPUT-OUTPUT vallista,INPUT-OUTPUT TABLE valsoktemp).
+   END. 
+   ELSE IF vallista = 15 THEN DO:      
+      RUN PERURVALDEF.P.
+   END.    
+   ELSE IF vallista = 16 THEN DO:
+      RUN AOOMVALU.W.              
+   END.
+   ELSE IF vallista = 17 THEN DO:        
+      RUN OMFURVALU.W.              
+   END.
+   /*Övriga*/
+   ELSE IF vallista = 20 THEN DO:
+      EMPTY TEMP-TABLE valtemp  NO-ERROR.      
+      FIND FIRST visaupp WHERE visaupp.UPPFOLJVAL = vallista NO-LOCK NO-ERROR.
+      FIND FIRST valtemp WHERE valtemp.VALDLISTA = visaupp.UT NO-ERROR.
+      IF NOT AVAILABLE valtemp THEN DO:                      
+         CREATE valtemp.
+         ASSIGN       
+         valtemp.STARTDATUM = DATE(01,01,YEAR(TODAY))
+         valtemp.SLUTDATUM  = TODAY
+         valtemp.VALDLISTA = visaupp.UT
+         valtemp.BAVAL = 1.         
+      END.      
+      RUN BAURVALU.W (INPUT-OUTPUT vallista,INPUT-OUTPUT TABLE valtemp, INPUT-OUTPUT TABLE perstemp,INPUT-OUTPUT TABLE vispers).               
+   END.
+   ELSE IF vallista = 29 THEN DO:     
+      EMPTY TEMP-TABLE valtemp  NO-ERROR.
+      FIND FIRST visaupp WHERE visaupp.UPPFOLJVAL = vallista NO-LOCK NO-ERROR.
+      FIND FIRST valtemp WHERE valtemp.VALDLISTA = visaupp.UT NO-ERROR.
+      IF NOT AVAILABLE valtemp THEN DO:             
+         CREATE valtemp.
+         ASSIGN       
+         valtemp.STARTDATUM = DATE(01,01,YEAR(TODAY))
+         valtemp.SLUTDATUM  = TODAY
+         valtemp.VALDLISTA = visaupp.UT
+         valtemp.BAVAL = 1.         
+      END.      
+      RUN OTBURVALU.W (INPUT-OUTPUT vallista,INPUT-OUTPUT TABLE valtemp, INPUT-OUTPUT TABLE otidbeordtemp,INPUT-OUTPUT TABLE vispers).               
+   END.
+   ELSE IF vallista = 22 OR vallista = 27 OR vallista = 30 OR vallista = 32 OR vallista = 33 OR vallista = 35 OR vallista = 36 OR vallista = 39 OR vallista = 40 
+   OR vallista = 44 OR vallista = 45 OR vallista = 46 OR vallista = 47 OR vallista = 48 OR  vallista = 53 THEN DO: 
+      FIND FIRST visaupp WHERE visaupp.UPPFOLJVAL = vallista NO-LOCK NO-ERROR.
+      FIND FIRST uppvaltemp WHERE uppvaltemp.VALDLISTA = visaupp.UT NO-ERROR.
+      IF NOT AVAILABLE uppvaltemp THEN FIND FIRST uppvaltemp NO-ERROR. 
+      IF NOT AVAILABLE uppvaltemp THEN DO:
+         CREATE uppvaltemp.
+         ASSIGN         
+         uppvaltemp.ENDBEST = ?
+         uppvaltemp.DELNRKOLL = visaupp.DELNRKOLL
+         uppvaltemp.VISPERAR = TRUE
+         uppvaltemp.STARTDATUM = DATE(01,01,YEAR(TODAY))
+         uppvaltemp.SLUTDATUM  = TODAY
+         uppvaltemp.AVSLUTSTART = DATE(01,01,YEAR(TODAY))
+         uppvaltemp.AVSLUTSLUT = TODAY
+         uppvaltemp.TILLFALLFAST = 1
+         SUBSTRING(uppvaltemp.PROJEKTOR,1,20) = "ALLA"
+         uppvaltemp.BEREDARE = "ALLA"
+         uppvaltemp.ARBANSVARIG = "ALLA"
+         uppvaltemp.BESTNAMN = "ALLA"
+         uppvaltemp.OMRNAMN = "ALLA"
+         uppvaltemp.AVDNAMN = "ALLA"
+         uppvaltemp.AVDNR = "ALLA"
+         uppvaltemp.FAKTTYP = "ALLA"
+         uppvaltemp.PAAV = 1
+         uppvaltemp.MANUPPD = FALSE.        
+      END.
+      uppvaltemp.VALDLISTA = visaupp.UT.      
+      RUN PAURVALU.W
+         (INPUT-OUTPUT vallista,
+          INPUT-OUTPUT TABLE uppvaltemp,           
+          INPUT-OUTPUT TABLE omrtemp,
+          INPUT-OUTPUT TABLE personaltemp,
+          INPUT-OUTPUT TABLE valperstemp).                      
+      EMPTY TEMP-TABLE valperstemp NO-ERROR.                
+   END.
+   ELSE IF vallista = 335 THEN DO:
+      IF NOT AVAILABLE uppvaltemp THEN FIND FIRST uppvaltemp NO-ERROR. 
+      IF NOT AVAILABLE uppvaltemp THEN DO:
+         CREATE uppvaltemp.
+         ASSIGN         
+         uppvaltemp.ENDBEST = ?
+         uppvaltemp.DELNRKOLL = visaupp.DELNRKOLL
+         uppvaltemp.VISPERAR = TRUE
+         uppvaltemp.STARTDATUM = DATE(01,01,YEAR(TODAY))
+         uppvaltemp.SLUTDATUM  = TODAY
+         uppvaltemp.AVSLUTSTART = DATE(01,01,YEAR(TODAY))
+         uppvaltemp.AVSLUTSLUT = TODAY
+         uppvaltemp.TILLFALLFAST = 1
+         SUBSTRING(uppvaltemp.PROJEKTOR,1,20) = "ALLA"
+         uppvaltemp.BEREDARE = "ALLA"
+         uppvaltemp.ARBANSVARIG = "ALLA"
+         uppvaltemp.BESTNAMN = "ALLA"
+         uppvaltemp.OMRNAMN = "ALLA"
+         uppvaltemp.AVDNAMN = "ALLA"
+         uppvaltemp.AVDNR = "ALLA"
+         uppvaltemp.FAKTTYP = "ALLA"
+         uppvaltemp.PAAV = 1
+         uppvaltemp.MANUPPD = FALSE.        
+      END.
+      uppvaltemp.VALDLISTA = visaupp.UT.
+      RUN TIDLAGEURVALU.w (INPUT-OUTPUT vallista, INPUT-OUTPUT TABLE uppvaltemp,INPUT-OUTPUT TABLE omrtemp,INPUT-OUTPUT TABLE avdtemp). 
+   END.    
+   musz = FALSE.
+   {EUROPEANAMERICAN.I}
+   {AVBFRAM2.I}
+   {musarrow.i}
+END PROCEDURE.
+
+PROCEDURE enbrwupp_UI :
+   RUN selectfoc_UI.
+   IF AVAILABLE visaupp THEN BRW_UPP:TOOLTIP = "Högerklicka för mer information.".
+END PROCEDURE.
+PROCEDURE avb_UI :  
+   MESSAGE "Du avslutar nu " + SUBSTRING(foretemp.VERSION,1,10)
+   VIEW-AS ALERT-BOX QUESTION BUTTONS OK-CANCEL UPDATE val AS LOGICAL.   
+   IF val = FALSE THEN RETURN NO-APPLY.
+   RUN avb_UI IN huvprogh.   
+END PROCEDURE.
+PROCEDURE PlaceraKnapp_UI :
+   Guru.GlobalaVariabler:StartRadForKnappar = BRW_UPP:ROW.
+   Guru.Konstanter:PlaceraKnapparLodratt(BTN_VISA).
+   Guru.GlobalaVariabler:StartKolumnForKnappar = BRW_UPP:COLUMN + BRW_UPP:WIDTH-CHARS + 3. 
+   Guru.Konstanter:PlaceraKnapparVagratt(BTN_VISA,FALSE).
+   
+END PROCEDURE.
+PROCEDURE main_UI :
+   c-win:TITLE = "Uppföljning" + "-" + "Systemsupport 090/184540    elpool.ume@elpool.se  " + foretemp.ATRHOME.
+   RUN INLOAPI.P (OUTPUT outanvanv, OUTPUT outdatornamn).
+   ASSIGN 
+   RAD_ALLVAL = 4
+   omr = FALSE
+   RAD_TYP = 1
+   RAD_PERIOD = 1                                          
+   typ_val = 1.
+   IF NOT VALID-HANDLE(uppfapph) THEN DO:
+      IF NOT VALID-HANDLE(brwproc[1]) THEN  RUN DYNBRW.P PERSISTENT SET brwproc[1] (INPUT BRW_UPP).    
+      RUN brwsetupstop_UI IN brwproc[1] (INPUT 3).             
+      IF Guru.Konstanter:appcon THEN DO:
+         IF NOT VALID-HANDLE(uppfapph) THEN RUN UPPFAPP.P PERSISTENT SET uppfapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT.       
+      END.
+      ELSE DO:
+         IF NOT VALID-HANDLE(uppfapph) THEN RUN UPPFAPP.P PERSISTENT SET uppfapph.
+      END.
+      RUN befh_UI IN uppfapph (OUTPUT TABLE befattningstemp).
+      IF Guru.Konstanter:appcon THEN DO:                           
+         RUN AVSKAP.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+         (OUTPUT TABLE avdtemp).
+      END.
+      ELSE DO:
+         RUN AVSKAP.P 
+         (OUTPUT TABLE avdtemp).                  
+      END.
+      IF Guru.Konstanter:appcon THEN DO:                           
+         RUN ARBARTS.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+         (OUTPUT TABLE aarttemp).
+      END.
+      ELSE DO:
+         RUN ARBARTS.P 
+         (OUTPUT TABLE aarttemp).                  
+      END.
+      IF Guru.Konstanter:appcon THEN DO:                           
+         RUN ANSBER.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+         (OUTPUT TABLE ansvaraotemp,OUTPUT TABLE beredartemp,OUTPUT TABLE projtemp).
+      END.
+      ELSE DO:
+         RUN ANSBER.P 
+         (OUTPUT TABLE ansvaraotemp,OUTPUT TABLE beredartemp,OUTPUT TABLE projtemp).
+      END.
+   
+      {OMRHMT.I}
+      bestvad = 2.
+      {BESTHMT.I}       
+      IF  Guru.Konstanter:globforetag = "GKAL" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 10
+         visaupp.UPPFOLJVAL = 1
+         visaupp.KUURVAL = TRUE  
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U10"
+         visaupp.UT = "U10- " + Guru.Konstanter:gaol + "-tid-övertid-traktamenten".
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 20
+         visaupp.UPPFOLJVAL = 2
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U20"
+         visaupp.UT = "U20- " + Guru.Konstanter:gaol + "-kostnadsreg.-kalkyl".
+      END.   
+      CREATE visaupp.
+      ASSIGN
+      visaupp.ORDNING = 30
+      visaupp.UPPFOLJVAL = 4
+      visaupp.KUURVAL = TRUE
+      visaupp.DELNRKOLL = TRUE
+      visaupp.VISEX = 1
+      visaupp.VISAP = 1
+      visaupp.TYP = "U30"
+      visaupp.UT = "U30- " + Guru.Konstanter:gaol + "-personal".
+      IF  Guru.Konstanter:globforetag = "GKAL" THEN DO:
+         visaupp.DELNRKOLL = FALSE.
+      END.      
+      CREATE visaupp.
+      ASSIGN
+      visaupp.ORDNING = 31
+      visaupp.UPPFOLJVAL = 54
+      visaupp.KUURVAL = TRUE
+      visaupp.DELNRKOLL = TRUE
+      visaupp.VISEX = 1
+      visaupp.VISAP = 1
+      visaupp.TYP = "U31"
+      visaupp.UT = "U31- " +  Guru.Konstanter:gaol + "-ej personal".
+      IF  Guru.Konstanter:globforetag = "GKAL" THEN DO:
+         visaupp.DELNRKOLL = FALSE.
+      END.
+      IF Guru.Konstanter:globforetag =  "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR  Guru.Konstanter:globforetag = "MISV" THEN.
+      ELSE DO:         
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 40
+         visaupp.UPPFOLJVAL = 3
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U40"
+         visaupp.UT = "U40- Projektuppföljningslista".
+      END.
+      IF Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 40
+         visaupp.UPPFOLJVAL = 401
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 0
+         visaupp.VISAP = 1
+         visaupp.TYP = "U40k"
+         visaupp.UT = "U40k- Projektkostnadsuppföljningslista".
+      END.   
+      IF Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 41
+         visaupp.UPPFOLJVAL = 41
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U41"
+         visaupp.UT = "U41- Befattningsrapport".           
+         
+      END.
+      IF Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 42
+         visaupp.UPPFOLJVAL = 31
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U40S"
+         visaupp.UT = "U40S- Projektuppföljningslista Sund".
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 45
+         visaupp.UPPFOLJVAL = 60
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U45"
+         visaupp.UT = "U45- Investeringsuppföljning Sund".
+      END.
+      CREATE visaupp.
+      ASSIGN
+      visaupp.ORDNING = 50
+      visaupp.UPPFOLJVAL = 5
+      visaupp.KUURVAL = TRUE
+      visaupp.DELNRKOLL = TRUE
+      visaupp.VISEX = 1
+      visaupp.VISAP = 1
+      visaupp.TYP = "U50"
+      visaupp.UT = "U50- " +  Guru.Konstanter:gaol + "-tid-detaljerat".  
+      IF Guru.Konstanter:globforetag = "LULE"  OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "SUND"  OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 51
+         visaupp.UPPFOLJVAL = 51
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U51"
+         visaupp.UT = "U51- " +  Guru.Konstanter:gaol + "-tid-detaljerat-kommentar".  
+      END.
+      IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+         
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 52
+         visaupp.UPPFOLJVAL = 52
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U52"
+         visaupp.UT = "U52- " + Guru.Konstanter:gaol + "-tid-kommentar".              
+      END.
+      IF Guru.Konstanter:globforetag = "GKAL"  THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 60
+         visaupp.UPPFOLJVAL = 6
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U60"
+         visaupp.UT = "U60- Direktörsrapport".
+         IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+            visaupp.DELNRKOLL = FALSE.
+         END.
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 70
+         visaupp.UPPFOLJVAL = 7
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = FALSE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U70"
+         visaupp.UT = "U70- Aktivering av investering".
+      END.
+      IF Guru.Konstanter:globforetag = "cSUND" OR Guru.Konstanter:globforetag = "cSNAT"  OR Guru.Konstanter:globforetag = "ELPA" THEN DO:       
+         
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 80
+         visaupp.UPPFOLJVAL = 8
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 0
+         visaupp.VISAP = 1
+         visaupp.TYP = "U80"
+         visaupp.UT = "U80- " + Guru.Konstanter:gaol + "-kalkyl kontofördeln.".     
+      END.
+      IF  Guru.Konstanter:globforetag = "GKAL" THEN DO:          
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 100
+         visaupp.UPPFOLJVAL = 10
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U100"
+         visaupp.UT = "U100- Tid-övertid-traktamenten / " + LC(Guru.Konstanter:gomrk).
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 110
+         visaupp.UPPFOLJVAL = 11
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U110"
+         visaupp.UT = "U110- Det.lista Tid-övertid-trakt./ " + LC(Guru.Konstanter:gomrk).
+      END.   
+      IF Guru.Konstanter:globforetag NE "LULE" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 120
+         visaupp.UPPFOLJVAL = 12
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U120"
+         visaupp.UT = "U120- Debiteringsgrad / " + LC(Guru.Konstanter:gomrk).
+      END.
+      IF Guru.Konstanter:globforetag = "SNAT" THEN.
+      ELSE DO: 
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 130
+         visaupp.UPPFOLJVAL = 13
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U130"
+         visaupp.UT = "U130- " +  Guru.Konstanter:gomrk + "-interna intäkter/kostnader".
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 140
+         visaupp.UPPFOLJVAL = 14
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U140"
+         visaupp.UT = "U140- Arbetstidens fördelning".
+      END.                  
+      CREATE visaupp.
+      ASSIGN
+      visaupp.ORDNING = 150
+      visaupp.UPPFOLJVAL = 15
+      visaupp.KUURVAL = FALSE
+      visaupp.DELNRKOLL = TRUE
+      visaupp.VISEX = 1
+      visaupp.VISAP = 1
+      visaupp.TYP = "U150"
+      visaupp.UT = "U150- Personal-lönetillägg-personal".                   
+      
+      IF Guru.Konstanter:globforetag = "Xsund" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 160
+         visaupp.UPPFOLJVAL = 16
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U160"
+         visaupp.UT = "U160- Underlag för löpande räkning / " + LC(Guru.Konstanter:gomrk).
+      END. 
+      IF  Guru.Konstanter:globforetag = "ELPA" THEN DO:       
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 170
+         visaupp.UPPFOLJVAL = 17
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U170"
+         visaupp.UT = "U170- Procent godkända tidsedlar / " + LC(Guru.Konstanter:gomrk).
+      END.       
+      
+      CREATE visaupp.
+      ASSIGN
+      visaupp.ORDNING = 200
+      visaupp.UPPFOLJVAL = 20
+      visaupp.KUURVAL = FALSE
+      visaupp.DELNRKOLL = TRUE
+      visaupp.VISEX = 1
+      visaupp.VISAP = 1
+      visaupp.TYP = "U200"
+      visaupp.UT = "U200- Tid på egna " + LC(Guru.Konstanter:gaol).   
+      IF Guru.Konstanter:globforetag = "GKAL"  OR Guru.Konstanter:globforetag = "ELPA"  THEN DO:         
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 205
+         visaupp.UPPFOLJVAL = 37
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U205"
+         visaupp.UT = "U205- Tid på valda konton".
+      END.
+      IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "SUND"  OR Guru.Konstanter:globforetag = "LULE"  THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 210
+         visaupp.UPPFOLJVAL = 21
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 0
+         visaupp.TYP = "U210"
+         visaupp.UT = "U210- " + Guru.Konstanter:gaok + " till excel".
+      END.
+      IF Guru.Konstanter:globforetag = "MISV" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 211
+         visaupp.UPPFOLJVAL = 38
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 0
+         visaupp.TYP = "U211"
+         visaupp.UT = "U211- " + Guru.Konstanter:gaok + " till excel".
+      END.
+      IF Guru.Konstanter:globforetag = "CGKAL" OR Guru.Konstanter:globforetag = "cSUND" OR Guru.Konstanter:globforetag = "CLULE" OR Guru.Konstanter:globforetag = "CMISV" OR Guru.Konstanter:globforetag = "ELPA"   THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 215
+         visaupp.UPPFOLJVAL = 30
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 0
+         visaupp.TYP = "U215"
+         visaupp.UT = "U215- Personal övertid dygnsvila till excel".
+      END.   
+      IF Guru.Konstanter:globforetag = "GKAL"  OR Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "ELPA"  OR Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "CMISV" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 220
+         visaupp.UPPFOLJVAL = 22
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 0
+         visaupp.TYP = "U220"
+         visaupp.UT = "U220- Personal och tid till excel".
+      END.
+       
+      IF  Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "ELPA"  THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 221
+         visaupp.UPPFOLJVAL = 40
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 0
+         visaupp.VISAP = 1
+         visaupp.TYP = "U221"
+         visaupp.UT = "U221- Personal och tid på " + Guru.Konstanter:gaok + " till csv".
+      END.
+      IF  Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "ELPA"  THEN DO:                 
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 222
+         visaupp.UPPFOLJVAL = 46
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 0
+         visaupp.VISAP = 1
+         visaupp.TYP = "U222"
+         visaupp.UT = "U222- Personal och tid på " + Guru.Konstanter:gaok + " detaljerat".
+      END.
+      IF Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 222
+         visaupp.UPPFOLJVAL = 53
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 0
+         visaupp.VISAP = 1
+         visaupp.TYP = "U222su"
+         visaupp.UT = "U222su- Personal och tid Summerat".
+      END.  
+      IF  Guru.Konstanter:globforetag = "misv" OR Guru.Konstanter:globforetag = "ELPA"  THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 223
+         visaupp.UPPFOLJVAL = 47 
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 0
+         visaupp.TYP = "U223"
+         visaupp.UT = "U223- Personal och utbildning till excel".
+      END.
+      IF  Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "misv" OR Guru.Konstanter:globforetag = "ELPA"  THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 224
+         visaupp.UPPFOLJVAL = 45
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 0
+         visaupp.TYP = "U224"
+         visaupp.UT = "U224- Personal och övertid till excel".
+      END.   
+      IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "ELPA"  OR Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "cMISV" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 225
+         visaupp.UPPFOLJVAL = 27
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 0
+         visaupp.TYP = "U225"
+         visaupp.UT = "U225- Personal och arbetad tid till excel".
+      END.   
+      IF Guru.Konstanter:globforetag = "MISV" THEN DO:         
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 226
+         visaupp.UPPFOLJVAL = 39
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 0
+         visaupp.TYP = "U226"            
+         visaupp.UT = "U226- Schemalagd / faktisk arbetstid till excel".
+      END.   
+      IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "snat" OR Guru.Konstanter:globforetag = "CLULE" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 227
+         visaupp.UPPFOLJVAL = 32
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 0
+         visaupp.TYP = "U227"
+         visaupp.UT = "U227- Personal och övertid vid beredskap till excel".
+      END.   
+      IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "ELPA"  OR Guru.Konstanter:globforetag = "CLULE" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 228
+         visaupp.UPPFOLJVAL = 33
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 0
+         visaupp.TYP = "U228"
+         visaupp.UT = "U228- Personal och kompetensutveckling (250) till excel".
+      END.         
+      CREATE visaupp.
+      ASSIGN
+      visaupp.ORDNING = 229
+      visaupp.UPPFOLJVAL = 44
+      visaupp.KUURVAL = FALSE
+      visaupp.DELNRKOLL = TRUE
+      visaupp.VISEX = 1
+      visaupp.VISAP = 0
+      visaupp.TYP = "U229"
+      visaupp.UT = "U229- Personal och frånvaro till excel".
+       
+      IF Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "Sund" OR Guru.Konstanter:globforetag = "MISV" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 230
+         visaupp.UPPFOLJVAL = 48
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 0
+         visaupp.TYP = "U230"
+         visaupp.UT = "U230- Personal sammanställning".
+       END.                     
+      IF Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "elpa" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 252
+         visaupp.UPPFOLJVAL = 26
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U270"
+         visaupp.UT = "U270- Transaktioner från ekonomisystemet".   
+      END.
+      IF Guru.Konstanter:globforetag = "SUND"  OR Guru.Konstanter:globforetag = "elpa" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 280
+         visaupp.UPPFOLJVAL = 28
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U280"
+         visaupp.UT = "U280- Månadsrapport produktion".   
+      END.
+      IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "elpa" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 290
+         visaupp.UPPFOLJVAL = 29
+         visaupp.KUURVAL = FALSE 
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 0
+         visaupp.VISAP = 1
+         visaupp.TYP = "U290"
+         visaupp.UT = "U290- Övertid per Övertidbeordrare".   
+      END.
+      IF Guru.Konstanter:globforetag = "SUND"  OR Guru.Konstanter:globforetag = "elpa" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 300
+         visaupp.UPPFOLJVAL = 34
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U300"
+         visaupp.UT = "U300- Kommentarer för valt objekt".   
+      END.
+      IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "elpa" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 310
+         visaupp.UPPFOLJVAL = 35
+         visaupp.KUURVAL = FALSE 
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 0
+         visaupp.TYP = "U310"
+         visaupp.UT = "U310- Personal tid och prognos till excel".   
+      END.
+      IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "elpa" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 320
+         visaupp.UPPFOLJVAL = 36
+         visaupp.KUURVAL = FALSE 
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 0
+         visaupp.TYP = "U320"
+         visaupp.UT = "U320- Personal debiteringspriser".   
+      END.
+      IF Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "elpa" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 330
+         visaupp.UPPFOLJVAL = 330 
+         visaupp.KUURVAL = TRUE
+         visaupp.DELNRKOLL = TRUE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U330"
+         visaupp.UT = "U330- Projektnummer - Tidlägestatus".   
+      END.
+      IF Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "elpa" THEN DO:
+         CREATE visaupp.
+         ASSIGN
+         visaupp.ORDNING = 335
+         visaupp.UPPFOLJVAL = 335 
+         visaupp.KUURVAL = FALSE
+         visaupp.DELNRKOLL = FALSE
+         visaupp.VISEX = 1
+         visaupp.VISAP = 1
+         visaupp.TYP = "U335"
+         visaupp.UT = "U335- Tidlägestatus - Projektnummer".   
+      END.
+      IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "Celpa" THEN DO:
+         IF Guru.Konstanter:globniv = 0 OR Guru.Konstanter:globniv = 1 OR Guru.Konstanter:globniv = 3 OR Guru.Konstanter:globniv = 11 THEN musz = musz.
+         ELSE DO:
+            /*ändrat 20110126 anders gustavsson
+            De som inte är sektretessnivå 1 3 eller 11 ska bara ha:
+            U10,u20,u40,u50,u200,u205 och u210*/
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 30 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.      
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 52 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 60 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 70 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 100 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 110 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 120 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 130 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 140 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 150 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 220 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 222 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 225 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 227 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 228 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 229 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 240 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.            
+         END.
+      END.
+      
+      IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" THEN DO:                                
+         IF Guru.Konstanter:globforetag = "MISV" THEN DO:         
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 130 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.       
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 140 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+         END.
+         IF Guru.Konstanter:globforetag = "SUND"  THEN DO:              
+            /*KATHARINA WIKSTRÖM  JARMO KLINT*/         
+            IF Guru.Konstanter:globniv = 15  OR Guru.Konstanter:globniv = 17  OR Guru.Konstanter:globniv = 0 THEN.                        
+            ELSE DO:        
+              FIND FIRST visaupp WHERE visaupp.ORDNING = 150 NO-ERROR.
+              IF AVAILABLE visaupp THEN DELETE visaupp.
+              FIND FIRST visaupp WHERE visaupp.ORDNING = 220 NO-ERROR.
+              IF AVAILABLE visaupp THEN DELETE visaupp.
+              FIND FIRST visaupp WHERE visaupp.ORDNING = 222 NO-ERROR.
+              IF AVAILABLE visaupp THEN DELETE visaupp.
+              FIND FIRST visaupp WHERE visaupp.ORDNING = 224 NO-ERROR.
+              IF AVAILABLE visaupp THEN DELETE visaupp.
+              FIND FIRST visaupp WHERE visaupp.ORDNING = 225 NO-ERROR.
+              IF AVAILABLE visaupp THEN DELETE visaupp.    
+              IF Guru.Konstanter:globniv = 14 OR Guru.Konstanter:globniv = 23 THEN.
+              ELSE DO:
+                 FIND FIRST visaupp WHERE visaupp.ORDNING = 229 NO-ERROR.
+                 IF AVAILABLE visaupp THEN DELETE visaupp.
+              END.       
+            END.
+         END.
+         IF  Guru.Konstanter:globforetag = "SNAT"  THEN DO:              
+            /*VICTORIA ROSENGREN HANS FORMAN*/         
+            IF Guru.Konstanter:globniv = 15  OR Guru.Konstanter:globniv = 17  OR Guru.Konstanter:globniv = 0 THEN Guru.Konstanter:globniv = Guru.Konstanter:globniv.            
+            ELSE IF Guru.Konstanter:globforetag = "SNAT" AND Guru.Konstanter:globanv = "SETNG" THEN Guru.Konstanter:globniv = Guru.Konstanter:globniv.
+            ELSE DO:        
+              FIND FIRST visaupp WHERE visaupp.ORDNING = 150 NO-ERROR.
+              IF AVAILABLE visaupp THEN DELETE visaupp.                            
+              IF Guru.Konstanter:globniv = 1 OR Guru.Konstanter:globniv = 12 OR Guru.Konstanter:globniv = 14 OR Guru.Konstanter:globniv = 16 OR Guru.Konstanter:globniv = 23 OR Guru.Konstanter:globniv = 32 OR Guru.Konstanter:globniv = 33 OR Guru.Konstanter:globniv = 34 OR Guru.Konstanter:globniv = 36 OR Guru.Konstanter:globniv = 42 THEN.
+              /*godkännare*/
+              ELSE DO:                 
+                 FIND FIRST visaupp WHERE visaupp.ORDNING = 51 NO-ERROR.
+                 IF AVAILABLE visaupp THEN DELETE visaupp.
+                 FIND FIRST visaupp WHERE visaupp.ORDNING = 120 NO-ERROR.
+                 IF AVAILABLE visaupp THEN DELETE visaupp.            
+                 FIND FIRST visaupp WHERE visaupp.ORDNING = 220 NO-ERROR.
+                 IF AVAILABLE visaupp THEN DELETE visaupp.
+                 FIND FIRST visaupp WHERE visaupp.ORDNING = 221 NO-ERROR.
+                 IF AVAILABLE visaupp THEN DELETE visaupp.
+                 FIND FIRST visaupp WHERE visaupp.ORDNING = 222 NO-ERROR.
+                 IF AVAILABLE visaupp THEN DELETE visaupp.
+                 FIND FIRST visaupp WHERE visaupp.ORDNING = 224 NO-ERROR.
+                 IF AVAILABLE visaupp THEN DELETE visaupp.
+                 FIND FIRST visaupp WHERE visaupp.ORDNING = 225 NO-ERROR.
+                 IF AVAILABLE visaupp THEN DELETE visaupp.
+                 FIND FIRST visaupp WHERE visaupp.ORDNING = 227 NO-ERROR.
+                 IF AVAILABLE visaupp THEN DELETE visaupp.                 
+                 FIND FIRST visaupp WHERE visaupp.ORDNING = 229 NO-ERROR.
+                 IF AVAILABLE visaupp THEN DELETE visaupp.
+                 FIND FIRST visaupp WHERE visaupp.ORDNING = 230 NO-ERROR.
+                 IF AVAILABLE visaupp THEN DELETE visaupp.
+                 /* alla övertidsbeordrare är inte  godkännare u290- övertidbeordrare
+                 FIND FIRST visaupp WHERE visaupp.ORDNING = 290 NO-ERROR.
+                 IF AVAILABLE visaupp THEN DELETE visaupp.*/
+                 FIND FIRST visaupp WHERE visaupp.ORDNING = 310 NO-ERROR.
+                 IF AVAILABLE visaupp THEN DELETE visaupp.
+                 FIND FIRST visaupp WHERE visaupp.ORDNING = 320 NO-ERROR.
+                 IF AVAILABLE visaupp THEN DELETE visaupp.                                  
+              END.       
+            END.
+         END.
+         
+         IF  Guru.Konstanter:globforetag = "MISV" THEN DO:              
+            /*mittsverige tillagt 20170217 Guru.Konstanter:globniv = 3 även godkännare skall kunna se sina personer  . Dock inte 150*/         
+            IF Guru.Konstanter:globniv = 1 OR Guru.Konstanter:globniv = 0 OR Guru.Konstanter:globniv = 4 OR Guru.Konstanter:globniv = 3 THEN Guru.Konstanter:globniv = Guru.Konstanter:globniv.            
+            ELSE DO:        
+              FIND FIRST visaupp WHERE visaupp.ORDNING = 150 NO-ERROR.
+              IF AVAILABLE visaupp THEN DELETE visaupp.
+              FIND FIRST visaupp WHERE visaupp.ORDNING = 222 NO-ERROR.
+              IF AVAILABLE visaupp THEN DELETE visaupp.
+              FIND FIRST visaupp WHERE visaupp.ORDNING = 224 NO-ERROR.
+              IF AVAILABLE visaupp THEN DELETE visaupp.    
+              FIND FIRST visaupp WHERE visaupp.ORDNING = 229 NO-ERROR.
+              IF AVAILABLE visaupp THEN DELETE visaupp.    
+            END.
+            IF Guru.Konstanter:globniv = 3 THEN DO:
+               FIND FIRST visaupp WHERE visaupp.ORDNING = 150 NO-ERROR.
+              IF AVAILABLE visaupp THEN DELETE visaupp.
+           END.                
+         END.         
+      END.
+      IF Guru.Konstanter:globforetag = "LULE"  THEN DO:                          
+         IF Guru.Konstanter:globniv = 10 OR Guru.Konstanter:globniv = 0 THEN Guru.Konstanter:globniv = Guru.Konstanter:globniv.            
+         ELSE DO:                   
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 150 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 222 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.    
+            FIND FIRST visaupp WHERE visaupp.ORDNING = 229 NO-ERROR.
+            IF AVAILABLE visaupp THEN DELETE visaupp.    
+         END.
+      END.
+      DEFINE VARIABLE i AS INTEGER NO-UNDO.
+      i = 0.      
+      RUN setcolindex_UI IN brwproc[1] (INPUT "ORDNING").
+      RUN openbdyn_UI IN brwproc[1] (INPUT "").
+      RUN getnumresult_UI IN brwproc[1] (OUTPUT i).
+      RUN getfirst_UI IN brwproc[1].     
+      RUN lastselectdyn_UI IN brwproc[1].     
+      IF i < 23 THEN DO:
+         IF I < 5 THEN I = 5.
+         BRW_UPP:HEIGHT = i + 0.5.
+      END.   
+      
+   END.
+   RUN VISMEDDU.W.   
+END PROCEDURE.
+
+PROCEDURE uppladd_UI :
+   DEFINE INPUT PARAMETER vadladdin AS CHARACTER NO-UNDO.
+   vadladd = vadladdin.
+END PROCEDURE.
+
+PROCEDURE fakao_UI :
+   EMPTY TEMP-TABLE evaldaao NO-ERROR. 
+   RUN aohmt_UI IN Guru.SharedVariable:btnfakth (OUTPUT TABLE evaldaao).   
+END PROCEDURE.
+PROCEDURE planrao_UI :
+   EMPTY TEMP-TABLE evaldaao NO-ERROR. 
+   RUN aohmt_UI IN Guru.SharedVariable:btnplanh (OUTPUT TABLE evaldaao).   
+END PROCEDURE.
+
+PROCEDURE aoao_UI :
+   FIND FIRST evaldaao WHERE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE evaldaao THEN DO:
+      FOR EACH valdaaotemp:
+         CREATE evaldaao.
+         BUFFER-COPY valdaaotemp TO evaldaao.
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE depao_UI :
+END PROCEDURE.
+
+PROCEDURE hmtao_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR evaldaao.
+END PROCEDURE.
+PROCEDURE sparao_UI :
+   DEFINE INPUT PARAMETER TABLE FOR evaldaao.
+END PROCEDURE.
+
+PROCEDURE borthand_UI :
+   visatemph:EMPTY-TEMP-TABLE() NO-ERROR.    
+   IF VALID-HANDLE(visatemph) THEN   DELETE OBJECT visatemph NO-ERROR.
+   visatemph = ?.
+   {BORTBRWPROC.I}   
+   IF VALID-HANDLE(uppfapph) THEN DELETE PROCEDURE uppfapph NO-ERROR.  
+END PROCEDURE.  

@@ -1,0 +1,246 @@
+/* XTIMMAR.P */
+/*
+DEFINE VARIABLE chExcelApplication      AS COM-HANDLE.
+DEFINE VARIABLE chWorkbook              AS COM-HANDLE.
+DEFINE VARIABLE chWorksheet             AS COM-HANDLE.
+DEFINE VARIABLE chChart                 AS COM-HANDLE.
+DEFINE VARIABLE chWorksheetRange        AS COM-HANDLE.
+DEFINE VARIABLE iCount                  AS INTEGER.
+DEFINE VARIABLE iIndex                  AS INTEGER.
+DEFINE VARIABLE iMonth                  AS INTEGER.
+DEFINE VARIABLE dAnnualQuota            AS DECIMAL.
+DEFINE VARIABLE dTotalSalesAmount       AS DECIMAL.
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 1.
+DEFINE VARIABLE cColumn                 AS CHARACTER.
+DEFINE VARIABLE cRange                  AS CHARACTER.
+*/
+DEFINE VARIABLE kodanst LIKE ANSTFORMTAB.KOD NO-UNDO.
+DEFINE VARIABLE pkod LIKE PERSONALTAB.PERSONALKOD NO-UNDO.
+DEFINE VARIABLE aonummer LIKE AONRTAB.AONR NO-UNDO.
+DEFINE VARIABLE delnummer LIKE AONRTAB.DELNR NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE nytid AS DECIMAL FORMAT "99.99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE sekunder AS INTEGER FORMAT "-9999999" NO-UNDO. 
+DEFINE VARIABLE ekrid AS RECID EXTENT 50 NO-UNDO.
+DEFINE VARIABLE reskod LIKE TIDREGITAB.LONTILLAGG NO-UNDO. 
+DEFINE VARIABLE resantal LIKE TIDREGITAB.LONTILLANTAL NO-UNDO.
+DEFINE VARIABLE ovkod LIKE TIDREGITAB.OVERTIDTILL NO-UNDO. 
+DEFINE VARIABLE ovantal LIKE TIDREGITAB.OVERANTAL NO-UNDO.
+DEFINE VARIABLE lonkod LIKE TIDREGITAB.LONTILLAGG NO-UNDO. 
+DEFINE VARIABLE lonantal LIKE TIDREGITAB.LONTILLANTAL NO-UNDO.
+DEFINE VARIABLE typkodvar LIKE AONRKONTKOD.K3 NO-UNDO.
+DEFINE VARIABLE timtid AS DECIMAL FORMAT "99.99" NO-UNDO.
+DEFINE QUERY tidq FOR TIDREGITAB.
+DEFINE NEW SHARED TEMP-TABLE ekoforst
+   FIELD PROJEKT LIKE EKRAPPRESULT.EPROJEKT
+   FIELD DELNR LIKE AONRTAB.DELNR    
+   FIELD TYPKOD LIKE AONRKONTKOD.K3
+   FIELD ANSTF AS CHARACTER   
+   FIELD TIMMAR AS DECIMAL
+   FIELD RESTID AS DECIMAL
+   FIELD OTIMMAR50 AS DECIMAL
+   FIELD OTIMMAR75 AS DECIMAL
+   FIELD OTIMMAR100 AS DECIMAL
+   FIELD OTIMMAR150 AS DECIMAL                   
+   FIELD ELONTILLANTAL LIKE EKRAPPRESULT.ELONTILLANTAL       
+   INDEX PROJ IS PRIMARY PROJEKT DELNR TYPKOD ANSTF.    
+ASSIGN
+pkod = ""
+aonummer = ""
+delnummer = 0
+typkodvar = "9".
+OPEN QUERY tidq FOR EACH TIDREGITAB WHERE TIDREGITAB.DATUM >= 01/01/98 AND 
+TIDREGITAB.DATUM <= 12/31/98 NO-LOCK BY TIDREGITAB.AONR BY TIDREGITAB.DELNR BY TIDREGITAB.PERSONALKOD. 
+GET FIRST tidq NO-LOCK.
+OUTPUT TO C:\PROTEMP9\kk.d.
+display  time "1".
+   
+output close.
+DO WHILE AVAILABLE(TIDREGITAB):
+   IF TIDREGITAB.AONR = aonummer AND TIDREGITAB.DELNR = delnummer THEN musz = musz.
+   ELSE DO:
+      ASSIGN
+      aonummer = TIDREGITAB.AONR
+      delnummer = TIDREGITAB.DELNR.
+      FIND FIRST AONRKONTKOD WHERE AONRKONTKOD.AONR = aonummer AND 
+      AONRKONTKOD.DELNR = delnummer NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRKONTKOD THEN typkodvar = AONRKONTKOD.K3.
+      ELSE typkodvar = "9".
+   END.
+   
+   IF pkod NE TIDREGITAB.PERSONALKOD THEN DO:
+      pkod = TIDREGITAB.PERSONALKOD.  
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = TIDREGITAB.PERSONALKOD 
+      NO-LOCK NO-ERROR.            
+      IF AVAILABLE PERSONALTAB THEN DO:
+         FIND FIRST ANSTFORMTAB WHERE
+         ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+         USE-INDEX ANSTF NO-LOCK NO-ERROR.
+         IF AVAILABLE ANSTFORMTAB THEN kodanst = ANSTFORMTAB.KOD.
+      END.
+      ELSE DO:
+         FIND FIRST BORTPERS WHERE BORTPERS.PERSONALKOD = TIDREGITAB.PERSONALKOD 
+         NO-LOCK NO-ERROR.            
+         IF AVAILABLE BORTPERS THEN DO:
+            FIND FIRST ANSTFORMTAB WHERE
+            ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+            USE-INDEX ANSTF NO-LOCK NO-ERROR.
+            IF AVAILABLE ANSTFORMTAB THEN kodanst = ANSTFORMTAB.KOD.
+         END.
+      END.
+   END.  
+   IF typkodvar = "0" OR typkodvar = "4" OR typkodvar = "5" OR typkodvar = "7" THEN DO:
+      RUN postskap_UI.
+   END.   
+   GET NEXT tidq NO-LOCK. 
+END.
+OUTPUT TO C:\PROTEMP9\kk.d.
+display  time "2".
+   
+output close.
+
+RUN ut_UI.
+PROCEDURE postskap_UI:   
+   IF kodanst = 'T' OR kodanst = 'T1' OR kodanst = 'TB' THEN DO:
+      FIND FIRST ekoforst WHERE
+      ekoforst.PROJEKT = TIDREGITAB.AONR AND         
+      ekoforst.DELNR = TIDREGITAB.DELNR AND
+      ekoforst.TYPKOD = typkodvar AND ekoforst.ANSTF = "TJ"
+      USE-INDEX PROJ NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ekoforst THEN DO TRANSACTION:
+         CREATE ekoforst.         
+         ekoforst.ANSTF = "TJ".
+      END.
+   END.
+   ELSE DO:
+      FIND FIRST ekoforst WHERE
+      ekoforst.PROJEKT = TIDREGITAB.AONR AND         
+      ekoforst.DELNR = TIDREGITAB.DELNR AND
+      ekoforst.TYPKOD = typkodvar AND ekoforst.ANSTF = "KO"
+      USE-INDEX PROJ NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ekoforst THEN DO TRANSACTION:
+         CREATE ekoforst.         
+         ekoforst.ANSTF = "KO".
+      END.
+   END.
+   
+   DO TRANSACTION:
+      ASSIGN 
+      ekoforst.PROJEKT = TIDREGITAB.AONR 
+      ekoforst.DELNR = TIDREGITAB.DELNR 
+      ekoforst.TYPKOD = typkodvar. 
+      ekrid[1] = RECID(ekoforst).
+   END.
+   /*RESTID EJ KÖRTID*/                         
+   IF TIDREGITAB.PRISTYP = 'RESTID...' AND TIDREGITAB.LONTILLAGG NE " " THEN DO TRANSACTION: 
+      FIND ekoforst WHERE RECID(ekoforst) = ekrid[1]
+      EXCLUSIVE-LOCK NO-ERROR.     
+      ASSIGN
+      reskod = TIDREGITAB.LONTILLAGG
+      nytid = TIDREGITAB.LONTILLANTAL.
+      RUN TIMSEK.P.
+      resantal = (sekunder / 3600).
+      RUN res_UI.                    
+   END.   
+   ELSE DO:
+      /*TIDREGISTRERING*/                                 
+      /*TIMMAR OCH PENNGAR*/  
+      DO TRANSACTION:
+         FIND ekoforst WHERE RECID(ekoforst) = ekrid[1]
+         EXCLUSIVE-LOCK NO-ERROR.                                             
+         musz = FALSE.
+         IF TIDREGITAB.OKOD1 NE " " THEN musz = TRUE.
+         ELSE IF TIDREGITAB.OKOD2 NE " " THEN musz = TRUE.
+         ELSE IF TIDREGITAB.OKOD3 NE " " THEN musz = TRUE.
+         IF musz = FALSE AND TIDREGITAB.TOTALT > 0 THEN DO:                  
+            RUN timmar_UI.
+         END.
+         ELSE DO:   
+            musz = FALSE.
+            /*ÖVERTIDTILLÄGG*/
+            /*ÖVERTIDS KOD FÅR BELOPPET ENKELÖTID OCH KVALÖTID * ANTAL*/               
+            FIND ekoforst WHERE RECID(ekoforst) = ekrid[1]
+            EXCLUSIVE-LOCK NO-ERROR.   
+            ASSIGN            
+            ovkod = ""
+            ovantal = 0.
+            IF TIDREGITAB.OKOD1 NE " " THEN DO: 
+               ASSIGN
+               ovkod = TIDREGITAB.OKOD1
+               nytid = TIDREGITAB.OANT1.
+               RUN TIMSEK.P.
+               ovantal = (sekunder / 3600). 
+               RUN over_UI.                       
+            END.          
+            FIND ekoforst WHERE RECID(ekoforst) = ekrid[1]
+            EXCLUSIVE-LOCK NO-ERROR.   
+            ASSIGN            
+            ovkod = ""
+            ovantal = 0.
+            IF TIDREGITAB.OKOD2 NE " " THEN DO: 
+               ASSIGN
+               ovkod = TIDREGITAB.OKOD2
+               nytid = TIDREGITAB.OANT2.
+               RUN TIMSEK.P.
+               ovantal = (sekunder / 3600).        
+               RUN over_UI.                  
+            END.                 
+            FIND ekoforst WHERE RECID(ekoforst) = ekrid[1]
+            EXCLUSIVE-LOCK NO-ERROR. 
+            ASSIGN            
+            ovkod = ""
+            ovantal = 0.
+            IF TIDREGITAB.OKOD3 NE " " THEN DO: 
+               ASSIGN
+               ovkod = TIDREGITAB.OKOD3
+               nytid = TIDREGITAB.OANT3.
+               RUN TIMSEK.P.
+               ovantal = (sekunder / 3600).
+               RUN over_UI.                       
+            END.           
+         END.
+      END.
+   END.      
+END PROCEDURE.        
+PROCEDURE timmar_UI:
+   nytid = TIDREGITAB.TOTALT.
+   RUN TIMSEK.P.
+   timtid = (sekunder / 3600).
+   ASSIGN 
+   ekoforst.TIMMAR = ekoforst.TIMMAR + timtid.
+END PROCEDURE.
+PROCEDURE res_UI:                            /*DESSA KODER FINNS I N2.P OCH LON_UI*/      
+   ASSIGN 
+   ekoforst.RESTID = ekoforst.RESTID + resantal.     
+END PROCEDURE.                 
+PROCEDURE over_UI:   
+   FIND FIRST OVERKOD WHERE OVERKOD.KOD = kodanst AND
+   OVERKOD.OVERTIDTILL = ovkod 
+   USE-INDEX OVER NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE OVERKOD THEN RETURN.
+   IF OVERKOD.MULTI = 0 THEN DO:
+      RUN timmar_UI.
+      RETURN.   
+   END.
+   IF OVERKOD.MULTI = 0.5 THEN DO:
+      ekoforst.OTIMMAR50 = ekoforst.OTIMMAR50 + ovantal.     
+   END.
+   ELSE IF OVERKOD.MULTI = 0.75 THEN DO:
+      ekoforst.OTIMMAR75 = ekoforst.OTIMMAR75 + ovantal.
+   END.
+   ELSE IF OVERKOD.MULTI = 1.0 THEN DO:
+   ekoforst.OTIMMAR100 = ekoforst.OTIMMAR100 + ovantal.
+   END.
+   ELSE IF OVERKOD.MULTI = 1.5 THEN DO:
+      ekoforst.OTIMMAR150 = ekoforst.OTIMMAR150 + ovantal.
+   END.
+   
+END PROCEDURE.
+PROCEDURE ut_UI:  
+   OUTPUT TO C:\PROTEMP9\kk2.d.
+   FOR EACH ekoforst USE-INDEX PROJ NO-LOCK.
+   EXPORT ekoforst.
+   END.
+   output close.
+END PROCEDURE.
+

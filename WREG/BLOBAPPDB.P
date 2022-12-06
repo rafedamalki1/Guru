@@ -1,0 +1,324 @@
+/*
+     Filename: BLOBAPPDB.P
+      Created: 2004.01.09 12:05ELPAO     
+     Modified: 
+     BLOBCOMP.ID = 0 är för uppdatering av program. 
+     BLOBCOMP.ID ne 0 är för t.ex. excel filer så du alltid har rätt version.
+*/
+
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{BLOB.I}
+/* DEFINE VARIABLE sendat AS DATE NO-UNDO. */
+/* DEFINE VARIABLE sentid AS DATE NO-UNDO. */
+{EXTRADATA.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+PROCEDURE checkblobinfo_UI:
+   DEFINE INPUT PARAMETER filnamn AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER idinfo AS INTEGER NO-UNDO.
+
+   FIND FIRST BLOBINFO WHERE BLOBINFO.FILNAMN = filnamn NO-LOCK USE-INDEX FILNAMN NO-ERROR.
+   IF AVAILABLE BLOBINFO THEN idinfo = BLOBINFO.ID.         
+   ELSE idinfo = ?.
+END PROCEDURE.
+
+
+PROCEDURE skapablobinfo_UI:
+   DEFINE INPUT PARAMETER filnamn AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER idinfo AS INTEGER NO-UNDO.
+
+   FIND LAST BLOBINFO NO-LOCK USE-INDEX ID NO-ERROR.
+   IF AVAILABLE BLOBINFO THEN DO:
+      idinfo = BLOBINFO.ID + 1.
+   END.
+   ELSE idinfo = 1.
+   CREATE BLOBINFO.
+   BLOBINFO.ID = idinfo.
+   IF AVAILABLE BLOBINFO THEN RELEASE BLOBINFO.   
+END PROCEDURE.
+PROCEDURE laddaenblob_UI:
+   DEFINE INPUT PARAMETER fil AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR blobinfotemp.      
+   EMPTY TEMP-TABLE blobinfotemp NO-ERROR. 
+   FIND FIRST BLOBINFO WHERE BLOBINFO.FILNAMN = fil NO-LOCK NO-ERROR.
+   IF AVAILABLE BLOBINFO THEN DO:
+      CREATE blobinfotemp.
+      BUFFER-COPY BLOBINFO TO blobinfotemp.
+   END.
+END PROCEDURE.
+
+PROCEDURE laddablob_UI:
+   DEFINE INPUT PARAMETER queryprep AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR blobinfotemp.  
+   DEFINE VARIABLE tq AS HANDLE NO-UNDO.
+   DEFINE VARIABLE prepstr AS CHARACTER NO-UNDO.
+
+   EMPTY TEMP-TABLE blobinfotemp NO-ERROR. 
+   CREATE QUERY tq.
+   IF INDEX(queryprep,"WHERE ") = 0 THEN queryprep = " WHERE " + queryprep.
+   prepstr = "FOR EACH BLOBINFO " + queryprep + " NO-LOCK.".
+   tq:SET-BUFFERS(BUFFER BLOBINFO:HANDLE).
+   tq:QUERY-PREPARE(prepstr).
+   tq:QUERY-OPEN().
+   tq:GET-FIRST(NO-LOCK).
+   DO WHILE tq:QUERY-OFF-END = FALSE:
+      CREATE blobinfotemp.
+      BUFFER-COPY BLOBINFO TO blobinfotemp.
+      tq:GET-NEXT(NO-LOCK).
+   END.   
+   tq:QUERY-CLOSE.
+   DELETE OBJECT tq.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph. 
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   CREATE inextradatatemp.
+   ASSIGN
+   inextradatatemp.PROGRAM = "BLOBINFO"                          
+   inextradatatemp.HUVUDCH = ?                         
+   inextradatatemp.HUVUDINT =  ?.   
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp,OUTPUT TABLE extradatatemp).
+   FOR EACH blobinfotemp,
+   EACH extradatatemp WHERE extradatatemp.HUVUDINT = blobinfotemp.ID:
+      ASSIGN
+      blobinfotemp.INTID = extradatatemp.SOKINT[1] 
+      blobinfotemp.VART  = extradatatemp.SOKCHAR[1] 
+      blobinfotemp.VARTWC =  extradatatemp.SOKCHAR[2].     
+   END.
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.
+   edataapph = ?.
+END PROCEDURE.
+
+PROCEDURE andrablob_UI:
+   DEFINE INPUT PARAMETER blobid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER mobinfovar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER exeprogvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   felmedd = "".
+
+   DO TRANSACTION:
+      FIND FIRST BLOBINFO WHERE BLOBINFO.ID = blobid EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BLOBINFO THEN DO:
+         ASSIGN
+         BLOBINFO.MODINFO = mobinfovar
+         BLOBINFO.EXEPROG = exeprogvar.
+      END.
+      ELSE felmedd = "Hittar inte BLOBINFO!".
+   END.
+   IF AVAILABLE BLOBINFO THEN RELEASE BLOBINFO.
+END PROCEDURE.
+   
+
+PROCEDURE tabortblob_UI:
+   DEFINE INPUT PARAMETER idinfo AS INTEGER NO-UNDO.
+
+   FIND BLOBINFO WHERE BLOBINFO.ID = idinfo NO-LOCK USE-INDEX ID NO-ERROR .
+   IF AVAILABLE BLOBINFO THEN DO:                                         
+      DO TRANSACTION:                                                     
+         FOR EACH BLOBCOMP WHERE BLOBCOMP.ID = BLOBINFO.ID EXCLUSIVE-LOCK:
+            DELETE BLOBCOMP.
+         END.
+         FOR EACH BBLOBDATA WHERE BBLOBDATA.BLOBID = BLOBINFO.ID EXCLUSIVE-LOCK:
+            DELETE BBLOBDATA.                                             
+         END.                                                             
+         FIND CURRENT BLOBINFO EXCLUSIVE-LOCK.                            
+         RUN EXTRADATAHMT.P PERSISTENT SET edataapph.    
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+         CREATE extradatatemp.          
+         ASSIGN
+         extradatatemp.PROGRAM = "BLOBINFO"                   
+         extradatatemp.HUVUDCH = ?              
+         extradatatemp.HUVUDINT = BLOBINFO.ID.
+         RUN exbort_UI IN edataapph (INPUT TABLE extradatatemp).         
+         IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.
+         edataapph = ?.
+         DELETE BLOBINFO.                                                 
+      END.                                                                
+   END.                                                                   
+END PROCEDURE.
+
+
+PROCEDURE skapablob_UI:
+   DEFINE INPUT PARAMETER TABLE FOR blobinfotemp.
+   DEFINE INPUT PARAMETER TABLE FOR Bblobdatatemp.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.    
+   FIND FIRST blobinfotemp NO-LOCK NO-ERROR.
+   FOR EACH BBLOBDATA WHERE BBLOBDATA.BLOBID = blobinfotemp.ID EXCLUSIVE-LOCK:
+      DELETE BBLOBDATA.
+   END.
+   DO TRANSACTION:
+      FIND FIRST BLOBINFO WHERE BLOBINFO.ID = blobinfotemp.ID EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BLOBINFO THEN DO:
+         BUFFER-COPY blobinfotemp TO BLOBINFO.
+         FOR EACH Bblobdatatemp:
+            CREATE BBLOBDATA.
+            BUFFER-COPY Bblobdatatemp TO BBLOBDATA. 
+         END.                           
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+         CREATE extradatatemp.          
+         ASSIGN
+         extradatatemp.PROGRAM = "BLOBINFO"                   
+         extradatatemp.HUVUDCH = ?              
+         extradatatemp.HUVUDINT =  blobinfotemp.ID
+         extradatatemp.SOKINT[1]  = blobinfotemp.INTID 
+         extradatatemp.SOKCHAR[1] = blobinfotemp.VART      
+         extradatatemp.SOKCHAR[2] = blobinfotemp.VARTWC.
+         RUN extraspar_UI IN edataapph (INPUT TABLE extradatatemp).  
+         IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.
+         edataapph = ?.
+      END.
+   END.
+   IF AVAILABLE BLOBINFO THEN RELEASE BLOBINFO.
+   IF AVAILABLE BBLOBDATA THEN RELEASE BBLOBDATA.
+END PROCEDURE.
+  
+
+PROCEDURE uppdatandra_UI:
+   DEFINE INPUT PARAMETER computername AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER sendat AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER sentid AS INTEGER NO-UNDO.
+   
+   DO TRANSACTION:
+      FIND FIRST BLOBCOMP WHERE BLOBCOMP.ID = 0 AND BLOBCOMP.DATORNAMN = computername EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BLOBCOMP THEN DO:
+         BLOBCOMP.ANDDAT = sendat.
+         BLOBCOMP.ANDTID = sentid.
+      END.
+   END.
+   IF AVAILABLE BLOBCOMP THEN RELEASE BLOBCOMP.
+
+END PROCEDURE.
+
+PROCEDURE BlobFilTillServer_UI :
+   DEFINE INPUT PARAMETER ServerFilNamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER stansfillong AS MEMPTR NO-UNDO.
+   COPY-LOB FROM stansfillong TO FILE ServerFilNamn .
+ 
+END PROCEDURE.
+
+PROCEDURE uppdatskap_UI:
+   DEFINE INPUT PARAMETER computername AS CHARACTER NO-UNDO.
+   FIND FIRST BLOBCOMP WHERE BLOBCOMP.ID = 0 AND BLOBCOMP.DATORNAMN = computername NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE BLOBCOMP THEN DO TRANSACTION:
+      /*borde inte kunna hända*/
+      CREATE BLOBCOMP.
+      ASSIGN
+      BLOBCOMP.ID = 0
+      BLOBCOMP.DATORNAMN = computername
+      BLOBCOMP.ANDTID = ?
+      BLOBCOMP.ANDDAT = ?
+      BLOBCOMP.SKAPTID = TIME
+      BLOBCOMP.SKAPDAT = TODAY.
+   END.
+   IF AVAILABLE BLOBCOMP THEN RELEASE BLOBCOMP.
+END PROCEDURE.
+
+PROCEDURE uppdatcheck_UI:
+   DEFINE INPUT PARAMETER computername AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER sendat AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER sentid AS INTEGER NO-UNDO.
+   FIND FIRST BLOBCOMP WHERE BLOBCOMP.ID = 0 AND BLOBCOMP.DATORNAMN = computername NO-LOCK NO-ERROR.
+   IF AVAILABLE BLOBCOMP THEN DO:
+      ASSIGN
+      sendat = BLOBCOMP.ANDDAT
+      sentid = BLOBCOMP.ANDTID.
+   END.
+   ELSE DO:
+      /*OBS! FRÅGA CLAES HANDFAST NÄR HAN SENAST LÄSTE ÖVER TILL V DISKEN SÄTT DET DATUMET*/
+      CREATE BLOBCOMP.
+      ASSIGN
+      BLOBCOMP.ID = 0
+      BLOBCOMP.DATORNAMN = computername
+      BLOBCOMP.ANDTID = 0
+      BLOBCOMP.ANDDAT = 06/12/2006
+      BLOBCOMP.SKAPTID = TIME
+      BLOBCOMP.SKAPDAT = TODAY.
+      ASSIGN
+      sendat = BLOBCOMP.ANDDAT
+      sentid = BLOBCOMP.ANDTID.
+   END.
+   RELEASE BLOBCOMP NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE blobcompcheck_UI:
+   
+   DEFINE INPUT PARAMETER blobid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER computername AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER resval AS LOGICAL NO-UNDO.   
+   FIND FIRST BLOBCOMP WHERE BLOBCOMP.ID = blobid AND BLOBCOMP.DATORNAMN = computername NO-LOCK NO-ERROR.
+   IF AVAILABLE BLOBCOMP THEN DO:
+      FIND FIRST BLOBINFO WHERE BLOBINFO.ID = blobid NO-LOCK NO-ERROR.
+      IF AVAILABLE BLOBINFO THEN DO:
+         IF BLOBCOMP.ANDTID = BLOBINFO.ANDTID AND BLOBCOMP.ANDDAT = BLOBINFO.ANDDAT THEN resval = FALSE.
+         ELSE resval = TRUE.
+      END.
+   END.
+END PROCEDURE.
+
+
+PROCEDURE skapdatcheck_UI:
+   DEFINE INPUT PARAMETER blobid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER computername AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER stid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER sdat AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER resval AS LOGICAL NO-UNDO.
+
+   FIND FIRST BLOBCOMP WHERE BLOBCOMP.ID = blobid AND BLOBCOMP.DATORNAMN = computername NO-LOCK NO-ERROR.
+   IF AVAILABLE BLOBCOMP THEN DO:
+      IF BLOBCOMP.SKAPTID = stid AND BLOBCOMP.SKAPDAT = sdat THEN resval = FALSE.
+      ELSE resval = TRUE.
+   END.
+   ELSE resval = TRUE.
+END PROCEDURE.
+
+
+PROCEDURE setskapdat_UI:
+   DEFINE INPUT PARAMETER blobid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER computername AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER stid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER sdat AS DATE NO-UNDO.
+
+   DO TRANSACTION:
+      FIND FIRST BLOBCOMP WHERE BLOBCOMP.ID = blobid AND BLOBCOMP.DATORNAMN = computername EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BLOBCOMP THEN DO:
+         ASSIGN
+         BLOBCOMP.SKAPTID = stid
+         BLOBCOMP.SKAPDAT = sdat.
+      END.
+   END.
+   IF AVAILABLE BLOBCOMP THEN RELEASE BLOBCOMP.
+END PROCEDURE.
+
+
+PROCEDURE laddablobdata_UI:
+   DEFINE INPUT PARAMETER blobid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER computername AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR Bblobdatatemp.
+   DEFINE INPUT PARAMETER klientdir AS CHARACTER NO-UNDO.
+   
+   EMPTY TEMP-TABLE Bblobdatatemp NO-ERROR. 
+   FIND FIRST BLOBINFO WHERE BLOBINFO.ID = blobid NO-LOCK NO-ERROR.
+   IF AVAILABLE BLOBINFO THEN DO:
+      IF klientdir NE "" THEN blobid = 0.
+      FIND FIRST BLOBCOMP WHERE BLOBCOMP.ID = blobid AND BLOBCOMP.DATORNAMN = computername EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE BLOBCOMP THEN CREATE BLOBCOMP.
+      ASSIGN
+      BLOBCOMP.ID = blobid
+      BLOBCOMP.DATORNAMN = computername.
+      IF blobid = 0 THEN blobid = blobid.
+      ELSE DO:
+         ASSIGN
+         BLOBCOMP.ANDTID = BLOBINFO.ANDTID
+         BLOBCOMP.ANDDAT = BLOBINFO.ANDDAT.
+      END.
+      FOR EACH BBLOBDATA WHERE BBLOBDATA.BLOBID = BLOBINFO.ID :
+         CREATE Bblobdatatemp.
+         BUFFER-COPY BBLOBDATA TO Bblobdatatemp.
+      END.   
+   END.
+   IF AVAILABLE BLOBCOMP THEN RELEASE BLOBCOMP.
+END PROCEDURE.
+PROCEDURE borthandle_UI:
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph NO-ERROR.
+   edataapph = ?.
+END PROCEDURE.
+

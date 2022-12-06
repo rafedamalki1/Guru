@@ -1,0 +1,169 @@
+/*PERBEFPRIS.P*/
+/*HÄMTAR PRISLISTOR*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{UPPGHMT.I}
+{PHMT.I}
+{PERBEF.I}
+DEFINE INPUT PARAMETER vagora AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR valperstemp.
+DEFINE OUTPUT PARAMETER TABLE FOR perspristemp.
+DEFINE OUTPUT PARAMETER TABLE FOR prisbefattningstemp.
+DEFINE VARIABLE varpris AS DECIMAL NO-UNDO.
+FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+IF vagora = 1 THEN DO: 
+   FIND FIRST PERSONALPRIS NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE PERSONALPRIS THEN RUN skapastart_UI.
+   FOR EACH BEFATTNINGSTAB WHERE BEFATTNINGSTAB.PLUSD = FALSE NO-LOCK.
+      CREATE prisbefattningstemp.
+      BUFFER-COPY BEFATTNINGSTAB TO prisbefattningstemp.
+      prisbefattningstemp.PRISA = 0.
+   END.
+   CREATE prisbefattningstemp.
+   ASSIGN
+   prisbefattningstemp.NAMN = "RESTID..."
+   prisbefattningstemp.BEFATTNING= "RESTID...".
+   CREATE prisbefattningstemp.
+   ASSIGN
+   prisbefattningstemp.NAMN = "FRÅNVARO."
+   prisbefattningstemp.BEFATTNING= "FRÅNVARO.".
+   IF FORETAG.FORETAG = "sund" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "MISV" OR FORETAG.FORETAG = "elpa" THEN DO:   
+      FIND FIRST prisbefattningstemp WHERE prisbefattningstemp.BEFATTNING= "EJ.KOSTN." NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE prisbefattningstemp THEN DO:
+         CREATE prisbefattningstemp.
+         ASSIGN
+         prisbefattningstemp.NAMN = "EJ.KOSTN."
+         prisbefattningstemp.BEFATTNING= "EJ.KOSTN.".
+      END.
+      FIND FIRST prisbefattningstemp WHERE prisbefattningstemp.BEFATTNING= "FASTPRIS1" NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE prisbefattningstemp THEN DO:
+         CREATE prisbefattningstemp.
+         ASSIGN
+         prisbefattningstemp.NAMN = "FASTPRIS1"
+         prisbefattningstemp.BEFATTNING= "FASTPRIS1".
+      END.         
+   END.
+   FOR EACH valperstemp:
+      FOR EACH PERSONALPRIS WHERE PERSONALPRIS.KLAR = FALSE AND 
+      PERSONALPRIS.PERSONALKOD = valperstemp.PERSONALKOD NO-LOCK.
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = PERSONALPRIS.PERSONALKOD NO-LOCK NO-ERROR.
+         CREATE perspristemp.
+         IF AVAILABLE PERSONALTAB THEN BUFFER-COPY PERSONALTAB TO perspristemp.
+         BUFFER-COPY PERSONALPRIS TO perspristemp.
+         perspristemp.PBEFATTNING = valperstemp.BEFATTNING.
+         perspristemp.OMRADE = valperstemp.OMRADE.
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALPRIS.PERSONALKOD.
+      END.
+      FOR EACH PERSONALPRIS WHERE PERSONALPRIS.KLAR = TRUE AND PERSONALPRIS.SLUTDATUM >= TODAY AND 
+      PERSONALPRIS.PERSONALKOD = valperstemp.PERSONALKOD NO-LOCK.
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = PERSONALPRIS.PERSONALKOD NO-LOCK NO-ERROR.
+         CREATE perspristemp.
+         IF AVAILABLE PERSONALTAB THEN BUFFER-COPY PERSONALTAB TO perspristemp.
+         BUFFER-COPY PERSONALPRIS TO perspristemp.
+         perspristemp.PBEFATTNING = valperstemp.BEFATTNING.
+         perspristemp.OMRADE = valperstemp.OMRADE.
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALPRIS.PERSONALKOD.
+      END.
+   END.
+   REPEAT:
+      FIND FIRST perspristemp WHERE perspristemp.VIBEFATTNING = "" NO-ERROR.
+      IF NOT AVAILABLE perspristemp THEN LEAVE.  
+      FIND FIRST prisbefattningstemp WHERE prisbefattningstemp.BEFATTNING = perspristemp.BEFATTNING
+      NO-ERROR.
+      IF AVAILABLE prisbefattningstemp THEN DO:
+         FOR EACH perspristemp WHERE perspristemp.BEFATTNING = prisbefattningstemp.BEFATTNING:          
+            perspristemp.VIBEFATTNING = prisbefattningstemp.NAMN.             
+         END.
+         FOR EACH perspristemp WHERE perspristemp.PBEFATTNING = prisbefattningstemp.BEFATTNING:
+            perspristemp.PBEFATTNING = prisbefattningstemp.NAMN.
+         END.
+      END.
+      ELSE DELETE perspristemp.
+   END.
+END.
+
+   {GDPRLOGGCLIENT.I}
+PROCEDURE skapastart_UI:
+   FOR EACH PERSONALTAB NO-LOCK:
+      varpris = 0.
+      FIND FIRST TIMKOSTNADSTAB WHERE TIMKOSTNADSTAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+      TIMKOSTNADSTAB.PRISTYP = "TOT.PRIS." NO-LOCK NO-ERROR.
+      IF AVAILABLE TIMKOSTNADSTAB THEN varpris = TIMKOSTNADSTAB.PRISA.
+      FOR EACH BEFATTNINGSTAB NO-LOCK.
+         DO TRANSACTION:
+            CREATE PERSONALPRIS.
+            ASSIGN
+            PERSONALPRIS.BEFATTNING = BEFATTNINGSTAB.BEFATTNING
+            PERSONALPRIS.KLAR       = FALSE
+            PERSONALPRIS.OPRIS      = varpris
+            PERSONALPRIS.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            PERSONALPRIS.PRIS       = varpris
+            PERSONALPRIS.STARTAD    = TRUE
+            PERSONALPRIS.STARTDATUM = DATE(01,01,YEAR(TODAY)).
+            IF BEFATTNINGSTAB.PRISA NE 0 THEN PERSONALPRIS.PRIS = BEFATTNINGSTAB.PRISA.
+         END.
+      END.
+      DO TRANSACTION:
+         CREATE PERSONALPRIS.
+         ASSIGN
+         PERSONALPRIS.BEFATTNING = "RESTID..."
+         PERSONALPRIS.KLAR       = FALSE
+         PERSONALPRIS.OPRIS      = varpris
+         PERSONALPRIS.PERSONALKOD = PERSONALTAB.PERSONALKOD
+         PERSONALPRIS.PRIS       = varpris
+         PERSONALPRIS.STARTAD    = TRUE
+         PERSONALPRIS.STARTDATUM = DATE(01,01,YEAR(TODAY)).         
+         CREATE PERSONALPRIS.
+         ASSIGN
+         PERSONALPRIS.BEFATTNING = "FRÅNVARO."
+         PERSONALPRIS.KLAR       = FALSE
+         PERSONALPRIS.OPRIS      = 0
+         PERSONALPRIS.PERSONALKOD = PERSONALTAB.PERSONALKOD
+         PERSONALPRIS.PRIS       = 0
+         PERSONALPRIS.STARTAD    = TRUE
+         PERSONALPRIS.STARTDATUM = DATE(01,01,YEAR(TODAY)).
+         IF FORETAG.FORETAG = "sund" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "MISV" OR FORETAG.FORETAG = "elpa" THEN DO:   
+            CREATE PERSONALPRIS.
+            ASSIGN
+            PERSONALPRIS.BEFATTNING = "EJ.KOSTN."
+            PERSONALPRIS.KLAR       = FALSE
+            PERSONALPRIS.OPRIS      = 0
+            PERSONALPRIS.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            PERSONALPRIS.PRIS       = 0
+            PERSONALPRIS.STARTAD    = TRUE
+            PERSONALPRIS.STARTDATUM = DATE(01,01,YEAR(TODAY)).
+         END.
+         IF FORETAG.FORETAG = "sund" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "MISV" OR FORETAG.FORETAG = "elpa" THEN DO:   
+            CREATE PERSONALPRIS.
+            ASSIGN
+            PERSONALPRIS.BEFATTNING = "FASTPRIS1"
+            PERSONALPRIS.KLAR       = FALSE
+            PERSONALPRIS.OPRIS      = 0
+            PERSONALPRIS.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            PERSONALPRIS.PRIS       = 0
+            PERSONALPRIS.STARTAD    = TRUE
+            PERSONALPRIS.STARTDATUM = DATE(01,01,YEAR(TODAY)).
+         END.
+         IF FORETAG.FORETAG = "GRAN" THEN DO:
+            CREATE PERSONALPRIS.
+            ASSIGN
+            PERSONALPRIS.BEFATTNING = "FELAVHJÄLP. DAGTID"
+            PERSONALPRIS.KLAR       = FALSE
+            PERSONALPRIS.OPRIS      = varpris
+            PERSONALPRIS.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            PERSONALPRIS.PRIS       = varpris
+            PERSONALPRIS.STARTAD    = TRUE
+            PERSONALPRIS.STARTDATUM = DATE(01,01,YEAR(TODAY)).
+            CREATE PERSONALPRIS.
+            ASSIGN
+            PERSONALPRIS.BEFATTNING = "FELAVHJÄLP.ÖVRIG TID"
+            PERSONALPRIS.KLAR       = FALSE
+            PERSONALPRIS.OPRIS      = varpris
+            PERSONALPRIS.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            PERSONALPRIS.PRIS       = varpris
+            PERSONALPRIS.STARTAD    = TRUE
+            PERSONALPRIS.STARTDATUM = DATE(01,01,YEAR(TODAY)).
+         END.
+      END.
+   END.   
+END PROCEDURE.

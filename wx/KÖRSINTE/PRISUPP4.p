@@ -1,0 +1,23 @@
+
+DEFINE INPUT PARAMETER leverant LIKE LEVERANTOR.LEVKOD NO-UNDO.
+     
+   
+   OPEN QUERY mtrlq FOR EACH MTRL WHERE MTRL.KALKNR = 0 AND
+   MTRL.LEVKOD = leverant USE-INDEX LEV NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST mtrlq EXCLUSIVE-LOCK.
+      IF AVAILABLE MTRL THEN DO:
+         IF MTRL.BPRIS = 0 THEN MTRL.BPRIS = MTRL.NPRIS.         
+      END.  
+   END. 
+   REPEAT:     
+      DO TRANSACTION:
+         GET NEXT mtrlq EXCLUSIVE-LOCK.         
+         IF NOT AVAILABLE MTRL THEN LEAVE.
+         ELSE DO:
+            IF MTRL.BPRIS = 0 THEN MTRL.BPRIS = MTRL.NPRIS.        
+         END.
+      END.
+   END.                  
+   CLOSE QUERY mtrlq.   
+ 

@@ -1,0 +1,30 @@
+/*DUMPKON.P PROGRAMMET DUMPAR UT EN VALD konstruktion*/
+
+DEFINE VARIABLE valgrupp LIKE KONSTGRUPP.KONSKOD NO-UNDO.
+DEFINE VARIABLE valkonst LIKE KONSTRUKTION.KTYPKOD NO-UNDO.
+{AMERICANEUROPEAN.I}
+ASSIGN
+valgrupp = 0
+valkonst = "OTD".   
+   
+   OUTPUT TO C:\Protemp11\konstval.d convert target "iso8859-1" source "iso8859-1" append. 
+   OPEN QUERY berqid FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = valgrupp AND
+   KONSTVAL.KTYPKOD = valkonst NO-LOCK.      
+   GET FIRST berqid NO-LOCK.
+   DO WHILE AVAILABLE(KONSTVAL):       
+      EXPORT KONSTVAL.
+      GET NEXT berqid NO-LOCK.
+   END.
+   CLOSE QUERY berqid. 
+   OUTPUT CLOSE.
+   
+   OUTPUT TO C:\Protemp11\mtrlber.d convert target "iso8859-1" source "iso8859-1" append.   
+   OPEN QUERY mq2 FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = valkonst NO-LOCK.
+   GET FIRST mq2 NO-LOCK.
+   DO WHILE AVAILABLE(MTRLBER):
+      EXPORT MTRLBER.
+      GET NEXT mq2 NO-LOCK.
+   END.
+   CLOSE QUERY mq2.          
+   OUTPUT CLOSE.     
+{EUROPEANAMERICAN.I}

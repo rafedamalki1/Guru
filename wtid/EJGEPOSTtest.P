@@ -1,0 +1,212 @@
+/*EJGEPOSTtest.P  Nattkörning färdigrapporterade ej godkända epost till berörda*/
+
+DEFINE TEMP-TABLE eposttemp NO-UNDO
+   FIELD EPOST AS CHARACTER
+   FIELD GEPOST AS CHARACTER
+   FIELD BOLAG AS CHARACTER
+   FIELD MEDD AS CHARACTER
+   INDEX EPOST EPOST.
+
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE VARIABLE aonrrec AS RECID NO-UNDO.
+DEFINE VARIABLE skick AS LOGICAL NO-UNDO.
+DEFINE VARIABLE efel AS CHARACTER FORMAT "X(30)" NO-UNDO.
+DEFINE VARIABLE servervar AS CHARACTER LABEL "Smtp Server" NO-UNDO.
+DEFINE VARIABLE franvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hjdat AS DATE NO-UNDO.
+DEFINE VARIABLE bolag AS CHARACTER NO-UNDO.
+DEFINE VARIABLE okbol AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kolldatum AS DATE NO-UNDO.
+
+/*SMTPDEF3.I*/
+                    
+DEFINE VARIABLE mailhub         AS CHARACTER NO-UNDO. /*smtpserver*/                                                                                                                                                  
+DEFINE VARIABLE EmailTo         AS CHARACTER NO-UNDO. /*till en eller flera ,*/                                                                                                                                       
+DEFINE VARIABLE EmailFrom       AS CHARACTER NO-UNDO. /*från en eller flera ,*/                                                                                                                                       
+DEFINE VARIABLE EmailCC         AS CHARACTER NO-UNDO. /*copia till 0 eller flera ,*/                                                                                                                                  
+DEFINE VARIABLE Attachmentstyp     AS CHARACTER NO-UNDO. 
+/*file[:type=<mimetype>][:charset=<charset>][:filetype=<filetype>]*/
+/*ex seb01:type=text/html:CHARACTERset=ascii:filetype=ascii"*/
+DEFINE VARIABLE LocalFiles      AS CHARACTER NO-UNDO. /*filer 0 eller flera ,*/                                                                                                                                       
+DEFINE VARIABLE Subject         AS CHARACTER NO-UNDO. /*ämne*/                                                                                                                                                        
+DEFINE VARIABLE Bodysmtp        AS CHARACTER NO-UNDO. /*body*/                                                                                                                                                        
+DEFINE VARIABLE MIMEHeader      AS CHARACTER NO-UNDO. /*MIMEHeader  CHARACTER - [type=<mimetype>][:CHARACTERset=<chrset>][:filetype=<type>]*/                                                       
+DEFINE VARIABLE BodyType        AS CHARACTER NO-UNDO. /*BodyType text om du skapar html direkt i bodyn eller file om du skapar en htmlfil först*/                                                                  
+DEFINE VARIABLE Importance      AS INTEGER NO-UNDO.   /*INT - Importance flag for the mail header,of the message sent. Valid values include 0 to 3, 1 = HIGH; 3 = Low */
+DEFINE VARIABLE L_DoAUTH        AS LOGICAL NO-UNDO.   /*LOGICAL - yes if authentication is requiered*/                     
+DEFINE VARIABLE C_AuthType      AS CHARACTER NO-UNDO. /*CHAR - Type of authentication. Currently supported types:base64 */ 
+DEFINE VARIABLE C_User          AS CHARACTER NO-UNDO. /*CHAR - The name of the SMTP server user*/                          
+DEFINE VARIABLE C_Password      AS CHARACTER NO-UNDO. /*CHAR - The password of the SMTP server user*/                      
+DEFINE VARIABLE oSuccessful     AS LOGICAL NO-UNDO.   /*Om true är allt ok*/                                                                                                                                                            
+DEFINE VARIABLE vMessage        AS CHARACTER NO-UNDO. /*meddelande i klartext hur sändninge gick*/
+/*EX. vanligt mail*/
+/*
+ASSIGN 
+mailhub             = "mail.obbit.se"     
+EmailTo             = "elpool.ume@elpool.se" 
+EmailFrom           = "server@elpool.se"
+EmailCC             = ""
+Attachmentstyp      = "seb01.jpg:type=image/jpeg:charset=iso-8859-1:filetype=binary,andersl40.doc:type=application/msword:charset=iso-8859-1:filetype=binary"
+LocalFiles          = "c:\protemp9\seb01.jpg,c:\protemp9\andersl40.doc"
+Subject             = "TEST AV SMTP MED TVÅ FILER"
+Bodysmtp            = "c:\protemp9\Boende.html"
+MIMEHeader          = "type=text/html:charset=iso-8859-1:filetype=ascii"
+BodyType            = "".
+RUN smtpmail_UI (INPUT FALSE).
+t.txt:type=text/plain:charset=iso-8859-1:filetype=ascii
+seb01.jpg:type=image/jpeg:charset=iso-8859-1:filetype=binary                                                                                   
+andersl40.xls:type=application/msexcel:charset=iso-8859-1:filetype=binary
+andersl40.doc:type=application/msword:charset=iso-8859-1:filetype=binary
+prova.pdf:type=application/pdf:filetype=binary
+*/
+
+
+
+/*EX. html i bodyn via en redan skapad html fil*/
+
+ASSIGN 
+mailhub             = CHR(115) + CHR(109) + CHR(116) + CHR(112) + CHR(46) + CHR(116) + CHR(101) + CHR(108) + CHR(101) + CHR(99) + CHR(111) + CHR(109) + CHR(51) + CHR(46) + CHR(110) + CHR(101) + CHR(116)     
+EmailTo             = "elpool.ume@elpool.se" 
+EmailFrom           = "anders@elpool.se"
+EmailCC             = ""
+Attachmentstyp      = ""
+LocalFiles          = ""
+Subject             = "TEST AV SMTP MED html i body åäö"
+Bodysmtp            = "c:\protemp9\Boende.html"
+MIMEHeader          = "type=text/html:charset=iso-8859-1:filetype=ascii"
+BodyType            = "file".
+RUN smtpmail_UI (INPUT FALSE). 
+
+
+PROCEDURE smtpmail_UI:
+   DEFINE INPUT PARAMETER appat AS LOGICAL NO-UNDO.
+   RUN typ_UI.
+     
+      RUN SMTPMAIL3.P  
+      (INPUT mailhub,        /*smtpserver*/                                                                                    
+      INPUT EmailTo,        /*till en eller flera ,*/                                                                         
+      INPUT EmailFrom,      /*från en eller flera ,*/                                                                         
+      INPUT EmailCC,        /*copia till 0 eller flera ,*/                                                                    
+      INPUT Attachmentstyp, /*[type=<mimetype>][:CHARACTERset=<chrset>][:filetype=<type>]*/                                   
+      INPUT LocalFiles,     /*filer 0 eller flera ,*/                                                                         
+      INPUT Subject,        /*ämne*/                                                                                          
+      INPUT Bodysmtp,       /*body*/                                                                                          
+      INPUT MIMEHeader,     /*[type=<mimetype>][:CHARACTERset=<chrset>][:filetype=<type>]*/                                                                                          
+      INPUT BodyType,       /*text om du skapar html direkt i bodyn eller file om du skapar en htmlfil först*/                
+      INPUT Importance,     /*INT - Importance flag for the mail header,of the message sent. Valid values include 0 to 3, 1 = HIGH; 3 = Low */
+      INPUT L_DoAUTH,       /*LOGICAL - yes if authentication is requiered*/
+      INPUT C_AuthType,     /*CHAR - Type of authentication. Currently supported types:base64 */
+      INPUT C_User,         /*CHAR - The name of the SMTP server user*/
+      INPUT C_Password,     /*CHAR - The password of the SMTP server user*/
+      OUTPUT oSuccessful,   /*Om true är allt ok*/                                                                            
+      OUTPUT vMessage).     /*meddelande i klartext hur sändninge gick*/
+     
+   
+END PROCEDURE.
+
+PROCEDURE typ_UI :
+   DEFINE VARIABLE antalvar AS INTEGER NO-UNDO.
+   DEFINE VARIABLE maxantal AS INTEGER NO-UNDO.
+   DEFINE VARIABLE filhelp AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE slash AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE typevar AS CHARACTER NO-UNDO.
+   slash = "\".
+   LocalFiles = REPLACE(LocalFiles,",",";").
+   Attachmentstyp = LocalFiles.
+   IF INDEX(Attachmentstyp,"/") > 0 THEN slash = "/".
+   IF INDEX(Attachmentstyp,slash) > 0 THEN DO:
+      Attachmentstyp = "".
+      maxantal = NUM-ENTRIES(LocalFiles,";").
+      IF maxantal > 0 THEN DO:
+         antalvar = 1.
+         REPEAT:
+            filhelp = ENTRY(antalvar, LocalFiles,";").
+            IF INDEX(filhelp,".") > 0 THEN DO: 
+               IF SUBSTRING(filhelp,INDEX(filhelp,".") + 1,3) = "xls" THEN typevar = ":type=application/msexcel:charset=iso-8859-1:filetype=binary".
+               ELSE IF SUBSTRING(filhelp,INDEX(filhelp,".") + 1,3) = "doc" THEN typevar = ":type=application/msword:charset=iso-8859-1:filetype=binary".
+               ELSE IF SUBSTRING(filhelp,INDEX(filhelp,".") + 1,3) = "jpg" THEN typevar = ":type=image/jpeg:charset=iso-8859-1:filetype=binary".
+               ELSE IF SUBSTRING(filhelp,INDEX(filhelp,".") + 1,3) = "pdf" THEN typevar = ":type=application/pdf:charset=iso-8859-1:filetype=binary".
+               ELSE typevar = ":type=text/plain:charset=iso-8859-1:filetype=ascii".
+            END.   
+            ELSE typevar = ":type=text/plain:charset=iso-8859-1:filetype=ascii".  
+            IF Attachmentstyp NE "" THEN Attachmentstyp = Attachmentstyp + ";".
+            Attachmentstyp = Attachmentstyp + SUBSTRING(filhelp, R-INDEX(filhelp,slash) + 1, LENGTH(filhelp)) + typevar.
+                       
+            antalvar = antalvar + 1.
+            IF antalvar > maxantal THEN LEAVE.
+         END.
+      END.
+      ELSE DO:
+         Attachmentstyp = SUBSTRING(LocalFiles, R-INDEX(LocalFiles, "\") + 1, LENGTH(LocalFiles)).
+      END.
+   END.
+   Attachmentstyp = REPLACE(Attachmentstyp,";",",").
+   
+END PROCEDURE.
+
+
+
+
+C_Password = CHR(122) + CHR(120) + CHR(61) + CHR(98) + CHR(112) + CHR(48) + CHR(113) + CHR(114).
+      C_User = "elpool.ume@elpool.se".
+      L_DoAUTH = TRUE.
+      C_AuthType = "base64".
+      franvar = "elpool.ume@elpool.se".
+      servervar = CHR(115) + CHR(109) + CHR(116) + CHR(112) + CHR(46) + CHR(116) + CHR(101) + CHR(108) + CHR(101) + CHR(99) + CHR(111) + CHR(109) + CHR(51) + CHR(46) + CHR(110) + CHR(101) + CHR(116) .
+ 
+
+ 
+
+
+      
+
+EMPTY TEMP-TABLE eposttemp NO-ERROR. 
+      
+      CREATE eposttemp.
+      ASSIGN     
+      eposttemp.EPOST = "lena@elpool.se"
+      eposttemp.BOLAG = "snat".
+      
+      eposttemp.MEDD = "vi testar2".          
+
+RUN emedd_UI.
+
+PROCEDURE emedd_UI.
+   DEFINE VARIABLE ctillvar AS CHARACTER LABEL "Kopia" NO-UNDO.
+   ctillvar = "anders@elpool.se".
+  
+  FOR EACH eposttemp:  
+      
+      ASSIGN 
+      mailhub             = servervar     
+      EmailTo             = eposttemp.EPOST 
+      EmailFrom           = franvar
+      EmailCC             = ctillvar
+      Attachmentstyp      = ""
+      LocalFiles          = "".
+      Subject             = "Testar Färdigrapporterade ej godkända tidsedlar".
+      ASSIGN      
+      Bodysmtp            = eposttemp.MEDD
+      MIMEHeader          = "type=text/plain/html:charset=iso-8859-1:filetype=ascii"
+      BodyType            = "".
+     
+      RUN smtpmail_UI (INPUT FALSE).
+      OUTPUT TO D:\DELAD\PRO10S\mailrappejge.txt APPEND.
+      PUT UNFORMATTED TODAY " " oSuccessful " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+       OUTPUT CLOSE. 
+      IF oSuccessful = TRUE THEN DO TRANSACTION:
+         oSuccessful = FALSE.               
+      END.      
+      ELSE DO:
+          OUTPUT TO D:\delad\pro10s\godkandkollfel.txt APPEND. 
+          PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         
+         OUTPUT CLOSE.
+    
+      END.
+   END.     
+END PROCEDURE.  
+
+ 
+   
+

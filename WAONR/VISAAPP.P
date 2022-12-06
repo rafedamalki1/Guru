@@ -1,0 +1,1436 @@
+/*VISAAPP.P*/
+{DAGBOKTEMP.I}
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+{REGVAR.I}
+
+{AONRDEF.I}
+{DIRDEF.I}
+{AVTAONRTEMP.I}
+{AVTPLANTEMP.I}
+{OMRTEMPW.I}      
+{ANMARKD.I}
+{FAKTTYPDEF.I}
+DEFINE INPUT  PARAMETER classerkollin AS CHARACTER NO-UNDO.
+
+DEFINE VARIABLE langdvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO. 
+
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(92)" NO-UNDO.
+
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE grubrikvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kostregok AS LOGICAL NO-UNDO.
+{EXTRATAB.I}  
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{FAKTTYPSKAP.I}
+Guru.Konstanter:varforetypchar[48] = classerkollin.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+{TIDUTTTNEW.I}
+
+str="====================================================================================================================================".
+
+PROCEDURE kostregkoll_UI :
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER finnsvar AS LOGICAL NO-UNDO.
+   FIND FIRST KOSTREG WHERE KOSTREG.AONR = aonrvar AND 
+   KOSTREG.DELNR = delnrvar NO-LOCK NO-ERROR.
+   IF AVAILABLE KOSTREG THEN DO:
+      finnsvar = TRUE.      
+   END.
+END PROCEDURE.
+
+PROCEDURE kostregok_UI :
+   kostregok = TRUE.
+END PROCEDURE.
+              
+PROCEDURE kostreg_UI.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   /*DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tidut.*/
+   DEFINE VARIABLE totkost AS INTEGER NO-UNDO.
+   FIND LAST tidut NO-LOCK NO-ERROR.
+   CREATE tidut.
+   SUBSTRING(tidut.UT,4) = "Kostnadsregistreringar".
+   /*
+   CREATE tidut.   
+   ASSIGN tidut.UT = SUBSTRING(str,1,92).
+   */
+   
+   
+   FOR EACH KOSTREG WHERE KOSTREG.AONR = aonrvar AND 
+   KOSTREG.DELNR = delnrvar NO-LOCK:
+      CREATE tidut. 
+      ASSIGN                         /*            KOSTREG.INKOMST*/
+      SUBSTRING(tidut.UT,4) = KOSTREG.BENAMNING    
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,22) = KOSTREG.BOKKONTO.
+      IF KOSTREG.INKOMST = 0 THEN DO:
+         ASSIGN
+         SUBSTRING(tidut.UT,44) = "Kostnad" 
+         SUBSTRING(tidut.UT,56) = ":"
+         SUBSTRING(tidut.UT,58) = STRING(KOSTREG.MASKKOST + KOSTREG.MTRL + KOSTREG.OVRKR + KOSTREG.PERSKOST + KOSTREG.TRAKTKOST,"->>>>>>>>>>>9").
+      END.
+      ELSE DO:
+         IF KOSTREG.MASKKOST + KOSTREG.MTRL + KOSTREG.OVRKR + KOSTREG.PERSKOST + KOSTREG.TRAKTKOST = 0 THEN DO:
+            ASSIGN
+            SUBSTRING(tidut.UT,44) = "Intäkt" 
+            SUBSTRING(tidut.UT,56) = ":"
+            SUBSTRING(tidut.UT,58) = STRING(-1 * KOSTREG.INKOMST,"->>>>>>>>>>>9").
+         END.
+         ELSE DO:
+            ASSIGN
+            SUBSTRING(tidut.UT,44) = "Kostnad" 
+            SUBSTRING(tidut.UT,56) = ":"
+            SUBSTRING(tidut.UT,58) = STRING(KOSTREG.MASKKOST + KOSTREG.MTRL + KOSTREG.OVRKR + KOSTREG.PERSKOST + KOSTREG.TRAKTKOST,"->>>>>>>>>>>9").
+            CREATE tidut.
+            ASSIGN
+            SUBSTRING(tidut.UT,44) = "Intäkt" 
+            SUBSTRING(tidut.UT,56) = ":"
+            SUBSTRING(tidut.UT,58) = STRING(-1 * KOSTREG.INKOMST,"->>>>>>>>>>>9").
+         END.
+      END.      
+   END.
+END PROCEDURE.
+
+PROCEDURE relaonr:
+   IF AVAILABLE AONRTAB THEN DO:
+      RELEASE AONRTAB.
+   END.
+   RETURN.
+END PROCEDURE.
+PROCEDURE ladda:
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER rubrikvar AS CHARACTER FORMAT "X(30)" NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   ASSIGN 
+   grubrikvar = rubrikvar.
+   Guru.Konstanter:globforetag = gforetag.
+   EMPTY TEMP-TABLE tidut NO-ERROR.    
+   DO TRANSACTION:
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+      AONRTAB.DELNR = delnrvar EXCLUSIVE-LOCK NO-ERROR.
+      ASSIGN
+      AONRTAB.ANM[1] = AONRTAB.ANM[1] + AONRTAB.ANM[2] + 
+                      AONRTAB.ANM[3] + AONRTAB.ANM[4] + 
+                      AONRTAB.ANM[5] + AONRTAB.ANM[6]
+      AONRTAB.ARBUPPG[1] = AONRTAB.ARBUPPG[1] + AONRTAB.ARBUPPG[2].
+      ASSIGN 
+      AONRTAB.ARBUPPG[2] = ""                
+      AONRTAB.ANM[2] = ""
+      AONRTAB.ANM[3] = ""
+      AONRTAB.ANM[4] = "" 
+      AONRTAB.ANM[5] = ""
+      AONRTAB.ANM[6] = "".                   
+   END.  
+   
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+   AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.
+   IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+      RUN huvudv (INPUT aonrvar,INPUT delnrvar,INPUT Guru.Konstanter:globforetag).
+      /*
+                     INPUT-OUTPUT TABLE tidut).   
+                     */
+   END.
+   ELSE DO: 
+      RUN startalt2_UI (INPUT aonrvar,INPUT delnrvar,INPUT Guru.Konstanter:globforetag,INPUT rubrikvar).
+      IF AONRTAB.FASTAAONR = FALSE THEN DO:
+         CREATE tidut. 
+         SUBSTRING(tidut.UT,4) = Guru.Konstanter:gbestk.
+         SUBSTRING(tidut.UT,20) = ":".
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = AONRTAB.BESTID 
+         USE-INDEX OMR NO-LOCK NO-ERROR.
+         IF AVAILABLE OMRADETAB THEN DO:
+            SUBSTRING(tidut.UT,22) = AONRTAB.BESTID + " " + OMRADETAB.NAMN.
+         END.  
+         ELSE DO:
+            FIND FIRST BESTTAB WHERE BESTTAB.BESTID = AONRTAB.BESTID 
+            USE-INDEX BEST NO-LOCK NO-ERROR.
+            IF AVAILABLE BESTTAB THEN DO:
+               SUBSTRING(tidut.UT,22) = BESTTAB.VIBESTID + " " + BESTTAB.BESTNAMN.
+            END.
+            ELSE SUBSTRING(tidut.UT,22) = AONRTAB.BESTID.
+         END.         
+      END.
+      IF Guru.Konstanter:varforetypval[2] = 0 THEN DO:
+         CREATE tidut.
+         ASSIGN
+         SUBSTRING(tidut.UT,4) = Guru.Konstanter:gdebk
+         SUBSTRING(tidut.UT,20) = ":"
+         SUBSTRING(tidut.UT,22) = AONRTAB.PRISTYP.
+      END.
+      CREATE tidut.  
+      ASSIGN tidut.UT = SUBSTRING(str,1,92).
+      CREATE tidut.                             
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = "Anläggningsnr"
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,22) = TRIM(STRING(AONRTAB.ANLNR)).   
+      IF Guru.Konstanter:varforetypval[2] = 0 THEN DO:
+         ASSIGN                      
+         SUBSTRING(tidut.UT,44) = "Trakt.zon"
+         SUBSTRING(tidut.UT,56) = ":"
+         SUBSTRING(tidut.UT,58) = STRING(AONRTAB.TRAKTAMENTE).    
+      END.
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = LC(Guru.Konstanter:gartk)
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,22) = STRING(AONRTAB.ARBARTKOD).
+      IF Guru.Konstanter:varforetypval[2] = 0 THEN DO:
+         ASSIGN
+         SUBSTRING(tidut.UT,44) = "Utryckn."
+         SUBSTRING(tidut.UT,56) = ":".
+         IF AONRTAB.UTRYCKNING = TRUE THEN SUBSTRING(tidut.UT,58) = "Ja". 
+         IF AONRTAB.UTRYCKNING = FALSE THEN SUBSTRING(tidut.UT,58) = "Nej".
+      END.
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = Guru.Konstanter:gpriok
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,22) = STRING(AONRTAB.PKOD).          
+      CREATE tidut.  
+      CREATE tidut.        
+      ASSIGN tidut.UT = SUBSTRING(str,1,92).
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = Guru.Konstanter:gberek
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,44) = SUBSTRING(Guru.Konstanter:garbak,1,12)
+      SUBSTRING(tidut.UT,56) = ":".
+      /*CREATE tidut.*/
+      IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = AONRTAB.BEREDARE
+         USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO:
+            SUBSTRING(tidut.UT,22) = SUBSTRING(PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN,1,21).
+            Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+         END.
+         ELSE DO:
+            SUBSTRING(tidut.UT,22) = AONRTAB.BEREDARE.
+         END.
+      END.
+      ELSE DO:      
+         SUBSTRING(tidut.UT,22) = AONRTAB.BEREDARE.
+      END.   
+      IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = AONRTAB.ARBANSVARIG
+         USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO:
+            SUBSTRING(tidut.UT,58) = SUBSTRING(PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN,1,21).
+            Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+         END.
+         ELSE DO:
+            SUBSTRING(tidut.UT,58) = AONRTAB.ARBANSVARIG.
+         END.
+      END.
+      ELSE DO:      
+         SUBSTRING(tidut.UT,58) = AONRTAB.ARBANSVARIG.
+      END.
+      /* PROJEKTÖR*/
+      CREATE tidut.
+      SUBSTRING(tidut.UT,4) = Guru.Konstanter:gprojk.            
+      SUBSTRING(tidut.UT,20) = ":".
+      IF AONRTAB.STARTDAG = "mån" OR 
+      AONRTAB.STARTDAG = "tis" OR 
+      AONRTAB.STARTDAG = "ons" OR 
+      AONRTAB.STARTDAG = "tor" OR 
+      AONRTAB.STARTDAG = "fre" OR 
+      AONRTAB.STARTDAG = "lör" OR 
+      AONRTAB.STARTDAG = "sön" THEN DO:      
+         SUBSTRING(tidut.UT,22) = AONRTAB.BEREDARE.
+         IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = AONRTAB.BEREDARE
+            USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE PERSONALTAB THEN DO:
+               SUBSTRING(tidut.UT,22) = SUBSTRING(PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN,1,21).
+               Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+            END.
+         END.
+      END.
+      ELSE DO:      
+         SUBSTRING(tidut.UT,22) = AONRTAB.STARTDAG.
+         IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = AONRTAB.STARTDAG
+            USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE PERSONALTAB THEN DO:
+               SUBSTRING(tidut.UT,22) = SUBSTRING(PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN,1,21).
+            END.
+         END.
+      END.
+      /*
+      CREATE tidut.
+      SUBSTRING(tidut.UT,4) = "ARBETSBESKED".
+      */
+      CREATE tidut.             
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = Guru.Konstanter:gutfardk
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,22) = SUBSTRIN(AONRTAB.UTFARDAT,1,92).
+     
+      IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" THEN.
+      ELSE DO:
+         IF    
+         Guru.Konstanter:globforetag = "VAST" THEN musz = musz.         
+         ELSE IF  Guru.Konstanter:globforetag = "MISV" THEN musz = musz.
+         ELSE RUN aokont (INPUT aonrvar,INPUT delnrvar).
+         /*
+            INPUT-OUTPUT TABLE tidut).
+            */
+      END.
+      
+      /*
+      RUN dagbok (INPUT aonrvar,INPUT delnrvar).
+      */
+      /*
+         ,INPUT-OUTPUT TABLE tidut). 
+         */
+      /*TIDLÄGEN*/      
+      RUN tidlagen (INPUT aonrvar,INPUT delnrvar).
+         /*
+         ,INPUT-OUTPUT TABLE tidut). 
+         */
+      /*KOPPLINGAR*/
+      RUN kopplingar (INPUT aonrvar,INPUT delnrvar).
+      IF kostregok = TRUE THEN RUN kostreg_UI (INPUT aonrvar,INPUT delnrvar).         
+      /*
+         ,INPUT-OUTPUT TABLE tidut). 
+         */
+   END.
+   
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+PROCEDURE startalt2_UI :
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER rubrikvar AS CHARACTER FORMAT "X(30)" NO-UNDO.
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+   AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.
+   ASSIGN Guru.Konstanter:globforetag = gforetag.
+   IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" THEN DO:
+      IF rubrikvar = " " THEN rubrikvar = rubrikvar.
+      ELSE DO:
+         ASSIGN
+         langdvar = LENGTH(rubrikvar)
+         langdvar = (30 - langdvar) / 2.
+         CREATE tidut.               
+         SUBSTRING(tidut.UT,30 + langdvar) = rubrikvar.
+      END.
+   END.   
+   IF NOT AVAILABLE tidut THEN CREATE tidut.
+   SUBSTRING(tidut.UT,60) = STRING(TODAY).
+   CREATE tidut.
+   IF AONRTAB.FASTAAONR = FALSE THEN DO:
+      SUBSTRING(tidut.UT,4,16) = SUBSTRING((Guru.Konstanter:gutfk + " " + LC(Guru.Konstanter:gomrl)),1,16) .   
+      SUBSTRING(tidut.UT,20) = ":".
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = AONRTAB.OMRADE 
+      USE-INDEX OMR NO-LOCK NO-ERROR.
+      IF AVAILABLE OMRADETAB THEN DO:
+         SUBSTRING(tidut.UT,22) = AONRTAB.OMRADE + " " +  OMRADETAB.NAMN.
+      END.
+      ELSE SUBSTRING(tidut.UT,22) = AONRTAB.OMRADE.     
+   END.
+   CREATE tidut. 
+   ASSIGN
+   SUBSTRING(tidut.UT,4) = Guru.Konstanter:gaok.
+   SUBSTRING(tidut.UT,20) = ":".
+   &Scoped-define FORMATNAMN AONRTAB.AONR
+   {AOFORMAT2.I}
+   SUBSTRING(tidut.UT,22) = formataonr.
+   IF AONRTAB.DELNR NE 0 THEN DO:
+      ASSIGN
+      SUBSTRING(tidut.UT,30) = "Delnr:"
+      SUBSTRING(tidut.UT,37) = STRING(AONRTAB.DELNR,Guru.Konstanter:varforetypchar[1]).
+   END.
+   ELSE DO:
+      IF Guru.Konstanter:globforetag = "LULE" THEN DO:
+         ASSIGN
+         SUBSTRING(tidut.UT,30) = "Delnr:"
+         SUBSTRING(tidut.UT,37) = STRING(AONRTAB.DELNR,Guru.Konstanter:varforetypchar[1]).
+      END.
+   END.
+   IF AONRTAB.AONRAVDATUM NE 01/01/91 THEN DO:                             
+      ASSIGN
+      SUBSTRING(tidut.UT,44) = "Avslutat"
+      SUBSTRING(tidut.UT,56) = ":"
+      SUBSTRING(tidut.UT,58) = STRING(AONRTAB.AONRAVDATUM).
+   END.
+   
+   CREATE tidut.           
+   ASSIGN
+   SUBSTRING(tidut.UT,4) = Guru.Konstanter:gaonamnk
+   SUBSTRING(tidut.UT,20) = ":"
+   SUBSTRING(tidut.UT,22) = AONRTAB.ORT.
+   IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag =  "cELPA" THEN DO:
+      RUN aokont (INPUT aonrvar,INPUT delnrvar).
+      /*
+         ,INPUT-OUTPUT TABLE tidut).
+         */
+   END.
+   CREATE tidut.  
+   ASSIGN tidut.UT = SUBSTRING(str,1,92).   
+   IF LENGTH(AONRTAB.ARBUPPG[1]) > 0 THEN DO:
+      CREATE tidut. 
+      ASSIGN
+      SUBSTRING(tidut.UT,20) = ":"                                  
+      SUBSTRING(tidut.UT,4) = "Arbetsuppgift"
+      retvar = 1
+      ednum = 1
+      ednum3 = LENGTH(AONRTAB.ARBUPPG[1])
+      retvar = INDEX(AONRTAB.ARBUPPG[1],CHR(10),ednum)
+      edtecken = 38
+      edtext = AONRTAB.ARBUPPG[1]
+      tidtext = "".
+      RUN anmarkning (INPUT Guru.Konstanter:globforetag,INPUT-OUTPUT retvar,INPUT-OUTPUT edtext,INPUT-OUTPUT ednum,
+                     INPUT-OUTPUT edtecken,INPUT-OUTPUT ednum2,
+                     INPUT-OUTPUT ednum3).
+      
+   END.
+   IF LENGTH(AONRTAB.ANM[1]) > 0 THEN DO:
+      CREATE tidut. 
+      ASSIGN
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,4) = "Anmärkning"
+      retvar = 1
+      ednum = 1
+      ednum3 = LENGTH(AONRTAB.ANM[1])
+      retvar = INDEX(AONRTAB.ANM[1],CHR(10),ednum)
+      edtecken = 68
+      edtext = AONRTAB.ANM[1]
+      tidtext = "".
+      RUN anmarkning (INPUT Guru.Konstanter:globforetag,INPUT-OUTPUT retvar,INPUT-OUTPUT edtext,INPUT-OUTPUT ednum,
+                        INPUT-OUTPUT edtecken,INPUT-OUTPUT ednum2,
+                        INPUT-OUTPUT ednum3).
+      /*
+         ,INPUT-OUTPUT TABLE tidut). 
+         */
+/*       {ANMARK2.I} */
+   END.  
+   IF LENGTH(AONRTAB.ARBUPPG[1]) > 0 OR  LENGTH(AONRTAB.ANM[1]) > 0 THEN DO:
+      CREATE tidut.  
+      ASSIGN tidut.UT = SUBSTRING(str,1,92).   
+   END.
+
+END PROCEDURE.
+PROCEDURE startalt1_UI :
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   ASSIGN Guru.Konstanter:globforetag = gforetag.
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+   AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.
+   FIND LAST tidut NO-LOCK NO-ERROR.
+   CREATE tidut.               
+   SUBSTRING(tidut.UT,4) = "Projektbeskrivning".
+   CREATE tidut.
+   ASSIGN
+      /*
+   SUBSTRING(tidut.UT,4) = "Projektbeställare"
+   */
+   SUBSTRING(tidut.UT,4) = Guru.Konstanter:gutfardk
+   SUBSTRING(tidut.UT,30) = "Utskriftsdatum"
+   SUBSTRING(tidut.UT,60) = "Faktureringstyp".
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,4) = SUBSTRING(AONRTAB.UTFARDAT,1,25)
+   SUBSTRING(tidut.UT,30) = STRING(TODAY)
+   SUBSTRING(tidut.UT,60) = AONRTAB.FAKTTYP.
+   
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = AONRTAB.ARBANSVARIG 
+   USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+   IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+      RUN TLAGAUTO.P (INPUT Guru.Konstanter:globanv, INPUT RECID(AONRTAB), INPUT "MALDATUM").
+   END.
+   CREATE tidut.
+   ASSIGN
+      /*
+   SUBSTRING(tidut.UT,4) = "Projektledare"
+   */                           
+   SUBSTRING(tidut.UT,4) = Guru.Konstanter:garbak.
+   FIND FIRST TIDSLAGEN WHERE TIDSLAGEN.IDTIDLAG = "MALDATUM" NO-LOCK NO-ERROR.
+   IF AVAILABLE TIDSLAGEN THEN DO:       
+      SUBSTRING(tidut.UT,30) = SUBSTRING(TIDSLAGEN.TIDLAGE,1,1) + LC(SUBSTRING(TIDSLAGEN.TIDLAGE,2)).
+   END.
+   ELSE  SUBSTRING(tidut.UT,30) = "Måldatum".
+   DEFINE VARIABLE svar AS LOGICAL.
+   svar = FALSE.
+   IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+      IF AONRTAB.BETNR > 0 THEN DO:
+         /*
+         MESSAGE "Vill Ni visa offererat pris?"
+         VIEW-AS ALERT-BOX QUESTION BUTTONS YES-NO TITLE "Offertpris?"
+         UPDATE svar.
+         IF svar THEN DO:            
+            ASSIGN               
+            SUBSTRING(tidut.UT,60) = "Offertpris".
+         END.
+         */
+      END.
+   END.
+   FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.AONR = AONRTAB.AONR AND 
+   AONRTIDLAGE.DELNR = AONRTAB.DELNR AND AONRTIDLAGE.IDTIDLAG = "MALDATUM"
+   NO-LOCK NO-ERROR.   
+   IF AVAILABLE AONRTIDLAGE THEN DO:
+      regdatum = AONRTIDLAGE.DATUM1.
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN.
+      IF regdatum NE ? THEN SUBSTRING(tidut.UT,30) = STRING(regdatum).
+      IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+         IF AONRTAB.BETNR > 0 THEN DO:         
+            IF svar = TRUE THEN DO:
+               ASSIGN                      
+               SUBSTRING(tidut.UT,60) = STRING(AONRTAB.BETNR).
+            END.
+         END.
+      END.
+   END.
+   CREATE tidut.
+   IF AONRTAB.FASTAAONR = FALSE THEN DO:
+      SUBSTRING(tidut.UT,4) = Guru.Konstanter:gutfk + " " + LC(Guru.Konstanter:gomrl).   
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = AONRTAB.OMRADE 
+      USE-INDEX OMR NO-LOCK NO-ERROR.
+      IF AVAILABLE OMRADETAB THEN DO:
+         CREATE tidut.
+         SUBSTRING(tidut.UT,4) = AONRTAB.OMRADE + " " +  OMRADETAB.NAMN.
+      END.
+      ELSE DO:
+         CREATE tidut.
+         SUBSTRING(tidut.UT,22) = AONRTAB.OMRADE.     
+      END.
+   END.
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,4) = Guru.Konstanter:gaol.  
+   CREATE tidut.
+   IF AONRTAB.DELNR NE 0 THEN DO:
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = AONRTAB.AONR + " " + STRING(AONRTAB.DELNR,Guru.Konstanter:varforetypchar[1])
+      SUBSTRING(tidut.UT,30) = AONRTAB.ORT.
+   END.
+   ELSE DO:
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = AONRTAB.AONR
+      SUBSTRING(tidut.UT,30) = AONRTAB.ORT.
+   END.   
+   FIND FIRST BESTTAB WHERE BESTTAB.BESTID = AONRTAB.BESTID NO-LOCK NO-ERROR.
+   IF AVAILABLE BESTTAB THEN DO:
+      CREATE tidut.  
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = Guru.Konstanter:gbestk
+      SUBSTRING(tidut.UT,30) = BESTTAB.BESTNAMN. 
+      
+      /*
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = "Kund, Kund ref."
+      SUBSTRING(tidut.UT,30) = "Kontaktperson"     
+      SUBSTRING(tidut.UT,60) = Guru.Konstanter:grefbefk.
+        /*
+      SUBSTRING(tidut.UT,60) = "Ref.nr Beställare".
+      */
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = BESTTAB.BESTNAMN. 
+      
+      FIND FIRST EXTRADATA WHERE EXTRADATA.PROGRAM = "AOREF" AND  
+      EXTRADATA.HUVUDCH = AONRTAB.AONR AND
+      EXTRADATA.HUVUDINT = AONRTAB.DELNR
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE EXTRADATA THEN DO:
+         ASSIGN
+         SUBSTRING(tidut.UT,60) = EXTRADATA.SOKCHAR[1] 
+         SUBSTRING(tidut.UT,30) = EXTRADATA.SOKCHAR[5] .
+         IF EXTRADATA.SOKCHAR[5] = "" THEN SUBSTRING(tidut.UT,30) = BESTTAB.KONTAKT.
+      END.
+      ELSE SUBSTRING(tidut.UT,30) = BESTTAB.KONTAKT.
+      */
+      CREATE tidut.  
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = Guru.Konstanter:grefbefk.
+      FIND FIRST EXTRADATA WHERE EXTRADATA.PROGRAM = "AOREF" AND  
+      EXTRADATA.HUVUDCH = AONRTAB.AONR AND
+      EXTRADATA.HUVUDINT = AONRTAB.DELNR
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE EXTRADATA THEN DO:
+         ASSIGN
+         SUBSTRING(tidut.UT,30) = EXTRADATA.SOKCHAR[1]. 
+      END.
+      CREATE tidut.  
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = "Kontaktperson".
+      IF AVAILABLE EXTRADATA THEN DO:
+         ASSIGN
+         SUBSTRING(tidut.UT,30) = EXTRADATA.SOKCHAR[5].
+         IF EXTRADATA.SOKCHAR[5] = "" THEN SUBSTRING(tidut.UT,30) = BESTTAB.KONTAKT.
+      END.
+      ELSE SUBSTRING(tidut.UT,30) = BESTTAB.KONTAKT.
+
+      
+   END.
+   ELSE DO:   
+      CREATE tidut.  
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = Guru.Konstanter:grefbefk.
+      FIND FIRST EXTRADATA WHERE EXTRADATA.PROGRAM = "AOREF" AND  
+      EXTRADATA.HUVUDCH = AONRTAB.AONR AND
+      EXTRADATA.HUVUDINT = AONRTAB.DELNR
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE EXTRADATA THEN DO:
+         ASSIGN
+         SUBSTRING(tidut.UT,30) = EXTRADATA.SOKCHAR[1]. 
+      END.
+      CREATE tidut.  
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = "Kontaktperson".
+      IF AVAILABLE EXTRADATA THEN DO:
+         ASSIGN
+         SUBSTRING(tidut.UT,30) = EXTRADATA.SOKCHAR[5].
+      END.
+      
+      /*
+      FIND FIRST EXTRADATA WHERE EXTRADATA.PROGRAM = "AOREF" AND  
+      EXTRADATA.HUVUDCH = AONRTAB.AONR AND
+      EXTRADATA.HUVUDINT = AONRTAB.DELNR
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE EXTRADATA THEN DO:
+         CREATE tidut.  
+         ASSIGN
+            SUBSTRING(tidut.UT,4) = Guru.Konstanter:grefbefk.
+           /*
+         SUBSTRING(tidut.UT,60) = "Ref.nr Beställare".
+         */        
+         CREATE tidut.  
+         ASSIGN
+         SUBSTRING(tidut.UT,4) = EXTRADATA.SOKCHAR[1].
+      END.
+      */
+   END.
+   CREATE tidut.
+   ASSIGN tidut.UT = SUBSTRING(str,1,92).   
+   IF LENGTH(AONRTAB.ARBUPPG[1]) > 0 THEN DO:
+      CREATE tidut. 
+      ASSIGN
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,4) = "Arbetsuppgift"
+      retvar = 1
+      ednum = 1
+      ednum3 = LENGTH(AONRTAB.ARBUPPG[1])
+      retvar = INDEX(AONRTAB.ARBUPPG[1],CHR(10),ednum)
+      edtecken = 43
+      edtext = AONRTAB.ARBUPPG[1]
+      tidtext = "".
+      RUN anmarkning (INPUT Guru.Konstanter:globforetag,INPUT-OUTPUT retvar,INPUT-OUTPUT edtext,INPUT-OUTPUT ednum,
+                        INPUT-OUTPUT edtecken,INPUT-OUTPUT ednum2,INPUT-OUTPUT ednum3).
+       
+   END.
+   IF LENGTH(AONRTAB.ANM[1]) > 0 THEN DO:
+      CREATE tidut. 
+      ASSIGN
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,4) = "Anmärkning"
+      retvar = 1
+      ednum = 1
+      ednum3 = LENGTH(AONRTAB.ANM[1])
+      retvar = INDEX(AONRTAB.ANM[1],CHR(10),ednum)
+      edtecken = 68
+      edtext = AONRTAB.ANM[1]
+      tidtext = "".
+      RUN anmarkning (INPUT Guru.Konstanter:globforetag,INPUT-OUTPUT retvar,INPUT-OUTPUT edtext,INPUT-OUTPUT ednum,
+                        INPUT-OUTPUT edtecken,INPUT-OUTPUT ednum2,
+                        INPUT-OUTPUT ednum3).
+      
+   END.      
+   IF LENGTH(AONRTAB.ARBUPPG[1]) > 0 OR  LENGTH(AONRTAB.ANM[1]) > 0 THEN DO:
+      CREATE tidut.  
+      ASSIGN tidut.UT = SUBSTRING(str,1,92).   
+   END.
+END PROCEDURE.
+PROCEDURE huvudv.
+   /*HUVUD*/ 
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   RUN startalt1_UI (INPUT aonrvar,INPUT delnrvar,INPUT gforetag).
+   
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,4) = Guru.Konstanter:gberek            
+   SUBSTRING(tidut.UT,20) = ":"
+   SUBSTRING(tidut.UT,44) = Guru.Konstanter:garbak
+   SUBSTRING(tidut.UT,56) = ":".
+   /*CREATE tidut. ???? VARFÖR NY RAD LENA*/
+   IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = AONRTAB.BEREDARE
+      USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN DO:
+         SUBSTRING(tidut.UT,22) = SUBSTRING(PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN,1,21).
+      END.
+      ELSE DO:
+         SUBSTRING(tidut.UT,22) = AONRTAB.BEREDARE.
+      END.
+   END.
+   ELSE DO:      
+      SUBSTRING(tidut.UT,22) = AONRTAB.BEREDARE.
+   END.   
+   IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = AONRTAB.ARBANSVARIG
+      USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN DO:
+         SUBSTRING(tidut.UT,58) = SUBSTRING(PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN,1,21).
+      END.
+      ELSE DO:
+         SUBSTRING(tidut.UT,58) = AONRTAB.ARBANSVARIG.
+      END.
+   END.
+   ELSE DO:      
+      SUBSTRING(tidut.UT,58) = AONRTAB.ARBANSVARIG.
+   END.
+   /* PROJEKTÖR*/
+   CREATE tidut.
+   SUBSTRING(tidut.UT,4) = Guru.Konstanter:gprojk.            
+   SUBSTRING(tidut.UT,20) = ":".
+   IF AONRTAB.STARTDAG = "mån" OR 
+   AONRTAB.STARTDAG = "tis" OR 
+   AONRTAB.STARTDAG = "ons" OR 
+   AONRTAB.STARTDAG = "tor" OR 
+   AONRTAB.STARTDAG = "fre" OR 
+   AONRTAB.STARTDAG = "lör" OR 
+   AONRTAB.STARTDAG = "sön" THEN DO:      
+      SUBSTRING(tidut.UT,22) = AONRTAB.BEREDARE.
+      IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = AONRTAB.BEREDARE
+         USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO:
+            SUBSTRING(tidut.UT,22) = SUBSTRING(PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN,1,21).
+         END.
+      END.
+   END.
+   ELSE DO:      
+      SUBSTRING(tidut.UT,22) = AONRTAB.STARTDAG.
+      IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = AONRTAB.STARTDAG
+         USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO:
+            SUBSTRING(tidut.UT,22) = SUBSTRING(PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN,1,21).
+         END.
+      END.
+   END.
+   CREATE tidut.
+   SUBSTRING(tidut.UT,4) = CAPS(SUBSTRING(Guru.Konstanter:gdebk,1,1)) + STRING(LC(SUBSTRING(Guru.Konstanter:gdebk,2)),"XXXXXXXXX") + "      :".
+   SUBSTRING(tidut.UT,22) = AONRTAB.PRISTYP. 
+   FIND FIRST ARBETSART WHERE ARBETSART.ARBARTKOD = AONRTAB.ARBARTKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE ARBETSART THEN DO:
+      CREATE tidut.
+      SUBSTRING(tidut.UT,4) = "Arbetsart".
+      SUBSTRING(tidut.UT,20) = ":".
+      SUBSTRING(tidut.UT,22) = ARBETSART.ARBBENAMNING.
+   END.
+   /*
+   /*dagbok*/
+   RUN dagbok (INPUT aonrvar,INPUT delnrvar).
+   */
+   /*TIDLÄGEN*/      
+   RUN tidlagen (INPUT aonrvar,INPUT delnrvar).
+      /*
+         ,INPUT-OUTPUT TABLE tidut). 
+         */
+   /*KOPPLINGAR*/
+   RUN kopplingar (INPUT aonrvar,INPUT delnrvar).
+   IF kostregok = TRUE THEN RUN kostreg_UI (INPUT aonrvar,INPUT delnrvar).         
+      /*
+         ,INPUT-OUTPUT TABLE tidut). 
+         */
+END PROCEDURE.
+
+PROCEDURE aokont.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   /*DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tidut.*/
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+   AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.
+   FIND LAST tidut NO-LOCK NO-ERROR.
+   CREATE tidut.  
+   ASSIGN tidut.UT = SUBSTRING(str,1,92).    
+   FIND FIRST KBENAMNING USE-INDEX KBEN NO-LOCK NO-ERROR.
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,4) = "Kontosträng"
+   SUBSTRING(tidut.UT,22) = CAPS(SUBSTRING(KBENAMNING.K1,1,1)) + LC(SUBSTRING(KBENAMNING.K1,2)) 
+   SUBSTRING(tidut.UT,29) = CAPS(SUBSTRING(KBENAMNING.K2,1,1)) + LC(SUBSTRING(KBENAMNING.K2,2))
+   SUBSTRING(tidut.UT,36) = CAPS(SUBSTRING(KBENAMNING.K3,1,1)) + LC(SUBSTRING(KBENAMNING.K3,2))
+   SUBSTRING(tidut.UT,43) = CAPS(SUBSTRING(KBENAMNING.K4,1,1)) + LC(SUBSTRING(KBENAMNING.K4,2))
+   SUBSTRING(tidut.UT,50) = CAPS(SUBSTRING(KBENAMNING.K5,1,1)) + LC(SUBSTRING(KBENAMNING.K5,2)).
+   SUBSTRING(tidut.UT,57) = "Procent".
+   /*
+   CREATE tidut.  
+   ASSIGN tidut.UT = SUBSTRING(str,1,92).   
+   */
+   FOR EACH AONRKONTKOD WHERE
+   AONRKONTKOD.AONR = AONRTAB.AONR AND AONRKONTKOD.DELNR = AONRTAB.DELNR 
+   USE-INDEX AONRKONT NO-LOCK:         
+      CREATE tidut.
+      SUBSTRING(tidut.UT,22) = AONRKONTKOD.K1. 
+      SUBSTRING(tidut.UT,29) = AONRKONTKOD.K2.
+      SUBSTRING(tidut.UT,36) = AONRKONTKOD.K3.
+      SUBSTRING(tidut.UT,43) = AONRKONTKOD.K4.
+      SUBSTRING(tidut.UT,50) = AONRKONTKOD.K5. 
+      SUBSTRING(tidut.UT,57) = STRING(AONRKONTKOD.SATS%).
+   END.                           
+END PROCEDURE.
+
+PROCEDURE kopplingar.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   /*DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tidut.*/
+   DEFINE VARIABLE totkost AS INTEGER NO-UNDO.
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+   AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.
+   FIND LAST tidut NO-LOCK NO-ERROR.
+   CREATE tidut.
+   SUBSTRING(tidut.UT,4) = "Kopplingar".
+   /*
+   CREATE tidut.   
+   ASSIGN tidut.UT = SUBSTRING(str,1,92).
+   */
+   CREATE tidut.
+   
+   /*PLANNR*/
+   IF AONRTAB.PLANNR NE ? THEN DO:
+      FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = AONRTAB.PLANNR AND
+      PLANNRTAB.ARTAL = AONRTAB.ARTAL USE-INDEX PLANNR NO-LOCK NO-ERROR.
+      IF AVAILABLE PLANNRTAB THEN DO:
+         ASSIGN
+         SUBSTRING(tidut.UT,4) = Guru.Konstanter:gpll 
+         SUBSTRING(tidut.UT,20) = ":"
+         SUBSTRING(tidut.UT,22) = PLANNRTAB.PLANNR
+         SUBSTRING(tidut.UT,44) = "Årtal" 
+         SUBSTRING(tidut.UT,56) = ":"
+         SUBSTRING(tidut.UT,58) = STRING(PLANNRTAB.ARTAL).
+         CREATE tidut.
+         ASSIGN
+         SUBSTRING(tidut.UT,4) = "Benämning" 
+         SUBSTRING(tidut.UT,20) = ":"
+         SUBSTRING(tidut.UT,22) = PLANNRTAB.ORT.
+         CREATE tidut.
+         CREATE tidut.
+      END.
+   END.
+   
+   /*FASTA KALKYLER*/
+   OPEN QUERY fq FOR EACH KALKAONR WHERE KALKAONR.AONR = AONRTAB.AONR AND
+   KALKAONR.DELNR = AONRTAB.DELNR NO-LOCK,
+   EACH FASTSPEC WHERE FASTSPEC.KALKNR = KALKAONR.KALKNR 
+   NO-LOCK.
+   GET FIRST fq NO-LOCK.
+   DO WHILE AVAILABLE(FASTSPEC):
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = "Kalkyl" 
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,22) = STRING(FASTSPEC.KALKNR)
+      SUBSTRING(tidut.UT,44) = "Typ" 
+      SUBSTRING(tidut.UT,56) = ":"
+      SUBSTRING(tidut.UT,58) = STRING(FASTSPEC.TYP).
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = "Benämning" 
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,22) = FASTSPEC.BENAMNING.
+      IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "LULE" THEN DO:        
+         /*FIND FIRST KALKNATT WHERE KALKNATT.DELNR = FASTSPEC.KALKNR NO-LOCK NO-ERROR.
+         IF AVAILABLE KALKNATT THEN DO:         
+            CREATE tidut.
+            ASSIGN                    
+            SUBSTRING(tidut.UT,4) = "KALK. GRUND     :" 
+            SUBSTRING(tidut.UT,22) = STRING(INTEGER(KALKNATT.MTRLKOST + KALKNATT.ARBETSKOST + KALKNATT.MASKINKOST + KALKNATT.OVRIGKOST)).
+         END.*/ 
+                   
+         RUN SUMKALK2C.P (INPUT FASTSPEC.KALKNR, INPUT Guru.Konstanter:globforetag, OUTPUT totkost).
+                  
+         CREATE tidut.
+         ASSIGN                           
+         SUBSTRING(tidut.UT,4) = "Kalk. kostnad" 
+         SUBSTRING(tidut.UT,20) = ":"
+         SUBSTRING(tidut.UT,22) = STRING(INTEGER(totkost)).               
+      END.
+      CREATE tidut.
+      CREATE tidut.
+      GET NEXT fq NO-LOCK.
+   END.
+   CLOSE QUERY fq.            
+   /*FRI KALKYL*/   
+   OPEN QUERY fkq FOR EACH KALKAONR WHERE KALKAONR.AONR = AONRTAB.AONR AND
+   KALKAONR.DELNR = AONRTAB.DELNR NO-LOCK,
+   EACH KALKSPEC WHERE KALKSPEC.KALKNR = KALKAONR.KALKNR NO-LOCK.
+   GET FIRST fkq NO-LOCK.
+   DO WHILE AVAILABLE(KALKSPEC):  
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = "Kalkyl" 
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,22) = STRING(KALKSPEC.KALKNR)
+      SUBSTRING(tidut.UT,44) = "Typ" 
+      SUBSTRING(tidut.UT,56) = ":"
+      SUBSTRING(tidut.UT,58) = "Fri".
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = "Benämning" 
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,22) = KALKSPEC.KALKTEXT.
+      CREATE tidut.
+      CREATE tidut.
+      GET NEXT fkq NO-LOCK.
+   END.
+   IF Guru.Konstanter:varforetypval[3] >= 1 AND Guru.Konstanter:varforetypval[3] < 4 THEN DO:
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = "Faktureringstyp" 
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,22) = faktyp(AONRTAB.FAKTTYP).   
+      IF AONRTAB.BETNR > 0 THEN DO:
+         CREATE tidut.
+         ASSIGN                   
+         SUBSTRING(tidut.UT,4) = "Offertpris" 
+         SUBSTRING(tidut.UT,20) = ":"
+         SUBSTRING(tidut.UT,22) = STRING(AONRTAB.BETNR).               
+      END.
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = "Ansvarig" 
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,22) = AONRTAB.ANVANDARE.
+      CREATE tidut.
+      CREATE tidut.
+   END.
+   IF AONRTAB.FAKTNR NE 0 THEN DO:     
+      FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = AONRTAB.FAKTNR 
+      USE-INDEX FAKTNR NO-LOCK NO-ERROR.
+      IF AVAILABLE FAKTPLAN THEN DO:
+         ASSIGN
+         SUBSTRING(tidut.UT,4) = "Fakturaplaner" 
+         SUBSTRING(tidut.UT,20) = ":"
+         SUBSTRING(tidut.UT,22) = STRING(FAKTPLAN.FAKTNR).         
+         CREATE tidut.
+         ASSIGN
+         SUBSTRING(tidut.UT,4) = "Benämning" 
+         SUBSTRING(tidut.UT,20) = ":"
+         SUBSTRING(tidut.UT,22) = FAKTPLAN.NAMN.
+         CREATE tidut.
+         CREATE tidut.
+      END.
+       
+   END.
+   
+   /*BEREDNING*/
+   FIND FIRST BEREDNING WHERE BEREDNING.AONR = AONRTAB.AONR AND 
+   BEREDNING.DELNR = AONRTAB.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.
+   IF AVAILABLE BEREDNING THEN DO:
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = "Beredning" 
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,22) = STRING(BEREDNING.BERNR).         
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = "Benämning" 
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,22) = BEREDNING.BENAMNING.
+      CREATE tidut.
+      CREATE tidut.
+   END.
+   
+   /*MARKVÄRDERING*/
+   FIND FIRST VARDERING WHERE VARDERING.AONR = AONRTAB.AONR AND
+   VARDERING.DELNR = AONRTAB.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.
+   IF AVAILABLE VARDERING THEN DO:
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = "Markvärdering" 
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,22) = STRING(VARDERING.VARDNR).         
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = "Benämning" 
+      SUBSTRING(tidut.UT,20) = ":"
+      SUBSTRING(tidut.UT,22) = VARDERING.BENAMNING.
+      CREATE tidut.
+      CREATE tidut.
+   END.   
+END PROCEDURE.
+
+PROCEDURE dagbok.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   DEFINE VARIABLE dagt AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE dagk AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE dagboktemp NO-ERROR. 
+   EMPTY TEMP-TABLE tidut NO-ERROR. 
+   IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+      RUN startalt1_UI (INPUT aonrvar,INPUT delnrvar,INPUT Guru.Konstanter:globforetag).
+   END.
+   ELSE DO:
+      RUN startalt2_UI (INPUT aonrvar,INPUT delnrvar,INPUT Guru.Konstanter:globforetag,INPUT grubrikvar).
+   END.
+   DEFINE VARIABLE raknare AS INTEGER NO-UNDO.
+   CREATE tidut.
+   CREATE tidut.
+   ASSIGN tidut.UT = "   Dagbok".
+/*    CREATE tidut.                          */
+/*    ASSIGN tidut.UT = SUBSTRING(str,1,92). */
+   RUN FINNSTABELL.P (INPUT "EXTRAKOPPLINGAR", OUTPUT bloblog).
+   IF bloblog = FALSE THEN RETURN.
+   RUN EXTRATABHMT.P PERSISTENT SET edataapph.                  
+   EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+   CREATE inextrakopptemp.          
+   ASSIGN
+   inextrakopptemp.PROGRAM = "AODAGBOK"                   
+   inextrakopptemp.KOPPLACHAR1 = aonrvar               
+   inextrakopptemp.KOPPLAINT1 = delnrvar
+   inextrakopptemp.KOPPLACHAR2 = ?            
+   inextrakopptemp.KOPPLAINT2 =  ?.
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextrakopptemp, OUTPUT TABLE extrakopptemp). 
+   FOR EACH extrakopptemp:
+      raknare = 1.
+      REPEAT:
+         IF extrakopptemp.SOKDAT[raknare] NE ? THEN DO:           
+            CREATE dagboktemp.             
+            ASSIGN                    
+            dagboktemp.DATUM = (extrakopptemp.SOKDAT[raknare]) 
+            dagboktemp.ANVANDARE = SUBSTRING(extrakopptemp.SOKCHAR[raknare],1,15)
+            dagboktemp.DAGBOKAO  = SUBSTRING(extrakopptemp.SOKCHAR[raknare],20)
+            dagboktemp.TIMMAR    = extrakopptemp.SOKDEC[raknare].
+            dagboktemp.KILOMETER = extrakopptemp.SOKINT[raknare].
+         END.
+         raknare = raknare + 1.
+         IF raknare >= 10 THEN LEAVE.
+      END.
+   END.
+   
+   FOR EACH dagboktemp BY dagboktemp.DATUM BY dagboktemp.ANVANDARE:
+      CREATE tidut.             
+      ASSIGN                    
+      SUBSTRING(tidut.UT,4) = STRING(dagboktemp.DATUM) 
+      SUBSTRING(tidut.UT,13) =  dagboktemp.ANVANDARE. 
+      IF dagboktemp.TIMMAR > 0 THEN SUBSTRING(tidut.UT,33) =  "Antal timmar : " + STRING(dagboktemp.TIMMAR). 
+      IF dagboktemp.KILOMETER > 0 THEN SUBSTRING(tidut.UT,66) =  "Antal kilometer : " + STRING(dagboktemp.KILOMETER). 
+      CREATE tidut.                
+      ASSIGN
+      retvar = 1
+      ednum = 1
+      ednum3 = LENGTH(dagboktemp.DAGBOKAO)
+      retvar = INDEX(dagboktemp.DAGBOKAO,CHR(10),ednum)
+      edtecken = 52
+      edtext = dagboktemp.DAGBOKAO
+      tidtext = "".
+      RUN anmarkning (INPUT Guru.Konstanter:globforetag,INPUT-OUTPUT retvar,INPUT-OUTPUT edtext,INPUT-OUTPUT ednum,
+               INPUT-OUTPUT edtecken,INPUT-OUTPUT ednum2,
+               INPUT-OUTPUT ednum3).           
+   END.
+   dagt = 0.
+   dagk = 0.
+   FOR EACH dagboktemp:
+      dagt = dagt + dagboktemp.TIMMAR. 
+      dagk = dagk + dagboktemp.KILOMETER.
+   END.
+            
+   IF dagt > 0 OR dagk > 0 THEN DO:
+      CREATE tidut.             
+      IF dagt > 0 THEN SUBSTRING(tidut.UT,26) =  "Totalt antal timmar : " + STRING(dagt).
+      IF dagk > 0 THEN SUBSTRING(tidut.UT,59) =  "Totalt antal kilometer : " + STRING(dagk). 
+   END.
+
+   EMPTY TEMP-TABLE extrakopptemp NO-ERROR. 
+   EMPTY TEMP-TABLE dagboktemp NO-ERROR. 
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+   edataapph = ?.
+
+
+END PROCEDURE.
+
+PROCEDURE dagbok2.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER bnamn AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR dagboktemp.
+   DEFINE VARIABLE dagt AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE dagk AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE dagboktemp NO-ERROR. 
+   EMPTY TEMP-TABLE tidut NO-ERROR. 
+   
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+   AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.
+   bnamn = AONRTAB.ORT.
+   
+   /*IF Guru.Konstanter:globforetag = "cELPA" {GLOBVES.I} THEN DO:
+      RUN startalt1_UI (INPUT aonrvar,INPUT delnrvar,INPUT Guru.Konstanter:globforetag).
+   END.
+   ELSE DO:
+      RUN startalt2_UI (INPUT aonrvar,INPUT delnrvar,INPUT Guru.Konstanter:globforetag,INPUT grubrikvar).
+   END.*/
+   DEFINE VARIABLE raknare AS INTEGER NO-UNDO.
+   /*CREATE tidut.
+   CREATE tidut.
+   ASSIGN tidut.UT = "   Dagbok".*/
+/*    CREATE tidut.                          */
+/*    ASSIGN tidut.UT = SUBSTRING(str,1,92). */
+   RUN FINNSTABELL.P (INPUT "EXTRAKOPPLINGAR", OUTPUT bloblog).
+   IF bloblog = FALSE THEN RETURN.
+   RUN EXTRATABHMT.P PERSISTENT SET edataapph.                  
+   EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+   CREATE inextrakopptemp.          
+   ASSIGN
+   inextrakopptemp.PROGRAM = "AODAGBOK"                   
+   inextrakopptemp.KOPPLACHAR1 = aonrvar               
+   inextrakopptemp.KOPPLAINT1 = delnrvar
+   inextrakopptemp.KOPPLACHAR2 = ?            
+   inextrakopptemp.KOPPLAINT2 =  ?.
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextrakopptemp, OUTPUT TABLE extrakopptemp). 
+   FOR EACH extrakopptemp:
+      raknare = 1.
+      REPEAT:
+         IF extrakopptemp.SOKDAT[raknare] NE ? THEN DO:           
+            CREATE dagboktemp.             
+            ASSIGN                    
+            dagboktemp.DATUM = (extrakopptemp.SOKDAT[raknare]) 
+            dagboktemp.ANVANDARE = SUBSTRING(extrakopptemp.SOKCHAR[raknare],1,15)
+            dagboktemp.DAGBOKAO  = SUBSTRING(extrakopptemp.SOKCHAR[raknare],20)
+            dagboktemp.TIMMAR    = extrakopptemp.SOKDEC[raknare].
+            dagboktemp.KILOMETER = extrakopptemp.SOKINT[raknare].
+         END.
+         raknare = raknare + 1.
+         IF raknare >= 10 THEN LEAVE.
+      END.
+   END.
+   
+   /*FOR EACH dagboktemp BY dagboktemp.DATUM BY dagboktemp.ANVANDARE:
+      CREATE tidut.             
+      ASSIGN                    
+      SUBSTRING(tidut.UT,4) = STRING(dagboktemp.DATUM) 
+      SUBSTRING(tidut.UT,13) =  dagboktemp.ANVANDARE. 
+      IF dagboktemp.TIMMAR > 0 THEN SUBSTRING(tidut.UT,33) =  "Antal timmar : " + STRING(dagboktemp.TIMMAR). 
+      IF dagboktemp.KILOMETER > 0 THEN SUBSTRING(tidut.UT,66) =  "Antal kilometer : " + STRING(dagboktemp.KILOMETER). 
+      CREATE tidut.                
+      ASSIGN
+      retvar = 1
+      ednum = 1
+      ednum3 = LENGTH(dagboktemp.DAGBOKAO)
+      retvar = INDEX(dagboktemp.DAGBOKAO,CHR(10),ednum)
+      edtecken = 52
+      edtext = dagboktemp.DAGBOKAO
+      tidtext = "".
+      RUN anmarkning (INPUT Guru.Konstanter:globforetag,INPUT-OUTPUT retvar,INPUT-OUTPUT edtext,INPUT-OUTPUT ednum,
+               INPUT-OUTPUT edtecken,INPUT-OUTPUT ednum2,
+               INPUT-OUTPUT ednum3).           
+   END.
+   dagt = 0.
+   dagk = 0.
+   FOR EACH dagboktemp:
+      dagt = dagt + dagboktemp.TIMMAR. 
+      dagk = dagk + dagboktemp.KILOMETER.
+   END.
+            
+   IF dagt > 0 OR dagk > 0 THEN DO:
+      CREATE tidut.             
+      IF dagt > 0 THEN SUBSTRING(tidut.UT,26) =  "Totalt antal timmar : " + STRING(dagt).
+      IF dagk > 0 THEN SUBSTRING(tidut.UT,59) =  "Totalt antal kilometer : " + STRING(dagk). 
+   END.*/
+
+   EMPTY TEMP-TABLE extrakopptemp NO-ERROR. 
+   
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+   edataapph = ?.
+
+
+END PROCEDURE.
+
+PROCEDURE tidlagen.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   /*DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tidut.*/
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+   AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.
+   FIND LAST tidut NO-LOCK NO-ERROR.
+   CREATE tidut.  
+   ASSIGN tidut.UT = SUBSTRING(str,1,92).      
+   OPEN QUERY aotidq FOR EACH AONRTIDLAGE WHERE 
+   AONRTIDLAGE.AONR = AONRTAB.AONR AND
+   AONRTIDLAGE.DELNR = AONRTAB.DELNR NO-LOCK,
+   EACH TIDSLAGEN WHERE TIDSLAGEN.IDTIDLAG = AONRTIDLAGE.IDTIDLAG NO-LOCK.
+   GET FIRST aotidq NO-LOCK.
+   IF AVAILABLE AONRTIDLAGE THEN DO:
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = Guru.Konstanter:gtidlk          
+      SUBSTRING(tidut.UT,22) = "Aktivitet"
+      SUBSTRING(tidut.UT,38) = "Datum"
+      SUBSTRING(tidut.UT,47) = "Ändrad av"                  
+      SUBSTRING(tidut.UT,57) = "Aktivitet"
+      SUBSTRING(tidut.UT,73) = "Datum"    
+      SUBSTRING(tidut.UT,82) = "Ändrad av".         
+   END.
+   DO WHILE AVAILABLE(AONRTIDLAGE):
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,4) = STRING(TIDSLAGEN.TIDLAGE,"X(19)")          
+      SUBSTRING(tidut.UT,22) = STRING(TIDSLAGEN.AKTIVITET1,"X(15)")
+      SUBSTRING(tidut.UT,57) = STRING(TIDSLAGEN.AKTIVITET2,"X(15)").
+      
+      IF AONRTIDLAGE.ANVANDARE1 = "AUTOMATISKT" THEN SUBSTRING(tidut.UT,47) = "Auto".
+      ELSE SUBSTRING(tidut.UT,47) = STRING(AONRTIDLAGE.ANVANDARE1,"X(10)").
+      IF AONRTIDLAGE.ANVANDARE2 = "AUTOMATISKT" THEN SUBSTRING(tidut.UT,82) = "Auto".
+      ELSE SUBSTRING(tidut.UT,82) = STRING(AONRTIDLAGE.ANVANDARE2,"X(10)").   
+      IF AONRTIDLAGE.DATUM1 NE ? THEN SUBSTRING(tidut.UT,38) = STRING(AONRTIDLAGE.DATUM1).
+      IF AONRTIDLAGE.DATUM2 NE ? THEN SUBSTRING(tidut.UT,73) = STRING(AONRTIDLAGE.DATUM2).
+      IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+         FIND FIRST AOTIDLKOPP WHERE AOTIDLKOPP.AONR = AONRTAB.AONR AND
+         AOTIDLKOPP.DELNR = AONRTAB.DELNR AND AOTIDLKOPP.IDTIDLAG = AONRTIDLAGE.IDTIDLAG
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE AOTIDLKOPP THEN DO:         
+            IF AOTIDLKOPP.ANMARK NE "" THEN DO:
+               CREATE tidut.                
+               ASSIGN
+               retvar = 1
+               ednum = 1
+               ednum3 = LENGTH(AOTIDLKOPP.ANMARK)
+               retvar = INDEX(AOTIDLKOPP.ANMARK,CHR(10),ednum)
+               edtecken = 38
+               edtext = AOTIDLKOPP.ANMARK
+               tidtext = "".
+               RUN anmarkning (INPUT Guru.Konstanter:globforetag,INPUT-OUTPUT retvar,INPUT-OUTPUT edtext,INPUT-OUTPUT ednum,
+                        INPUT-OUTPUT edtecken,INPUT-OUTPUT ednum2,
+                        INPUT-OUTPUT ednum3).
+                  /*
+         ,INPUT-OUTPUT TABLE tidut). 
+         */
+            END.
+         END.
+      END.
+      GET NEXT aotidq NO-LOCK.
+   END.
+   CREATE tidut.
+   CREATE tidut.
+   CREATE tidut.  
+   ASSIGN tidut.UT = SUBSTRING(str,1,92).                      
+END PROCEDURE.
+
+PROCEDURE anmarkning :
+       
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER retvar AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER edtext AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER ednum AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER edtecken AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER ednum2 AS INTEGER NO-UNDO.
+   /*DEFINE INPUT-OUTPUT PARAMETER tidtext AS CHARACTER NO-UNDO.*/
+   DEFINE INPUT-OUTPUT PARAMETER ednum3 AS INTEGER NO-UNDO.
+   /*DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tidut.*/
+   ASSIGN Guru.Konstanter:globforetag = gforetag.
+   FIND LAST tidut NO-LOCK NO-ERROR.
+   IF retvar = 0 THEN DO:                 
+      IF SUBSTRING(edtext,edtecken,1) = " " THEN DO:  
+         tidtext = SUBSTRING(edtext,ednum,edtecken).
+         ednum = ednum + edtecken.
+      END.
+      ELSE DO:                  
+         ednum2 = 1. 
+         retvar = INDEX(edtext," ",ednum2).
+         IF retvar > edtecken THEN DO:
+            tidtext = SUBSTRING(edtext,ednum,edtecken).
+            ednum = ednum + edtecken.
+         END.
+         ELSE IF retvar = 0 THEN DO:
+            tidtext = SUBSTRING(edtext,ednum,edtecken).
+            ednum = ednum + edtecken.
+         END.
+         ELSE DO:     
+            DO WHILE ednum2 < edtecken:
+               IF ednum2 > 0 THEN DO:
+                  retvar = INDEX(edtext," ",ednum2).
+                  ednum2 = INDEX(edtext," ",retvar + 1).                   
+               END.
+               ELSE LEAVE.   
+            END.             
+            tidtext = SUBSTRING(edtext,ednum,retvar).
+            ednum = ednum + retvar.
+         END.   
+      END.
+     RUN anmark (INPUT 2,INPUT Guru.Konstanter:globforetag).
+        /*
+         ,INPUT-OUTPUT TABLE tidut). 
+         */
+      DO WHILE ednum < ednum3:
+         IF SUBSTRING(edtext,ednum + edtecken,1) = " " THEN DO:
+            tidtext = SUBSTRING(edtext,ednum,edtecken).
+            ednum = ednum + edtecken + 1.
+         END.
+         ELSE DO:           
+            ednum2 = ednum.
+            retvar = INDEX(edtext," ",ednum2).
+            IF retvar > edtecken + ednum THEN DO:
+               tidtext = SUBSTRING(edtext,ednum,edtecken).
+               ednum = ednum + edtecken.
+            END.
+            ELSE IF retvar = 0 THEN DO:
+               tidtext = SUBSTRING(edtext,ednum,edtecken).
+               ednum = ednum + edtecken.
+            END.
+            ELSE DO:               
+               DO WHILE ednum2 < edtecken + ednum:
+                  IF ednum2 > 0 THEN DO:
+                     retvar = INDEX(edtext," ",ednum2).
+                     ednum2 = INDEX(edtext," ",retvar + 1).                   
+                  END.
+                  ELSE LEAVE.   
+               END. 
+               tidtext = SUBSTRING(edtext,ednum,retvar - ednum).
+               ednum = retvar + 1.
+            END.   
+         END.   
+        RUN anmark (INPUT 2,INPUT Guru.Konstanter:globforetag).
+        /*
+         ,INPUT-OUTPUT TABLE tidut). 
+         */
+      END.
+   END.
+   ELSE DO:
+      IF retvar <= edtecken THEN DO:         
+         tidtext = SUBSTRING(edtext,ednum,retvar - 1).
+         ednum = retvar + 1.
+      END.
+      ELSE DO:
+         IF SUBSTRING(edtext,edtecken,1) = " " THEN DO:
+            tidtext = SUBSTRING(edtext,ednum,edtecken).
+            ednum = ednum + edtecken + 1.
+         END.
+         ELSE DO:    
+            ednum2 = 1.  
+            retvar = INDEX(edtext," ",ednum2).
+            IF retvar > edtecken THEN DO:
+               tidtext = SUBSTRING(edtext,ednum,edtecken).
+               ednum = ednum + edtecken.
+            END.
+            ELSE IF retvar = 0 THEN DO:
+               tidtext = SUBSTRING(edtext,ednum,edtecken).
+               ednum = ednum + edtecken.
+            END.
+            ELSE DO:    
+               DO WHILE ednum2 < edtecken:
+                  IF ednum2 > 0 THEN DO:
+                     retvar = INDEX(edtext," ",ednum2).
+                     ednum2 = INDEX(edtext," ",retvar + 1).
+                  END.
+                  ELSE LEAVE.   
+               END. 
+               tidtext = SUBSTRING(edtext,ednum,retvar).
+               ednum = ednum + retvar.  
+            END.   
+         END.
+      END.
+      retvar = INDEX(edtext,CHR(10),ednum).
+     RUN anmark (INPUT 2,INPUT Guru.Konstanter:globforetag).
+     /*
+         ,INPUT-OUTPUT TABLE tidut). 
+         */
+      DO WHILE retvar > 0:
+         IF retvar <= edtecken + ednum THEN DO:         
+            tidtext = SUBSTRING(edtext,ednum,retvar - ednum).
+            ednum = retvar + 1.
+         END.
+         ELSE DO:
+            IF SUBSTRING(edtext,edtecken + ednum,1) = " " THEN DO:
+               tidtext = SUBSTRING(edtext,ednum,edtecken).
+               ednum = ednum + edtecken + 1.
+            END.
+            ELSE DO:    
+               ednum2 = ednum.      
+               retvar = INDEX(edtext," ",ednum2).
+               IF retvar > edtecken + ednum THEN DO:
+                  tidtext = SUBSTRING(edtext,ednum,edtecken).
+                  ednum = ednum + edtecken.
+               END.
+               ELSE IF retvar = 0 THEN DO:
+                  tidtext = SUBSTRING(edtext,ednum,edtecken).
+                  ednum = ednum + edtecken.
+               END.
+               ELSE DO:
+                  DO WHILE ednum2 < edtecken + ednum:
+                     IF ednum2 > 0 THEN DO:
+                        retvar = INDEX(edtext," ",ednum2).
+                        ednum2 = INDEX(edtext," ",retvar + 1).
+                     END.
+                     ELSE LEAVE.   
+                  END. 
+                  tidtext = SUBSTRING(edtext,ednum,retvar - ednum).
+                  ednum = retvar + 1.  
+               END.   
+            END.
+         END.
+         retvar = INDEX(edtext,CHR(10),ednum).
+        RUN anmark (INPUT 2,INPUT Guru.Konstanter:globforetag).
+        /*
+         ,INPUT-OUTPUT TABLE tidut). 
+         */
+      END.   
+      DO WHILE ednum < ednum3:
+         IF SUBSTRING(edtext,ednum + edtecken,1) = " " THEN DO:
+            tidtext = SUBSTRING(edtext,ednum,edtecken).
+            ednum = ednum + edtecken + 1.
+         END.
+         ELSE DO:           
+            ednum2 = ednum.
+            retvar = INDEX(edtext," ",ednum2).
+            IF retvar > edtecken + ednum THEN DO:
+               tidtext = SUBSTRING(edtext,ednum,edtecken).
+               ednum = ednum + edtecken.
+            END.
+            ELSE IF retvar = 0 THEN DO:
+               tidtext = SUBSTRING(edtext,ednum,edtecken).
+               ednum = ednum + edtecken.
+            END.
+            ELSE DO:               
+               DO WHILE ednum2 < edtecken + ednum:
+                  IF ednum2 > 0 THEN DO:
+                     retvar = INDEX(edtext," ",ednum2).
+                     ednum2 = INDEX(edtext," ",retvar + 1).                   
+                  END.
+                  ELSE LEAVE.   
+               END. 
+               tidtext = SUBSTRING(edtext,ednum,retvar - ednum).
+               ednum = retvar + 1.
+            END.   
+         END.   
+         RUN anmark (INPUT 2,INPUT Guru.Konstanter:globforetag).
+         /*
+         ,INPUT-OUTPUT TABLE tidut). 
+         */
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE anmark.
+   DEFINE INPUT PARAMETER anmark AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   /*DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tidut.*/
+   ASSIGN Guru.Konstanter:globforetag = gforetag.
+   FIND LAST tidut NO-LOCK NO-ERROR.
+   IF anmark = 2 THEN DO:        
+      IF    
+         Guru.Konstanter:globforetag = "VAST" THEN DO:
+         ASSIGN            
+         SUBSTRING(tidut.UT,20) = ""   
+         SUBSTRING(tidut.UT,22) = tidtext.
+         CREATE tidut.
+      END.
+      ELSE DO:
+         ASSIGN            
+         SUBSTRING(tidut.UT,20) = ":"   
+         SUBSTRING(tidut.UT,22) = tidtext.
+         CREATE tidut.
+      END.      
+   END.                              
+END PROCEDURE.
+

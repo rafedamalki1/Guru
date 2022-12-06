@@ -1,0 +1,301 @@
+/*ANDRAVARDAPP.P*/
+{STARTFORAPP.I}
+{MARKVARD.I}
+{MARKTEMP.I}
+{NRSERIETEMP.I}
+{FASTIGHET.I}
+{ANVPERS.I}
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{AONRDEF.I}
+{ANSVMARK.I}
+
+
+PROCEDURE laddavard.
+   DEFINE INPUT PARAMETER vart AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER aonrrec AS RECID NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR varderingtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR uppaonrtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR nrprefistemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR ansvmarktemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR anvandartemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR vardinttemp.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR varderingtemp.   
+   EMPTY TEMP-TABLE varderingtemp NO-ERROR.    
+   IF vart = "NYA" THEN DO:
+      CREATE varderingtemp.
+   END.
+   ELSE DO:
+      FIND FIRST VARDERING WHERE VARDERING.VARDNR = vardnr NO-LOCK NO-ERROR.
+      IF AVAILABLE VARDERING THEN DO:
+         CREATE varderingtemp.
+         BUFFER-COPY VARDERING TO varderingtemp.
+      END.      
+   END.
+   EMPTY TEMP-TABLE ansvmarktemp NO-ERROR.    
+   IF Guru.Konstanter:varforetypval[2] = 0 THEN DO:
+      OPEN QUERY ansq FOR EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE  USE-INDEX PERSONALKOD NO-LOCK.
+   END.
+   ELSE DO:
+      OPEN QUERY ansq FOR EACH PERSONALTAB   USE-INDEX PERSONALKOD NO-LOCK.
+   END.      
+   GET FIRST ansq NO-LOCK.
+   DO WHILE AVAILABLE(PERSONALTAB):
+      CREATE ansvmarktemp.
+      ASSIGN 
+      ansvmarktemp.NAMN = PERSONALTAB.EFTERNAMN + " " + PERSONALTAB.FORNAMN
+      ansvmarktemp.FORNAMN = PERSONALTAB.FORNAMN 
+      ansvmarktemp.EFTERNAMN = PERSONALTAB.EFTERNAMN 
+      ansvmarktemp.PERSONALKOD = PERSONALTAB.PERSONALKOD. 
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+      GET NEXT ansq NO-LOCK.
+   END.
+   CLOSE QUERY ansq.   
+   EMPTY TEMP-TABLE anvandartemp NO-ERROR.    
+   OPEN QUERY anvq FOR EACH ANVANDARE USE-INDEX ANDV NO-LOCK.
+   GET FIRST anvq NO-LOCK.
+   DO WHILE AVAILABLE(ANVANDARE):
+      CREATE anvandartemp.
+      BUFFER-COPY ANVANDARE TO anvandartemp.
+      GET NEXT anvq NO-LOCK.
+   END.
+   CLOSE QUERY anvq.
+   FIND FIRST AONRTAB WHERE RECID(AONRTAB) = aonrrec NO-LOCK NO-ERROR.
+   IF AVAILABLE AONRTAB THEN DO:
+      CREATE uppaonrtemp.
+      BUFFER-COPY AONRTAB TO uppaonrtemp.
+      ASSIGN
+      uppaonrtemp.PROJEKTOR = AONRTAB.STARTDAG
+      uppaonrtemp.AONRREC = RECID(AONRTAB)
+      uppaonrtemp.TABORT = TRUE.      
+   END.
+   EMPTY TEMP-TABLE nrprefistemp NO-ERROR.    
+   OPEN QUERY nrpq FOR EACH NRPREFISERIE NO-LOCK.
+   GET FIRST nrpq NO-LOCK.
+   DO WHILE AVAILABLE(NRPREFISERIE):
+      CREATE nrprefistemp.
+      BUFFER-COPY NRPREFISERIE TO nrprefistemp.
+      GET NEXT nrpq NO-LOCK.
+   END.
+   CLOSE QUERY nrpq.
+   EMPTY TEMP-TABLE vardinttemp NO-ERROR.    
+   OPEN QUERY vq FOR EACH VARDINT USE-INDEX OMRADE NO-LOCK.   
+   GET FIRST vq NO-LOCK.
+   DO WHILE AVAILABLE(VARDINT):
+      CREATE vardinttemp.
+      BUFFER-COPY VARDINT TO vardinttemp.
+      GET NEXT vq NO-LOCK.
+   END.
+   CLOSE QUERY vq.
+   
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+
+PROCEDURE btnok.
+   DEFINE INPUT PARAMETER vart AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER aoplan AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER vardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER omr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER aonrrec AS RECID NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN_ANVANDARE  AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN_VARDANV    AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN_VARDNR     AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN_BENAMNING  AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN_NATAGARE   AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER CMB_NATAGARE       AS CHARACTER NO-UNDO.
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = omr NO-LOCK NO-ERROR.
+   IF AVAILABLE OMRADETAB THEN DO TRANSACTION:
+      IF vart = "NYA" THEN DO:
+         FIND FIRST VARDERING WHERE VARDERING.VARDNR = FILL-IN_VARDNR EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE VARDERING THEN DO:
+            CREATE VARDERING.
+            ASSIGN 
+            VARDERING.VARDNR = FILL-IN_VARDNR.
+            vardnr = FILL-IN_VARDNR.
+         END.  
+         FIND FIRST VARDINT WHERE VARDINT.OMRADE = omr USE-INDEX OMRADE EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE VARDINT THEN DO:
+            ASSIGN VARDINT.VARDSIST = VARDINT.VARDSIST + 1.
+         END.
+      END.
+      FIND FIRST VARDERING WHERE VARDERING.VARDNR = vardnr EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE VARDERING THEN DO:         
+         ASSIGN 
+         SUBSTRING(VARDERING.ANVANDARE,1,39) = FILL-IN_ANVANDARE  
+         VARDERING.VARDANV = FILL-IN_VARDANV
+         VARDERING.VARDNR = FILL-IN_VARDNR
+         VARDERING.BENAMNING = FILL-IN_BENAMNING  
+         VARDERING.OMRADE = OMRADETAB.OMRADE.
+         IF Guru.Konstanter:varforetypval[5] = 1 THEN VARDERING.NATAGARE = FILL-IN_NATAGARE.     
+         IF Guru.Konstanter:globforetag = "GRAN" OR Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:          
+            IF CMB_NATAGARE = "Graninge Elnät AB" THEN VARDERING.NATAGARE = "18". 
+            IF CMB_NATAGARE = "Graninge Elnät Nord AB" THEN VARDERING.NATAGARE = "14". 
+         /* FIND FIRST NRPREFISERIE WHERE NRPREFISERIE.NRTEXT = CMB_NATAGARE NO-LOCK NO-ERROR.
+            IF AVAILABLE NRPREFISERIE THEN ASSIGN VARDERING.NATAGARE = NRPREFISERIE.PREFIX.     */
+         END.
+         vardnr = FILL-IN_VARDNR.
+         IF Guru.Konstanter:globforetag = "UMEA" OR Guru.Konstanter:globforetag = "UMBR" THEN DO:          
+            IF CMB_NATAGARE = "" OR CMB_NATAGARE = ? THEN SUBSTRING(VARDERING.ANVANDARE,40,20) = "".
+            ELSE SUBSTRING(VARDERING.ANVANDARE,40,20) = CMB_NATAGARE.
+         END.
+         IF aoplan = TRUE THEN DO: 
+            RUN koppla_UI (INPUT aonrrec,INPUT FILL-IN_VARDNR).         
+                  
+         END.
+      END. 
+   END.
+   RELEASE VARDINT NO-ERROR.
+   RELEASE AOVARD NO-ERROR.
+   RELEASE VARDERING NO-ERROR.
+END PROCEDURE.                                
+
+PROCEDURE kontroll.
+   DEFINE INPUT PARAMETER aoplan AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER aonrrec AS RECID NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE felmeddtemp  NO-ERROR.    
+   IF aoplan = TRUE THEN DO:          
+      FIND FIRST AONRTAB WHERE RECID(AONRTAB) = aonrrec NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DO:                        
+         FIND FIRST AOVARD WHERE AOVARD.AONR = AONRTAB.AONR AND
+         AOVARD.DELNR = AONRTAB.DELNR NO-LOCK NO-ERROR.
+         IF AVAILABLE AOVARD THEN DO:           
+            IF AOVARD.VARDNR NE ? THEN DO:
+               CREATE felmeddtemp.
+               ASSIGN felmeddtemp.FELMEDD = "Koppling av markvärdering är ej möjlig då annan markvärdering redan är kopplad".
+               RETURN.   
+            END.
+         END.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE koppla_UI :
+   DEFINE INPUT  PARAMETER aonrrec AS RECID NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN_VARDNR     AS INTEGER NO-UNDO.
+   FIND FIRST VARDERING WHERE VARDERING.VARDNR = FILL-IN_VARDNR EXCLUSIVE-LOCK NO-ERROR.
+   FIND FIRST AONRTAB WHERE RECID(AONRTAB) = aonrrec NO-LOCK NO-ERROR.
+   IF AVAILABLE AONRTAB THEN DO:                        
+      FIND FIRST AOVARD WHERE AOVARD.AONR = AONRTAB.AONR AND
+      AOVARD.DELNR = AONRTAB.DELNR EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE AOVARD THEN DO:           
+         IF AOVARD.VARDNR = ? THEN DO: 
+             ASSIGN 
+             AOVARD.VARDNR = VARDERING.VARDNR
+             VARDERING.AONR = AONRTAB.AONR
+             VARDERING.DELNR = AONRTAB.DELNR.   
+         END.                   
+      END.
+      ELSE DO:
+         ASSIGN
+         VARDERING.AONR = AONRTAB.AONR
+         VARDERING.DELNR = AONRTAB.DELNR.   
+         FIND FIRST AOVARD WHERE AOVARD.VARDNR = VARDERING.VARDNR
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE AOVARD THEN DO: 
+            CREATE AOVARD.
+         END.               
+         ASSIGN
+         AOVARD.AONR = AONRTAB.AONR
+         AOVARD.DELNR = AONRTAB.DELNR
+         AOVARD.VARDNR = VARDERING.VARDNR.
+      END.               
+   END.
+END PROCEDURE.
+
+PROCEDURE natag_UI.
+   DEFINE INPUT PARAMETER globforetag AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER TABLE FOR natagtemp.
+   EMPTY TEMP-TABLE natagtemp NO-ERROR.
+   IF Guru.Konstanter:globforetag = "KRIN" THEN .
+   ELSE IF Guru.Konstanter:globforetag = "snat" THEN DO:
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Sundsvall Elnät AB  556502-7223".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Strömsunds Kommun 212000-2486".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Ånge Kommun 212000-2387".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Ragunda Kommun 212000-2452".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Bergs Tingslags Elektriska AB 556012-2649".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Härnösand Energi & Miljö AB 556526-3745".
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "skel" THEN DO:
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Skellefteå kraft".
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "VALL" THEN DO:
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Elverket Vallentuna AB".
+   END.   
+   ELSE IF Guru.Konstanter:globforetag = "SKOK" THEN DO:
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Vattenfall Eldistribution AB".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "AB Pite Energi".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Jukkasjärvi sockens Belysningsförening".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Umeå Energi Elnät AB".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Boden Energi Nät AB".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Luleå Energi Elnät AB".
+      
+   END.   
+   ELSE IF Guru.Konstanter:globforetag = "LULE" THEN DO:      
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Luleå Energi Elnät AB".      
+   END.   
+   ELSE IF Guru.Konstanter:globforetag = "POWE" THEN DO:
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Vattenfall Eldistribution AB".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Ellevio".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Dala Energi".
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "PFBK" OR Guru.Konstanter:globforetag = "KEWA" OR Guru.Konstanter:globforetag = "GULL" OR Guru.Konstanter:globforetag = "SVKK"  THEN DO:
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Vattenfall Eldistribution AB".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Ellevio".
+      
+   END.   
+   ELSE IF Guru.Konstanter:globforetag = "SWEO" THEN DO:
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Vattenfall Eldistribution AB".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Jämtkraft Elnät AB".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Västerbergslagens Elnät AB".
+      
+   END.   
+   ELSE IF Guru.Konstanter:globforetag = "WSP" THEN DO:
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Vattenfall Eldistribution AB".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Eon Energidistribution AB".      
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "SSEL" THEN DO:
+      
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Eon Energidistribution AB".      
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "GRAN" THEN DO:
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Eon Energidistribution AB".
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Vattenfall Eldistribution AB".
+            
+   END.
+   ELSE DO:
+      CREATE natagtemp.
+      natagtemp.NATAGARE = "Vattenfall Eldistribution AB".
+   END.    
+   
+END PROCEDURE.                                                                  

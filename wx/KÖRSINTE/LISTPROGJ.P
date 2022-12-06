@@ -1,0 +1,300 @@
+/*LISTPROGJ.P*/ /*körs ej*/
+DEFINE VARIABLE datvar LIKE BERMTRL.DATUM NO-UNDO.
+DEFINE VARIABLE hittm AS LOGICAL NO-UNDO.
+DEFINE VARIABLE levbermtrl AS CHARACTER NO-UNDO.
+DEFINE VARIABLE enrbermtrl AS CHARACTER NO-UNDO.
+{MTRLJAM.I}   
+DEFINE TEMP-TABLE mtrl_temp 
+  {MTRLTEMPTT.I}
+
+DEFINE TEMP-TABLE lin_upp   
+   FIELD METER LIKE BERLINKAB.METER      
+   FIELD ENR LIKE BERLINKAB.ENR         
+   FIELD BENAMNING LIKE BERLINKAB.BENAMNING 
+   FIELD PRIS LIKE BERLINKAB.PRIS
+   FIELD ENHET LIKE BERLINKAB.ENHET   
+   FIELD TOTMETER LIKE BERLINKAB.TOTMETER
+   FIELD UPPLAG LIKE BERLINKAB.UPPLAG 
+   FIELD LEVKOD LIKE BERLINKAB.LEVKOD
+   FIELD TOTPRIS LIKE BERMTRL.PRIS         
+   INDEX ENR ENR ASCENDING.  
+   
+DEFINE TEMP-TABLE lin_temp  
+   FIELD NUM1 LIKE BERLINKAB.NUM1
+   FIELD NUM2 LIKE BERLINKAB.NUM2 
+   FIELD METER LIKE BERLINKAB.METER              
+   FIELD BENAMNING LIKE BERLINKAB.BENAMNING       
+   INDEX NUM NUM1 NUM2 ASCENDING.   
+DEFINE INPUT PARAMETER lev1 AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER lev2 AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER lev3 AS CHARACTER NO-UNDO.   
+DEFINE INPUT PARAMETER valaonr LIKE AONRTAB.AONR NO-UNDO.
+DEFINE INPUT PARAMETER valomrade LIKE AONRTAB.OMRADE NO-UNDO.
+
+DEFINE OUTPUT PARAMETER TABLE FOR mtrljam.
+DEFINE OUTPUT PARAMETER TABLE FOR lin_upp.
+DEFINE OUTPUT PARAMETER TABLE FOR lin_temp. 
+      
+   FIND LAST BERMTRL WHERE BERMTRL.AONR = valaonr AND 
+   BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE 
+   USE-INDEX DATUM NO-LOCK NO-ERROR.
+   IF AVAILABLE BERMTRL THEN DO:
+      datvar = BERMTRL.DATUM.
+   END.     
+   ELSE DO:
+      datvar = TODAY.
+   END.
+   OPEN QUERY mtrlprisq FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr AND
+   BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE
+   AND BERMTRL.DATUM = datvar USE-INDEX DATUM NO-LOCK.
+   GET FIRST mtrlprisq NO-LOCK.
+   DO WHILE AVAILABLE(BERMTRL):      
+      FIND FIRST BERVAL WHERE BERVAL.AONR = BERMTRL.AONR AND BERVAL.OMRADE = BERMTRL.OMRADE AND
+      BERVAL.NUM = BERMTRL.NUM AND BERVAL.KSKAP = FALSE NO-LOCK NO-ERROR.      
+      IF AVAILABLE BERVAL THEN DO:
+         CREATE mtrljam.
+         ASSIGN  
+         mtrljam.KTYPKOD = BERVAL.KTYPKOD
+         mtrljam.UPPLAG = BERVAL.UPPLAG
+         mtrljam.NUM = BERMTRL.NUM
+         mtrljam.ENR = BERMTRL.ENR     
+         mtrljam.BENAMNING = BERMTRL.BENAMNING
+         mtrljam.ENHET = BERMTRL.ENHET
+         mtrljam.ANTAL = BERMTRL.ANTAL
+         mtrljam.PRIS = BERMTRL.PRIS 
+         mtrljam.TOTPRIS = BERMTRL.PRIS * BERMTRL.ANTAL      
+         mtrljam.LEVKOD = BERMTRL.LEVKOD
+         mtrljam.PAR = BERMTRL.PAR
+         mtrljam.MTRLTEXT = BERMTRL.MTRLTEXT.
+         RUN jamlev_UI.
+         FIND FIRST BERID WHERE BERID.OMRADE = BERVAL.OMRADE AND 
+         BERID.AONR = BERVAL.AONR AND BERID.NUM = BERVAL.NUM NO-LOCK NO-ERROR.
+         IF AVAILABLE BERID THEN DO:
+            ASSIGN            
+            mtrljam.FRI1 = BERID.FRI1
+            mtrljam.FRI2 = STRING(BERID.FRI2)
+            mtrljam.FRI3 = BERID.FRI3.
+            IF mtrljam.FRI2 = ? THEN mtrljam.FRI2 = BERID.NATNR.            
+         END.
+         FIND FIRST BERORD WHERE BERORD.OMRADE = BERVAL.OMRADE AND 
+         BERORD.AONR = BERVAL.AONR AND BERORD.NUM = BERVAL.NUM NO-LOCK NO-ERROR.
+         IF AVAILABLE BERID THEN DO:
+            ASSIGN mtrljam.ORD = BERORD.ORD.            
+         END.
+      END.
+      
+      GET NEXT mtrlprisq NO-LOCK.
+   END.    
+   CLOSE QUERY mtrlprisq.         
+   
+   OPEN QUERY linq FOR EACH BERLINKAB WHERE BERLINKAB.AONR = valaonr AND 
+   BERLINKAB.OMRADE = valomrade AND BERLINKAB.DATUM = datvar AND BERLINKAB.KORTKOD = ?
+   AND BERLINKAB.UPPLAG NE ? USE-INDEX INKOP NO-LOCK.
+   GET FIRST linq NO-LOCK.
+   DO WHILE AVAILABLE(BERLINKAB):
+      CREATE lin_upp.
+      ASSIGN
+      lin_upp.ENR = BERLINKAB.ENR
+      lin_upp.BENAMNING = BERLINKAB.BENAMNING
+      lin_upp.ENHET = BERLINKAB.ENHET
+      lin_upp.PRIS = BERLINKAB.PRIS
+      lin_upp.LEVKOD = BERLINKAB.LEVKOD
+      lin_upp.METER = BERLINKAB.METER
+      lin_upp.TOTMETER = BERLINKAB.TOTMETER
+      lin_upp.UPPLAG = BERLINKAB.UPPLAG
+      lin_upp.TOTPRIS = BERLINKAB.PRIS * BERLINKAB.TOTMETER.      
+      GET NEXT linq NO-LOCK.
+   END.          
+   CLOSE QUERY linq.   
+
+   OPEN QUERY linq FOR EACH BERLINKAB WHERE BERLINKAB.AONR = valaonr AND 
+   BERLINKAB.OMRADE = valomrade AND BERLINKAB.DATUM = datvar AND BERLINKAB.KORTKOD = ?
+   AND BERLINKAB.TOTMETER = 0 USE-INDEX INKOP NO-LOCK.
+   GET FIRST linq NO-LOCK.
+   DO WHILE AVAILABLE(BERLINKAB):
+      FIND FIRST lin_upp WHERE lin_upp.ENR = BERLINKAB.ENR AND
+      lin_upp.LEVKOD = BERLINKAB.LEVKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE lin_upp THEN DO:
+         datvar = datvar.
+      END.
+      ELSE DO:         
+         CREATE mtrljam.
+         ASSIGN  
+         mtrljam.NUM = BERLINKAB.NUM1            
+         mtrljam.ENR = BERLINKAB.ENR     
+         mtrljam.BENAMNING = BERLINKAB.BENAMNING
+         mtrljam.ENHET = BERLINKAB.ENHET
+         mtrljam.ANTAL = BERLINKAB.METER * BERLINKAB.LEDARE
+         mtrljam.PRIS = BERLINKAB.PRIS 
+         mtrljam.TOTPRIS = BERLINKAB.PRIS * mtrljam.ANTAL      
+         mtrljam.LEVKOD = BERLINKAB.LEVKOD.                  
+         RUN jamlev_UI.         
+         FIND FIRST BERVAL WHERE BERVAL.AONR = BERLINKAB.AONR AND BERVAL.OMRADE = BERLINKAB.OMRADE AND
+         BERVAL.NUM = BERLINKAB.NUM1 AND BERVAL.KSKAP = FALSE NO-LOCK NO-ERROR.
+         IF AVAILABLE BERVAL THEN DO:
+            ASSIGN
+            mtrljam.KTYPKOD = BERVAL.KTYPKOD
+            mtrljam.UPPLAG = BERVAL.UPPLAG.
+            FIND FIRST BERID WHERE BERID.OMRADE = BERVAL.OMRADE AND 
+            BERID.AONR = BERVAL.AONR AND BERID.NUM = BERVAL.NUM NO-LOCK NO-ERROR.
+            IF AVAILABLE BERID THEN DO:
+               ASSIGN            
+               mtrljam.FRI1 = BERID.FRI1
+               mtrljam.FRI2 = STRING(BERID.FRI2)
+               mtrljam.FRI3 = BERID.FRI3.
+               IF mtrljam.FRI2 = ? THEN mtrljam.FRI2 = BERID.NATNR.               
+            END.
+            FIND FIRST BERORD WHERE BERORD.OMRADE = BERVAL.OMRADE AND 
+            BERORD.AONR = BERVAL.AONR AND BERORD.NUM = BERVAL.NUM NO-LOCK NO-ERROR.
+            IF AVAILABLE BERID THEN DO:
+               ASSIGN mtrljam.ORD = BERORD.ORD.            
+            END.
+         END.
+      END.   
+      CREATE lin_temp.
+      ASSIGN  
+      lin_temp.NUM1 = BERLINKAB.NUM1
+      lin_temp.NUM2 = BERLINKAB.NUM2
+      lin_temp.BENAMNING = BERLINKAB.BENAMNING         
+      lin_temp.METER = BERLINKAB.METER.
+      GET NEXT linq NO-LOCK.
+   END.          
+   CLOSE QUERY linq.  
+   /*test att översätta lin_upp till mtrljam redan här Lena*/
+   FOR EACH lin_upp:      
+      /*olika konstruktioner vad göra ??????*/
+      FIND FIRST mtrljam WHERE mtrljam.ENR = lin_upp.ENR AND mtrljam.UPPLAG = lin_upp.UPPLAG AND mtrljam.LINUPP = TRUE NO-LOCK NO-ERROR.
+      IF AVAILABLE mtrljam THEN DO:                      
+         ASSIGN
+         mtrljam.ANTAL = mtrljam.ANTAL + lin_upp.TOTMETER
+         mtrljam.TOTPRIS = mtrljam.TOTPRIS + lin_upp.TOTPRIS
+         mtrljam.UPPLAG = lin_upp.UPPLAG.
+      END.
+      ELSE DO:          
+         
+         CREATE mtrljam.
+         ASSIGN 
+         mtrljam.LEVKOD = lin_upp.LEVKOD
+         mtrljam.ENR = lin_upp.ENR
+         mtrljam.BENAMNING = lin_upp.BENAMNING 
+         mtrljam.ENHET = lin_upp.ENHET 
+         mtrljam.PRIS = lin_upp.PRIS
+         mtrljam.TOTPRIS = lin_upp.TOTPRIS                       
+         mtrljam.ANTAL = lin_upp.TOTMETER
+         mtrljam.UPPLAG = lin_upp.UPPLAG
+         mtrljam.LINUPP = TRUE.
+      END.
+      RUN jamlev_UI.
+   END.
+
+PROCEDURE jamlev_UI :   
+   ASSIGN
+   /* leverantör på BERMTRL*/   
+   levbermtrl = mtrljam.LEVKOD
+   enrbermtrl = mtrljam.ENR
+   mtrljam.ENR1 = enrbermtrl
+   mtrljam.LEV1 = lev1   
+   mtrljam.PRIS = 0
+   mtrljam.TOTPRIS = 0. 
+   hittm = FALSE.   
+   IF levbermtrl NE lev1 THEN DO:      
+      FIND FIRST BETPLAN WHERE BETPLAN.NAMN = levbermtrl AND BETPLAN.ANVANDARE = enrbermtrl AND
+      BETPLAN.BESTID = lev1 NO-LOCK NO-ERROR.
+      IF AVAILABLE BETPLAN THEN DO:               
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = lev1 AND MTRL.ENR = BETPLAN.OMRADE AND
+         MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRL THEN DO:
+            ASSIGN
+            mtrljam.ENR1 = BETPLAN.OMRADE
+            mtrljam.PRIS = MTRL.NPRIS
+            mtrljam.TOTPRIS = mtrljam.ANTAL * MTRL.NPRIS
+            mtrljam.NETTO1 = MTRL.KUND.
+         END.
+         ELSE hittm = TRUE.                          
+      END.
+      ELSE hittm = TRUE.                     
+   END.
+   ELSE hittm = TRUE.               
+   IF hittm = TRUE THEN DO:
+      hittm = FALSE.
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = lev1 AND MTRL.ENR = enrbermtrl AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         ASSIGN
+         mtrljam.ENR1 = enrbermtrl
+         mtrljam.PRIS = MTRL.NPRIS
+         mtrljam.TOTPRIS = mtrljam.ANTAL * MTRL.NPRIS
+         mtrljam.NETTO1 = MTRL.KUND.
+      END.   
+      ELSE mtrljam.ENR1 = "saknas".           
+   END.         
+   IF lev2 NE "" THEN DO:            
+      IF SUBSTRING(enrbermtrl,1,1) = "E" THEN enrbermtrl = SUBSTRING(enrbermtrl,2).
+      ASSIGN
+      mtrljam.LEV2 = lev2      
+      mtrljam.PRIS2 = 0
+      mtrljam.TOTPRIS2 = 0.      
+      hittm = FALSE.
+      FIND FIRST BETPLAN WHERE BETPLAN.NAMN = levbermtrl AND BETPLAN.ANVANDARE = enrbermtrl AND
+      BETPLAN.BESTID = lev2 NO-LOCK NO-ERROR.
+      IF AVAILABLE BETPLAN THEN DO:               
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = lev2 AND MTRL.ENR = BETPLAN.OMRADE AND
+         MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRL THEN DO:
+            ASSIGN
+            mtrljam.ENR2 = BETPLAN.OMRADE
+            mtrljam.PRIS2 = MTRL.NPRIS
+            mtrljam.TOTPRIS2 = mtrljam.ANTAL * MTRL.NPRIS.      
+            mtrljam.NETTO2 = MTRL.KUND.
+         END.
+         ELSE hittm = TRUE.                  
+      END.
+      ELSE hittm = TRUE.               
+      IF hittm = TRUE THEN DO:
+         hittm = FALSE.
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = lev2 AND MTRL.ENR = enrbermtrl AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRL THEN DO:
+            ASSIGN
+            mtrljam.PRIS2 = MTRL.NPRIS
+            mtrljam.TOTPRIS2 = mtrljam.ANTAL * MTRL.NPRIS.      
+            IF mtrljam.ENR1 = "saknas" THEN mtrljam.ENR2 = enrbermtrl.
+            mtrljam.NETTO2 = MTRL.KUND.
+         END.   
+         ELSE mtrljam.ENR2 = "saknas".         
+      END.            
+   END.
+   IF lev3 NE "" THEN DO:            
+      IF SUBSTRING(enrbermtrl,1,1) = "E" THEN enrbermtrl = SUBSTRING(enrbermtrl,2).
+      ASSIGN
+      mtrljam.LEV3 = lev3      
+      mtrljam.PRIS3 = 0
+      mtrljam.TOTPRIS3 = 0
+      hittm = FALSE.
+      FIND FIRST BETPLAN WHERE BETPLAN.NAMN = levbermtrl AND BETPLAN.ANVANDARE = enrbermtrl AND
+      BETPLAN.BESTID = lev3 NO-LOCK NO-ERROR.
+      IF AVAILABLE BETPLAN THEN DO:               
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = lev3 AND MTRL.ENR = BETPLAN.OMRADE AND
+         MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRL THEN DO:
+            ASSIGN
+            mtrljam.ENR3 = BETPLAN.OMRADE
+            mtrljam.PRIS3 = MTRL.NPRIS
+            mtrljam.TOTPRIS3 = mtrljam.ANTAL * MTRL.NPRIS
+            mtrljam.NETTO3 = MTRL.KUND.
+         END.
+         ELSE hittm = TRUE.                                       
+      END.
+      ELSE hittm = TRUE.                                 
+      IF hittm = TRUE THEN DO:
+         hittm = FALSE.
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = lev3 AND MTRL.ENR = enrbermtrl AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRL THEN DO:
+            ASSIGN            
+            mtrljam.PRIS3 = MTRL.NPRIS
+            mtrljam.TOTPRIS3 = mtrljam.ANTAL * MTRL.NPRIS.      
+            IF mtrljam.ENR1 = "saknas" THEN mtrljam.ENR3 = enrbermtrl.
+            mtrljam.NETTO3 = MTRL.KUND.
+         END.
+         ELSE mtrljam.ENR3 = "saknas".         
+      END.
+   END.    
+END PROCEDURE.

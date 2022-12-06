@@ -1,0 +1,255 @@
+/*ERICKABAPP.P*/                           
+{KONVALTEMP.I}                           
+{STARTFORAPP.I}                           
+{ANMARKD.I}
+{LISTDEF.I} 
+DEFINE VARIABLE kabellista AS INTEGER NO-UNDO.
+DEFINE VARIABLE edmedd    AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE valkonst  AS LOGICAL NO-UNDO.
+DEFINE VARIABLE prisvar   AS INTEGER NO-UNDO.
+DEFINE VARIABLE skrivut   AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz      AS LOGICAL NO-UNDO. 
+DEFINE VARIABLE valomrade AS CHARACTER NO-UNDO.
+DEFINE VARIABLE valaonr   AS CHARACTER NO-UNDO.
+DEFINE VARIABLE valdelnr  AS INTEGER NO-UNDO.
+DEFINE VARIABLE valort    AS CHARACTER NO-UNDO. 
+
+
+DEFINE VARIABLE arrhjsum AS DECIMAL NO-UNDO.    
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(130)" NO-UNDO. 
+DEFINE VARIABLE str2 AS CHARACTER FORMAT "X(130)" NO-UNDO.
+DEFINE VARIABLE totalt AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE sumpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE sumantal AS INTEGER NO-UNDO.
+DEFINE VARIABLE erickabapph AS HANDLE NO-UNDO.
+
+
+{TIDUTTTNEW.I}
+   
+DEFINE TEMP-TABLE mtrl_temp2   
+  {MTRLTEMP2TT.I}
+
+
+PROCEDURE skapalista_UI :
+   DEFINE INPUT PARAMETER kabellista2  AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER edmedd2      AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valkonst2    AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER prisvar2     AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER skrivut2     AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER valaonr2     AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valdelnr2    AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER valort2      AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade2   AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER musz2       AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrl_temp2.
+   ASSIGN
+   kabellista = kabellista2
+   edmedd    = edmedd2    
+   valkonst  = valkonst2  
+   prisvar   = prisvar2   
+   skrivut   = skrivut2               
+   valaonr   = valaonr2    
+   valdelnr  = valdelnr2   
+   valort    = valort2     
+   valomrade = valomrade2.  
+   EMPTY TEMP-TABLE tidut NO-ERROR. 
+   RUN huvud_UI.   
+   IF musz = FALSE THEN RUN rubrik_UI.
+   musz2 = musz.
+   
+   {GDPRLOGGCLIENT.I}
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE anm2_UI :
+   CREATE tidut.      
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "Anmärkning   :"
+   retvar = 1
+   ednum = 1
+   ednum3 = LENGTH(edmedd)
+   retvar = INDEX(edmedd,CHR(10),ednum)
+   edtecken = 48
+   edtext = edmedd
+   tidtext = "".  
+   {ANMARK2.I}   
+END PROCEDURE.
+
+PROCEDURE anmark_UI :
+
+   DEFINE INPUT PARAMETER anmark AS INTEGER NO-UNDO.
+   IF anmark = 2 THEN DO:                
+      ASSIGN            
+      /*SUBSTRING(tidut.UT,11) = ":"*/   
+      SUBSTRING(tidut.UT,16) = tidtext.
+      CREATE tidut.
+   END.     
+END PROCEDURE.
+
+PROCEDURE huvud_UI :
+     /*HUVUD*/ 
+   DO TRANSACTION:   
+      
+      IF musz = TRUE THEN musz = musz.   
+      ELSE DO: 
+         CREATE tidut.
+         IF kabellista = 1 THEN DO:
+            SUBSTRING(tidut.UT,1) = "Lista Ericsson kablar".            
+         END.         
+         ELSE DO:
+            SUBSTRING(tidut.UT,1) = "Lista Transformatorer".            
+         END.
+         ASSIGN   
+         SUBSTRING(tidut.UT,40) = STRING(TODAY)
+         SUBSTRING(tidut.UT,50) = STRING(TIME,"HH:MM:SS").                                                               
+         CREATE tidut.     
+         CREATE tidut. 
+         ASSIGN                                                               
+         SUBSTRING(tidut.UT,1) = Guru.Konstanter:gaonamnk + ": " + valort.
+         CREATE tidut.  
+         ASSIGN                                                               
+         SUBSTRING(tidut.UT,1) = "Beredning nr : " + valaonr.
+         FIND FIRST BEREDNING WHERE BEREDNING.BERNR = INTEGER(valaonr) AND 
+         BEREDNING.OMRADE = valomrade USE-INDEX BERNR NO-LOCK NO-ERROR.
+         IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "UMEA" THEN DO:      
+            IF BEREDNING.AONR = ? THEN DO:           
+               FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = BEREDNING.ANVANDARE
+               USE-INDEX ANDV NO-LOCK NO-ERROR.
+               IF AVAILABLE ANVANDARE THEN DO:            
+                  FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD
+                  USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+               END.   
+            END.
+            ELSE DO: 
+               FIND FIRST AONRTAB WHERE AONRTAB.AONR = BEREDNING.AONR AND
+               AONRTAB.DELNR = BEREDNING.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = AONRTAB.BEREDARE
+               USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+            END.                
+            IF AVAILABLE PERSONALTAB THEN DO: 
+               CREATE tidut.
+               SUBSTRING(tidut.UT,1) = Guru.Konstanter:gberel + "     : " + PERSONALTAB.FORNAM +                
+               " " + PERSONALTAB.EFTERNAMN + "     " + PERSONALTAB.TELEFON + 
+               "     " + PERSONALTAB.MOBILTEL.
+               Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+            END. 
+         END.         
+         IF BEREDNING.AONR NE ? THEN DO:
+            FIND FIRST AONRTAB WHERE AONRTAB.AONR = BEREDNING.AONR AND
+            AONRTAB.DELNR = BEREDNING.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.
+            IF AVAILABLE AONRTAB THEN DO:
+               CREATE tidut.
+               ASSIGN               
+               SUBSTRING(tidut.UT,1) = Guru.Konstanter:gaok
+               SUBSTRING(tidut.UT,14) = ": " + AONRTAB.AONR + " Delnr:" + 
+               STRING(AONRTAB.DELNR,Guru.Konstanter:varforetypchar[1]).
+            END.
+         END.         
+         IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "UMEA" THEN DO:
+            RUN anm2_UI.
+         END.
+         CREATE tidut.     
+         CREATE tidut.              
+         ASSIGN  
+         SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:genk)
+         SUBSTRING(tidut.UT,13) = "BENÄMNING"
+         SUBSTRING(tidut.UT,44) = "ENHET"
+         SUBSTRING(tidut.UT,50) = "ANTAL".
+         IF prisvar = 1 THEN ASSIGN SUBSTRING(tidut.UT,59) = "PRIS/ENHET"
+         SUBSTRING(tidut.UT,70) = "SUMMA".         
+         CREATE tidut. 
+         ASSIGN
+          str =
+"===========.==============================.=====.========.==========.==========" 
+          str2 =
+"===========.==============================.=====.========".
+         IF prisvar = 1 THEN DO:      
+            SUBSTRING(tidut.UT,1) = str.                                                                                        
+         END.
+         ELSE DO:  
+            SUBSTRING(tidut.UT,1) = str2.                                                                                        
+         END. 
+      END.
+   END.                    
+END PROCEDURE.
+
+PROCEDURE rubrik_UI :
+
+   ASSIGN
+   sumpris = 0
+   sumantal = 0.  
+   
+   IF valkonst = FALSE THEN DO:
+      RUN LISTPROG.P
+      (INPUT valaonr, INPUT valomrade, OUTPUT TABLE mtrl_temp, OUTPUT TABLE lin_upp, 
+      OUTPUT TABLE lin_temp).
+   END.   
+   ELSE DO:
+      RUN LISTPROG2U.P
+         (INPUT TABLE kon_val, OUTPUT TABLE mtrl_temp, OUTPUT TABLE lin_upp, 
+         OUTPUT TABLE lin_temp).      
+   END.
+        
+   FOR EACH mtrl_temp BREAK BY mtrl_temp.ENR: 
+      ACCUMULATE mtrl_temp.TOTPRIS (TOTAL BY mtrl_temp.ENR). 
+      ACCUMULATE mtrl_temp.ANTAL (TOTAL BY mtrl_temp.ENR).       
+      IF LAST-OF(mtrl_temp.ENR) THEN DO:
+         CREATE mtrl_temp2.
+         ASSIGN 
+         mtrl_temp2.ENR = mtrl_temp.ENR
+         mtrl_temp2.BENAMNING = mtrl_temp.BENAMNING 
+         mtrl_temp2.ENHET = mtrl_temp.ENHET 
+         mtrl_temp2.PRIS = mtrl_temp.PRIS
+         mtrl_temp2.TOTPRIS = (ACCUM TOTAL mtrl_temp.TOTPRIS) - sumpris                       
+         mtrl_temp2.ANTAL = (ACCUM TOTAL mtrl_temp.ANTAL) - sumantal                
+         sumpris = ACCUM TOTAL mtrl_temp.TOTPRIS 
+         sumantal = ACCUM TOTAL mtrl_temp.ANTAL.                       
+      END.     
+   END.    
+   FOR EACH lin_upp:
+      FIND FIRST mtrl_temp2 WHERE mtrl_temp2.ENR = lin_upp.ENR NO-LOCK NO-ERROR.
+      IF AVAILABLE mtrl_temp2 THEN DO:                      
+         ASSIGN
+         mtrl_temp2.ANTAL = mtrl_temp2.ANTAL + lin_upp.TOTMETER
+         mtrl_temp2.TOTPRIS = mtrl_temp2.TOTPRIS + lin_upp.TOTPRIS.
+      END.
+      ELSE DO:                    
+         CREATE mtrl_temp2.
+         ASSIGN 
+         mtrl_temp2.ENR = lin_upp.ENR
+         mtrl_temp2.BENAMNING = lin_upp.BENAMNING 
+         mtrl_temp2.ENHET = lin_upp.ENHET 
+         mtrl_temp2.PRIS = lin_upp.PRIS
+         mtrl_temp2.TOTPRIS = lin_upp.TOTPRIS                       
+         mtrl_temp2.ANTAL = lin_upp.TOTMETER.
+      END.
+   END.          
+   RUN ERICKAB2U.P 
+      (INPUT-OUTPUT TABLE mtrl_temp2, INPUT kabellista).
+   
+   sumpris = 0.    
+   FOR EACH mtrl_temp2:       
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = mtrl_temp2.ENR              
+      SUBSTRING(tidut.UT,13) = SUBSTRING(mtrl_temp2.BENAMNING,1,30)     
+      SUBSTRING(tidut.UT,44) = mtrl_temp2.ENHET
+      SUBSTRING(tidut.UT,50) = STRING(mtrl_temp2.ANTAL,">>>>>>>9"). 
+      IF prisvar = 1 THEN ASSIGN SUBSTRING(tidut.UT,59) = STRING(mtrl_temp2.PRIS,">>>>>>>>>9")
+      SUBSTRING(tidut.UT,70) = STRING(mtrl_temp2.TOTPRIS,">>>>>>>>>9").         
+      sumpris = sumpris + mtrl_temp2.TOTPRIS.      
+   END.  
+   CREATE tidut.
+   IF prisvar = 1 THEN DO:      
+     SUBSTRING(tidut.UT,1) = str.                                                                                        
+   END.
+   ELSE DO:  
+      SUBSTRING(tidut.UT,1) = str2.                                                                                        
+   END. 
+   CREATE tidut. 
+   IF prisvar = 1 THEN ASSIGN
+      SUBSTRING(tidut.UT,58) = "Total summa:"
+      SUBSTRING(tidut.UT,70) = STRING(sumpris,">>>>>>>>>9").
+END PROCEDURE.
+

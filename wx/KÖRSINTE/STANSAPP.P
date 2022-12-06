@@ -1,0 +1,849 @@
+/*STANSAPP.P*/
+&Scoped-define NEW NEW
+{TIDAPPDEF.I}
+{SOKDEF.I}
+{GLOBVAR2DEL1.I}
+
+{REGVAR.I}
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT globforetag).
+{STANSTIDTT.i}
+DEFINE INPUT PARAMETER inglobforetag AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER inglobanv     AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER inglobniv     AS INTEGER NO-UNDO.
+DEFINE OUTPUT PARAMETER markpkod AS CHARACTER NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR stanstid.
+
+DEFINE NEW SHARED VARIABLE tidtabrec AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE bustart3 AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE VARIABLE datkoll AS DATE NO-UNDO.
+DEFINE VARIABLE pkod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE overant AS INTEGER NO-UNDO.
+DEFINE VARIABLE seku AS INTEGER FORMAT "-9999999" NO-UNDO.
+DEFINE VARIABLE halvkvart AS INTEGER NO-UNDO.
+DEFINE VARIABLE otim AS INTEGER NO-UNDO.
+DEFINE VARIABLE otim2 AS INTEGER NO-UNDO.
+ASSIGN
+globforetag = inglobforetag
+globanv     = inglobanv    
+globniv     = inglobniv.    
+{FORESTYR.I}
+OPEN QUERY BRW_STANS FOR EACH stanstid USE-INDEX TID NO-LOCK.     
+GET FIRST BRW_STANS.    
+DO WHILE AVAILABLE(stanstid):                   
+   ASSIGN     
+   stanstid.STARTM = stanstid.START / 100
+   stanstid.SLUTM = stanstid.SLUT / 100
+   stanstid.FELNR = 0
+   stanstid.FELTXT = "".
+   RUN reg_UI.
+   IF stanstid.FELTXT = "" THEN DELETE stanstid.
+   GET NEXT BRW_STANS.
+END.
+
+PROCEDURE reg_UI :
+   ASSIGN
+   regdatum = stanstid.DATUM
+   regmnr = MONTH(stanstid.DATUM)
+   regar = YEAR(stanstid.DATUM)   
+   regstart = stanstid.STARTM
+   regslut = stanstid.SLUTM.
+   RUN REGVEC.P.
+   RUN REGDAG.P.
+   IF pkod NE stanstid.PERSONALKOD THEN DO:
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = stanstid.PERSONALKOD AND 
+      PERSONALTAB.AKTIV = TRUE
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE PERSONALTAB THEN DO:
+         pkod = "".
+         ASSIGN
+         stanstid.FELNR = 1 
+         stanstid.FELTXT = "Enhet/Sign finns ej.".
+         RETURN.         
+      END.      
+      
+      {TSEK.I}
+      IF musz =  TRUE THEN DO:
+         musz = FALSE.
+         ASSIGN
+         stanstid.FELNR = 1
+         stanstid.FELTXT = "Du är ej behörig att ändra på denna Enhet/Sign.".
+         pkod = "".
+         RETURN.
+      END.
+      persrec = RECID(PERSONALTAB).       
+      RUN anst_UI.        
+   END.      
+   markpkod = stanstid.PERSONALKOD.
+   IF MONTH(stanstid.DATUM) = 12 THEN DO:
+      datkoll = DATE(12,31,YEAR(stanstid.DATUM)).
+   END.
+   ELSE DO:   
+      datkoll = DATE((MONTH(stanstid.DATUM) + 1),01,YEAR(stanstid.DATUM)) - 1.
+   END.
+   IF DAY(stanstid.DATUM) > DAY(datkoll) THEN DO:
+      ASSIGN
+      stanstid.FELNR = 2
+      stanstid.FELTXT = "Felaktigt angivet datum. Denna månad har bara " + STRING(DAY(datkoll)) + "dagar.".
+      RETURN.
+   END.
+   IF DAY(stanstid.DATUM) <= 0 THEN DO:
+      stanstid.FELTXT = "Felaktigt angivet datum. Datum kann ej vara mindre än 1.".             
+      RETURN.
+   END.               
+   FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+   GODKOLL.DATAR = regar AND GODKOLL.DATMAN = regmnr       
+   USE-INDEX PKODAR NO-LOCK NO-ERROR.
+   IF AVAILABLE GODKOLL THEN DO:
+      IF GODKOLL.DATUM >= stanstid.DATUM THEN DO:
+         ASSIGN
+         stanstid.FELNR = 2
+         stanstid.FELTXT = 
+         "Felaktigt angivet datum. Tidsedeln är godkänd till och med " + STRING(GODKOLL.DATUM).
+         RETURN.
+      END.      
+   END.
+   IF stanstid.OVERTIDUTTAG = "" THEN stanstid.OVERTIDUTTAG = "Ö".                            
+   IF stanstid.OVERTIDUTTAG = "Ö" THEN musz = FALSE.
+   ELSE IF stanstid.OVERTIDUTTAG = "Ö" THEN musz = FALSE.
+   ELSE IF stanstid.OVERTIDUTTAG = "K" THEN musz = FALSE.
+   ELSE IF stanstid.OVERTIDUTTAG = "F" THEN musz = FALSE.
+   ELSE IF stanstid.OVERTIDUTTAG = "I" THEN musz = FALSE.
+   ELSE IF stanstid.OVERTIDUTTAG = "L" THEN musz = FALSE.
+   ELSE DO:
+      ASSIGN
+      stanstid.FELNR = 3
+      stanstid.FELTXT = 
+      "Övertidsutag har felaktigt värde. Tillåtna värden är K,Ö,F,I,L.".
+      RETURN.
+   END.
+   IF PERSONALTAB.OVERTIDUTTAG = "I" THEN DO:
+      IF  stanstid.OVERTIDUTTAG = "I" OR stanstid.OVERTIDUTTAG = "F" THEN musz = musz.
+      ELSE DO:                  
+         ASSIGN
+         stanstid.FELNR = 3
+         stanstid.FELTXT = 
+         "Personen har inte övertidersättning eller restidsersättning".
+         RETURN.    
+      END.    
+   END.
+   /* LENAS INLÄGG ANDERS KOLLA!*/
+   FIND FIRST FLEXAVT WHERE FLEXAVT.PERSONALKOD = PERSONALTAB.PERSONALKOD USE-INDEX
+   PERSONALKOD NO-LOCK NO-ERROR.
+   FIND FIRST ANSTFORMTAB WHERE ANSTFORM.ANSTALLNING = PERSONALTAB.ANSTALLNING
+   USE-INDEX ANSTF NO-LOCK NO-ERROR.
+   IF AVAILABLE FLEXAVT THEN DO:
+     /* IF globforetag = "ESAN" THEN DO:
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+         IF AVAILABLE OMRADETAB AND OMRADETAB.AVDELNINGNR = 403 THEN musz = musz.
+      END.   */
+      IF globforetag = "ESAN" AND ANSTFORMTAB.KOD = "T" AND FLEXAVT.FLEXTID = TRUE THEN DO:
+         IF stanstid.AONR = "910911" OR stanstid.AONR = "11" THEN DO:
+            ASSIGN
+            stanstid.FELNR = 3
+            stanstid.FELTXT = 
+            "Personen har flextidsavtal och kan inte ta komp.".
+            RETURN.        
+         END.   
+         IF stanstid.OVERTIDUTTAG = "K" THEN DO:
+            ASSIGN
+            stanstid.FELNR = 3
+            stanstid.FELTXT = "Personen har flextidsavtal och kan inte ta komp.". 
+            RETURN.                 
+         END.   
+      END.
+      IF FLEXAVT.FLEXTID = TRUE THEN DO:      
+         IF ANSTFORMTAB.KOD = "TM" OR ANSTFORMTAB.KOD = "KM" OR ANSTFORMTAB.KOD = "KO" OR
+         ANSTFORMTAB.KOD = "TO" OR ANSTFORMTAB.KOD = "TP" OR ANSTFORMTAB.KOD = "TQ" THEN DO:
+            regdatum = stanstid.DATUM.
+            RUN REGVEC.P.
+            RUN SLUTARB.P.
+            IF regstart NE regslut AND  stanstid.STARTM < 16 AND stanstid.SLUTM > regslut THEN DO:
+               IF PERSONALTAB.DELTID = TRUE THEN musz = musz.
+               ELSE IF stanstid.OVERTIDUTTAG NE "F" THEN DO:
+                  ASSIGN
+                  stanstid.FELNR = 3
+                  stanstid.FELTXT = "Personen har flextidsavtal.".    
+                  RETURN.
+               END.   
+            END.
+            IF regstart = regslut AND stanstid.OVERTIDUTTAG = "F"  THEN DO:              
+               ASSIGN
+               stanstid.FELNR = 3
+               stanstid.FELTXT = "Flextid skall ej registreras på helg.".    
+               RETURN.   
+            END.
+            IF stanstid.SLUTM > 18 AND stanstid.OVERTIDUTTAG = "F"  THEN DO:
+               MESSAGE "Flextid skall ej registreras efter 18" VIEW-AS ALERT-BOX.    
+               ASSIGN
+               stanstid.FELNR = 3
+               stanstid.FELTXT = "Flextid skall ej registreras efter 18.".    
+               RETURN.   
+            END. 
+            IF stanstid.STARTM < 6.45 AND stanstid.OVERTIDUTTAG = "F"  THEN DO:
+               MESSAGE "Flextid skall ej registreras före 6.45" VIEW-AS ALERT-BOX.    
+               ASSIGN
+               stanstid.FELNR = 3
+               stanstid.FELTXT = "Flextid skall ej registreras före 6.45.".    
+               RETURN.   
+            END. 
+            IF globforetag = "ESAN" OR globforetag = "ESMA"  THEN DO:            
+               IF ANSTFORMTAB.KOD = "TM" OR ANSTFORMTAB.KOD = "TN" OR ANSTFORMTAB.KOD = "KM" OR ANSTFORMTAB.KOD = "TP"
+               OR ANSTFORMTAB.KOD = "TQ" THEN DO:            
+                  IF regstart NE regslut THEN DO:   
+                     IF PERSONALTAB.DELTID = TRUE THEN musz = musz.
+                     ELSE DO: 
+                        FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND TIDREGITAB.DATUM = regdatum AND
+                        TIDREGITAB.BEREDSKAPSTART GE regslut NO-LOCK NO-ERROR.
+                        IF NOT AVAILABLE TIDREGITAB THEN DO:
+                           IF stanstid.STARTM < 16.3 AND stanstid.SLUTM > regslut THEN DO:
+                              IF stanstid.OVERTIDUTTAG NE "F" THEN DO:
+                                 ASSIGN
+                                 stanstid.FELNR = 3
+                                 stanstid.FELTXT = "Personen har flextidsavtal.".  
+                                 RETURN.  
+                              END.   
+                           END.
+                        END.
+                     END.
+                  END.                 
+               END.
+            END.    
+         END.               
+      END.                                                
+   END.   
+   IF stanstid.TRAKTAMENTE = 0 THEN musz = FALSE.
+   ELSE IF stanstid.TRAKTAMENTE = 1 THEN musz = FALSE.
+   ELSE DO:
+      ASSIGN
+      stanstid.FELNR = 4
+      stanstid.FELTXT = 
+      "Traktamente har felaktigt värde.Tillåtna värden är 0,1".
+      RETURN.
+   END.
+   IF stanstid.AONR NE "" THEN DO: 
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = stanstid.AONR AND 
+      AONRTAB.DELNR = stanstid.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.  
+      IF NOT AVAILABLE AONRTAB THEN DO:
+         ASSIGN
+         stanstid.FELNR = 5
+         stanstid.FELTXT = 
+         "Aonr " + stanstid.AONR + " " + STRING(stanstid.DELNR,Guru.Konstanter:varforetypchar[1]) + " finns inte.".                  
+         RETURN.
+      END.
+      ELSE DO:                          
+         IF globforetag = "NORD" OR globforetag = "ELPA" OR globforetag = "ESAN" OR globforetag = "ESMA" OR
+         globforetag = "ETA" THEN DO:
+            IF SUBSTRING(STRING(AONRTAB.ELVOMRKOD,"999999999"),1,1) = "1" THEN DO:
+               IF ANSTFORMTAB.KOD BEGINS "T" THEN DO:
+                  ASSIGN
+                  stanstid.FELNR = 5
+                  stanstid.FELTXT = 
+                  "Endast kollektivanställda får skriva på detta " + LC(Guru.Konstanter:gaok).
+                  RETURN.           
+               END.   
+              IF AONRTAB.OMRADE NE PERSONALTAB.OMRADE THEN DO:
+                 ASSIGN
+                 stanstid.FELNR = 5
+                 stanstid.FELTXT = 
+                 "Detta " + LC(Guru.Konstanter:gaok) + " får inte användas för ditt " + LC(Guru.Konstanter:gomrk).                 
+                 RETURN.
+              END.
+            END.
+            ELSE IF SUBSTRING(STRING(AONRTAB.ELVOMRKOD,"999999999"),1,1) = "2"  THEN DO:
+               IF ANSTFORMTAB.KOD BEGINS "K" THEN DO:
+                  ASSIGN
+                  stanstid.FELNR = 5
+                  stanstid.FELTXT = "Endast tjänstemän får skriva på detta " + LC(Guru.Konstanter:gaok).
+                  RETURN.
+               END.   
+            END. 
+            ELSE IF SUBSTRING(STRING(AONRTAB.ELVOMRKOD,"999999999"),1,1) = "3"  THEN DO:
+               ASSIGN
+               stanstid.FELNR = 5
+               stanstid.FELTXT = "Ingen tidskrivning på detta " + LC(Guru.Konstanter:gaok).
+               RETURN.
+            END.       
+         END.         
+         /*IF globforetag = "ELPA" OR globforetag = "ESAN" OR globforetag = "ESMA" OR
+         globforetag = "ETA" THEN DO:
+            FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+            FIND FIRST oradebuff WHERE oradebuff.OMRADE = AONRTAB.OMRADE NO-LOCK NO-ERROR.
+            IF AVAILABLE oradebuff THEN DO:
+               IF OMRADETAB.AVDELNINGNR NE oradebuff.AVDELNINGNR THEN DO:
+                  ASSIGN
+                  stanstid.FELNR = 5
+                  stanstid.FELTXT = "Du får inte använda ett annat bolags " + LC(Guru.Konstanter:gaol).
+                  RETURN.
+               END.   
+            END.   
+         END.   */
+
+         IF AONRTAB.AONRAVDATUM = 01/01/1991 OR AONRTAB.AONRAVDATUM >= regdatum THEN musz = musz.
+         ELSE DO:
+            ASSIGN
+            stanstid.FELNR = 5
+            stanstid.FELTXT = 
+            Guru.Konstanter:gaok + " " + stanstid.AONR + " " + STRING(stanstid.DELNR,Guru.Konstanter:varforetypchar[1]) + " är redan avslutat.".                      
+            RETURN.
+         END.
+      END.         
+   END.
+   ELSE DO:
+      IF stanstid.LONTILLAGG = "" THEN DO:
+         ASSIGN
+         stanstid.FELNR = 5
+         stanstid.FELTXT = Guru.Konstanter:gaok + " kan inte vara blankt".
+         RETURN.      
+      END.      
+   END.
+   IF stanstid.VECKOVILA = TRUE THEN DO:
+      regdatum = stanstid.DATUM.
+      RUN REGVEC.P.
+      RUN SLUTARB.P.
+      IF stanstid.STARTM GE regslut OR stanstid.SLUTM LE regstart 
+      OR stanstid.SLUTM > regslut OR stanstid.STARTM < regstart THEN DO:
+         ASSIGN
+         stanstid.FELNR = 11
+         stanstid.FELTXT = "Veckovila kan inte registreras utanför ordinarie arbetstid".
+         RETURN.         
+      END.    
+   END.
+   IF stanstid.LONTILLAGG NE "" THEN DO:
+      FIND FIRST LONTILL WHERE LONTILL.KOD = ANSTFORMTAB.KOD AND 
+      LONTILL.VILART = stanstid.LONTILLAGG USE-INDEX VILART NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE LONTILL THEN DO:
+         FIND FIRST TRAKTATAB WHERE TRAKTATAB.TRAAVTAL = PERSONALTAB.TRAAVTAL
+         AND TRAKTATAB.VILART = stanstid.LONTILLAGG NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE TRAKTATAB THEN DO:
+            ASSIGN
+            stanstid.FELNR = 6
+            stanstid.FELTXT = "Detta lönetillägg finns ej.".                      
+            RETURN.
+         END.   
+      END.
+      IF AVAILABLE LONTILL AND LONTILL.VALBAR = FALSE THEN DO:
+         stanstid.FELTXT = "Lönetillägg " + stanstid.LONTILLAGG + " går ej att använda.".         
+         RETURN.
+      END.
+      IF AVAILABLE LONTILL AND LONTILL.AONROBL = TRUE THEN DO:
+         IF stanstid.AONR = "" THEN DO:    
+            ASSIGN
+            stanstid.FELNR = 5
+            stanstid.FELTXT = 
+            "Lönetillägg " + stanstid.LONTILLAGG + " kräver " + LC(Guru.Konstanter:gaol) + ".".               
+            RETURN.
+         END.
+      END.    
+      IF AVAILABLE LONTILL AND LONTILL.AONROBL = ? THEN DO:
+         IF stanstid.AONR = "" AND stanstid.DELNR = 0 THEN musz = musz.
+         ELSE DO:    
+            ASSIGN
+            stanstid.FELNR = 5 
+            stanstid.FELTXT = 
+            "Vid lönetillägg " + stanstid.LONTILLAGG + " krävs att " + LC(Guru.Konstanter:gaol) + " är blankt.". 
+            RETURN.
+         END.
+      END.   
+      IF AVAILABLE TRAKTATAB THEN DO:
+         IF stanstid.AONR = "" THEN DO:    
+            ASSIGN
+            stanstid.FELNR = 5
+            stanstid.FELTXT = 
+            "Lönetillägg " + stanstid.LONTILLAGG + " kräver " + LC(Guru.Konstanter:gaol) + ".".               
+            RETURN.
+         END.
+      END.    
+      IF globforetag = "NORD" OR globforetag = "ETA" OR globforetag = "ESAN" OR globforetag = "ESMA" 
+      OR globforetag = "ELPA" THEN DO:
+         IF AVAILABLE AONRTAB THEN DO: 
+            IF AONRTAB.PRISTYP = "FRÅNVARO." THEN DO:
+               ASSIGN
+               stanstid.FELNR = 5
+               stanstid.FELTXT = "Lönetillägg kan inte registreras på frånvaro " + LC(Guru.Konstanter:gaok) + ".".             
+               RETURN.
+            END.
+         END.
+      END.         
+      IF globforetag = "NORD" OR globforetag = "ETA" OR globforetag = "ESAN" OR globforetag = "ESMA"
+      OR globforetag = "ELPA" THEN DO:
+         IF AVAILABLE LONTILL THEN DO:
+            IF stanstid.LONTILLANTAL > 999 AND          
+            (LONTILL.ENHET = "ST" OR LONTILL.ENHET = "MI" OR
+            LONTILL.ENHET = "KM" OR LONTILL.ENHET = "TI" ) THEN DO:
+               ASSIGN
+               stanstid.FELNR = 7
+               stanstid.FELTXT = "Antal kan inte vara större än 999.".
+               RETURN.
+            END.
+         END.   
+      END.             
+   END.    
+   IF stanstid.STARTM = stanstid.SLUTM AND stanstid.LONTILLAGG NE "" THEN musz = musz.
+   ELSE DO:
+      IF stanstid.STARTM = stanstid.SLUTM THEN DO:
+         ASSIGN
+         stanstid.FELNR = 8
+         stanstid.FELTXT = "Start och slut kan inte vara lika.".
+         RETURN.
+      END.
+      IF stanstid.STARTM > 24.00 OR stanstid.STARTM < 0 THEN DO:
+         ASSIGN
+         stanstid.FELNR = 8
+         stanstid.FELTXT = "Orimligt klockslag. För starttiden.".             
+         RETURN.
+      END.      
+      IF SUBSTRING(STRING(stanstid.STARTM,"99.99"),4 ,2) > "59" THEN DO:
+         ASSIGN
+         stanstid.FELNR = 8
+         stanstid.FELTXT = "Orimligt klockslag. För starttiden.".             
+         RETURN.
+      END.
+      IF stanstid.SLUTM > 24.00 THEN DO:
+         ASSIGN
+         stanstid.FELNR = 9
+         stanstid.FELTXT = "Orimligt klockslag. För sluttiden.".
+         RETURN.
+      END. 
+      IF SUBSTRING(STRING(stanstid.SLUTM,"99.99"),4 ,2) > "59" THEN DO:
+         ASSIGN
+         stanstid.FELNR = 9
+         stanstid.FELTXT = "Orimligt klockslag. För sluttiden.".
+         RETURN.
+      END.    
+      IF stanstid.STARTM > stanstid.SLUTM THEN DO:
+         ASSIGN
+         stanstid.FELNR = 8
+         stanstid.FELTXT = "Start kan inte vara större än slut.".         
+         RETURN.
+      END.      
+      ASSIGN
+      regstart = stanstid.STARTM
+      regslut = stanstid.SLUTM.
+      FIND FIRST TIDREGITAB WHERE 
+      TIDREGITAB.PERSONAL = PERSONALTAB.PERSONALKOD AND
+      TIDREGITAB.DATUM = regdatum AND TIDREGITAB.START LE regstart AND
+      TIDREGITAB.SLUT > regstart AND TIDREGITAB.TIDLOG = TRUE 
+      USE-INDEX PSTART NO-LOCK NO-ERROR.
+      IF AVAILABLE TIDREGITAB THEN DO:
+         ASSIGN
+         stanstid.FELNR = 8
+         stanstid.FELTXT = "Det finns redan en registrering med start " + 
+         STRING(TIDREGITAB.START) + " och slut " + STRING(TIDREGITAB.SLUT) + ".".  
+         RETURN.
+      END.
+      FIND FIRST TIDREGITAB WHERE 
+      TIDREGITAB.PERSONAL = PERSONALTAB.PERSONALKOD AND
+      TIDREGITAB.DATUM = regdatum AND TIDREGITAB.START < regslut AND
+      TIDREGITAB.SLUT >= regslut AND TIDREGITAB.TIDLOG = TRUE 
+      USE-INDEX PSTART NO-LOCK NO-ERROR.   
+      IF NOT AVAILABLE TIDREGITAB THEN DO: 
+         FIND FIRST TIDREGITAB WHERE 
+         TIDREGITAB.PERSONAL = PERSONALTAB.PERSONALKOD AND
+         TIDREGITAB.DATUM = regdatum AND TIDREGITAB.START > regstart AND
+         TIDREGITAB.SLUT < regslut AND TIDREGITAB.TIDLOG = TRUE 
+         USE-INDEX PSTART NO-LOCK NO-ERROR.        
+         IF NOT AVAILABLE TIDREGITAB THEN DO:    
+            musz = musz.
+         END.  
+         ELSE DO:
+            ASSIGN
+            stanstid.FELNR = 8
+            stanstid.FELTXT = "Det finns redan en registrering med start " + 
+            STRING(TIDREGITAB.START) + " och slut " + STRING(TIDREGITAB.SLUT) + ".".  
+            RETURN.
+         END.                  
+      END.  
+      ELSE DO:
+         ASSIGN
+         stanstid.FELNR = 8
+         stanstid.FELTXT = "Det finns redan en registrering med start " + 
+         STRING(TIDREGITAB.START) + " och slut " + STRING(TIDREGITAB.SLUT) + ".".  
+         RETURN.
+      END.             
+      IF globforetag = "GRAN"  
+        OR globforetag = "ELPA"
+        THEN DO:
+         IF ANSTFORMTAB.KOD BEGINS "K" THEN DO:
+            OPEN QUERY btidq FOR EACH TIDREGITAB WHERE TIDREGITAB.PERSONAL = PERSONALTAB.PERSONALKOD AND
+            TIDREGITAB.DATUM = regdatum NO-LOCK.
+            GET FIRST btidq NO-LOCK.
+            DO WHILE AVAILABLE(TIDREGITAB):
+               IF stanstid.STARTM GE TIDREGITAB.BEREDSKAPSTART AND 
+               stanstid.STARTM < TIDREGITAB.BEREDSKAPSLUT THEN DO: 
+                  ASSIGN stanstid.UTRYCKNING = TRUE.            
+               END.    
+               GET NEXT btidq NO-LOCK.
+            END.
+         END.   
+      END.   
+      IF AVAILABLE AONRTAB THEN DO:          
+         regdatum = stanstid.DATUM.
+         RUN REGVEC.P.      
+         RUN SLUTARB.P.
+         IF AONRTAB.PRISTYP = "FRÅNVARO." THEN DO:
+            IF stanstid.STARTM GE regslut OR stanstid.SLUTM LE regstart OR 
+            stanstid.SLUTM > regslut OR stanstid.STARTM < regstart THEN DO:
+               ASSIGN
+               stanstid.FELNR = 8
+               stanstid.FELTXT = "Övertid kan inte registreras på frånvaro.".             
+               RETURN.
+            END.
+         END.     
+         IF AVAILABLE UTRYCKNING THEN DO:       
+            IF UTRYCKNING.HALV = TRUE THEN DO: 
+               FIND FIRST FLEXAVT WHERE FLEXAVT.PERSONALKOD = PERSONALTAB.PERSONALKOD USE-INDEX
+               PERSONALKOD NO-LOCK NO-ERROR.
+               IF AVAILABLE FLEXAVT AND FLEXAVT.FLEXTID = TRUE AND stanstid.OVERTIDUTTAG = "F" THEN musz = musz.                         
+               ELSE DO:        
+                  regdatum = stanstid.DATUM.                   
+                  RUN REGVEC.P.  
+                  RUN SLUTARB.P.          
+                  IF AONRTAB.PRISTYP = "FRÅNVARO." THEN DO:
+                     IF stanstid.STARTM GE regslut OR stanstid.SLUTM LE regstart OR 
+                     stanstid.SLUTM > regslut OR stanstid.STARTM < regstart THEN DO:
+                        ASSIGN
+                        stanstid.FELNR = 8
+                        stanstid.FELTXT = "Övertid kan inte registreras på frånvaro.".             
+                        RETURN.
+                     END.
+                  END. 
+                  IF stanstid.STARTM < regstart AND stanstid.SLUTM > regslut THEN DO:
+                     ASSIGN nytid = stanstid.STARTM.
+                     RUN TIMSEK.P.
+                     ASSIGN overant = sekunder
+                     nytid = regstart.
+                     RUN TIMSEK.P.
+                     ASSIGN overant = sekunder - overant
+                     nytid = stanstid.SLUTM.
+                     RUN TIMSEK.P.
+                     ASSIGN seku = sekunder
+                     nytid = regslut.
+                     RUN TIMSEK.P.
+                     overant = overant + seku - sekunder.            
+                  END.
+                  ELSE DO:
+                     IF stanstid.SLUTM > regslut AND  stanstid.STARTM < regslut THEN nytid = regslut.
+                     ELSE nytid = stanstid.STARTM.
+                     RUN TIMSEK.P.
+                     overant = sekunder. 
+                     IF stanstid.STARTM < regstart AND  stanstid.SLUTM > regstart THEN nytid = regstart.
+                     ELSE nytid = stanstid.SLUTM.
+                     RUN TIMSEK.P.         
+                     ASSIGN 
+                     overant = sekunder - overant.
+                  END.
+                  halvkvart = 1800.
+                  IF globforetag = "VATT" THEN halvkvart = 900.
+                  ASSIGN   
+                  otim = TRUNCATE(overant / halvkvart ,0)
+                  otim2 = overant - (otim * halvkvart).
+                  IF stanstid.UTRYCKNING = TRUE AND overant > UTRYCKNING.UTRYCKNBER AND
+                  otim2 > 0 AND stanstid.SLUTM > regslut THEN DO:
+                     IF globforetag = "VATT" THEN DO: 
+                        ASSIGN
+                        stanstid.FELNR = 8
+                        stanstid.FELTXT = "Endast jämna kvartar får registreras.".
+                        RETURN.
+                     END.                     
+                     ELSE DO:
+                        ASSIGN
+                        stanstid.FELNR = 8
+                        stanstid.FELTXT = "Endast jämna halvtimmar får registreras.".
+                        RETURN.
+                     END.                        
+                  END.   
+                  IF stanstid.UTRYCKNING = TRUE AND overant > UTRYCKNING.UTRYCKNBER AND
+                  otim2 > 0 AND stanstid.STARTM < regstart THEN DO:
+                     IF globforetag = "VATT" THEN DO:
+                        ASSIGN
+                        stanstid.FELNR = 8
+                        stanstid.FELTXT = "Endast jämna kvartar får registreras.".
+                        RETURN.
+                     END.                     
+                     ELSE DO:
+                        ASSIGN
+                        stanstid.FELNR = 8
+                        stanstid.FELTXT = "Endast jämna halvtimmar får registreras.".
+                        RETURN.
+                     END.
+                  END.
+                  IF stanstid.UTRYCKNING = FALSE AND otim2 > 0 AND stanstid.SLUTM > regslut THEN DO:
+                     IF globforetag = "VATT" THEN DO:
+                        ASSIGN
+                        stanstid.FELNR = 8
+                        stanstid.FELTXT = "Endast jämna kvartar får registreras.".
+                        RETURN.
+                     END.                     
+                     ELSE DO:
+                        ASSIGN
+                        stanstid.FELNR = 8
+                        stanstid.FELTXT = "Endast jämna halvtimmar får registreras.".
+                        RETURN.
+                     END.
+                  END.
+                  IF stanstid.UTRYCKNING = FALSE AND otim2 > 0 AND stanstid.STARTM < regstart THEN DO:
+                     IF globforetag = "VATT" THEN DO:
+                        ASSIGN
+                        stanstid.FELNR = 8
+                        stanstid.FELTXT = "Endast jämna kvartar får registreras.".
+                        RETURN.
+                     END.                     
+                     ELSE DO:
+                        ASSIGN
+                        stanstid.FELNR = 8
+                        stanstid.FELTXT = "Endast jämna halvtimmar får registreras.".
+                        RETURN.
+                     END.
+                  END.             
+               END.   
+            END.
+         END. 
+         IF Guru.Konstanter:varforetypval[4] = 1 THEN DO:
+         END.
+         ELSE DO:
+            {SOKSTART.I}
+            ASSIGN
+            soktemp.SOKVAL = 1
+            soktemp.SOKINT[1] = Guru.Konstanter:varforetypval[4]
+            soktemp.SOKCHAR[2] = stanstid.PERSONALKOD
+            soktemp.SOKCHAR[3] = AONRTAB.PRISTYP
+            soktemp.SOKCHAR[4] = stanstid.BEFATTNING 
+            soktemp.SOKDATE[1] = stanstid.DATUM.
+            {SOKANROP.I}
+            ASSIGN
+            stanstid.PRIS = soktemp.SOKDECI[1].         
+         END.               
+         ASSIGN
+         stanstid.PRISTYP = AONRTAB.PRISTYP.         
+      END.
+   END.          
+   IF stanstid.LONTILLAGG NE "" THEN DO TRANSACTION:
+      CREATE TIDREGITAB.
+      ASSIGN
+      TIDREGITAB.TIDLOG = FALSE
+      TIDREGITAB.DATUM = stanstid.DATUM
+      TIDREGITAB.AONR = stanstid.AONR 
+      TIDREGITAB.DELNR = stanstid.DELNR
+      TIDREGITAB.OVERTIDTILL = stanstid.BEFATTNING      
+      SUBSTRING(TIDREGITAB.PROGRAM,1,158) = "STANSTID" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv
+      TIDREGITAB.PERSONALKOD = stanstid.PERSONALKOD  
+      TIDREGITAB.DAG = regdagnamn
+      TIDREGITAB.VECKONUMMER = regvnr
+      TIDREGITAB.SLUT = 7.00
+      TIDREGITAB.START = 7.00.
+      IF AVAILABLE LONTILL THEN DO:
+         ASSIGN
+         TIDREGITAB.LONTILLAGG = LONTILL.LONTILLAGG
+         TIDREGITAB.LONTILLANTAL = stanstid.LONTILLANTAL           
+         TIDREGITAB.LONAUTO = FALSE.  
+         RELEASE LONTILL.                     
+      END.
+      IF AVAILABLE TRAKTATAB THEN DO:
+         ASSIGN
+         TIDREGITAB.TRAKTKOD = TRAKTATAB.TRAKTKOD
+         TIDREGITAB.TRAKTANTAL = stanstid.LONTILLANTAL           
+         TIDREGITAB.TRAKTAUTO = FALSE.   
+         RELEASE TRAKTATAB.
+      END.   
+      /*TIDREGITAB.RESMAL = FILL-IN-RESMAL            
+ *       IF FILL-IN-MOMS > 0 THEN DO:
+ *          FIND FIRST LONTILL WHERE LONTILL.LONKODTEXT = 'MOMS' NO-LOCK NO-ERROR.
+ *          IF AVAILABLE LONTILL THEN DO:
+ *             CREATE tidbuff.
+ *             ASSIGN
+ *             tidbuff.DATUM = TIDREGITAB.DATUM 
+ *             tidbuff.AONR = TIDREGITAB.AONR  
+ *             tidbuff.DELNR = TIDREGITAB.DELNR 
+ *             tidbuff.PROGRAM = TIDREGITAB.PROGRAM 
+ *             tidbuff.PERSONALKOD = TIDREGITAB.PERSONALKOD   
+ *             tidbuff.DAG = TIDREGITAB.DAG 
+ *             tidbuff.VECKONUMMER = TIDREGITAB.VECKONUMMER 
+ *             tidbuff.TIDLOG = FALSE
+ *             tidbuff.SLUT = 7.00
+ *             tidbuff.START = 7.00 
+ *             tidbuff.LONTILLAGG = LONTILL.LONTILLAGG
+ *             tidbuff.LONTILLANTAL = FILL-IN-MOMS  
+ *             tidbuff.RESMAL = FILL-IN-RESMAL
+ *             tidbuff.LONAUTO = FALSE.                
+ *          END.  
+ *       END.*/   
+   END.
+
+   OPEN QUERY tq FOR EACH TIDREGITAB WHERE 
+   TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+   TIDREGITAB.DATUM = regdatum AND TIDREGITAB.LONAUTO = TRUE 
+   USE-INDEX PSTART NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST tq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(TIDREGITAB):     
+         FIND FIRST LONKORT WHERE LONKORT.LONTILLAGG = LONTILL.LONTILLAGG AND
+         LONKORT.KORTLON = TIDREGITAB.LONTILLAGG USE-INDEX LONKORT NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE LONKORT THEN persrec = persrec.
+         ELSE DO:
+            ASSIGN TIDREGITAB.LONTILLAGG = " " TIDREGITAB.LONTILLANTAL = 0
+            TIDREGITAB.LONAUTO = FALSE.
+         END.
+         GET NEXT tq EXCLUSIVE-LOCK.
+      END.        
+   END.   
+   IF stanstid.STARTM NE stanstid.SLUTM THEN DO:
+      DO TRANSACTION:
+         /*PRISFOR*/
+         IF Guru.Konstanter:varforetypval[4] = 1 THEN DO:
+            IF stanstid.BEFATTNING = "" THEN DO:
+               stanstid.BEFATTNING = PERSONALTAB.BEFATTNING.
+            END.
+            IF stanstid.PRISTYP = "FRÅNVARO." OR stanstid.PRISTYP = "RESTID..." THEN DO:
+               FIND LAST PERSONALPRIS WHERE PERSONALPRIS.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+               PERSONALPRIS.BEFATTNING = stanstid.PRISTYP AND 
+               PERSONALPRIS.STARTDATUM <= stanstid.DATUM AND 
+               PERSONALPRIS.SLUTDATUM >= stanstid.DATUM 
+               NO-ERROR.                
+               IF AVAILABLE PERSONALPRIS THEN stanstid.PRIS = PERSONALPRIS.PRIS.  
+               ELSE DO:
+                  {SOKSTART.I}
+                  ASSIGN
+                  soktemp.SOKVAL = 1
+                  soktemp.SOKINT[1] = Guru.Konstanter:varforetypval[4]
+                  soktemp.SOKCHAR[2] = PERSONALTAB.PERSONALKOD
+                  soktemp.SOKCHAR[3] = stanstid.PRISTYP
+                  soktemp.SOKCHAR[4] = stanstid.BEFATTNING 
+                  soktemp.SOKDATE[1] = stanstid.DATUM.
+                  {SOKANROP.I}
+                  stanstid.PRIS = soktemp.SOKDECI[1].
+               END.    
+            END.
+            ELSE IF (globforetag = "SUND" OR globforetag = "SNAT" OR globforetag = "MISV") AND stanstid.PRISTYP = "EJ.KOSTN" THEN DO:
+               FIND LAST PERSONALPRIS WHERE PERSONALPRIS.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+               PERSONALPRIS.BEFATTNING = stanstid.PRISTYP AND 
+               PERSONALPRIS.STARTDATUM <= stanstid.DATUM AND 
+               PERSONALPRIS.SLUTDATUM >= stanstid.DATUM 
+               NO-ERROR.                
+               IF AVAILABLE PERSONALPRIS THEN stanstid.PRIS = PERSONALPRIS.PRIS.  
+               ELSE DO:
+                  {SOKSTART.I}
+                  ASSIGN
+                  soktemp.SOKVAL = 1
+                  soktemp.SOKINT[1] = Guru.Konstanter:varforetypval[4]
+                  soktemp.SOKCHAR[2] = PERSONALTAB.PERSONALKOD
+                  soktemp.SOKCHAR[3] = stanstid.PRISTYP
+                  soktemp.SOKCHAR[4] = stanstid.BEFATTNING 
+                  soktemp.SOKDATE[1] = stanstid.DATUM.
+                  {SOKANROP.I}
+                  stanstid.PRIS = soktemp.SOKDECI[1].
+               END. 
+            END.
+            ELSE IF globforetag = "ELPA" AND stanstid.PRISTYP = "EJ.KOSTN" THEN DO:
+               FIND LAST PERSONALPRIS WHERE PERSONALPRIS.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+               PERSONALPRIS.BEFATTNING = stanstid.PRISTYP AND 
+               PERSONALPRIS.STARTDATUM <= stanstid.DATUM AND 
+               PERSONALPRIS.SLUTDATUM >= stanstid.DATUM 
+               NO-ERROR.                
+               IF AVAILABLE PERSONALPRIS THEN stanstid.PRIS = PERSONALPRIS.PRIS.  
+               ELSE DO:
+                  {SOKSTART.I}
+                  ASSIGN
+                  soktemp.SOKVAL = 1
+                  soktemp.SOKINT[1] = Guru.Konstanter:varforetypval[4]
+                  soktemp.SOKCHAR[2] = PERSONALTAB.PERSONALKOD
+                  soktemp.SOKCHAR[3] = stanstid.PRISTYP
+                  soktemp.SOKCHAR[4] = stanstid.BEFATTNING 
+                  soktemp.SOKDATE[1] = stanstid.DATUM.
+                  {SOKANROP.I}
+                  stanstid.PRIS = soktemp.SOKDECI[1].
+               END.                 
+            END.
+            ELSE DO:
+               FIND FIRST PERSONALPRIS WHERE  
+               PERSONALPRIS.PERSONALKOD = PERSONALTAB.PERSONALKOD AND 
+               PERSONALPRIS.BEFATTNING = stanstid.BEFATTNING AND 
+               PERSONALPRIS.STARTDATUM <= stanstid.DATUM AND 
+               PERSONALPRIS.SLUTDATUM >= stanstid.DATUM
+               NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALPRIS THEN stanstid.PRIS = PERSONALPRIS.PRIS.  
+               ELSE DO:
+                  {SOKSTART.I}
+                  ASSIGN
+                  soktemp.SOKVAL = 1
+                  soktemp.SOKINT[1] = Guru.Konstanter:varforetypval[4]
+                  soktemp.SOKCHAR[2] = PERSONALTAB.PERSONALKOD
+                  soktemp.SOKCHAR[3] = stanstid.PRISTYP
+                  soktemp.SOKCHAR[4] = stanstid.BEFATTNING 
+                  soktemp.SOKDATE[1] = stanstid.DATUM.
+                  {SOKANROP.I}
+                  stanstid.PRIS = soktemp.SOKDECI[1].
+               END. 
+            END.
+         END.
+         ASSIGN
+         bustart3 = stanstid.STARTM.
+         CREATE TIDREGITAB.               
+         tidtabrec = RECID(TIDREGITAB).
+         ASSIGN 
+         SUBSTRING(TIDREGITAB.PROGRAM,1,158) = "STANSTID" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv
+         TIDREGITAB.PERSONALKOD = stanstid.PERSONALKOD      
+         TIDREGITAB.OVERTIDTILL = stanstid.BEFATTNING
+         TIDREGITAB.DAG = regdagnamn
+         TIDREGITAB.VECKONUMMER = regvnr
+         TIDREGITAB.SLUT = stanstid.SLUTM
+         TIDREGITAB.START = stanstid.STARTM 
+         TIDREGITAB.TRAKTAMENTE = stanstid.TRAKTAMENTE
+         TIDREGITAB.OVERTIDUTTAG = stanstid.OVERTIDUTTAG 
+         TIDREGITAB.UTRYCKNING = stanstid.UTRYCKNING
+         /*
+         TIDREGITAB.NODF = FILL-IN_NODF
+         */
+         TIDREGITAB.PRISTYP = stanstid.PRISTYP
+         TIDREGITAB.PRIS = stanstid.PRIS
+         TIDREGITAB.AONR = stanstid.AONR
+         TIDREGITAB.DELNR = stanstid.DELNR               
+         TIDREGITAB.DATUM = stanstid.DATUM.         
+         ASSIGN      
+         nytid = TIDREGITAB.START.
+         RUN TIMSEK.P.
+         regstartsek = sekunder.
+         nytid = TIDREGITAB.SLUT.
+         RUN TIMSEK.P.
+         regslutsek = sekunder.
+         regdatum = TIDREGITAB.DATUM.
+         RUN TOTTID.P.                        
+         ASSIGN TIDREGITAB.TOTALT = nytid. 
+         IF globforetag = "ESMA" OR globforetag = "ESAN" OR globforetag = "ELPA" THEN DO:
+            IF stanstid.VECKOVILA = TRUE THEN DO:
+               FIND FIRST LONTILL WHERE LONTILL.KOD = ANSTFORMTAB.KOD AND LONTILL.LONTILLAGG = "108"
+               NO-LOCK NO-ERROR.
+               IF AVAILABLE LONTILL THEN DO:
+                  ASSIGN TIDREGITAB.LONTILLAGG = "108"
+                  TIDREGITAB.LONTILLANTAL = nytid.
+               END.   
+            END.       
+         END.   
+      END.                   
+      RELEASE TIDREGITAB NO-ERROR.            
+      RUN nytolk_UI.          
+   END.   
+END PROCEDURE.
+PROCEDURE anst_UI :
+   FIND FIRST ANSTFORMTAB WHERE ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+   USE-INDEX ANSTF NO-LOCK NO-ERROR.       
+   FIND FIRST UTRYCKNING WHERE UTRYCKNING.KOD = ANSTFORMTAB.KOD
+   USE-INDEX UT NO-LOCK NO-ERROR.             
+END PROCEDURE.
+
+PROCEDURE nytolk_UI :
+   EMPTY TEMP-TABLE tidapptemp NO-ERROR.    
+   CREATE tidapptemp.
+   ASSIGN
+   tidapptemp.FORETAG = globforetag
+   tidapptemp.ANVANDARE = globanv
+   tidapptemp.RECPERS = persrec
+   tidapptemp.RECTID = tidtabrec
+   tidapptemp.DATUM = regdatum.            
+   {TIDUPPIN.I}      
+   musz = FALSE.                    
+END PROCEDURE.

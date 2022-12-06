@@ -1,0 +1,463 @@
+/*
+               KSV Editor
+    Copyright: (C) 2000-2001 Serguey Klimoff (bulkl0DD)
+     Filename: MSVAONRIN.P
+      Comment: <comment>
+   Parameters:
+         Uses:
+      Used by:
+      Created: 2009.11.02 11:13 ELPAO   
+     Modified: 2009.11.19 14:13 ELPAO    
+     Modified: 2009.12.03 10:21 ELPAO    
+     Modified: 2010.03.19 13:33 ELPAO    
+     Modified: 2010.07.09 11:29 ELPAO    
+     Modified: 
+*/
+DEFINE INPUT PARAMETER prognamnque AS CHARACTER NO-UNDO.
+
+
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+DEFINE NEW SHARED VARIABLE quotervar AS CHARACTER FORMAT "X(256)" NO-UNDO.
+
+
+
+
+DEFINE VARIABLE dirnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dirspar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE dynxml AS HANDLE NO-UNDO.
+DEFINE VARIABLE filnamnuppxml AS CHARACTER NO-UNDO.
+DEFINE VARIABLE servervar AS CHARACTER LABEL "Smtp Server" NO-UNDO.
+DEFINE VARIABLE franvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tillepost AS CHARACTER NO-UNDO.
+DEFINE STREAM dirstrom.
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{EXTRADATA.I}
+{EXTRATAB.I}  
+
+DEFINE TEMP-TABLE Projekt
+   FIELD Projektnummer     AS CHARACTER     
+   FIELD Delnr             AS INTEGER
+   FIELD Benamning         AS CHARACTER
+   FIELD Ansvarig          AS CHARACTER
+   FIELD Bestallare        AS CHARACTER
+   FIELD Avslutdatum       AS CHARACTER   
+   FIELD Borttaget         AS LOGICAL
+   INDEX Projektnummer Projektnummer.
+DEFINE TEMP-TABLE tempnamn NO-UNDO
+   FIELD NAMNH AS HANDLE
+   FIELD TORGTH AS HANDLE
+   FIELD NODTAB AS CHARACTER.   
+DEFINE TEMP-TABLE imptemp NO-UNDO
+   FIELD INVAR AS CHARACTER
+   FIELD INDIR AS CHARACTER
+   INDEX INVAR INVAR.
+
+DEFINE TEMP-TABLE feltemp NO-UNDO
+   FIELD AONR AS CHARACTER
+   FIELD POST AS CHARACTER
+   FIELD FELMEDD AS CHARACTER
+   INDEX AONR AONR.
+
+DEFINE TEMP-TABLE eposttemp NO-UNDO
+   FIELD EPOST AS CHARACTER
+   FIELD MEDD AS CHARACTER
+   INDEX EPOST EPOST.
+
+{SMTPDEF3.I}
+
+{AMERICANEUROPEAN.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+IF Guru.Konstanter:globforetag = "MISV"  THEN DO:
+   ASSIGN
+   franvar = "NOREPLY"
+   servervar = CHR(49) + CHR(55) + CHR(50) + CHR(46) + CHR(49) + CHR(54) + CHR(46) + CHR(50) + CHR(53) + CHR(52) + CHR(46) + CHR(50) + CHR(50) + CHR(50).
+   /*servervar = "130.1.27.253".
+   servervar = "172.16.79.249".*/
+END.
+ELSE DO:
+   ASSIGN
+   franvar = "elpool.ume@elpool.se"
+   servervar = CHR(115) + CHR(109) + CHR(116) + CHR(112) + CHR(46) + CHR(116) + CHR(101) + CHR(108) + CHR(101) + CHR(99) + CHR(111) + CHR(109) + CHR(51) + CHR(46) + CHR(110) + CHR(101) + CHR(116) .
+END.
+
+
+
+RUN textut_UI ("Start in").
+RUN PROVAG.P.
+
+IF Guru.Konstanter:globforetag = "MISV" THEN DO:
+   ASSIGN
+   dirnamn = "C:\elpool\delad\pro10s\import\projin\".
+   /*Guru.Konstanter:AppSpringSet[1] = "misvstb"*/
+   dirnamn = "d:\elpool\delad\pro10s\import\projin\".
+   
+   dirspar = "C:\elpool\delad\pro10s\backimport\projin\".
+   /*Guru.Konstanter:AppSpringSet[1] = "misvstb"*/
+   dirspar = "d:\elpool\delad\pro10s\backimport\projin\".
+   
+END.
+ELSE DO:
+   ASSIGN
+   dirnamn = "C:\Pro9\GURU\DB\import\projin\"
+   dirspar = "C:\Pro9\GURU\DB\backimport\projin\".
+END.
+
+/*
+ASSIGN
+dirnamn = "C:\delad\pro9s\import\aonrin\"
+dirspar = "C:\delad\pro9s\importkopia\aonrin\".
+  */
+OS-CREATE-DIR VALUE(dirnamn) NO-ERROR. 
+OS-CREATE-DIR VALUE(dirspar) NO-ERROR.
+dirspar = dirspar + STRING(YEAR(TODAY)).   
+   
+RUN textut_UI ("Start xml").
+RUN inxml_UI.
+
+FIND FIRST imptemp NO-LOCK NO-ERROR.
+IF NOT AVAILABLE imptemp THEN DO:
+   {EUROPEANAMERICAN.I}
+   RETURN.
+END.
+CREATE tempnamn.        
+tempnamn.NAMNH = BUFFER Projekt:HANDLE.       
+tempnamn.TORGTH = TEMP-TABLE Projekt:HANDLE.
+tempnamn.NODTAB = "Projekt".
+{UTXKMLKOLL.I}
+RUN VALUE(vxmlpro) PERSISTENT SET dynxml (INPUT FALSE).
+FOR EACH imptemp:
+   filnamnuppxml = imptemp.INDIR + imptemp.INVAR.
+   RUN xmlinstart_UI IN dynxml (INPUT TABLE tempnamn,INPUT filnamnuppxml).
+END.
+RUN xmlslut_UI IN dynxml.
+FOR EACH imptemp:
+   RUN textut_UI ("Filer bort " + imptemp.INDIR + imptemp.INVAR).
+   OS-DELETE VALUE(imptemp.INDIR + imptemp.INVAR) NO-ERROR.
+END.
+EMPTY TEMP-TABLE feltemp NO-ERROR. 
+EMPTY TEMP-TABLE eposttemp NO-ERROR. 
+RUN aonr_UI.
+tillepost = "ekonomi@mittsverigevatten.se".
+
+FOR EACH feltemp NO-LOCK:
+   FIND FIRST eposttemp WHERE eposttemp.EPOST = tillepost AND 
+   LENGTH(eposttemp.MEDD,"CHARACTER") < 30000 NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE eposttemp THEN DO:
+      CREATE eposttemp.
+      eposttemp.EPOST = tillepost.
+      eposttemp.MEDD = " Uppgifter saknas på exporterade projekt från Summarum till Guru " + STRING(TODAY,"9999/99/99") + "  " + STRING(TIME,"hh:mm")  + CHR(10)
+                     + " ========================================================================== " + CHR(10).       
+   END.
+   IF feltemp.POST = "" THEN DO:
+      eposttemp.MEDD = eposttemp.MEDD + feltemp.AONR +  " " + feltemp.FELMEDD + ". I filen skickades blank "  + CHR(10) + CHR(10).         
+   END.
+   ELSE IF feltemp.POST = "AVSLUT" THEN DO:
+      eposttemp.MEDD = eposttemp.MEDD + feltemp.AONR +  " " + feltemp.FELMEDD  + CHR(10) + CHR(10).         
+   END.
+   ELSE eposttemp.MEDD = eposttemp.MEDD + feltemp.AONR +  " " + feltemp.FELMEDD + ". I filen skickades " + feltemp.POST  + CHR(10) + CHR(10).         
+   
+END.
+RUN emedd_UI.
+IF VALID-HANDLE(dynxml) THEN DELETE PROCEDURE dynxml.
+{EUROPEANAMERICAN.I}    
+PROCEDURE textut_UI:
+   DEFINE INPUT PARAMETER meddvar AS CHARACTER NO-UNDO.
+   OUTPUT TO VALUE(prognamnque) APPEND.
+   PUT UNFORMATTED meddvar " " TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+   OUTPUT CLOSE.
+END PROCEDURE.
+
+
+
+
+PROCEDURE aonr_UI :
+
+   FOR EACH Projekt:
+      IF Projekt.Projektnummer BEGINS "16"  THEN.
+      ELSE IF Projekt.Projektnummer BEGINS "000"  THEN.
+      ELSE DO TRANSACTION:      
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = Projekt.Projektnummer AND AONRTAB.DELNR = Projekt.Delnr 
+         EXCLUSIVE-LOCK NO-ERROR NO-WAIT. 
+         IF LOCKED(AONRTAB) = TRUE THEN NEXT. 
+         IF NOT AVAILABLE AONRTAB THEN DO: 
+            IF Projekt.Avslutdatum NE "" THEN NEXT.
+            CREATE AONRTAB.
+            ASSIGN
+            AONRTAB.AONR          = Projekt.Projektnummer 
+            AONRTAB.DELNR         = Projekt.Delnr
+            AONRTAB.OMRADE        = "SVAB".
+         END.
+         IF LOCKED(AONRTAB) = FALSE THEN.
+         ELSE NEXT.
+         FIND FIRST BESTTAB WHERE BESTTAB.BESTNAMN = Projekt.Bestallare AND BESTTAB.BESTNAMN NE ""  NO-LOCK NO-ERROR.
+         IF AVAILABLE BESTTAB THEN DO:         
+            IF AONRTAB.BESTID NE BESTTAB.BESTID  THEN ASSIGN AONRTAB.BESTID  =  BESTTAB.BESTID.
+         END.
+         ELSE DO: 
+            IF Projekt.Bestallare = "MittSverige Vatten AB" THEN DO:
+               IF AONRTAB.BESTID NE AONRTAB.OMRADE  THEN ASSIGN AONRTAB.BESTID   = AONRTAB.OMRADE.
+            END.
+            ELSE DO:         
+               IF AONRTAB.BESTID NE AONRTAB.OMRADE THEN ASSIGN AONRTAB.BESTID = AONRTAB.OMRADE.
+               CREATE feltemp.
+               ASSIGN 
+               feltemp.AONR = Projekt.Projektnummer
+               feltemp.POST = Projekt.Bestallare
+               FELTEMP.FELMEDD = "Projektet saknar giltig beställare".
+            END.
+   
+         END.
+         IF Projekt.Avslutdatum = "" THEN DO:
+            /*uppdatera bara ansvariga om projektet ej är avslutar  , så att det ej blir problem med inaktiva ansvariga Eva Jansson 20140310*/   
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONNUMMER = SUBSTRING(Projekt.Ansvarig,3,10) AND PERSONALTAB.PERSONNUMMER NE "" NO-LOCK NO-ERROR.
+            IF AVAILABLE PERSONALTAB  THEN DO:
+               IF AONRTAB.STARTDAG NE PERSONALTAB.PERSONALKOD  THEN DO:         
+                  ASSIGN
+                  AONRTAB.STARTDAG = PERSONALTAB.PERSONALKOD
+                  AONRTAB.BEREDARE   = PERSONALTAB.PERSONALKOD
+                  AONRTAB.ARBANSVARIG = PERSONALTAB.PERSONALKOD.                      
+                  FIND FIRST BEREDAONR WHERE BEREDAONR.PERSONALKOD = PERSONALTAB.PERSONALKOD NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE BEREDAONR THEN DO:
+                     CREATE BEREDAONR.
+                     ASSIGN 
+                     BEREDAONR.PERSONALKOD = PERSONALTAB.PERSONALKOD
+                     BEREDAONR.FORNAMN = PERSONALTAB.FORNAMN
+                     BEREDAONR.EFTERNAMN = PERSONALTAB.EFTERNAMN. 
+                  END.
+                  FIND FIRST ANSVAONR WHERE ANSVAONR.PERSONALKOD = PERSONALTAB.PERSONALKOD NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE ANSVAONR THEN DO:
+                     CREATE ANSVAONR.
+                     ASSIGN ANSVAONR.PERSONALKOD = PERSONALTAB.PERSONALKOD
+                     ANSVAONR.FORNAMN = PERSONALTAB.FORNAMN
+                     ANSVAONR.EFTERNAMN = PERSONALTAB.EFTERNAMN. 
+                  END.
+   
+                  RUN FINNSTABELL.P (INPUT "EXTRADATA", OUTPUT bloblog).
+                  IF bloblog = FALSE THEN.
+                  ELSE DO:               
+                     RUN EXTRADATAHMT.P PERSISTENT SET edataapph.                  
+                     EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+                     CREATE inextradatatemp.          
+                     ASSIGN
+                     inextradatatemp.PROGRAM = "AOPROJ"                   
+                     inextradatatemp.HUVUDCH = PERSONALTAB.PERSONALKOD              
+                     inextradatatemp.HUVUDINT =  ?.   
+                     RUN finnsextra_UI IN edataapph (INPUT TABLE inextradatatemp,OUTPUT musz).        
+                     IF musz = FALSE THEN DO:        
+                        RUN sparaextra_UI IN edataapph (INPUT TABLE inextradatatemp).
+                     END.
+                     IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+                     edataapph = ?. 
+                  END.
+   
+               END.
+            END.
+            ELSE DO:
+               IF Guru.Konstanter:globforetag = "MISV" THEN DO:         
+                  FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = "ETN" NO-LOCK NO-ERROR.
+               END.
+               IF Guru.Konstanter:globforetag = "ELPA" THEN DO:         
+                  FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = "6677" NO-LOCK NO-ERROR.
+               END.
+               IF AVAILABLE PERSONALTAB THEN DO:            
+                  IF AONRTAB.STARTDAG = "" THEN AONRTAB.STARTDAG = PERSONALTAB.PERSONALKOD.
+                  IF AONRTAB.BEREDARE = "" THEN AONRTAB.BEREDARE   = PERSONALTAB.PERSONALKOD.
+                  IF AONRTAB.ARBANSVARIG = "" THEN AONRTAB.ARBANSVARIG = PERSONALTAB.PERSONALKOD.                      
+               END.
+               CREATE feltemp.
+               ASSIGN 
+               feltemp.AONR = Projekt.Projektnummer
+               feltemp.POST = Projekt.Ansvarig
+               feltemp.FELMEDD = "Projektet saknar giltig ansvarig".
+            END.
+         END.            
+   
+         Projekt.Benamning = REPLACE(Projekt.Benamning,"\","").
+         Projekt.Benamning = REPLACE(Projekt.Benamning,"/","").
+         Projekt.Benamning = REPLACE(Projekt.Benamning,":","").
+         Projekt.Benamning = REPLACE(Projekt.Benamning,"*","x").
+         Projekt.Benamning = REPLACE(Projekt.Benamning,">","").
+         Projekt.Benamning = REPLACE(Projekt.Benamning,"<","").
+         Projekt.Benamning = REPLACE(Projekt.Benamning,"|","").
+         IF AONRTAB.ORT NE Projekt.Benamning THEN ASSIGN AONRTAB.ORT = Projekt.Benamning.
+         
+         IF Projekt.Avslutdatum = "" THEN DO:
+            IF AONRTAB.AONRAVDATUM NE 01/01/91 THEN DO:
+               RUN ejavslut_UI (INPUT TRUE).
+            END.
+            IF AONRTAB.AONRAVDATUM NE 01/01/91 THEN ASSIGN AONRTAB.AONRAVDATUM = 01/01/91.
+            FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.AONR = AONRTAB.AONR AND 
+            AONRTIDLAGE.DELNR = AONRTAB.DELNR AND AONRTIDLAGE.IDTIDLAG = "AONRAVSL" EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE AONRTIDLAGE THEN DELETE AONRTIDLAGE.
+         END.
+         ELSE DO:
+            IF AONRTAB.AONRAVDATUM NE DATE(INTEGER(SUBSTRING(Projekt.Avslutdatum,5,2)),INTEGER(SUBSTRING(Projekt.Avslutdatum,7,2)),INTEGER(SUBSTRING(Projekt.Avslutdatum,1,4))) THEN DO:         
+               AONRTAB.AONRAVDATUM = DATE(INTEGER(SUBSTRING(Projekt.Avslutdatum,5,2)),INTEGER(SUBSTRING(Projekt.Avslutdatum,7,2)),INTEGER(SUBSTRING(Projekt.Avslutdatum,1,4))).
+               RUN TLAGAUTO.P (INPUT "AUTOMATISKT", INPUT RECID(AONRTAB), INPUT "AONRAVSL").                  
+               FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.AONR = AONRTAB.AONR AND 
+               AONRTIDLAGE.DELNR = AONRTAB.DELNR AND AONRTIDLAGE.IDTIDLAG = "AONRAVSL" EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE AONRTIDLAGE THEN DO:
+                  AONRTIDLAGE.DATUM1 = DATE(INTEGER(SUBSTRING(Projekt.Avslutdatum,5,2)),INTEGER(SUBSTRING(Projekt.Avslutdatum,7,2)),INTEGER(SUBSTRING(Projekt.Avslutdatum,1,4))).
+               END.
+               RUN ejavslut_UI (INPUT FALSE).
+            END.
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.AONR = Projekt.Projektnummer AND TIDREGITAB.DELNR = 0 AND TIDREGITAB.TIDLOG = TRUE
+            AND TIDREGITAB.DATUM > AONRTAB.AONRAVDATUM NO-LOCK NO-ERROR.
+            IF AVAILABLE TIDREGITAB THEN DO:               
+               CREATE feltemp.
+               ASSIGN 
+               feltemp.AONR = Projekt.Projektnummer
+               feltemp.POST = "AVSLUT"
+               feltemp.FELMEDD = "Tid finns skriven efter projektets avslutdatum på  t.ex " +  TIDREGITAB.PERSONALKOD + " " + STRING(TIDREGITAB.DATUM).
+
+            END.
+         END.
+         
+         IF Projekt.Borttaget = TRUE  THEN DO:
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.AONR = Projekt.Projektnummer AND TIDREGITAB.DELNR = 0 NO-LOCK NO-ERROR.
+            IF AVAILABLE TIDREGITAB THEN DO:
+               AONRTAB.AONRAVDATUM = TODAY.
+               RUN TLAGAUTO.P (INPUT "AUTOMATISKT", INPUT RECID(AONRTAB), INPUT "AONRAVSL").                  
+               FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.AONR = AONRTAB.AONR AND 
+               AONRTIDLAGE.DELNR = AONRTAB.DELNR AND AONRTIDLAGE.IDTIDLAG = "AONRAVSL" EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE AONRTIDLAGE THEN DO:
+                  AONRTIDLAGE.DATUM1 = DATE(INTEGER(SUBSTRING(Projekt.Avslutdatum,5,2)),INTEGER(SUBSTRING(Projekt.Avslutdatum,7,2)),INTEGER(SUBSTRING(Projekt.Avslutdatum,1,4))).
+               END.
+               RUN ejavslut_UI (INPUT FALSE).
+              
+            END.
+            ELSE DO:
+               DELETE AONRTAB.
+            END.
+         END.
+      END.
+      RELEASE AONRTAB NO-ERROR.
+   END.   
+END PROCEDURE.
+
+PROCEDURE ejavslut_UI : 
+   DEFINE INPUT PARAMETER aktivvar AS LOGICAL NO-UNDO.
+   FOR EACH KALKAONR WHERE KALKAONR.AONR = AONRTAB.AONR AND KALKAONR.DELNR = AONRTAB.DELNR NO-LOCK,
+   EACH FASTSPEC WHERE FASTSPEC.KALKNR = KALKAONR.KALKNR EXCLUSIVE-LOCK.
+      FASTSPEC.AKTIV = aktivvar.         
+   END.
+   FOR EACH KALKSPEC WHERE KALKSPEC.AONR = AONRTAB.AONR AND KALKSPEC.DELNR = AONRTAB.DELNR USE-INDEX AONR EXCLUSIVE-LOCK.
+      KALKSPEC.AKTIV = aktivvar.         
+   END.
+   FOR EACH KALKAONR WHERE KALKAONR.AONR = AONRTAB.AONR AND KALKAONR.DELNR = AONRTAB.DELNR USE-INDEX AONR EXCLUSIVE-LOCK.
+      KALKAONR.AKTIV = aktivvar.
+   END.
+   DO TRANSACTION:
+      FIND FIRST BEREDNING WHERE BEREDNING.AONR = AONRTAB.AONR AND BEREDNING.DELNR = AONRTAB.DELNR 
+      USE-INDEX AONR EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BEREDNING THEN BEREDNING.AKTIV = aktivvar.  
+      FIND FIRST AOVARD WHERE AOVARD.AONR = AONRTAB.AONR AND AOVARD.DELNR = AONRTAB.DELNR
+      USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF AVAILABLE AOVARD THEN DO:
+         IF AOVARD.VARDNR = ? THEN musz = musz.
+         ELSE DO:
+            FIND FIRST VARDERING WHERE VARDERING.VARDNR = AOVARD.VARDNR USE-INDEX VARDNR
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE VARDERING THEN DO:
+               ASSIGN VARDERING.AKTIV = aktivvar.
+            END.
+         END.
+      END.            
+   END.
+   RELEASE KALKSPEC NO-ERROR.
+   RELEASE FASTSPEC NO-ERROR.
+   RELEASE KALKAONR NO-ERROR.
+   RELEASE BEREDNING NO-ERROR.
+   RELEASE VARDERING NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE inxml_UI :
+   DEFINE VARIABLE mvar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE tmpfilnamn AS CHARACTER FORMAT "X(78)" NO-UNDO.
+   DEFINE VARIABLE tmpdirlist AS CHARACTER FORMAT "X(78)" NO-UNDO.
+   DEFINE VARIABLE tmpattrlist AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE kommando AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE imptemp NO-ERROR. 
+   mvar = "*.xml".
+   ASSIGN
+   tmpfilnamn = ""
+   tmpattrlist = ""
+   tmpdirlist = "".
+   IF dirnamn = "" THEN RETURN.
+   INPUT STREAM dirstrom FROM OS-DIR(dirnamn) NO-ECHO.
+   REPEAT:
+      /*Hämtar filnamn, hela sökvägen och vilken typ av fil det är*/
+      SET STREAM dirstrom tmpfilnamn tmpdirlist tmpattrlist.
+      IF tmpfilnamn MATCHES mvar THEN DO:
+         
+         FIND FIRST imptemp WHERE imptemp.INVAR = tmpfilnamn NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE imptemp THEN DO:
+            CREATE imptemp.
+            ASSIGN
+            imptemp.INDIR = dirnamn
+            imptemp.INVAR = tmpfilnamn.
+         END.
+      END.
+   END.
+   INPUT STREAM dirstrom CLOSE.
+   /* 
+   OUTPUT TO VALUE(dirspar + "inao.txt") APPEND.
+   PUT " " AT 1 SKIP .
+   PUT TODAY AT 1  STRING(TIME,"hh:mm:ss") AT 12 SKIP.
+   OUTPUT CLOSE.
+   FOR EACH imptemp:
+      kommando = "".
+      kommando = "COPY " + dirspar + "inao.txt + " + imptemp.INDIR + imptemp.INVAR + " " + dirspar + "inao.txt".  
+      OS-COMMAND SILENT VALUE(kommando).
+      OUTPUT TO VALUE(dirspar + "inao.txt") APPEND.
+      PUT " " AT 1 SKIP .
+      OUTPUT CLOSE.
+   END.
+*/
+   FOR EACH imptemp:
+      OS-COPY VALUE (imptemp.INDIR + imptemp.INVAR)  VALUE(dirspar + imptemp.INVAR). 
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE emedd_UI.
+   DEFINE VARIABLE ctillvar AS CHARACTER LABEL "Kopia" NO-UNDO.
+   FOR EACH eposttemp:  
+      ASSIGN 
+      mailhub             = servervar     
+      EmailTo             = eposttemp.EPOST 
+      EmailFrom           = franvar
+      EmailCC             = " " /*"Ingrid.Eriksson@serva.se"*/
+      Attachmentstyp      = ""
+      LocalFiles          = ""
+      Subject             = "Uppgifter saknas på exporterade projekt från Summarum till Guru " 
+      Bodysmtp            = eposttemp.MEDD
+      MIMEHeader          = "type=text/plain/html:charset=iso-8859-1:filetype=ascii"
+      BodyType            = "".     
+      IF Guru.Konstanter:globforetag = "MISV" THEN EmailFrom = "webguru@mittsverigevatten.se".
+      RUN smtpmail_UI (INPUT FALSE).
+      IF oSuccessful = TRUE THEN DO TRANSACTION:
+         oSuccessful = FALSE.               
+      END.      
+      ELSE DO:       
+          IF Guru.Konstanter:globforetag = "MISV" THEN DO:
+             /*Guru.Konstanter:AppSpringSet[1] = "misvstb"*/
+            OUTPUT TO d:\elpool\delad\pro10s\EXPORT\lon\aokollfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " franvar SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "ELPA" THEN DO:
+            OUTPUT TO c:\protemp10\aokollfel.txt APPEND.            
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " franvar SKIP.
+         END.
+         OUTPUT CLOSE.
+    
+      END.
+   END.     
+END PROCEDURE.  
+

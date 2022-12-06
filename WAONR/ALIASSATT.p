@@ -1,0 +1,3 @@
+/*ALIASSATT.P*/
+{LDALIAS8.I}
+

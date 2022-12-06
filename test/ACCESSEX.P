@@ -1,0 +1,154 @@
+/***********************************************************************
+access.p - Connect to an Access Database using OLE automation
+
+Uses the Data Access Objects model from Microsoft. This is documented
+in 
+the help file DAO35.hlp
+
+This code is provided AS IS. The author will not be held responsible
+for any
+damage caused.
+
+Copyright 1998 
+Clinton Hastings
+Golden Circle Limited
+chastings@gcl.com.au 
+************************************************************************/ 
+
+DEF VAR lh-access AS COM-HANDLE NO-UNDO. /* The Access Application */
+DEF VAR lh-dbs AS COM-HANDLE NO-UNDO. /* The Database Object */
+DEF VAR lh-table AS COM-HANDLE NO-UNDO. /* A table/recordset */
+
+DEF VAR lc-dbname AS CHAR NO-UNDO INIT "c:\pocketguru\pocketguru.mdb".
+DEF VAR lc-tablename AS CHAR NO-UNDO.
+DEF VAR li-cnt AS INT NO-UNDO.
+
+DEF VAR lc-custcode AS CHAR NO-UNDO FORMAT "x(7)".
+DEF VAR lc-company AS CHAR NO-UNDO FORMAT "x(40)".
+
+/* Create instance of Access Application */
+CREATE "Access.Application.9" lh-access.
+
+/* Hide Access */
+lh-access:VISIBLE = NO.
+
+/* We are going to use the DBEngine Object of the Access Application */
+/* Connect to database in Shared Mode */
+/*lh-dbs = lh-access:DBEngine(lc-dbname).*/
+CONNECT TO lc-dbname.
+/* Get our table from the Database - open as dynaset type recordset */
+/* First parameter can be either a table name or an SQL statement */
+lh-table = lh-dbs:Recordset("OMRADETAB",2,,). 
+
+/***********************************************************************
+Recordset objects have the following methods:
+movefirst
+movelast
+movenext
+moveprevious
+findfirst
+findlast
+findnext
+findprevious
+addnew
+edit
+update
+.... etc
+************************************************************************/
+
+/*********************************************************************** 
+Reading records - Loop through first 10 records in the table 
+Each field is an entry in the recordset's fields collection.
+For some reason, this is very slow.
+************************************************************************/
+DO WHILE NOT lh-table:eof() AND li-cnt < 10:
+   ASSIGN
+   lc-custcode = lh-table:FIELDS("OMRADE"):VALUE
+   lc-company = lh-table:FIELDS("BENAMNING"):VALUE.
+
+   DISPLAY lc-custcode lc-company WITH DOWN WIDTH 90.
+   DOWN.
+
+   lh-table:movenext(). 
+   li-cnt = li-cnt + 1.
+END.
+/*
+/***********************************************************************
+Add a new record 
+1. Add the record
+2. Set the field values
+3. Write the changes back 
+************************************************************************/ 
+lh-table:AddNew
+ASSIGN
+lh-table:FIELDS("OMRADE"):VALUE = "TMP" 
+lh-table:FIELDS("BENAMNING"):VALUE = "Test Company".
+lh-table:UPDATE(,).
+
+/***********************************************************************
+Find a record. 
+The findfirst/last/next/previous methods all work on dynaset type
+recordsets
+only.
+They each take a string parameter, which is an SQL where clause.
+The nomatch propertie can be tested to see if find was successful.
+************************************************************************/ 
+lh-table:findfirst("OMRADE = 'TMP'").
+IF lh-table:nomatch
+THEN DO:
+   BELL.
+   MESSAGE "Customer not found" VIEW-AS ALERT-BOX ERROR.
+END.
+
+/***********************************************************************
+Update a record.
+1. Lock the record (using the Edit method)
+2. Change the values of the fields
+3. Write the changes back (using the Update method)
+************************************************************************/
+ELSE DO:
+   lh-table:edit.
+   lh-table:FIELDS("BENAMNING"):VALUE = "Fred Flinstone".
+   lh-table:UPDATE(,).
+
+/***********************************************************************
+Finally, delete the record using the delete method.
+
+************************************************************************/
+   lh-table:DELETE.
+END.
+
+*/
+
+/* Close Access */
+lh-access:QUIT(2).
+
+/* Release COM Objects */
+RELEASE OBJECT lh-table.
+RELEASE OBJECT lh-dbs.
+RELEASE OBJECT lh-access.
+
+
+
+/*   Should be doable: Here's some trivial code showing how to loop through a table:*/
+/*
+def var c-db as com-handle no-undo.
+def var c-rs as com-handle no-undo.
+
+create "adodb.connection" c-db.
+
+c-db:open("c:\pocketguru\pocketguru.mdb", "", ""). /* this is a pre-existing system DSN */
+
+create "adodb.recordset" c-rs.
+
+c-rs:open("OMRADETAB", c-db, 3, 1, -1). /* 3, 1, -1 - adOpenStatic, adReadOnly,
+and -1 to indicate no options */
+
+c-rs:movefirst.
+
+do while not c-rs:eof:
+
+display c-rs:fields(0):value with down. down.
+c-rs:movenext.
+end.
+*/

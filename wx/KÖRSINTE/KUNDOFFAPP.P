@@ -1,0 +1,820 @@
+/*KUNDOFFAPP.P*/
+&Scoped-define NEW NEW  
+{SOKMTRL.I}
+
+{GLOBVAR2DEL1.I}
+/*
+&Scoped-define SHARED SHARED 
+{HOPPSEK2W.I}
+*/
+{TIDUTTTNEW.I}
+
+
+PROCEDURE anvpers_UI:
+   DEFINE INPUT PARAMETER anvvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER namn AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER televar AS CHARACTER NO-UNDO.
+   FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = anvvar NO-LOCK NO-ERROR.
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      ASSIGN
+      namn = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN
+      televar = PERSONALTAB.TELEFON.
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.                           
+   END.   
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+PROCEDURE offsum_UI:
+   DEFINE INPUT PARAMETER valkalknr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER nettooff AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR off_sum.
+   EMPTY TEMP-TABLE off_sum NO-ERROR. 
+   FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND MTRL.OFFERT = FALSE AND
+   MTRL.KPRIS = 0 USE-INDEX KALK NO-LOCK.
+      CREATE off_sum.
+      ASSIGN
+      off_sum.KALKNR = MTRL.KALKNR             
+      off_sum.NPRIS = MTRL.NPRIS                         
+      off_sum.BERKVANT = MTRL.BERKVANT       
+      off_sum.SUMMA = MTRL.NPRIS * MTRL.BERKVANT.
+      off_sum.LEV = MTRL.LEVKOD.
+   END.                                                     
+   FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND MTRL.OFFERT = TRUE AND
+   MTRL.KPRIS = 0 USE-INDEX KALK NO-LOCK.
+      ASSIGN
+      nettooff = nettooff + MTRL.NPRIS.
+      FOR EACH off_sum WHERE off_sum.LEV = MTRL.LEVKOD:
+         DELETE off_sum.
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE visloff_UI:
+   DEFINE INPUT PARAMETER valkalknr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR bmtrl_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   DEFINE VARIABLE str AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE totalt AS DECIMAL NO-UNDO. 
+   DEFINE VARIABLE totalt2 AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE nettooff AS DECIMAL FORMAT "->9.99" NO-UNDO.   
+   DEFINE VARIABLE offlev AS CHARACTER NO-UNDO.
+   FIND LEVERANTOR WHERE LEVERANTOR.LEVKOD = vald_lev NO-LOCK NO-ERROR.           
+   CREATE tidut. 
+   ASSIGN        
+   SUBSTRING(tidut.UT,1) = "OFFERT" 
+   SUBSTRING(tidut.UT,8) = STRING(LEVERANTOR.LEVNAMN)
+   SUBSTRING(tidut.UT,40) = STRING(TODAY)
+   SUBSTRING(tidut.UT,50) = STRING(TIME,"HH:MM:SS").                                                               
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "KALKYL NUMMER:" 
+   SUBSTRING(tidut.UT,16) = STRING(valkalknr).
+   CREATE tidut.
+   ASSIGN
+   str =                                                                   
+"===========.=========================.==========.=========.=====.=====.=======".                  
+   CREATE tidut.      
+   ASSIGN  
+   SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:genk)                                                                          
+   SUBSTRING(tidut.UT,13) = "BENÄMNING"                     
+   SUBSTRING(tidut.UT,39) = "BRUTTOPRIS"   
+   SUBSTRING(tidut.UT,50) = "NETTOPRIS"  
+   SUBSTRING(tidut.UT,60) = "ENHET"
+   SUBSTRING(tidut.UT,66) = "ANTAL"
+   SUBSTRING(tidut.UT,72) = "SUMMA".                         
+   CREATE tidut.       
+   SUBSTRING(tidut.UT,1) = str.         
+   CREATE tidut. 
+   FOR EACH bmtrl_mtrl WHERE bmtrl_mtrl.LEVKOD = vald_lev.      
+      CREATE tidut.      
+      ASSIGN  
+      SUBSTRING(tidut.UT,1) = bmtrl_mtrl.ENR
+      SUBSTRING(tidut.UT,13) = SUBSTRING(bmtrl_mtrl.BENAMNING,1,25)               
+      SUBSTRING(tidut.UT,39) = STRING(bmtrl_mtrl.BPRIS,">>>>99.99") 
+      SUBSTRING(tidut.UT,50) = STRING(bmtrl_mtrl.NPRIS,">>>>99.99")
+      SUBSTRING(tidut.UT,60) = bmtrl_mtrl.ENHET    
+      SUBSTRING(tidut.UT,66) = STRING(bmtrl_mtrl.BERKVANT,">>>>9")
+      SUBSTRING(tidut.UT,72) = STRING(bmtrl_mtrl.SUMMA,">>>>99").
+   END.
+   /*SUMMERING AV ALLA ENR*/
+   ASSIGN
+   totalt = 0 
+   totalt2 = 0.  
+   FOR EACH bmtrl_mtrl WHERE bmtrl_mtrl.LEVKOD = vald_lev. 
+      totalt = totalt + bmtrl_mtrl.SUMMA.      
+   END. 
+   str=
+"======================================================================.=======".      
+   CREATE tidut. 
+   CREATE tidut.      
+   SUBSTRING(tidut.UT,1) = str.
+   CREATE tidut.
+   CREATE tidut.         
+   SUBSTRING(tidut.UT,58) = "TOTAL SUMMA:".
+   CREATE tidut.         
+   SUBSTRING(tidut.UT,72) = STRING(totalt,">>>>99").
+   CREATE tidut.         
+   SUBSTRING(tidut.UT,72) = "=======".            
+   FOR EACH bmtrl_mtrl WHERE bmtrl_mtrl.LEVKOD = vald_lev. 
+      totalt2 = totalt2 + (bmtrl_mtrl.BPRIS * bmtrl_mtrl.BERKVANT).      
+   END.  
+   CREATE tidut.         
+   SUBSTRING(tidut.UT,52) = "TOTALT BRUTTOPRIS:".
+   CREATE tidut.         
+   SUBSTRING(tidut.UT,72) = STRING(totalt2,">>>>99").
+   CREATE tidut.         
+   SUBSTRING(tidut.UT,72) = "=======".  
+      
+   FIND FIRST off_mtrl WHERE off_mtrl.KALKNR = valkalknr AND off_mtrl.LEVKOD = vald_lev
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE off_mtrl THEN DO: 
+      CREATE tidut.         
+      SUBSTRING(tidut.UT,52) = "TOTALT OFFERTPRIS:".
+      CREATE tidut.         
+      SUBSTRING(tidut.UT,72) = STRING(off_mtrl.RABTOT,">>>>99").
+      CREATE tidut.         
+      SUBSTRING(tidut.UT,72) = "=======".
+   END.
+   ELSE DO:
+      CREATE tidut.         
+      SUBSTRING(tidut.UT,52) = "TOTALT OFFERTPRIS:".
+      CREATE tidut.  
+      SUBSTRING(tidut.UT,72) = STRING(totalt,">>>>99").                         
+      CREATE tidut.         
+      SUBSTRING(tidut.UT,72) = "=======".
+   END.                 
+END PROCEDURE.
+PROCEDURE viskoff_UI:
+   DEFINE INPUT PARAMETER valkalknr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR kund_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   DEFINE VARIABLE str AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE totalt AS DECIMAL NO-UNDO. 
+   DEFINE VARIABLE totalt2 AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE nettooff AS DECIMAL FORMAT "->9.99" NO-UNDO.   
+   DEFINE VARIABLE offlev AS CHARACTER NO-UNDO.      
+   CREATE tidut. 
+   ASSIGN        
+   SUBSTRING(tidut.UT,1) = "KUNDOFFERT"
+   SUBSTRING(tidut.UT,40) = STRING(TODAY)
+   SUBSTRING(tidut.UT,50) = STRING(TIME,"HH:MM:SS").                                                               
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "KALKYL NUMMER:" 
+   SUBSTRING(tidut.UT,16) = STRING(valkalknr).
+   CREATE tidut.
+   ASSIGN
+   str=                                                                    
+"===========.===============================.==========.=========.==========.=========.=====.=====.=========".                  
+   CREATE tidut.      
+   ASSIGN  
+   SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:genk)                                                                          
+   SUBSTRING(tidut.UT,13) = "BENÄMNING"
+   SUBSTRING(tidut.UT,45) = "LEVERANTÖR"                      
+   SUBSTRING(tidut.UT,56) = "NETTOPRIS"  
+   SUBSTRING(tidut.UT,66) = "BRUTTOPRIS" 
+   SUBSTRING(tidut.UT,77) = "KUNDPRIS" 
+   SUBSTRING(tidut.UT,87) = "ENHET"
+   SUBSTRING(tidut.UT,93) = "ANTAL"
+   SUBSTRING(tidut.UT,99) = "SUMMA".                         
+   CREATE tidut.       
+   SUBSTRING(tidut.UT,1) = str.         
+   CREATE tidut. 
+   FOR EACH kund_mtrl:
+      FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = kund_mtrl.LEV NO-LOCK NO-ERROR.
+      CREATE tidut.      
+      ASSIGN  
+      SUBSTRING(tidut.UT,1) = kund_mtrl.ENR
+      SUBSTRING(tidut.UT,13) = SUBSTRING(kund_mtrl.BENAMNING,1,30)         
+      SUBSTRING(tidut.UT,45) = SUBSTRING(LEVERANTOR.LEVNAMN,1,10).      
+      /*IF Guru.Konstanter:mtrlsekvar[6] = TRUE THEN.
+      ELSE DO:
+         ASSIGN
+         SUBSTRING(tidut.UT,56) = STRING(kund_mtrl.NPRIS,">>>>99.99") 
+         SUBSTRING(tidut.UT,66) = STRING(kund_mtrl.BPRIS,">>>>99.99")
+         SUBSTRING(tidut.UT,77) = STRING(kund_mtrl.KPRIS,">>>>99.99").
+      END.*/
+      ASSIGN
+         SUBSTRING(tidut.UT,56) = STRING(kund_mtrl.NPRIS,">>>>99.99") 
+         SUBSTRING(tidut.UT,66) = STRING(kund_mtrl.BPRIS,">>>>99.99")
+         SUBSTRING(tidut.UT,77) = STRING(kund_mtrl.KPRIS,">>>>99.99").
+      ASSIGN
+      SUBSTRING(tidut.UT,87) = kund_mtrl.ENHET    
+      SUBSTRING(tidut.UT,93) = STRING(kund_mtrl.BERKVANT,">>>>9").
+      /*
+      IF Guru.Konstanter:mtrlsekvar[6] = TRUE THEN.
+      ELSE SUBSTRING(tidut.UT,99) = STRING(kund_mtrl.SUMMA,">>>>99.99").
+      */
+      SUBSTRING(tidut.UT,99) = STRING(kund_mtrl.SUMMA,">>>>99.99").
+   END.                                           
+   ASSIGN
+   totalt = 0 
+   totalt2 = 0. 
+   FOR EACH kund_mtrl:    
+      totalt = totalt + kund_mtrl.SUMMA.      
+   END. 
+   str=
+"=================================================================================================.=========".      
+   CREATE tidut. 
+   CREATE tidut.      
+   SUBSTRING(tidut.UT,1) = str.
+   CREATE tidut.
+   /*IF Guru.Konstanter:mtrlsekvar[6] = TRUE THEN .
+   ELSE DO:   
+   */
+      CREATE tidut.         
+      SUBSTRING(tidut.UT,85) = "TOTAL SUMMA:".
+      CREATE tidut.         
+      SUBSTRING(tidut.UT,99) = STRING(totalt,">>>>99.99").
+      CREATE tidut.         
+      SUBSTRING(tidut.UT,99) = "=========".
+      
+      /*SUMMERING AV ALLA ENR BPRIS*/               
+      
+      FOR EACH kund_mtrl:    
+         totalt2 = totalt2 + (kund_mtrl.BPRIS * kund_mtrl.BERKVANT).      
+      END.    
+      CREATE tidut.         
+      SUBSTRING(tidut.UT,79) = "TOTALT BRUTTOPRIS:".
+      CREATE tidut.         
+      SUBSTRING(tidut.UT,99) = STRING(totalt2,">>>>99.99").
+      CREATE tidut.         
+      SUBSTRING(tidut.UT,99) = "=========".            
+      /*TOTALA OFFERTPRISER*/   
+      EMPTY TEMP-TABLE off_sum NO-ERROR. 
+      OPEN QUERY mtrlq FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND 
+      MTRL.OFFERT = FALSE AND MTRL.KUND = FALSE USE-INDEX KALK NO-LOCK.
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRL):
+         CREATE off_sum.
+         ASSIGN
+         off_sum.KALKNR = MTRL.KALKNR             
+         off_sum.NPRIS = MTRL.NPRIS                         
+         off_sum.BERKVANT = MTRL.BERKVANT       
+         off_sum.SUMMA = off_sum.NPRIS * off_sum.BERKVANT.
+         off_sum.LEV = MTRL.LEVKOD.
+         GET NEXT mtrlq NO-LOCK.
+      END.                      
+      CLOSE QUERY mtrlq.
+      nettooff = 0.                                                    
+      OPEN QUERY mtrlq FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND 
+      MTRL.OFFERT = TRUE AND MTRL.KUND = FALSE USE-INDEX KALK NO-LOCK.
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRL):
+         ASSIGN
+         nettooff = nettooff + MTRL.NPRIS
+         offlev = MTRL.LEVKOD.
+         FOR EACH off_sum WHERE off_sum.LEV = offlev.
+            DELETE off_sum.
+         END.                  
+         GET NEXT mtrlq NO-LOCK.
+      END.                      
+      CLOSE QUERY mtrlq.
+      FOR EACH off_sum.
+         nettooff = nettooff + off_sum.SUMMA.
+      END.    
+      CREATE tidut.         
+      SUBSTRING(tidut.UT,80) = "TOTALT NETTOPRIS:".
+      CREATE tidut.         
+      SUBSTRING(tidut.UT,99) = STRING(nettooff,">>>>99.99").
+      CREATE tidut.         
+      SUBSTRING(tidut.UT,99) = "=========".
+       
+      FIND FIRST off_mtrl WHERE off_mtrl.KALKNR = valkalknr AND off_mtrl.RABTOT NE 0
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE off_mtrl THEN DO: 
+         CREATE tidut.         
+         SUBSTRING(tidut.UT,80) = "TOTALT OFFERTPRIS:".
+         CREATE tidut.         
+         SUBSTRING(tidut.UT,99) = STRING(off_mtrl.RABTOT,">>>>99.99").
+         CREATE tidut.         
+         SUBSTRING(tidut.UT,99) = "=========".
+      END.
+      ELSE DO:
+         CREATE tidut.         
+         SUBSTRING(tidut.UT,80) = "TOTALT OFFERTPRIS:".
+         CREATE tidut.  
+         SUBSTRING(tidut.UT,99) = STRING(totalt,">>>>99.99").                         
+         CREATE tidut.         
+         SUBSTRING(tidut.UT,99) = "=========".
+      END.    
+   /*
+   END.
+   */
+END PROCEDURE.
+PROCEDURE omrhj_UI:
+   DEFINE INPUT PARAMETER omrvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER FILL-IN-FOR  AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER FILL-IN-KADR AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER FILL-IN-KPNR AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER FILL-IN-KORT AS CHARACTER NO-UNDO.
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = omrvar NO-LOCK NO-ERROR.
+   IF AVAILABLE OMRADETAB THEN DO:
+      ASSIGN
+      FILL-IN-FOR  = OMRADETAB.NAMN 
+      FILL-IN-KADR = OMRADETAB.GATUADR                    
+      FILL-IN-KPNR = OMRADETAB.POSTNR                     
+      FILL-IN-KORT = OMRADETAB.POSTANST.                   
+   END.
+END PROCEDURE.
+
+PROCEDURE bortoff_UI :
+   DEFINE INPUT PARAMETER valkalknr AS INTEGER NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST MTRL WHERE  MTRL.KALKNR = valkalknr AND  MTRL.OFFERT = TRUE EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         DELETE MTRL.
+      END.      
+   END. 
+END PROCEDURE.
+
+PROCEDURE hmtoff_UI :
+   DEFINE INPUT PARAMETER valkalknr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER procent AS DECIMAL NO-UNDO.
+   FIND FIRST MTRL WHERE  MTRL.KALKNR = valkalknr AND  MTRL.OFFERT = TRUE NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+     procent = MTRL.NPRIS.
+   END.   
+END PROCEDURE.
+
+PROCEDURE sparoff_UI :
+   DEFINE INPUT PARAMETER valkalknr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER procent AS DECIMAL NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST MTRL WHERE  MTRL.KALKNR = valkalknr AND  MTRL.OFFERT = TRUE EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE MTRL THEN DO:
+         CREATE MTRL.
+      END.      
+      ASSIGN 
+      MTRL.KALKNR = valkalknr       
+      MTRL.NPRIS =  procent
+      MTRL.OFFERT = TRUE. 
+      {MTRLCREATE.I} 
+   END.
+   RELEASE MTRL NO-ERROR.
+END PROCEDURE.
+PROCEDURE offtotmtrl_UI :
+   DEFINE INPUT PARAMETER valkalknr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR off_mtrl.
+   EMPTY TEMP-TABLE off_mtrl NO-ERROR. 
+   FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND 
+   MTRL.OFFERT = TRUE AND MTRL.KUND = FALSE USE-INDEX KALK NO-LOCK:       
+      CREATE off_mtrl.
+      ASSIGN
+      off_mtrl.KALKNR = MTRL.KALKNR
+      off_mtrl.TOTALT = MTRL.BPRIS
+      off_mtrl.RABTOT = MTRL.NPRIS
+      off_mtrl.LEVKOD = MTRL.LEV.      
+   END.     
+END PROCEDURE.
+PROCEDURE bestmtrlsparm_UI:
+   DEFINE INPUT PARAMETER frifast AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER styrkalkvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER valkalknr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR bmtrl_mtrl.
+   DEFINE INPUT PARAMETER TABLE FOR off_mtrl.
+   DEFINE VARIABLE totbrutto AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE nettooff AS DECIMAL NO-UNDO.
+   FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND MTRL.KUND = FALSE USE-INDEX KALK:
+      DELETE MTRL.          
+   END.             
+   FOR EACH bmtrl_mtrl.
+      CREATE MTRL.
+      ASSIGN 
+      MTRL.ENR = bmtrl_mtrl.ENR  
+      MTRL.BENAMNING = bmtrl_mtrl.BENAMNING
+      MTRL.ENHET = bmtrl_mtrl.ENHET
+      MTRL.NPRIS = bmtrl_mtrl.NPRIS
+      MTRL.BPRIS = bmtrl_mtrl.BPRIS      
+      MTRL.KPRIS = bmtrl_mtrl.KPRIS      
+      MTRL.LEVKOD = bmtrl_mtrl.LEV
+      MTRL.BERLEV = bmtrl_mtrl.BERLEV 
+      MTRL.BERKVANT = bmtrl_mtrl.BERKVANT
+      MTRL.KALKNR = valkalknr
+      totbrutto = totbrutto + bmtrl_mtrl.BPRIS * bmtrl_mtrl.BERKVANT.   
+      {MTRLCREATE.I}                
+   END.             
+   FOR EACH off_mtrl.
+      CREATE MTRL.
+      ASSIGN 
+      MTRL.KALKNR = valkalknr       
+      MTRL.NPRIS = off_mtrl.RABTOT
+      MTRL.BPRIS = off_mtrl.TOTALT     
+      MTRL.LEVKOD = off_mtrl.LEV
+      MTRL.OFFERT = TRUE. 
+      {MTRLCREATE.I} 
+   END.  
+   IF styrkalkvar = 2 THEN DO:
+      EMPTY TEMP-TABLE off_sum NO-ERROR.       
+      FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND
+      MTRL.OFFERT = FALSE AND MTRL.KUND = FALSE USE-INDEX KALK NO-LOCK:
+         CREATE off_sum.
+         ASSIGN
+         off_sum.KALKNR = MTRL.KALKNR             
+         off_sum.NPRIS = MTRL.NPRIS                         
+         off_sum.BERKVANT = MTRL.BERKVANT       
+         off_sum.SUMMA = MTRL.NPRIS * MTRL.BERKVANT.
+         off_sum.LEV= MTRL.LEVKOD.      
+      END.                     
+      nettooff = 0.                                                    
+      FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND
+      MTRL.OFFERT = TRUE AND MTRL.KUND = FALSE USE-INDEX KALK NO-LOCK:
+         ASSIGN
+         nettooff = nettooff + MTRL.NPRIS.         
+         FOR EACH off_sum WHERE off_sum.LEV = MTRL.LEVKOD.
+            DELETE off_sum.
+         END.                           
+      END.                      
+      FOR EACH off_sum.
+         nettooff = nettooff + off_sum.SUMMA.
+      END. 
+   END.   
+   IF styrkalkvar = 3 THEN DO:
+      
+   END.   
+   IF styrkalkvar = 2 THEN DO TRANSACTION:
+      FIND FIRST KALKYL WHERE KALKYL.TYP = "MATRL" AND       
+      KALKYL.RECKALKYL = valkalknr AND KALKYL.BEFATTNING = "MATERIEL"
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKYL THEN CREATE KALKYL.      
+      ASSIGN 
+      KALKYL.TYP = "MATRL"        
+      KALKYL.RECKALKYL = valkalknr
+      KALKYL.PERSMASK = ?
+      KALKYL.BEFATTNING = "MATERIEL" 
+      KALKYL.TIMMAR = 1
+      KALKYL.RADNR = 1      
+      KALKYL.PRIS = nettooff.  
+       
+      FIND FIRST KALKYL WHERE KALKYL.TYP = "KUND" AND       
+      KALKYL.RECKALKYL = valkalknr AND KALKYL.BEFATTNING = "MATERIEL"
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKYL THEN CREATE KALKYL.      
+      ASSIGN 
+      KALKYL.TYP = "KUND"        
+      KALKYL.RECKALKYL = valkalknr
+      KALKYL.PERSMASK = ?
+      KALKYL.BEFATTNING = "MATERIEL" 
+      KALKYL.TIMMAR = 1
+      KALKYL.RADNR = 1      
+      KALKYL.PRIS = totbrutto.
+   END.
+   IF styrkalkvar = 1 THEN DO:
+      IF frifast = TRUE THEN DO TRANSACTION:
+         FIND FIRST KALKYL WHERE KALKYL.TYP = "MATRL" AND       
+         KALKYL.RECKALKYL = valkalknr AND KALKYL.BEFATTNING = "MATERIEL"
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE KALKYL THEN CREATE KALKYL.      
+         ASSIGN 
+         KALKYL.TYP = "MATRL"        
+         KALKYL.RECKALKYL = valkalknr
+         KALKYL.PERSMASK = ?
+         KALKYL.BEFATTNING = "MATERIEL" 
+         KALKYL.TIMMAR = 1
+         KALKYL.RADNR = 1      
+         KALKYL.PRIS = nettooff.  
+          
+         FIND FIRST KALKYL WHERE KALKYL.TYP = "KUND" AND       
+         KALKYL.RECKALKYL = valkalknr AND KALKYL.BEFATTNING = "MATERIEL"
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE KALKYL THEN CREATE KALKYL.      
+         ASSIGN 
+         KALKYL.TYP = "KUND"        
+         KALKYL.RECKALKYL = valkalknr
+         KALKYL.PERSMASK = ?
+         KALKYL.BEFATTNING = "MATERIEL" 
+         KALKYL.TIMMAR = 1
+         KALKYL.RADNR = 1      
+         KALKYL.PRIS = totbrutto.                        
+      END. 
+   END.
+   RELEASE KALKYL NO-ERROR.
+   RELEASE MTRL NO-ERROR.
+END PROCEDURE.
+PROCEDURE bestmtrlspar_UI:
+   DEFINE INPUT PARAMETER frifast AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER styrkalkvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER valkalknr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR bmtrl_mtrl.
+   DEFINE INPUT PARAMETER TABLE FOR off_mtrl.
+   DEFINE VARIABLE nettooff AS DECIMAL NO-UNDO.
+   DO TRANSACTION:
+      FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND MTRL.KUND = FALSE USE-INDEX KALK:
+         DELETE MTRL.          
+      END.             
+      FOR EACH bmtrl_mtrl.
+         CREATE MTRL.
+         ASSIGN 
+         MTRL.ENR = bmtrl_mtrl.ENR  
+         MTRL.BENAMNING = bmtrl_mtrl.BENAMNING
+         MTRL.ENHET = bmtrl_mtrl.ENHET
+         MTRL.NPRIS = bmtrl_mtrl.NPRIS
+         MTRL.BPRIS = bmtrl_mtrl.BPRIS      
+         MTRL.LEVKOD = bmtrl_mtrl.LEV
+         MTRL.BERLEV = bmtrl_mtrl.BERLEV 
+         MTRL.BERKVANT = bmtrl_mtrl.BERKVANT
+         MTRL.KALKNR = bmtrl_mtrl.KALKNR.
+         {MTRLCREATE.I}                                 
+      END.
+      FOR EACH bmtrl_mtrl.
+         FIND FIRST MTRL WHERE MTRL.KALKNR = valkalknr AND MTRL.ENR = bmtrl_mtrl.ENR AND
+         MTRL.KUND = TRUE AND MTRL.OFFERT = FALSE AND MTRL.LEVKOD = bmtrl_mtrl.LEV AND
+         MTRL.BERLEV = bmtrl_mtrl.BERLEV USE-INDEX KALK.
+         ASSIGN
+         MTRL.NPRIS = bmtrl_mtrl.NPRIS.    
+         {MTRLCREATE.I}                                     
+      END.             
+      FOR EACH off_mtrl.
+         CREATE MTRL.
+         ASSIGN 
+         MTRL.KALKNR = off_mtrl.KALKNR       
+         MTRL.NPRIS = off_mtrl.RABTOT
+         MTRL.BPRIS = off_mtrl.TOTALT     
+         MTRL.LEVKOD = off_mtrl.LEV
+         MTRL.KUND = FALSE
+         MTRL.OFFERT = TRUE. 
+         {MTRLCREATE.I} 
+      END. 
+      IF styrkalkvar = 2 THEN DO:
+         EMPTY TEMP-TABLE off_sum NO-ERROR. 
+         FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND
+         MTRL.OFFERT = FALSE AND MTRL.KUND = FALSE USE-INDEX KALK NO-LOCK:
+            CREATE off_sum.
+            ASSIGN
+            off_sum.KALKNR = MTRL.KALKNR             
+            off_sum.NPRIS = MTRL.NPRIS                         
+            off_sum.BERKVANT = MTRL.BERKVANT       
+            off_sum.SUMMA = off_sum.NPRIS * off_sum.BERKVANT.
+            off_sum.LEV = MTRL.LEVKOD.         
+         END.              
+         nettooff = 0.                                                    
+         FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND
+         MTRL.OFFERT = TRUE AND MTRL.KUND = FALSE USE-INDEX KALK NO-LOCK:
+            ASSIGN
+            nettooff = nettooff + MTRL.NPRIS.         
+            FOR EACH off_sum WHERE off_sum.LEV = MTRL.LEVKOD.
+               DELETE off_sum.
+            END.                  
+         END.                      
+         FOR EACH off_sum.
+            nettooff = nettooff + off_sum.SUMMA.
+         END. 
+      END.
+   END.
+   IF styrkalkvar = 3  THEN DO:
+      
+   END.
+   ELSE IF styrkalkvar = 2 THEN DO TRANSACTION:
+      FIND FIRST KALKYL WHERE KALKYL.TYP = "MATRL" AND       
+      KALKYL.RECKALKYL = valkalknr AND KALKYL.BEFATTNING = "MATERIEL"
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKYL THEN CREATE KALKYL.      
+      ASSIGN 
+      KALKYL.TYP = "MATRL"        
+      KALKYL.RECKALKYL = valkalknr
+      KALKYL.PERSMASK = ?
+      KALKYL.BEFATTNING = "MATERIEL" 
+      KALKYL.TIMMAR = 1
+      KALKYL.RADNR = 1      
+      KALKYL.PRIS = nettooff.
+   END.
+   ELSE DO:             
+      IF frifast = TRUE THEN DO TRANSACTION:
+         FIND FIRST KALKYL WHERE KALKYL.TYP = "MATRL" AND       
+         KALKYL.RECKALKYL = valkalknr AND KALKYL.BEFATTNING = "MATERIEL"
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE KALKYL THEN CREATE KALKYL.      
+         ASSIGN 
+         KALKYL.TYP = "MATRL"        
+         KALKYL.RECKALKYL = valkalknr
+         KALKYL.PERSMASK = ?
+         KALKYL.BEFATTNING = "MATERIEL" 
+         KALKYL.TIMMAR = 1
+         KALKYL.RADNR = 1      
+         KALKYL.PRIS = nettooff.      
+      END.        
+   END.           
+   RELEASE KALKYL NO-ERROR.
+   RELEASE MTRL NO-ERROR.   
+END PROCEDURE.
+PROCEDURE kundmtrlspar_UI:
+   DEFINE INPUT PARAMETER frifast AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER styrkalkvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER valkalknr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR kund_mtrl.
+   DEFINE INPUT PARAMETER TABLE FOR off_mtrl.
+   DEFINE VARIABLE nettooff AS DECIMAL NO-UNDO.
+   FIND FIRST FASTSPEC WHERE FASTSPEC.KALKNR = valkalknr NO-LOCK NO-ERROR.
+   IF AVAILABLE FASTSPEC THEN DO:
+      frifast = FALSE.
+   END.
+   ELSE DO:
+      frifast = TRUE.
+   END.
+
+   FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND
+   MTRL.KUND = TRUE USE-INDEX KALK:
+      DELETE MTRL.          
+   END.              
+   
+   FOR EACH kund_mtrl.
+      DO TRANSACTION:
+         CREATE MTRL.
+         ASSIGN 
+         MTRL.ENR = kund_mtrl.ENR  
+         MTRL.BENAMNING = kund_mtrl.BENAMNING
+         MTRL.ENHET = kund_mtrl.ENHET
+         MTRL.NPRIS = kund_mtrl.NPRIS
+         MTRL.BPRIS = kund_mtrl.BPRIS  
+         MTRL.KPRIS = kund_mtrl.KPRIS     
+         MTRL.LEVKOD = kund_mtrl.LEV      
+         MTRL.BERLEV = kund_mtrl.BERLEV     
+         MTRL.BERKVANT = kund_mtrl.BERKVANT
+         MTRL.KALKNR = kund_mtrl.KALKNR
+         MTRL.KUND = TRUE. 
+         {MTRLCREATE.I}               
+      END.
+   END.             
+   FOR EACH off_mtrl.
+      DO TRANSACTION:
+         CREATE MTRL.
+         ASSIGN 
+         MTRL.KALKNR = off_mtrl.KALKNR       
+         MTRL.KPRIS = off_mtrl.RABTOT
+         MTRL.BPRIS = off_mtrl.TOTALT           
+         MTRL.OFFERT = TRUE
+         MTRL.KUND = TRUE. 
+         {MTRLCREATE.I} 
+      END.
+   END.    
+   
+   
+   IF styrkalkvar = 2 THEN DO:
+      FIND FIRST MTRL WHERE MTRL.KALKNR = valkalknr AND MTRL.OFFERT = TRUE AND
+      MTRL.KUND = TRUE USE-INDEX KALK NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         nettooff = MTRL.KPRIS.
+      END.
+      ELSE DO:
+         FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND
+         MTRL.OFFERT = FALSE AND MTRL.KUND = TRUE NO-LOCK:
+            nettooff = nettooff + (MTRL.KPRIS * MTRL.BERKVANT).            
+         END.
+      END.                         
+      DO TRANSACTION:
+         FIND FIRST KALKYL WHERE KALKYL.TYP = "KUND" AND       
+         KALKYL.RECKALKYL = valkalknr AND KALKYL.BEFATTNING = "MATERIEL"
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE KALKYL THEN CREATE KALKYL.      
+         ASSIGN 
+         KALKYL.TYP = "KUND"        
+         KALKYL.RECKALKYL = valkalknr
+         KALKYL.PERSMASK = ?
+         KALKYL.BEFATTNING = "MATERIEL" 
+         KALKYL.TIMMAR = 1
+         KALKYL.RADNR = 1      
+         KALKYL.PRIS = nettooff.
+      END.
+   END.   
+   ELSE IF styrkalkvar = 1 THEN DO:       
+      IF frifast = TRUE THEN DO TRANSACTION:                       
+         FIND FIRST KALKYL WHERE KALKYL.TYP = "KUND" AND       
+         KALKYL.RECKALKYL = valkalknr AND KALKYL.BEFATTNING = "MATERIEL"
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE KALKYL THEN CREATE KALKYL.      
+         ASSIGN 
+         KALKYL.TYP = "KUND"        
+         KALKYL.RECKALKYL = valkalknr
+         KALKYL.PERSMASK = ?
+         KALKYL.BEFATTNING = "MATERIEL" 
+         KALKYL.TIMMAR = 1
+         KALKYL.RADNR = 1      
+         KALKYL.PRIS = nettooff.      
+      END.      
+   END.                                        
+   RELEASE KALKYL NO-ERROR.
+   RELEASE MTRL NO-ERROR.
+END PROCEDURE.
+PROCEDURE bestmtrlhmt_UI:
+   DEFINE INPUT PARAMETER valkalknr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR bmtrl_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR off_mtrl.
+   EMPTY TEMP-TABLE bmtrl_mtrl NO-ERROR. 
+   EMPTY TEMP-TABLE off_mtrl NO-ERROR. 
+   FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND
+   MTRL.OFFERT = FALSE AND MTRL.KUND = FALSE USE-INDEX KALK NO-LOCK:
+      CREATE bmtrl_mtrl.
+      ASSIGN
+      
+      bmtrl_mtrl.KALKNR = MTRL.KALKNR
+      bmtrl_mtrl.ENR = MTRL.ENR   
+      bmtrl_mtrl.BENAMNING = MTRL.BENAMNING
+      bmtrl_mtrl.ENHET = MTRL.ENHET
+      bmtrl_mtrl.NPRIS = MTRL.NPRIS
+      bmtrl_mtrl.BPRIS = MTRL.BPRIS
+      bmtrl_mtrl.KPRIS = MTRL.KPRIS
+      bmtrl_mtrl.LEVKOD = MTRL.LEV 
+      bmtrl_mtrl.BERLEV = MTRL.BERLEV         
+      bmtrl_mtrl.BERKVANT = MTRL.BERKVANT. 
+                               
+   END.                      
+   
+   FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND 
+   MTRL.OFFERT = TRUE AND MTRL.KUND = FALSE USE-INDEX KALK NO-LOCK:       
+      CREATE off_mtrl.
+      ASSIGN
+      off_mtrl.KALKNR = MTRL.KALKNR
+      off_mtrl.TOTALT = MTRL.BPRIS
+      off_mtrl.RABTOT = MTRL.NPRIS
+      off_mtrl.LEVKOD = MTRL.LEV.      
+   END.                      
+      
+END PROCEDURE.
+PROCEDURE kundmtrlhmt_UI:
+   DEFINE INPUT PARAMETER valkalknr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR kund_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR off_mtrl.
+   EMPTY TEMP-TABLE kund_mtrl NO-ERROR. 
+   EMPTY TEMP-TABLE off_mtrl NO-ERROR. 
+   DEFINE BUFFER mbuff FOR MTRL.
+   FIND FIRST MTRL WHERE MTRL.KALKNR = valkalknr AND MTRL.KUND = TRUE AND 
+   MTRL.OFFERT = FALSE USE-INDEX KALK NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND
+      MTRL.KUND = TRUE AND MTRL.OFFERT = FALSE USE-INDEX KALK NO-LOCK:               
+         CREATE kund_mtrl.
+         ASSIGN 
+         kund_mtrl.KALKNR = MTRL.KALKNR
+         kund_mtrl.ENR = MTRL.ENR
+         kund_mtrl.BENAMNING = MTRL.BENAMNING
+         kund_mtrl.BPRIS = MTRL.BPRIS
+         kund_mtrl.KPRIS = MTRL.KPRIS
+         kund_mtrl.NPRIS = MTRL.NPRIS
+         kund_mtrl.ENHET = MTRL.ENHET
+         kund_mtrl.BERKVANT = MTRL.BERKVANT 
+         kund_mtrl.LEVKOD = MTRL.LEV
+         kund_mtrl.BERLEV = MTRL.BERLEV
+         kund_mtrl.SUMMA = MTRL.KPRIS * MTRL.BERKVANT.       
+         FIND FIRST mbuff WHERE mbuff.KALKNR = kund_mtrl.KALKNR AND mbuff.ENR = kund_mtrl.ENR AND
+         mbuff.LEVKOD = kund_mtrl.LEVKOD AND mbuff.KUND = FALSE AND mbuff.OFFERT = FALSE NO-LOCK NO-ERROR.
+         IF AVAILABLE mbuff THEN DO:
+            IF kund_mtrl.BERKVANT NE mbuff.BERKVANT THEN DO:
+               ASSIGN
+               kund_mtrl.BERKVANT = mbuff.BERKVANT                               
+               kund_mtrl.SUMMA = kund_mtrl.KPRIS * mbuff.BERKVANT.       
+            END.
+         END.
+         ELSE DO:
+            DELETE kund_mtrl.
+            DELETE MTRL.
+         END.
+      END.    
+      FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND
+      MTRL.KUND = FALSE AND MTRL.OFFERT = FALSE USE-INDEX KALK NO-LOCK:
+         FIND FIRST kund_mtrl WHERE kund_mtrl.ENR = MTRL.ENR AND kund_mtrl.LEVKOD = MTRL.LEVKOD
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE kund_mtrl THEN DO:
+            CREATE kund_mtrl.
+            ASSIGN                           
+            kund_mtrl.KALKNR = MTRL.KALKNR
+            kund_mtrl.ENR = MTRL.ENR
+            kund_mtrl.BENAMNING = MTRL.BENAMNING
+            kund_mtrl.BPRIS = MTRL.BPRIS
+            kund_mtrl.KPRIS = MTRL.BPRIS
+            kund_mtrl.NPRIS = MTRL.NPRIS
+            kund_mtrl.ENHET = MTRL.ENHET
+            kund_mtrl.BERKVANT = MTRL.BERKVANT
+            kund_mtrl.LEVKOD = MTRL.LEV
+            kund_mtrl.BERLEV = MTRL.BERLEV
+            kund_mtrl.SUMMA = MTRL.BPRIS * MTRL.BERKVANT.      
+         END.
+      END.      
+   END.
+   ELSE DO:
+      FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND
+      MTRL.KUND = FALSE AND MTRL.OFFERT = FALSE USE-INDEX KALK NO-LOCK.
+         CREATE kund_mtrl.
+         ASSIGN                           
+         kund_mtrl.KALKNR = MTRL.KALKNR
+         kund_mtrl.ENR = MTRL.ENR
+         kund_mtrl.BENAMNING = MTRL.BENAMNING
+         kund_mtrl.BPRIS = MTRL.BPRIS
+         kund_mtrl.KPRIS = MTRL.BPRIS
+         kund_mtrl.NPRIS = MTRL.NPRIS
+         kund_mtrl.ENHET = MTRL.ENHET
+         kund_mtrl.BERKVANT = MTRL.BERKVANT
+         kund_mtrl.LEVKOD = MTRL.LEV
+         kund_mtrl.BERLEV = MTRL.BERLEV
+         kund_mtrl.SUMMA = MTRL.BPRIS * MTRL.BERKVANT.      
+      END.                            
+   END.        
+   
+   FOR EACH MTRL WHERE MTRL.KALKNR = valkalknr AND
+   MTRL.OFFERT = TRUE AND MTRL.KUND = TRUE AND MTRL.LEVKOD = " " USE-INDEX KALK NO-LOCK:
+      CREATE off_mtrl.
+      ASSIGN
+      off_mtrl.KALKNR = MTRL.KALKNR
+      off_mtrl.TOTALT = MTRL.BPRIS
+      off_mtrl.RABTOT = MTRL.KPRIS.             
+   END.                         
+END PROCEDURE.

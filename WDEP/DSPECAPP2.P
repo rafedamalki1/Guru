@@ -1,0 +1,108 @@
+/*DSPECAPP2.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{DEPATEMP.I}
+
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{ANVTEMPS.I}
+{MTRLTEMP.I}
+
+{LEVTEMP.I}         
+
+DEFINE VARIABLE rad AS INTEGER NO-UNDO.
+DEFINE VARIABLE summa AS INTEGER NO-UNDO.
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(86)" NO-UNDO.    
+DEFINE VARIABLE str1 AS CHARACTER FORMAT "X(86)" NO-UNDO.
+DEFINE VARIABLE totpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE varpaslag AS DECIMAL FORMAT "->9.99" NO-UNDO.
+DEFINE VARIABLE nbestnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE invdat AS DATE NO-UNDO.
+DEFINE VARIABLE berdatumvar AS DATE NO-UNDO.
+ 
+
+PROCEDURE admbortmtrl_UI:   
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR emtrltemp. 
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp. 
+
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   FIND FIRST emtrltemp NO-ERROR.
+   DO TRANSACTION:         
+      FIND FIRST MTRL WHERE ROWID(MTRL) = emtrltemp.MTRLROW EXCLUSIVE-LOCK NO-ERROR.                           
+      IF AVAILABLE MTRL THEN DELETE MTRL.                     
+   END.
+   RELEASE MTRL NO-ERROR.
+   RELEASE MTRLSPEC NO-ERROR.
+
+END PROCEDURE.
+
+PROCEDURE admsparmtrl_UI:
+   /*DEFINE INPUT PARAMETER rowvar AS ROWID NO-UNDO. */     
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR emtrltemp. 
+   FIND FIRST emtrltemp NO-LOCK NO-ERROR.
+   IF AVAILABLE emtrltemp THEN DO:   
+      IF emtrltemp.MTRLROW = ? THEN DO TRANSACTION:
+         CREATE MTRL.
+         BUFFER-COPY emtrltemp TO MTRL.
+         ASSIGN emtrltemp.MTRLROW = ROWID(MTRL).   
+          {MTRLCREATE.I}   
+      END.
+      ELSE DO:  
+         DO TRANSACTION:      
+            FIND FIRST MTRL WHERE MTRL.ENR = emtrltemp.ENR AND MTRL.LEVKOD = emtrltemp.LEVKOD AND MTRL.KALKNR = 0 EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:                 
+               FIND FIRST emtrltemp NO-LOCK NO-ERROR.
+               BUFFER-COPY emtrltemp TO MTRL.
+                {MTRLCREATE.I}   
+            END. 
+         END.
+      END.      
+      RELEASE MTRL NO-ERROR.
+      RELEASE MTRLDEP NO-ERROR.
+   END.
+END PROCEDURE.
+
+
+PROCEDURE kollenr_UI :
+   DEFINE INPUT PARAMETER rowkoll AS ROWID NO-UNDO.     
+   DEFINE INPUT PARAMETER kollenr AS CHARACTER NO-UNDO.     
+   DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.     
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.   
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   FIND FIRST MTRL WHERE MTRL.ENR = kollenr AND
+   MTRL.LEVKOD = leverant AND ROWID(MTRL) NE rowkoll USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:                 
+      CREATE felmeddtemp.  
+      ASSIGN               
+      felmeddtemp.FELMEDD = "Det finns redan ett materiel med detta " + LC(Guru.Konstanter:genk) + " " +  kollenr +  ". Ange ett nytt." .
+   END.
+   ELSE DO:
+      IF rowkoll NE ? THEN DO:      
+         DO TRANSACTION:
+            FIND FIRST MTRL WHERE ROWID(MTRL) = rowkoll EXCLUSIVE-LOCK NO-ERROR.
+            MTRL.ENR = kollenr.
+         END.
+         RELEASE MTRL.
+      END.
+   END.
+     
+END PROCEDURE.    
+
+PROCEDURE hamta_UI :   
+   DEFINE INPUT PARAMETER anvvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR.    
+   FOR EACH MTRL WHERE MTRL.LEVKOD = "99" + anvvar AND MTRL.KALKNR = 0 NO-LOCK:   
+      CREATE mtrltemp.
+      ASSIGN
+      mtrltemp.ENR = MTRL.ENR
+      mtrltemp.BENAMNING = MTRL.BENAMNING
+      mtrltemp.ENHET = LC(MTRL.ENHET)
+      mtrltemp.NPRIS = MTRL.NPRIS
+      mtrltemp.BPRIS = MTRL.BPRIS
+      mtrltemp.LEVKOD = MTRL.LEVKOD
+      mtrltemp.MTRLROW = ROWID(MTRL). 
+   END.   
+END PROCEDURE.

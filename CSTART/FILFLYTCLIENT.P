@@ -1,0 +1,85 @@
+/*FILFLYTCLIENT.P*/
+DEFINE INPUT PARAMETER globforetag AS CHARACTER NO-UNDO.
+{BLOB.I}
+
+
+
+DEFINE VARIABLE rawImageData  AS RAW         NO-UNDO.
+DEFINE VARIABLE filflyth AS HANDLE NO-UNDO.
+DEFINE VARIABLE guruinstall AS CHARACTER NO-UNDO.
+DEFINE VARIABLE gurudator AS CHARACTER NO-UNDO.
+DEFINE VARIABLE nyprogdat AS DATE NO-UNDO.
+DEFINE VARIABLE updatera AS LOGICAL NO-UNDO.
+
+DEFINE VARIABLE orgplats AS CHARACTER NO-UNDO.
+DEFINE VARIABLE blobid AS INTEGER NO-UNDO.
+DEFINE VARIABLE intsek AS INTEGER NO-UNDO.
+nyprogdat = 06/13/2006.
+IF Guru.Konstanter:globforetag = "TECT" THEN DO:
+   ASSIGN
+   gurudator = "tectelarp"
+   guruinstall = "D:\SHARED\elpool\PRO9\guru\wtid\".
+END.
+ELSE IF Guru.Konstanter:globforetag = "elpa" THEN DO:
+   ASSIGN
+   gurudator = CHR(80) + CHR(67) + CHR(49) + CHR(49) + CHR(50)
+   guruinstall = "C:\DELAD\PRO9\guru\wtid\".
+END. 
+ELSE RETURN.
+IF Guru.Konstanter:globforetag = "Celpa" THEN DO:
+   RUN FILFLYTSERVER.P PERSISTENT SET filflyth.
+END.
+ELSE DO:
+   RUN FILFLYTSERVER.P PERSISTENT SET filflyth ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+END.
+RUN chek_UI IN filflyth (INPUT nyprogdat,INPUT gurudator,OUTPUT updatera).
+IF updatera = FALSE THEN DO: 
+   RUN slut_UI.
+   RETURN.
+END.
+blobid = 0.
+RUN blobskapa_UI (INPUT "PHMTAPP.r").
+RUN status_UI IN filflyth (INPUT nyprogdat,INPUT gurudator).
+RUN slut_UI.
+PROCEDURE blobskapa_UI:   
+   DEFINE INPUT PARAMETER nyfilnamn AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE blobinfotemp NO-ERROR. 
+   EMPTY TEMP-TABLE blobdatatemp NO-ERROR. 
+   IF SEARCH(nyfilnamn) = ? THEN RETURN.
+   ELSE orgplats = SEARCH(nyfilnamn).
+   blobid = blobid + 1.
+   
+   FILE-INFO:FILE-NAME = orgplats.
+   CREATE blobinfotemp.
+   ASSIGN
+   blobinfotemp.FILNAMN = nyfilnamn
+   blobinfotemp.ID = blobid
+   blobinfotemp.FILFORMAT = CAPS(SUBSTRING(nyfilnamn,R-INDEX(nyfilnamn, ".") + 1))
+   blobinfotemp.STORLEK = INTEGER(FILE-INFO:FILE-SIZE / 1000)
+   blobinfotemp.SKAPDAT = TODAY
+   blobinfotemp.INTID =  TIME
+   blobinfotemp.VART  =   guruinstall  
+   blobinfotemp.VARTWC =  guruinstall
+   blobinfotemp.ORGPATH = SUBSTRING(orgplats,1,R-INDEX(orgplats, "\")).
+   IF blobinfotemp.STORLEK = 0 THEN blobinfotemp.STORLEK = 1.
+   ASSIGN
+   LENGTH(rawImageData) = {&CHUNK-SIZE}
+   intsek = 1.
+   EMPTY TEMP-TABLE blobdatatemp NO-ERROR.    
+   INPUT FROM VALUE(orgplats) BINARY NO-MAP NO-CONVERT.
+   REPEAT:
+      IMPORT UNFORMATTED rawImageData.
+      CREATE blobdatatemp.
+      ASSIGN
+      blobdatatemp.ID      = blobid
+      blobdatatemp.SEKVENS = intsek
+      blobdatatemp.DATA    = rawImageData
+      intsek               = intsek + 1.
+   END.
+   INPUT CLOSE.
+   RUN flytta_UI IN filflyth (INPUT TABLE blobinfotemp, INPUT TABLE blobdatatemp).
+   OS-DELETE VALUE(orgplats).
+END PROCEDURE.
+PROCEDURE slut_UI :
+   IF VALID-HANDLE(filflyth) THEN DELETE PROCEDURE filflyth.
+END PROCEDURE.

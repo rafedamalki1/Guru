@@ -1,0 +1,790 @@
+/*
+     Filename: ARBETSTIDAPP.P
+      Created: 2003.10.27 11:07ELPAO     
+     Modified: 
+*/
+&Scoped-define NEW NEW 
+{REGVAR.I}
+&Scoped-define NEW 
+&Scoped-define SHARED
+{RHMT.I}
+{VHMT.I}
+{DHMT.I}
+DEFINE VARIABLE arregvnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE personkod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE veckonr AS INTEGER NO-UNDO.
+DEFINE VARIABLE tempdatum AS DATE NO-UNDO.
+DEFINE VARIABLE tempordning AS INTEGER NO-UNDO.
+DEFINE VARIABLE temprullid AS INTEGER NO-UNDO.
+DEFINE VARIABLE slutdat AS DATE NO-UNDO.
+DEFINE VARIABLE startdat AS DATE NO-UNDO.
+DEFINE VARIABLE hjsldat AS DATE NO-UNDO.
+DEFINE VARIABLE hjstdat AS DATE NO-UNDO.
+DEFINE VARIABLE prevvecsch AS INTEGER NO-UNDO.
+DEFINE VARIABLE regpers AS CHARACTER NO-UNDO.
+DEFINE BUFFER vbuff FOR VECKOARBETID.
+
+DEFINE TEMP-TABLE extraperstemp NO-UNDO
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD VECKOSCHEMA AS INTEGER
+   FIELD FELMEDD AS CHARACTER
+   INDEX PKOD IS PRIMARY PERSONALKOD.
+
+DEFINE TEMP-TABLE vecdagtemp NO-UNDO
+   FIELD VEC AS INTEGER
+   FIELD ARVNR AS INTEGER
+   FIELD VNR AS INTEGER
+   FIELD VECSCH AS INTEGER
+   FIELD DAGLOG AS LOGICAL
+   FIELD DAGSCH AS INTEGER EXTENT 7
+   INDEX VEC IS PRIMARY VEC.
+DEFINE TEMP-TABLE vperstid NO-UNDO
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD DAG AS CHARACTER
+   FIELD VECKA AS INTEGER
+   FIELD DATUM AS DATE
+   FIELD REGSTART AS DECIMAL
+   FIELD REGSLUT  AS DECIMAL
+   FIELD REGTOTALT AS DECIMAL
+   FIELD FRUSTART  AS DECIMAL
+   FIELD FRUSLUT   AS DECIMAL
+   FIELD KAFFESTART AS DECIMAL
+   FIELD KAFFESLUT  AS DECIMAL
+   FIELD LUNCHSTART AS DECIMAL
+   FIELD LUNCHSLUT  AS DECIMAL
+   INDEX PKOD PERSONALKOD DATUM.
+   
+
+/********************************* PROCEDURES ******************************************/
+
+
+PROCEDURE varbtid_UI :
+    DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+    DEFINE INPUT PARAMETER vnr AS INTEGER NO-UNDO.
+    DEFINE OUTPUT PARAMETER TABLE FOR vperstid.
+    EMPTY TEMP-TABLE vperstid NO-ERROR. 
+    ASSIGN
+    regpers = pkod
+    regvnr = vnr
+    regdagnamn = 'mån'. 
+    RUN arbber_UI.   
+    regdagnamn = 'tis'. 
+    RUN arbber_UI.
+    regdagnamn = 'ons'. 
+    RUN arbber_UI.
+    regdagnamn = 'tor'. 
+    RUN arbber_UI.
+    regdagnamn = 'fre'. 
+    RUN arbber_UI.
+    regdagnamn = 'lör'. 
+    RUN arbber_UI.
+    regdagnamn = 'sön'. 
+    RUN arbber_UI.
+  
+END PROCEDURE.
+
+PROCEDURE arbber_UI :
+   
+   RUN VECODAT.P.
+   CREATE vperstid.
+   ASSIGN
+   vperstid.PERSONALKOD = regpers 
+   vperstid.DAG = regdagnamn
+   vperstid.VECKA = regvnr
+   vperstid.DATUM = regdatum.
+   RUN SLUTARBW.P 
+      (INPUT-OUTPUT vperstid.PERSONALKOD,INPUT-OUTPUT vperstid.REGSTART,INPUT-OUTPUT vperstid.REGSLUT, 
+      INPUT-OUTPUT regvnr,INPUT-OUTPUT regdagnamn,INPUT-OUTPUT regdatum, 
+      INPUT-OUTPUT vperstid.REGTOTALT,INPUT-OUTPUT vperstid.FRUSTART,INPUT-OUTPUT vperstid.FRUSLUT, 
+      INPUT-OUTPUT vperstid.KAFFESTART,INPUT-OUTPUT vperstid.KAFFESLUT,INPUT-OUTPUT vperstid.LUNCHSTART,
+      INPUT-OUTPUT vperstid.LUNCHSLUT,INPUT-OUTPUT nytid,INPUT-OUTPUT sekunder). 
+END PROCEDURE.
+PROCEDURE rullbort_UI:
+   DEFINE INPUT PARAMETER perskod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER stdat AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER sldat AS DATE NO-UNDO.
+   IF sldat = ? THEN sldat = 01/01/2199.
+   DO TRANSACTION:
+      FIND FIRST RULLPERS WHERE RULLPERS.PERSONALKOD = perskod AND RULLPERS.STARTDATUM = stdat AND
+         RULLPERS.SLUTDATUM = sldat EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE RULLPERS THEN DELETE RULLPERS.
+   END.
+   IF AVAILABLE RULLPERS THEN RELEASE RULLPERS.
+
+END PROCEDURE.
+
+PROCEDURE laddarullpers_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR rullperstemp.
+   EMPTY TEMP-TABLE rullperstemp  NO-ERROR.    
+   FOR EACH RULLPERS NO-LOCK:
+      CREATE rullperstemp.
+      BUFFER-COPY RULLPERS TO rullperstemp.
+      IF rullperstemp.SLUTDATUM = 01/01/2199 THEN ASSIGN rullperstemp.SLUTDATUM = ?. 
+   END.
+END PROCEDURE.
+
+PROCEDURE skaparull_UI:
+   DEFINE INPUT PARAMETER rullvecordning AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER globanv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER startvec AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER sluttvec AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER rullsch AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR extraperstemp.
+
+   DEFINE VARIABLE tempstartvnr AS INTEGER NO-UNDO.
+   DEFINE VARIABLE tempslutvnr AS INTEGER NO-UNDO.
+   FIND FIRST extraperstemp NO-LOCK NO-ERROR.
+   IF AVAILABLE extraperstemp THEN DO:
+      IF sluttvec = ? THEN slutdat = 01/01/2199.
+      ELSE DO:
+         ASSIGN
+         regvnr = sluttvec
+         regdagnamn = 'mån'.                                                                                             
+         RUN VECODAT.P.  
+         IF YEAR(regdatum) > 2001 THEN DO: 
+            tempslutvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(sluttvec,"999")).
+         END.
+         slutdat = regdatum - 1.
+
+      END.      
+      ASSIGN
+      regvnr = startvec
+      regdagnamn = 'mån'.                                                                                             
+      RUN VECODAT.P.
+      IF YEAR(regdatum) > 2001 THEN DO: 
+         tempstartvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(startvec,"999")).
+      END.
+      startdat = regdatum.   
+      FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = extraperstemp.PERSONALKOD AND 
+         TIDREGITAB.DATUM > startdat NO-LOCK NO-ERROR.
+      IF startdat >= slutdat THEN extraperstemp.FELMEDD = "Startdatum får ej vara större än slutdatum!".
+      ELSE IF AVAILABLE TIDREGITAB THEN extraperstemp.FELMEDD = "Tidregistreringar finns redan på datum " + STRING(TIDREGITAB.DATUM) + " " + 
+               STRING(veckonr) + " för " + TIDREGITAB.PERSONALKOD + " ! Rullande schema kan inte skapas!".
+      ELSE DO:
+         /* Kollar ifall det finns några tillfälliga veckoscheman upplagda */
+         IF sluttvec = ? THEN DO:
+            FIND FIRST VECKOARBAV WHERE VECKOARBAV.PERSONALKOD = extraperstemp.PERSONALKOD AND
+               VECKOARBAV.VECKONUMMER >= tempstartvnr USE-INDEX PVNUMMER NO-LOCK NO-ERROR.
+         END.
+         ELSE DO:
+            FIND FIRST VECKOARBAV WHERE VECKOARBAV.PERSONALKOD = extraperstemp.PERSONALKOD AND
+               VECKOARBAV.VECKONUMMER >= tempstartvnr AND VECKOARBAV.VECKONUMMER <= tempslutvnr
+               USE-INDEX PVNUMMER NO-LOCK NO-ERROR.
+         END.
+         IF AVAILABLE VECKOARBAV THEN extraperstemp.FELMEDD = "VEC".
+         /*Kontrollera om person har ett startat rullande schema sen tidigare*/
+         FIND FIRST RULLPERS WHERE RULLPERS.PERSONALKOD = extraperstemp.PERSONALKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE RULLPERS THEN DO:    
+            RELEASE RULLPERS.
+            /*Ta bort de som ska tas bort*/
+            OPEN QUERY rpq FOR EACH RULLPERS WHERE RULLPERS.PERSONALKOD = extraperstemp.PERSONALKOD AND
+            RULLPERS.STARTDATUM >= startdat AND RULLPERS.SLUTDATUM <= slutdat NO-LOCK.
+            GET FIRST rpq NO-LOCK.
+            DO WHILE AVAILABLE(RULLPERS):
+               DO TRANSACTION:
+/*                extraperstemp.FELMEDD = "Ta bort:" + STRING(RULLPERS.STARTDATUM) + STRING(RULLPERS.SLUTDATUM). */
+                  GET CURRENT rpq EXCLUSIVE-LOCK.
+                  DELETE RULLPERS.
+               END.
+               GET NEXT rpq NO-LOCK.
+            END.
+            /*Om skapat startar mitt i ett befintligt och slutar innan, SPLIT */
+            DO TRANSACTION:
+               FIND FIRST RULLPERS WHERE RULLPERS.PERSONALKOD = extraperstemp.PERSONALKOD AND
+               RULLPERS.STARTDATUM < startdat AND RULLPERS.SLUTDATUM > slutdat EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE RULLPERS THEN DO:
+                  FIND FIRST RULLSCHEMA WHERE RULLSCHEMA.RULLID = RULLPERS.RULLID NO-LOCK NO-ERROR.
+                  tempordning = (RULLPERS.ORDNING + (((slutdat + 1) - RULLPERS.STARTDATUM) / 7)) MODULO RULLSCHEMA.ANTAL.
+                  IF tempordning = 0 THEN tempordning = RULLSCHEMA.ANTAL.
+                  ASSIGN
+                  tempdatum = RULLPERS.SLUTDATUM
+                  temprullid = RULLPERS.RULLID.
+/*                   extraperstemp.FELMEDD = "Mitt i:" + STRING(RULLPERS.STARTDATUM) + STRING(RULLPERS.SLUTDATUM). */
+                  ASSIGN 
+                  RULLPERS.ANVANDARE = globanv
+                  RULLPERS.ANDDATUM = TODAY
+                  RULLPERS.SLUTDATUM = startdat - 1.               
+                  RELEASE RULLPERS.
+                  CREATE RULLPERS.
+                  ASSIGN
+                  RULLPERS.PERSONALKOD = extraperstemp.PERSONALKOD
+                  RULLPERS.RULLID = temprullid
+                  RULLPERS.ORDNING = tempordning
+                  RULLPERS.ANVANDARE = globanv
+                  RULLPERS.ANDDATUM = TODAY
+                  RULLPERS.STARTDATUM = slutdat + 1.
+                  RULLPERS.SLUTDATUM = tempdatum.
+               END.            
+               ELSE DO:
+                  /*Om skapat startar tidigare eller samtidigt än befintligt men slutar inom*/
+                  FIND FIRST RULLPERS WHERE RULLPERS.PERSONALKOD = extraperstemp.PERSONALKOD AND
+                  RULLPERS.STARTDATUM < slutdat AND RULLPERS.SLUTDATUM > slutdat AND 
+                  RULLPERS.STARTDATUM >= startdat EXCLUSIVE-LOCK NO-ERROR.
+                  IF AVAILABLE RULLPERS THEN DO:
+                     FIND FIRST RULLSCHEMA WHERE RULLSCHEMA.RULLID = RULLPERS.RULLID NO-LOCK NO-ERROR.
+                     tempordning = (RULLPERS.ORDNING + (((slutdat + 1) - RULLPERS.STARTDATUM) / 7)) MODULO RULLSCHEMA.ANTAL.
+                     IF tempordning = 0 THEN tempordning = RULLSCHEMA.ANTAL.
+/*                      extraperstemp.FELMEDD =  "Slutar inom en:" + STRING(RULLPERS.STARTDATUM) + STRING(RULLPERS.SLUTDATUM). */
+                     ASSIGN
+                     RULLPERS.ORDNING = tempordning
+                     RULLPERS.ANVANDARE = globanv
+                     RULLPERS.ANDDATUM = TODAY
+                     RULLPERS.STARTDATUM = slutdat + 1.
+                  END.
+                  ELSE DO:
+                     /*Om skapat startar mitt i ett befintligt men de har samma eller senare slutdatum*/
+                     FIND FIRST RULLPERS WHERE RULLPERS.PERSONALKOD = extraperstemp.PERSONALKOD AND
+                     RULLPERS.STARTDATUM < startdat AND RULLPERS.SLUTDATUM > startdat AND
+                     RULLPERS.SLUTDATUM <= slutdat EXCLUSIVE-LOCK NO-ERROR.
+                     IF AVAILABLE RULLPERS THEN DO:
+/*                         extraperstemp.FELMEDD =  "Startar inom en:" + STRING(RULLPERS.STARTDATUM) + STRING(RULLPERS.SLUTDATUM). */
+                        ASSIGN
+                        RULLPERS.ANVANDARE = globanv
+                        RULLPERS.ANDDATUM = TODAY
+                        RULLPERS.SLUTDATUM = startdat - 1.
+                     END.
+                  END.
+               END.
+            END.         
+            RELEASE RULLPERS.
+         END.
+         DO TRANSACTION:
+            CREATE RULLPERS.
+            ASSIGN
+            RULLPERS.STARTDATUM = startdat
+            RULLPERS.SLUTDATUM = slutdat
+            RULLPERS.PERSONALKOD = extraperstemp.PERSONALKOD
+            RULLPERS.RULLID = rullsch
+            RULLPERS.ANVANDARE = globanv
+            RULLPERS.ANDDATUM = TODAY
+            RULLPERS.ORDNING = rullvecordning.      
+         END.
+         IF AVAILABLE RULLPERS THEN RELEASE RULLPERS.
+      END.                                            
+   END.
+END PROCEDURE.
+
+PROCEDURE sparaordinarie_UI:
+   DEFINE INPUT PARAMETER startvec AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vecsch AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR extraperstemp.
+   ASSIGN
+   regdagnamn = "mån"
+   regvnr = startvec.   
+   RUN VECODAT.P.
+   IF YEAR(regdatum) < 2001 THEN arregvnr = startvec.
+   ELSE arregvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(startvec,"999")).
+   FOR EACH extraperstemp:
+      FIND FIRST RULLPERS WHERE RULLPERS.PERSONALKOD = extraperstemp.PERSONALKOD AND 
+         RULLPERS.SLUTDATUM > regdatum NO-LOCK NO-ERROR.
+      IF AVAILABLE RULLPERS THEN DO:
+         extraperstemp.FELMEDD = extraperstemp.PERSONALKOD + " har rullande schema! Ändring kan ej göras.".
+      END.
+      ELSE DO:
+         /* borde kollas för alla veckonummer framåt????*/         
+/*          FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = extraperstemp.PERSONALKOD AND */
+/*          YEAR(TIDREGITAB.DATUM) GE YEAR(regdatum) AND TIDREGITAB.VECKONUMMER = startvec AND */
+/*          TIDREGITAB.TIDLOG = TRUE USE-INDEX PVNR NO-LOCK NO-ERROR.                          */
+
+         /*Varför inte så här ?? Mikael 2003-11-05*/
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = extraperstemp.PERSONALKOD AND
+         TIDREGITAB.DATUM GE regdatum AND TIDREGITAB.TIDLOG = TRUE USE-INDEX PVNR NO-LOCK NO-ERROR.
+         IF AVAILABLE TIDREGITAB THEN DO:            
+            extraperstemp.FELMEDD = "Tidregistreringar finns redan på datum " + STRING(TIDREGITAB.DATUM) + " " + 
+               STRING(TIDREGITAB.VECKONUMMER) + " för " + TIDREGITAB.PERSONALKOD + " ! Byte kan inte göras!".            
+         END.
+         ELSE DO:         
+            FIND FIRST VECKOARBAV WHERE VECKOARBAV.PERSONALKOD = extraperstemp.PERSONALKOD AND
+            VECKOARBAV.VECKONUMMER >= arregvnr USE-INDEX PVNUMMER NO-LOCK NO-ERROR.
+            IF AVAILABLE VECKOARBAV THEN extraperstemp.FELMEDD = "VEC".
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = extraperstemp.PERSONALKOD EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE PERSONALTAB THEN DO:
+               prevvecsch = PERSONALTAB.VECKOSCHEMA.
+               ASSIGN
+               PERSONALTAB.VECKOSCHEMA = vecsch
+               extraperstemp.VECKOSCHEMA = vecsch.
+               IF vecsch = 0 THEN DO:
+                  FIND FIRST FLEXAVT WHERE FLEXAVT.PERSONALKOD = extraperstemp.PERSONALKOD NO-LOCK NO-ERROR.
+                  IF AVAILABLE FLEXAVT THEN DO:
+                     IF FLEXAVT.FLEXTID = TRUE THEN DO:
+                        FOR EACH FLEXDAG WHERE FLEXDAG.PERSONALKOD = extraperstemp.PERSONALKOD AND FLEXDAG.DATUM GE regdatum AND FLEXDAG.FELMED = "Ingen registrering gjord" EXCLUSIVE-LOCK:
+                           DELETE FLEXDAG.   
+                       END.
+                           
+                     END.   
+                  END.
+               END.      
+               
+            END.            
+         END.         
+      END.
+   END.
+   IF AVAILABLE PERSONALTAB THEN RELEASE PERSONALTAB.
+   IF AVAILABLE FLEXDAG THEN RELEASE FLEXDAG.
+END PROCEDURE.
+
+
+
+PROCEDURE veckoarbfix_UI:
+   DEFINE INPUT PARAMETER ordvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER perskod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER val AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER stvec AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER slvec AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vecsch AS INTEGER NO-UNDO.
+
+   DEFINE VARIABLE tempstart AS DATE NO-UNDO.
+   DEFINE VARIABLE temptoday AS DATE NO-UNDO.
+   DEFINE VARIABLE todayvnr AS INTEGER NO-UNDO.
+   ASSIGN
+   regdagnamn = "mån"
+   regvnr = stvec.
+   RUN VECODAT.P.
+   IF YEAR(regdatum) > 2001 THEN stvec = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(stvec,"999")).
+   tempstart = regdatum.
+   regdatum = TODAY. 
+   RUN REGVEC.P.  
+   /* regvnr kommer alltid att vara större än 2001 för TODAY */   
+   todayvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(regvnr,"999")). 
+   RUN VECODAT.P.
+   temptoday = regdatum.
+   IF slvec NE ? THEN DO:
+      regvnr = slvec.
+      RUN VECODAT.P.
+      IF YEAR(regdatum) > 2001 THEN slvec = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(slvec,"999")).
+   END.
+   IF val = TRUE THEN DO:
+      IF slvec = ? THEN DO:
+         OPEN QUERY tempq FOR EACH VECKOARBAV WHERE VECKOARBAV.PERSONALKOD = perskod AND
+            VECKOARBAV.VECKONUMMER >= stvec NO-LOCK.
+      END.
+      ELSE DO:
+         OPEN QUERY tempq FOR EACH VECKOARBAV WHERE VECKOARBAV.PERSONALKOD = perskod AND
+            VECKOARBAV.VECKONUMMER >= stvec AND VECKOARBAV.VECKONUMMER <= slvec NO-LOCK.
+      END.
+      GET FIRST tempq NO-LOCK.
+      DO WHILE AVAILABLE VECKOARBAV:
+         GET CURRENT tempq EXCLUSIVE-LOCK.
+         DELETE VECKOARBAV.
+         GET NEXT tempq NO-LOCK.
+      END.
+   END.
+   /* Detta ska endast göras för ordinarie*/
+   IF ordvar = TRUE THEN DO:
+      IF stvec >= todayvnr THEN DO:
+         temptoday = temptoday - 35.
+         DO WHILE temptoday < tempstart:            
+            FIND FIRST VECKOARBAV WHERE VECKOARBAV.PERSONALKOD = perskod AND
+            VECKOARBAV.VECKONUMMER = todayvnr NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE VECKOARBAV THEN DO:               
+               CREATE VECKOARBAV.
+               ASSIGN
+               VECKOARBAV.PERSONALKOD = perskod
+               VECKOARBAV.VECKOSCHEMA = prevvecsch
+               VECKOARBAV.VECKONUMMER = todayvnr.
+               IF stvec = todayvnr THEN DO:
+                  VECKOARBAV.VECKOSCHEMA = vecsch.
+               END.               
+            END.
+            temptoday = temptoday + 7.
+            regdatum = temptoday. 
+            RUN REGVEC.P.  
+            todayvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(regvnr,"999")). 
+         END.
+      END.
+      ELSE DO:
+         todayvnr = stvec.
+         DO WHILE tempstart <= temptoday:            
+            FIND FIRST VECKOARBAV WHERE VECKOARBAV.PERSONALKOD = perskod AND
+            VECKOARBAV.VECKONUMMER = todayvnr NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE VECKOARBAV THEN DO:               
+               CREATE VECKOARBAV.
+               ASSIGN
+               VECKOARBAV.PERSONALKOD = perskod
+               VECKOARBAV.VECKOSCHEMA = vecsch
+               VECKOARBAV.VECKONUMMER = todayvnr.
+            END.
+            ELSE DO:
+               FIND CURRENT VECKOARBAV EXCLUSIVE-LOCK.
+               VECKOARBAV.VECKOSCHEMA = vecsch.
+            END.
+            tempstart = tempstart + 7.
+            regdatum = tempstart. 
+            RUN REGVEC.P.  
+            todayvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(regvnr,"999")). 
+         END.
+      END.
+   END.
+   IF AVAILABLE VECKOARBAV THEN RELEASE VECKOARBAV.   
+END PROCEDURE.
+
+PROCEDURE tabortextradag_UI:
+   DEFINE INPUT PARAMETER perskod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER arvnr AS INTEGER NO-UNDO.
+
+   DO TRANSACTION:
+      FIND FIRST EXTRADATA WHERE EXTRADATA.PROGRAM = "ARBTID" AND EXTRADATA.HUVUDCH = perskod AND
+      EXTRADATA.HUVUDINT = arvnr EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE EXTRADATA THEN DO:
+         DELETE EXTRADATA.
+      END. 
+   END.   
+END PROCEDURE.
+
+PROCEDURE bytedag_UI:
+   DEFINE INPUT PARAMETER perskod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER dag AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER arvnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER dagsch AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE tempi AS INTEGER NO-UNDO.
+   regvnr = vnr.
+   IF dag = 1 THEN regdagnamn = 'mån'.
+   ELSE IF dag = 2 THEN regdagnamn = 'tis'.
+   ELSE IF dag = 3 THEN regdagnamn = 'ons'.
+   ELSE IF dag = 4 THEN regdagnamn = 'tor'.
+   ELSE IF dag = 5 THEN regdagnamn = 'fre'.
+   ELSE IF dag = 6 THEN regdagnamn = 'lör'.
+   ELSE IF dag = 7 THEN regdagnamn = 'sön'.
+   RUN VECODAT.P.
+   IF INTEGER(SUBSTRING(STRING(vnr,"999"),1,1)) = 9 THEN DO:
+      IF INTEGER(SUBSTRING(STRING(vnr,"999"),2,2)) >= 52 THEN DO:
+         IF INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),4,1)) NE INTEGER(SUBSTRING(STRING(vnr,"999"),1,1)) THEN DO:
+            arvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum) - 1,"9999"),1,3) + STRING(vnr,"999")).
+         END.
+         ELSE arvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(vnr,"999")).
+      END.
+      ELSE arvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(vnr,"999")).
+   END.
+   /*ELSE arvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(vnr,"999")).*/
+   
+   /*övergång 2019-2020 vecka 1 2019 */
+   ELSE IF INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),4,1)) = 9 AND vnr = 1 THEN
+   arvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum) + 10,"9999"),1,3) + STRING(vnr,"999")).
+   ELSE arvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(vnr,"999")).
+     
+   FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = perskod AND 
+   TIDREGITAB.DATUM = regdatum AND TIDREGITAB.TIDLOG = TRUE USE-INDEX PVNR NO-LOCK NO-ERROR.
+   IF AVAILABLE TIDREGITAB THEN DO:
+      felmedd = "Det finns tidregistreringar på denna dag, ta bort tidsregistrering för att byta dagschema!".
+   END.
+   ELSE DO:
+      DO TRANSACTION:
+         FIND FIRST EXTRADATA WHERE EXTRADATA.PROGRAM = "ARBTID" AND EXTRADATA.HUVUDCH = perskod AND
+         EXTRADATA.HUVUDINT = arvnr EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE EXTRADATA THEN DO: 
+            CREATE EXTRADATA.
+            ASSIGN 
+            EXTRADATA.PROGRAM = "ARBTID" 
+            EXTRADATA.HUVUDCH = perskod
+            EXTRADATA.HUVUDINT = arvnr.
+            tempi = 1.
+            DO WHILE tempi < 8: 
+               EXTRADATA.SOKINT[tempi] = -1.
+               tempi = tempi + 1.
+            END.
+            EXTRADATA.SOKINT[dag] = dagsch.                           
+             
+         END.
+         ELSE EXTRADATA.SOKINT[dag] = dagsch.
+         IF dagsch = 0 THEN DO:
+            /*ta bort flexreg om personen inte längre har schema*/
+            FIND FIRST FLEXDAG WHERE FLEXDAG.PERSONALKOD = perskod AND FLEXDAG.DATUM = regdatum AND FLEXDAG.FELMED = "Ingen registrering gjord" EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE FLEXDAG THEN DO:
+               DELETE FLEXDAG.
+            END.
+         END.          
+      END.
+      IF AVAILABLE EXTRADATA THEN RELEASE EXTRADATA.
+      IF AVAILABLE FLEXDAG THEN RELEASE FLEXDAG.
+   END.
+END PROCEDURE.
+
+PROCEDURE bytetillfalligt_UI:
+   DEFINE INPUT PARAMETER globanv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER perskod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vecnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vecsch AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR rullperstemp.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   ASSIGN
+   regdagnamn = "sön"
+   regvnr = vecnr.
+   RUN VECODAT.P.
+   hjsldat =  regdatum.
+   ASSIGN
+   personkod = perskod
+   veckonr = vecnr
+   felmedd = ""
+   regdagnamn = "mån"
+   regvnr = vecnr.
+   RUN VECODAT.P.
+   hjstdat =  regdatum.
+   IF YEAR(regdatum) < 2001 THEN arregvnr = veckonr.   
+   /*ELSE arregvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(veckonr,"999")).*/
+   
+   /*övergång 2019-2020 vecka 1 2019 */
+   ELSE IF INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),4,1)) = 9 AND veckonr = 1 THEN
+   arregvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum) + 10,"9999"),1,3) + STRING(veckonr,"999")).
+   ELSE arregvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(veckonr,"999")).
+   
+     
+   FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = personkod AND 
+   YEAR(TIDREGITAB.DATUM) = YEAR(regdatum) AND TIDREGITAB.VECKONUMMER = veckonr AND 
+   TIDREGITAB.TIDLOG = TRUE USE-INDEX PVNR NO-LOCK NO-ERROR.
+   IF AVAILABLE TIDREGITAB THEN DO:
+      FIND FIRST VECKOARBAV WHERE VECKOARBAV.PERSONALKOD = personkod AND
+      VECKOARBAV.VECKONUMMER = arregvnr USE-INDEX PVNUMMER NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE VECKOARBAV THEN DO:               
+         felmedd = "Tidregistreringar finns redan vecka " + STRING(regdatum) + " " + 
+            STRING(veckonr) + " för " + TIDREGITAB.PERSONALKOD + " ! Byte kan inte göras!".
+         RETURN.
+      END.
+      FIND FIRST vbuff WHERE vbuff.VECKOSCHEMA = VECKOARBAV.VECKOSCHEMA NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE vbuff THEN DO:               
+         felmedd = "Tidregistreringar finns redan vecka " + STRING(regdatum) + " " + 
+            STRING(veckonr) + " för " + TIDREGITAB.PERSONALKOD + " ! Byte kan inte göras!".
+         RETURN.
+      END.
+      FIND FIRST VECKOARBETID WHERE VECKOARBETID.VECKOSCHEMA = vecsch NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE VECKOARBETID THEN DO:               
+         felmedd = "Tidregistreringar finns redan vecka " + STRING(regdatum) + " " + 
+            STRING(veckonr) + " för " + TIDREGITAB.PERSONALKOD + " ! Byte kan inte göras!".
+         RETURN.
+      END.
+      /* FIXA en EXTRADATA-koll här ungefär...  */
+      RUN koll_UI (INPUT vbuff.ARBTIDMAN, INPUT VECKOARBETID.ARBTIDMAN, OUTPUT felmedd).
+      IF felmedd NE "" THEN RETURN.
+      regdatum = regdatum + 1.
+      RUN koll_UI (INPUT vbuff.ARBTIDTIS, INPUT VECKOARBETID.ARBTIDTIS, OUTPUT felmedd).
+      IF felmedd NE "" THEN RETURN.
+      regdatum = regdatum + 1.
+      RUN koll_UI (INPUT vbuff.ARBTIDONS, INPUT VECKOARBETID.ARBTIDONS, OUTPUT felmedd).
+      IF felmedd NE "" THEN RETURN.
+      regdatum = regdatum + 1.
+      RUN koll_UI (INPUT vbuff.ARBTIDTOR, INPUT VECKOARBETID.ARBTIDTOR, OUTPUT felmedd).
+      IF felmedd NE "" THEN RETURN.
+      regdatum = regdatum + 1.
+      RUN koll_UI (INPUT vbuff.ARBTIDFRE, INPUT VECKOARBETID.ARBTIDFRE, OUTPUT felmedd).
+      IF felmedd NE "" THEN RETURN.
+      regdatum = regdatum + 1.
+      RUN koll_UI (INPUT vbuff.ARBTIDLOR, INPUT VECKOARBETID.ARBTIDLOR, OUTPUT felmedd).
+      IF felmedd NE "" THEN RETURN.
+      regdatum = regdatum + 1.
+      RUN koll_UI (INPUT vbuff.ARBTIDSON, INPUT VECKOARBETID.ARBTIDSON, OUTPUT felmedd).
+      IF felmedd NE "" THEN RETURN.
+      DO TRANSACTION:
+         FIND CURRENT VECKOARBAV EXCLUSIVE-LOCK NO-ERROR.
+         ASSIGN 
+         VECKOARBAV.PERSONALKOD = personkod 
+         VECKOARBAV.VECKONUMMER = arregvnr 
+         VECKOARBAV.VECKOSCHEMA = vecsch.
+         regdatum = regdatum - 6.
+         RUN rullfix_UI (INPUT Guru.Konstanter:globanv, INPUT-OUTPUT TABLE rullperstemp).         
+         IF vecsch = 0 THEN DO:            
+            FIND FIRST FLEXAVT WHERE FLEXAVT.PERSONALKOD = personkod NO-LOCK NO-ERROR.
+            IF AVAILABLE FLEXAVT THEN DO:
+               IF FLEXAVT.FLEXTID = TRUE THEN DO:
+                  FOR EACH FLEXDAG WHERE FLEXDAG.PERSONALKOD = personkod AND FLEXDAG.DATUM GE hjstdat AND FLEXDAG.DATUM LE hjsldat AND FLEXDAG.FELMED = "Ingen registrering gjord" EXCLUSIVE-LOCK:
+                     DELETE FLEXDAG.   
+                 END.                   
+               END.   
+            END.
+         END.
+      END.
+   END.
+   ELSE DO TRANSACTION:   
+      FIND FIRST VECKOARBAV WHERE VECKOARBAV.PERSONALKOD = personkod AND
+      VECKOARBAV.VECKONUMMER = arregvnr USE-INDEX PVNUMMER EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE VECKOARBAV THEN CREATE VECKOARBAV.
+      ASSIGN 
+      VECKOARBAV.PERSONALKOD = personkod 
+      VECKOARBAV.VECKONUMMER = arregvnr 
+      VECKOARBAV.VECKOSCHEMA = vecsch. 
+      RUN rullfix_UI (INPUT Guru.Konstanter:globanv, INPUT-OUTPUT TABLE rullperstemp).
+      IF vecsch = 0 THEN DO:            
+         FIND FIRST FLEXAVT WHERE FLEXAVT.PERSONALKOD = personkod NO-LOCK NO-ERROR.
+         IF AVAILABLE FLEXAVT THEN DO:
+            IF FLEXAVT.FLEXTID = TRUE THEN DO:
+               FOR EACH FLEXDAG WHERE FLEXDAG.PERSONALKOD = personkod AND FLEXDAG.DATUM GE hjstdat AND FLEXDAG.DATUM LE hjsldat AND FLEXDAG.FELMED = "Ingen registrering gjord" EXCLUSIVE-LOCK:
+                  DELETE FLEXDAG.   
+              END.                   
+            END.   
+         END.
+      END.
+   END.
+   IF AVAILABLE VECKOARBAV THEN RELEASE VECKOARBAV.
+END PROCEDURE.
+
+PROCEDURE koll_UI:
+   DEFINE INPUT PARAMETER gamdagsch AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER nydagsch AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+
+   felmedd = "".
+   IF gamdagsch NE nydagsch THEN DO: 
+      FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = personkod AND
+      TIDREGITAB.DATUM = regdatum AND TIDREGITAB.TIDLOG = TRUE USE-INDEX PVNR NO-LOCK NO-ERROR.
+      IF AVAILABLE TIDREGITAB THEN DO:
+         felmedd = "Tidregistreringar finns redan vecka " + STRING(regdatum) + " " + 
+         STRING(veckonr) + " för " + TIDREGITAB.PERSONALKOD + " ! Byte kan inte göras!".        
+      END.
+   END.      
+END PROCEDURE.
+
+PROCEDURE rullfix_UI:   
+   DEFINE INPUT PARAMETER globanv AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR rullperstemp.   
+
+   DO TRANSACTION:
+      FIND FIRST RULLPERS WHERE RULLPERS.PERSONALKOD = personkod AND 
+      RULLPERS.STARTDATUM <= regdatum AND RULLPERS.SLUTDATUM > regdatum EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE RULLPERS THEN DO:
+         FIND FIRST RULLSCHEMA WHERE RULLSCHEMA.RULLID = RULLPERS.RULLID NO-LOCK NO-ERROR.
+         IF RULLPERS.STARTDATUM = regdatum THEN DO:
+            IF RULLPERS.SLUTDATUM = (regdatum + 6) THEN DELETE RULLPERS.            
+            ELSE DO: 
+               tempordning = (RULLPERS.ORDNING + 1) MODULO RULLSCHEMA.ANTAL.
+               IF tempordning = 0 THEN tempordning = RULLSCHEMA.ANTAL.
+               ASSIGN
+               RULLPERS.ANVANDARE = globanv
+               RULLPERS.ANDDATUM = TODAY
+               RULLPERS.STARTDATUM = (regdatum + 7)
+               RULLPERS.ORDNING = tempordning.
+            END.
+         END.
+         ELSE DO:
+            tempdatum = RULLPERS.SLUTDATUM.
+            CREATE rullperstemp.
+            BUFFER-COPY RULLPERS TO rullperstemp.
+            ASSIGN RULLPERS.SLUTDATUM = regdatum - 1.
+            IF tempdatum > regdatum + 7 THEN DO:
+               CREATE RULLPERS.
+               BUFFER-COPY rullperstemp TO RULLPERS.
+               tempordning = (RULLPERS.ORDNING + (((regdatum + 7) - RULLPERS.STARTDATUM) / 7)) MODULO RULLSCHEMA.ANTAL.
+               IF tempordning = 0 THEN tempordning = RULLSCHEMA.ANTAL.
+               ASSIGN
+               RULLPERS.ANVANDARE = globanv
+               RULLPERS.ANDDATUM = TODAY
+               RULLPERS.STARTDATUM = (regdatum + 7)
+               RULLPERS.ORDNING = tempordning.
+            END.            
+         END.
+         EMPTY TEMP-TABLE rullperstemp NO-ERROR.          
+         FOR EACH RULLPERS NO-LOCK:
+            CREATE rullperstemp.
+            BUFFER-COPY RULLPERS TO rullperstemp.
+            IF rullperstemp.SLUTDATUM = 01/01/2199 THEN ASSIGN rullperstemp.SLUTDATUM = ?.
+         END.
+      END.   
+   END.
+   IF AVAILABLE RULLPERS THEN RELEASE RULLPERS.
+END PROCEDURE.
+
+PROCEDURE laddatemp_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR arbtidtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR veckoarbtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR rullvectemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR rullschtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR rullperstemp.
+   EMPTY TEMP-TABLE arbtidtemp  NO-ERROR. 
+   EMPTY TEMP-TABLE veckoarbtemp NO-ERROR. 
+   EMPTY TEMP-TABLE rullvectemp  NO-ERROR. 
+   EMPTY TEMP-TABLE rullschtemp  NO-ERROR. 
+   EMPTY TEMP-TABLE rullperstemp NO-ERROR.    
+   
+   FOR EACH ARBETSTIDTAB NO-LOCK:
+      CREATE arbtidtemp.                        
+      BUFFER-COPY ARBETSTIDTAB TO arbtidtemp.   
+   END.
+   FOR EACH VECKOARBETID NO-LOCK:
+      CREATE veckoarbtemp.
+      BUFFER-COPY VECKOARBETID TO veckoarbtemp.
+   END.
+   /*
+   FOR EACH RULLPERS NO-LOCK:
+      CREATE rullperstemp.
+      BUFFER-COPY RULLPERS TO rullperstemp.
+      IF rullperstemp.SLUTDATUM = 01/01/2199 THEN ASSIGN rullperstemp.SLUTDATUM = ?. 
+   END.
+   */
+   FOR EACH RULLVECKO NO-LOCK.
+      CREATE rullvectemp.
+      BUFFER-COPY RULLVECKO TO rullvectemp.
+   END.
+   FOR EACH RULLSCHEMA USE-INDEX RULLID NO-LOCK.
+      CREATE rullschtemp.
+      BUFFER-COPY RULLSCHEMA TO rullschtemp.
+   END.   
+END PROCEDURE.
+PROCEDURE laddarullptemp_UI:
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR rullperstemp.
+   EMPTY TEMP-TABLE rullperstemp NO-ERROR. 
+   FOR EACH RULLPERS WHERE RULLPERS.PERSONALKOD = pkod NO-LOCK:
+      CREATE rullperstemp.
+      BUFFER-COPY RULLPERS TO rullperstemp.
+      IF rullperstemp.SLUTDATUM = 01/01/2199 THEN ASSIGN rullperstemp.SLUTDATUM = ?. 
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE veckocheck_UI:
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER midvecdate AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR vecdagtemp.
+   DEFINE VARIABLE tempi AS INTEGER NO-UNDO.
+   
+   tempi = 1.
+   EMPTY TEMP-TABLE vecdagtemp NO-ERROR.    
+   DO WHILE tempi LE 3:
+      CREATE vecdagtemp.
+      vecdagtemp.VEC = tempi.
+      regdatum = ((midvecdate - 7) + (7 * (tempi - 1))).
+      RUN REGVEC.P.
+      vecdagtemp.VNR = regvnr.
+      IF YEAR(regdatum) < 2001 THEN arregvnr = regvnr.
+      ELSE DO:
+         IF INTEGER(SUBSTRING(STRING(regvnr,"999"),1,1)) = 9 THEN DO:
+            IF INTEGER(SUBSTRING(STRING(regvnr,"999"),2,2)) >= 52 THEN DO:
+               IF INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),4,1)) NE INTEGER(SUBSTRING(STRING(regvnr,"999"),1,1)) THEN DO:
+                  arregvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum) - 1,"9999"),1,3) + STRING(regvnr,"999")).
+               END.
+               ELSE arregvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(regvnr,"999")).
+            END.
+            ELSE arregvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(regvnr,"999")).
+         END.
+         ELSE arregvnr = INTEGER(SUBSTRING(STRING(YEAR(regdatum),"9999"),1,3) + STRING(regvnr,"999")).
+      END.
+         
+           
+      FIND FIRST VECKOARBAV WHERE VECKOARBAV.VECKONUMMER = arregvnr AND VECKOARBAV.PERSONALKOD = pkod 
+      USE-INDEX VECKONUMM NO-LOCK NO-ERROR.
+      IF AVAILABLE VECKOARBAV THEN DO:         
+         vecdagtemp.VECSCH = VECKOARBAV.VECKOSCHEMA.
+      END.
+      ELSE DO:
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+         {RULLVECKO.I}
+         vecdagtemp.VECSCH = rull-veckovar.
+      END.
+      tempi = tempi + 1.
+      /* Kontroll av EXTRADATA */
+      FIND FIRST EXTRADATA WHERE EXTRADATA.PROGRAM = "ARBTID" AND EXTRADATA.HUVUDCH = pkod AND
+      EXTRADATA.HUVUDINT = arregvnr NO-LOCK NO-ERROR.
+      IF AVAILABLE EXTRADATA THEN DO: 
+         ASSIGN
+         vecdagtemp.ARVNR = EXTRADATA.HUVUDINT
+         vecdagtemp.DAGSCH[1] = EXTRADATA.SOKINT[1]   /* Mån */
+         vecdagtemp.DAGSCH[2] = EXTRADATA.SOKINT[2]   /* Tis */
+         vecdagtemp.DAGSCH[3] = EXTRADATA.SOKINT[3]   /* ... */
+         vecdagtemp.DAGSCH[4] = EXTRADATA.SOKINT[4]
+         vecdagtemp.DAGSCH[5] = EXTRADATA.SOKINT[5]
+         vecdagtemp.DAGSCH[6] = EXTRADATA.SOKINT[6]
+         vecdagtemp.DAGSCH[7] = EXTRADATA.SOKINT[7]
+         vecdagtemp.DAGLOG = TRUE.
+      END.
+      ELSE vecdagtemp.DAGLOG = FALSE. 
+   END.
+END PROCEDURE.

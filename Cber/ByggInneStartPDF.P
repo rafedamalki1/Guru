@@ -1,0 +1,149 @@
+/*
+     Filename: ByggInneStartPDF.P
+*/
+&Scoped-define NEW 
+{GLOBVAR2DEL1.I}
+{REGVAR.I}
+{TIDUTTT.I}
+DEFINE SHARED TEMP-TABLE innehall NO-UNDO
+{BYGGINNEHALL.I} 
+DEFINE INPUT PARAMETER TABLE FOR tidut.
+DEFINE INPUT PARAMETER kompsida AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE bryt AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE prisvar   AS INTEGER NO-UNDO.
+DEFINE VARIABLE utberapph  AS HANDLE NO-UNDO.
+DEFINE VARIABLE utfil      AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sidrakn    AS INTEGER NO-UNDO.
+DEFINE VARIABLE logga      AS CHARACTER NO-UNDO.
+DEFINE VARIABLE Vitems     AS INTEGER NO-UNDO.
+DEFINE VARIABLE vline     AS INTEGER NO-UNDO.
+DEFINE VARIABLE Vrow       AS INTEGER NO-UNDO.
+DEFINE VARIABLE Vrow2       AS INTEGER NO-UNDO.
+DEFINE VARIABLE Vcat-desc  AS CHARACTER EXTENT 4 FORMAT "X(40)" NO-UNDO.
+DEFINE VARIABLE h       AS INTEGER NO-UNDO.
+DEFINE VARIABLE w       AS INTEGER NO-UNDO.
+DEFINE VARIABLE a          AS DECIMAL NO-UNDO.
+DEFINE VARIABLE mtrlrubrik AS LOGICAL NO-UNDO.
+DEFINE VARIABLE forsta     AS LOGICAL NO-UNDO.
+DEFINE VARIABLE spann AS LOGICAL NO-UNDO.
+DEFINE VARIABLE tomrad AS LOGICAL NO-UNDO.
+DEFINE VARIABLE typsnyttstorlek AS DECIMAL NO-UNDO.
+IF Guru.Konstanter:globforetag = "cGRAN" OR Guru.Konstanter:globforetag = "ELPA" THEN typsnyttstorlek = 12.
+ELSE typsnyttstorlek = 10.
+{AONRUTSID.I}
+ASSIGN
+mtrlrubrik = FALSE
+logga = ?
+forsta = FALSE
+spann = FALSE
+sidrakn = 1.
+utfil = SESSION:TEMP-DIRECTORY.        
+{SESSIONTEMPDIR.I}
+IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN utfil = webclienttempdir.
+IF Guru.GlobalaVariabler:plusaonr = "" OR Guru.GlobalaVariabler:plusaonr = ? THEN DO:
+   utfil = utfil +  "ByggPro" + STRING(TIME) + ".pdf".
+END.
+ELSE DO:
+   utfil = utfil + "ByggPro" + TRIM (Guru.GlobalaVariabler:plusaonr) + TRIM(STRING(Guru.GlobalaVariabler:plusdnr,Guru.Konstanter:varforetypchar[1])) + STRING(TIME) + ".pdf".
+END.
+DEBUGGER:SET-BREAK().
+/*FOREBILD*/
+{BILDPDF.I}
+IF Guru.GlobalaVariabler:globsids = 0 THEN Guru.GlobalaVariabler:globsids = 73.
+DEFINE VARIABLE pdfsida AS INTEGER NO-UNDO.
+IF logga NE ? THEN pdfsida = Guru.GlobalaVariabler:globsids - 3.
+ELSE pdfsida = Guru.GlobalaVariabler:globsids.
+RUN startpdf_UI.
+
+  
+PROCEDURE startpdf_UI:
+   DEFINE VARIABLE extravar AS CHARACTER NO-UNDO.   
+   FIND FIRST tidut NO-LOCK NO-ERROR.
+   IF AVAILABLE tidut THEN DO: 
+      /*Skapa ny sida*/
+      RUN new_page.
+      tomrad = TRUE.
+      FOR EACH tidut NO-LOCK:
+         IF tidut.UT = ? THEN NEXT.
+         IF tidut.TTRECID = 0 THEN .
+         ELSE IF  tidut.TTRECID = ? THEN .
+         ELSE DO:
+            FIND FIRST innehall WHERE innehall.TTRECID = tidut.TTRECID NO-LOCK NO-ERROR.
+            IF AVAILABLE innehall THEN innehall.SIDA =  sidrakn - 1. 
+         END.                  
+         /*KOMPSIDA*/
+         IF kompsida = TRUE THEN DO:
+            IF tidut.UT = "" THEN NEXT.
+         END.
+         IF SUBSTRING(tidut.UT,1,6) = "Datum:" THEN DO:
+            extravar = tidut.UT.
+            tidut.UT = SUBSTRING(tidut.UT,1,22) + "  " + SUBSTRING(tidut.UT,43,31).      
+         END.
+         vline = vline + 1.
+         IF mtrlrubrik = TRUE THEN DO:
+            mtrlrubrik = FALSE.
+         END.                          
+         /*KOMPSIDA*/
+         IF SUBSTRING(tidut.UT,132,1) = "$" THEN DO:
+            IF kompsida = TRUE THEN.
+            ELSE RUN new_page.
+         END.
+         ELSE IF vline >= pdfsida THEN DO:
+            RUN new_page.
+         END.
+         ELSE IF SUBSTRING(tidut.UT,1,5) = "*****" THEN DO:          
+         END.
+         ELSE IF SUBSTRING(tidut.UT,1,5) = "-----" THEN DO:
+         END.                                
+         ELSE IF tidut.TTRECID > 0 AND tidut.TTRECID NE ? THEN DO:
+            IF spann = FALSE THEN DO:
+            END.
+            ELSE DO:
+            END.
+         END.                                
+         ELSE IF SUBSTRING(tidut.UT,1,28) = "Grupp nr                   :" 
+            OR SUBSTRING(tidut.UT,1,28) =   "Sektion/Sträcka            :"
+            OR SUBSTRING(tidut.UT,1,28) =   "Ledningsdel                :" THEN DO:
+            IF spann = FALSE THEN DO:              
+            END.
+            ELSE DO:              
+            END.
+         END.
+         ELSE DO:
+            IF SUBSTRING(tidut.UT,1,10) = Guru.Konstanter:genk THEN DO:
+               mtrlrubrik = TRUE.
+            END.                           
+            IF SUBSTRING(tidut.UT,43,8) = SUBSTRING(Guru.Konstanter:varforetypchar[13],1,8) THEN DO:              
+            END.
+            ELSE .            
+         END.
+         IF SUBSTRING(tidut.UT,1,16) = "Spann/kabellängd" THEN spann = TRUE.
+         ELSE spann = FALSE.
+         IF SUBSTRING(tidut.UT,1,6) = "Datum:" THEN DO:
+            tidut.UT = extravar.
+         END.
+         IF tidut.UT NE "" THEN  tomrad = FALSE.
+      END.
+   END.  
+END PROCEDURE.
+PROCEDURE new_page.
+   vline = 0.
+   IF forsta = FALSE THEN DO:
+      IF logga NE ? THEN DO:
+         vline = 3.
+      END.
+      forsta = TRUE.
+   END.
+   ELSE DO:
+      /*Placera ut logga överst på varje sida*/
+      IF logga NE ? THEN DO:
+         vline = 3.
+      END.
+      IF SUBSTRING(tidut.UT,1,5) = "*****" THEN DO:       
+      END.
+      ELSE DO:       
+      END.
+   END.
+   IF kompsida = TRUE THEN logga = ?.
+   sidrakn = sidrakn + 1.
+END PROCEDURE.

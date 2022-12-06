@@ -1,0 +1,116 @@
+/*EXTRADATAHMTDS.P*/
+/* EXTRADATA VIA PRODATASET*/
+/*Anders Olsson Elpool i Umeå AB  16 sep 2022 14:47:05 
+EXEMPEL PÅ KLIENT PROGRAM FINNS LÄNGST NER 
+info om hur EXTRADATA tabellen används finns i EXTRADATAHMT.P
+*/
+
+
+DEFINE VARIABLE Extradatatth AS HANDLE NO-UNDO.
+DEFINE VARIABLE Extradatabuffh AS HANDLE NO-UNDO.
+
+DEFINE VARIABLE  ExtraDataDynWp AS CHARACTER NO-UNDO.
+ExtraDataDynWp = "EXTRADYNDS" + STRING(TIME).
+CREATE WIDGET-POOL STRING(ExtraDataDynWp) NO-ERROR.
+{SparaDynDSstar.I}
+
+
+PROCEDURE laddaExtraDataDS_UI :
+   DEFINE INPUT  PARAMETER extravad AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER DATASET-HANDLE ExtraDataDS BIND.
+   
+   DEFINE VARIABLE qh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE q2h AS HANDLE NO-UNDO.
+   DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE kommandoquery2 AS CHARACTER NO-UNDO.
+   IF NOT VALID-HANDLE(Extradatatth) THEN RUN ExtraDataCreate_UI.
+   
+   RUN GetDatasetDeftt_UI ("ExtraDataDS").
+   DatasetDeftt.antaltab = 1.
+   DatasetDeftt.pcBuffers[1] = STRING(Extradatabuffh).
+   
+   DatasetDeftt.pcSources[1] = "EXTRADATA".
+   DatasetDeftt.pcSourceKeys[1] = "PROGRAM,HUVUDCH,HUVUDINT".
+   DatasetDeftt.pcKeyValue[1] = extravad.
+ 
+   RUN DefAndLoadDs_UI IN dyndamicDSh
+   ({DataSetInput.I} OUTPUT DATASET-HANDLE ExtraDataDS BIND).
+
+END PROCEDURE.
+PROCEDURE ExtraDataCreate_UI :
+   CREATE TEMP-TABLE Extradatatth IN WIDGET-POOL STRING(ExtraDataDynWp).
+   Extradatatth:CREATE-LIKE("EXTRADATA").
+   Extradatatth:ADD-NEW-FIELD("TTRECID","RECID").
+   Extradatatth:TEMP-TABLE-PREPARE("Extratemp").
+   Extradatabuffh = Extradatatth:DEFAULT-BUFFER-HANDLE.
+   
+   
+END PROCEDURE.
+  
+PROCEDURE AvslutaExtradata_UI :
+   DELETE OBJECT Extradatatth NO-ERROR.
+   Extradatatth = ?.
+   DELETE OBJECT Extradatabuffh NO-ERROR.
+   Extradatabuffh = ?.
+   IF VALID-HANDLE(dyndamicDSh) THEN DO:
+      RUN RelDatset_UI IN dyndamicDSh.
+      DELETE PROCEDURE dyndamicDSh NO-ERROR.
+      dyndamicDSh = ?.
+       
+   END.   
+   
+END PROCEDURE.
+
+/*
+/* klient program */
+/*Start*/
+DEFINE VARIABLE ExtradataAppServerHandleSet AS HANDLE NO-UNDO. 
+DEFINE VARIABLE ExtraDataDS AS HANDLE NO-UNDO.
+DEFINE VARIABLE ExtraFieldH AS HANDLE NO-UNDO.
+DEFINE VARIABLE ExtraVadHmt AS CHARACTER NO-UNDO.
+DEFINE VARIABLE queryvar AS CHARACTER NO-UNDO.
+IF Guru.Konstanter:appcon THEN DO:
+   RUN EXTRADATAHMTDS.P PERSISTENT SET ExtradataAppServerHandleSet ON Guru.Konstanter:apphand TRANSACTION DISTINCT.
+END.
+ELSE DO:
+   RUN EXTRADATAHMTDS.p PERSISTENT SET ExtradataAppServerHandleSet.
+END. 
+Guru.SharedVariable:ExtradataAppServerHandle = ExtradataAppServerHandleSet.
+/*hämta*/
+ExtraDataDS = ?.
+ExtraVadHmt =  ' EXTRADATA.PROGRAM = "PROFIL"' + ' AND EXTRADATA.HUVUDCH = "SCHAKT" '.
+RUN laddaExtraDataDS_UI IN Guru.SharedVariable:ExtradataAppServerHandle (INPUT ExtraVadHmt,OUTPUT DATASET-HANDLE ExtraDataDS BIND).
+IF VALID-HANDLE(ExtraDataDS) THEN DO:
+    Guru.SharedVariable:ExtraDataDS = ExtraDataDS.
+    Guru.Konstanter:ExtradataLaddTracking().
+    
+END.
+
+/* for each query*/
+queryvar =  "FOR EACH " + Guru.SharedVariable:ExtradataDsbufftH:TABLE.
+Guru.Konstanter:CreateCustomQuery(Guru.SharedVariable:ExtradataDsbufftH,queryvar).
+
+ Guru.GlobalaVariabler:CustomQueryDyn:GET-FIRST().
+ ExtraFieldH = Guru.SharedVariable:ExtradataDsbufftH:BUFFER-FIELD("SOKCHAR").
+         DO WHILE Guru.GlobalaVariabler:CustomQueryDyn:QUERY-OFF-END = FALSE:
+            
+            MESSAGE Guru.SharedVariable:ExtradataDsbufftH:BUFFER-FIELD("PROGRAM"):BUFFER-VALUE
+            ExtraFieldH:BUFFER-VALUE(4).
+            
+VIEW-AS ALERT-BOX.
+            Guru.GlobalaVariabler:CustomQueryDyn:GET-NEXT().   
+         END.  
+
+
+/*spara*/
+Guru.Konstanter:ExtraDataDSSpar(FALSE). TRUE OM NAB VILL KÖRA KONTROOL PÅ DATA
+
+/*Avsluta*/
+Guru.Konstanter:AvslutaExtradata().
+DELETE OBJECT ExtraDataDS NO-ERROR.
+ExtraDataDS = ?.     
+DELETE OBJECT ExtradataAppServerHandleSet NO-ERROR.
+ExtradataAppServerHandleSet = ?.   
+ /* klient program */   
+   
+*/

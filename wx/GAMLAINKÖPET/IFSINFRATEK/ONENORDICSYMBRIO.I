@@ -1,0 +1,221 @@
+
+/*------------------------------------------------------------------------
+    File        : ONENORDICSYMBRIO.I
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : elpao
+    Created     : Thu Jan 03 09:55:18 CET 2013
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+DEFINE TEMP-TABLE OrderOngoingInterchange NO-UNDO
+  FIELD Lines AS INTEGER INITIAL 1
+  FIELD InterchangeID AS CHARACTER
+  FIELD Routing AS CHARACTER
+  FIELD xmlnsxsd AS CHARACTER XML-NODE-TYPE "ATTRIBUTE" INITIAL 'http://www.w3.org/2001/XMLSchema'
+  FIELD xmlnsxsi AS CHARACTER XML-NODE-TYPE "ATTRIBUTE" INITIAL 'http://www.w3.org/2001/XMLSchema-instance'.
+   
+ 
+DEFINE TEMP-TABLE OrderOngoing  NO-UNDO
+  FIELD Lines AS INTEGER INITIAL 1
+  FIELD RequisitionNo AS CHARACTER
+  FIELD OrderCreatorEmploymentNo AS CHARACTER
+  FIELD PurchaserCompanyCode AS CHARACTER
+  FIELD OrderCreatedDate AS CHARACTER 
+  FIELD CrossDocking AS CHARACTER
+  FIELD GoodsLabel AS CHARACTER
+  FIELD ProjectNo AS CHARACTER
+  FIELD DeliveryReceiver AS CHARACTER
+  FIELD DeliveryAddress AS CHARACTER
+  FIELD DeliveryPostalCode AS CHARACTER
+  FIELD DeliveryCity AS CHARACTER
+  FIELD DeliveryCountry AS CHARACTER
+  FIELD DeliveryAddressNoteText AS CHARACTER
+  FIELD Currency AS CHARACTER
+  FIELD xmlns AS CHARACTER XML-NODE-TYPE "ATTRIBUTE" INITIAL 'http://schemas.symbrio.com/integration/OrderOngoingInterchange/v2010.1/'.
+        
+DEFINE TEMP-TABLE OrderOngoingLines NO-UNDO
+  FIELD Lines AS INTEGER INITIAL 1.
+DEFINE TEMP-TABLE OrderOngoingLine NO-UNDO
+   FIELD Lines AS INTEGER INITIAL 1 
+   FIELD ArticleNo AS CHARACTER
+   FIELD ArticleName AS CHARACTER
+   FIELD Quantity AS DECIMAL
+   FIELD QuantityMeasurement AS CHARACTER
+   FIELD DeliveryDate AS CHARACTER
+   FIELD AgreementNo AS CHARACTER
+   FIELD SupplierIdentification AS CHARACTER
+   FIELD AccountRef1 AS CHARACTER
+   FIELD AccountRef2 AS CHARACTER
+   FIELD AccountRef3 AS CHARACTER
+   FIELD AccountRef4 AS CHARACTER
+   FIELD SupplierMessage AS CHARACTER.
+   
+DEFINE TEMP-TABLE Attachments NO-UNDO
+   FIELD Lines AS INTEGER INITIAL 1
+   FIELD Attachment AS BLOB.
+DEFINE TEMP-TABLE ImportOrderOngoingResult NO-UNDO
+   FIELD RequisitionNo AS CHARACTER
+   FIELD OrderHeadID AS CLOB  
+   FIELD ValidationResult AS CHARACTER   
+   FIELD IsValid AS LOGICAL.
+   
+   
+   /*
+   FIELD name AS CHARACTER XML-NODE-TYPE "ATTRIBUTE" 
+   FIELD encoding AS CHARACTER XML-NODE-TYPE "ATTRIBUTE" INITIAL 'Western European (Windows)'
+   FIELD mimeType AS CHARACTER XML-NODE-TYPE "ATTRIBUTE" INITIAL 'text/plain'
+   FIELD supplierIdentification AS CHARACTER XML-NODE-TYPE "ATTRIBUTE". 
+   */ 
+   /*
+   
+DEFINE TEMP-TABLE Attachment NO-UNDO
+   FIELD Lines AS INTEGER   
+   FIELD NAMN AS CHARACTER
+   FIELD ENCODINGN AS CHARACTER
+   FIELD MIMETYPE AS CHARACTER   
+   FIELD supplierIdentification AS CHARACTER
+   FIELD Attachment AS BLOB.
+   */
+DEFINE TEMP-TABLE symbriolev NO-UNDO
+  FIELD LEVKOD AS CHARACTER
+  FIELD SYMLEV AS CHARACTER
+  FIELD SYMAVTAL AS CHARACTER
+  FIELD ARTIKELSTART AS CHARACTER
+  INDEX LEVKOD LEVKOD SYMAVTAL.   
+  
+  
+  
+DEFINE TEMP-TABLE mtr500tt NO-UNDO
+  FIELD ENR AS CHARACTER
+  FIELD BEN AS CHARACTER
+  FIELD ENH AS CHARACTER
+  FIELD LEVKOD AS CHARACTER
+  INDEX ENR LEVKOD ENR.
+DEFINE BUFFER mtr500ttbuff FOR mtr500tt.   
+DEFINE DATASET mtr500ttDS FOR mtr500tt.  
+/*
+
+EXCEL-XML
+1. DEFINERA EN TEMP-TABLE I PROGRESS. EFTER DOM KOLUMNER DU HAR I EXCEL
+2. DEFINERA ETT PRODATASET.
+3. SKAPA EN XSD FIL AV PRODASET ELLER EN XML FIL
+4. UTVECKLARE KÄLLA XML-MAPPNING LÄGG TILL DIN XSD ELLER XML FIL mtrl500.XSD fins i C:\DELAD\Pro116\GuruAnders
+5. KOLUMN MOT RUBRIK OBS LÄGG RUBRIKEN PÅ FÖRSTA RADEN SOM SKA VAra TOM
+6. TRYCK PÅ EXPORT
+
+SKAPA ETT XML SCHEMA 
+
+DEFINE VARIABLE cTargetType     AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cFile           AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lFormatted      AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE cEncoding       AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cSchemaLocation AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lWriteSchema    AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE lMinSchema      AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE lRetOK          AS LOGICAL   NO-UNDO.
+
+
+DEFINE TEMP-TABLE mtr500tt NO-UNDO
+  FIELD ENR AS CHARACTER
+  FIELD BEN AS CHARACTER
+  FIELD ENH AS CHARACTER
+  FIELD LEVKOD AS CHARACTER
+  INDEX ENR LEVKOD ENR.
+
+
+DEFINE DATASET mtr500ttDS FOR mtr500tt. 
+  
+
+WRITE-XMLSCHEMA   mtrl500.XSD fins i C:\DELAD\Pro116\GuruAnders
+
+ASSIGN 
+cTargetType    =  "FILE"
+cFile           = "C:\PROTEMP11\mtrl500.XSD"
+lFormatted      = TRUE
+cEncoding       = "iso8859-1"
+lWriteSchema = TRUE 
+lMinSchema = TRUE.
+lRetOK = DATASET  mtr500ttDS:WRITE-XMLSCHEMA(cTargetType, cFile, lFormatted,  cEncoding, lMinSchema).
+
+
+ELLER WRITE-XML
+cFile = "C:\PROTEMP11\mtrl500.XML"
+CREATE mtr500tt.
+CREATE mtr500tt.
+DATASET  mtr500ttDS:WRITE-XML(cTargetType,cFile,lFormatted,cEncoding).
+
+
+<?xml version="1.0" encoding="iso8859-1"?>
+<mtr500ttDS xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<mtr500tt><ENR/>
+<BEN/>
+<ENH/>
+<LEVKOD/>
+</mtr500tt>
+<mtr500tt>
+<ENR/>
+<BEN/>
+<ENH/>
+<LEVKOD/>
+</mtr500tt>
+</mtr500ttDS>
+
+
+
+
+CREATE mtr500tt.
+CREATE mtr500tt.
+DATASET  mtr500ttDS:WRITE-XML("FILE", "C:\PROTEMP11\mtrl500.XML",FALSE,"iso8859-1").
+DATASET mtr500ttDS:READ-XML ("FILE", "d:\elpool\delad\pro9s\mtrl500.XML", "MERGE", ?,False).
+
+*/
+
+/*
+DEFINE TEMP-TABLE mtr500tt NO-UNDO
+  FIELD ENR AS CHARACTER
+  FIELD BEN AS CHARACTER
+  FIELD ENH AS CHARACTER
+  FIELD LEVKOD AS CHARACTER
+  INDEX ENR LEVKOD ENR.
+define buffer mbuff FOR mtr500tt.   
+DEFINE DATASET mtr500ttDS FOR mtr500tt.  
+DATASET mtr500ttDS:READ-XML("FILE", "D:\pro11\GURU\DATA\mtrl500.XML", "MERGE", ?,False).
+FOR EACH mtr500tt WHERE  :
+
+   FIND FIRST mbuff WHERE mbuff.ENR = mtr500tt.ENR AND mbuff.LEVKOD = "8" NO-ERROR.
+   IF NOT AVAILABLE mbuff THEN DO:
+      CREATE mbuff.
+      BUFFER-COPY mtr500tt TO mbuff.
+      mbuff.LEVKOD = "8".
+   END.   
+END.
+TEMP-TABLE mtr500tt:WRITE-XML("FILE", "C:\PROTEMP11\mtrl500.XML",FALSE,"iso8859-1").
+
+*/
+/*TA BORT DUBBLETTER
+DEFINE TEMP-TABLE mtr500tt NO-UNDO
+  FIELD ENR AS CHARACTER
+  FIELD BEN AS CHARACTER
+  FIELD ENH AS CHARACTER
+  FIELD LEVKOD AS CHARACTER
+  INDEX ENR LEVKOD ENR.
+DEFINE BUFFER mbuff FOR mtr500tt.   
+DEFINE DATASET mtr500ttDS FOR mtr500tt.  
+DATASET mtr500ttDS:READ-XML("FILE", "D:\pro11\GURU\DATA\mtrl500.XML", "MERGE", ?,False).
+FOR EACH mtr500tt WHERE  :
+
+   FIND FIRST mbuff WHERE mbuff.ENR = mtr500tt.ENR AND mbuff.LEVKOD = mtr500tt.LEVKOD  
+   AND RECID(mbuff) NE RECID(mtr500tt)
+   NO-ERROR.
+   IF AVAILABLE mbuff THEN DO:
+      DELETE mbuff. 
+   END.   
+END.
+TEMP-TABLE mtr500tt:WRITE-XML("FILE", "\\Server05\ftp\elpao\mtrl500.XML",FALSE,"iso8859-1").
+*/
+ 

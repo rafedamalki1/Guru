@@ -1,0 +1,10 @@
+/*GLOBALTT.I*/
+   {OMRTEMPC.I}
+   {JURPERSTC.I}
+   {ANVTEMPS.I}
+   {PERSONALTEMP.I}
+   {MTRLTEMPC.I}
+   {LEVTEMPC.I} 
+   {ENRJMF.I}
+
+   

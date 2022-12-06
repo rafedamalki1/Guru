@@ -1,0 +1,888 @@
+/*DARIN5.P*/
+/*Import av störningar*/       
+DEFINE NEW SHARED VARIABLE quotervar AS CHARACTER FORMAT "X(256)" NO-UNDO.
+
+
+
+
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE helpchar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE rad AS INTEGER NO-UNDO.
+DEFINE VARIABLE prognamn AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamndat AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamnque AS CHARACTER FORMAT "X(20)" NO-UNDO.                
+DEFINE VARIABLE words AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE kommandoprog AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE satsvar AS CHARACTER FORMAT "X(11)" NO-UNDO.
+DEFINE VARIABLE enrvar AS CHARACTER FORMAT "X(11)" NO-UNDO.
+DEFINE VARIABLE melvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE melvar2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE langd AS INTEGER NO-UNDO.
+DEFINE VARIABLE pos1 AS INTEGER NO-UNDO. 
+DEFINE VARIABLE nrvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE nat1 AS INTEGER NO-UNDO.
+DEFINE VARIABLE nat2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE nat3 AS INTEGER NO-UNDO.
+DEFINE VARIABLE nat4 AS INTEGER NO-UNDO.
+DEFINE VARIABLE felvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE stornr AS INTEGER NO-UNDO.
+DEFINE VARIABLE kolldecimal AS INTEGER NO-UNDO.
+
+{DARINTIDIN.I}
+
+FUNCTION FFinlasttab RETURNS INTEGER 
+(INPUT sid AS INTEGER):
+   FIND FIRST SPANNINGSNIV WHERE SPANNINGSNIV.SPANID = sid USE-INDEX SPANID NO-LOCK NO-ERROR.
+   IF AVAILABLE SPANNINGSNIV THEN DO:
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = SPANNINGSNIV.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF AVAILABLE INLASTAB THEN RETURN INTEGER(INLASTAB.INKODPOSCH).
+      ELSE RETURN sid.
+   END.
+   ELSE RETURN sid.   
+END FUNCTION.    
+
+FUNCTION FFinlasttabFL RETURNS INTEGER 
+(INPUT tabnamn AS CHARACTER,INPUT sid AS INTEGER):
+   IF tabnamn = "SEKTIONERING" THEN DO:  
+      FIND FIRST SEKTIONERING WHERE SEKTIONERING.SEKTIONERID = STRING(sid) NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE SEKTIONERING THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = SEKTIONERING.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid. 
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.
+   IF tabnamn = "RELAINDIKERING" THEN DO:  
+      FIND FIRST RELAINDIKERING WHERE RELAINDIKERING.RELINID = sid NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE RELAINDIKERING THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = RELAINDIKERING.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.        
+   IF tabnamn = "FELORSAK" THEN DO:  
+      FIND FIRST FELORSAK WHERE FELORSAK.FELOID = sid NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE FELORSAK THEN RETURN 93.
+      IF FELORSAK.FELOID >= 500 THEN RETURN 93.
+      /*tester*/
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = FELORSAK.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.   
+  
+   IF tabnamn = "BRYTORGAN" THEN DO:  
+      FIND FIRST BRYTORGAN WHERE BRYTORGAN.BRYTOID = sid NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BRYTORGAN THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = BRYTORGAN.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.  
+   IF tabnamn = "STORDRIFTOMR" THEN DO:  
+      FIND FIRST STORDRIFTOMR WHERE STORDRIFTOMR.STDRIFTID = sid NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE STORDRIFTOMR THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = STORDRIFTOMR.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END. 
+   IF tabnamn = "NATTYP" THEN DO:  
+      FIND FIRST NATTYP WHERE NATTYP.NATTYPID = STRING(sid) NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE NATTYP THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = NATTYP.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.
+   IF tabnamn = "NATSTRUKTUR1" THEN DO:  
+      FIND FIRST NATTYP WHERE NATTYP.NATTYPID = STRING(sid) NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE NATTYP THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = NATTYP.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.
+   IF tabnamn = "NATSTRUKTUR2" THEN DO:  
+      FIND FIRST NATTYP WHERE NATTYP.NATTYPID = STRING(sid) NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE NATTYP THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = NATTYP.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.
+   IF tabnamn = "ANLAGGNINGSDEL" THEN DO:  
+      FIND FIRST ANLAGGNINGSDEL WHERE ANLAGGNINGSDEL.ADELID = sid NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ANLAGGNINGSDEL THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = ANLAGGNINGSDEL.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.
+   IF tabnamn = "UTLOSNINGSKYDD" THEN DO:  
+      FIND FIRST UTLOSNINGSKYDD WHERE UTLOSNINGSKYDD.UTLOSID = sid NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE UTLOSNINGSKYDD THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = UTLOSNINGSKYDD.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.
+   
+END FUNCTION.         
+
+   
+DEFINE TEMP-TABLE temp_text
+   FIELD B1 AS INTEGER /*företag*/
+   FIELD B2 AS CHARACTER /*distrikt*/
+   FIELD PROGNAMN AS CHARACTER FORMAT "X(100)". 
+
+DEFINE TEMP-TABLE finns_temp
+   FIELD AVDELNINGNR AS INTEGER /*företag*/
+   FIELD DISTRIKT AS CHARACTER /*distrikt*/
+   FIELD ARTAL AS INTEGER. 
+
+DEFINE BUFFER distbuff FOR STORDISTRIKT.  
+
+
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR temp_text.
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tidin5.
+DEFINE INPUT PARAMETER vart AS INTEGER NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR finns_temp.
+
+{muswait.i}         
+IF vart = 1 THEN RUN in_UI.
+
+ELSE IF vart = 2 THEN RUN skapa_UI.
+
+{musarrow.i}
+
+PROCEDURE in_UI: 
+   FOR EACH finns_temp:
+      DELETE finns_temp.
+   END.   
+
+   
+   RUN skapasats_UI.           
+/*    OS-DELETE VALUE(wtidvar). */
+END PROCEDURE.
+/*
+FOR EACH STORDISTRIKT WHERE NO-LOCK:
+  FIND FIRST STORNINGSTAB WHERE STORNINGSTAB.DISTRIKTID = STORDISTRIKT.DISTRIKTID
+  NO-LOCK NO-ERROR.
+  IF NOT AVAILABLE STORNINGSTAB THEN DO:
+     FIND FIRST AVDELNING  WHERE AVDELNING.AVDELNINGNR = STORDISTRIKT.AVDELNINGNR NO-LOCK NO-ERROR.
+     DISPLAY STORDISTRIKT.ARTAL STORDISTRIKT.NAMN STORDISTRIKT.DISTRIKTID AVDELNING.AVDELNINGNAMN AVDELNING.AVDELNINGNR format ">>>>>9".
+  END.          
+END.
+*/
+PROCEDURE skapasats_UI:
+   FIND FIRST tidin5 NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE tidin5 THEN DO:
+      RETURN.
+   END.
+   FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = tidin5.FORETAG NO-LOCK NO-ERROR.
+   IF AVAILABLE AVDELNING THEN DO:
+      FOR EACH tidin5 NO-LOCK:
+         FIND FIRST STORDISTRIKT WHERE STORDISTRIKT.AVDELNINGNR = tidin5.FORETAG AND
+         STORDISTRIKT.VIDISTRIKT = tidin5.DISTRIKT AND STORDISTRIKT.ARTAL = YEAR(tidin5.BDAT)
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE STORDISTRIKT THEN DO:           
+            FIND LAST STORDISTRIKT USE-INDEX DISTRIKTID NO-LOCK NO-ERROR.                   
+            nrvar = STORDISTRIKT.DISTRIKTID + 1.
+            DO TRANSACTION:            
+               CREATE STORDISTRIKT.                                               
+               ASSIGN
+               STORDISTRIKT.AVDELNINGNR = tidin5.FORETAG
+               STORDISTRIKT.DISTRIKTID = nrvar
+               STORDISTRIKT.VIDISTRIKT = tidin5.DISTRIKT            
+               STORDISTRIKT.ARTAL = YEAR(tidin5.BDAT).        
+            END. 
+         END.  
+         ELSE DO:
+            FIND FIRST STORNINGSTAB WHERE STORNINGSTAB.DISTRIKTID = STORDISTRIKT.DISTRIKTID
+            NO-LOCK NO-ERROR.
+            IF AVAILABLE STORNINGSTAB THEN DO:
+               FIND FIRST finns_temp WHERE finns_temp.AVDELNINGNR = tidin5.FORETAG AND
+               finns_temp.DISTRIKT = tidin5.DISTRIKT AND finns_temp.ARTAL = YEAR(tidin5.BDAT)
+               NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE finns_temp THEN DO:               
+                  CREATE finns_temp.
+                  ASSIGN
+                  finns_temp.AVDELNINGNR = tidin5.FORETAG
+                  finns_temp.DISTRIKT = tidin5.DISTRIKT
+                  finns_temp.ARTAL = YEAR(tidin5.BDAT).
+               END.
+            END.
+         END.
+      END.      
+      FOR EACH tidin5 NO-LOCK:     
+         RUN skapakund_UI.       
+      END.      
+   END.
+   ELSE DO:
+      CREATE temp_text.
+      ASSIGN
+      temp_text.B1 = tidin5.FORETAG
+      temp_text.B2 = tidin5.DISTRIKT
+      temp_text.PROGNAMN = "FÖRETAG SAKNAS". 
+   END.   
+END PROCEDURE.
+
+PROCEDURE skapa_UI: 
+   FIND LAST STORNINGSTAB WHERE 
+   USE-INDEX STORNUMMERID NO-LOCK NO-ERROR.
+   IF AVAILABLE STORNINGSTAB THEN DO: 
+      stornr = STORNINGSTAB.STORNUMMERID.
+   END.
+   ELSE DO:
+      stornr = 1.
+   END.
+   FOR EACH tidin5 WHERE tidin5.FEL = "" AND tidin5.FEL2 = FALSE AND tidin5.OKVAR = FALSE:
+     
+      RUN skapa2_UI.
+   END.
+END PROCEDURE.
+
+PROCEDURE skapakund_UI: 
+   ASSIGN
+   felvar = FALSE
+   tidin5.FEL2 = FALSE
+   tidin5.FEL = " ".
+   
+   IF tidin5.C1 = 1 OR tidin5.C1 = 2 THEN felvar = felvar.
+   ELSE DO:
+      tidin5.FEL = "C1 ".
+      felvar = TRUE.
+   END.   
+      
+   IF tidin5.D1 NE "" THEN DO:  
+      FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "D" AND INLASTAB.INKODTYP = "1" AND
+      INLASTAB.INKODPOSCH = tidin5.D1 USE-INDEX INKOD
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN DO:
+         tidin5.FEL = tidin5.FEL + "D1 ".
+         felvar = TRUE.   
+      END.
+   END.
+   ELSE DO:
+      IF tidin5.D2 NE "" THEN DO:
+         FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "D" AND INLASTAB.INKODTYP = "1" AND
+         INLASTAB.INKODPOSCH = tidin5.D2 USE-INDEX INKOD
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE INLASTAB THEN DO:
+            tidin5.FEL = tidin5.FEL + "D1 ".
+            felvar = TRUE.   
+         END.
+      END.
+      ELSE DO:
+         tidin5.FEL = tidin5.FEL + "D1 ".
+         felvar = TRUE.   
+      END.   
+   END.   
+   
+   IF tidin5.D2 NE "" THEN DO:     
+      FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "D" AND INLASTAB.INKODTYP = "2" AND
+      INLASTAB.INKODPOSCH = tidin5.D2 USE-INDEX INKOD
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN DO:
+         tidin5.FEL = tidin5.FEL + "D2 ".
+         felvar = TRUE.   
+      END.
+   END.
+   ELSE DO:
+      IF tidin5.C1 = 1 THEN DO:
+         IF tidin5.D1 NE "" THEN DO:
+            FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "D" AND INLASTAB.INKODTYP = "2" AND
+            INLASTAB.INKODPOSCH = tidin5.D1 USE-INDEX INKOD
+            NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE INLASTAB THEN DO:
+               tidin5.FEL = tidin5.FEL + "D2 ".
+               felvar = TRUE.   
+            END.
+         END.
+         ELSE DO:
+            tidin5.FEL = tidin5.FEL + "D2 ".
+            felvar = TRUE.
+         END.   
+      END.
+   END.  
+   
+   IF tidin5.BDAT = ? THEN DO:
+      tidin5.FEL = tidin5.FEL + "BDAT ".
+      felvar = TRUE.
+   END.   
+   
+   IF tidin5.BTID = ? THEN DO:
+      tidin5.FEL = tidin5.FEL + "BTID ".
+      felvar = TRUE.
+   END.   
+   IF SUBSTRING(STRING(tidin5.BDAT,"9999/99/99"),6,2) >= "01" AND
+   SUBSTRING(STRING(tidin5.BDAT,"9999/99/99"),6,2) <= "12" THEN DO:
+      IF SUBSTRING(STRING(tidin5.BDAT,"9999/99/99"),9,2) >= "01" AND 
+      SUBSTRING(STRING(tidin5.BDAT,"9999/99/99"),9,2) <= "31" THEN DO:
+         felvar = felvar.
+      END.
+      ELSE DO:
+         ASSIGN
+         tidin5.FEL2 = TRUE
+         tidin5.FEL = tidin5.FEL + "BDAT "
+         felvar = TRUE.
+      END.
+   END.
+   ELSE DO:
+      ASSIGN
+      tidin5.FEL2 = TRUE
+      tidin5.FEL = tidin5.FEL + "BDAT "
+      felvar = TRUE.
+   END.
+   IF SUBSTRING(STRING(tidin5.BTID,"9999"),1,2) > "24" THEN DO:
+      ASSIGN
+      tidin5.FEL2 = TRUE
+      tidin5.FEL = tidin5.FEL + "BTID "
+      felvar = TRUE.
+   END.   
+   
+   IF SUBSTRING(STRING(tidin5.BTID,"9999"),3,2) > "59" THEN DO:
+      ASSIGN
+      tidin5.FEL2 = TRUE
+      tidin5.FEL = tidin5.FEL + "BTID "
+      felvar = TRUE.
+   END.   
+   
+
+   IF tidin5.E1 >= 0 AND tidin5.E1 <= 5 THEN DO:      
+      felvar = felvar.
+   END.
+   ELSE DO:
+      tidin5.FEL = tidin5.FEL + "E1 ".
+      felvar = TRUE.
+   END.
+   
+   IF tidin5.C1 = 1 THEN DO:
+      IF tidin5.F1 >= 0 AND tidin5.F1 <= 4 THEN DO:
+         felvar = felvar.
+      END.
+      ELSE DO:
+         tidin5.F1 = 0.
+/*          tidin5.FEL = tidin5.FEL + "F1 ". */
+/*          felvar = TRUE.                 */
+      END.
+   END.
+   ELSE DO:
+      tidin5.F1 = 0.
+   END.      
+   
+   IF tidin5.C1 = 1 THEN DO:
+      IF tidin5.G1 >= 0 AND tidin5.G1 <= 2 THEN DO:           
+         felvar = felvar.
+      END.
+      ELSE DO:
+         tidin5.G1 = 0.
+/*          tidin5.FEL = tidin5.FEL + "G1 ". */
+/*          felvar = TRUE.                 */
+      END.
+   END.
+   ELSE DO:
+      tidin5.G1 = 0.
+   END.   
+   
+   IF tidin5.C1 = 1 THEN DO:
+      IF tidin5.G2 >= 0 AND tidin5.G2 <= 6 THEN DO:
+         felvar = felvar.
+      END.
+      ELSE DO:
+         tidin5.G2 = 0.
+/*          tidin5.FEL = tidin5.FEL + "G2 ". */
+/*          felvar = TRUE.                 */
+      END.
+   END.
+   ELSE DO:
+      tidin5.G2 = 0.
+   END.      
+   
+   IF tidin5.J1DAT NE ? THEN DO:
+      IF SUBSTRING(STRING(tidin5.J1DAT,"9999/99/99"),6,2) >= "01" AND
+      SUBSTRING(STRING(tidin5.J1DAT,"9999/99/99"),6,2) <= "12" THEN DO:
+         IF SUBSTRING(STRING(tidin5.J1DAT,"9999/99/99"),9,2) >= "01" AND 
+         SUBSTRING(STRING(tidin5.J1DAT,"9999/99/99"),9,2) <= "31" THEN DO:            
+            IF SUBSTRING(STRING(tidin5.J1KLOCK,"9999"),1,2) >= "00" AND
+            SUBSTRING(STRING(tidin5.J1KLOCK,"9999"),1,2) <= "24" THEN DO:
+               IF SUBSTRING(STRING(tidin5.J1KLOCK,"9999"),3,2) >= "00" AND
+               SUBSTRING(STRING(tidin5.J1KLOCK,"9999"),3,2) <= "59" THEN DO:
+                  felvar = felvar.
+               END.
+               ELSE DO:
+                  ASSIGN
+                  tidin5.FEL2 = TRUE
+                  tidin5.FEL = tidin5.FEL + "J1KLOCK "
+                  felvar = TRUE.
+               END.
+            END.
+            ELSE DO:
+               ASSIGN
+               tidin5.FEL2 = TRUE
+               tidin5.FEL = tidin5.FEL + "J1KLOCK "
+               felvar = TRUE.
+            END.
+         END.
+         ELSE DO:
+            ASSIGN
+            tidin5.FEL2 = TRUE
+            tidin5.FEL = tidin5.FEL + "J1DAT "
+            felvar = TRUE.
+         END.
+      END.
+      ELSE DO:
+         ASSIGN
+         tidin5.FEL2 = TRUE
+         tidin5.FEL = tidin5.FEL + "J1DAT "
+         felvar = TRUE.
+      END.
+   END.   
+   
+   IF tidin5.J2DAT NE ? THEN DO:
+      IF SUBSTRING(STRING(tidin5.J2DAT,"9999/99/99"),6,2) >= "01" AND
+      SUBSTRING(STRING(tidin5.J2DAT,"9999/99/99"),6,2) <= "12" THEN DO:
+         IF SUBSTRING(STRING(tidin5.J2DAT,"9999/99/99"),9,2) >= "01" AND 
+         SUBSTRING(STRING(tidin5.J2DAT,"9999/99/99"),9,2) <= "31" THEN DO:            
+            IF SUBSTRING(STRING(tidin5.J2KLOCK,"9999"),1,2) >= "00" AND
+            SUBSTRING(STRING(tidin5.J2KLOCK,"9999"),1,2) <= "24" THEN DO:
+               IF SUBSTRING(STRING(tidin5.J2KLOCK,"9999"),3,2) >= "00" AND
+               SUBSTRING(STRING(tidin5.J2KLOCK,"9999"),3,2) <= "59" THEN DO:
+                  felvar = felvar.
+               END.
+               ELSE DO:
+                  ASSIGN
+                  tidin5.FEL2 = TRUE
+                  tidin5.FEL = tidin5.FEL + "J2KLOCK "
+                  felvar = TRUE.
+               END.
+            END.
+            ELSE DO:
+               ASSIGN
+               tidin5.FEL2 = TRUE
+               tidin5.FEL = tidin5.FEL + "J2KLOCK "
+               felvar = TRUE.
+            END.
+         END.
+         ELSE DO:
+            ASSIGN
+            tidin5.FEL2 = TRUE
+            tidin5.FEL = tidin5.FEL + "J2DAT "
+            felvar = TRUE.
+         END.
+      END.
+      ELSE DO:
+         ASSIGN
+         tidin5.FEL2 = TRUE
+         tidin5.FEL = tidin5.FEL + "J2DAT "
+         felvar = TRUE.
+      END.
+   END.
+   IF tidin5.J1DAT NE ? THEN DO:  
+      IF tidin5.J1DAT >= tidin5.BDAT THEN DO:
+         IF tidin5.J2DAT >= tidin5.J1DAT THEN DO:
+            IF tidin5.J1DAT = tidin5.BDAT THEN DO:
+               /*matz tapper 20110817  från tidin5.J1KLOCK > tidin5.BTID till tidin5.J1KLOCK >= tidin5.BTID*/
+               IF tidin5.J1KLOCK >= tidin5.BTID THEN DO:
+                  IF tidin5.J2DAT = tidin5.J1DAT THEN DO:
+                     IF tidin5.J2KLOCK >= tidin5.J1KLOCK THEN DO:
+                        musz = musz.
+                     END.
+                     ELSE DO:
+               
+                        
+                        ASSIGN
+                        tidin5.FEL2 = TRUE
+                        tidin5.FEL = tidin5.FEL + "TIDFEL70%100%+datum"
+                        felvar = TRUE.   
+                     END.
+                  END.                 
+               END.
+               ELSE DO:
+                  ASSIGN
+                  tidin5.FEL2 = TRUE
+                  tidin5.FEL = tidin5.FEL + "TIDFELstartslut"
+                  felvar = TRUE.   
+               END.
+            END.
+            ELSE DO:
+               IF tidin5.J2DAT = tidin5.J1DAT THEN DO:
+                  IF tidin5.J2KLOCK >= tidin5.J1KLOCK THEN DO:
+                     musz = musz.
+                  END.
+                  ELSE DO:
+                     ASSIGN
+                     tidin5.FEL2 = TRUE
+                     tidin5.FEL = tidin5.FEL + "TIDFEL70%100%"
+                     felvar = TRUE.   
+                  END.
+               END.             
+            END.
+         END.
+         ELSE DO:
+            ASSIGN
+            tidin5.FEL2 = TRUE
+            tidin5.FEL = tidin5.FEL + "TIDFELdatum1 "
+            felvar = TRUE.   
+         END.
+      END.
+      ELSE DO:
+         ASSIGN
+         tidin5.FEL2 = TRUE
+         tidin5.FEL = tidin5.FEL + "TIDFELdatum70% "
+         felvar = TRUE.   
+      END.
+   END.
+   ELSE DO:
+      IF tidin5.J2DAT >= tidin5.BDAT THEN DO:
+         IF tidin5.J2DAT = tidin5.BDAT THEN DO:
+            IF tidin5.J2KLOCK < tidin5.BTID THEN DO:               
+               ASSIGN
+               tidin5.FEL2 = TRUE
+               tidin5.FEL = tidin5.FEL + "TIDFELsluttidstarttid "
+               felvar = TRUE.
+            END.
+         END.      
+      END.
+      ELSE DO:
+         ASSIGN
+         tidin5.FEL2 = TRUE
+         tidin5.FEL = tidin5.FEL + "TIDFELdatum2 "
+         felvar = TRUE.   
+      END.
+   END.
+   IF tidin5.N1 >= 0 AND tidin5.N1 <= 5 THEN DO:      
+      felvar = felvar.
+   END.
+   ELSE DO:
+      tidin5.N1 = 0.
+      felvar = felvar.      
+/*       tidin5.FEL = tidin5.FEL + "N1 ". */
+/*       felvar = TRUE.                 */
+   END.
+   IF tidin5.P1 >= 0 AND tidin5.P1 <= 3 THEN DO:      
+      felvar = felvar.
+   END.
+   ELSE DO:
+      tidin5.P1 = 0.
+      felvar = felvar.      
+/*       tidin5.FEL = tidin5.FEL + "P1 ". */
+/*       felvar = TRUE.                 */
+   END.
+   IF tidin5.P2 >= 1 AND tidin5.P2 <= 3 THEN DO:      
+      felvar = felvar.
+   END.
+   ELSE DO:
+      tidin5.P2 = 0.
+      felvar = felvar.      
+/*       tidin5.FEL = tidin5.FEL + "P2 ". */
+/*       felvar = TRUE.                 */     
+   END.
+   IF tidin5.Q >= 0 AND tidin5.Q <= 5 THEN DO:      
+      felvar = felvar.
+   END.
+   ELSE DO:
+      tidin5.Q = 0.
+      felvar = felvar.      
+/*          tidin5.FEL = tidin5.FEL + "Q ". */
+/*          felvar = TRUE.                */     
+   END.
+/*    IF tidin5.R NE 0 THEN DO: */
+   /*MATS TAPPER HAR BESTÄMT ATT VI SKALL TA IN STÖRNINGAR SOM HAR OKÄND ANLAGGNINGSDEL*/
+      FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "R" AND
+      INLASTAB.INKODPOSCH = STRING(tidin5.R) USE-INDEX INKOD
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN DO:
+         tidin5.FEL = tidin5.FEL + "R ".
+         felvar = TRUE.   
+      END.
+/*    END.                             */
+/*    ELSE DO:                         */
+/*       tidin5.FEL = tidin5.FEL + "R ". */
+/*       felvar = TRUE.                */
+/*    END.                             */
+   IF tidin5.S NE 0 THEN DO:      
+      IF tidin5.C1 = 2 THEN DO:
+         tidin5.S = 0.
+      END.
+      ELSE DO:
+         FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "S" AND
+         INLASTAB.INKODPOSCH = STRING(tidin5.S) USE-INDEX INKOD
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE INLASTAB THEN DO:
+            tidin5.S = 93.   
+         END.
+      END.   
+   END.
+   ELSE DO:
+      IF tidin5.C1 = 1 THEN DO:
+         tidin5.S = 93.
+      END.   
+   END.
+   IF tidin5.T1 >= 1 AND tidin5.T1 <= 2 THEN DO:      
+      felvar = felvar.
+   END.
+   ELSE DO:
+      IF tidin5.T1 = 0 THEN DO:      
+         felvar = felvar.
+      END.
+      ELSE DO:
+         tidin5.FEL = tidin5.FEL + "T1 ".
+         felvar = TRUE.
+      END.   
+   END.   
+/*    IF felvar = FALSE THEN DO: */
+/*       RUN skapa_UI.           */
+/*    END.                       */
+END PROCEDURE.   
+
+PROCEDURE skapa2_UI: 
+   stornr = stornr + 1.
+   FIND FIRST STORDISTRIKT WHERE STORDISTRIKT.AVDELNINGNR = tidin5.FORETAG AND
+   STORDISTRIKT.VIDISTRIKT = tidin5.DISTRIKT AND STORDISTRIKT.ARTAL = YEAR(tidin5.BDAT)
+   NO-LOCK NO-ERROR.
+
+   CREATE STORNINGSTAB.
+   ASSIGN
+   STORNINGSTAB.DISTRIKTID = STORDISTRIKT.DISTRIKTID
+   STORNINGSTAB.STORNUMMERID = stornr
+   STORNINGSTAB.VSTORNUMMER = stornr
+   STORNINGSTAB.INDATUM = TODAY
+   STORNINGSTAB.INKLOCKAN = TIME
+   STORNINGSTAB.HDATUM = tidin5.BDAT
+   STORNINGSTAB.HKLOCKAN = tidin5.BTID / 100
+   STORNINGSTAB.STORTYPID = tidin5.C1
+   STORNINGSTAB.MERJOBB = FALSE.
+   
+   FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "D" AND INLASTAB.INKODTYP = "1" AND
+   INLASTAB.INKODPOSCH = tidin5.D1 USE-INDEX INKOD
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE INLASTAB THEN DO:
+      FIND FIRST SPANNINGSNIV WHERE SPANNINGSNIV.INKODID = INLASTAB.INKODID
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE SPANNINGSNIV THEN STORNINGSTAB.FRANSPANID = SPANNINGSNIV.SPANID.
+   END.
+   
+      IF tidin5.D2 NE " " THEN DO:
+         FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "D" AND INLASTAB.INKODTYP = "2" AND
+         INLASTAB.INKODPOSCH = tidin5.D2 USE-INDEX INKOD
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE INLASTAB THEN DO:
+            FIND FIRST SPANNINGSNIV WHERE SPANNINGSNIV.INKODID = INLASTAB.INKODID
+            NO-LOCK NO-ERROR.
+            IF AVAILABLE SPANNINGSNIV THEN STORNINGSTAB.FELSPANID = SPANNINGSNIV.SPANID.
+         END.   
+      END.   
+  
+   FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "E" AND INLASTAB.INKODTYP = "1" AND
+   INLASTAB.INKODPOSCH = STRING(tidin5.E1) USE-INDEX INKOD
+   NO-LOCK NO-ERROR.
+   FIND FIRST BRYTORGAN WHERE BRYTORGAN.INKODID = INLASTAB.INKODID
+   NO-LOCK NO-ERROR.
+   STORNINGSTAB.BRYTOID = BRYTORGAN.BRYTOID.
+   STORNINGSTAB.BRYTORGLIT = tidin5.E2.
+   
+   FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "F" AND INLASTAB.INKODTYP = "1" AND
+   INLASTAB.INKODPOSCH = STRING(tidin5.F1) USE-INDEX INKOD
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE INLASTAB THEN DO:
+      FIND FIRST SEKTIONERING WHERE SEKTIONERING.INKODID = INLASTAB.INKODID
+      NO-LOCK NO-ERROR.
+      STORNINGSTAB.SEKTIONERID = SEKTIONERING.SEKTIONERID.
+      STORNINGSTAB.SEKTIONLIT = tidin5.F2.
+   END.   
+   
+   FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "G" AND INLASTAB.INKODTYP = "1" AND
+   INLASTAB.INKODPOSCH = STRING(tidin5.G1) USE-INDEX INKOD
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE INLASTAB THEN DO:
+      FIND FIRST UTLOSNINGSKYDD WHERE UTLOSNINGSKYDD.INKODID = INLASTAB.INKODID
+      NO-LOCK NO-ERROR.
+      STORNINGSTAB.UTLOSID = UTLOSNINGSKYDD.UTLOSID.
+   END.   
+   
+   FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "G" AND INLASTAB.INKODTYP = "2" AND
+   INLASTAB.INKODPOSCH = STRING(tidin5.G2) USE-INDEX INKOD
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE INLASTAB THEN DO:
+      FIND FIRST RELAINDIKERING WHERE RELAINDIKERING.INKODID = INLASTAB.INKODID
+      NO-LOCK NO-ERROR.
+      ASSIGN
+      STORNINGSTAB.RELINID = RELAINDIKERING.RELINID.
+   END. 
+
+   STORNINGSTAB.FELYID = tidin5.G3.
+   /*
+   ASSIGN                                                  
+      STORNINGSTAB.BORTMW = INTEGER(SUBSTRING(STRING(tidin5.H,"999999999"),1,6))
+      STORNINGSTAB.BORTKW = INTEGER(SUBSTRING(STRING(tidin5.H,"999999999"),7,3)).
+      */
+   /*har då formen   MMMMMKKK.WWWW*/
+   tidin5.H = REPLACE(tidin5.H,",","."). 
+   tidin5.H = STRING(ROUND(DECIMAL(tidin5.H),0)).
+   IF LENGTH(tidin5.H) > 3 THEN DO:
+      ASSIGN                                                  
+      STORNINGSTAB.BORTMW = INTEGER(SUBSTRING(tidin5.H,1,LENGTH(tidin5.H) - 3)).
+      STORNINGSTAB.BORTKW = INTEGER(SUBSTRING(tidin5.H,LENGTH(tidin5.H) - 2)).
+   END.
+   ELSE DO:
+      STORNINGSTAB.BORTMW = 0.
+      STORNINGSTAB.BORTKW = INTEGER(tidin5.H).
+   END.
+
+   IF tidin5.J1DAT = ? THEN DO:
+      ASSIGN
+      STORNINGSTAB.DATUM70% = ?
+      STORNINGSTAB.KLOCKAN70% = ?
+      STORNINGSTAB.DATUM100% = tidin5.J2DAT
+      STORNINGSTAB.KLOCKAN100% = tidin5.J2KLOCK / 100.
+   END.
+   ELSE DO:
+      IF (tidin5.J1DAT = tidin5.J2DAT) AND (tidin5.J1KLOCK = tidin5.J2KLOCK) THEN DO:
+         ASSIGN
+         STORNINGSTAB.DATUM70% = ?
+         STORNINGSTAB.KLOCKAN70% = ?
+         STORNINGSTAB.DATUM100% = tidin5.J2DAT
+         STORNINGSTAB.KLOCKAN100% = tidin5.J2KLOCK / 100.
+      END.
+      ELSE DO:
+         ASSIGN
+         STORNINGSTAB.DATUM70% = tidin5.J1DAT
+         STORNINGSTAB.KLOCKAN70% = tidin5.J1KLOCK / 100
+         STORNINGSTAB.DATUM100% = tidin5.J2DAT
+         STORNINGSTAB.KLOCKAN100% = tidin5.J2KLOCK / 100.
+      END.      
+   END.   
+   
+   IF INDEX(tidin5.J3,",",1) = 0 THEN DO:
+      STORNINGSTAB.AVBROTTSTID = DECIMAL(tidin5.J3).
+   END.
+   ELSE DO:   
+      kolldecimal = (LENGTH(tidin5.J3) - INDEX(tidin5.J3,",",1)).
+      IF kolldecimal = 1 THEN DO:      
+         STORNINGSTAB.AVBROTTSTID = DECIMAL(tidin5.J3) / 10.
+      END.      
+      ELSE IF kolldecimal = 2 THEN DO:
+         STORNINGSTAB.AVBROTTSTID = DECIMAL(tidin5.J3) / 100.
+      END.      
+      ELSE IF kolldecimal = 3 THEN DO:
+         STORNINGSTAB.AVBROTTSTID = DECIMAL(tidin5.J3) / 1000.
+      END.      
+      ELSE IF kolldecimal = 4 THEN DO:
+         STORNINGSTAB.AVBROTTSTID = DECIMAL(tidin5.J3) / 10000.
+      END.      
+      ELSE IF kolldecimal = 5 THEN DO:
+         STORNINGSTAB.AVBROTTSTID = DECIMAL(tidin5.J3) / 100000.
+      END.      
+      ELSE IF kolldecimal = 6 THEN DO:
+         STORNINGSTAB.AVBROTTSTID = DECIMAL(tidin5.J3) / 1000000.
+      END.      
+   END.
+   ASSIGN
+   STORNINGSTAB.ANTALHSP = tidin5.K1
+   STORNINGSTAB.ANTALLSP = tidin5.K2
+   STORNINGSTAB.ANTALREGSTN = tidin5.L1
+   STORNINGSTAB.ANTALNATSTN = tidin5.L2
+   STORNINGSTAB.EJBORTKUND = tidin5.M1
+   STORNINGSTAB.EJBORTMW = INTEGER(SUBSTRING(STRING(tidin5.M2,"999999999"),1,6))
+   STORNINGSTAB.EJBORTKW = INTEGER(SUBSTRING(STRING(tidin5.M2,"999999999"),7,3)).
+   
+   
+   FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "N" AND INLASTAB.INKODTYP = "1" AND
+   INLASTAB.INKODPOSCH = STRING(tidin5.N1) USE-INDEX INKOD
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE INLASTAB THEN DO:
+      FIND FIRST STORDRIFTOMR WHERE STORDRIFTOMR.INKODID = INLASTAB.INKODID
+      NO-LOCK NO-ERROR.
+      STORNINGSTAB.STDRIFTID = STORDRIFTOMR.STDRIFTID.
+      STORNINGSTAB.STDRIFTLIT = tidin5.N2.
+   END.   
+   FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "P" AND INLASTAB.INKODTYP = "1" AND
+   INLASTAB.INKODPOSCH = STRING(tidin5.P1) USE-INDEX INKOD
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE INLASTAB THEN DO:
+      FIND FIRST NATSTRUKTUR WHERE NATSTRUKTUR.INKODID = INLASTAB.INKODID
+      NO-LOCK NO-ERROR.
+      STORNINGSTAB.STRUKIDP1 = NATSTRUKTUR.STRUKID.
+   END.   
+   
+   FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "P" AND INLASTAB.INKODTYP = "2" AND
+   INLASTAB.INKODPOSCH = STRING(tidin5.P2) USE-INDEX INKOD
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE INLASTAB THEN DO:
+      FIND FIRST NATSTRUKTUR WHERE NATSTRUKTUR.INKODID = INLASTAB.INKODID
+      NO-LOCK NO-ERROR.
+      STORNINGSTAB.STRUKIDP2 = NATSTRUKTUR.STRUKID.
+   END.   
+
+   FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "Q" AND INLASTAB.INKODTYP = "1" AND
+   INLASTAB.INKODPOSCH = STRING(tidin5.Q) USE-INDEX INKOD
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE INLASTAB THEN DO:
+      FIND FIRST NATTYP WHERE NATTYP.INKODID = INLASTAB.INKODID
+      NO-LOCK NO-ERROR.
+      STORNINGSTAB.NATTYPID = NATTYP.NATTYPID.
+   END.   
+
+   FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "R" AND
+   INLASTAB.INKODPOSCH = STRING(tidin5.R) USE-INDEX INKOD
+   NO-LOCK NO-ERROR.
+   FIND FIRST ANLAGGNINGSDEL WHERE ANLAGGNINGSDEL.INKODID = INLASTAB.INKODID
+   NO-LOCK NO-ERROR.
+   
+   IF AVAILABLE ANLAGGNINGSDEL THEN DO:
+      IF ANLAGGNINGSDEL.AdelId >= 5 AND  ANLAGGNINGSDEL.AdelId <= 12 THEN STORNINGSTAB.AdelId = 26.
+      ELSE STORNINGSTAB.ADELID = ANLAGGNINGSDEL.ADELID.
+   END.
+   
+   FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "S" AND
+   INLASTAB.INKODPOSCH = STRING(tidin5.S) USE-INDEX INKOD
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE INLASTAB THEN DO:
+      FIND FIRST FELORSAK WHERE FELORSAK.INKODID = INLASTAB.INKODID
+      NO-LOCK NO-ERROR.
+      STORNINGSTAB.FELOID = FELORSAK.FELOID.
+   END.   
+   
+   FIND FIRST INLASTAB WHERE INLASTAB.INKOD = "T" AND INLASTAB.INKODTYP = "1" AND
+   INLASTAB.INKODPOSCH = STRING(tidin5.T1) USE-INDEX INKOD
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE INLASTAB THEN DO:
+      FIND FIRST RESERVKRAFTMETOD WHERE RESERVKRAFTMETOD.INKODID = INLASTAB.INKODID
+      NO-LOCK NO-ERROR.
+      STORNINGSTAB.RESERVKID = RESERVKRAFTMETOD.RESERVKID. 
+
+   END.   
+   ASSIGN
+   STORNINGSTAB.ANTALRESERVKRAFT = tidin5.T2
+   STORNINGSTAB.TIDRESERVKRAFT = tidin5.T3.
+   IF STORNINGSTAB.STORTYPID = 1 THEN DO:
+      STORNINGSTAB.FELSPANDARWINID = FFinlasttab(STORNINGSTAB.FELSPANID).
+      STORNINGSTAB.SEKTIONERDARWINID = FFinlasttabFL("SEKTIONERING",INTEGER(STORNINGSTAB.SEKTIONERID)).
+      STORNINGSTAB.UTLOSDARWINID = FFinlasttabFL("LUTLOSNINGSKYDD",STORNINGSTAB.UTLOSID).
+      STORNINGSTAB.RELINDARWINID = FFinlasttabFL("RELAINDIKERING",STORNINGSTAB.RELINID).
+      STORNINGSTAB.FELODARWINID = FFinlasttabFL("FELORSAK",STORNINGSTAB.FELOID).
+   END.
+   STORNINGSTAB.FRANSPANDARWINID = FFinlasttab(STORNINGSTAB.FRANSPANID).
+   STORNINGSTAB.BRYTODARWINID = FFinlasttabFL("BRYTORGAN",STORNINGSTAB.BRYTOID).
+   STORNINGSTAB.STDRIFTDARWINID = FFinlasttabFL("STORDRIFTOMR",STORNINGSTAB.STDRIFTID).
+   STORNINGSTAB.NATTYPDARWINID = FFinlasttabFL("NATTYP",INTEGER(STORNINGSTAB.NATTYPID)).
+   STORNINGSTAB.STRUKDARWINIDP1 = FFinlasttabFL("NATSTRUKTUR1",STORNINGSTAB.STRUKIDP1).
+   STORNINGSTAB.STRUKDARWINIDP2 = FFinlasttabFL("NATSTRUKTUR2",STORNINGSTAB.STRUKIDP2).
+   STORNINGSTAB.ADELDARWINID = FFinlasttabFL("ANLAGGNINGSDEL",STORNINGSTAB.ADELID).  
+END PROCEDURE.
+
+PROCEDURE komdec_UI :
+  DEFINE INPUT PARAMETER intal AS CHARACTER NO-UNDO.
+  DEFINE OUTPUT PARAMETER utal AS DECIMAL NO-UNDO.
+  DEFINE VARIABLE decimalkoll AS INTEGER NO-UNDO.
+  IF INDEX(intal,",",1) = 0 THEN DO:
+      utal = DECIMAL(intal).
+   END.
+   ELSE DO:   
+      decimalkoll = (LENGTH(intal) - INDEX(intal,",",1)).
+      utal = DECIMAL(intal) / EXP(10,decimalkoll).       
+   END. 
+END PROCEDURE.

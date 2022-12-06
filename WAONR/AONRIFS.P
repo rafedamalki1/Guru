@@ -1,0 +1,389 @@
+/*------------------------------------------------------------------------
+    File        : AONRIFS.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description :  
+    <?xml version="1.0" encoding="UTF-8" standalone="yes" ?> 
+- <out:Assignments xmlns:out="http://www.one-nordic.se/Procurement/Guru/1.0">
+- <out:Assignment>
+- <out:Message>
+  <out:MessageType>ProjectActivity</out:MessageType> 
+  </out:Message>
+  <out:ID>588.020</out:ID> 
+- <out:Responsible>
+  <out:ID>ADDJIMMY</out:ID> 
+  <out:Name>Jimmy Johansson</out:Name> 
+  </out:Responsible>
+- <out:Item>
+  <out:ID>210</out:ID> 
+  <out:SequenceID>100003964</out:SequenceID> 
+  <out:Name>SÖS Fack 8 kabl SÖS-Ängavången - Beredning</out:Name> 
+  <out:Status>Active</out:Status> 
+  <out:Reference>4500158895</out:Reference> 
+  </out:Item>
+  </out:Assignment>
+  </out:Assignments>
+
+    Author(s)   : 
+    Created     : Thu Dec 19 10:45:43 CET 2019
+    Notes       :
+  ----------------------------------------------------------------------*/
+/* ***************************  Definitions  ************************** */
+{EXTRADATA.I}
+DEFINE TEMP-TABLE Assignments  NO-UNDO
+   FIELD RID AS RECID   XML-NODE-TYPE  "HIDDEN"
+   INDEX RID RID.
+DEFINE TEMP-TABLE Assignment NO-UNDO     
+   FIELD RID AS RECID   XML-NODE-TYPE  "HIDDEN"
+   FIELD ID AS CHARACTER
+   INDEX RID RID.
+  
+DEFINE TEMP-TABLE MessageIN  NO-UNDO XML-NODE-NAME "Message"
+   FIELD RID AS RECID   XML-NODE-TYPE  "HIDDEN" 
+   FIELD MessageType AS CHARACTER
+   FIELD ActionType AS CHARACTER
+   INDEX RID RID.
+DEFINE TEMP-TABLE Responsible NO-UNDO      
+   FIELD RID AS RECID   XML-NODE-TYPE  "HIDDEN"
+   FIELD PROJID AS CHARACTER XML-NODE-NAME "ID"
+   FIELD NAMEPROJ AS CHARACTER XML-NODE-NAME "Name"
+   INDEX RID RID.
+   
+DEFINE TEMP-TABLE ResponsibleB NO-UNDO   XML-NODE-NAME "Responsible"   
+   FIELD RID AS RECID   XML-NODE-TYPE  "HIDDEN"
+   FIELD BEREID AS CHARACTER XML-NODE-NAME "ID"
+   FIELD NAMEBERE AS CHARACTER XML-NODE-NAME "Name"
+   INDEX RID RID.  
+
+DEFINE TEMP-TABLE ItemIN NO-UNDO   XML-NODE-NAME "Item"  
+   FIELD RID AS RECID   XML-NODE-TYPE  "HIDDEN"
+   FIELD ID AS INTEGER  
+   FIELD SequenceID AS CHARACTER
+   FIELD NameOrt AS CHARACTER  XML-NODE-NAME "Name"
+   FIELD StatusIN AS CHARACTER XML-NODE-NAME "Status"
+   FIELD Reference AS CHARACTER
+   INDEX RID RID.
+ 
+
+DEFINE TEMP-TABLE AonrInTT NO-UNDO     
+   FIELD RID AS RECID   XML-NODE-TYPE  "HIDDEN"
+   FIELD AONR AS CHARACTER
+   FIELD DELNR AS INTEGER
+   FIELD MessageType AS CHARACTER   /*ProjectActivity,WorkTask*/  
+   FIELD PROJETORID AS CHARACTER
+   FIELD BEREDARID AS CHARACTER
+   FIELD ORT AS CHARACTER
+   FIELD Reference AS CHARACTER   /*IBNR*/ 
+   FIELD SequenceID AS CHARACTER
+   FIELD AONRAVDATUM AS DATE
+   FIELD LASTIN AS DATETIME
+   INDEX DTI LASTIN AONR DELNR. 
+  /*
+   inextradatatemp.PROGRAM = "AOREF"     
+   CH(5) = AonrInTT.Reference
+   CH(6)   = AonrInTT.MessageType  
+   */
+
+DEFINE VARIABLE AonrIFSDSh AS HANDLE NO-UNDO.
+DEFINE DATASET AonrIFSDs FOR Assignments,Assignment,MessageIN,Responsible,ItemIN,ResponsibleB
+ PARENT-ID-RELATION Relation1 FOR Assignments, Assignment PARENT-ID-FIELD RID
+ PARENT-ID-RELATION Relation1 FOR Assignment, MessageIN PARENT-ID-FIELD RID
+ PARENT-ID-RELATION Relation1 FOR Assignment, Responsible PARENT-ID-FIELD RID
+ PARENT-ID-RELATION Relation1 FOR Assignment, ItemIN PARENT-ID-FIELD RID
+ PARENT-ID-RELATION Relation1 FOR ItemIN, ResponsibleB PARENT-ID-FIELD RID.
+ 
+DEFINE VARIABLE v-datetime    AS DATETIME   NO-UNDO.
+DEFINE VARIABLE datvar AS DATE NO-UNDO.
+DEFINE VARIABLE tidvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cFilein AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cFileinKopia AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dirlist AS CHARACTER NO-UNDO.
+DEFINE VARIABLE attrlist AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lReturn AS LOGICAL NO-UNDO.
+DEFINE VARIABLE exdatah AS HANDLE NO-UNDO.
+DEFINE TEMP-TABLE filerin NO-UNDO
+   FIELD FILIN AS CHARACTER
+   /*FIELD NAMNI AS INT64*/
+   FIELD NAMNI AS INTEGER  
+   INDEX FILIN NAMNI FILIN.
+   
+FUNCTION Sortnamn RETURNS INT64
+   (INPUT SortnamN AS CHARACTER):
+      /*
+   DEFINE VARIABLE filnamn64 AS INT64 NO-UNDO.
+   */
+   DEFINE VARIABLE filnamn64 AS INTEGER NO-UNDO.
+   filnamn64 = INDEX(Sortnamn,"_").
+   filnamn64 = INDEX(Sortnamn,"_",filnamn64 + 1).
+   
+   SortnamN = SUBSTRING(SortnamN,filnamn64 + 5).
+   
+   filnamn64 = INTEGER(SUBSTRING(SortnamN,1, LENGTH(SortnamN) - 4)).
+   RETURN filnamn64.
+      
+END FUNCTION.    
+
+
+
+RUN AonrIfs_UI.
+
+
+PROCEDURE AonrIfs_UI :
+   IF Guru.Konstanter:AppSpringSet[1] = "ONENOUTBI" THEN DO:
+      cFilein = "D:\Elpool\DELAD\PRO9S\IMPORT\TEST\Assignments\".
+      cFileinKopia = "D:\Elpool\DELAD\PRO9S\IMPORTKOPIA\TEST\Assignments\".
+   END.   
+   ELSE DO:
+      cFilein = "D:\Elpool\DELAD\PRO9S\IMPORT\PROD\Assignments\".
+      cFileinKopia = "D:\Elpool\DELAD\PRO9S\IMPORTKOPIA\PROD\Assignments\".
+   END. 
+    
+   AonrIFSDSh = DATASET AonrIFSDS:HANDLE.
+   
+   RUN Import_UI.
+   RUN AoNr_UI.  
+
+END PROCEDURE.
+
+PROCEDURE Import_UI :
+   
+   INPUT FROM OS-DIR(cFilein) NO-ECHO.
+   REPEAT:
+      SET filnamn VIEW-AS EDITOR INNER-CHARS 50 INNER-LINES 3 dirlist VIEW-AS EDITOR INNER-CHARS 50 INNER-LINES 3 attrlist.
+      IF filnamn BEGINS "ProjectActivity_" OR filnamn BEGINS "WorkTask_" THEN DO:
+         CREATE filerin.
+         
+         ASSIGN
+         filerin.NAMNI = Sortnamn(filnamn).
+         filerin.FILIN = filnamn.   
+      END.
+      
+   END.
+   INPUT CLOSE.
+  
+   FOR EACH filerin:
+      RUN readxml_UI (INPUT-OUTPUT AonrIFSDSh,INPUT "FILE",INPUT cFilein + filerin.FILIN,INPUT "EMPTY",INPUT "",INPUT NO,OUTPUT lReturn).
+      FOR EACH Assignments WHERE NO-LOCK:
+         FOR EACH Assignment WHERE Assignment.RID = RECID(Assignments) NO-LOCK:
+            CREATE AonrInTT.
+            ASSIGN 
+            AonrInTT.RID = Assignment.RID
+            AonrInTT.AONR = Assignment.ID
+            AonrInTT.LASTIN = NOW.
+            FIND FIRST MessageIN  WHERE MessageIN.RID = RECID(Assignment)  NO-LOCK NO-ERROR.
+            IF AVAILABLE MessageIN THEN AonrInTT.MessageType  = MessageIN.MessageType.
+            
+            FIND FIRST Responsible  WHERE Responsible.RID = RECID(Assignment)  NO-LOCK NO-ERROR.
+            IF AVAILABLE Responsible THEN AonrInTT.PROJETORID  = Responsible.PROJID.
+            
+            FIND FIRST ItemIN  WHERE ItemIN.RID = RECID(Assignment)  NO-LOCK NO-ERROR.
+            IF AVAILABLE ItemIN THEN DO:
+               ASSIGN
+               AonrInTT.DELNR  = ItemIN.ID
+               AonrInTT.SequenceID = ItemIN.SequenceID
+               AonrInTT.ORT = ItemIN.NameOrt
+               AonrInTT.Reference = ItemIN.Reference.
+               IF ItemIN.StatusIN = "Active" THEN AonrInTT.AONRAVDATUM = 01/01/91.
+               ELSE AonrInTT.AONRAVDATUM = TODAY.
+               
+               FIND FIRST ResponsibleB  WHERE ResponsibleB.RID = RECID(ItemIN)  NO-LOCK NO-ERROR.
+               IF AVAILABLE ResponsibleB THEN AonrInTT.BEREDARID  = ResponsibleB.BEREID.
+               
+            END.
+         END.
+      END.   
+      EMPTY TEMP-TABLE Assignments NO-ERROR.
+      EMPTY TEMP-TABLE Assignment NO-ERROR.
+      EMPTY TEMP-TABLE Responsible NO-ERROR.  
+      EMPTY TEMP-TABLE ResponsibleB NO-ERROR.
+      EMPTY TEMP-TABLE ItemIN NO-ERROR. 
+      IF Guru.Konstanter:AppSpringSet[1] = "ONENO" OR Guru.Konstanter:AppSpringSet[1] = "ONENOUTBI" THEN OS-COPY VALUE(cFilein + filerin.FILIN) VALUE(cFileinKopia + filerin.FILIN).
+      OS-DELETE VALUE(cFilein + filerin.FILIN).  
+      DELETE filerin.
+      
+      
+      
+   END.
+END PROCEDURE.      
+PROCEDURE readxml_UI :
+
+   DEFINE INPUT-OUTPUT PARAMETER hPDS AS HANDLE NO-UNDO.
+   DEFINE INPUT  PARAMETER cSourceType AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER cFile AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER cReadMode AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER cSchemaLocation AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER lOverrideDefaultMapping AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER lReturn AS LOGICAL NO-UNDO.
+   lReturn = hPDS:READ-XML (cSourceType, cFile, cReadMode,cSchemaLocation, lOverrideDefaultMapping).
+   
+   
+END PROCEDURE. 
+
+PROCEDURE AoNr_UI :
+   
+   RUN EXTRADATAHMT.P PERSISTENT SET exdatah.
+   FOR EACH AonrInTT WHERE NO-LOCK:
+
+      DO TRANSACTION:
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = AonrInTT.AONR AND AONRTAB.DELNR = AonrInTT.DELNR EXCLUSIVE-LOCK NO-ERROR NO-WAIT.
+         IF LOCKED(AONRTAB) = TRUE THEN NEXT.
+         IF NOT AVAILABLE AONRTAB THEN DO:
+            IF AonrInTT.MessageType = "WorkTask" THEN DO:
+               FIND FIRST EXTRADATA WHERE EXTRADATA.PROGRAM = "AOREF" AND                   
+               EXTRADATA.HUVUDCH = AonrInTT.AONR   AND            
+               EXTRADATA.SOKCHAR[6] =  AonrInTT.MessageType AND 
+               EXTRADATA.SOKCHAR[7] =  AonrInTT.SequenceID NO-LOCK NO-ERROR.
+               IF AVAILABLE EXTRADATA THEN DO:
+                  FIND FIRST AONRTAB WHERE AONRTAB.AONR = AonrInTT.AONR AND AONRTAB.DELNR = EXTRADATA.HUVUDINT EXCLUSIVE-LOCK NO-ERROR NO-WAIT.
+                  IF LOCKED(AONRTAB) = TRUE THEN NEXT.
+               END.    
+            END.   
+            IF NOT AVAILABLE AONRTAB THEN DO:
+               CREATE AONRTAB.
+               ASSIGN
+               AONRTAB.AONR = AonrInTT.AONR
+               AONRTAB.DELNR = AonrInTT.DELNR.
+            END.  
+         END.
+         DEFINE VARIABLE lort AS CHARACTER NO-UNDO.
+       /*   '\/:*<>|"´;,' + "'" .*/  
+         lort = AonrInTT.ORT.
+         lort = REPLACE(lort,"\","").
+         lort = REPLACE(lort,"/","").
+         lort = REPLACE(lort,":","").
+         lort = REPLACE(lort,"*","").
+         lort = REPLACE(lort,"<","").
+         lort = REPLACE(lort,">","").
+         lort = REPLACE(lort,"|","").
+         lort = REPLACE(lort,'"',"").
+         lort = REPLACE(lort,'´',"").         
+         lort = REPLACE(lort,";","").
+         lort = REPLACE(lort,",","").
+         lort = REPLACE(lort,"'","").
+         
+         
+         ASSIGN
+         AONRTAB.AONRAVDATUM = AonrInTT.AONRAVDATUM
+         AONRTAB.ORT = lort. 
+         
+         
+         RUN ArbArtDelnr_UI.
+         RUN PaAv_UI.  
+      END.     
+      IF AonrInTT.DELNR = 310 THEN DO TRANSACTION:
+         FOR EACH AONRTAB WHERE AONRTAB.AONR = AonrInTT.AONR AND AONRTAB.DELNR NE AonrInTT.DELNR AND AONRTAB.ARBARTKOD = 310 EXCLUSIVE-LOCK : 
+            AONRTAB.AONRAVDATUM = AonrInTT.AONRAVDATUM.
+            RUN ArbArtDelnr_UI.
+            RUN PaAv_UI.  
+         END.
+      END.   
+               
+   END.
+   IF VALID-HANDLE(exdatah) THEN DELETE PROCEDURE exdatah. 
+   exdatah = ?. 
+END PROCEDURE.
+   
+
+
+PROCEDURE ArbArtDelnr_UI :        
+   IF AONRTAB.OMRADE = "" THEN AONRTAB.OMRADE = "One".
+   IF AONRTAB.OMRADE = "" THEN AONRTAB.OMRADE = "One".
+   IF AONRTAB.BESTID  = "" THEN AONRTAB.BESTID  = "One".
+   IF AonrInTT.ORT = "" OR AonrInTT.ORT = ? THEN.
+   IF AONRTAB.ORT = "" THEN AONRTAB.ORT = AonrInTT.ORT.
+   
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.ANSTNR = AonrInTT.PROJETORID NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      AONRTAB.STARTDAG   = PERSONALTAB.PERSONALKOD.
+      IF AONRTAB.ARBANSVARIG = "" THEN AONRTAB.ARBANSVARIG = PERSONALTAB.PERSONALKOD. 
+   END.   
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.ANSTNR = AonrInTT.BEREDARID NO-LOCK NO-ERROR.
+   /*Anders Olsson Elpool i Umeå AB  9 sep 2020 12:22:11 
+     BLANKT  TILL AONR
+   IF AVAILABLE PERSONALTAB THEN DO:
+      AONRTAB.BEREDARE   = PERSONALTAB.PERSONALKOD.
+   END.
+   */   
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "AOREF"                   
+   inextradatatemp.HUVUDCH = AONRTAB.AONR               
+   inextradatatemp.HUVUDINT =  AONRTAB.DELNR.         
+   RUN etabhamt_UI IN exdatah (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+   FIND FIRST extradatatemp WHERE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE extradatatemp THEN CREATE extradatatemp.
+   ASSIGN
+   extradatatemp.PROGRAM = "AOREF"                   
+   extradatatemp.HUVUDCH = AONRTAB.AONR              
+   extradatatemp.HUVUDINT =  AONRTAB.DELNR
+   extradatatemp.SOKCHAR[6] =  AonrInTT.MessageType  /*proj/work*/
+   extradatatemp.SOKCHAR[7] =  AonrInTT.SequenceID.   /*aktivitet/uppgift*/
+   IF AonrInTT.Reference NE "" THEN  extradatatemp.SOKCHAR[1] =  AonrInTT.Reference.     /*refrensnummer best*/    
+    
+   RUN extraspar_UI IN exdatah (INPUT TABLE extradatatemp). 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+END PROCEDURE.
+
+
+/* ********************  Preprocessor Definitions  ******************** */
+
+
+PROCEDURE PaAv_UI :
+   DEFINE VARIABLE onoff AS LOGICAL NO-UNDO.
+   IF AONRTAB.AONRAVDATUM = 01/01/91 THEN onoff = TRUE.
+   ELSE onoff = FALSE.
+   OPEN QUERY kalkaoq FOR EACH KALKAONR WHERE KALKAONR.AONR = AONRTAB.AONR AND
+   KALKAONR.DELNR = AONRTAB.DELNR USE-INDEX AONR NO-LOCK.
+   GET FIRST kalkaoq NO-LOCK.
+   DO WHILE AVAILABLE(KALKAONR):
+      DO TRANSACTION:
+         GET CURRENT kalkaoq EXCLUSIVE-LOCK.
+         KALKAONR.AKTIV = onoff.
+      END.
+      GET NEXT kalkaoq NO-LOCK.   
+   END.
+   CLOSE QUERY kalkaoq.
+   OPEN QUERY kalkaoq FOR EACH KALKAONR WHERE KALKAONR.AONR = AONRTAB.AONR AND
+   KALKAONR.DELNR = AONRTAB.DELNR USE-INDEX AONR NO-LOCK. 
+   GET FIRST kalkaoq NO-LOCK.
+   DO WHILE AVAILABLE(KALKAONR):
+      DO TRANSACTION:
+         FIND FIRST KALKHUV WHERE KALKHUV.KALKNR = KALKAONR.KALKNR EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE KALKHUV THEN DO:
+            KALKHUV.AKTIV = onoff.
+         END.   
+      END.
+      RELEASE KALKHUV NO-ERROR.
+      GET NEXT kalkaoq NO-LOCK.
+   END.
+         
+      
+   DO TRANSACTION:
+      FIND FIRST BEREDNING WHERE BEREDNING.AONR = AONRTAB.AONR AND
+      BEREDNING.DELNR = AONRTAB.DELNR USE-INDEX AONR
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BEREDNING THEN BEREDNING.AKTIV = onoff.  
+      
+      FIND FIRST AOVARD WHERE AOVARD.AONR = AONRTAB.AONR AND AOVARD.DELNR = AONRTAB.DELNR
+      USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF AVAILABLE AOVARD THEN DO:
+         IF AOVARD.VARDNR = ? THEN.
+         ELSE DO:
+            FIND FIRST VARDERING WHERE VARDERING.VARDNR = AOVARD.VARDNR USE-INDEX VARDNR
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE VARDERING THEN DO:
+               ASSIGN VARDERING.AKTIV = onoff.
+            END.
+         END.
+      END.            
+   END.
+   RELEASE BEREDNING NO-ERROR.
+   RELEASE VARDERING NO-ERROR.
+         
+END PROCEDURE.

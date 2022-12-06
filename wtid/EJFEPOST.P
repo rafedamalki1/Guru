@@ -1,0 +1,259 @@
+/*EJFEPOST.P  Nattkörning avviklese lista flex epost till berörda*/
+{STARTFORAPP.I}
+
+DEFINE TEMP-TABLE eposttemp NO-UNDO
+   FIELD EPOST AS CHARACTER
+   FIELD GEPOST AS CHARACTER
+   FIELD BOLAG AS CHARACTER
+   FIELD MEDD AS CHARACTER
+   INDEX EPOST EPOST.
+DEFINE TEMP-TABLE farkoll NO-UNDO
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD FORNAMN     AS CHARACTER
+   FIELD EFTERNAMN   AS CHARACTER
+   FIELD EPOST AS CHARACTER
+   FIELD GEPOST AS CHARACTER
+   FIELD BOLAG AS CHARACTER
+   INDEX EPOST EPOST.
+DEFINE TEMP-TABLE pveckfl
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD FORNAMN AS CHARACTER
+   FIELD EFTERNAMN AS CHARACTER   
+   FIELD BFARDIG AS DATE
+   FIELD FARDIG AS DATE
+   FIELD NG AS CHARACTER
+   FIELD EPOST AS CHARACTER
+   FIELD TIDSGODK AS CHARACTER
+   FIELD GEPOST AS CHARACTER
+   INDEX PERSONALKOD IS PRIMARY PERSONALKOD FARDIG.   
+
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE VARIABLE aonrrec AS RECID NO-UNDO.
+DEFINE VARIABLE skick AS LOGICAL NO-UNDO.
+DEFINE VARIABLE efel AS CHARACTER FORMAT "X(30)" NO-UNDO.
+DEFINE VARIABLE servervar AS CHARACTER LABEL "Smtp Server" NO-UNDO.
+DEFINE VARIABLE franvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hjdat AS DATE NO-UNDO.
+DEFINE VARIABLE bolag AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kolldatum AS DATE NO-UNDO.
+DEFINE BUFFER persbuff FOR PERSONALTAB.
+
+{SMTPDEF3.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT FORETAG.FORETAG).
+IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "MISV" THEN DO:
+   ASSIGN
+   franvar = "NOREPLY"
+   servervar = CHR(49) + CHR(55) + CHR(50) + CHR(46) + CHR(49) + CHR(54) + CHR(46) + CHR(50) + CHR(53) + CHR(52) + CHR(46) + CHR(50) + CHR(50) + CHR(50). 
+   /*servervar = "130.1.27.253".
+   servervar = "172.16.79.249".*/
+END.
+ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+   {SMTPFRANELPOOL.I}
+END.
+ELSE DO:
+   ASSIGN
+   franvar = "elpool.ume@elpool.se"
+   servervar = CHR(115) + CHR(109) + CHR(116) + CHR(112) + CHR(46) + CHR(116) + CHR(101) + CHR(108) + CHR(101) + CHR(99) + CHR(111) + CHR(109) + CHR(51) + CHR(46) + CHR(110) + CHR(101) + CHR(116) .
+END.
+IF Guru.Konstanter:globforetag = "SUND" THEN DO:
+   IF MONTH(TODAY) < 12 THEN kolldatum = DATE(MONTH(TODAY) + 1,01,YEAR(TODAY)) - 1.
+   ELSE kolldatum = DATE(01,01,YEAR(TODAY) + 1) - 1.         
+END. 
+ELSE IF Guru.Konstanter:globforetag = "MISV" THEN kolldatum = TODAY - 1. 
+ELSE kolldatum = TODAY - 3. 
+OPEN QUERY tq FOR EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE AND PERSONALTAB.ANSTALLNING NE "Ej tidskrivande personal"  USE-INDEX PERSONALKOD NO-LOCK.
+
+GET FIRST tq NO-LOCK.
+DO WHILE AVAILABLE(PERSONALTAB):    
+   IF PERSONALTAB.ANSTALLNING = "ENTREP.AVTAL" THEN.
+   ELSE DO: 
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+      FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+      FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+      IF AVAILABLE JURPERS THEN DO:
+         DO:      
+            FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = PERSONALTAB.PERSONALKOD AND 
+            GODKOLL.DATAR = YEAR(kolldatum) AND GODKOLL.DATMAN = MONTH(kolldatum) NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE GODKOLL THEN DO:
+               CREATE pveckfl.
+               ASSIGN
+               pveckfl.PERSONALKOD = PERSONALTAB.PERSONALKOD
+               pveckfl.BFARDIG = (kolldatum)
+               pveckfl.FARDIG = ?
+               pveckfl.NG = "N"
+               pveckfl.FORNAMN = PERSONALTAB.FORNAMN
+               pveckfl.EFTERNAMN = PERSONALTAB.EFTERNAMN
+               pveckfl.EPOST = SUBSTRING(PERSONALTAB.PERSONSOK,20)
+               pveckfl.TIDSGODK = PERSONALTAB.TIDSGODK.
+               FIND FIRST persbuff WHERE persbuff.PERSONALKOD = PERSONALTAB.TIDSGODK NO-LOCK NO-ERROR.
+               IF AVAILABLE persbuff THEN DO:
+                  pveckfl.GEPOST = SUBSTRING(persbuff.PERSONSOK,20).
+               END.               
+            END.
+            IF AVAILABLE GODKOLL THEN DO:
+               IF GODKOLL.DATUM < (kolldatum) THEN DO:
+                  CREATE pveckfl.
+                  ASSIGN
+                  pveckfl.PERSONALKOD = PERSONALTAB.PERSONALKOD
+                  pveckfl.BFARDIG = (kolldatum)
+                  pveckfl.FARDIG = GODKOLL.DATUM
+                  pveckfl.NG = "N"
+                  pveckfl.FORNAMN = PERSONALTAB.FORNAMN
+                  pveckfl.EFTERNAMN = PERSONALTAB.EFTERNAMN
+                  pveckfl.EPOST = SUBSTRING(PERSONALTAB.PERSONSOK,20)
+                  pveckfl.TIDSGODK = PERSONALTAB.TIDSGODK.
+                  FIND FIRST persbuff WHERE persbuff.PERSONALKOD = PERSONALTAB.TIDSGODK NO-LOCK NO-ERROR.
+                  IF AVAILABLE persbuff THEN DO:
+                     pveckfl.GEPOST = SUBSTRING(persbuff.PERSONSOK,20).
+                  END.
+               END.
+            END.    
+            hjdat = DATE(MONTH(kolldatum),01,YEAR(kolldatum)) - 1.
+            FOR EACH GODKOLL WHERE GODKOLL.PERSONALKOD = PERSONALTAB.PERSONALKOD AND 
+            GODKOLL.KLAR = FALSE AND GODKOLL.DATUM LE hjdat  NO-LOCK:
+               CREATE pveckfl.
+               ASSIGN
+               pveckfl.PERSONALKOD = PERSONALTAB.PERSONALKOD
+               pveckfl.BFARDIG = (kolldatum)
+               pveckfl.FARDIG = GODKOLL.DATUM
+               pveckfl.NG = "G"
+               pveckfl.FORNAMN = PERSONALTAB.FORNAMN
+               pveckfl.EFTERNAMN = PERSONALTAB.EFTERNAMN
+               pveckfl.EPOST = SUBSTRING(PERSONALTAB.PERSONSOK,20)
+               pveckfl.TIDSGODK = PERSONALTAB.TIDSGODK.
+               FIND FIRST persbuff WHERE persbuff.PERSONALKOD = PERSONALTAB.TIDSGODK NO-LOCK NO-ERROR.
+               IF AVAILABLE persbuff THEN DO:
+                  pveckfl.GEPOST = SUBSTRING(persbuff.PERSONSOK,20).
+               END.
+            END.
+         END.
+      END.
+   END.   
+   GET NEXT tq NO-LOCK.
+END.
+
+
+FOR EACH pveckfl WHERE pveckfl.EPOST NE ""  NO-LOCK:
+   FIND FIRST farkoll WHERE farkoll.PERSONALKOD = pveckfl.PERSONALKOD NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE farkoll THEN DO:      
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pveckfl.TIDSGODK NO-LOCK NO-ERROR.
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+      FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+      FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+      CREATE farkoll.
+      ASSIGN
+      farkoll.PERSONALKOD = pveckfl.PERSONALKOD
+      farkoll.FORNAMN =  pveckfl.FORNAMN
+      farkoll.EFTERNAMN =  pveckfl.EFTERNAMN
+      farkoll.EPOST = pveckfl.EPOST
+      farkoll.GEPOST = pveckfl.GEPOST
+      farkoll.BOLAG = JURPERS.VIJUDID.
+   END.
+END.
+EMPTY TEMP-TABLE eposttemp NO-ERROR. 
+FOR EACH farkoll WHERE farkoll.EPOST NE "" NO-LOCK,
+EACH pveckfl WHERE pveckfl.PERSONALKOD = farkoll.PERSONALKOD USE-INDEX PERSONALKOD NO-LOCK.
+   FIND FIRST eposttemp WHERE eposttemp.EPOST = farkoll.EPOST AND 
+   LENGTH(eposttemp.MEDD,"CHARACTER") < 30000 EXCLUSIVE-LOCK NO-ERROR.
+   IF NOT AVAILABLE eposttemp THEN DO:
+      CREATE eposttemp.
+      ASSIGN
+      eposttemp.EPOST = farkoll.EPOST
+      eposttemp.GEPOST = farkoll.GEPOST
+      eposttemp.BOLAG = farkoll.BOLAG.
+      eposttemp.MEDD = farkoll.PERSONALKOD + " " + farkoll.FORNAMN + " " + farkoll.EFTERNAMN + " har ej färdigrapporterat alla sina tidrapporter "  + CHR(10)
+                     + "===================================================================== " + CHR(10).       
+   END.
+   IF pveckfl.NG = "N"  THEN DO:
+      IF pveckfl.FARDIG = ? THEN DO:
+         IF Guru.Konstanter:globforetag = "sund" THEN DO:
+            eposttemp.MEDD = eposttemp.MEDD + "Aktuell tidsedel är inte färdigrapporterad. Färdigrapportering skall ske den sista i månaden tom " + STRING(pveckfl.BFARDIG,"9999/99/99")  + CHR(10) + CHR(10).   
+         END.
+         ELSE DO:   
+            eposttemp.MEDD = eposttemp.MEDD + "Aktuell tidsedel är inte färdigrapporterad. Den ska vara färdigrapporterad tom "  + STRING(pveckfl.BFARDIG,"9999/99/99") + CHR(10) + CHR(10).
+         END.       
+      END.
+      ELSE DO:
+         IF Guru.Konstanter:globforetag = "sund" THEN DO:
+            eposttemp.MEDD = eposttemp.MEDD + "Aktuell tidsedel är bara färdigrapporterad tom " + STRING(pveckfl.FARDIG,"9999/99/99") + ". Färdigraportering skall ske den sista i månaden tom " + STRING(pveckfl.BFARDIG,"9999/99/99")  + CHR(10) + CHR(10).   
+         END.
+         ELSE DO:
+            eposttemp.MEDD = eposttemp.MEDD + "Aktuell tidsedel är bara färdigrapporterad tom " + STRING(pveckfl.FARDIG,"9999/99/99") + "Den ska vara färdigrapporterad tom "  + STRING(pveckfl.BFARDIG,"9999/99/99") + CHR(10) + CHR(10).
+         END.       
+      END.
+   END.
+   IF pveckfl.NG = "G" THEN DO:
+      eposttemp.MEDD = eposttemp.MEDD + "Det finns en gammal tidsedel som inte färdigrapporterad till den sista i månaden. Den är färdigrapporterad tom " + STRING(pveckfl.FARDIG,"9999/99/99")  + CHR(10) + CHR(10).         
+   END.  
+   IF AVAILABLE eposttemp THEN Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + eposttemp.EPOST + "," +  eposttemp.MEDD .    
+END.
+RUN emedd_UI.
+Guru.GlobalaVariabler:GDPRtyp = "EP".
+   {GDPRLOGGCLIENT.I}
+PROCEDURE emedd_UI.
+   DEFINE VARIABLE ctillvar AS CHARACTER LABEL "Kopia" NO-UNDO.
+  
+   FOR EACH eposttemp:  
+      IF Guru.Konstanter:globforetag = "MISV" THEN DO: 
+         IF eposttemp.GEPOST NE "" THEN ctillvar = "kontorsservice@mittsverigevatten.se" + ";" + eposttemp.GEPOST .
+         ELSE ctillvar = "kontorsservice@mittsverigevatten.se".
+      END.      
+      IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" THEN DO:                              
+         IF eposttemp.BOLAG = "SEAB" THEN ctillvar = "".         
+         IF eposttemp.BOLAG = "REKO" THEN ctillvar = "".               
+         IF eposttemp.BOLAG = "Elnät" THEN ctillvar = "".         
+         IF eposttemp.BOLAG = "Servanet" THEN ctillvar = "".                 
+      END.
+      ASSIGN 
+      mailhub             = servervar     
+      EmailTo             = eposttemp.EPOST 
+      EmailFrom           = franvar
+      EmailCC             = ctillvar
+      Attachmentstyp      = ""
+      LocalFiles          = ""
+      Subject             = "Ej färdigrapporterade tidsedlar" 
+      Bodysmtp            = eposttemp.MEDD
+      MIMEHeader          = "type=text/plain/html:charset=iso-8859-1:filetype=ascii"
+      BodyType            = "".
+      IF Guru.Konstanter:globforetag = "sund" THEN EmailFrom = "webguru@sundsvallenergi.se".
+      IF Guru.Konstanter:globforetag = "SNAT" THEN EmailFrom = "@guru.sundsvallelnat.se".
+      IF Guru.Konstanter:globforetag = "MISV" THEN EmailFrom = "webguru@mittsverigevatten.se".
+      RUN smtpmail_UI (INPUT FALSE).
+      IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+         /*SNATBERGET*/
+         OUTPUT TO D:\DELAD\PRO10S\mailrappejfe.txt APPEND.
+         PUT UNFORMATTED TODAY " " oSuccessful " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         OUTPUT CLOSE. 
+      END.
+      IF oSuccessful = TRUE THEN DO TRANSACTION:
+         oSuccessful = FALSE.               
+      END.      
+      ELSE DO:
+         IF Guru.Konstanter:globforetag = "SUND" THEN DO:
+            OUTPUT TO D:\delad\server\pro10s\EXPORT\lon\fardigkollfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+            /*SNATBERGET*/
+            OUTPUT TO D:\delad\pro10s\fardigkollfel.txt APPEND. 
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "MISV" THEN DO:          
+            OUTPUT TO D:\elpool\delad\pro10s\EXPORT\lon\fardigkollfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "ELPA" THEN DO:
+            OUTPUT TO c:\protemp9\fardigkollfel.txt APPEND.            
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         OUTPUT CLOSE.
+    
+      END.
+   END.     
+END PROCEDURE.  
+
+ 
+   
+

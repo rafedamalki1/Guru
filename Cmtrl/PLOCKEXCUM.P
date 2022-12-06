@@ -1,0 +1,246 @@
+/*PLOCKEXCUM.P UTLÄSNING AV MTRL  TILL EXCEL*/ 
+/*
+
+*/
+
+DEFINE VARIABLE val AS LOGICAL NO-UNDO.
+/*DEFINE VARIABLE felexcel AS LOGICAL NO-UNDO.*/
+
+&Scoped-define NEW 
+{SMTRL.I}
+{GLOBVAR2DEL1.I}
+/*  */
+{REGVAR.I}
+{LEVTEMP.I}
+&Scoped-define SHARED SHARED
+{HOPPSEK2W.I}
+{MTRLTAB.I}
+
+DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+DEFINE INPUT PARAMETER TABLE FOR levtemp.
+DEFINE VARIABLE slutsumvar              AS DECIMAL.
+
+DEFINE VARIABLE efarg AS INTEGER NO-UNDO.
+DEFINE VARIABLE efarg2 AS INTEGER NO-UNDO.
+
+DEFINE VARIABLE nettoh AS HANDLE NO-UNDO.
+
+{EXECLIN.I}
+IF Guru.Konstanter:appcon THEN DO:
+   RUN NETTOMARK.P PERSISTENT SET nettoh ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+END.
+ELSE DO:
+   RUN NETTOMARK.P PERSISTENT SET nettoh.
+END. 
+DEBUGGER:SET-BREAK().
+
+IF Guru.Konstanter:varforetypval[29] = 1  THEN DO:                 
+   /*nettopris beredning adm*/                     
+   RUN adnettomark_UI IN nettoh (INPUT TABLE spec_mtrl,INPUT-OUTPUT TABLE ikmtrltemp ).                  
+END.
+
+   
+   
+   IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "GRAN" OR Guru.Konstanter:globforetag = "NAEK" OR Guru.Konstanter:globforetag = "CPOMA" {GLOBVES.I} THEN DO:
+      MESSAGE "Vill Ni lägga till ett 'E' i " LC(Guru.Konstanter:genl) "?" VIEW-AS ALERT-BOX QUESTION BUTTONS YES-NO UPDATE val.
+   END.
+   ELSE DO:
+      val = FALSE.
+   END.
+   
+   RUN profexcelfarg_UI (INPUT Guru.Konstanter:varforetypval[28], OUTPUT efarg).
+   RUN profexcelfarg_UI (INPUT Guru.Konstanter:varforetypval[38], OUTPUT efarg2).
+   
+
+   CREATE "Excel.Application" chExcelApplication.
+   chExcelApplication:Visible = TRUE.
+   chWorkbook = chExcelApplication:Workbooks:Add() NO-ERROR.
+   chWorkSheet = chExcelApplication:Sheets:Item(1) NO-ERROR.
+   chWorkSheet:Columns("A"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("B"):ColumnWidth = 40 NO-ERROR.
+   chWorkSheet:Columns("C"):ColumnWidth = 5 NO-ERROR.
+   chWorkSheet:Columns("D"):ColumnWidth = 8 NO-ERROR.
+   chWorkSheet:Columns("E"):ColumnWidth = 8 NO-ERROR.
+   chWorkSheet:Columns("F"):ColumnWidth = 10 NO-ERROR.
+   {EXCELFEL.I} 
+   
+   
+   ASSIGN
+   iRad = 1
+   cRad = STRING(iRad)
+   cRange = "A" + cRad      
+   link = ?.
+   /*FOREBILDER*/
+   {LOGGOR.I}
+   IF link NE ? THEN RUN imageexcel2_UI .
+   
+   ASSIGN
+   cRad = STRING(iRad)
+   cRange = "A" + cRad.
+   chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+   {EXCELFEL.I} 
+   
+   ASSIGN        
+   chWorkSheet:Range(cRange):Value = "Materielpriser              " + STRING(TODAY) + " " + STRING(TIME,"HH:MM:SS") NO-ERROR.
+
+   {EXCELFEL.I} 
+   
+   ASSIGN
+   iRad = iRad + 2
+   cRad = STRING(iRad)
+   cRange = "A" + cRad.
+   chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11   NO-ERROR.
+   chWorkSheet:Range(cRange):Value = Guru.Konstanter:genk NO-ERROR.
+   cRange = "B" + cRad.
+   ASSIGN
+   chWorkSheet:Range(cRange):Font:Bold = TRUE  NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11  NO-ERROR.
+   chWorkSheet:Range(cRange):Value = "Benämning" NO-ERROR.
+   IF Guru.Konstanter:mtrlsekvar[6] = FALSE THEN DO:
+      ASSIGN
+      cRange = "C" + cRad
+      chWorkSheet:Range(cRange):Font:Bold = TRUE  NO-ERROR.
+      chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+      chWorkSheet:Range(cRange):Value = "Pris/Enhet" NO-ERROR.
+      cRange = "F" + cRad.
+      chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+      chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+      chWorkSheet:Range(cRange):Value = "Summa" NO-ERROR.
+   END.   
+   cRange = "D" + cRad.
+   ASSIGN
+   chWorkSheet:Range(cRange):Font:Bold = TRUE  NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11   NO-ERROR.
+   chWorkSheet:Range(cRange):Value = "Enhet" NO-ERROR.
+   cRange = "E" + cRad.
+   ASSIGN
+   chWorkSheet:Range(cRange):Font:Bold = TRUE   NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+   chWorkSheet:Range(cRange):Value = "Antal" NO-ERROR.
+   
+   ASSIGN   
+   slutsumvar = 0.
+   {EXCELFEL.I} 
+   chWorkSheet:Range("A:A"):NumberFormat = "@" NO-ERROR.   
+   
+   FOR EACH spec_mtrl USE-INDEX ENR:
+      {EXCELFEL.I} 
+      IF spec_mtrl.BERKVANT > 0 THEN DO:      
+         iRad = iRad + 1.
+         cRad = STRING(iRad).
+         cRange = "A" + cRad.         
+         IF val = TRUE THEN DO:                    
+            IF SUBSTRING(spec_mtrl.ENR,1,1) = "E" THEN chWorkSheet:Range(cRange):Value = spec_mtrl.ENR NO-ERROR.           
+            ELSE chWorkSheet:Range(cRange):Value = "E" + spec_mtrl.ENR NO-ERROR.
+         END.
+         ELSE DO:               
+            chWorkSheet:Range(cRange):Value = spec_mtrl.ENR NO-ERROR.
+         END.
+         FIND FIRST ikmtrltemp WHERE ikmtrltemp.LEVKOD =  spec_mtrl.LEVKOD AND ikmtrltemp.ENR =  spec_mtrl.ENR AND ikmtrltemp.KALKNR = 0
+         AND ikmtrltemp.KUND = TRUE  NO-LOCK NO-ERROR.
+         IF AVAILABLE ikmtrltemp THEN DO:
+            RUN bgcellc_UI (INPUT "A", INPUT "A", INPUT efarg).
+         END.
+         FIND FIRST ikmtrltemp WHERE ikmtrltemp.LEVKOD =  spec_mtrl.LEVKOD AND ikmtrltemp.ENR =  spec_mtrl.ENR AND ikmtrltemp.KALKNR = 0
+         AND ikmtrltemp.KUND = ?  NO-LOCK NO-ERROR.
+         IF AVAILABLE ikmtrltemp THEN DO:
+            RUN bgcellc_UI (INPUT "A", INPUT "A", INPUT efarg2).
+         END.
+         /*
+         chWorkSheet:Range(cRange):Value = spec_mtrl.ENR + "                        .".
+         */
+         cRange = "B" + cRad.
+         chWorkSheet:Range(cRange):Value = SUBSTRING(spec_mtrl.BENAMNING,1,40) NO-ERROR.
+         IF Guru.Konstanter:mtrlsekvar[6] = FALSE THEN DO:      
+            cRange = "C" + cRad.
+            chWorkSheet:Range(cRange):Value = spec_mtrl.NPRIS NO-ERROR.
+            cRange = "F" + cRad.
+            chWorkSheet:Range(cRange):Value = spec_mtrl.BERKVANT * spec_mtrl.NPRIS NO-ERROR.
+            slutsumvar = slutsumvar + (spec_mtrl.BERKVANT * spec_mtrl.NPRIS).
+         END.
+         cRange = "D" + cRad.
+         chWorkSheet:Range(cRange):Value = spec_mtrl.ENHET NO-ERROR.
+         cRange = "E" + cRad.
+         chWorkSheet:Range(cRange):Value = spec_mtrl.BERKVANT NO-ERROR.
+         FIND FIRST levtemp  WHERE levtemp.LEVKOD = spec_mtrl.LEVKOD  NO-LOCK NO-ERROR.
+         IF AVAILABLE  levtemp THEN DO:
+            cRange = "G" + cRad.
+            chWorkSheet:Range(cRange):Value = levtemp.LEVNAMN NO-ERROR.
+             
+         END.
+      END.      
+   END. 
+   IF Guru.Konstanter:mtrlsekvar[6] = FALSE THEN DO:
+      iRad = iRad + 2.
+      cRad = STRING(iRad).    
+      cRange = "E" + cRad.
+      chWorkSheet:Range(cRange):Value = "Tot.summa:" NO-ERROR.
+      cRange = "F" + cRad.
+      chWorkSheet:Range(cRange):Value = slutsumvar NO-ERROR.         
+   END.      
+   {EXCELFEL.I} 
+   
+   
+/*PROCEDURE excelhead_UI :
+   DEFINE INPUT PARAMETER leftcenterright AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER head AS CHARACTER NO-UNDO.
+   head = head + " sid &S".
+   IF leftcenterright = 1 THEN chWorkSheet:PageSetup:LeftHeader = head NO-ERROR.
+   IF leftcenterright = 2 THEN chWorkSheet:PAGESETUP:CENTERHEADER = head NO-ERROR.
+   IF leftcenterright = 3 THEN chWorkSheet:PAGESETUP:RIGHTHEADER = head NO-ERROR.
+   {EXCELFEL.I} 
+END PROCEDURE.  */
+PROCEDURE ostempdel_UI :
+  /*SKA VARA KVAR*/
+END PROCEDURE. 
+
+PROCEDURE imageexcel2_UI:
+   
+   ASSIGN iRad = 1.
+   chWorkSheet:rows(iRad):SELECT NO-ERROR.   
+    
+   IF link NE  ? THEN chWorkSheetRange = chWorkSheet:Pictures:INSERT(link) NO-ERROR. 
+   ELSE RETURN.     
+   chWorkSheetRange:TOP = 1 NO-ERROR.
+   chWorkSheetRange:LEFT = 1 NO-ERROR.
+   ASSIGN iRad = iRad + 5.  
+   
+ 
+   {EXCELFEL.I} 
+END PROCEDURE.  
+
+
+/*PROCEDURE slutexcel_UI:
+   chExcelApplication:VISIBLE = TRUE NO-ERROR.
+   chExcelApplication:DisplayAlerts = TRUE NO-ERROR.   /*all prompts will be shutoff/on*/   
+   
+   chWorkSheet:SELECT NO-ERROR.      
+   
+   RELEASE OBJECT chWorkbook NO-ERROR.                   
+   RELEASE OBJECT chExcelApplication NO-ERROR.           
+   
+   
+   RELEASE OBJECT chWorksheet NO-ERROR.                  
+   RELEASE OBJECT chChart NO-ERROR.                      
+   RELEASE OBJECT chWorksheetRange NO-ERROR.             
+   
+   
+   ASSIGN
+   chWorkbook = ?  
+   chExcelApplication = ?
+   chWorksheet = ?
+   chChart = ?
+   chWorksheetRange = ?.
+   
+   
+   ASSIGN
+   iCount  = 0            
+   iIndex  = 0            
+   iMonth   = 0           
+   dAnnualQuota  = 0       
+   dTotalSalesAmount  = 0  
+   cRange             = "".
+   {EXCELFEL.I} 
+END PROCEDURE.  */

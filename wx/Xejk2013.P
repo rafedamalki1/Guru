@@ -1,0 +1,222 @@
+/*
+               KSV Editor
+    Copyright: (C) 2000-2001 Serguey Klimoff (bulkl0DD)
+     Filename: G:\PRO9S\WX\XSKJSKLUP.P
+      Comment: <comment>
+   Parameters:
+         Uses:
+      Used by:
+      Created: 2009.11.04 09:22 ELPAO   
+     Modified: 2009.11.04 10:56 ELPAO    
+     Modified: 2010.01.11 17:48 ELPAO    
+     Modified: 2011.02.01 14:19 ELPAO    
+     Modified: 
+*/
+
+   
+DEFINE TEMP-TABLE kaltmp
+   FIELD ARBKOD AS CHARACTER 
+   FIELD LOPNR AS INTEGER
+   FIELD BANTAL AS DECIMAL
+   FIELD MOANTAL AS DECIMAL
+   FIELD MAANTAL AS DECIMAL
+   
+   FIELD ARBKOST AS DECIMAL
+   FIELD MATERIEL AS DECIMAL
+   FIELD MASKKOST AS DECIMAL
+   FIELD OVRKOST AS DECIMAL
+   
+   FIELD TOTSUM AS INTEGER
+   FIELD BEN AS CHARACTER
+   FIELD KOMM AS CHARACTER
+   FIELD ENHET AS CHARACTER.
+
+
+
+
+DEFINE VARIABLE utskriv AS LOGICAL NO-UNDO.
+DEFINE VARIABLE klangd AS INTEGER NO-UNDO.
+
+
+DEFINE NEW GLOBAL SHARED VARIABLE hpApi AS HANDLE NO-UNDO.
+DEFINE NEW GLOBAL SHARED VARIABLE hpWinFunc AS HANDLE NO-UNDO.
+DEFINE NEW GLOBAL SHARED VARIABLE retvalkoll AS LOGICAL NO-UNDO.
+
+
+ 
+{windows.i}
+DEFINE NEW SHARED TEMP-TABLE tidut
+   FIELD UT AS CHARACTER FORMAT "X(132)".
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+   
+ 
+
+
+                              
+                              
+DEFINE NEW SHARED VARIABLE orgpropath AS CHARACTER NO-UNDO.
+DEFINE VARIABLE ovkoll AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kvar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE kalkylar AS INTEGER NO-UNDO.
+{PROVAG.I}
+ 
+{EXECLIN2.I}
+
+
+DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.
+
+/*eon koder "Ejk" "ELL"   "EUH"  osv*/
+
+EMPTY TEMP-TABLE kaltmp NO-ERROR.
+
+FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+globforetag = FORETAG.FORETAG.
+IF globforetag = "gran" THEN kalkylar = 2017.
+ELSE kalkylar = 2016.               
+filnamn = "\\SERVER05\d\elpool\elplo\kalk\Eon2016\fixEON Kod 2016.xlsx".
+/*chWorkSheet = chExcelApplication:Sheets:ITEM(valbald) NO-ERROR.*/
+/*IF globforetag = "vast" THEN filnamn = "e:\delad\pro9\guru\fixEON Koder2014.xls.".
+ELSE filnamn = "\\server05\d\elpool\elplo\kalk\eonkoder 201408\fixEON Koder2014.xlsx.".*/
+/*filnamn = "\\server05\d\elpool\elplo\kalk\eon201309\fixEON Koder2013.xlsx.".*/
+/*filnamn = "\\server05\d\elpool\elplo\kalk\EKJ\EJKELLEAFEUA.xls.".*/
+/*filnamn = "\\server04\d\elpool\elpnj\kalk\eon\SKl2011.xls.".*/
+
+/*filnamn = "\\server04\d\elpool\elpnj\kalk\eon\SKJ2011.xls.".*/
+RUN startin_UI.
+/*FOR EACH kaltmp WHERE NO-LOCK:
+   DISP kaltmp.ARBKOD LOPNR BEN FORMAT "X(20)" KOMM FORMAT "X(20)". 
+END.*/
+PROCEDURE startin_UI:
+   ASSIGN
+   startc = "A"
+   slutc = "L"  /*J*/
+   iRad = 0. 
+   RUN readexcelstart_UI (INPUT filnamn).   
+   /*RUN valjblad_UI (INPUT 3).*/
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.   
+      IF allacolumtext[1] NE "" THEN DO:               
+         allacolumtext[4] = REPLACE(allacolumtext[4],",",".").   
+         allacolumtext[5] = REPLACE(allacolumtext[5],",",".").   
+         allacolumtext[6] = REPLACE(allacolumtext[6],",",".").
+         allacolumtext[7] = REPLACE(allacolumtext[7],",",".").   
+         allacolumtext[8] = REPLACE(allacolumtext[8],",",".").   
+         allacolumtext[9] = REPLACE(allacolumtext[9],",",".").
+         allacolumtext[10] = REPLACE(allacolumtext[10],",",".").   
+         allacolumtext[11] = REPLACE(allacolumtext[11],",",".").   
+         allacolumtext[12] = REPLACE(allacolumtext[12],",",".").   
+         CREATE kaltmp.
+         klangd = LENGTH(allacolumtext[1]).
+         ASSIGN kaltmp.ARBKOD = SUBSTRING(allacolumtext[1],1,(klangd - 2))
+         kaltmp.LOPNR = INTEGER(SUBSTRING(allacolumtext[1],(klangd - 1),2)) NO-ERROR.
+         kaltmp.BANTAL = DECIMAL(allacolumtext[4]) NO-ERROR.
+         kaltmp.MOANTAL = DECIMAL(allacolumtext[5]) NO-ERROR.
+         kaltmp.MAANTAL = DECIMAL(allacolumtext[6]) NO-ERROR.
+         
+         kaltmp.ARBKOST = DECIMAL(allacolumtext[8]) NO-ERROR.
+         kaltmp.MATERIEL = DECIMAL(allacolumtext[9]) NO-ERROR.
+         kaltmp.MASKKOST = DECIMAL(allacolumtext[10]) NO-ERROR.
+         kaltmp.OVRKOST = DECIMAL(allacolumtext[11]) NO-ERROR.
+         
+         
+         kaltmp.TOTSUM = INTEGER(allacolumtext[12]) NO-ERROR.
+         kaltmp.BEN = allacolumtext[2] NO-ERROR.         
+         kaltmp.ENHET = allacolumtext[3] NO-ERROR.
+      END.
+      
+   
+   END.
+   RUN slutreadexcel_UI.     
+END PROCEDURE.
+
+FIND FIRST KALKBEF WHERE KALKNR = 0 AND KATAR = kalkylar NO-LOCK NO-ERROR.
+FIND FIRST EBRPRIS WHERE EBRPRIS.ARTAL = kalkylar NO-LOCK NO-ERROR.
+FOR EACH kaltmp WHERE NO-LOCK:
+   IF kaltmp.lopnr = 0 THEN DO:
+      CREATE P2.
+      ASSIGN 
+      P2.ARBKOD = kaltmp.arbkod
+      P2.BENAMNING = kaltmp.BEN.
+      P2.KATAR = kalkylar.
+   END.   
+   ELSE DO:   
+      FIND FIRST lop2 WHERE lop2.arbkod = kaltmp.arbkod AND lop2.lopnr = kaltmp.lopnr AND lop2.KATAR = kalkylar EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE lop2 THEN DO:
+         CREATE LOP2.
+         ASSIGN LOP2.ARBKOD = kaltmp.arbkoD lop2.lopnr = kaltmp.lopnr LOP2.KATAR = kalkylar.
+      END.
+      /*ovkoll = FALSE.
+      IF lop2.ovrigt NE 0 AND lop2.materiel = 0 THEN ovkoll = TRUE.*/
+      
+      ASSIGN
+      LOP2.ENHET = kaltmp.ENHET
+      LOP2.BENAMNING = ""
+      SUBSTRING(LOP2.BENAMNING,1,60) = kaltmp.ARBKOD + STRING(kaltmp.LOPNR) + " " +  kaltmp.BEN
+      /*SUBSTRING(LOP2.BENAMNING,60) = kaltmp.KOMM*/
+      LOP2.F1 = kaltmp.BANTAL
+      LOP2.F2 = kaltmp.MOANTAL.
+      
+      IF kaltmp.MASKKOST = kaltmp.MAANTAL *  EBRPRIS.MASK2 THEN LOP2.F4 = kaltmp.MAANTAL.
+      ELSE IF kaltmp.MASKKOST = kaltmp.MAANTAL *  EBRPRIS.MASK1 THEN LOP2.F3 = kaltmp.MAANTAL.
+      ELSE LOP2.F4 = kaltmp.MAANTAL.
+      
+      /*IF LOP2.F3 = 0 AND LOP2.F4 = 0 THEN LOP2.F4 = kaltmp.MAANTAL.
+      ELSE IF LOP2.F4 NE 0 THEN LOP2.F4 = kaltmp.MAANTAL.
+      ELSE IF LOP2.F3 NE 0 THEN LOP2.F3 = kaltmp.MAANTAL.*/
+      LOP2.MASKINKOST = EBRPRIS.mask1  * LOP2.F3 +  EBRPRIS.mask2 * LOP2.F4.
+      lop2.ea = lop2.f2 + ((lop2.f3 * ebrpris.MASK1) / ebrpris.RORLIG) + ((lop2.f4 * ebrpris.MASK2) / ebrpris.RORLIG).
+      LOP2.ARBETE = (lop2.f1 + lop2.f2) * EBRPRIS.MONT.
+      ASSIGN
+      LOP2.UTRUSTKOST = 0
+      LOP2.OVRIGT = kaltmp.OVRKOST
+      LOP2.MATERIEL = kaltmp.MATERIEL.
+      
+      
+      kvar = kaltmp.TOTSUM - LOP2.ARBETE - LOP2.MASKINKOST - LOP2.OVRIGT - LOP2.MATERIEL.
+      IF kvar NE 0 THEN DO:
+         LOP2.UTRUSTKOST = kvar.      
+         lop2.fast = TRUE.
+      END.   
+      /*IF kvar > 0 AND ovkoll = FALSE THEN DO:
+         LOP2.MATERIEL = kvar.
+         lop2.fast = TRUE.
+      END.
+      ELSE IF kvar > 0 AND ovkoll = TRUE THEN DO:
+         LOP2.OVRIGT = kvar.
+         lop2.fast = TRUE.
+      END.
+      ELSE IF kvar < 0 THEN DO:
+         LOP2.UTRUSTKOST = kvar.      
+         lop2.fast = TRUE.
+      END.*/
+   END.
+
+   
+
+   
+END.
+
+/*DEFINE VARIABLE ARBVAR AS DECIMAL NO-UNDO.
+FIND FIRST KALKBEF WHERE KALKNR = 0 AND KATAR = kalkylar NO-LOCK NO-ERROR.
+FIND FIRST EBRPRIS WHERE EBRPRIS.ARTAL = kalkylar NO-LOCK NO-ERROR.
+FOR EACH lop2  WHERE lop2.katar = kalkylar AND lop2.arbkod = "skJ" :
+   FIND FIRST kaltmp WHERE kaltmp.arbkod = lop2.arbkod AND kaltmp.lopnr = lop2.lopnr   NO-LOCK NO-ERROR.
+   IF AVAILABLE kaltmp  THEN DO:
+   END.
+   ELSE DO:
+      DISP LOP2.
+   END.
+   /*ARBVAR = (LOP2.F1 + LOP2.F2) * EBRPRIS.MONT.
+   /*DISP LOP2.ARBKOD LOP2.LOPNR LOP2.ARBETE   ARBVAR.*/
+   LOP2.ARBETE = ARBVAR.*/
+END.*/
+
+/*FOR EACH lop2  WHERE katar = kalkylar AND arbkod = "skL" :
+   ARBVAR = (LOP2.F1 + LOP2.F2) * EBRPRIS.MONT.
+   /*DISP LOP2.ARBKOD LOP2.LOPNR LOP2.ARBETE   ARBVAR.*/
+   LOP2.ARBETE = ARBVAR.
+END.*/
+  

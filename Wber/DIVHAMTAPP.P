@@ -1,0 +1,318 @@
+/*DIVHAMTAPP.P*/
+              
+{LEVERANT.I}
+{DIRDEF.I}
+
+/* minskar urvalsresultat av projekt till en vald utfärdare (först körs aohmtallt.p sen kör man in uvaldaao hit tillsammans med utfärdare) 
+   ANVÄNDS EJ (till för det "vanliga" sättet att hämta/visa urval) */
+PROCEDURE kollaber_UI :
+   DEFINE INPUT PARAMETER utf AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR uvaldaao.
+   
+   FOR EACH uvaldaao NO-LOCK:
+      FIND FIRST BEREDNING WHERE BEREDNING.AONR = uvaldaao.AONR AND BEREDNING.DELNR = uvaldaao.DELNR AND 
+      BEREDNING.OMRADE = uvaldaao.OMRADE AND BEREDNING.ANVANDARE = utf NO-LOCK NO-ERROR.   
+      IF NOT AVAILABLE BEREDNING THEN DO:
+         DELETE uvaldaao.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE hamtalev_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR templeverant.
+   DEFINE OUTPUT PARAMETER hlevkod AS CHARACTER NO-UNDO.
+
+   FOR EACH LEVERANTOR WHERE LEVERANTOR.BORTTAG = FALSE NO-LOCK:
+      CREATE templeverant.
+      BUFFER-COPY LEVERANTOR TO templeverant.
+   END.   
+   FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+   IF AVAILABLE HUVUDLEV THEN DO:  
+      hlevkod = HUVUDLEV.LEVKOD.      
+   END.
+	
+END PROCEDURE.
+
+/* Hämtar Projekt som har beställningar mellan angivna datum (och lite andra kriterier) */
+PROCEDURE hamtaAO_UI:
+   DEFINE INPUT PARAMETER startdat AS DATE NO-UNDO. /* mellan..*/
+   DEFINE INPUT PARAMETER slutdat AS DATE NO-UNDO.  /* ..och */
+   DEFINE INPUT PARAMETER omrvar AS CHARACTER NO-UNDO. /* = Alla är alla områden, EN eller ALLA*/
+   DEFINE INPUT PARAMETER utfvar AS CHARACTER NO-UNDO. /* = Alla är alla utfärdare, EN eller ALLA*/
+   DEFINE OUTPUT PARAMETER TABLE FOR uvaldaao.
+   DEFINE VARIABLE adda AS LOGICAL NO-UNDO.
+
+   EMPTY TEMP-TABLE uvaldaao.
+   /* Hämta beställningar gjorda mellan...och */
+   /*RUN hamtaBS_UI (INPUT startdat,INPUT slutdat,OUTPUT TABLE tempbeststatall).*/
+   RUN hamtaBS_UI (INPUT startdat,INPUT slutdat).
+   FOR EACH tempbeststatall NO-LOCK: 
+      /* Utfärdare-koll */
+      IF utfvar = "Alla" THEN DO:
+         FIND FIRST BEREDNING WHERE BEREDNING.BERNR = tempbeststatall.BERNR AND  
+         BEREDNING.OMRADE = tempbeststatall.OMRADE NO-LOCK NO-ERROR. /*BEREDNING.DELNR = delnrvar */
+      END.
+      ELSE DO:
+         FIND FIRST BEREDNING WHERE BEREDNING.ANVANDARE = utfvar AND 
+         BEREDNING.BERNR = tempbeststatall.BERNR AND  BEREDNING.OMRADE = tempbeststatall.OMRADE NO-LOCK NO-ERROR. /*BEREDNING.DELNR = delnrvar */
+      END.        
+      /* Område-koll */
+      IF omrvar = "Alla" THEN DO:            
+         adda = TRUE.    
+      END.
+      ELSE DO:
+         IF tempbeststatall.OMRADE = omrvar THEN DO:                
+            adda = TRUE.
+         END.
+         ELSE adda = FALSE.
+      END.
+      IF AVAILABLE BEREDNING AND adda = TRUE THEN DO:
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = BEREDNING.AONR AND AONRTAB.DELNR = BEREDNING.DELNR NO-LOCK NO-ERROR.
+            
+         IF AVAILABLE AONRTAB THEN DO:
+            FIND FIRST uvaldaao WHERE uvaldaao.AONR = AONRTAB.AONR AND uvaldaao.DELNR = AONRTAB.DELNR NO-LOCK NO-ERROR.
+                
+            IF NOT AVAILABLE uvaldaao THEN DO:                    
+               CREATE uvaldaao.
+               BUFFER-COPY AONRTAB TO uvaldaao.
+            END.
+         END.    
+      END.     
+
+   END.    
+END PROCEDURE.
+
+PROCEDURE hamtadep_UI:
+   DEFINE INPUT PARAMETER startdat AS DATE NO-UNDO. /* mellan..*/
+   DEFINE INPUT PARAMETER slutdat AS DATE NO-UNDO.  /* ..och */
+   DEFINE OUTPUT PARAMETER TABLE FOR tempbermtrl .
+   /*DEFINE INPUT PARAMETER omrvar AS CHARACTER NO-UNDO. /* = Alla är alla områden, EN eller ALLA*/
+   DEFINE INPUT PARAMETER utfvar AS CHARACTER NO-UNDO. /* = Alla är alla utfärdare, EN eller ALLA*/
+   DEFINE OUTPUT PARAMETER TABLE FOR uvaldaao.*/
+   DEFINE VARIABLE adda AS LOGICAL NO-UNDO.
+   EMPTY TEMP-TABLE tempbermtrl NO-ERROR. 
+   /* Hämta beställningar gjorda mellan...och */
+   RUN hamtaBS_UI (INPUT startdat,INPUT slutdat).
+   FOR EACH tempbeststatall WHERE tempbeststatall.BESTNR > 0 AND tempbeststatall.BERNR = 0  NO-LOCK:       
+      FOR EACH BESTDEP WHERE BESTDEP.DEPNR = tempbeststatall.DEP-NR AND BESTDEP.BESTNR = tempbeststatall.BESTNR /*AND BESTDEP.LEVDATUM NE ? AND
+      BESTDEP.BERED = FALSE AND BESTDEP.LEVNAMN = ""*/ NO-LOCK:      
+         CREATE tempbermtrl.
+         ASSIGN
+         tempbermtrl.ENR       = BESTDEP.ENR
+         tempbermtrl.DEPNR      = BESTDEP.DEPNR
+         tempbermtrl.BESTNR     = BESTDEP.BESTNR         
+         tempbermtrl.INKOP     = TRUE
+         tempbermtrl.LEVKOD    = BESTDEP.LEVKOD
+         tempbermtrl.BENAMNING = BESTDEP.BENAMNING
+         tempbermtrl.ANTAL     = BESTDEP.ANTAL
+         tempbermtrl.PRIS      = BESTDEP.PRIS
+         tempbermtrl.DATUM     = BESTDEP.LEVDATUM
+         tempbermtrl.ENHET     = BESTDEP.ENHET.
+         tempbermtrl.DATUM = tempbeststatall.BESTDATUM.               
+         FIND FIRST LEVTRP WHERE LEVTRP.BERNR = 0 AND LEVTRP.BESTNR = tempbermtrl.BESTNR AND LEVTRP.Dep-Nr = tempbermtrl.DEPNR     NO-LOCK NO-ERROR.      
+         IF AVAILABLE LEVTRP THEN DO:
+             tempbermtrl.PROJLED = SUBSTRING(LEVTRP.KIKONTAKT,1,50). 
+         END.                      
+      END.      
+   END.    
+END PROCEDURE.
+
+/* Alla beststatar mellan angivna datum */
+PROCEDURE hamtaBS_UI:
+   DEFINE INPUT PARAMETER startdat AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER slutdat AS DATE NO-UNDO.
+   /*DEFINE OUTPUT PARAMETER TABLE FOR tempbeststatall.*/
+   EMPTY TEMP-TABLE tempbeststatall.
+   FOR EACH BESTSTAT WHERE BESTSTAT.DATUM >= startdat AND BESTSTAT.DATUM <= slutdat NO-LOCK:
+      CREATE tempbeststatall.
+      BUFFER-COPY BESTSTAT TO tempbeststatall.
+      ASSIGN
+      tempbeststatall.BESTDATUM = BESTSTAT.DATUM.
+   END.
+END PROCEDURE.
+
+/*Hämtar bäststat för EN beredning */        
+PROCEDURE hamtabeststat_UI :   
+   DEFINE INPUT PARAMETER bernrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omradevar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TOGGLE-LEV AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER levkodvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER startdat AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER slutdat AS DATE NO-UNDO.
+   /*DEFINE OUTPUT PARAMETER TABLE FOR tempbeststat.*/
+   
+   /* hämta beststatar som är gjorda inom intervall */    
+   /*ALLA LEV*/
+   IF TOGGLE-LEV = TRUE THEN DO:
+      FOR EACH BESTSTAT WHERE BESTSTAT.DATUM >= startdat AND 
+      BESTSTAT.DATUM <= slutdat AND BESTSTAT.BERNR = INTEGER(bernrvar) AND BESTSTAT.OMRADE = omradevar NO-LOCK: 
+         FIND FIRST tempbeststat WHERE tempbeststat.BERNR = INTEGER(bernrvar) AND tempbeststat.OMRADE = omradevar AND 
+         tempbeststat.BESTNR = BESTSTAT.BESTNR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE tempbeststat THEN DO:      
+            CREATE tempbeststat.
+            BUFFER-COPY BESTSTAT TO tempbeststat. 
+         END. 
+         ELSE DO:
+            IF tempbeststat.BESTDATUM < BESTSTAT.DATUM THEN tempbeststat.BESTDATUM = BESTSTAT.DATUM.                    
+         END.         
+      END.
+   END.
+   /*ANGIVEN LEV*/
+   ELSE DO:
+      FOR EACH BESTSTAT WHERE BESTSTAT.DATUM >= startdat AND BESTSTAT.DATUM <= slutdat AND 
+      BESTSTAT.LEVKOD = levkodvar AND BESTSTAT.BERNR = INTEGER(bernrvar) AND BESTSTAT.OMRADE = omradevar NO-LOCK:           
+         CREATE tempbeststat.
+         BUFFER-COPY BESTSTAT TO tempbeststat.           
+      END.    
+   END.    
+   
+   FOR EACH tempbeststat NO-LOCK: 
+      FIND FIRST LEVTRP WHERE LEVTRP.BERNR = tempbeststat.BERNR AND 
+      LEVTRP.OMRADE = tempbeststat.OMRADE AND LEVTRP.BESTNR = tempbeststat.BESTNR AND LEVTRP.LEVKOD = tempbeststat.LEVKOD. /*AND TRIM(SUBSTRING(LEVTRP.LEVERANS,1,15)) = STRING(INTEGER(tempbeststat.DATUM))*/
+      
+      /*MESSAGE LEVTRP.BESTNR "<-lev||tempbeststat->" tempbeststat.BESTNR VIEW-AS ALERT-BOX.*/
+      IF AVAILABLE LEVTRP THEN DO:
+         /*MESSAGE TRIM(SUBSTRING(LEVTRP.LEVERANS,20,15)) VIEW-AS ALERT-BOX.*/
+         tempbeststat.BESTTID = INTEGER(TRIM(SUBSTRING(LEVTRP.LEVERANS,20,15))).
+      END.              
+   END.
+   
+END PROCEDURE.
+
+/* Sätta rätt AONR och Projinköpare */
+PROCEDURE aoproj_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tempbermtrl.
+   
+   FOR EACH tempbermtrl:
+      /* Först hämta Kontaktperson Inköp */      
+      FIND FIRST LEVTRP WHERE LEVTRP.BERNR = INTEGER(tempbermtrl.AONR) AND 
+      LEVTRP.OMRADE = tempbermtrl.OMRADE AND TRIM(SUBSTRING(LEVTRP.LEVERANS,1,15)) = STRING(INTEGER(tempbermtrl.DATUM)) 
+      AND TRIM(SUBSTRING(LEVTRP.LEVERANS,20,15)) = STRING(tempbermtrl.DELNR) NO-LOCK NO-ERROR.      
+      IF AVAILABLE LEVTRP THEN DO:
+         tempbermtrl.PROJLED = SUBSTRING(LEVTRP.KIKONTAKT,1,50). 
+         /*tempbermtrl.DATUM = LEVTRP.DATUM. BESTSTAT.*/
+         /*tempbermtrl.DELNR ÄR KLOCKSLAG I SEKUNDER*/    
+         /*häääär ccc*/
+         FIND FIRST tempbeststatall WHERE tempbeststatall.BERNR = LEVTRP.BERNR AND tempbeststatall.OMRADE = LEVTRP.OMRADE AND tempbeststatall.BESTNR = LEVTRP.BESTNR NO-LOCK NO-ERROR.
+         IF AVAILABLE tempbeststatall THEN DO:
+            tempbermtrl.DATUM = tempbeststatall.BESTDATUM.
+         END.
+         /*FIND FIRST tempbeststat WHERE tempbeststat.BERNR = LEVTRP.BERNR AND tempbeststat.OMRADE = LEVTRP.OMRADE AND tempbeststat.BESTNR = LEVTRP.BESTNR NO-LOCK NO-ERROR.
+         IF AVAILABLE tempbeststat THEN DO:
+            tempbermtrl.DATUM = tempbeststat.DATUM.
+         END.*/         
+      END.          
+      /* .. Sedan sätta AONR istället för BERNR då det är AONR som ska visas */                              
+      FIND FIRST BEREDNING WHERE BEREDNING.BERNR = INTEGER(tempbermtrl.AONR) AND 
+      BEREDNING.OMRADE = tempbermtrl.OMRADE NO-LOCK NO-ERROR.
+      IF AVAILABLE BEREDNING THEN DO:
+         ASSIGN
+         tempbermtrl.AONR = BEREDNING.AONR
+         tempbermtrl.DELNR = BEREDNING.DELNR.
+      END.
+   END. 
+         
+END PROCEDURE.      
+
+/* Bermtrl för EN beredning */
+PROCEDURE hamtabermtrl_UI :
+   DEFINE INPUT PARAMETER TOGGLE-LEV AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER levnamnvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER omradevar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN-STARTDAT AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN-STOPPDAT AS DATE NO-UNDO. 
+   DEFINE OUTPUT PARAMETER TABLE FOR tempbermtrl.
+   DEFINE VARIABLE bernrvar  AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE levkodvar AS CHARACTER NO-UNDO.
+   /*DEFINE VARIABLE omrber AS CHARACTER NO-UNDO. /*temp */*/
+
+   EMPTY TEMP-TABLE tempbermtrl.
+   EMPTY TEMP-TABLE tempbeststat.
+   FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVNAMN = levnamnvar NO-LOCK NO-ERROR.
+   IF AVAILABLE LEVERANTOR THEN DO:
+      levkodvar = LEVERANTOR.LEVKOD.
+   END.   
+   /*FIND FIRST BEREDNING WHERE BEREDNING.AONR = aonrvar AND BEREDNING.DELNR = delnrvar AND 
+   BEREDNING.OMRADE = omradevar NO-LOCK NO-ERROR.*/
+   FIND FIRST BEREDNING WHERE BEREDNING.AONR = aonrvar AND BEREDNING.DELNR = delnrvar NO-LOCK NO-ERROR.
+   
+   
+   IF AVAILABLE BEREDNING THEN DO:
+      bernrvar = STRING(BEREDNING.BERNR).       
+      omradevar = BEREDNING.OMRADE.
+   END.
+   EMPTY TEMP-TABLE tempbermtrl.
+   EMPTY TEMP-TABLE tempbeststat.    
+   RUN hamtabeststat_UI (INPUT bernrvar, INPUT omradevar, INPUT TOGGLE-LEV, INPUT levkodvar, INPUT FILL-IN-STARTDAT, INPUT FILL-IN-STOPPDAT).                 
+   /*ALLA LEV*/
+   IF TOGGLE-LEV = TRUE THEN DO:
+      FOR EACH tempbeststat NO-LOCK:                                                                         
+         FOR EACH BERMTRL WHERE BERMTRL.AONR = bernrvar AND BERMTRL.OMRADE = omradevar AND 
+         BERMTRL.INKOP = TRUE AND BERMTRL.KLAR = TRUE AND BERMTRL.DATUM = tempbeststat.BERDATUM AND BERMTRL.ANTAL > 0 AND BERMTRL.DELNR = tempbeststat.BESTTID AND BERMTRL.LEVKOD = tempbeststat.LEVKOD NO-LOCK:         
+            CREATE tempbermtrl.
+            BUFFER-COPY BERMTRL TO tempbermtrl.
+         END.      
+         FOR EACH BERLINKAB WHERE BERLINKAB.AONR = bernrvar AND BERLINKAB.OMRADE = omradevar AND 
+         BERLINKAB.DELNR NE ? AND BERLINKAB.DATUM = tempbeststat.BERDATUM AND BERLINKAB.TOTMETER > 0 NO-LOCK:
+            CREATE tempbermtrl.
+            ASSIGN
+               tempbermtrl.ENR       = BERLINKAB.ENR
+               tempbermtrl.AONR      = BERLINKAB.AONR
+               tempbermtrl.DELNR     = BERLINKAB.DELNR
+               tempbermtrl.OMRADE    = BERLINKAB.OMRADE
+               tempbermtrl.INKOP     = TRUE
+               tempbermtrl.LEVKOD    = BERLINKAB.LEVKOD
+               tempbermtrl.BENAMNING = BERLINKAB.BENAMNING
+               tempbermtrl.ANTAL     = BERLINKAB.TOTMETER
+               tempbermtrl.PRIS      = BERLINKAB.PRIS
+               tempbermtrl.DATUM     = BERLINKAB.DATUM
+               tempbermtrl.ENHET     = "M".                
+         END.  
+      END. 
+   END.
+   /* ANGIVEN LEV */
+   ELSE IF TOGGLE-LEV = FALSE THEN DO:
+      FOR EACH tempbeststat NO-LOCK:
+         FOR EACH BERMTRL WHERE BERMTRL.LEVKOD = levkodvar AND BERMTRL.AONR = bernrvar AND 
+         BERMTRL.OMRADE = omradevar AND BERMTRL.INKOP = TRUE AND BERMTRL.KLAR = TRUE AND 
+         BERMTRL.DATUM = tempbeststat.BERDATUM AND BERMTRL.ANTAL > 0 NO-LOCK:
+            CREATE tempbermtrl.
+            BUFFER-COPY BERMTRL TO tempbermtrl.          
+         END.                       
+         FOR EACH BERLINKAB WHERE BERLINKAB.LEVKOD = levkodvar AND BERLINKAB.AONR = bernrvar AND 
+         BERLINKAB.DELNR = delnrvar AND BERLINKAB.OMRADE = omradevar AND BERLINKAB.DELNR NE ? AND 
+         BERLINKAB.DATUM = tempbeststat.BERDATUM AND BERLINKAB.TOTMETER > 0 NO-LOCK:
+            CREATE tempbermtrl.
+            ASSIGN
+            tempbermtrl.ENR       = BERLINKAB.ENR
+            tempbermtrl.AONR      = BERLINKAB.AONR
+            tempbermtrl.DELNR     = BERLINKAB.DELNR
+            tempbermtrl.OMRADE    = BERLINKAB.OMRADE
+            tempbermtrl.INKOP     = TRUE
+            tempbermtrl.LEVKOD    = BERLINKAB.LEVKOD
+            tempbermtrl.BENAMNING = BERLINKAB.BENAMNING
+            tempbermtrl.ANTAL     = BERLINKAB.TOTMETER
+            tempbermtrl.PRIS      = BERLINKAB.PRIS
+            tempbermtrl.DATUM     = BERLINKAB.DATUM
+            tempbermtrl.ENHET     = "M".
+         END.   
+      END.                  
+   END.      
+END PROCEDURE.
+
+PROCEDURE prisa_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tempbermtrl.
+
+   FOR EACH tempbermtrl NO-LOCK:
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = tempbermtrl.LEVKOD AND MTRL.ENR = tempbermtrl.ENR AND 
+      MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         tempbermtrl.PRIS = MTRL.NPRIS.
+      END.
+      ELSE DO:
+         tempbermtrl.PRIS = 0.
+      END.
+   END.
+END PROCEDURE.

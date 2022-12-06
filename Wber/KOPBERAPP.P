@@ -1,0 +1,182 @@
+/*KOPBERAPP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{AONRDEF.I}
+{AVTAONRTEMP.I}
+{OMRTEMPW.I}
+{EXTRATAB.I}  
+
+
+{BERTEMPTAB.I} 
+DEFINE INPUT  PARAMETER classerkollin AS CHARACTER NO-UNDO.
+Guru.Konstanter:varforetypchar[48] = classerkollin.
+DEFINE TEMP-TABLE onodigbertemp NO-UNDO LIKE valberedningtemp.
+
+
+DEFINE VARIABLE fbestapph AS HANDLE NO-UNDO.                      /*EXTRATABHMT*/
+DEFINE VARIABLE berappz AS HANDLE NO-UNDO. /* nytt för ej samma område */
+
+PROCEDURE berhmt.
+   DEFINE INPUT PARAMETER omr AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR beredningtemp.
+   EMPTY TEMP-TABLE beredningtemp NO-ERROR. 
+   IF omr NE "" THEN DO:
+      OPEN QUERY bq FOR EACH BEREDNING WHERE BEREDNING.OMRADE = omr NO-LOCK.
+   END.
+   ELSE DO:
+      OPEN QUERY bq FOR EACH BEREDNING NO-LOCK.
+   END.
+   GET FIRST bq NO-LOCK.
+   DO WHILE AVAILABLE(BEREDNING):
+      IF BEREDNING.AKTIV = FALSE THEN.
+      ELSE IF BEREDNING.AONR = ? THEN DO TRANSACTION:
+         CREATE beredningtemp.
+         BUFFER-COPY BEREDNING TO beredningtemp.
+      END.
+      GET NEXT bq NO-LOCK.
+   END.
+   CLOSE QUERY bq.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE btnreg.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER berednr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER omr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER beredaonr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   DEFINE OUTPUT PARAMETER nybernr   AS INTEGER   NO-UNDO.
+   DEFINE OUTPUT PARAMETER nyomr     AS CHARACTER NO-UNDO.
+   
+   DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+  
+   DEFINE VARIABLE gambernr  AS INTEGER   NO-UNDO.
+   DEFINE VARIABLE gamomrade AS CHARACTER NO-UNDO.   
+   
+   DEFINE VARIABLE nyaonr    AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE berben    AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE kalkkopp  AS LOGICAL   NO-UNDO.
+   DEFINE VARIABLE katvar    AS INTEGER   NO-UNDO.
+   DEFINE VARIABLE anvvar    AS CHARACTER NO-UNDO.  
+  
+   FOR EACH felmeddtemp:
+      DELETE felmeddtemp.
+   END.  
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+   AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.
+   FIND FIRST BERANV WHERE BERANV.AONR = beredaonr AND 
+   BERANV.OMRADE =  omr USE-INDEX OMR NO-LOCK NO-ERROR.
+   FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = SUBSTRING(BERANV.ANVANDARE,1,40) 
+   NO-LOCK NO-ERROR.  
+   DO TRANSACTION:     
+      FIND FIRST BEREDNING WHERE BEREDNING.BERNR = berednr AND
+      BEREDNING.OMRADE = omr EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BEREDNING THEN DO:   
+         
+         IF AVAILABLE BERANV THEN DO:
+            IF SUBSTRING(BERANV.ANVANDAR,50,6) = "Export" THEN DO:
+               CREATE felmeddtemp.
+               ASSIGN 
+               felmeddtemp.FELMEDD = "Beredningen är exporterad. Utfärdare är " + ANVANDARE.AV-NAMN + 
+                  ". Funktionen ej möjlig att utföra."
+               felmeddtemp.VAL = 2.
+               RETURN.            
+            END.
+            ELSE DO:
+               CREATE felmeddtemp.
+               ASSIGN 
+               felmeddtemp.FELMEDD = "Beredningen används av " + ANVANDARE.AV-NAMN + 
+                  ". Funktionen ej möjlig att utföra."
+               felmeddtemp.VAL = 3.
+               RETURN.
+            END.           
+         END.
+         IF BEREDNING.AONR NE ? THEN DO:
+            CREATE felmeddtemp.
+            ASSIGN 
+            felmeddtemp.FELMEDD = "Beredningen är redan kopplad till ett annat " + LC(Guru.Konstanter:gaok).
+            felmeddtemp.VAL = 4.
+            RETURN.         
+         END.
+         IF NOT VALID-HANDLE(fbestapph) THEN RUN EXTRATABHMT.P PERSISTENT SET fbestapph.
+         EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+         /*KALKYL-BEREDNING SUNDSVALL*/
+         CREATE inextrakopptemp.          
+         ASSIGN
+         inextrakopptemp.PROGRAM = "KALKBER"                   
+         inextrakopptemp.KOPPLACHAR1 = ?              
+         inextrakopptemp.KOPPLAINT1 = ?
+         inextrakopptemp.KOPPLACHAR2 = BEREDNING.OMRADE
+         inextrakopptemp.KOPPLAINT2 =  BEREDNING.BERNR.
+         RUN finnsextra_UI IN fbestapph (INPUT TABLE inextrakopptemp, OUTPUT bloblog).
+         EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+         IF bloblog = TRUE THEN DO:
+            IF VALID-HANDLE(fbestapph) THEN DELETE PROCEDURE fbestapph.                   
+            fbestapph = ?.
+            CREATE felmeddtemp.
+            ASSIGN 
+            felmeddtemp.FELMEDD = "Beredningen är redan kopplad till en kalkyl och kan inte kopplas till ett " + LC(Guru.Konstanter:gaok).
+            felmeddtemp.VAL = 5.
+            RETURN.               
+         END.
+         /*NY */      
+          /* omr = inputtat beredningtemp.OMRADE */
+         IF AONRTAB.OMRADE NE omr THEN DO: /* om område inte är samma för aonr och ber: 1. Skapa Berhuvud (Beredning) 2. Kopiera ber */
+            
+            gambernr = BEREDNING.BERNR.
+            gamomrade = BEREDNING.OMRADE.
+            berben = BEREDNING.BENAMNING.
+            nyomr = AONRTAB.OMRADE.
+            nyaonr = AONRTAB.AONR.
+            kalkkopp = BEREDNING.KALKYL.
+            katvar = BEREDNING.KATAR. /**/
+            anvvar = BEREDNING.ANVANDARE. /* hmm*/
+            
+            EMPTY TEMP-TABLE onodigbertemp NO-ERROR. 
+            
+            RUN NYBERAPP.P PERSISTENT SET berappz (INPUT Guru.Konstanter:varforetypchar[48]).            
+            RUN ny2_UI IN berappz (INPUT nyomr, INPUT "NYA", OUTPUT nybernr). /* kollar till skillnad från ny_UI efter omrade.omrade istället för omrade.namn...*/            
+            RUN reg_UI IN berappz (INPUT nyomr, INPUT "NYAKB", INPUT-OUTPUT aonrvar, 
+            INPUT-OUTPUT delnrvar, INPUT-OUTPUT gamomrade, INPUT-OUTPUT berednr,
+            INPUT anvvar, INPUT nybernr,
+            INPUT berben, INPUT kalkkopp,
+            INPUT-OUTPUT TABLE onodigbertemp,
+            OUTPUT berben, OUTPUT katvar, OUTPUT TABLE felmeddtemp).
+            
+            
+            RUN KOPIBER.P (INPUT gambernr, INPUT omr, INPUT STRING(nybernr), INPUT nyomr).
+            
+            /*MESSAGE "Ditt nya beredningsnummer är " berednr  VIEW-AS ALERT-BOX.  /* kopberedn.w ligger i */ */
+            
+            RUN DELBERE.P (INPUT STRING(BEREDNING.BERNR), INPUT BEREDNING.OMRADE).
+            DELETE BEREDNING.
+            
+            
+         END. 
+         ELSE DO:
+            ASSIGN /* här sker kopplingen till AONR (bara från samma område) */                                  
+               BEREDNING.AONR = aonrvar  
+               BEREDNING.DELNR = delnrvar.         
+         END.
+         /* SLUT NY */
+         /* gammal
+         ASSIGN                                  
+         BEREDNING.AONR = aonrvar  
+         BEREDNING.DELNR = delnrvar.
+         */                  
+      END.
+      ELSE DO:
+         CREATE felmeddtemp.
+         ASSIGN 
+         felmeddtemp.FELMEDD = "Beredningen finns inte!".
+         felmeddtemp.VAL = 6.
+      END.
+   END.
+   IF VALID-HANDLE(fbestapph) THEN DELETE PROCEDURE fbestapph.      
+   fbestapph = ?.
+   RELEASE BEREDNING NO-ERROR.
+END PROCEDURE.
+

@@ -1,0 +1,199 @@
+/*ESSKYLTMALL.P UTLÄSNING AV MTRL KOPPLAT TILL KONSTRUKTIONER TILL EXCEL*/ 
+
+
+
+
+DEFINE VARIABLE felexcel AS LOGICAL NO-UNDO.
+&Scoped-define NEW 
+{GLOBVAR2DEL1.I}  
+{REGVAR.I}
+{ANMARKD.I}
+{BEREDNINGTEMP.I}
+{ANVPERS.I}
+{LISTDEF.I} 
+DEFINE TEMP-TABLE mtrl_temp2   
+   {MTRLTEMP2TT.I}
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{BLOB.I}
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE blobproch AS HANDLE NO-UNDO.
+
+DEFINE INPUT PARAMETER TABLE FOR mtrl_temp.
+DEFINE INPUT PARAMETER prisvar AS INTEGER.
+DEFINE INPUT PARAMETER valaonr AS INTEGER.
+DEFINE INPUT PARAMETER valomrade AS CHARACTER.
+DEFINE INPUT PARAMETER valort AS CHARACTER.
+DEFINE INPUT PARAMETER edmedd AS CHARACTER.
+DEFINE VARIABLE chExcelApplication      AS COM-HANDLE.
+DEFINE VARIABLE chWorkbook              AS COM-HANDLE.
+DEFINE VARIABLE chWorksheet             AS COM-HANDLE.
+DEFINE VARIABLE chChart                 AS COM-HANDLE.
+DEFINE VARIABLE chWorksheetRange        AS COM-HANDLE.
+DEFINE VARIABLE iCount                  AS INTEGER.
+DEFINE VARIABLE iIndex                  AS INTEGER.
+DEFINE VARIABLE iMonth                  AS INTEGER.
+DEFINE VARIABLE dAnnualQuota            AS DECIMAL.
+DEFINE VARIABLE dTotalSalesAmount       AS DECIMAL.
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 0.
+DEFINE VARIABLE cColumn                 AS CHARACTER.
+DEFINE VARIABLE cRange                  AS CHARACTER.
+DEFINE VARIABLE slutsumvar              AS DECIMAL.
+DEFINE VARIABLE link AS CHARACTER NO-UNDO.
+DEFINE VARIABLE plockexcapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE aonrvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE delnrvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE fnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sidvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE kommando2 AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE radrak AS INTEGER NO-UNDO.
+DEFINE VARIABLE hjcol AS CHARACTER NO-UNDO.
+DEFINE VARIABLE skid AS CHARACTER EXTENT 4 NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE sokpkod AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE beredningtemp NO-ERROR. 
+   EMPTY TEMP-TABLE personaltemp NO-ERROR. 
+   EMPTY TEMP-TABLE anvandartemp NO-ERROR.
+   ASSIGN
+   aonrvar = ""
+   delnrvar = 0.
+   IF Guru.Konstanter:appcon THEN DO:
+      RUN PLOCKEXCAPP.P PERSISTENT SET plockexcapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+   END.
+   ELSE DO:
+      RUN PLOCKEXCAPP.P PERSISTENT SET plockexcapph.
+   END. 
+   RUN hamta_UI IN plockexcapph (INPUT Guru.Konstanter:globanvpkod,INPUT valaonr,INPUT valomrade,
+                                  OUTPUT aonrvar,OUTPUT delnrvar,OUTPUT TABLE beredningtemp,
+                                  OUTPUT TABLE personaltemp,OUTPUT TABLE anvandartemp,OUTPUT sokpkod).   
+   ASSIGN
+   fnamn = "SkyltEONE.xls"
+   sidvar = 1.   
+   IF Guru.Konstanter:appcon THEN RUN FINNSTABELL.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT (INPUT "BLOBINFO", OUTPUT bloblog).
+   ELSE RUN FINNSTABELL.P (INPUT "BLOBINFO", OUTPUT bloblog).
+   IF bloblog = TRUE THEN DO:
+      {FINNSDYNBLOB.I} 
+      DEFINE VARIABLE resid AS INTEGER NO-UNDO.   
+      RUN blobfil_UI IN blobproch (INPUT fnamn, OUTPUT resid).      
+      IF resid = ? THEN kommando = SEARCH(fnamn).
+      ELSE DO:      
+         FIND FIRST blobinfotemp WHERE blobinfotemp.ID = resid NO-LOCK NO-ERROR.      
+         RUN blobopen_UI IN blobproch (INPUT blobinfotemp.FILNAMN, OUTPUT kommando).
+      END.
+      RUN deleteproc_UI IN blobproch.
+      IF VALID-HANDLE(blobproch) THEN DELETE PROCEDURE blobproch NO-ERROR.
+   END.
+   ELSE kommando = SEARCH(fnamn).   
+   IF kommando = ? THEN DO:
+      MESSAGE "Hittade inte " fnamn VIEW-AS ALERT-BOX.
+      RETURN.       
+   END.  
+   kommando2 = SESSION:TEMP-DIRECTORY + Guru.Konstanter:globanv + "\".
+   {SESSIONTEMPDIR.I}
+   IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN kommando2 = webclienttempdir.
+   OS-CREATE-DIR VALUE(kommando2) NO-ERROR.
+   IF Guru.GlobalaVariabler:plusaonr = "" OR Guru.GlobalaVariabler:plusaonr = ? THEN DO:
+      kommando2 = kommando2 + fnamn.
+   END.
+   ELSE DO:
+      kommando2 = kommando2 + TRIM (Guru.GlobalaVariabler:plusaonr) + TRIM(STRING(Guru.GlobalaVariabler:plusdnr,Guru.Konstanter:varforetypchar[1])) + fnamn.
+   END.
+   OS-COPY VALUE(kommando) VALUE(kommando2).
+   kommando = kommando2.
+   CREATE "Excel.Application" chExcelApplication.
+   chExcelApplication:Visible = TRUE NO-ERROR.   
+   {OPENEXCEL.I}
+   chWorkbook = chExcelApplication:Workbooks:OPEN(kommando)  NO-ERROR.
+   chWorkSheet = chExcelApplication:Sheets:Item(sidvar)  NO-ERROR.        
+   IF Guru.GlobalaVariabler:plusaonr NE "" THEN DO:
+      ASSIGN
+      iColumn = 4         
+      cColumn = STRING(iColumn)
+      cRange = "E" + cColumn.         
+      RUN utexcel_UI (INPUT "polo",INPUT 10,INPUT SUBSTRING(valort,1,24)).
+      ASSIGN
+      iColumn = 4         
+      cColumn = STRING(iColumn)
+      cRange = "G" + cColumn.         
+      RUN utexcel_UI (INPUT "polo",INPUT 10,INPUT Guru.GlobalaVariabler:plusaonr + STRING(Guru.GlobalaVariabler:plusdnr,Guru.Konstanter:varforetypchar[1])).         
+   END.
+   /* 14 -Jordkabel 0.4 kV 
+      25 - Jordkabel 12 kV 
+      27 - Jordkabel 24 kV */
+   ASSIGN   
+   skid[1] = "a"
+   skid[2] = "c"
+   skid[3] = "e"
+   skid[4] = "g"                  
+   i = 1.
+   radrak = 67.   
+   FOR EACH mtrl_temp WHERE mtrl_temp.grupp = 14 AND mtrl_temp.MTRLTEXT NE "" USE-INDEX NUM NO-LOCK:               
+      ASSIGN
+      iColumn = radrak
+      cColumn = STRING(iColumn)
+      cRange = skid[i] + cColumn.                      
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT STRING(mtrl_temp.MTRLTEXT)).
+      i = i + 1.
+      IF i > 4 THEN DO:
+          i = 1.
+          radrak = radrak + 2.
+      END.                        
+   END.
+   radrak = 24.
+   hjcol = "A".
+   FOR EACH mtrl_temp WHERE mtrl_temp.MTRLTEXT NE "" USE-INDEX NUM NO-LOCK:
+      IF mtrl_temp.grupp = 25 OR mtrl_temp.grupp = 27 THEN DO:                     
+         ASSIGN
+         iColumn = radrak
+         cColumn = STRING(iColumn)
+         cRange = hjcol + cColumn.
+         IF mtrl_temp.grupp = 25 THEN RUN utexcel_UI (INPUT "POLO",INPUT 10,INPUT  "10 kV").
+         IF mtrl_temp.grupp = 27 THEN RUN utexcel_UI (INPUT "POLO",INPUT 10,INPUT  "20 kV").
+         ASSIGN
+         iColumn = radrak + 1
+         cColumn = STRING(iColumn)
+         cRange = hjcol + cColumn.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT STRING(mtrl_temp.MTRLTEXT)).        
+         IF hjcol = "E" THEN radrak = radrak + 3.
+         IF hjcol = "A" THEN hjcol = "E".
+         ELSE IF hjcol = "E" THEN hjcol = "A".
+      END.
+      IF Guru.Konstanter:globforetag = "fors" THEN DO:
+         IF mtrl_temp.grupp = 35 OR mtrl_temp.grupp = 36 THEN DO:                     
+            ASSIGN
+            iColumn = radrak
+            cColumn = STRING(iColumn)
+            cRange = hjcol + cColumn.
+            IF mtrl_temp.grupp = 35 THEN RUN utexcel_UI (INPUT "POLO",INPUT 10,INPUT  "10 kV").
+            IF mtrl_temp.grupp = 36 THEN RUN utexcel_UI (INPUT "POLO",INPUT 10,INPUT  "20 kV").
+            ASSIGN
+            iColumn = radrak + 1
+            cColumn = STRING(iColumn)
+            cRange = hjcol + cColumn.
+            RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT STRING(mtrl_temp.MTRLTEXT)).            
+            IF hjcol = "E" THEN radrak = radrak + 3.
+            IF hjcol = "A" THEN hjcol = "E".
+            ELSE IF hjcol = "E" THEN hjcol = "A".
+         END.         
+      END.
+   END.   
+   RELEASE OBJECT chExcelApplication NO-ERROR.      
+   RELEASE OBJECT chWorkbook NO-ERROR.
+   RELEASE OBJECT chWorksheet NO-ERROR.   
+   IF VALID-HANDLE(plockexcapph) THEN DELETE PROCEDURE plockexcapph.
+
+PROCEDURE utexcel_UI :
+   DEFINE INPUT PARAMETER typsnitt AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER storlek AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER varde AS CHARACTER NO-UNDO.
+   IF varde = "" THEN RETURN.
+   IF varde = ? THEN RETURN.
+   ASSIGN
+   chWorkSheet:Range(cRange):Font:NAME = typsnitt NO-ERROR.
+   chWorkSheet:Range(cRange):Font:SIZE = storlek  NO-ERROR.
+   chWorkSheet:Range(cRange):Value = varde NO-ERROR.  
+   {EXCELFEL.I}
+END PROCEDURE.
+
+

@@ -1,0 +1,384 @@
+
+/*------------------------------------------------------------------------
+    File        : MTRLIFSODBC.P
+    Purpose     : LÄSER FRÅN ODBCMTRL
+
+    Syntax      :KÖRS VIA SCHEMA ELLER MANUELT FRÅN BEREDNING ADM
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Thu Dec 19 10:45:43 CET 2019
+    Notes       :
+  ----------------------------------------------------------------------
+
+
+
+ ***************************  Definitions  ************************** */
+
+
+DEFINE TEMP-TABLE Article NO-UNDO     
+   FIELD StatusA AS CHARACTER XML-NODE-NAME "Status"
+   FIELD GlobalID AS CHARACTER
+   FIELD ArticleNo AS CHARACTER
+   FIELD ArticleName AS CHARACTER
+   FIELD UnitPrice AS DECIMAL
+   FIELD UnitCode AS CHARACTER
+   FIELD LASTIN AS DATETIME 
+   FIELD LEVKOD AS CHARACTER
+   INDEX ArticleNo LASTIN ArticleNo.
+/*   
+DEFINE TEMP-TABLE MessageIN  NO-UNDO XML-NODE-NAME "Message"
+   FIELD RID AS RECID   XML-NODE-TYPE  "HIDDEN" 
+   FIELD MessageType AS CHARACTER
+   FIELD ActionType AS CHARACTER
+   INDEX RID RID.
+DEFINE TEMP-TABLE Supplier NO-UNDO      
+   FIELD RID AS RECID   XML-NODE-TYPE  "HIDDEN"
+   FIELD ID AS CHARACTER
+   FIELD NAMELEV  AS CHARACTER XML-NODE-NAME "Name"
+   INDEX RID RID.
+   DEFINE TEMP-TABLE filerin NO-UNDO
+   FIELD FILIN AS CHARACTER
+   FIELD NAMNI AS INT64 
+   INDEX FILIN NAMNI FILIN.
+   
+  */   
+
+DEFINE TEMP-TABLE ArticleMTR NO-UNDO     
+  
+   FIELD StatusA AS CHARACTER XML-NODE-NAME "Status"
+   FIELD GlobalID AS CHARACTER     /*E-nummer*/
+   FIELD ArticleNo AS CHARACTER    /*utan e E-nummer*/
+   FIELD ArticleName AS CHARACTER  /*benamning*/
+   FIELD UnitPrice AS DECIMAL
+   FIELD UnitCode AS CHARACTER   /*Enhet*/
+   FIELD LASTIN AS DATETIME
+   FIELD LEVKOD AS CHARACTER
+   INDEX DTI LEVKOD GlobalID LASTIN  . 
+DEFINE BUFFER mtrlbuff FOR MTRL.
+DEFINE VARIABLE antalmtrlin AS INTEGER NO-UNDO.
+DEFINE VARIABLE antlmtrlbh AS INTEGER NO-UNDO.
+DEFINE VARIABLE antlmtrlbort AS INTEGER NO-UNDO.
+
+DEFINE VARIABLE v-datetime    AS DATETIME   NO-UNDO.
+DEFINE VARIABLE datvar AS DATE NO-UNDO.
+DEFINE VARIABLE tidvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cFilein AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cFileinKopia AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dirlist AS CHARACTER NO-UNDO.
+DEFINE VARIABLE attrlist AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lReturn AS LOGICAL NO-UNDO.
+DEFINE VARIABLE senastlvkod AS CHARACTER NO-UNDO.
+
+
+
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE odbcmtrl AS LOGICAL NO-UNDO.
+DEFINE VARIABLE odbcmtrlh AS HANDLE NO-UNDO.
+RUN FINNSTABELL.P (INPUT "ODBCMTRL", OUTPUT odbcmtrl). 
+IF odbcmtrl = TRUE  THEN DO:
+   CREATE WIDGET-POOL "DynTableDirekt" NO-ERROR.
+   CREATE BUFFER odbcmtrlh FOR TABLE "ODBCMTRL" IN WIDGET-POOL "DynTableDirekt".
+END. 
+ELSE RETURN.
+{EXTRADATA.I}
+RUN EXTRADATAHMT.P PERSISTENT SET edataapph. 
+RUN MtrlIfs_UI.
+PROCEDURE MtrlIfs_UI :
+   RUN Import_UI.
+   RUN TillNattKorning_UI.
+END PROCEDURE.
+PROCEDURE Import_UI :
+   DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE qh AS HANDLE NO-UNDO.
+   OUTPUT TO "D:\Elpool\DELAD\PRO9S\IMPORTKOPIA\PROD\IFSMTRL.txt" APPEND.
+   kommandoquery = "FOR EACH " + odbcmtrlh:TABLE + " NO-LOCK BY LASTIN ". 
+   RUN CreateCustomQuery(INPUT odbcmtrlh,INPUT kommandoquery,OUTPUT qh).
+     
+   qH:GET-FIRST().
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      PUT UNFORMATTED  
+      odbcmtrlh:BUFFER-FIELD("StatusA"):BUFFER-VALUE " "
+      odbcmtrlh:BUFFER-FIELD("GlobalID"):BUFFER-VALUE " "
+      odbcmtrlh:BUFFER-FIELD("ArticleNo"):BUFFER-VALUE " "
+      odbcmtrlh:BUFFER-FIELD("ArticleName"):BUFFER-VALUE " "
+      odbcmtrlh:BUFFER-FIELD("UnitPrice"):BUFFER-VALUE " "
+      odbcmtrlh:BUFFER-FIELD("UnitCode"):BUFFER-VALUE " "
+      odbcmtrlh:BUFFER-FIELD("LEVKOD"):BUFFER-VALUE " "
+      odbcmtrlh:BUFFER-FIELD("LASTIN"):BUFFER-VALUE " "
+      SKIP.
+      CREATE Article.
+      BUFFER Article:HANDLE:BUFFER-COPY(odbcmtrlh).  
+      DO TRANSACTION:
+         qH:GET-CURRENT(EXCLUSIVE-LOCK).
+         odbcmtrlh:BUFFER-DELETE().
+      END.  
+      qH:GET-NEXT().     
+   END.
+   RUN CloseCustomQuery(INPUT qH).  
+   OUTPUT CLOSE.        
+   FOR EACH Article NO-LOCK:
+      antalmtrlin = antalmtrlin + 1.
+      IF Article.GlobalID = "" THEN .
+      IF Article.GlobalID = ? THEN .
+      ELSE DO:
+         CREATE ArticleMTR.
+         BUFFER-COPY Article TO ArticleMTR. 
+         IF SUBSTRING(ArticleMTR.GlobalID,1,1) = "E" THEN ArticleMTR.GlobalID = SUBSTRING(ArticleMTR.GlobalID,2).
+      END.
+   END.
+     
+   EMPTY TEMP-TABLE Article NO-ERROR.
+      
+  
+END PROCEDURE.      
+
+   
+PROCEDURE TillNattKorning_UI :
+   DEFINE VARIABLE levfk AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE enrin AS CHARACTER NO-UNDO.
+   FOR EACH ArticleMTR WHERE NO-LOCK USE-INDEX DTI:
+      IF ArticleMTR.StatusA = "Active" OR ArticleMTR.StatusA = "" THEN DO:
+         IF ArticleMTR.LEVKOD  NE ""  THEN DO:                 
+            IF levfk NE ArticleMTR.LEVKOD THEN DO:
+               RELEASE LEVERANTOR NO-ERROR. 
+               FIND FIRST LEVERANTOR  WHERE LEVERANTOR.LEVKOD = ArticleMTR.LEVKOD NO-LOCK NO-ERROR.
+            END.
+            levfk = ArticleMTR.LEVKOD.   
+            IF AVAILABLE LEVERANTOR THEN DO:
+               EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+               EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+                CREATE inextradatatemp.          
+               ASSIGN
+               inextradatatemp.PROGRAM = "INLKAT"                   
+               inextradatatemp.HUVUDCH = ArticleMTR.LEVKOD. 
+               RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+               FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE extradatatemp THEN DO:
+                  CREATE extradatatemp.
+                  ASSIGN
+                  extradatatemp.PROGRAM = "INLKAT"                   
+                  extradatatemp.HUVUDCH = ArticleMTR.LEVKOD
+                  extradatatemp.SOKLOG[1] = FALSE.
+               END.
+               ASSIGN 
+               extradatatemp.SOKDATE[1] = TODAY 
+               extradatatemp.SOKCHAR[1] = STRING(TIME,"hh:mm"). 
+               RUN extraspar_UI IN edataapph (INPUT TABLE extradatatemp). 
+               EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+               EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+               
+               RUN skapaenr_UI.
+            END.
+            ELSE DO:
+               OUTPUT TO VALUE(cFileinKopia + "MTRLFEL.TXT") APPEND.
+               PUT UNFORMATTED "LEVERANTÖR FINNS EJ " ArticleMTR.LEVKOD " " ArticleMTR.GlobalID " " TODAY SKIP.
+               OUTPUT CLOSE.   
+            END.   
+         END.      
+      END.   
+      ELSE RUN tabort_UI.
+   END.
+END PROCEDURE.
+
+
+PROCEDURE skapaenr_UI:      
+    DO TRANSACTION: 
+      FIND FIRST mtrlbuff WHERE mtrlbuff.ENR =  ArticleMTR.GlobalID AND
+      mtrlbuff.LEVKOD = ArticleMTR.LEVKOD AND mtrlbuff.KALKNR = 0 USE-INDEX LEV
+      EXCLUSIVE-LOCK NO-ERROR NO-WAIT. 
+      IF LOCKED(mtrlbuff) = TRUE THEN RETURN. 
+      IF AVAILABLE mtrlbuff THEN DO:    
+         antlmtrlbh = antlmtrlbh + 1.        
+         ASSIGN 
+         mtrlbuff.BENAMNING = ArticleMTR.ArticleName
+         mtrlbuff.ENHET = ArticleMTR.UnitCode       
+         mtrlbuff.BPRIS = ArticleMTR.UnitPrice
+         mtrlbuff.NPRIS = ArticleMTR.UnitPrice.
+         mtrlbuff.INDATETIME = NOW.
+         mtrlbuff.INANVPROG = THIS-PROCEDURE:NAME   + " " + Guru.Konstanter:globanv.
+      END.
+      ELSE DO:  
+         antlmtrlbh = antlmtrlbh + 1.                             
+         CREATE MTRL.
+         ASSIGN      
+         MTRL.LEVKOD = ArticleMTR.LEVKOD 
+         MTRL.ENR = ArticleMTR.GlobalID
+         MTRL.BENAMNING = ArticleMTR.ArticleName
+         MTRL.ENHET = ArticleMTR.UnitCode            
+         MTRL.BPRIS = ArticleMTR.UnitPrice 
+         MTRL.NPRIS = ArticleMTR.UnitPrice .
+         {MTRLCREATE.I} 
+      END.   
+   END.
+   RELEASE mtrlbuff NO-ERROR.          
+   RELEASE MTRL NO-ERROR.
+END PROCEDURE.   
+
+PROCEDURE tabort_UI:
+   DO TRANSACTION:
+      antlmtrlbort = antlmtrlbort + 1. 
+      FIND FIRST mtrlbuff WHERE mtrlbuff.ENR =  ArticleMTR.GlobalID AND
+      mtrlbuff.LEVKOD = ArticleMTR.LEVKOD AND mtrlbuff.KALKNR = 0 USE-INDEX LEV
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE mtrlbuff THEN DELETE mtrlbuff.
+   END.   
+END PROCEDURE.
+
+
+/* ********************  Preprocessor Definitions  ******************** */
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh IN WIDGET-POOL "DynTableDirekt".
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+   
+PROCEDURE CloseCustomQuery:
+   DEFINE INPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CustomQueryh:QUERY-CLOSE()  NO-ERROR.
+   CustomQueryh = ?.
+END PROCEDURE.
+
+
+/* ***************************  Main Block  *************************** */
+/*
+ADD TABLE "ODBCMTRL"
+  AREA "beredning"
+  DUMP-NAME "odbcmtrl"
+
+ADD FIELD "StatusA" OF "ODBCMTRL" AS character 
+  FORMAT "x(8)"
+  INITIAL ""
+  LABEL "STATUS"
+  POSITION 2
+  MAX-WIDTH 256
+  ORDER 10
+
+ADD FIELD "GlobalID" OF "ODBCMTRL" AS character 
+  FORMAT "x(8)"
+  INITIAL ""
+  LABEL "ENR"
+  POSITION 3
+  MAX-WIDTH 16
+  ORDER 20
+
+ADD FIELD "ArticleNo" OF "ODBCMTRL" AS character 
+  FORMAT "x(8)"
+  INITIAL ""
+  POSITION 4
+  MAX-WIDTH 40
+  ORDER 30
+
+ADD FIELD "ArticleName" OF "ODBCMTRL" AS character 
+  FORMAT "x(8)"
+  INITIAL ""
+  LABEL "BENÄMNING"
+  POSITION 5
+  MAX-WIDTH 100
+  ORDER 40
+
+ADD FIELD "UnitPrice" OF "ODBCMTRL" AS decimal 
+  FORMAT "->>,>>9.99"
+  INITIAL "0"
+  POSITION 6
+  MAX-WIDTH 17
+  COLUMN-LABEL "PRIS"
+  DECIMALS 2
+  ORDER 50
+
+ADD FIELD "UnitCode" OF "ODBCMTRL" AS character 
+  FORMAT "x(8)"
+  INITIAL ""
+  LABEL "ENHET"
+  POSITION 7
+  MAX-WIDTH 16
+  ORDER 60
+
+ADD FIELD "LASTIN" OF "ODBCMTRL" AS datetime 
+  FORMAT "99/99/9999 HH:MM:SS.SSS"
+  INITIAL ?
+  LABEL "INLÄST"
+  POSITION 8
+  MAX-WIDTH 35
+  COLUMN-LABEL "NOW"
+  ORDER 70
+
+ADD FIELD "LEVKOD" OF "ODBCMTRL" AS character 
+  FORMAT "x(8)"
+  INITIAL ""
+  LABEL "LEVERANTÖRSID"
+  POSITION 9
+  MAX-WIDTH 16
+  ORDER 80
+
+ADD INDEX "ENRLEVKOD" ON "ODBCMTRL" 
+  AREA "beredning"
+  PRIMARY
+  INDEX-FIELD "GlobalID" ASCENDING 
+  INDEX-FIELD "LEVKOD" ASCENDING 
+*/
+
+/*
+<Assignments>
+<Assignment>
+<Message>
+<MessageType>ProjectActivity</MessageType>
+<ActionType/>
+</Message>
+<ID>12345.0001</ID>
+<Responsible>
+<ID>ANNAND</ID>
+<Name>Anna Andersson</Name>
+</Responsible>
+<Item>
+<ID>001</A>
+<SequenceID>100002530</SequenceID>
+<Name>Projekt bla bla bla - Aktivitet bla bla bla bla</Name>
+<Status>Active</Status>
+Document name Version Page
+GURU, INTEGRATIONER 1.0 5 (12)
+Author Date
+JESSICA PERSSON 2019-12-18
+<Reference>ABC1234567890</Reference>
+<Responsible>
+<ID>BENBEN</ID>
+<Name>Bengt Bengtsson</Name>
+</Responsible>
+</Item>
+</Assignment>
+</Assignments>
+Exempel arbetsuppgift:
+<Assignments>
+<Assignment>
+<Message>
+<MessageType>WorkTask</MessageType>
+<ActionType/>
+</Message>
+<ID>0012345678</ID>
+<Responsible>
+<ID>ANNAND</ID>
+<Name>Anna Andersson</Name>
+</Responsible>
+<Item>
+<ID>12345678</ID>
+<SequenceID>12345678</SequenceID>
+<Name>Arbetsorder bla bla - Uppgift bla bla bla bla</Name>
+<Status>Active</Status>
+<Reference>ABC1234567890</Reference>
+<Responsible>
+<ID\>
+<Name\>
+</Responsible>
+
+
+
+</Item>
+</Assignment>
+</Assignments>
+*/

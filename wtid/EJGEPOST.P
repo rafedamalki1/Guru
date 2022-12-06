@@ -1,0 +1,321 @@
+/*EJGEPOST.P  Nattkörning färdigrapporterade ej godkända epost till berörda*/
+{STARTFORAPP.I}
+
+DEFINE TEMP-TABLE eposttemp NO-UNDO
+   FIELD EPOST AS CHARACTER
+   FIELD GEPOST AS CHARACTER
+   FIELD BOLAG AS CHARACTER
+   FIELD MEDD AS CHARACTER
+   INDEX EPOST EPOST.
+DEFINE TEMP-TABLE farkoll NO-UNDO
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD TIDSGODK AS CHARACTER   
+   FIELD FORNAMN     AS CHARACTER
+   FIELD EFTERNAMN   AS CHARACTER
+   FIELD EPOST AS CHARACTER
+   FIELD GEPOST AS CHARACTER
+   FIELD BOLAG AS CHARACTER
+   INDEX EPOST EPOST.
+DEFINE TEMP-TABLE pveckfl
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD FORNAMN AS CHARACTER
+   FIELD EFTERNAMN AS CHARACTER   
+   FIELD BFARDIG AS DATE
+   FIELD FARDIG AS DATE
+   FIELD NG AS CHARACTER
+   FIELD EPOST AS CHARACTER
+   FIELD TIDSGODK AS CHARACTER
+   FIELD GEPOST AS CHARACTER
+   FIELD MANADNR AS INTEGER
+   FIELD AR AS INTEGER
+   FIELD MANAD AS CHARACTER
+   FIELD KOLLDATUM AS DATE   
+   INDEX PERSONALKOD IS PRIMARY PERSONALKOD FARDIG
+   INDEX ARMAN PERSONALKOD AR MANAD
+   INDEX GODK TIDSGODK PERSONALKOD AR MANAD.   
+
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE VARIABLE aonrrec AS RECID NO-UNDO.
+DEFINE VARIABLE skick AS LOGICAL NO-UNDO.
+DEFINE VARIABLE efel AS CHARACTER FORMAT "X(30)" NO-UNDO.
+DEFINE VARIABLE servervar AS CHARACTER LABEL "Smtp Server" NO-UNDO.
+DEFINE VARIABLE franvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hjdat AS DATE NO-UNDO.
+DEFINE VARIABLE bolag AS CHARACTER NO-UNDO.
+DEFINE VARIABLE okbol AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kolldatum AS DATE NO-UNDO.
+DEFINE BUFFER persbuff FOR PERSONALTAB.
+
+
+{SMTPDEF3.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT FORETAG.FORETAG).
+IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "MISV" THEN DO:
+   ASSIGN
+   franvar = "NOREPLY"
+   servervar = CHR(49) + CHR(55) + CHR(50) + CHR(46) + CHR(49) + CHR(54) + CHR(46) + CHR(50) + CHR(53) + CHR(52) + CHR(46) + CHR(50) + CHR(50) + CHR(50).
+   /*servervar = "130.1.27.253".
+   servervar = "172.16.79.249".*/
+END.
+ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+   {SMTPFRANELPOOL.I}
+END.
+ELSE DO:
+   ASSIGN
+   franvar = "elpool.ume@elpool.se"
+   servervar = CHR(115) + CHR(109) + CHR(116) + CHR(112) + CHR(46) + CHR(116) + CHR(101) + CHR(108) + CHR(101) + CHR(99) + CHR(111) + CHR(109) + CHR(51) + CHR(46) + CHR(110) + CHR(101) + CHR(116) .
+END.
+
+
+regdatum = TODAY - 3.      
+kolldatum = TODAY - 3.      
+ 
+RUN REGVEC.P.    
+ASSIGN
+regar = YEAR(regdatum)
+regmnr = MONTH(regdatum).
+
+FOR EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE AND PERSONALTAB.ANSTALLNING NE "Ej tidskrivande personal"  USE-INDEX PERSONALKOD NO-LOCK:
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+   FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+   FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+   IF AVAILABLE JURPERS THEN DO:         
+      okbol = TRUE.
+      IF okbol = TRUE THEN DO:   
+         FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+         GODKOLL.DATAR = regar AND GODKOLL.DATMAN = regmnr                  
+         USE-INDEX PKODAR NO-LOCK NO-ERROR.
+         IF AVAILABLE GODKOLL THEN DO:            
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+            YEAR(TIDREGITAB.DATUM) = regar AND
+            MONTH(TIDREGITAB.DATUM) = regmnr AND TIDREGITAB.GODKAND = "F"
+            USE-INDEX PVNR NO-LOCK NO-ERROR.
+            IF AVAILABLE TIDREGITAB THEN DO:               
+               CREATE pveckfl.        
+               ASSIGN
+               pveckfl.PERSONALKOD = PERSONALTAB.PERSONALKOD         
+               pveckfl.FARDIG = GODKOLL.DATUM
+               pveckfl.MANADNR = MONTH(GODKOLL.DATUM)            
+               pveckfl.AR = YEAR(GODKOLL.DATUM)         
+               pveckfl.FORNAMN = PERSONALTAB.FORNAMN
+               pveckfl.EFTERNAMN = PERSONALTAB.EFTERNAMN
+               pveckfl.EPOST = SUBSTRING(PERSONALTAB.PERSONSOK,20)
+               pveckfl.TIDSGODK = PERSONALTAB.TIDSGODK.
+               FIND FIRST persbuff WHERE persbuff.PERSONALKOD = PERSONALTAB.TIDSGODK NO-LOCK NO-ERROR.
+               IF AVAILABLE persbuff THEN DO:
+                  pveckfl.GEPOST = SUBSTRING(persbuff.PERSONSOK,20).
+               END.                 
+            END.
+         END.      
+      END.
+   END.
+END.      
+FOR EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE AND PERSONALTAB.ANSTALLNING NE "Ej tidskrivande personal"  USE-INDEX PERSONALKOD NO-LOCK:
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+   FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+   FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+   IF AVAILABLE JURPERS THEN DO:         
+      okbol = TRUE.
+      IF okbol = TRUE THEN DO:   
+         regdatum = DATE(MONTH(kolldatum),01,YEAR(kolldatum)) - 1.      
+         RUN REGVEC.P.      
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+         TIDREGITAB.DATUM <= regdatum AND TIDREGITAB.GODKAND = "F" USE-INDEX PSTART NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE TIDREGITAB THEN NEXT.
+         IF YEAR(TIDREGITAB.DATUM) = YEAR(kolldatum) AND 
+         MONTH(TIDREGITAB.DATUM) = MONTH(kolldatum) THEN .
+         ELSE DO:               
+            FIND FIRST GODKOLL WHERE 
+            GODKOLL.PERSONALKOD = PERSONALTAB.PERSONALKOD AND                                 
+            GODKOLL.DATAR = YEAR(TIDREGITAB.DATUM) AND 
+            GODKOLL.DATMAN = MONTH(TIDREGITAB.DATUM) USE-INDEX PKODAR NO-LOCK NO-ERROR.                   
+            IF AVAILABLE GODKOLL THEN DO:
+               FIND FIRST pveckfl WHERE pveckfl.PERSONALKOD = TIDREGITAB.PERSONALKOD AND 
+               pveckfl.MANADNR = MONTH(TIDREGITAB.DATUM) AND 
+               pveckfl.AR = YEAR(TIDREGITAB.DATUM) USE-INDEX ARMAN NO-ERROR.
+               IF NOT AVAILABLE pveckfl THEN DO:
+                  CREATE pveckfl.
+                  ASSIGN
+                  pveckfl.PERSONALKOD = PERSONALTAB.PERSONALKOD         
+                  pveckfl.FARDIG = GODKOLL.DATUM
+                  pveckfl.MANADNR = MONTH(GODKOLL.DATUM)            
+                  pveckfl.AR = YEAR(GODKOLL.DATUM)         
+                  pveckfl.FORNAMN = PERSONALTAB.FORNAMN
+                  pveckfl.EFTERNAMN = PERSONALTAB.EFTERNAMN
+                  pveckfl.EPOST = SUBSTRING(PERSONALTAB.PERSONSOK,20)
+                  pveckfl.TIDSGODK = PERSONALTAB.TIDSGODK.
+                  FIND FIRST persbuff WHERE persbuff.PERSONALKOD = PERSONALTAB.TIDSGODK NO-LOCK NO-ERROR.
+                  IF AVAILABLE persbuff THEN DO:
+                     pveckfl.GEPOST = SUBSTRING(persbuff.PERSONSOK,20).
+                  END.                 
+                  regmnr = pveckfl.MANADNR.
+                  RUN MANNAMN.P.
+                  pveckfl.MANAD = regmannamn.
+               END.
+            END.              
+         END. 
+         regdatum = TIDREGITAB.DATUM.
+         REPEAT:
+            FIND NEXT TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+            TIDREGITAB.DATUM > regdatum  AND TIDREGITAB.GODKAND = "F" 
+            USE-INDEX PSTART NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE TIDREGITAB THEN LEAVE.
+            IF YEAR(TIDREGITAB.DATUM) = YEAR(kolldatum) AND 
+            MONTH(TIDREGITAB.DATUM) = MONTH(kolldatum) THEN .                     
+            ELSE DO:
+               IF TIDREGITAB.DATUM > kolldatum THEN LEAVE. 
+               FIND FIRST GODKOLL WHERE 
+               GODKOLL.PERSONALKOD = PERSONALTAB.PERSONALKOD AND                                 
+               GODKOLL.DATAR = YEAR(TIDREGITAB.DATUM) AND 
+               GODKOLL.DATMAN = MONTH(TIDREGITAB.DATUM) USE-INDEX PKODAR NO-LOCK NO-ERROR.                   
+               IF AVAILABLE GODKOLL THEN DO:
+                  FIND FIRST pveckfl WHERE pveckfl.PERSONALKOD = TIDREGITAB.PERSONALKOD AND 
+                  pveckfl.MANADNR = MONTH(TIDREGITAB.DATUM) AND 
+                  pveckfl.AR = YEAR(TIDREGITAB.DATUM) USE-INDEX ARMAN NO-ERROR.
+                  IF NOT AVAILABLE pveckfl THEN DO:
+                     CREATE pveckfl.
+                     ASSIGN
+                     pveckfl.PERSONALKOD = PERSONALTAB.PERSONALKOD         
+                     pveckfl.FARDIG = GODKOLL.DATUM
+                     pveckfl.MANADNR = MONTH(GODKOLL.DATUM)            
+                     pveckfl.AR = YEAR(GODKOLL.DATUM)         
+                     pveckfl.FORNAMN = PERSONALTAB.FORNAMN
+                     pveckfl.EFTERNAMN = PERSONALTAB.EFTERNAMN
+                     pveckfl.EPOST = SUBSTRING(PERSONALTAB.PERSONSOK,20)
+                     pveckfl.TIDSGODK = PERSONALTAB.TIDSGODK.
+                     FIND FIRST persbuff WHERE persbuff.PERSONALKOD = PERSONALTAB.TIDSGODK NO-LOCK NO-ERROR.
+                     IF AVAILABLE persbuff THEN DO:
+                        pveckfl.GEPOST = SUBSTRING(persbuff.PERSONSOK,20).
+                     END.                 
+                     regmnr = pveckfl.MANADNR.
+                     RUN MANNAMN.P.
+                     pveckfl.MANAD = regmannamn.
+                  END.
+                  
+               END.
+            END.
+            IF MONTH(regdatum) = 12 THEN regdatum = DATE(01,01,YEAR(regdatum) + 1).
+            ELSE regdatum = DATE(MONTH(regdatum) + 1,01,YEAR(regdatum)).   
+         END.    
+      END.
+   END.
+END.            
+
+FOR EACH pveckfl WHERE pveckfl.EPOST NE ""  NO-LOCK:
+   FIND FIRST farkoll WHERE farkoll.TIDSGODK = pveckfl.TIDSGODK  NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE farkoll THEN DO:      
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pveckfl.TIDSGODK NO-LOCK NO-ERROR.
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+      FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+      FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+      CREATE farkoll.
+      ASSIGN
+      farkoll.TIDSGODK = pveckfl.TIDSGODK
+      farkoll.FORNAMN =  PERSONALTAB.FORNAMN
+      farkoll.EFTERNAMN =  PERSONALTAB.EFTERNAMN
+      farkoll.EPOST = pveckfl.EPOST
+      farkoll.GEPOST = pveckfl.GEPOST
+      farkoll.BOLAG = JURPERS.VIJUDID.
+   END.
+END.
+EMPTY TEMP-TABLE eposttemp NO-ERROR. 
+FOR EACH farkoll WHERE farkoll.GEPOST NE "" NO-LOCK,
+EACH pveckfl WHERE pveckfl.TIDSGODK = farkoll.TIDSGODK  USE-INDEX GODK NO-LOCK.
+   FIND FIRST eposttemp WHERE eposttemp.EPOST = farkoll.GEPOST AND 
+   LENGTH(eposttemp.MEDD,"CHARACTER") < 30000 EXCLUSIVE-LOCK NO-ERROR.
+   IF NOT AVAILABLE eposttemp THEN DO:      
+      CREATE eposttemp.
+      ASSIGN     
+      eposttemp.EPOST = farkoll.GEPOST
+      eposttemp.BOLAG = farkoll.BOLAG.
+      IF Guru.Konstanter:globforetag = "xsund" THEN DO:
+         eposttemp.MEDD = farkoll.TIDSGODK + " " + farkoll.FORNAMN + " " + farkoll.EFTERNAMN + " har inte godkänt följande färdigrapporterade tidrapporter "  + CHR(10)
+                     + "===================================================================== " + CHR(10).
+      END.
+      ELSE DO:   
+         eposttemp.MEDD = farkoll.TIDSGODK + " " + farkoll.FORNAMN + " " + farkoll.EFTERNAMN + " har inte godkänt följande färdigrapporterade tidrapporter "  + CHR(10)
+                     + "===================================================================== " + CHR(10).
+      END.                      
+   END.      
+   eposttemp.MEDD = eposttemp.MEDD + pveckfl.PERSONALKOD + " " +  pveckfl.FORNAMN + " " + pveckfl.EFTERNAMN + " har färdigrapportert sin tid tom "  + STRING(pveckfl.FARDIG,"9999/99/99") + CHR(10) + CHR(10).          
+END.
+IF AVAILABLE eposttemp THEN Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + eposttemp.EPOST + "," +  eposttemp.MEDD .
+RUN emedd_UI.
+Guru.GlobalaVariabler:GDPRtyp = "EP".
+   {GDPRLOGGCLIENT.I}
+PROCEDURE emedd_UI.
+   DEFINE VARIABLE ctillvar AS CHARACTER LABEL "Kopia" NO-UNDO.
+   ctillvar = "".
+ 
+   FOR EACH eposttemp:  
+      IF Guru.Konstanter:globforetag = "MISV" THEN DO: 
+         IF eposttemp.BOLAG NE "" THEN ctillvar = "lena.jonsson@msva.se".         
+      END.      
+      IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" THEN DO:          
+         IF eposttemp.BOLAG = "SEAB" THEN ctillvar =  "" .           
+         IF eposttemp.BOLAG = "REKO" THEN ctillvar = "".                    
+         /*
+         IF eposttemp.BOLAG = "Elnät" THEN ctillvar = "victoria.rosengren@sundsvallelnat.se".         
+         IF eposttemp.BOLAG = "Servanet" THEN ctillvar = "victoria.rosengren@sundsvallelnat.se".
+         Victoria vill inte längre ha kopia Lena 20200204*/
+         IF eposttemp.BOLAG = "Elnät" THEN ctillvar = "".         
+         IF eposttemp.BOLAG = "Servanet" THEN ctillvar = "".                 
+      END.
+      ASSIGN 
+      mailhub             = servervar     
+      EmailTo             = eposttemp.EPOST 
+      EmailFrom           = franvar
+      EmailCC             = ctillvar
+      Attachmentstyp      = ""
+      LocalFiles          = "".
+      IF Guru.Konstanter:globforetag = "xsund" THEN DO:         
+         Subject             = "Påminnelse! Tiden för godkännande av färdigrapporterade tidsedlar närmar sej.".
+      END.
+      ELSE DO:         
+         Subject             = "Färdigrapporterade ej godkända tidsedlar".
+      END.
+      ASSIGN      
+      Bodysmtp            = eposttemp.MEDD
+      MIMEHeader          = "type=text/plain/html:charset=iso-8859-1:filetype=ascii"
+      BodyType            = "".
+      IF Guru.Konstanter:globforetag = "sund" THEN EmailFrom = "webguru@sundsvallenergi.se".
+      IF Guru.Konstanter:globforetag = "SNAT" THEN EmailFrom = "@guru.sundsvallelnat.se".
+      IF Guru.Konstanter:globforetag = "MISV" THEN EmailFrom = "webguru@mittsverigevatten.se".
+      RUN smtpmail_UI (INPUT FALSE).
+      IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+         /*SNATBERGET*/
+          OUTPUT TO D:\DELAD\PRO10S\mailrappejge.txt APPEND.
+          PUT UNFORMATTED TODAY " " oSuccessful " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+          OUTPUT CLOSE. 
+       END.
+      IF oSuccessful = TRUE THEN DO TRANSACTION:
+         oSuccessful = FALSE.               
+      END.      
+      ELSE DO:
+         IF Guru.Konstanter:globforetag = "SUND" THEN DO:
+            OUTPUT TO D:\delad\server\pro10s\EXPORT\lon\godkandkollfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+            /*SNATBERGET*/
+            OUTPUT TO D:\delad\pro10s\godkandkollfel.txt APPEND. 
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "MISV" THEN DO:            
+            OUTPUT TO D:\elpool\delad\pro10s\EXPORT\lon\godkandkollfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "ELPA" THEN DO:
+            OUTPUT TO c:\protemp9\godkandkollfel.txt APPEND.            
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         OUTPUT CLOSE.
+    
+      END.
+   END.     
+END PROCEDURE.  
+
+ 
+   
+

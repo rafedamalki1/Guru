@@ -1,0 +1,529 @@
+/*BEFAOBAPP.P*/
+{DIRDEF.I}
+&Scoped-define NEW NEW
+{BEFTEMP.I}
+DEFINE {&NEW} SHARED TEMP-TABLE valbefattningstemp NO-UNDO LIKE befattningstemp.
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+
+
+
+{GLOBVAR2DEL1.I}
+{REGVAR.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+
+FUNCTION klockan100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+
+FUNCTION klockan60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ):
+  RETURN TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) / 100) * 60 . 
+
+END FUNCTION.
+DEFINE QUERY stq FOR befattningstemp,TIDREGITAB.
+DEFINE QUERY tfq FOR befattningstemp,TIDFEL.
+
+{TIDUTTT.I}
+
+DEFINE TEMP-TABLE dagtemp NO-UNDO
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR 
+   FIELD ORT LIKE AONRTAB.ORT
+   FIELD TIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"  
+   FIELD ENKTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "OTIMMAR"         
+   FIELD KVALTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "OTIMMAR"         
+   FIELD OKOD1 LIKE TIDREGITAB.OKOD1
+   FIELD OKOD2 LIKE TIDREGITAB.OKOD2
+   FIELD OKOD3 LIKE TIDREGITAB.OKOD3
+   FIELD OANT1 LIKE TIDREGITAB.OANT1
+   FIELD OANT2 LIKE TIDREGITAB.OANT2
+   FIELD OANT3 LIKE TIDREGITAB.OANT3
+   FIELD BEFATTNING AS CHARACTER   
+   FIELD OMRADE AS CHARACTER
+   FIELD GEOMRADE AS CHARACTER        
+   INDEX AONR IS PRIMARY AONR DELNR. 
+DEFINE TEMP-TABLE dagtemp2 NO-UNDO LIKE dagtemp
+   FIELD MULTIP LIKE OVERKOD.MULTIP 
+   FIELD ENKEL LIKE OVERKOD.ENKEL   
+   FIELD NY AS INTEGER
+   FIELD OKOD LIKE TIDREGITAB.OKOD3
+   FIELD OANT LIKE TIDREGITAB.OANT1
+   INDEX PKOD PERSONALKOD NY
+   INDEX PKOD2 PERSONALKOD OKOD NY.
+{PERSTEMP.I}
+/*DEFINE TEMP-TABLE perstemp NO-UNDO
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD KOD AS CHARACTER
+   INDEX PKOD PERSONALKOD.*/
+DEFINE TEMP-TABLE slutsum           
+   FIELD NY AS INTEGER
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR 
+   FIELD ORT LIKE AONRTAB.ORT
+   FIELD BEFATTNING AS CHARACTER
+   FIELD VIBEFATTNING AS CHARACTER
+   FIELD TIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD KVALTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "OTIMMAR"         
+   FIELD ENKTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "OTIMMAR"
+   INDEX AONR IS PRIMARY AONR DELNR VIBEFATTNING ASCENDING.    
+DEFINE TEMP-TABLE sumsum           
+   FIELD NY AS INTEGER
+   FIELD BEFATTNING AS CHARACTER
+   FIELD VIBEFATTNING AS CHARACTER
+   FIELD TIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD KVALTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "OTIMMAR"         
+   FIELD ENKTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "OTIMMAR"
+   INDEX BEFATTNING IS PRIMARY VIBEFATTNING ASCENDING.    
+   
+DEFINE INPUT PARAMETER TABLE FOR uppvaltemp.
+DEFINE INPUT PARAMETER TABLE FOR valdaao.
+DEFINE INPUT PARAMETER TABLE FOR befattningstemp.
+DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+DEFINE OUTPUT PARAMETER str AS CHARACTER FORMAT "X(92)" NO-UNDO.
+DEFINE OUTPUT PARAMETER str2 AS CHARACTER FORMAT "X(92)" NO-UNDO.
+DEFINE OUTPUT PARAMETER str3 AS CHARACTER FORMAT "X(92)" NO-UNDO.
+DEFINE VARIABLE tidove AS CHARACTER NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE breddantal AS INTEGER NO-UNDO.
+DEFINE VARIABLE utnr AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE bredd AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE nrcol AS INTEGER EXTENT 50 NO-UNDO.
+
+FIND FIRST uppvaltemp NO-ERROR.
+OPEN QUERY aq FOR EACH valdaao NO-LOCK. 
+GET FIRST aq NO-LOCK.
+GET NEXT aq  NO-LOCK.
+GET FIRST aq NO-LOCK.
+DO WHILE AVAILABLE(valdaao):      
+   IF uppvaltemp.VISPERAR = TRUE THEN DO:                  
+      
+   END.
+   ELSE IF uppvaltemp.VISPERAR = FALSE THEN DO:
+      RUN sop_UI (INPUT 11,INPUT uppvaltemp.DELNRKOLL,INPUT uppvaltemp.VISGODKANDA).
+      RUN skapadagdag_UI.      
+   END.
+   ELSE DO:                  
+      RUN sop_UI (INPUT 12,INPUT uppvaltemp.DELNRKOLL,INPUT uppvaltemp.VISGODKANDA).         
+      RUN skapadagdag_UI.   
+   END. 
+   GET NEXT aq NO-LOCK.
+END.  
+
+RUN summa_UI.
+RUN huvud_UI.
+
+{GDPRLOGGCLIENT.I}
+PROCEDURE skapadagdag_UI :
+   GET FIRST stq NO-LOCK.
+   DO WHILE AVAILABLE(TIDREGITAB):  
+      IF TIDREGITAB.PRISTYP = "RESTID..." THEN .
+      ELSE DO:
+         FIND FIRST perstemp WHERE perstemp.PERSONALKOD = TIDREGITAB.PERSONALKOD NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE perstemp THEN DO:
+            RUN avtal_UI.             
+         END.
+         CREATE dagtemp.
+         ASSIGN          
+         dagtemp.AONR = valdaao.AONR
+         dagtemp.DELNR = valdaao.DELNR 
+         dagtemp.ORT = valdaao.ORT
+         dagtemp.PERSONALKOD = TIDREGITAB.PERSONALKOD
+         dagtemp.BEFATTNING = TIDREGITAB.OVERTIDTILL
+         dagtemp.TIMMAR = TIDREGITAB.TOTALT 
+         dagtemp.OKOD1 = TIDREGITAB.OKOD1 
+         dagtemp.OKOD2 = TIDREGITAB.OKOD2 
+         dagtemp.OKOD3 = TIDREGITAB.OKOD3 
+         dagtemp.OANT1 = TIDREGITAB.OANT1 
+         dagtemp.OANT2 = TIDREGITAB.OANT2 
+         dagtemp.OANT3 = TIDREGITAB.OANT3.       
+      END.
+      GET NEXT stq NO-LOCK.      
+   END.
+   GET FIRST tfq NO-LOCK.
+   DO WHILE AVAILABLE(TIDFEL):  
+      IF TIDFEL.PRISTYP = "RESTID..." THEN .
+      ELSE DO:
+         FIND FIRST perstemp WHERE perstemp.PERSONALKOD = TIDFEL.PERSONALKOD NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE perstemp THEN DO:
+            RUN avtal_UI.             
+         END.
+         CREATE dagtemp.
+         ASSIGN          
+         dagtemp.AONR = valdaao.AONR
+         dagtemp.DELNR = valdaao.DELNR 
+         dagtemp.ORT = valdaao.ORT
+         dagtemp.PERSONALKOD = TIDFEL.PERSONALKOD
+         dagtemp.BEFATTNING = TIDFEL.OVERTIDTILL
+         dagtemp.TIMMAR = TIDFEL.TOTALT 
+         dagtemp.OKOD1 = TIDFEL.OKOD1 
+         dagtemp.OKOD2 = TIDFEL.OKOD2 
+         dagtemp.OKOD3 = TIDFEL.OKOD3 
+         dagtemp.OANT1 = TIDFEL.OANT1 
+         dagtemp.OANT2 = TIDFEL.OANT2 
+         dagtemp.OANT3 = TIDFEL.OANT3.
+         IF TIDFEL.DEBET = FALSE THEN DO:      
+            dagtemp.TIMMAR = ( -1 ) * TIDFEL.TOTALT.
+            dagtemp.OANT1 = ( -1 ) * TIDFEL.OANT1. 
+            dagtemp.OANT2 = ( -1 ) * TIDFEL.OANT2. 
+            dagtemp.OANT3 = ( -1 ) * TIDFEL.OANT3.
+         END.          
+      END.
+      GET NEXT tfq NO-LOCK.      
+   END.
+   
+   
+END PROCEDURE.
+PROCEDURE avtal_UI :
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = TIDREGITAB.PERSONALKOD NO-LOCK NO-ERROR.
+   FIND FIRST ANSTFORMTAB WHERE ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+   USE-INDEX ANSTF NO-LOCK NO-ERROR.
+   CREATE perstemp.
+   ASSIGN
+   perstemp.PERSONALKOD = TIDREGITAB.PERSONALKOD
+   perstemp.KOD = ANSTFORMTAB.KOD.   
+   Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.   
+END PROCEDURE.
+PROCEDURE summa_UI.
+   FOR EACH dagtemp:
+      IF dagtemp.OKOD1 = " " AND dagtemp.OKOD2 = " " AND dagtemp.OKOD3 = " " THEN DO: 
+         dagtemp.TIMMAR = klockan100(dagtemp.TIMMAR).                
+      END.
+      ELSE DO:
+         dagtemp.TIMMAR = 0.
+         IF dagtemp.OANT1 NE 0  THEN DO:
+            CREATE dagtemp2.
+            BUFFER-COPY dagtemp TO dagtemp2.
+            ASSIGN 
+            dagtemp2.OANT =  klockan100(dagtemp.OANT1).
+            dagtemp2.OKOD = dagtemp.OKOD1.                
+         END. 
+         IF dagtemp.OANT2 NE 0  THEN DO:      
+            CREATE dagtemp2.
+            BUFFER-COPY dagtemp TO dagtemp2.
+            ASSIGN 
+            dagtemp2.OANT = klockan100(dagtemp.OANT2).
+            dagtemp2.OKOD = dagtemp.OKOD2.                
+         END. 
+         IF dagtemp.OANT3 NE 0  THEN DO:      
+            CREATE dagtemp2.
+            BUFFER-COPY dagtemp TO dagtemp2.
+            dagtemp2.OANT = klockan100(dagtemp.OANT3).
+            dagtemp2.OKOD = dagtemp.OKOD3.                
+         END.       
+         DELETE dagtemp.
+      END.
+      IF AVAILABLE dagtemp THEN DO:
+         IF dagtemp.TIMMAR = 0 THEN DELETE dagtemp.
+      END.
+   END.
+   FOR EACH perstemp:
+      REPEAT:
+         FIND FIRST dagtemp2 WHERE dagtemp2.PERSONALKOD = perstemp.PERSONALKOD AND dagtemp2.NY = 0 NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE dagtemp2 THEN LEAVE.
+         FIND FIRST OVERKOD WHERE OVERKOD.OVERTIDTILL = dagtemp2.OKOD AND
+         OVERKOD.KOD = perstemp.KOD NO-LOCK NO-ERROR.
+         tidove = dagtemp2.OKOD.
+         FOR EACH dagtemp2 WHERE dagtemp2.PERSONALKOD = perstemp.PERSONALKOD AND dagtemp2.OKOD = tidove AND dagtemp2.NY = 0:
+            ASSIGN
+            dagtemp2.NY = 1
+            dagtemp2.ENKEL = "ENKE"
+            dagtemp2.MULTIP = 1. 
+            IF AVAILABLE OVERKOD THEN DO:
+               ASSIGN
+               dagtemp2.ENKEL = OVERKOD.ENKEL.
+               dagtemp2.MULTIP = OVERKOD.ERSATTNING.
+               IF Guru.Konstanter:globforetag = "gkal" THEN DO:
+                  dagtemp2.MULTIP = OVERKOD.MULTIP. 
+               END.
+            END.           
+         END.         
+      END.   
+   END.
+   
+   FOR EACH dagtemp WHERE BREAK BY dagtemp.AONR BY dagtemp.DELNR BY dagtemp.BEFATTNING: 
+      ACCUMULATE dagtemp.TIMMAR (TOTAL BY dagtemp.AONR BY dagtemp.DELNR BY dagtemp.BEFATTNING). 
+      IF LAST-OF(dagtemp.BEFATTNING) THEN DO:
+         CREATE slutsum.
+         ASSIGN 
+         slutsum.AONR = dagtemp.AONR
+         slutsum.DELNR = dagtemp.DELNR
+         slutsum.ORT = dagtemp.ORT
+         slutsum.BEFATTNING = dagtemp.BEFATTNING
+         slutsum.TIMMAR = (ACCUM TOTAL BY dagtemp.BEFATTNING dagtemp.TIMMAR).          
+      END.     
+   END.
+   FOR EACH dagtemp2 WHERE BREAK BY dagtemp2.AONR BY dagtemp2.DELNR BY dagtemp2.BEFATTNING BY dagtemp2.ENKEL: 
+      ACCUMULATE dagtemp2.OANT (TOTAL BY dagtemp2.AONR BY dagtemp2.DELNR BY dagtemp2.BEFATTNING BY dagtemp2.ENKEL).           
+      IF LAST-OF(dagtemp2.ENKEL) THEN DO:
+         FIND FIRST slutsum WHERE slutsum.AONR = dagtemp2.AONR AND slutsum.DELNR = dagtemp2.DELNR AND slutsum.BEFATTNING = dagtemp2.BEFATTNING 
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE slutsum THEN DO:
+            CREATE slutsum.
+            ASSIGN 
+            slutsum.AONR = dagtemp2.AONR
+            slutsum.DELNR = dagtemp2.DELNR
+            slutsum.ORT = dagtemp2.ORT
+            slutsum.BEFATTNING = dagtemp2.BEFATTNING.
+         END.
+         IF dagtemp2.ENKEL = "ENKE" THEN slutsum.ENKTIMMAR = (ACCUM TOTAL BY dagtemp2.ENKEL dagtemp2.OANT).
+         ELSE slutsum.KVALTIMMAR = (ACCUM TOTAL BY dagtemp2.ENKEL dagtemp2.OANT).                     
+      END.     
+   END.
+   FOR EACH BEFATTNINGSTAB NO-LOCK,
+   EACH slutsum WHERE slutsum.BEFATTNING = BEFATTNINGSTAB.BEFATTNING:
+      slutsum.VIBEFATTNING = BEFATTNINGSTAB.NAMN.
+   END.
+   FOR EACH slutsum WHERE BREAK BY slutsum.VIBEFATTNING: 
+      ACCUMULATE slutsum.TIMMAR (TOTAL BY slutsum.VIBEFATTNING).           
+      ACCUMULATE slutsum.ENKTIMMAR (TOTAL BY slutsum.VIBEFATTNING).           
+      ACCUMULATE slutsum.KVALTIMMAR (TOTAL BY slutsum.VIBEFATTNING).           
+      IF LAST-OF(slutsum.VIBEFATTNING) THEN DO:
+         CREATE sumsum.
+         sumsum.VIBEFATTNING = slutsum.VIBEFATTNING.
+         sumsum.TIMMAR = (ACCUM TOTAL BY slutsum.VIBEFATTNING slutsum.TIMMAR).
+         sumsum.ENKTIMMAR = (ACCUM TOTAL BY slutsum.VIBEFATTNING slutsum.ENKTIMMAR).
+         sumsum.KVALTIMMAR = (ACCUM TOTAL BY slutsum.VIBEFATTNING slutsum.KVALTIMMAR).                     
+      END.     
+   END.
+END PROCEDURE.   
+
+PROCEDURE sop_UI:
+   DEFINE INPUT PARAMETER openvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER delkoll AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER visgvar AS LOGICAL NO-UNDO.
+   IF visgvar = FALSE THEN DO:      
+      IF openvar = 11 THEN DO:
+         IF delkoll = TRUE THEN DO:
+
+            OPEN QUERY stq FOR EACH befattningstemp,
+            EACH TIDREGITAB WHERE TIDREGITAB.OVERTIDTILL = befattningstemp.BEFATTNING AND
+            TIDREGITAB.AONR = valdaao.AONR AND TIDREGITAB.DELNR = valdaao.DELNR AND 
+            TIDREGITAB.DATUM >= uppvaltemp.STARTDATUM AND 
+            TIDREGITAB.DATUM <= uppvaltemp.SLUTDATUM NO-LOCK.
+            
+            OPEN QUERY tfq FOR EACH befattningstemp,
+            EACH TIDFEL WHERE TIDFEL.OVERTIDTILL = befattningstemp.BEFATTNING AND
+            TIDFEL.AONR = valdaao.AONR AND TIDFEL.DELNR = valdaao.DELNR AND 
+            TIDFEL.DATUM >= uppvaltemp.STARTDATUM AND 
+            TIDFEL.DATUM <= uppvaltemp.SLUTDATUM NO-LOCK.
+                                
+         END.
+         ELSE DO:
+            OPEN QUERY stq FOR EACH befattningstemp,
+            EACH TIDREGITAB WHERE TIDREGITAB.OVERTIDTILL = befattningstemp.BEFATTNING AND
+            TIDREGITAB.AONR = valdaao.AONR AND  
+            TIDREGITAB.DATUM >= uppvaltemp.STARTDATUM AND 
+            TIDREGITAB.DATUM <= uppvaltemp.SLUTDATUM NO-LOCK.
+            
+            OPEN QUERY tfq FOR EACH befattningstemp,
+            EACH TIDFEL WHERE TIDFEL.OVERTIDTILL = befattningstemp.BEFATTNING AND
+            TIDFEL.AONR = valdaao.AONR AND  
+            TIDFEL.DATUM >= uppvaltemp.STARTDATUM AND 
+            TIDFEL.DATUM <= uppvaltemp.SLUTDATUM NO-LOCK.                     
+         END.
+      END.
+      IF openvar = 12 THEN DO:
+         IF delkoll = TRUE THEN DO:
+            OPEN QUERY stq FOR EACH befattningstemp,
+            EACH TIDREGITAB WHERE TIDREGITAB.OVERTIDTILL = befattningstemp.BEFATTNING AND
+            TIDREGITAB.AONR = valdaao.AONR AND TIDREGITAB.DELNR = valdaao.DELNR NO-LOCK.
+            
+            OPEN QUERY tfq FOR EACH befattningstemp,
+            EACH TIDFEL WHERE TIDFEL.OVERTIDTILL = befattningstemp.BEFATTNING AND
+            TIDFEL.AONR = valdaao.AONR AND TIDFEL.DELNR = valdaao.DELNR NO-LOCK.
+         END.
+         ELSE DO:
+            OPEN QUERY stq FOR EACH befattningstemp,
+            EACH TIDREGITAB WHERE TIDREGITAB.OVERTIDTILL = befattningstemp.BEFATTNING AND
+            TIDREGITAB.AONR = valdaao.AONR NO-LOCK.    
+            
+            OPEN QUERY tfq FOR EACH befattningstemp,
+            EACH TIDFEL WHERE TIDFEL.OVERTIDTILL = befattningstemp.BEFATTNING AND
+            TIDFEL.AONR = valdaao.AONR NO-LOCK.            
+         END.     
+      END.
+   END.
+   ELSE DO:
+      IF openvar = 11 THEN DO:
+         IF delkoll = TRUE THEN DO:
+            OPEN QUERY stq FOR EACH befattningstemp,
+            EACH TIDREGITAB WHERE TIDREGITAB.OVERTIDTILL = befattningstemp.BEFATTNING AND
+            TIDREGITAB.AONR = valdaao.AONR AND TIDREGITAB.DELNR = valdaao.DELNR AND 
+            TIDREGITAB.DATUM >= uppvaltemp.STARTDATUM AND 
+            TIDREGITAB.DATUM <= uppvaltemp.SLUTDATUM AND TIDREGITAB.VECKOKORD NE ""  NO-LOCK.
+            
+            OPEN QUERY tfq FOR EACH befattningstemp,
+            EACH TIDFEL WHERE TIDFEL.OVERTIDTILL = befattningstemp.BEFATTNING AND
+            TIDFEL.AONR = valdaao.AONR AND TIDFEL.DELNR = valdaao.DELNR AND 
+            TIDFEL.DATUM >= uppvaltemp.STARTDATUM AND 
+            TIDFEL.DATUM <= uppvaltemp.SLUTDATUM AND TIDFEL.VECKOKORD NE "" NO-LOCK.                     
+         END.
+         ELSE DO:
+            OPEN QUERY stq FOR EACH befattningstemp,
+            EACH TIDREGITAB WHERE TIDREGITAB.OVERTIDTILL = befattningstemp.BEFATTNING AND
+            TIDREGITAB.AONR = valdaao.AONR AND  
+            TIDREGITAB.DATUM >= uppvaltemp.STARTDATUM AND 
+            TIDREGITAB.DATUM <= uppvaltemp.SLUTDATUM AND 
+            TIDREGITAB.VECKOKORD NE "" NO-LOCK.
+            
+            OPEN QUERY tfq FOR EACH befattningstemp,
+            EACH TIDFEL WHERE TIDFEL.OVERTIDTILL = befattningstemp.BEFATTNING AND
+            TIDFEL.AONR = valdaao.AONR AND  
+            TIDFEL.DATUM >= uppvaltemp.STARTDATUM AND 
+            TIDFEL.DATUM <= uppvaltemp.SLUTDATUM AND 
+            TIDFEL.VECKOKORD NE "" NO-LOCK.                     
+         END.
+      END.
+      IF openvar = 12 THEN DO:
+         IF delkoll = TRUE THEN DO:
+            OPEN QUERY stq FOR EACH befattningstemp,
+            EACH TIDREGITAB WHERE TIDREGITAB.OVERTIDTILL = befattningstemp.BEFATTNING AND
+            TIDREGITAB.AONR = valdaao.AONR AND TIDREGITAB.DELNR = valdaao.DELNR 
+            AND TIDREGITAB.VECKOKORD NE "" NO-LOCK.
+            
+            OPEN QUERY tfq FOR EACH befattningstemp,
+            EACH TIDFEL WHERE TIDFEL.OVERTIDTILL = befattningstemp.BEFATTNING AND
+            TIDFEL.AONR = valdaao.AONR AND TIDFEL.DELNR = valdaao.DELNR 
+            AND TIDFEL.VECKOKORD NE "" NO-LOCK.            
+         END.
+         ELSE DO:
+            OPEN QUERY stq FOR EACH befattningstemp,
+            EACH TIDREGITAB WHERE TIDREGITAB.OVERTIDTILL = befattningstemp.BEFATTNING AND
+            TIDREGITAB.AONR = valdaao.AONR 
+            AND TIDREGITAB.VECKOKORD NE ""  NO-LOCK.
+            
+            OPEN QUERY tfq FOR EACH befattningstemp,
+            EACH TIDFEL WHERE TIDFEL.OVERTIDTILL = befattningstemp.BEFATTNING AND
+            TIDFEL.AONR = valdaao.AONR 
+            AND TIDFEL.VECKOKORD NE ""  NO-LOCK.            
+         END.     
+      END.      
+   END.   
+END PROCEDURE.
+PROCEDURE huvud_UI :  
+   CREATE tidut. 
+   SUBSTRING(tidut.UT,60) = STRING(TODAY) + " " + STRING(TIME,"HH:MM").
+   CREATE tidut.
+   CREATE tidut.
+   tidut.UT = uppvaltemp.VALDLISTA. 
+   IF uppvaltemp.VISPERAR = TRUE THEN DO: 
+      SUBSTRING(tidut.UT,64) = "ÅR " + STRING(YEAR(uppvaltemp.STARTDATUM),"9999").
+   END.                        
+   ELSE IF uppvaltemp.VISPERAR = FALSE THEN DO:
+      SUBSTRING(tidut.UT,64) = "PERIOD " +  STRING(uppvaltemp.STARTDATUM) + 
+      " - " + STRING(uppvaltemp.SLUTDATUM).     
+   END.
+   ELSE DO:
+      SUBSTRING(tidut.UT,64) = "VISNING AV ALLT".
+   END.
+   CREATE tidut.
+   
+   CREATE tidut.
+   ASSIGN
+   nrcol[1] = 1
+   nrcol[2] = 2
+   nrcol[3] = 3
+   nrcol[4] = 4
+   nrcol[5] = 5
+   breddantal = 6   /*antal kolumner*/
+   bredd[1] = 14
+   bredd[2] = 20
+   bredd[3] = 10
+   bredd[4] = 10
+   bredd[5] = 10.
+   
+   ASSIGN
+   i = 2.     
+   utnr[nrcol[1]] = 1.
+   DO WHILE i <= breddantal:             
+      utnr[i] = utnr[i - 1] + bredd[i - 1] + 1.            
+      i = i + 1.
+   END.   
+   ASSIGN
+   str = "".  
+   i = 1.
+   DO WHILE i <= utnr[breddantal] + bredd[breddantal] - 1:
+      str = str + "=".     
+      i = i + 1.
+   END.   
+   i = 2.      
+   DO WHILE i <= breddantal:             
+      SUBSTRING(str,(utnr[i] - 1),1) = ".".      
+      i = i + 1.
+   END.          
+   CREATE tidut.  
+   CREATE tidut.   
+   CREATE tidut.             
+   ASSIGN        
+   SUBSTRING(tidut.UT,utnr[nrcol[3]]) = "ORDINARIE"             
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "ENKEL ÖVER"         
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "KVAL ÖVER".  
+   str2 = tidut.UT.                 
+   CREATE tidut.      
+   ASSIGN                               
+   SUBSTRING(tidut.UT,utnr[nrcol[1]]) = CAPS(Guru.Konstanter:gaok)      
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "BEFATTNING"             
+   SUBSTRING(tidut.UT,utnr[nrcol[3]]) = "TIMMAR"         
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "TIMMAR"  
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "TIMMAR".     
+   str3 = tidut.UT.                
+   CREATE tidut.      
+   tidut.UT = str.
+   
+   FOR EACH slutsum USE-INDEX AONR:      
+      CREATE tidut.      
+      ASSIGN 
+      SUBSTRING(tidut.UT,utnr[nrcol[1]]) = slutsum.AONR + STRING(slutsum.DELNR,Guru.Konstanter:varforetypchar[1])
+      SUBSTRING(tidut.UT,utnr[nrcol[2]]) = slutsum.VIBEFATTNING     
+      SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING(slutsum.TIMMAR,">>>>>>9.99")                                                          
+      SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(slutsum.ENKTIMMAR,">>>>>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(slutsum.KVALTIMMAR,">>>>>>9.99").                    
+   END.
+   CREATE tidut.      
+   FOR EACH slutsum WHERE BREAK BY slutsum.NY: 
+      ACCUMULATE slutsum.TIMMAR (TOTAL BY slutsum.NY).           
+      ACCUMULATE slutsum.ENKTIMMAR (TOTAL BY slutsum.NY).           
+      ACCUMULATE slutsum.KVALTIMMAR (TOTAL BY slutsum.NY).           
+      IF LAST-OF(slutsum.NY) THEN DO:
+         CREATE tidut.
+         SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "TOTALT".
+         SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING((ACCUM TOTAL BY slutsum.NY slutsum.TIMMAR),">>>>>>9.99").    
+         SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING((ACCUM TOTAL BY slutsum.NY slutsum.ENKTIMMAR),">>>>>>9.99"). 
+         SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING((ACCUM TOTAL BY slutsum.NY slutsum.KVALTIMMAR),">>>>>>9.99").        
+      END.     
+   END.
+   CREATE tidut.      
+   CREATE tidut.      
+   tidut.UT = "PER BEFATTNING".
+   CREATE tidut.      
+   FOR EACH sumsum:      
+      CREATE tidut.      
+      ASSIGN 
+      SUBSTRING(tidut.UT,utnr[nrcol[2]]) = sumsum.VIBEFATTNING     
+      SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING(sumsum.TIMMAR,">>>>>>9.99")                                                          
+      SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(sumsum.ENKTIMMAR,">>>>>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(sumsum.KVALTIMMAR,">>>>>>9.99").                    
+   END.
+   CREATE tidut.      
+   FOR EACH sumsum WHERE BREAK BY sumsum.NY: 
+      ACCUMULATE sumsum.TIMMAR (TOTAL BY sumsum.NY).           
+      ACCUMULATE sumsum.ENKTIMMAR (TOTAL BY sumsum.NY).           
+      ACCUMULATE sumsum.KVALTIMMAR (TOTAL BY sumsum.NY).           
+      IF LAST-OF(sumsum.NY) THEN DO:
+         CREATE tidut.
+         SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "TOTALT".
+         SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING((ACCUM TOTAL BY sumsum.NY sumsum.TIMMAR),">>>>>>9.99").    
+         SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING((ACCUM TOTAL BY sumsum.NY sumsum.ENKTIMMAR),">>>>>>9.99"). 
+         SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING((ACCUM TOTAL BY sumsum.NY sumsum.KVALTIMMAR),">>>>>>9.99").        
+      END.     
+   END.   
+END PROCEDURE.

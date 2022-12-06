@@ -1,0 +1,769 @@
+/* DYNBRWINIT.P 
+
+Initieringsprogram för browsear
+
+*/
+
+/**/
+
+/*
+
+DEFINE VARIABLE vcextravar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE brwproch AS HANDLE NO-UNDO.
+*/
+DEFINE VARIABLE entryprog AS CHARACTER NO-UNDO.
+DEFINE VARIABLE leaveprog AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dynprogoverh AS HANDLE NO-UNDO.
+DEFINE VARIABLE dynfrmh AS HANDLE NO-UNDO.
+DEFINE VARIABLE openquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tmpcolh AS HANDLE NO-UNDO.
+DEFINE VARIABLE fieldh AS HANDLE NO-UNDO.
+DEFINE VARIABLE fieldh2 AS HANDLE NO-UNDO.
+DEFINE VARIABLE tempnum AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE bg AS INTEGER NO-UNDO.
+DEFINE VARIABLE colraknare AS INTEGER NO-UNDO.
+DEFINE VARIABLE tabort AS LOGICAL NO-UNDO.
+DEFINE VARIABLE colvalue AS INTEGER NO-UNDO.
+DEFINE VARIABLE brwrowid AS ROWID NO-UNDO.
+DEFINE VARIABLE brwvalrowid AS ROWID NO-UNDO.
+DEFINE VARIABLE andrastart AS LOGICAL NO-UNDO. 
+DEFINE VARIABLE tempstart AS DATE NO-UNDO.
+DEFINE VARIABLE tempslut AS DATE NO-UNDO.
+DEFINE VARIABLE goringet AS LOGICAL NO-UNDO.
+DEFINE VARIABLE invar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE muspl AS INTEGER NO-UNDO.
+DEFINE VARIABLE langd AS INTEGER NO-UNDO.
+DEFINE VARIABLE frmh AS HANDLE NO-UNDO.
+DEFINE VARIABLE entryfieldh AS HANDLE NO-UNDO.
+DEFINE VARIABLE brwh AS HANDLE NO-UNDO.
+DEFINE VARIABLE procvcsvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE dynprogvch AS HANDLE NO-UNDO.
+DEFINE VARIABLE huvprogh AS HANDLE NO-UNDO.
+DEFINE VARIABLE vcprog AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tempinth AS HANDLE NO-UNDO.
+DEFINE VARIABLE tempinthAH AS HANDLE NO-UNDO.
+DEFINE VARIABLE tempinthES AS HANDLE NO-UNDO.
+DEFINE VARIABLE tempinthON AS HANDLE NO-UNDO.
+DEFINE VARIABLE tempinthSE AS HANDLE NO-UNDO.
+      
+
+
+
+DEFINE VARIABLE tempintdyn AS HANDLE NO-UNDO EXTENT 10.
+DEFINE VARIABLE subprog AS CHARACTER NO-UNDO EXTENT 10.
+DEFINE TEMP-TABLE celltemp
+   FIELD PROCH AS HANDLE
+   FIELD CH AS HANDLE
+   FIELD PROCNAME AS CHARACTER
+   FIELD CNAME AS CHARACTER
+   FIELD DTYP AS CHARACTER
+   FIELD NUM AS INTEGER
+   FIELD FARG AS INTEGER /*bakgrund*/
+   FIELD FFARG AS INTEGER /*FÖRGRUND*/
+   FIELD CROWID AS ROWID
+   INDEX NUM AS PRIMARY NUM CNAME.
+   
+{DYNBRWSTART.I}
+
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{SLVALDBRW.I}
+
+DEFINE TEMP-TABLE fillintemp
+   FIELD FH AS HANDLE
+   FIELD SH AS HANDLE.
+
+DEFINE TEMP-TABLE coltemp
+   FIELD PROCH AS HANDLE
+   FIELD CH AS HANDLE
+   FIELD PROCNAME AS CHARACTER
+   FIELD CNAME AS CHARACTER
+   FIELD DTYP AS CHARACTER
+   FIELD NUM AS INTEGER
+   INDEX NUM AS PRIMARY NUM.
+   
+DEFINE TEMP-TABLE colcoltemp
+   FIELD CH AS HANDLE
+   FIELD CNAME AS CHARACTER
+   FIELD NUM AS INTEGER
+   INDEX NUM AS PRIMARY NUM.
+
+DEFINE TEMP-TABLE multiseltemp
+   FIELD NUMSEL AS INTEGER
+   FIELD SELROW AS ROWID
+   INDEX NUM AS PRIMARY NUMSEL.
+
+/* Håller ordning på menyerna i varje enskild browser. */
+DEFINE TEMP-TABLE menutemp
+   FIELD MENUH AS HANDLE
+   FIELD MENUITEMH AS HANDLE
+   FIELD BRWH AS HANDLE.
+
+
+
+{DYNBRWPROC.I}
+/*bara query utan brw*/
+PROCEDURE baraquery_UI :
+   DEFINE INPUT  PARAMETER dynbuffhin AS HANDLE NO-UNDO.
+   dynbuffh = dynbuffhin.
+   IF dynbuffh NE ? THEN DO:
+      CREATE QUERY dynqueh.
+      dynqueh:SET-BUFFERS(dynbuffh).
+      dynbuffh = dynqueh:GET-BUFFER-HANDLE. 
+      openquery = "FOR EACH " + dynbuffh:TABLE + " NO-LOCK".
+      dynqueh:QUERY-PREPARE(openquery).
+      /*Sätt queryn*/
+      dynbrwh:QUERY = dynqueh.
+   END.   
+
+END PROCEDURE.
+
+
+IF procexrowdisvar = "" THEN procexrowdisvar = "rowex_UI".
+dynprogextrah = THIS-PROCEDURE.
+/*NY BRW  FÖRSTA PROC SOM SKA KÖRAS glöm inte att köra getsizf_UI i frmsize*/
+
+PROCEDURE newbrw_UI : 
+   DEFINE INPUT  PARAMETER inhuvprogh AS HANDLE NO-UNDO.  
+   huvprogh = inhuvprogh.
+   /*Ge egenskaper till browser*/        
+   IF VALID-HANDLE(dynbrwh) THEN DELETE OBJECT dynbrwh NO-ERROR.
+   IF VALID-HANDLE(dynqueh) THEN DELETE OBJECT dynqueh NO-ERROR.
+   IF VALID-HANDLE(dynbuffh) THEN DELETE OBJECT dynbuffh NO-ERROR.
+   IF VALID-HANDLE(tmpcolh) THEN DELETE OBJECT tmpcolh NO-ERROR.
+   IF VALID-HANDLE(fieldh) THEN DELETE OBJECT fieldh NO-ERROR.
+   ASSIGN
+   dynbrwh = ?
+   dynqueh = ?
+   dynbuffh = ?
+   tmpcolh = ?
+   fieldh = ?. 
+   CREATE BROWSE dynbrwh.
+   brwh = dynbrwh.
+   dynbrwh:HIDDEN = TRUE.
+   
+   ON 'VALUE-CHANGED' OF dynbrwh PERSISTENT RUN vbrw_UI IN THIS-PROCEDURE.
+          
+END PROCEDURE.
+/* ANDRA PROC SOM SKA KÖRAS FÖR ATT FÅ TILLBKA HANDELN AV BRW*/
+PROCEDURE brw_UI :
+   DEFINE OUTPUT PARAMETER brwh AS HANDLE NO-UNDO.
+   brwh = dynbrwh.
+END PROCEDURE.
+PROCEDURE brwheigt_UI:
+   DEFINE INPUT  PARAMETER hojd AS INTEGER NO-UNDO.
+   dynbrwh:HEIGHT = hojd.
+END PROCEDURE.
+/*tredje proc start värden på brw*/
+PROCEDURE brwegenskap_UI :
+   DEFINE INPUT  PARAMETER dynbuffhin AS HANDLE NO-UNDO.
+   DEFINE INPUT  PARAMETER brwnamn AS CHARACTER NO-UNDO.   
+   DEFINE INPUT  PARAMETER vidd AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER bredd AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER multi AS LOGICAL NO-UNDO.
+   DEFINE INPUT  PARAMETER readonly AS LOGICAL NO-UNDO.
+   DEFINE INPUT  PARAMETER titel AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER inframe AS HANDLE NO-UNDO.
+   dynbuffh = dynbuffhin.
+   /*DEFINE INPUT  PARAMETER inframe AS CHARACTER NO-UNDO.*/
+   ASSIGN 
+   dynbrwh:NAME                     = brwnamn /*BRW_EXEMPEL*/
+   dynbrwh:WIDTH                    = vidd /*124*/
+   dynbrwh:HEIGHT                   = bredd /*10*/
+      /*
+  dynbrwh:EXPANDABLE               = YES 
+  */
+   dynbrwh:COLUMN                   = 1.5
+   dynbrwh:ROW                      = 2.4
+   dynbrwh:FONT                     = 4
+   dynbrwh:MULTIPLE                 = multi   
+   dynbrwh:READ-ONLY                = readonly.
+   
+   IF readonly = TRUE THEN dynbrwh:ROW-MARKERS = FALSE.
+   ELSE dynbrwh:ROW-MARKERS = TRUE.
+  
+   ASSIGN
+   dynbrwh:SEPARATORS               = TRUE
+   dynbrwh:SENSITIVE                = TRUE
+   dynbrwh:ALLOW-COLUMN-SEARCHING   = TRUE
+   dynbrwh:EXPANDABLE               = FALSE
+   dynbrwh:VISIBLE                  = TRUE
+   dynbrwh:COLUMN-SCROLLING         = FALSE
+   dynbrwh:COLUMN-RESIZABLE         = FALSE
+   dynbrwh:MAX-DATA-GUESS           = 100.
+   IF titel NE "" THEN  dynbrwh:TITLE                    = titel.
+
+   ASSIGN
+   /*dynbrwh:FRAME                  = FRAME-A*/
+   dynbrwh:FRAME                    = inframe
+   dynbrwh:ROW                      = 1
+   dynbrwh:WIDTH                    = dynbrwh:FRAME:WIDTH - 1.75
+   dynbrwh:HEIGHT                   = dynbrwh:FRAME:HEIGHT - 0.1.
+   /*dynbuffh = TEMP-TABLE tempbermtrlz:DEFAULT-BUFFER-HANDLE.*/
+   
+   ON 'LEAVE':U OF dynbrwh PERSISTENT RUN leavebrw_UI IN THIS-PROCEDURE.
+   ON 'ENTRY':U OF dynbrwh PERSISTENT RUN entrybrw_UI IN THIS-PROCEDURE.
+   
+   /* se rowdispextra_ui
+   ON "ROW-DISPLAY" OF dynbrwh PERSISTENT RUN checkcolumns_UI IN THIS-PROCEDURE.
+   */
+   /*Skapa buffer för temptabell */     
+
+   /*Skapa queryn för browsern och förbered den  WHERE " + dynbuffh:TABLE +".SID" = hdschakttemp.SID " */
+   IF dynbuffh NE ? THEN DO:
+      CREATE QUERY dynqueh.
+      dynqueh:SET-BUFFERS(dynbuffh).
+      dynbuffh = dynqueh:GET-BUFFER-HANDLE. 
+      openquery = "FOR EACH " + dynbuffh:TABLE + " NO-LOCK".
+      dynqueh:QUERY-PREPARE(openquery).
+      /*Sätt queryn*/
+      dynbrwh:QUERY = dynqueh.
+   END.   
+
+END PROCEDURE.
+
+/*fjärde proc ändra storlek och plats på brw*/
+PROCEDURE brwstorlek_UI :
+   DEFINE INPUT  PARAMETER bredd AS DECIMAL NO-UNDO.
+   DEFINE INPUT  PARAMETER hog AS DECIMAL NO-UNDO.
+   DEFINE INPUT  PARAMETER kolumn AS DECIMAL NO-UNDO.
+   DEFINE INPUT  PARAMETER rad AS DECIMAL NO-UNDO.
+   DEFINE INPUT  PARAMETER x-mult AS DECIMAL NO-UNDO.
+   DEFINE INPUT  PARAMETER y-mult AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE maximerat AS LOGICAL NO-UNDO.
+   assign
+   dynbrwh:WIDTH     = bredd
+   dynbrwh:HEIGHT    = hog
+   dynbrwh:COLUMN    = kolumn
+   dynbrwh:ROW       = rad.
+   IF maximerat = TRUE THEN DO:
+      IF dynbrwh:PRIVATE-DATA = "EJH" THEN DO: 
+         dynbrwh:WIDTH-PIXELS = dynbrwh:WIDTH-PIXELS * x-mult NO-ERROR.
+      END.
+      ELSE IF dynbrwh:PRIVATE-DATA = "EJB" THEN DO: 
+         dynbrwh:HEIGHT-PIXELS = dynbrwh:HEIGHT-PIXELS * y-mult NO-ERROR.
+      END.
+      ELSE IF dynbrwh:PRIVATE-DATA = "EJHB" THEN DO: 
+      END.
+   END.   
+END PROCEDURE.
+
+/*VALUE-CHANGED AV BRW*/
+PROCEDURE vbrw_UI :
+   dynbrwh:SELECT-FOCUSED-ROW() NO-ERROR.
+   brwrowid = dynbuffh:ROWID.   
+   RUN setlastrowid_UI (INPUT brwrowid).
+   
+   IF VALID-HANDLE(dynprogvch) THEN DO:
+      IF vcprog NE "" THEN RUN VALUE(vcprog) IN dynprogvch.
+   END.
+END PROCEDURE.
+
+/*HAR DU NÅGON EGEN PROC SOM SKA KÖRAS VID VC*/
+PROCEDURE vcextra_UI :  
+   DEFINE INPUT PARAMETER procexvc AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER rowvckorh AS HANDLE NO-UNDO.
+   vcprog = procexvc.
+   dynprogvch = rowvckorh.
+  
+END PROCEDURE.
+
+/*rubriker för kolumner från en temptab*/
+PROCEDURE rubriker_UI :
+   DEFINE INPUT  PARAMETER temph AS HANDLE NO-UNDO.
+   DEFINE VARIABLE labelh AS HANDLE NO-UNDO.
+   
+   dyncurcolh = dynbrwh:FIRST-COLUMN.
+   IF dyncurcolh = ? THEN RETURN.    
+   REPEAT:      
+      labelh = temph:BUFFER-FIELD(dyncurcolh:NAME) NO-ERROR.
+      IF labelh NE ? THEN DO:
+         IF labelh:AVAILABLE = TRUE THEN DO:  
+            IF labelh:BUFFER-VALUE NE ? THEN dyncurcolh:LABEL = STRING(labelh:BUFFER-VALUE).  
+        END.                           
+      END.   
+      dyncurcolh = dyncurcolh:NEXT-COLUMN.
+      IF NOT VALID-HANDLE(dyncurcolh) THEN LEAVE.
+      
+   END.
+   dyncurcolh = dynbrwh:FIRST-COLUMN.        
+END PROCEDURE.
+
+PROCEDURE scrollbrw_UI :
+   /*
+   APPLY "ENTRY" TO dynbrwh.
+   */ 
+END PROCEDURE.
+/*entry brw*/
+PROCEDURE entrybrw_UI :
+   /* 
+   dynbrwh:SELECT-FOCUSED-ROW() NO-ERROR.
+   RUN getrownr_UI.
+   
+   dynbrwh:DESELECT-ROWS() NO-ERROR.
+   */
+   RUN getrownr_UI.
+  
+   IF VALID-HANDLE(dynprogoverh) THEN DO:
+      IF entryprog NE "" THEN RUN VALUE(entryprog) IN dynprogoverh.
+   END.
+END PROCEDURE.
+
+PROCEDURE entryextra_UI :  
+   DEFINE INPUT PARAMETER procexvc AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER rowvckorh AS HANDLE NO-UNDO.
+   entryprog = procexvc.
+   dynprogoverh = rowvckorh.
+   
+END PROCEDURE.
+
+/*leave brw*/
+PROCEDURE leavebrw_UI :
+   IF VALID-HANDLE(dynprogoverh) THEN DO:
+      IF leaveprog NE "" THEN RUN VALUE(leaveprog) IN dynprogoverh.
+   END.
+END PROCEDURE.
+PROCEDURE leaveextra_UI :  
+   DEFINE INPUT PARAMETER procexvc AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER rowvckorh AS HANDLE NO-UNDO.
+   leaveprog = procexvc.
+   dynprogoverh = rowvckorh.
+   
+END PROCEDURE.
+/*ÖPPNA QUERY*/
+PROCEDURE openbrw_UI :
+   RUN openbdynspec_UI.
+END PROCEDURE.
+
+/* SKAPA FÄLT, kör fieldinit_UI först! */
+PROCEDURE fieldinit_UI : 
+   IF dynbuffh = ? THEN DO:
+      MESSAGE "Något är fel kontakta Elpool i Umeå AB 090/184540"
+      VIEW-AS ALERT-BOX.
+      RETURN.
+   END.   
+   
+   frmh = dynbrwh:FRAME.
+   frmh:HIDDEN = FALSE.
+   dynbrwh:HIDDEN = FALSE.
+END PROCEDURE.
+
+PROCEDURE VisibleField_UI :
+   DEFINE INPUT  PARAMETER ttfalt AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER hiddl AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE tempcolh AS HANDLE NO-UNDO.
+   /*
+   dynbuffh:BUFFER-FIELD(ttfalt):VISIBLE IN BROWSE dynbrwh:NAME  = hiddl.
+   */
+   
+   tempcolh = dynbrwh:GET-BROWSE-COLUMN(1).     
+   DO WHILE VALID-HANDLE(tempcolh):
+      IF tempcolh:NAME = ttfalt THEN DO:
+         tempcolh:VISIBLE = hiddl.
+         tempcolh = ?.
+      END.   
+      ELSE tempcolh = tempcolh:NEXT-COLUMN.         
+   END.
+  
+END PROCEDURE.
+/* SKAPA FÄLT, kör fieldinit_UI först! */
+PROCEDURE createfields_UI :   
+   DEFINE INPUT  PARAMETER ttfalt AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER rubrik AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER vidd AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER visformat AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER readonly AS LOGICAL NO-UNDO.
+   fieldh = dynbuffh:BUFFER-FIELD(ttfalt).
+   fieldh:FORMAT = visformat.
+   tmpcolh = dynbrwh:ADD-LIKE-COLUMN(fieldh).
+   ASSIGN
+   tmpcolh:WIDTH-CHARS = vidd
+   tmpcolh:LABEL = rubrik
+   tmpcolh:READ-ONLY = readonly
+   tmpcolh:VISIBLE = TRUE. 
+   frmh:HIDDEN = TRUE.   
+   ON 'ENTRY':U OF tmpcolh PERSISTENT RUN entry_UI IN THIS-PROCEDURE.
+   ON 'LEAVE':U OF tmpcolh PERSISTENT RUN leave_UI IN THIS-PROCEDURE.
+   ON 'ANY-KEY':U OF tmpcolh PERSISTENT RUN anykeycell_UI IN THIS-PROCEDURE.
+   IF tmpcolh:NAME = "enr" THEN RUN setmenuenint_UI.   
+END PROCEDURE.
+
+PROCEDURE setmenudyn_UI :
+/*exempel
+   RUN setmenudyn_UI IN brwproc[brvnr] (INPUT 2,INPUT "h2",INPUT "h2_UI", INPUT THIS-PROCEDURE).
+   */
+   DEFINE INPUT  PARAMETER vad AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER rubrik AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER subprogin AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER subprogh AS HANDLE NO-UNDO.
+   subprog[vad] = subprogin.
+   IF dynbrwh:POPUP-MENU = ? THEN DO:
+      CREATE MENU tempintdyn[vad].
+      tempintdyn[vad]:POPUP-ONLY = TRUE.
+      dynbrwh:POPUP-MENU = tempintdyn[vad].
+   END.                
+   CREATE MENU-ITEM tempintdyn[vad].
+   tempintdyn[vad]:LABEL = rubrik.
+   tempintdyn[vad]:PARENT = dynbrwh:POPUP-MENU.
+  
+  
+   ON CHOOSE OF tempintdyn[vad] PERSISTENT RUN VALUE(subprog[vad]) IN subprogh.
+   
+END PROCEDURE.
+{DYNSETSOKENRLEV.I}
+
+
+PROCEDURE fieldslut_UI :
+   tempnum = 1. 
+   tabort = TRUE.
+   tabort = FALSE.        
+   /*Öppna queryn*/
+   dynbrwh:HIDDEN = FALSE.
+   
+   RUN brwsetup_UI.
+   dynqueh = dynbrwh:QUERY.   
+   dynbuffh = dynqueh:GET-BUFFER-HANDLE(1).
+   IF dynbuffh:TABLE MATCHES "tidut" THEN  dynbrwh:FONT = 24. 
+   ELSE IF dynbuffh:TABLE MATCHES "*tidut" THEN  dynbrwh:FONT = 24. 
+   ELSE IF dynbuffh:TABLE MATCHES "tidut*" THEN  dynbrwh:FONT = 24. 
+   dyncurcolh = dynbrwh:GET-BROWSE-COLUM (defaultcol).
+   multvar = dynbrwh:MULTIPLE.
+   orgtitle = dynbrwh:TITLE.
+	/* Denna dels används för randiga browsrar */
+   colshiftlog = FALSE.       /* TRUE = Randig browser */     
+   IF Guru.Konstanter:varforetypval[20] >= 1 THEN DO:
+      colshiftlog = TRUE.
+      RUN columnstotemp_UI.     
+   END.
+   RUN setmenucopy_UI.
+   RUN wversion_UI (INPUT 1).
+   RUN triggs_UI.      
+   IF dynbrwh:NUM-COLUMNS = 0 THEN RETURN.
+   /*
+   dynbrwh:NUM-LOCKED-COLUMNS = 1.
+   */
+   RUN openbrw_UI.
+   dynbrwh:SENSITIVE  = TRUE.  
+   dynbrwh:HIDDEN = FALSE.
+   dynbrwh:DESELECT-ROWS() NO-ERROR.
+END PROCEDURE.
+
+/*ENTRY fält i BRW*/
+
+PROCEDURE entry_UI : 
+   dynbrwh:SELECT-FOCUSED-ROW() NO-ERROR.
+   entryfieldh = dynbuffh:BUFFER-FIELD(tmpcolh:NAME) NO-ERROR.
+END PROCEDURE.
+/*om man vill placera curser*/
+PROCEDURE anykeycell_UI : 
+   muspl = entryfieldh:CURSOR-OFFSET.
+END PROCEDURE.
+
+PROCEDURE placera_UI :
+   IF VALID-HANDLE(entryfieldh) THEN DO:
+      IF muspl > 0 THEN entryfieldh:CURSOR-OFFSET = muspl.                     
+   END.    
+END PROCEDURE.
+
+PROCEDURE placeracurser_UI :
+   DEFINE INPUT  PARAMETER faltnamn AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE placerh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE colnr AS INTEGER NO-UNDO.
+   colnr = 1.
+   REPEAT:
+      placerh = dynbrwh:GET-BROWSE-COLUMN(colnr).
+      IF placerh:NAME = faltnamn THEN LEAVE.
+      colnr = colnr + 1.
+      IF colnr > dynbrwh:NUM-COLUMNS THEN DO:
+         placerh = ?.
+         LEAVE.
+      END.
+         
+   END.
+   IF VALID-HANDLE(placerh) THEN APPLY "ENTRY" TO placerh.  
+END PROCEDURE.
+
+/*leave fält*/
+PROCEDURE leave_UI :
+   DEFINE VARIABLE hjdate AS DATE NO-UNDO.
+   DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE andrafieldh AS HANDLE NO-UNDO.
+   invar = SELF:SCREEN-VALUE.
+   dynbrwh:SELECT-FOCUSED-ROW() NO-ERROR.
+   fieldh = dynbuffh:BUFFER-FIELD(FOCUS:NAME) NO-ERROR.
+   IF fieldh = ? THEN RETURN.
+   brwrowid = dynbuffh:ROWID.
+   IF brwrowid = ? THEN RETURN.
+   musz = FALSE.
+   IF fieldh:DATA-TYPE = "DATE" THEN DO:
+      IF fieldh:BUFFER-VALUE = DATE(invar) THEN.
+      ELSE musz = TRUE.
+   END.
+   ELSE IF fieldh:BUFFER-VALUE = invar THEN. /*jämför screenvalue med sparat och gör ingenting om det är samma*/
+   ELSE musz = TRUE.
+   
+   IF musz = TRUE THEN DO:
+      musz = FALSE.
+      fieldh:BUFFER-VALUE = invar.
+      IF fieldh:BUFFER-VALUE NE ? THEN DO:
+         RUN setcellvalue_UI (INPUT fieldh:NAME,INPUT invar).
+         andrafieldh = dynbuffh:BUFFER-FIELD("ANDRAD") NO-ERROR.
+         IF andrafieldh NE ? THEN andrafieldh:BUFFER-VALUE = TRUE.              
+      END.
+        
+   END.
+   dynbrwh:DESELECT-ROWS() NO-ERROR.
+   musz = FALSE.
+END PROCEDURE.
+
+
+PROCEDURE sattegen_UI :
+   DEFINE INPUT  PARAMETER namn AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER vad AS LOGICAL NO-UNDO.
+   /*dynbrwh:value(namn)    = vad*/
+   dynbrwh = dynbrwh.
+END PROCEDURE.
+
+PROCEDURE getantal_UI :   
+   DEFINE VARIABLE brwantal AS INTEGER NO-UNDO.
+   /*RUN setorgtitle_UI (INPUT dynbrwh:TITLE).*/
+   
+   RUN getnumresult_UI (OUTPUT brwantal).
+   dynbrwh:MAX-DATA-GUESS = brwantal.            
+   IF dynbrwh:TITLE NE ? THEN dynbrwh:TITLE = dynbrwh:TITLE + "   Urvalresultat " + STRING(brwantal) + "st". 
+END PROCEDURE.
+
+PROCEDURE columnstotempdyn_UI.
+   
+   DEFINE VARIABLE spartempnum AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE celltemp NO-ERROR. 
+   IF dynqueh:QUERY-OPEN() = ? THEN dynqueh:QUERY-OPEN().
+   spartempnum = tempnum.
+   dynqueh:GET-FIRST(NO-LOCK).
+   IF dynqueh:QUERY-OFF-END THEN LEAVE.
+   REPEAT:
+      tempcolh = dynbrwh:GET-BROWSE-COLUMN(tempnum).
+      brwrowid = dynbuffh:ROWID.
+      DO WHILE VALID-HANDLE(tempcolh) AND dynbuffh:ROWID = brwrowid: 
+         fieldh = dynbuffh:BUFFER-FIELD(tempcolh:NAME).
+         CREATE celltemp.
+         ASSIGN
+         celltemp.DTYP = tempcolh:DATA-TYP
+         celltemp.CH = tempcolh
+         celltemp.CNAME = tempcolh:NAME
+         celltemp.NUM = tempnum
+         celltemp.CROWID = dynbuffh:ROWID.
+         
+         tempcolh = tempcolh:NEXT-COLUMN.
+         tempnum = tempnum + 1.              
+      END.
+      dynqueh:GET-NEXT(NO-LOCK).
+      tempnum = spartempnum.
+      IF dynqueh:QUERY-OFF-END THEN LEAVE.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE xsetcellvalue_UI :
+ /*funkar NUUUUUU! FINNS I DYNBRWPROC.I*/
+ 
+   DEFINE INPUT PARAMETER colnamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER covarde AS CHARACTER NO-UNDO.
+   dynfalth = dynbuffh:BUFFER-FIELD(colnamn).
+   IF covarde = ? THEN covarde = "".
+   
+   MESSAGE dynfalth:WIDTH-CHARS  dynfalth:BUFFER-VALUE dynfalth:BGCOLOR dynfalth:fGCOLOR
+   VIEW-AS ALERT-BOX.
+     
+END PROCEDURE.
+
+PROCEDURE bgcolor_UI :
+   DEFINE INPUT  PARAMETER faltnamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER farg AS INTEGER NO-UNDO.
+   FIND FIRST celltemp WHERE celltemp.CNAME = faltnamn AND celltemp.CROWID = cellbrwrow NO-LOCK NO-ERROR.
+   IF AVAILABLE celltemp THEN DO:
+      celltemp.FARG = farg.
+      IF AVAILABLE celltemp THEN celltemp.CH:BGCOLOR = farg.
+            
+   END.            
+END PROCEDURE.
+ 
+PROCEDURE fgcolor_UI :
+   DEFINE INPUT  PARAMETER faltnamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER farg AS INTEGER NO-UNDO.
+   FIND FIRST celltemp WHERE celltemp.CNAME = faltnamn AND celltemp.CROWID = cellbrwrow NO-LOCK NO-ERROR.
+   IF AVAILABLE celltemp THEN DO:
+      celltemp.FFARG = farg.
+      IF AVAILABLE celltemp THEN celltemp.CH:FGCOLOR = farg.         
+   END.              
+END PROCEDURE.
+PROCEDURE fgcolorcol_UI :
+   DEFINE INPUT  PARAMETER faltnamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER farg AS INTEGER NO-UNDO.
+   DEFINE VARIABLE tempcounter AS INTEGER NO-UNDO.
+   tempcolh = dynbrwh:GET-BROWSE-COLUMN(1).  
+   labelvar = "".
+   tempcounter = 0.
+  
+   DO WHILE VALID-HANDLE(tempcolh):
+      tempcounter = tempcounter + 1. 
+      IF tempcounter > maxantalcolexcel THEN LEAVE.
+      IF tempcolh:NAME = faltnamn THEN DO:
+         ASSIGN 
+         tempcolh:COLUMN-FGCOLOR = farg
+         tempcolh:LABEL-FGCOLOR = farg.
+      END.
+      tempcolh = tempcolh:NEXT-COLUMN.         
+   END.
+            
+END PROCEDURE.
+PROCEDURE bgcolorcol_UI :
+   DEFINE INPUT  PARAMETER faltnamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER farg AS INTEGER NO-UNDO.
+   DEFINE VARIABLE tempcounter AS INTEGER NO-UNDO.
+   tempcolh = dynbrwh:GET-BROWSE-COLUMN(1).  
+   labelvar = "".
+   tempcounter = 0.
+  
+   DO WHILE VALID-HANDLE(tempcolh):
+      tempcounter = tempcounter + 1. 
+      IF tempcounter > maxantalcolexcel THEN LEAVE.
+      IF tempcolh:NAME = faltnamn THEN DO:
+         ASSIGN 
+         tempcolh:COLUMN-BGCOLOR = farg
+         tempcolh:LABEL-BGCOLOR = farg.
+      END.
+      tempcolh = tempcolh:NEXT-COLUMN.         
+   END.
+            
+END PROCEDURE.
+
+PROCEDURE exceldyn_UI :
+   DEFINE INPUT PARAMETER saveas AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE tempcounter AS INTEGER NO-UNDO.
+   RUN allac_UI.
+   tempcolh = dynbrwh:GET-BROWSE-COLUMN(1).  
+   labelvar = "".
+   tempcounter = 0.
+  
+   DO WHILE VALID-HANDLE(tempcolh):
+      tempcounter = tempcounter + 1. 
+      IF tempcounter > maxantalcolexcel THEN LEAVE.
+      IF tempcolh:DATA-TYPE = "DATE" THEN bredd[tempcounter] = 11.
+      ELSE bredd[tempcounter] = tempcolh:WIDTH.
+      slutbredd = bredd[tempcounter].      
+      tempcolh = tempcolh:NEXT-COLUMN.         
+   END.
+  
+   breddantal = tempcounter.
+   RUN colbredd_UI.  
+   IF saveas = TRUE THEN RUN startexcelval_UI (INPUT FALSE).
+   ELSE RUN startexcelval_UI (INPUT TRUE).
+   RUN gridlines_UI (INPUT TRUE).
+   raknare = 1.
+   RUN kolumnexcel_UI.
+   tempcolh = dynbrwh:FIRST-COLUMN. 
+   tempcounter = 0.
+   labelvar = "".  
+   DO WHILE VALID-HANDLE(tempcolh):    
+      tempcounter = tempcounter + 1. 
+      IF tempcounter > maxantalcolexcel THEN LEAVE.
+      cRange = allac[tempcounter] + "1".
+      chWorkSheet:Range(cRange):VALUE = REPLACE(tempcolh:LABEL,"!"," ") NO-ERROR.
+      IF tempcolh:LABEL-FGCOLOR = ? THEN.
+      ELSE IF tempcolh:LABEL-FGCOLOR = 0 OR tempcolh:LABEL-FGCOLOR = 8 OR tempcolh:LABEL-FGCOLOR = 15 THEN.
+      ELSE DO:
+         RUN profexcelfarg_UI (INPUT tempcolh:COLUMN-FGCOLOR,OUTPUT bg). 
+         RUN bgcellcol_UI (INPUT allac[tempcounter], INPUT bg,input FALSE).                      
+      END.
+      IF tempcolh:LABEL-BGCOLOR = ? THEN.
+      ELSE IF tempcolh:LABEL-BGCOLOR = 0 THEN.
+      ELSE DO:
+         RUN profexcelfarg_UI (INPUT tempcolh:COLUMN-BGCOLOR,OUTPUT bg). 
+         RUN bgcellcol_UI (INPUT allac[tempcounter], INPUT bg,input TRUE).                      
+      END.
+                   
+      tempcolh = tempcolh:NEXT-COLUMN.         
+   END.  
+   
+   tempcounter = 1.
+   dynqueh:GET-FIRST(NO-LOCK).
+   
+   REPEAT:
+      IF dynqueh:QUERY-OFF-END THEN LEAVE. 
+      brwrowid = dynbuffh:ROWID.
+      tempcounter = tempcounter + 1. 
+      irad = tempcounter.
+      RUN excelutdyn_UI (INPUT tempcounter).      
+      dynqueh:GET-NEXT(NO-LOCK).
+   END.  
+   RUN sidbrytbredd_UI (INPUT 2).
+   
+   RUN namnbladexcel_UI (INPUT dynbrwh:TITLE).
+   IF saveas = TRUE THEN RUN slutmedprint_UI (INPUT 1).
+   ELSE RUN slutexcel_UI.
+ END PROCEDURE.
+
+PROCEDURE excelutdyn_UI :
+   DEFINE INPUT PARAMETER radervar AS INTEGER NO-UNDO.
+   DEFINE VARIABLE tempbufh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE decichar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE tempcounter AS INTEGER NO-UNDO.
+   tempcolh = dynbrwh:GET-BROWSE-COLUMN(1).  
+   tempcounter = 0.
+   DO WHILE VALID-HANDLE(tempcolh):
+      tempcounter = tempcounter + 1. 
+      IF tempcounter > maxantalcolexcel THEN LEAVE.
+      IF tempcolh:NAME = ? THEN.
+      ELSE DO:
+         tempbufh = dynbuffh:BUFFER-FIELD(tempcolh:NAME).
+         IF tempbufh:BUFFER-VALUE = ? THEN.
+         ELSE DO:
+            cRange = allac[tempcounter] + STRING(radervar).
+            IF tempcolh:DATA-TYPE = "DECIMAL" THEN DO:                                    
+               decichar = REPLACE(STRING(ROUND(tempbufh:BUFFER-VALUE,2)),".",",").               
+               chWorkSheet:Range(cRange):VALUE = decichar NO-ERROR.
+            END.
+            ELSE IF tempcolh:DATA-TYPE = "DATE" THEN DO:                                    
+               decichar = STRING(tempbufh:BUFFER-VALUE,"9999/99/99").               
+               chWorkSheet:Range(cRange):VALUE = decichar NO-ERROR.
+            END.
+            ELSE chWorkSheet:Range(cRange):VALUE = STRING(tempbufh:BUFFER-VALUE) NO-ERROR. 
+           /*
+            IF tempcolh:COLUMN-FGCOLOR = ? THEN.
+            ELSE IF tempcolh:COLUMN-FGCOLOR = 0 THEN.
+            ELSE DO:
+               RUN profexcelfarg_UI (INPUT tempcolh:COLUMN-FGCOLOR,OUTPUT bg). 
+               RUN bgcell3_UI (INPUT allac[tempcounter], INPUT bg).               
+            END.  
+            IF tempcolh:COLUMN-BGCOLOR = ? THEN.
+            ELSE IF tempcolh:COLUMN-BGCOLOR = 0 THEN.
+            ELSE DO:
+               RUN profexcelfarg_UI (INPUT tempcolh:COLUMN-BGCOLOR,OUTPUT bg). 
+               RUN bgcellc3_UI (INPUT allac[tempcounter],INPUT bg).               
+            END.    
+             */                                   
+            FIND FIRST celltemp WHERE celltemp.CNAME = tempcolh:NAME AND celltemp.CROWID = brwrowid NO-LOCK NO-ERROR.
+            IF AVAILABLE celltemp THEN DO: 
+               IF celltemp.FFARG NE ? THEN DO:
+                  IF celltemp.FFARG = 0 OR celltemp.FFARG = 8 OR celltemp.FFARG = 15 THEN.
+                  ELSE DO:
+                     RUN profexcelfarg_UI (INPUT celltemp.FFARG,OUTPUT bg). 
+                     RUN bgcellfarg_UI (INPUT allac[tempcounter],INPUT bg,INPUT FALSE).                               
+                  END.              
+               END.
+               IF celltemp.FARG NE ? THEN DO:
+                  IF celltemp.FARG = 0 OR celltemp.FARG = 8 OR celltemp.FARG = 15 THEN.
+                  ELSE DO:
+                     RUN profexcelfarg_UI (INPUT celltemp.FARG,OUTPUT bg). 
+                     RUN bgcellfarg_UI (INPUT allac[tempcounter],INPUT bg,INPUT TRUE).                               
+                  END.              
+               END.
+            END.
+                                                            
+         END.
+      END.
+      tempcolh = tempcolh:NEXT-COLUMN.         
+   END.
+END PROCEDURE.

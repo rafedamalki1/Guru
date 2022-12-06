@@ -1,0 +1,173 @@
+/*TIDMVALP.P*/
+&Scoped-define NEW NEW
+{TIDPERS.I}
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+
+DEFINE TEMP-TABLE markpers    
+   FIELD EFTERNAMN LIKE PERSONALTAB.EFTERNAMN 
+   FIELD FORNAMN LIKE PERSONALTAB.FORNAMN 
+   FIELD PERSONALKOD LIKE PERSONALTAB.PERSONALKOD 
+   INDEX PERSONALKOD IS PRIMARY PERSONALKOD ASCENDING.    
+DEFINE NEW SHARED TEMP-TABLE vomrtemp
+   FIELD OMRADE AS CHARACTER
+   FIELD NAMN AS CHARACTER
+   INDEX OMR IS PRIMARY OMRADE
+   INDEX OMRNAMN NAMN.
+DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER flexvar AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER globanv LIKE ANVANDARE.ANVANDARE NO-UNDO.
+DEFINE INPUT PARAMETER globniv LIKE ANVANDARE.AV-LEVEL NO-UNDO.
+DEFINE INPUT PARAMETER RAD_ALLVAL AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR markpers.
+DEFINE INPUT PARAMETER TABLE FOR vomrtemp.
+DEFINE OUTPUT PARAMETER TABLE FOR tidpers.
+FIND FIRST markpers NO-LOCK NO-ERROR.
+RUN rad_UI.
+ 
+{GDPRLOGGCLIENT.I}
+PROCEDURE rad_UI :
+   IF vem = "" THEN DO:
+      IF flexvar = FALSE THEN DO:
+         IF RAD_ALLVAL = 1 THEN DO:      
+            OPEN QUERY pq FOR EACH markpers,
+            EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE AND
+            PERSONALTAB.ANSVARIGTIDR = markpers.PERSONALKOD USE-INDEX ANSVT NO-LOCK.
+            GET FIRST pq NO-LOCK.
+            DO WHILE AVAILABLE(PERSONALTAB):      
+               RUN skapapers_UI. 
+               GET NEXT pq NO-LOCK.    
+            END.      
+         END.      
+         IF RAD_ALLVAL = 2 THEN DO:
+            OPEN QUERY opq FOR EACH vomrtemp, 
+            EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE AND   
+            PERSONALTAB.OMRADE = vomrtemp.OMRADE USE-INDEX OMR NO-LOCK.      
+            GET FIRST opq NO-LOCK.
+            DO WHILE AVAILABLE(PERSONALTAB):      
+               RUN skapapers_UI. 
+               GET NEXT opq NO-LOCK.    
+            END.
+         END.        
+         IF RAD_ALLVAL = 3 THEN DO:     
+            OPEN QUERY pmq FOR EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE
+            USE-INDEX PERSONALKOD NO-LOCK.  
+            GET FIRST pmq NO-LOCK.
+            DO WHILE AVAILABLE(PERSONALTAB):      
+               RUN skapapers_UI. 
+               GET NEXT pmq NO-LOCK.    
+            END.
+         END.          
+         IF RAD_ALLVAL = 4 THEN DO:
+            OPEN QUERY pq FOR EACH markpers,
+            EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = markpers.PERSONALKOD NO-LOCK.
+            GET FIRST pq NO-LOCK.
+            DO WHILE AVAILABLE(markpers):      
+               RUN skapapers_UI. 
+               GET NEXT pq NO-LOCK.    
+            END.   
+         END.          
+         IF RAD_ALLVAL = 6 THEN DO:      
+            OPEN QUERY pq FOR EACH markpers,
+            EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE AND
+            PERSONALTAB.TIDSGODK = markpers.PERSONALKOD NO-LOCK.      
+            GET FIRST pq NO-LOCK.
+            DO WHILE AVAILABLE(PERSONALTAB):      
+               RUN skapapers_UI.             
+               GET NEXT pq NO-LOCK.    
+            END.     
+         END.
+      END.
+      ELSE DO:
+         IF RAD_ALLVAL = 1 THEN DO:
+            EMPTY TEMP-TABLE tidpers NO-ERROR.             
+            OPEN QUERY mppq FOR EACH markpers,
+            EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE AND
+            PERSONALTAB.ANSVARIGTIDR = markpers.PERSONALKOD USE-INDEX ANSVT NO-LOCK,
+            EACH FLEXAVT WHERE FLEXAVT.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+            FLEXAVT.FLEXTID = TRUE NO-LOCK.
+            GET FIRST mppq NO-LOCK.
+            DO WHILE AVAILABLE(PERSONALTAB):      
+               RUN skapapers_UI. 
+               GET NEXT mppq NO-LOCK.    
+            END.   
+                 
+         END. 
+         ELSE IF RAD_ALLVAL = 6 THEN DO:
+            EMPTY TEMP-TABLE tidpers NO-ERROR.             
+            OPEN QUERY mppq FOR EACH markpers,
+            EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE AND
+            PERSONALTAB.TIDSGODK = markpers.PERSONALKOD NO-LOCK,
+            EACH FLEXAVT WHERE FLEXAVT.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+            FLEXAVT.FLEXTID = TRUE NO-LOCK.
+            GET FIRST mppq NO-LOCK.
+            DO WHILE AVAILABLE(PERSONALTAB):      
+               RUN skapapers_UI. 
+               GET NEXT mppq NO-LOCK.    
+            END.         
+         END.
+         ELSE IF RAD_ALLVAL = 2 THEN DO:
+            EMPTY TEMP-TABLE tidpers NO-ERROR.             
+            OPEN QUERY fopq FOR EACH vomrtemp, 
+            EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE AND   
+            PERSONALTAB.OMRADE = vomrtemp.OMRADE USE-INDEX OMR NO-LOCK,      
+            EACH FLEXAVT WHERE FLEXAVT.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+            FLEXAVT.FLEXTID = TRUE NO-LOCK.      
+            GET FIRST fopq NO-LOCK.
+            DO WHILE AVAILABLE(PERSONALTAB):      
+               RUN skapapers_UI. 
+               GET NEXT fopq NO-LOCK.    
+            END.      
+         END.        
+         ELSE IF RAD_ALLVAL = 3 THEN DO:
+            EMPTY TEMP-TABLE tidpers NO-ERROR.             
+            OPEN QUERY peq FOR EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE    
+            USE-INDEX PERSONALKOD NO-LOCK,
+            EACH FLEXAVT WHERE FLEXAVT.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+            FLEXAVT.FLEXTID = TRUE NO-LOCK.
+            GET FIRST peq NO-LOCK.
+            DO WHILE AVAILABLE(PERSONALTAB):      
+               RUN skapapers_UI. 
+               GET NEXT peq NO-LOCK.    
+            END.
+         END.          
+         ELSE IF RAD_ALLVAL = 4 THEN DO:
+            EMPTY TEMP-TABLE tidpers NO-ERROR.
+                         
+            OPEN QUERY mppq FOR EACH markpers,
+            EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = markpers.PERSONALKOD NO-LOCK,
+            EACH FLEXAVT WHERE FLEXAVT.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+            FLEXAVT.FLEXTID = TRUE NO-LOCK.
+            GET FIRST mppq NO-LOCK.
+            DO WHILE AVAILABLE(markpers):      
+               RUN skapapers_UI. 
+               GET NEXT mppq NO-LOCK.    
+            END.        
+         END.
+      END.
+   END.
+   ELSE DO:
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = vem AND
+      PERSONALTAB.AKTIV = TRUE NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN RUN skapapers_UI.
+   END.
+END PROCEDURE.
+PROCEDURE skapapers_UI :
+  musz = FALSE.
+  DO TRANSACTION: 
+      {TSEK.I}      
+      IF musz =  TRUE THEN DO:
+         musz = FALSE.
+         RETURN.
+      END.
+      CREATE tidpers.
+      ASSIGN 
+      SUBSTRING(tidpers.ANSVARIGTIDR,1,5) = PERSONALTAB.ANSVARIGTIDR
+      SUBSTRING(tidpers.ANSVARIGTIDR,7,5) = PERSONALTAB.TIDSGODK
+      tidpers.OMRADE = PERSONALTAB.OMRADE
+      tidpers.TIDPERSREC = RECID(PERSONALTAB)
+      tidpers.PERSONALKOD = PERSONALTAB.PERSONALKOD
+      tidpers.EFTERNAMN = PERSONALTAB.EFTERNAMN   
+      tidpers.FORNAMN = PERSONALTAB.FORNAMN.   
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + tidpers.PERSONALKOD.
+   END.      
+END PROCEDURE.

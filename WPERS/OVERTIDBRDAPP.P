@@ -1,0 +1,988 @@
+/*OVERTIDBRDAPP.P*/
+{STARTFORAPP.I}
+{OTIDBEORD.I}
+{EXTRADATA.I}
+{BOLAGSEKSTART.I}
+{GODATK.I}
+{GODTEMP.I}
+DEFINE TEMP-TABLE peroveretemp NO-UNDO
+      FIELD PERSONALKOD AS CHARACTER
+      FIELD FORNAMN AS CHARACTER
+      FIELD EFTERNAMN AS CHARACTER
+      FIELD EPOST AS CHARACTER
+      FIELD AKTIV AS LOGICAL
+      FIELD ANDRAD AS INTEGER
+      FIELD JUDID AS CHARACTER
+      FIELD OMRADE AS CHARACTER
+      INDEX PERSONALKOD PERSONALKOD.
+DEFINE VARIABLE prognamn5 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE prognamn6 AS CHARACTER NO-UNDO.    
+DEFINE VARIABLE spafrisk AS LOGICAL NO-UNDO.
+DEFINE VARIABLE sparratk AS LOGICAL NO-UNDO.
+DEFINE VARIABLE lonvaxatk AS LOGICAL NO-UNDO.  
+DEFINE VARIABLE extraapph AS HANDLE NO-UNDO.
+DEFINE BUFFER jurbuff FOR JURPERS.
+DEFINE TEMP-TABLE extratidallt NO-UNDO
+   FIELD ANVANDARE        AS CHARACTER
+   FIELD AONR             AS CHARACTER
+   FIELD BERANTAL         AS DECIMAL
+   FIELD BERBEORD         AS LOGICAL      INITIAL NO
+   FIELD BEREDSKAP        AS CHARACTER
+   FIELD BEREDSKAPSLUT    AS DECIMAL
+   FIELD BEREDSKAPSTART   AS DECIMAL
+   FIELD BILFORARE        AS LOGICAL      INITIAL NO
+   FIELD DAG              AS CHARACTER    INITIAL TODAY
+   FIELD DATUM            AS DATE
+   FIELD DELNR            AS INTEGER
+   FIELD ENFLERDAGS       AS CHARACTER
+   FIELD GODKAND          AS CHARACTER
+   FIELD LAGANTAL         AS DECIMAL
+   FIELD LAGBAS           AS LOGICAL      INITIAL NO
+   FIELD LONAUTO          AS LOGICAL      INITIAL YES
+   FIELD LONTILLAGG       AS CHARACTER
+   FIELD LONTILLANTAL     AS DECIMAL
+   FIELD NODF             AS LOGICAL      INITIAL  NO
+   FIELD OANT1            AS DECIMAL
+   FIELD OANT2            AS DECIMAL
+   FIELD OANT3            AS DECIMAL
+   FIELD OKOD1            AS CHARACTER
+   FIELD OKOD2            AS CHARACTER
+   FIELD OKOD3            AS CHARACTER
+   FIELD OSL1             AS DECIMAL
+   FIELD OSL2             AS DECIMAL
+   FIELD OSL3             AS DECIMAL
+   FIELD OST1             AS DECIMAL
+   FIELD OST2             AS DECIMAL
+   FIELD OST3             AS DECIMAL
+   FIELD OVERANTAL        AS DECIMAL
+   FIELD OVERAUTO         AS LOGICAL      INITIAL YES
+   FIELD OVERTIDTILL      AS CHARACTER
+   FIELD OVERTIDUTTAG     AS CHARACTER    INITIAL "K"
+   FIELD PERSONALKOD      AS CHARACTER
+   FIELD PRIS             AS DECIMAL
+   FIELD PRISTYP          AS CHARACTER    INITIAL "TOT.PRIS."
+   FIELD PROGRAM          AS CHARACTER
+   FIELD RECTIDVIS        AS RECID
+   FIELD RESMAL           AS CHARACTER
+   FIELD SLUT             AS DECIMAL      INITIAL 16.00
+   FIELD START            AS DECIMAL      INITIAL 7.00
+   FIELD TIDLOG           AS LOGICAL      INITIAL YES
+   FIELD TOTALT           AS DECIMAL
+   FIELD TRAKTAMENTE      AS INTEGER
+   FIELD TRAKTANTAL       AS DECIMAL
+   FIELD TRAKTAUTO        AS LOGICAL      INITIAL YES
+   FIELD TRAKTKOD         AS CHARACTER
+   FIELD TRAKTTOT         AS DECIMAL
+   FIELD UTRYCKNING       AS LOGICAL      INITIAL NO
+   FIELD VECKOKORD        AS CHARACTER
+   FIELD VECKONUMMER      AS INTEGER
+   FIELD VILART           AS CHARACTER
+   FIELD VIBEFATTNING     AS CHARACTER   
+   FIELD ENHET            AS CHARACTER
+   FIELD TYP              AS CHARACTER
+   FIELD ANDRA            AS LOGICAL      INITIAL NO
+   FIELD SKICKA           AS LOGICAL
+   FIELD DEBET            AS LOGICAL
+   INDEX PSTART IS PRIMARY DATUM START SLUT PRISTYP
+   INDEX PKOD DATUM BEREDSKAPSTART BEREDSKAPSLUT
+   INDEX AONR AONR DELNR
+   INDEX VILART VILART
+   INDEX REC RECTIDVIS
+   INDEX ANDRA ANDRA DATUM START SLUT.    
+
+
+
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+
+
+RUN EXTRADATAHMT.P PERSISTENT SET extraapph.
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+PROCEDURE anvglob_UI :
+   DEFINE INPUT PARAMETER anvglob AS CHARACTER NO-UNDO.
+   /*Guru.Konstanter:globanv = anvglob.*/
+END PROCEDURE.
+PROCEDURE tidtime_UI :
+   DEFINE OUTPUT PARAMETER nytidvar AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE minutervar AS INTEGER NO-UNDO.
+   
+   IF TIME < 86400 THEN DO:
+      nytidvar = DECIMAL(SUBSTRING(STRING(TIME,"HH:MM"),1,2)) +
+              DECIMAL(SUBSTRING(STRING(TIME,"HH:MM"),4,2)) / 100. 
+   END.
+   ELSE DO:
+      minutervar = TIME MOD 3600.
+      nytidvar = ((TIME - minutervar) / 3600) + (minutervar / 6000).
+   END. 
+END PROCEDURE.
+PROCEDURE btnok_UI:
+   DEFINE INPUT PARAMETER TABLE FOR extradatatemp.
+   /*Nya eller ändrade*/
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   FOR EACH extradatatemp WHERE extradatatemp.PROGRAM = "OTBEORD" AND extradatatemp.SOKINT[1] = 1 NO-LOCK:
+      CREATE inextradatatemp.
+      BUFFER-COPY extradatatemp TO inextradatatemp.
+   END.
+   FIND FIRST inextradatatemp NO-LOCK NO-ERROR.
+   IF AVAILABLE inextradatatemp THEN RUN extraspar_UI IN extraapph (INPUT TABLE inextradatatemp).      
+   /*De som ska tas bort*/
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   FOR EACH extradatatemp WHERE extradatatemp.PROGRAM = "OTBEORD" AND extradatatemp.SOKINT[1] = 2 NO-LOCK:
+      CREATE inextradatatemp.
+      BUFFER-COPY extradatatemp TO inextradatatemp.      
+   END.
+   FIND FIRST inextradatatemp NO-LOCK NO-ERROR.
+   IF AVAILABLE inextradatatemp THEN RUN exbort_UI IN extraapph (INPUT TABLE inextradatatemp).      
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+END PROCEDURE.
+
+PROCEDURE othmt_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR otidbeordtemp.
+   EMPTY TEMP-TABLE otidbeordtemp NO-ERROR. 
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   CREATE inextradatatemp.
+   ASSIGN
+   inextradatatemp.PROGRAM = "OTBEORD"                   
+   inextradatatemp.HUVUDCH = ?              
+   inextradatatemp.HUVUDINT = ?.      
+   RUN etabhamt_UI IN extraapph (INPUT TABLE inextradatatemp,OUTPUT TABLE extradatatemp).
+   FOR EACH extradatatemp NO-LOCK:
+      extradatatemp.SOKINT[1] = 0.
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = extradatatemp.HUVUDCH /*AND PERSONALTAB.AKTIV = TRUE*/  USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN DO:
+         CREATE otidbeordtemp.
+         ASSIGN
+         otidbeordtemp.PERSONALKOD = extradatatemp.HUVUDCH
+         otidbeordtemp.FORNAMN     = PERSONALTAB.FORNAMN
+         otidbeordtemp.EFTERNAMN   = PERSONALTAB.EFTERNAMN
+         otidbeordtemp.OMRADE      = PERSONALTAB.OMRADE
+         otidbeordtemp.EPOST       = extradatatemp.SOKCHAR[1]
+         otidbeordtemp.AKTIV       = extradatatemp.SOKLOG[1] 
+         otidbeordtemp.ANDRAD      = extradatatemp.SOKINT[1].
+      END.
+   END.   
+END PROCEDURE.
+PROCEDURE othmtsek_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR otidbeordtemp.
+   DEFINE VARIABLE tisek AS LOGICAL NO-UNDO.
+   EMPTY TEMP-TABLE otidbeordtemp NO-ERROR. 
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   CREATE inextradatatemp.
+   ASSIGN
+   inextradatatemp.PROGRAM = "OTBEORD"                   
+   inextradatatemp.HUVUDCH = ?              
+   inextradatatemp.HUVUDINT = ?.      
+   RUN etabhamt_UI IN extraapph (INPUT TABLE inextradatatemp,OUTPUT TABLE extradatatemp).
+   FOR EACH extradatatemp NO-LOCK:
+      extradatatemp.SOKINT[1] = 0.
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = extradatatemp.HUVUDCH /*AND PERSONALTAB.AKTIV = TRUE*/  USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN DO:
+         
+         tisek = FALSE.
+         FIND FIRST ANVANDARE  WHERE ANVANDARE.ANVANDARE = Guru.Konstanter:globanv NO-LOCK  NO-ERROR.
+         IF ANVANDARE.AV-LEVEL = 0 THEN tisek = TRUE.
+         ELSE DO:
+            FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = Guru.Konstanter:globanv AND
+            TIDSEK.PERSONALKOD = PERSONALTAB.PERSONALKOD AND TIDSEK.PANDRA = TRUE   USE-INDEX TIDSEK NO-LOCK NO-ERROR.
+            IF AVAILABLE TIDSEK THEN DO: 
+               tisek = TRUE.
+            END.                          
+         END.
+         IF tisek = TRUE THEN DO:
+         
+            CREATE otidbeordtemp.
+            ASSIGN
+            otidbeordtemp.PERSONALKOD = extradatatemp.HUVUDCH
+            otidbeordtemp.FORNAMN     = PERSONALTAB.FORNAMN
+            otidbeordtemp.EFTERNAMN   = PERSONALTAB.EFTERNAMN
+            otidbeordtemp.OMRADE      = PERSONALTAB.OMRADE
+            otidbeordtemp.EPOST       = extradatatemp.SOKCHAR[1]
+            otidbeordtemp.AKTIV       = extradatatemp.SOKLOG[1] 
+            otidbeordtemp.ANDRAD      = extradatatemp.SOKINT[1].
+         END.   
+      END.
+   END.   
+END PROCEDURE.
+PROCEDURE kollbolag_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR otidbeordtemp.
+   IF Guru.Konstanter:varforetypval[18] = 0 OR Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)   THEN RETURN.
+   
+   FOR EACH otidbeordtemp,
+   EACH omvtemp WHERE omvtemp.OMRADE = otidbeordtemp.OMRADE:
+      FIND FIRST BOLAGSEK WHERE BOLAGSEK.ANVANDARE = Guru.Konstanter:globanv AND BOLAGSEK.OMRADE = omvtemp.JUDID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BOLAGSEK THEN DO:
+         DELETE otidbeordtemp.
+      END.  
+   END.
+END PROCEDURE.
+PROCEDURE othmtbolag_UI:
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR otidbeordtemp.
+   EMPTY TEMP-TABLE otidbeordtemp NO-ERROR. 
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+   FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+   FIND FIRST jurbuff WHERE jurbuff.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+   
+   FIND FIRST peroveretemp  NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE peroveretemp THEN DO:
+      CREATE inextradatatemp.
+      ASSIGN
+      inextradatatemp.PROGRAM = "OTBEORD"                   
+      inextradatatemp.HUVUDCH = ?              
+      inextradatatemp.HUVUDINT = ?.      
+      RUN etabhamt_UI IN extraapph (INPUT TABLE inextradatatemp,OUTPUT TABLE extradatatemp).
+      FOR EACH extradatatemp NO-LOCK,
+      EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = extradatatemp.HUVUDCH  /*AND PERSONALTAB.AKTIV = TRUE*/ NO-LOCK:
+         extradatatemp.SOKINT[1] = 0.
+         CREATE peroveretemp.
+         ASSIGN
+         peroveretemp.PERSONALKOD = extradatatemp.HUVUDCH
+         peroveretemp.FORNAMN     = PERSONALTAB.FORNAMN   
+         peroveretemp.EFTERNAMN   = PERSONALTAB.EFTERNAMN 
+         peroveretemp.OMRADE      = PERSONALTAB.OMRADE
+         peroveretemp.EPOST       = extradatatemp.SOKCHAR[1]
+         peroveretemp.AKTIV       = extradatatemp.SOKLOG[1] 
+         peroveretemp.ANDRAD      = extradatatemp.SOKINT[1].
+         IF Guru.Konstanter:globforetag = "sund" THEN DO:
+            /* ÄNDRAD FRÅN 20150924 LENA. 
+            För att man inte ska få med personal som är inaktiv,
+            men man ska fortfarande kunna lägga en övertidbeordrare inaktiv utan att dennes personaltab är inaktiv
+            peroveretemp.AKTIV       = PERSONALTAB.AKTIV.*/
+            IF PERSONALTAB.AKTIV = FALSE THEN peroveretemp.AKTIV       = PERSONALTAB.AKTIV.
+         END.
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+         FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+         FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+         IF AVAILABLE JURPERS THEN DO:
+            ASSIGN peroveretemp.JUDID = JURPERS.JUDID.
+         END.
+      END.
+     
+   END.
+   FOR EACH peroveretemp NO-LOCK:      
+      /*IF peroveretemp.JUDID = jurbuff.JUDID THEN DO:*/
+         CREATE otidbeordtemp.
+         ASSIGN
+         otidbeordtemp.PERSONALKOD = peroveretemp.PERSONALKOD
+         otidbeordtemp.FORNAMN     = peroveretemp.FORNAMN
+         otidbeordtemp.EFTERNAMN   = peroveretemp.EFTERNAMN
+         otidbeordtemp.OMRADE      = peroveretemp.OMRADE
+         otidbeordtemp.EPOST       = peroveretemp.EPOST  
+         otidbeordtemp.AKTIV       = peroveretemp.AKTIV  
+         otidbeordtemp.ANDRAD      = peroveretemp.ANDRAD.          
+      /*END.*/
+   END.
+   
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+END PROCEDURE.
+
+
+PROCEDURE otbortcheck_UI:
+   DEFINE INPUT PARAMETER otbeord AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   FIND FIRST TIDREGITAB WHERE TIDREGITAB.VECKOKORD = "" AND SUBSTRING(TIDREGITAB.RESMAL,160,5) = otbeord NO-LOCK NO-ERROR.
+   IF AVAILABLE TIDREGITAB THEN DO:
+      CREATE felmeddtemp.
+      ASSIGN
+      felmeddtemp.FELMEDD = "Det går ej att plocka bort " + otbeord + " som övertidsbeordrare. 
+                              Det ligger tidskrivning från " + STRING(TIDREGITAB.DATUM) + " för " + TIDREGITAB.PERSONALKOD + " som ännu ej är veckokörd. 
+                              Lägg övertidsbeordraren inaktiv istället.".
+   END.  
+END PROCEDURE.
+
+PROCEDURE kommentarutbcheck_UI:
+   DEFINE INPUT PARAMETER anr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER dnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER kravkomm AS LOGICAL NO-UNDO.   
+   IF Guru.Konstanter:globforetag = "SNAT"  THEN DO:
+      kravkomm = FALSE.
+      /*OBS! Lägg in i otolpr.p att det ska ge mertid och inte övertid*/
+      
+      IF anr = "00003"  THEN kravkomm = TRUE.
+      IF anr = "21471" AND dnr = 1 THEN kravkomm = TRUE.
+      IF anr = "80014"  THEN kravkomm = TRUE.
+      IF anr = "80015"  THEN kravkomm = TRUE. 
+      
+   END.   
+   IF Guru.Konstanter:globforetag = "SUND"  THEN DO:
+      kravkomm = FALSE.
+      /*OBS! Lägg in i otolpr.p att det ska ge mertid och inte övertid*/ 
+      IF anr = "S10019"  THEN kravkomm = TRUE.
+      IF anr = "S15053"  THEN kravkomm = TRUE.
+      IF anr = "S15054"  THEN kravkomm = TRUE.
+      IF anr = "S18001"  THEN kravkomm = TRUE.
+      IF anr = "S18051"  THEN kravkomm = TRUE.
+      IF anr = "S18054"  THEN kravkomm = TRUE.
+      IF anr = "S18057"  THEN kravkomm = TRUE.
+      IF anr = "S20001"  THEN kravkomm = TRUE.
+      IF anr = "S20102"  THEN kravkomm = TRUE.
+      IF anr = "S21001"  THEN kravkomm = TRUE.
+      IF anr = "S22001"  THEN kravkomm = TRUE.
+      IF anr = "S23001"  THEN kravkomm = TRUE.
+      IF anr = "S24001"  THEN kravkomm = TRUE.
+      IF anr = "S25001"  THEN kravkomm = TRUE.
+      IF anr = "S26001"  THEN kravkomm = TRUE.
+      IF anr = "S27001"  THEN kravkomm = TRUE.
+      IF anr = "S29001"  THEN kravkomm = TRUE.
+      IF anr = "S40001"  THEN kravkomm = TRUE.            
+      IF anr = "S41001"  THEN kravkomm = TRUE.            
+      IF anr = "S44001"  THEN kravkomm = TRUE.
+      IF anr = "S81001"  THEN kravkomm = TRUE.
+      IF anr = "S81101"  THEN kravkomm = TRUE.
+      IF anr = "S83001"  THEN kravkomm = TRUE.
+      IF anr = "S85101"  THEN kravkomm = TRUE.
+      IF anr = "S85201"  THEN kravkomm = TRUE.
+      IF anr = "S85301"  THEN kravkomm = TRUE.
+      IF anr = "S83101"  THEN kravkomm = TRUE.
+      IF anr = "S86001"  THEN kravkomm = TRUE.
+      IF anr = "S86002"  THEN kravkomm = TRUE.
+      IF anr = "S86003"  THEN kravkomm = TRUE.
+      IF anr = "S86004"  THEN kravkomm = TRUE.
+      IF anr = "S86020"  THEN kravkomm = TRUE.
+      IF anr = "S86122"  THEN kravkomm = TRUE.
+      IF anr = "S88001"  THEN kravkomm = TRUE.      
+      
+   END.   
+   IF Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "cELPA" THEN DO:
+      kravkomm = FALSE.
+      /*OBS! Lägg in i otolpr.p  att det ska ge mertid och inte övertid overtidbrdapp.p*/
+      /*IF anr = "181001"  THEN kravkomm = TRUE.*/
+      IF anr = "181016"  THEN kravkomm = TRUE.
+      IF anr = "181017"  THEN kravkomm = TRUE.
+      IF anr = "181018"  THEN kravkomm = TRUE.
+      IF anr = "181019"  THEN kravkomm = TRUE.
+      IF anr = "181020"  THEN kravkomm = TRUE.      
+    END.   
+   IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+      kravkomm = FALSE.
+      IF anr = "250"  THEN kravkomm = TRUE.
+      IF anr = "255"  THEN kravkomm = TRUE.      
+   END.
+   IF Guru.Konstanter:globforetag = "LULE"  THEN DO:
+      kravkomm = FALSE.
+      IF anr = "250"  THEN kravkomm = TRUE.      
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE kommentaroblcheck_UI:
+   DEFINE INPUT PARAMETER anr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER dnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER kravkomm AS LOGICAL NO-UNDO.
+   IF Guru.Konstanter:globforetag = "TECM"  THEN DO:
+      /*ALLTID OBLIGATORISK kommentar til fakturering*/
+      kravkomm = TRUE.
+                                   
+   END.   
+   IF Guru.Konstanter:globforetag = "SUND"  THEN DO:
+      kravkomm = FALSE.
+      IF anr = "135"  THEN kravkomm = TRUE.            
+      IF anr = "S85209"  THEN kravkomm = TRUE.                              
+   END.
+   IF  Guru.Konstanter:globforetag = "SNAT" THEN DO:
+      kravkomm = FALSE.
+      IF anr = "135"  THEN kravkomm = TRUE.                             
+      IF anr = "43010"  THEN kravkomm = TRUE.            
+      IF anr = "43012"  THEN kravkomm = TRUE.            
+      IF anr = "45003"  THEN kravkomm = TRUE.
+      IF anr = "06006" AND  dnr = 0 THEN kravkomm = TRUE.
+      /*flyttas till kommoblkom_UI för flexibel kommentar på appserversidan */
+      IF anr = "43177"  THEN kravkomm = TRUE.            
+      IF anr = "43178"  THEN kravkomm = TRUE.            
+      IF anr = "43179"  THEN kravkomm = TRUE.            
+   END.   
+   IF Guru.Konstanter:globforetag = "MISV"  THEN DO:
+      kravkomm = FALSE.
+      IF anr = "135"  THEN kravkomm = TRUE.            
+      IF anr = "181002"  THEN kravkomm = TRUE.
+      /*IF anr = "181003"  THEN kravkomm = TRUE.               */
+   END.   
+   IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "CELPA" THEN DO:
+      kravkomm = FALSE.
+      IF anr = "140"  THEN kravkomm = TRUE.
+      IF anr = "143"  THEN kravkomm = TRUE.
+      IF anr = "144"  THEN kravkomm = TRUE.
+      IF anr = "145"  THEN kravkomm = TRUE.
+      IF anr = "080191"  THEN kravkomm = TRUE.
+      IF anr = "080192"  THEN kravkomm = TRUE.
+      IF anr = "045152"  THEN kravkomm = TRUE.
+      IF anr = "045092"  THEN kravkomm = TRUE.
+      IF anr = "65018"  THEN kravkomm = TRUE.
+   END.   
+   IF Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "CELPA" THEN DO:
+      IF anr = "005800" AND dnr = 0  THEN kravkomm = TRUE.
+      IF anr = "005801" AND dnr = 0  THEN kravkomm = TRUE.
+      IF anr = "005802" AND dnr = 0  THEN kravkomm = TRUE.
+      IF anr = "005803" AND dnr = 0  THEN kravkomm = TRUE.
+      IF anr = "005804" AND dnr = 0  THEN kravkomm = TRUE.
+      IF anr = "005805" AND dnr = 0  THEN kravkomm = TRUE.
+      IF anr = "005806" AND dnr = 0  THEN kravkomm = TRUE.
+      IF anr = "005808" AND dnr = 0  THEN kravkomm = TRUE.
+      IF anr = "100221" AND dnr = 0  THEN kravkomm = TRUE.
+      IF anr = "100222" AND dnr = 0  THEN kravkomm = TRUE.      
+      IF anr = "143" AND dnr = 0  THEN kravkomm = TRUE.    
+      IF anr = "141" AND dnr = 0  THEN kravkomm = TRUE.    
+      IF anr = "250" AND dnr = 0  THEN kravkomm = TRUE.    
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE kommobllangd_UI:
+   DEFINE INPUT PARAMETER anr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER dnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER kravkomm AS LOGICAL NO-UNDO.   
+   kravkomm = FALSE.  
+   IF Guru.Konstanter:globforetag = "SNAT"  THEN DO:
+      IF anr = "43010"  THEN kravkomm = TRUE.            
+      IF anr = "43012"  THEN kravkomm = TRUE.            
+      IF anr = "45003"  THEN kravkomm = TRUE.            
+   END.   
+   
+END PROCEDURE.
+
+PROCEDURE kommoblkom_UI:
+   DEFINE INPUT PARAMETER anr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER dnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER kravkomm AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER valdkom AS CHARACTER NO-UNDO.   
+   IF Guru.Konstanter:globforetag = "SNAT"  THEN DO:
+      kravkomm = FALSE.   
+      IF anr = "43177" OR anr = "43178"  THEN DO:
+          kravkomm = TRUE.
+          valdkom = "Ange CRM-nummer eller typ av fel och plats".
+      END.                                  
+      IF anr = "43179"  THEN DO:
+          kravkomm = TRUE.
+          valdkom = "Ange plats och arbetsuppgift".          
+      END.                
+   END.   
+   
+    
+END PROCEDURE.
+
+PROCEDURE tvbarncheck_UI:
+   DEFINE INPUT PARAMETER anr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER dnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER kravkomm AS LOGICAL NO-UNDO.  
+   /*vab ska inte ha krav på personnummer FILL-IN-AONR = "118"  lena 20181211 ändrat tillbaka snat 20220506 lena*/    
+   IF Guru.Konstanter:globforetag = "SNAT"  THEN DO:
+      kravkomm = FALSE.
+      IF anr = "118"  THEN kravkomm = TRUE.            
+   END.   
+   IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "skok" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+      kravkomm = FALSE.
+      IF anr = "132"  THEN kravkomm = TRUE.            
+   END.   
+   IF Guru.Konstanter:globforetag = "LULE"  OR Guru.Konstanter:globforetag = "CELPA" THEN DO:
+      kravkomm = FALSE.
+      IF anr = "131"  THEN kravkomm = TRUE.            
+   END.   
+
+   
+END PROCEDURE.
+
+PROCEDURE fpbarncheck_UI:
+   DEFINE INPUT PARAMETER anr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER dnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER kravkomm AS LOGICAL NO-UNDO.   
+   IF Guru.Konstanter:globforetag = "sund" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:     
+      kravkomm = FALSE.
+      IF anr = "117"  THEN kravkomm = TRUE.            /* Pappaledig vid barnets födelse*/
+      IF anr = "119"  THEN kravkomm = ?.            /*Föräldraledighet*/
+      IF Guru.Konstanter:globforetag = "snat" THEN DO:
+         IF anr = "191"  THEN kravkomm = ?.            /*Föräldraledighet 12,5%*/
+         IF anr = "192"  THEN kravkomm = ?.            /*Föräldraledighet 25%*/
+         IF anr = "193"  THEN kravkomm = ?.            /*Föräldraledighet 50%*/
+         IF anr = "194"  THEN kravkomm = ?.            /*Föräldraledighet 75%*/
+      END.      
+   END.   
+   IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "skok" OR Guru.Konstanter:globforetag = "CELPA" THEN DO:
+      kravkomm = FALSE.
+      IF anr = "131" OR  anr = "134" THEN kravkomm = ?.     /*Föräldraledighet, Föräldraledighet DELTID*/      
+   END.      
+   IF Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "CELPA" THEN DO:
+      kravkomm = FALSE.
+      IF anr = "130"  THEN kravkomm = ?.        /*Föräldraledighet*/     
+   END.   
+   
+END PROCEDURE.
+
+PROCEDURE ejerscheck_UI:
+   DEFINE INPUT PARAMETER anr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER dnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER kravkomm AS LOGICAL NO-UNDO.   
+   IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT"  OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+      kravkomm = FALSE.
+      IF anr = "S27100"  THEN kravkomm = TRUE.            
+   END.     
+   
+END PROCEDURE.
+
+PROCEDURE perbolag_UI :
+   DEFINE INPUT PARAMETER pekod AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER sattfore AS CHARACTER NO-UNDO.
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pekod NO-LOCK NO-ERROR.
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+   FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+   FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+   sattfore = JURPERS.JUDID.
+
+END PROCEDURE.
+
+PROCEDURE pcheck_UI:
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   DEFINE output PARAMETER pcheck AS LOGICAL  NO-UNDO.
+   IF Guru.Konstanter:globforetag =  "GKAL" THEN DO:
+      /*kalmar 14302 Tomas Andersson , 14305 Joakim Andersson, 14314 Per Snöberg, 14517 Magnus Holm,   kan ha övertid undantagsvis utan att ha beredskap 20111007 Maj E*/   
+      pcheck = FALSE.   
+      IF pkod = "14302"  THEN pcheck = TRUE.            
+      IF pkod = "14305"  THEN pcheck = TRUE.            
+      IF pkod = "14314"  THEN pcheck = TRUE.
+      IF pkod = "14517"  THEN pcheck = TRUE.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "misv" THEN DO:
+      /*mittsverige PNY Peter Nylen AOL Anna Olofsson  kan ha övertid undantagsvis Charlotte Jansson 20210929*/   
+      pcheck = FALSE.   
+      IF pkod = "PNY"  THEN pcheck = TRUE.
+      IF pkod = "AOL"  THEN pcheck = TRUE.
+      
+   END.      
+      
+         
+END PROCEDURE.
+
+
+PROCEDURE ovmaxcheck_UI:
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.   
+   DEFINE INPUT  PARAMETER tidtot AS DECIMAL NO-UNDO.
+   DEFINE INPUT  PARAMETER vart AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR extratidallt.
+    
+   DEFINE OUTPUT PARAMETER maxovcheck AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE hjdat AS DATE NO-UNDO.
+   FIND FIRST extratidallt NO-LOCK NO-ERROR.
+   /*persrec = RECID(PERSONALTAB).*/ 
+   maxovcheck = 0.
+   FOR EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = pkod AND TIDREGITAB.OKOD1 NE " "
+   AND TIDREGITAB.DATUM GE (extratidallt.DATUM - 27) AND TIDREGITAB.DATUM LE extratidallt.DATUM  
+   AND TIDREGITAB.TIDLOG = TRUE NO-LOCK:
+      maxovcheck = maxovcheck + klock100(TIDREGITAB.OANT1) + + klock100(TIDREGITAB.OANT2) + + klock100(TIDREGITAB.OANT3).
+   END.   
+   IF vart = "NYA" THEN DO:         
+      maxovcheck = maxovcheck + klock100(tidtot).
+   END.                  
+   ELSE DO:                                 
+      FIND FIRST TIDREGITAB WHERE RECID(TIDREGITAB) = extratidallt.RECTIDVIS NO-LOCK NO-ERROR.
+      IF AVAILABLE TIDREGITAB THEN DO:
+         maxovcheck = maxovcheck + klock100(tidtot) - klock100(TIDREGITAB.TOTALT).                                         
+      END.
+   END.
+   
+   IF maxovcheck > 48 THEN.
+   ELSE DO:   
+      maxovcheck = 0.         
+      FIND LAST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = pkod AND TIDREGITAB.OKOD1 NE " "
+      AND TIDREGITAB.DATUM > extratidallt.DATUM AND TIDREGITAB.DATUM LE (extratidallt.DATUM + 27) USE-INDEX pkod NO-LOCK NO-ERROR.      
+      IF AVAILABLE TIDREGITAB THEN DO:
+         hjdat = TIDREGITAB.DATUM.
+         REPEAT:                  
+            FOR EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = pkod AND TIDREGITAB.OKOD1 NE " "
+            AND TIDREGITAB.DATUM GE (hjdat - 27) AND TIDREGITAB.DATUM LE hjdat  
+            AND TIDREGITAB.TIDLOG = TRUE NO-LOCK:
+               maxovcheck = maxovcheck + klock100(TIDREGITAB.OANT1) + + klock100(TIDREGITAB.OANT2) + + klock100(TIDREGITAB.OANT3).
+            END.
+            IF vart = "NYA" THEN DO:         
+               maxovcheck = maxovcheck + klock100(tidtot).
+            END.                  
+            ELSE DO:                                 
+               FIND FIRST TIDREGITAB WHERE RECID(TIDREGITAB) = extratidallt.RECTIDVIS NO-LOCK NO-ERROR.
+               IF AVAILABLE TIDREGITAB THEN DO:
+                  maxovcheck = maxovcheck + klock100(tidtot) - klock100(TIDREGITAB.TOTALT).                                         
+               END.
+            END.
+            IF maxovcheck > 48 THEN LEAVE.
+            ELSE DO:                
+               maxovcheck = 0.
+            END.  
+            hjdat = hjdat - 1.
+            IF hjdat LE extratidallt.DATUM THEN LEAVE.   
+         END.         
+      END.   
+      ELSE LEAVE.
+   END.         
+END PROCEDURE.
+
+
+PROCEDURE godatkjur_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR godatk.
+   
+   FOR EACH godatk :
+      FIND FIRST  OMRADETAB WHERE OMRADETAB.OMRADE =  godatk.OMRADE NO-LOCK NO-ERROR.
+      IF AVAILABLE OMRADETAB THEN DO:
+         FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR. 
+         IF AVAILABLE AVDELNING THEN DO:  
+            FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+            IF AVAILABLE JURPERS THEN DO:
+               ASSIGN
+               godatk.JUDID = JURPERS.JUDID
+               godatk.JUDNAMN = JURPERS.NAMN.
+            END.
+         END.
+      END.
+   END.            
+   
+END PROCEDURE.
+
+
+
+PROCEDURE hamttidgod_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR godatk.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR godmarkpers.
+   
+   FOR EACH godatk :
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = godatk.PERSONALKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN DO:
+        godatk.TIDSGODK = SUBSTRING(PERSONALTAB.TIDSGODK,1,5).
+        Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + godatk.PERSONALKOD.
+      END.
+   END.
+   FOR EACH godmarkpers :
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = godmarkpers.PERSONALKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN DO:
+        godmarkpers.TIDSGODK = SUBSTRING(PERSONALTAB.TIDSGODK,1,5).
+        Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + godmarkpers.PERSONALKOD.
+      END.
+   END.   
+   
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+
+PROCEDURE kollsistafardig_UI :
+   DEFINE INPUT  PARAMETER  pkod AS CHARACTER  NO-UNDO.
+   DEFINE INPUT PARAMETER  adat AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER  klar AS logical  NO-UNDO.
+   klar = FALSE.
+   FIND FIRST GODKOLL  WHERE GODKOLL.PERSONALKOD = pkod AND GODKOLL.DATAR = YEAR(adat) AND GODKOLL.DATMAN  = MONTH(adat) NO-LOCK NO-ERROR.
+   IF AVAILABLE GODKOLL THEN DO:
+      IF GODKOLL.KLAR = TRUE THEN klar = TRUE. 
+   END.
+    
+END PROCEDURE.
+PROCEDURE hamtpers_UI :
+   DEFINE INPUT  PARAMETER  visartal AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR godatk.
+   DEFINE OUTPUT PARAMETER TABLE FOR godmarkpers.
+   DEFINE INPUT-OUTPUT PARAMETER suppdat AS DATE NO-UNDO.
+   DEFINE VARIABLE finnstid AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE sokartal AS INTEGER NO-UNDO.
+   /*IF MONTH(TODAY) = 10 OR MONTH(TODAY) = 11 OR MONTH(TODAY) = 12 THEN sokartal = YEAR(today) - 1 . 
+   ELSE sokartal = YEAR(today) - 2.*/
+   FOR EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE USE-INDEX PERSONALKOD:
+      /* Behövs ej , personalen väljer för nästa år och då har de alltid jobbat över årsskiftet
+      finnstid =  FALSE.
+      FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND TIDREGITAB.TIDLOG = TRUE AND TIDREGITAB.DATUM LE  DATE(12,31,sokartal) NO-LOCK NO-ERROR.
+      IF AVAILABLE TIDREGITAB THEN DO:
+        finnstid = TRUE.
+      END.  */
+      IF PERSONALTAB.BEFATTNING  = "INHYRD PERSONAL" OR PERSONALTAB.ANSTALLNING = "ENTREP.AVTAL" THEN .
+      ELSE IF PERSONALTAB.BEFATTNING = "Timanställd"  THEN .
+      /*ELSE IF finnstid = FALSE THEN .*/
+      ELSE DO:
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "ATKFRISK"                   
+         inextradatatemp.HUVUDCH = PERSONALTAB.PERSONALKOD.                    
+         inextradatatemp.HUVUDINT = visartal.                    
+         RUN etabhamt_UI IN extraapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp APPEND).
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+         FIND FIRST extradatatemp NO-ERROR.
+         IF AVAILABLE extradatatemp  THEN DO:      
+            CREATE godatk.
+            ASSIGN
+            godatk.EFTERNAMN = PERSONALTAB.EFTERNAMN
+            godatk.FORNAMN = PERSONALTAB.FORNAMN
+            godatk.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            godatk.PERSONNUMMER = PERSONALTAB.PERSONNUMMER
+            godatk.OMRADE = PERSONALTAB.OMRADE.
+            godatk.ATK = extradatatemp.SOKLOG[1].
+            godatk.FRISKVARD = extradatatemp.SOKLOG[2].
+            godatk.LONVATK = extradatatemp.SOKLOG[5].
+            godatk.DATUM = extradatatemp.SOKDAT[1].
+            godatk.GDATUM = extradatatemp.SOKDAT[2].
+            godatk.godkand = extradatatemp.SOKLOG[3].
+            godatk.ANVR = extradatatemp.SOKCHAR[1].
+            godatk.ANVG = extradatatemp.SOKCHAR[2].         
+            godatk.ARTAL = extradatatemp.HUVUDINT.         
+            godatk.ARSUPP = extradatatemp.SOKLOG[4].
+            godatk.ARSDATUM = extradatatemp.SOKDAT[3].
+            Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + godatk.PERSONALKOD.
+            IF extradatatemp.SOKLOG[4] = TRUE AND extradatatemp.SOKDAT[3] NE ? THEN DO:
+               IF suppdat = ? THEN suppdat = extradatatemp.SOKDAT[3].
+               ELSE IF suppdat < extradatatemp.SOKDAT[3] THEN suppdat = extradatatemp.SOKDAT[3].
+            END.   
+         END.
+         ELSE DO:                    
+            CREATE godmarkpers.
+            ASSIGN
+            godmarkpers.EFTERNAMN = PERSONALTAB.EFTERNAMN
+            godmarkpers.FORNAMN = PERSONALTAB.FORNAMN
+            godmarkpers.PERSONALKOD = PERSONALTAB.PERSONALKOD.   
+            Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + godmarkpers.PERSONALKOD.                                
+         END.
+      END.         
+   END.   
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+PROCEDURE arsuppdat_UI :
+   DEFINE INPUT  PARAMETER  visartal AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR godatk.
+   IF Guru.Konstanter:globforetag = "" THEN DO:
+      FIND FIRST FORETAG NO-LOCK NO-ERROR.
+      IF AVAILABLE FORETAG THEN Guru.Konstanter:globforetag = FORETAG.FORETAG.
+   END.            
+   IF Guru.Konstanter:globforetag = "gkal" THEN DO:
+      prognamn5 = "d:\DELAD\server\PRO9S\gkal\årsuppdatatkfriskinnan"  + STRING(TODAY,"999999") + ".d".
+      prognamn6 = "d:\DELAD\server\PRO9S\gkal\årsuppdatatkfriskefter"  + STRING(TODAY,"999999") + ".d".
+   END.   
+   ELSE IF Guru.Konstanter:globforetag = "sund" THEN DO:      
+      prognamn5 = "D:\delad\server\pro10s\EXPORT\lon\årsuppdatatkfriskinnan"  + STRING(TODAY,"999999") + ".d".
+      prognamn6 = "D:\delad\server\pro10s\EXPORT\lon\årsuppdatatkfriskefter"  + STRING(TODAY,"999999") + ".d".
+   END.   
+   ELSE IF Guru.Konstanter:globforetag = "MISV" THEN DO:
+      prognamn5 = "C:\elpool\delad\pro10s\EXPORT\lon\årsuppdatatkfriskinnan"  + STRING(TODAY,"999999") + ".d".
+      /*Guru.Konstanter:AppSpringSet[1] = "misvstb"*/
+      prognamn5 = "D:\elpool\delad\pro10s\EXPORT\lon\årsuppdatatkfriskinnan"  + STRING(TODAY,"999999") + ".d".
+      prognamn6 = "C:\elpool\delad\pro10s\EXPORT\lon\årsuppdatatkfriskefter"  + STRING(TODAY,"999999") + ".d".
+      /*Guru.Konstanter:AppSpringSet[1] = "misvstb"*/
+      prognamn6 = "D:\elpool\delad\pro10s\EXPORT\lon\årsuppdatatkfriskefter"  + STRING(TODAY,"999999") + ".d".
+      
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:      
+      prognamn5 = "D:\delad\server\pro10s\EXPORT\lonelnat\årsuppdatatkfriskinnanSNAT"  + STRING(TODAY,"999999") + ".d".
+      prognamn6 = "D:\delad\server\pro10s\EXPORT\lonelnat\årsuppdatatkfriskefterSNAT"  + STRING(TODAY,"999999") + ".d".
+      /*SNATBERGET*/
+      prognamn5 = REPLACE(prognamn5,"D:\DELAD\SERVER\PRO10S\EXPORT\lonelnat\","D:\DELAD\PRO10S\BACKEXPORT\lonelnat\").
+      prognamn6 = REPLACE(prognamn6,"D:\DELAD\SERVER\PRO10S\EXPORT\lonelnat\","D:\DELAD\PRO10S\BACKEXPORT\lonelnat\").
+            
+   END.  
+   ELSE DO:
+      prognamn5 = "c:\protemp10\årsuppdatatkfriskinnan"  + STRING(TODAY,"999999") + ".d".
+      prognamn6 = "c:\protemp10\årsuppdatatkfriskefter"  + STRING(TODAY,"999999") + ".d".
+   END.
+      
+   FOR EACH godatk WHERE godatk.ARTAL = visartal AND  godatk.godkand = TRUE :
+      DO TRANSACTION:      
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = godatk.PERSONALKOD EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO:
+            IF Guru.Konstanter:globforetag = "gkal" THEN DO:
+               EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+               EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+               CREATE inextradatatemp.          
+               ASSIGN
+               inextradatatemp.PROGRAM = "SPFRISK"                   
+               inextradatatemp.HUVUDCH = godatk.PERSONALKOD.            
+               RUN etabhamt_UI IN extraapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+               FIND FIRST extradatatemp NO-LOCK NO-ERROR.     
+               IF AVAILABLE extradatatemp THEN DO :
+                  /*obs. dom registrarar att de vill ha atk och friskvår i tid. årsuppdateringen registrerar tvärtom  spärr = Ja/Nej*/
+                  IF extradatatemp.SOKLOG[1] = TRUE THEN spafrisk = FALSE.
+                  ELSE spafrisk = TRUE.
+               END.                          
+               ELSE spafrisk = FALSE.
+               
+               EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+               EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+               CREATE inextradatatemp.          
+               ASSIGN
+               inextradatatemp.PROGRAM = "LONVAXLINGATK"                   
+               inextradatatemp.HUVUDCH = godatk.PERSONALKOD.            
+               RUN etabhamt_UI IN extraapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+               FIND FIRST extradatatemp NO-LOCK NO-ERROR.     
+               IF AVAILABLE extradatatemp THEN DO :
+                  /*obs. dom registrarar att de vill ha atk och friskvår i tid. årsuppdateringen registrerar tvärtom  spärr = Ja/Nej*/
+                  IF extradatatemp.SOKLOG[1] = TRUE THEN lonvaxatk = TRUE.
+                  ELSE lonvaxatk = FALSE.
+               END.                          
+               ELSE lonvaxatk = FALSE.
+            END.   
+            IF PERSONALTAB.OMREGTID = 0 THEN sparratk = FALSE .
+            IF PERSONALTAB.OMREGTID = 1 THEN sparratk = TRUE .
+            
+            OUTPUT TO VALUE(prognamn5) APPEND.
+            IF Guru.Konstanter:globforetag = "gkal" THEN DO:
+               EXPORT PERSONALTAB.PERSONALKOD PERSONALTAB.OMREGTID sparratk lonvaxatk spafrisk TODAY Guru.Konstanter:globanv.
+            END.
+            IF Guru.Konstanter:globforetag = "sund" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "sNAT" THEN DO:
+               EXPORT PERSONALTAB.PERSONALKOD PERSONALTAB.OMREGTID sparratk TODAY Guru.Konstanter:globanv.
+            END.   
+            
+            /*obs. dom registrarar att de vill ha atk och friskvår i tid. årsuppdateringen registrerar tvärtom  spärr = Ja/Nej
+            löneväxling är samma!*/
+            IF godatk.ATK = FALSE THEN ASSIGN PERSONALTAB.OMREGTID = 1.
+            IF godatk.ATK = TRUE THEN ASSIGN PERSONALTAB.OMREGTID = 0.                   
+            OUTPUT TO VALUE(prognamn6) APPEND.
+            IF Guru.Konstanter:globforetag = "gkal" THEN DO:
+               EXPORT PERSONALTAB.PERSONALKOD PERSONALTAB.OMREGTID godatk.ATK godatk.LONVATK godatk.FRISKVARD TODAY Guru.Konstanter:globanv.
+            END.   
+            IF Guru.Konstanter:globforetag = "sund" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "sNAT"  THEN DO:
+               EXPORT PERSONALTAB.PERSONALKOD PERSONALTAB.OMREGTID godatk.ATK TODAY Guru.Konstanter:globanv.
+            END.   
+            EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+            CREATE inextradatatemp.          
+            ASSIGN
+            inextradatatemp.PROGRAM = "SPFRISK"                   
+            inextradatatemp.HUVUDCH = godatk.PERSONALKOD.
+            IF godatk.FRISKVARD = TRUE THEN inextradatatemp.SOKLOG[1] = FALSE.
+            ELSE inextradatatemp.SOKLOG[1] = TRUE.              
+            RUN extraspar_UI IN extraapph (INPUT TABLE inextradatatemp).
+            
+            EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+            CREATE inextradatatemp.          
+            ASSIGN
+            inextradatatemp.PROGRAM = "LONVAXLINGATK"                   
+            inextradatatemp.HUVUDCH = godatk.PERSONALKOD.
+            IF godatk.LONVATK = TRUE THEN inextradatatemp.SOKLOG[1] = TRUE.
+            ELSE inextradatatemp.SOKLOG[1] = FALSE.              
+            RUN extraspar_UI IN extraapph (INPUT TABLE inextradatatemp).         
+         END.
+      END.
+      OUTPUT CLOSE.
+      RELEASE PERSONALTAB.      
+      ASSIGN godatk.ARSUPP = TRUE.
+      godatk.ARSDATUM = TODAY.
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "ATKFRISK"                   
+      inextradatatemp.HUVUDCH = godatk.PERSONALKOD.                    
+      inextradatatemp.HUVUDINT = visartal.      
+      inextradatatemp.SOKLOG[1] = godatk.ATK .
+      inextradatatemp.SOKLOG[2] = godatk.FRISKVARD .
+      inextradatatemp.SOKDAT[1] = godatk.DATUM.
+      inextradatatemp.SOKDAT[2] = godatk.GDATUM.              
+      inextradatatemp.SOKLOG[3] = godatk.GODKAND.
+      inextradatatemp.SOKCHAR[1] = Guru.Konstanter:globanv.
+      inextradatatemp.SOKLOG[4] = godatk.ARSUPP.
+      inextradatatemp.SOKLOG[5] = godatk.LONVATK.
+      
+      inextradatatemp.SOKDAT[3] = TODAY.      
+      RUN extraspar_UI IN extraapph (INPUT TABLE inextradatatemp).      
+   END.
+      
+END PROCEDURE.
+
+PROCEDURE fortro:
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER ftro AS LOGICAL NO-UNDO.
+   
+   IF NOT VALID-HANDLE(extraapph) THEN RUN EXTRADATAHMT.P PERSISTENT SET extraapph.   
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "FORTRO"                   
+   inextradatatemp.HUVUDCH = pkod.
+   
+   RUN etabhamt_UI IN extraapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+   FIND FIRST extradatatemp NO-LOCK NO-ERROR.     
+   IF AVAILABLE extradatatemp THEN DO:      
+      ASSIGN
+      ftro = extradatatemp.SOKLOG[1].         
+   END.   
+   ELSE ftro = FALSE.         
+   IF VALID-HANDLE(extraapph) THEN DELETE PROCEDURE extraapph. 
+   extraapph = ?.
+END.
+
+PROCEDURE tillit:
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER tillit AS LOGICAL NO-UNDO.
+   
+   IF NOT VALID-HANDLE(extraapph) THEN RUN EXTRADATAHMT.P PERSISTENT SET extraapph.    
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "TILLIT"                   
+   inextradatatemp.HUVUDCH = pkod.
+   
+   RUN etabhamt_UI IN extraapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+   FIND FIRST extradatatemp NO-LOCK NO-ERROR.     
+   IF AVAILABLE extradatatemp THEN DO:      
+      ASSIGN
+      tillit = extradatatemp.SOKLOG[1].         
+   END.   
+   ELSE tillit = FALSE.         
+   IF VALID-HANDLE(extraapph) THEN DELETE PROCEDURE extraapph. 
+   extraapph = ?.
+END.
+
+
+PROCEDURE ptid_UI:
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.         
+   DEFINE OUTPUT PARAMETER finnstid AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE sokartal AS INTEGER NO-UNDO.
+   /* Behövs ej , personalen väljer för nästa år och då har de alltid jobbat över årsskiftet    
+  finnstid =  FALSE.
+  IF MONTH(TODAY) = 10 OR MONTH(TODAY) = 11 OR MONTH(TODAY) = 12 THEN sokartal = YEAR(today) - 1. 
+  ELSE sokartal = YEAR(today) - 2.
+  FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = pkod AND TIDREGITAB.TIDLOG = TRUE AND TIDREGITAB.DATUM LE  DATE(12,31,sokartal) NO-LOCK NO-ERROR.
+  IF AVAILABLE TIDREGITAB THEN DO:
+     finnstid = TRUE.
+  END.*/   
+END PROCEDURE.   
+
+
+PROCEDURE kollentrep_UI:
+   
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER entrepejtid AS LOGICAL NO-UNDO.
+   entrepejtid = FALSE.
+   FIND FIRST PERSONALTAB  WHERE PERSONALTAB.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      IF PERSONALTAB.ANSTALLNING = "ENTREP.AVTAL" AND PERSONALTAB.BEFATTNING = "Entreprenör" AND  PERSONALTAB.VECKOSCHEMA = 0 THEN DO:
+         entrepejtid = TRUE.
+      END.   
+   END.    
+      
+     
+END PROCEDURE.
+
+PROCEDURE aovht_UI:
+   
+   DEFINE INPUT PARAMETER anr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER dnr AS INTEGER  NO-UNDO.
+   DEFINE OUTPUT PARAMETER ktovht AS CHARACTER  NO-UNDO.
+   FIND FIRST AONRKONTKOD  WHERE AONRKONTKOD.AONR = anr AND AONRKONTKOD.DELNR = dnr AND AONRKONTKOD.K1 NE "" NO-LOCK NO-ERROR.   
+   IF AVAILABLE AONRKONTKOD THEN DO:
+      ktovht = AONRKONTKOD.K1.
+   END.    
+      
+     
+END PROCEDURE.
+
+
+
+PROCEDURE borthandle_UI:
+   IF VALID-HANDLE(extraapph) THEN DELETE PROCEDURE extraapph NO-ERROR.
+   extraapph = ?.
+END PROCEDURE.

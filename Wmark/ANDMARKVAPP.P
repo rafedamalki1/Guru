@@ -1,0 +1,120 @@
+/*ANDMARKVAPP.P*/
+{STARTFORAPP.I}
+{MARKTEMP.I}
+{FASTIGHET.I}
+DEFINE BUFFER markbuff FOR MARKAGARE.
+
+PROCEDURE kontroll.
+   DEFINE INPUT PARAMETER marknrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER pnummer AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER pnum2 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   FIND FIRST MARKAGARE WHERE MARKAGARE.PERSONNUMMER = pnummer AND MARKAGARE.MARKNR NE marknrvar USE-INDEX MARKNR
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE MARKAGARE THEN DO:
+      CREATE felmeddtemp.
+      ASSIGN 
+      felmeddtemp.FELMEDD = "Markägare med detta personnummer finns redan upplagd! Nr " + STRING(MARKAGARE.MARKNR) + " " + SUBSTRING(MARKAGARE.MARKAGARE,1,40) +
+         ". Vill du ÄNDÅ lägga upp personen igen ?"
+      felmeddtemp.VAL = 1.
+      RETURN.
+   END.
+   IF pnum2 NE "0000000000" THEN DO:      
+      FIND FIRST MARKAGARE WHERE MARKAGARE.PERSONNUMMER = pnum2 USE-INDEX MARKNR
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE MARKAGARE THEN DO:
+         CREATE felmeddtemp.
+         ASSIGN 
+         felmeddtemp.FELMEDD = "Markägare med detta personnummer finns redan upplagd! Nr " + STRING(MARKAGARE.MARKNR) + " " + SUBSTRING(MARKAGARE.MARKAGARE,1,40)
+         felmeddtemp.VAL = 2.
+         RETURN.
+      END. 
+   END.
+   FIND FIRST MARKAGARE WHERE MARKAGARE.PNR2 = pnummer USE-INDEX MARKNR
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE MARKAGARE THEN DO:
+      CREATE felmeddtemp.
+      ASSIGN 
+      felmeddtemp.FELMEDD = "Markägare med detta personnummer finns redan upplagd! Nr " + STRING(MARKAGARE.MARKNR) + " " + SUBSTRING(MARKAGARE.MARKAGARE,1,40)
+      felmeddtemp.VAL = 3.
+      RETURN.
+   END.
+   IF pnum2 NE "0000000000" THEN DO:
+      FIND FIRST MARKAGARE WHERE MARKAGARE.PNR2 = pnum2 USE-INDEX MARKNR
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE MARKAGARE THEN DO:
+         CREATE felmeddtemp.
+         ASSIGN 
+         felmeddtemp.FELMEDD = "Markägare med detta personnummer finns redan upplagd! Nr "  + STRING(MARKAGARE.MARKNR) + " " + SUBSTRING(MARKAGARE.MARKAGARE,1,40)
+         felmeddtemp.VAL = 4.
+         RETURN.
+      END. 
+   END.
+
+END PROCEDURE.
+
+PROCEDURE bortmarknr.
+   DEFINE INPUT PARAMETER marknrvar AS INTEGER NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = marknrvar USE-INDEX MARKNR EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MARKAGARE THEN DO:
+         DELETE MARKAGARE.
+      END.   
+   END.
+END PROCEDURE.
+PROCEDURE hamtmarknamn.
+   DEFINE INPUT PARAMETER marknrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER marknamn AS CHARACTER NO-UNDO.   
+   FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = marknrvar USE-INDEX MARKNR NO-LOCK NO-ERROR.
+   IF AVAILABLE MARKAGARE THEN marknamn = MARKAGARE.MARKAGARE.
+   Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).  
+   Guru.GlobalaVariabler:GDPRtyp = "M". 
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+PROCEDURE hmtmarknr.
+   DEFINE OUTPUT PARAMETER marknrvar AS INTEGER NO-UNDO.
+   FIND LAST markbuff USE-INDEX MARKNR NO-LOCK NO-ERROR.
+   IF AVAILABLE markbuff THEN DO TRANSACTION:      
+      ASSIGN  
+      marknrvar = markbuff.MARKNR + 1. 
+      CREATE MARKAGARE.
+      ASSIGN 
+      MARKAGARE.MARKNR = marknrvar.
+   END.
+   ELSE DO TRANSACTION:
+      ASSIGN  
+      marknrvar = 1.
+      CREATE MARKAGARE.
+      ASSIGN 
+      MARKAGARE.MARKNR = marknrvar.
+   END.
+   RELEASE MARKAGARE NO-ERROR.
+END PROCEDURE.
+
+
+PROCEDURE btnok.
+   DEFINE INPUT PARAMETER marknrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR markagaretemp.
+   DO TRANSACTION:
+      FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = marknrvar EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MARKAGARE THEN DO:
+         FIND FIRST markagaretemp WHERE markagaretemp.MARKNR = marknrvar NO-LOCK NO-ERROR.
+         IF AVAILABLE markagaretemp THEN DO:
+            ASSIGN 
+            MARKAGARE.MARKNR = marknrvar     
+            MARKAGARE.MARKAGARE = markagaretemp.MARKAGARE  
+            MARKAGARE.PERSONNUMMER = markagaretemp.PERSONNUMMER 
+            MARKAGARE.PNR2 = markagaretemp.PNR2       
+            MARKAGARE.GATUADRESS = markagaretemp.GATUADRESS
+            MARKAGARE.POSTADRESS = markagaretemp.POSTADRESS   
+            MARKAGARE.POSTNUMMER = markagaretemp.POSTNUMMER 
+            MARKAGARE.BOXEN = markagaretemp.BOXEN      
+            MARKAGARE.TELEFON = markagaretemp.TELEFON    
+            MARKAGARE.TELEFON2 = markagaretemp.TELEFON2.   
+         END.
+      END.
+   END.
+   RELEASE MARKAGARE NO-ERROR.
+END PROCEDURE.

@@ -1,0 +1,668 @@
+
+/*------------------------------------------------------------------------
+    File        : StorDSIExp.P
+    Purpose     : 
+
+    Syntax      :IMPORTER OCH EXPORTER AV STÖRNINGSDATA,KUNDDATA , LEDNINGSDATA, DISTRIKT MM
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Mon Feb 13 16:20:07 CET 2017
+    Notes       :
+  ----------------------------------------------------------------------*/
+DEFINE INPUT  PARAMETER avnr AS INTEGER NO-UNDO. 
+DEFINE INPUT  PARAMETER storar AS INTEGER NO-UNDO.
+DEFINE OUTPUT PARAMETER DATASET-HANDLE StorningImportDSh .
+DEFINE VARIABLE InDarwinDS AS HANDLE NO-UNDO. 
+CREATE WIDGET-POOL "DynTableSEX" NO-ERROR.
+{SparaDynDSstar.I}
+/*
+{StorImpDS.I}
+*/
+{StorImpvar.I}
+{StorImpDSFilinfofix.i}
+
+DEFINE VARIABLE qh AS HANDLE NO-UNDO.
+DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE InOutDS AS HANDLE NO-UNDO.
+
+FUNCTION FFinlasttab RETURNS INTEGER 
+(INPUT sid AS INTEGER):
+   FIND FIRST SPANNINGSNIV WHERE SPANNINGSNIV.SPANID = sid USE-INDEX SPANID NO-LOCK NO-ERROR.
+   IF AVAILABLE SPANNINGSNIV THEN DO:
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = SPANNINGSNIV.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF AVAILABLE INLASTAB THEN RETURN INTEGER(INLASTAB.INKODPOSCH).
+      ELSE RETURN sid.
+   END.
+   ELSE RETURN sid.   
+END FUNCTION.
+           
+FUNCTION FFinlasttabFL RETURNS INTEGER 
+(INPUT tabnamn AS CHARACTER,INPUT sid AS INTEGER):
+   IF tabnamn = "SEKTIONERING" THEN DO:  
+      FIND FIRST SEKTIONERING WHERE SEKTIONERING.SEKTIONERID = STRING(sid) NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE SEKTIONERING THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = SEKTIONERING.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid. 
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.
+   IF tabnamn = "RELAINDIKERING" THEN DO:  
+      FIND FIRST RELAINDIKERING WHERE RELAINDIKERING.RELINID = sid NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE RELAINDIKERING THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = RELAINDIKERING.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.        
+   IF tabnamn = "FELORSAK" THEN DO:  
+      FIND FIRST FELORSAK WHERE FELORSAK.FELOID = sid NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE FELORSAK THEN RETURN 93.
+      IF FELORSAK.FELOID >= 500 THEN RETURN 93.
+      /*tester*/
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = FELORSAK.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.   
+  
+   IF tabnamn = "BRYTORGAN" THEN DO:  
+      FIND FIRST BRYTORGAN WHERE BRYTORGAN.BRYTOID = sid NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BRYTORGAN THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = BRYTORGAN.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.  
+   IF tabnamn = "STORDRIFTOMR" THEN DO:  
+      FIND FIRST STORDRIFTOMR WHERE STORDRIFTOMR.STDRIFTID = sid NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE STORDRIFTOMR THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = STORDRIFTOMR.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END. 
+   IF tabnamn = "NATTYP" THEN DO:  
+      FIND FIRST NATTYP WHERE NATTYP.NATTYPID = STRING(sid) NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE NATTYP THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = NATTYP.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.
+   IF tabnamn = "NATSTRUKTUR1" THEN DO:  
+      FIND FIRST NATTYP WHERE NATTYP.NATTYPID = STRING(sid) NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE NATTYP THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = NATTYP.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.
+   IF tabnamn = "NATSTRUKTUR2" THEN DO:  
+      FIND FIRST NATTYP WHERE NATTYP.NATTYPID = STRING(sid) NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE NATTYP THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = NATTYP.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.
+   IF tabnamn = "ANLAGGNINGSDEL" THEN DO:  
+      FIND FIRST ANLAGGNINGSDEL WHERE ANLAGGNINGSDEL.ADELID = sid NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE ANLAGGNINGSDEL THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = ANLAGGNINGSDEL.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.
+   IF tabnamn = "UTLOSNINGSKYDD" THEN DO:  
+      FIND FIRST UTLOSNINGSKYDD WHERE UTLOSNINGSKYDD.UTLOSID = sid NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE UTLOSNINGSKYDD THEN RETURN sid.
+      FIND FIRST INLASTAB WHERE INLASTAB.INKODID = UTLOSNINGSKYDD.INKODID
+      USE-INDEX INKODID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE INLASTAB THEN RETURN sid.
+      RETURN INTEGER(INLASTAB.INKODPOSCH).
+   END.
+   
+END FUNCTION.         
+
+
+RUN laddaDistriktsDataDS_UI (INPUT avnr,INPUT storar).
+RUN DistriktExport_UI .
+ StorningImportDSh = DATASET StorningImportDS:HANDLE.
+
+PROCEDURE DistriktExport_UI :
+   ForetagDBbuffh:FIND-FIRST("WHERE  ",NO-LOCK) NO-ERROR.
+   CREATE ForetagData.
+   ASSIGN 
+   ForetagData.IdentifikationsnrForetag = ForetagDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE
+   ForetagData.Foretag = ForetagDBbuffh:BUFFER-FIELD("AVDELNINGNAMN"):BUFFER-VALUE.       
+   
+   kommandoquery = "FOR EACH " + DistriktDBbuffh:TABLE + " NO-LOCK". 
+   RUN CreateCustomQuery(INPUT DistriktDBbuffh,INPUT kommandoquery,OUTPUT qh).
+   qH:GET-FIRST().
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+     
+      RUN DistriktUt_UI.
+      
+      qH:GET-NEXT().
+   END.
+   kommandoquery = "FOR EACH " + KundDataDBbuffh:TABLE + " NO-LOCK". 
+   RUN CreateCustomQuery(INPUT KundDataDBbuffh,INPUT kommandoquery,OUTPUT qh).
+   qH:GET-FIRST().
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+          
+      DistriktDBbuffh:FIND-FIRST("WHERE DISTRIKTID = " + STRING(KundDataDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE),NO-LOCK) NO-ERROR.
+      
+      KundDataDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE = DistriktDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE.
+      KundDataDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE = DistriktDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE. 
+      KundDataDBbuffh:BUFFER-FIELD("SPANID"):BUFFER-VALUE = FFinlasttab(KundDataDBbuffh:BUFFER-FIELD("SPANID"):BUFFER-VALUE).
+      RUN KunddataUt_UI.
+     
+      qH:GET-NEXT().
+   END.
+    
+   kommandoquery = "FOR EACH " + LedninggsDataDBbuffh:TABLE + " NO-LOCK by integer(spanid)". 
+   RUN CreateCustomQuery(INPUT LedninggsDataDBbuffh,INPUT kommandoquery,OUTPUT qh).
+   qH:GET-FIRST().
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      
+      DistriktDBbuffh:FIND-FIRST("WHERE DISTRIKTID = " + STRING(LedninggsDataDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE),NO-LOCK) NO-ERROR.
+      LedninggsDataDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE = DistriktDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE.
+      LedninggsDataDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE = DistriktDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE. 
+      LedninggsDataDBbuffh:BUFFER-FIELD("SPANID"):BUFFER-VALUE = FFinlasttab(LedninggsDataDBbuffh:BUFFER-FIELD("SPANID"):BUFFER-VALUE).
+      FIND FIRST STORNATUPPKOPP WHERE 
+      STORNATUPPKOPP.NATUPPLAGGID1 = LedninggsDataDBbuffh:BUFFER-FIELD("NATUPPLAGGID1"):BUFFER-VALUE AND 
+      STORNATUPPKOPP.NATUPPLAGGID2 = LedninggsDataDBbuffh:BUFFER-FIELD("NATUPPLAGGID2"):BUFFER-VALUE AND
+      STORNATUPPKOPP.NATUPPLAGGID3 = LedninggsDataDBbuffh:BUFFER-FIELD("NATUPPLAGGID3"):BUFFER-VALUE AND 
+      STORNATUPPKOPP.NATUPPLAGGID4 = LedninggsDataDBbuffh:BUFFER-FIELD("NATUPPLAGGID4"):BUFFER-VALUE NO-LOCK NO-ERROR.
+      FIND FIRST STORTEXTER WHERE STORTEXTER.TID = STORNATUPPKOPP.TEXTID1 NO-LOCK NO-ERROR.
+      IF AVAILABLE STORTEXTER THEN LedninggsDataDBbuffh:BUFFER-FIELD("TEXT1"):BUFFER-VALUE = STORTEXTER.NAMN.
+      FIND FIRST STORTEXTER WHERE STORTEXTER.TID = STORNATUPPKOPP.TEXTID2 NO-LOCK NO-ERROR.
+      IF AVAILABLE STORTEXTER THEN  LedninggsDataDBbuffh:BUFFER-FIELD("TEXT2"):BUFFER-VALUE = STORTEXTER.NAMN.
+      LedninggsDataDBbuffh:BUFFER-FIELD("LANGDLUFT"):BUFFER-VALUE =   LedninggsDataDBbuffh:BUFFER-FIELD("LANGDLUFT"):BUFFER-VALUE * STORNATUPPKOPP.M-KM.  
+      LedninggsDataDBbuffh:BUFFER-FIELD("LANGDBLAND"):BUFFER-VALUE =  LedninggsDataDBbuffh:BUFFER-FIELD("LANGDBLAND"):BUFFER-VALUE * STORNATUPPKOPP.M-KM.   
+      LedninggsDataDBbuffh:BUFFER-FIELD("LANGDKABEL"):BUFFER-VALUE =  LedninggsDataDBbuffh:BUFFER-FIELD("LANGDKABEL"):BUFFER-VALUE * STORNATUPPKOPP.M-KM.  
+      LedninggsDataDBbuffh:BUFFER-FIELD("LANGD"):BUFFER-VALUE =       LedninggsDataDBbuffh:BUFFER-FIELD("LANGD"):BUFFER-VALUE * STORNATUPPKOPP.M-KM.        
+      RUN LedningsDataUt_UI.
+      
+      qH:GET-NEXT().
+   END. 
+   
+   kommandoquery = "FOR EACH " + StorningsDataDBbuffh:TABLE + " NO-LOCK by AVDELNINGNR by VIDISTRIKT by HDATUM by HKLOCKAN". 
+   RUN CreateCustomQuery(INPUT StorningsDataDBbuffh,INPUT kommandoquery,OUTPUT qh).
+   qH:GET-FIRST().
+  
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      DistriktDBbuffh:FIND-FIRST("WHERE DISTRIKTID = " + STRING(StorningsDataDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE),NO-LOCK) NO-ERROR.
+      StorningsDataDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE = DistriktDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE.
+      StorningsDataDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE = DistriktDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE. 
+      StorningsDataDBbuffh:BUFFER-FIELD("HKLOCKAN"):BUFFER-VALUE = StorningsDataDBbuffh:BUFFER-FIELD("HKLOCKAN"):BUFFER-VALUE * 100.
+      StorningsDataDBbuffh:BUFFER-FIELD("BORTKW"):BUFFER-VALUE = StorningsDataDBbuffh:BUFFER-FIELD("BORTMW"):BUFFER-VALUE * 1000 + StorningsDataDBbuffh:BUFFER-FIELD("BORTKW"):BUFFER-VALUE. 
+      StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN100%"):BUFFER-VALUE = StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN100%"):BUFFER-VALUE * 100.
+      StorningsDataDBbuffh:BUFFER-FIELD("EJBORTKW"):BUFFER-VALUE = StorningsDataDBbuffh:BUFFER-FIELD("EJBORTMW"):BUFFER-VALUE * 1000 + StorningsDataDBbuffh:BUFFER-FIELD("EJBORTMW"):BUFFER-VALUE.
+      /*Anders Olsson Elpool i Umeå AB  10 aug 2017 10:48:19 
+   Bort enligt Matz Tapper
+      StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN70%"):BUFFER-VALUE = StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN70%"):BUFFER-VALUE * 100.
+       */
+      FIND LAST BORTKOPPLAD WHERE BORTKOPPLAD.STORNUMMERID = StorningsDataDBbuffh:BUFFER-FIELD("STORNUMMERID"):BUFFER-VALUE 
+      USE-INDEX AVBROTT NO-LOCK NO-ERROR.
+      IF AVAILABLE BORTKOPPLAD THEN DO:
+         ASSIGN
+         StorningsDataDBbuffh:BUFFER-FIELD("DATUM100%"):BUFFER-VALUE = BORTKOPPLAD.ATERDATUM
+         StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN100%"):BUFFER-VALUE = BORTKOPPLAD.ATERKLOCKAN * 100.
+      END.
+      /*Driftstörning*/
+      
+      
+      
+      IF StorningsDataDBbuffh:BUFFER-FIELD("STORTYPID"):BUFFER-VALUE = 1 THEN DO:
+         StorningsDataDBbuffh:BUFFER-FIELD("FELSPANID"):BUFFER-VALUE = FFinlasttab(StorningsDataDBbuffh:BUFFER-FIELD("FELSPANID"):BUFFER-VALUE).
+         StorningsDataDBbuffh:BUFFER-FIELD("SEKTIONERID"):BUFFER-VALUE = STRING(FFinlasttabFL("SEKTIONERING",StorningsDataDBbuffh:BUFFER-FIELD("SEKTIONERID"):BUFFER-VALUE)).
+         StorningsDataDBbuffh:BUFFER-FIELD("UTLOSID"):BUFFER-VALUE = FFinlasttabFL("UTLOSNINGSKYDD",StorningsDataDBbuffh:BUFFER-FIELD("UTLOSID"):BUFFER-VALUE).
+         StorningsDataDBbuffh:BUFFER-FIELD("RELINID"):BUFFER-VALUE = FFinlasttabFL("RELAINDIKERING",StorningsDataDBbuffh:BUFFER-FIELD("RELINID"):BUFFER-VALUE).
+         StorningsDataDBbuffh:BUFFER-FIELD("FELOID"):BUFFER-VALUE = FFinlasttabFL("FELORSAK",StorningsDataDBbuffh:BUFFER-FIELD("FELOID"):BUFFER-VALUE).
+      END.
+      StorningsDataDBbuffh:BUFFER-FIELD("FRANSPANID"):BUFFER-VALUE = FFinlasttab(StorningsDataDBbuffh:BUFFER-FIELD("FRANSPANID"):BUFFER-VALUE).
+      StorningsDataDBbuffh:BUFFER-FIELD("BRYTOID"):BUFFER-VALUE = FFinlasttabFL("BRYTORGAN",StorningsDataDBbuffh:BUFFER-FIELD("BRYTOID"):BUFFER-VALUE).
+      StorningsDataDBbuffh:BUFFER-FIELD("STDRIFTID"):BUFFER-VALUE = FFinlasttabFL("STORDRIFTOMR",StorningsDataDBbuffh:BUFFER-FIELD("STDRIFTID"):BUFFER-VALUE).
+      
+      /*Anders Olsson Elpool i Umeå AB  10 aug 2017 10:43:07 
+        bort enligt Matz Tapper 
+       
+      StorningsDataDBbuffh:BUFFER-FIELD("NATTYPID"):BUFFER-VALUE = STRING(FFinlasttabFL("NATTYP",StorningsDataDBbuffh:BUFFER-FIELD("NATTYPID"):BUFFER-VALUE)).
+      */
+      StorningsDataDBbuffh:BUFFER-FIELD("STRUKIDP1"):BUFFER-VALUE = STRING(FFinlasttabFL("NATSTRUKTUR1",StorningsDataDBbuffh:BUFFER-FIELD("STRUKIDP1"):BUFFER-VALUE)).
+      StorningsDataDBbuffh:BUFFER-FIELD("STRUKIDP2"):BUFFER-VALUE = STRING(FFinlasttabFL("NATSTRUKTUR2",StorningsDataDBbuffh:BUFFER-FIELD("STRUKIDP2"):BUFFER-VALUE)).
+      StorningsDataDBbuffh:BUFFER-FIELD("FELYID"):BUFFER-VALUE = StorningsDataDBbuffh:BUFFER-FIELD("FELYID"):BUFFER-VALUE.
+      
+      
+      StorningsDataDBbuffh:BUFFER-FIELD("ADELID"):BUFFER-VALUE = STRING(FFinlasttabFL("ANLAGGNINGSDEL",StorningsDataDBbuffh:BUFFER-FIELD("ADELID"):BUFFER-VALUE)).
+      RUN StorningsDataUt_UI.
+      qH:GET-NEXT().
+   END. 
+   kommandoquery = "FOR EACH " + StorFelMtrlDBbuffh:TABLE + " NO-LOCK by STORNUMMERID by SFMID". 
+   RUN CreateCustomQuery(INPUT StorFelMtrlDBbuffh,INPUT kommandoquery,OUTPUT qh).
+   qH:GET-FIRST().
+  
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      StorningsDataDBbuffh:FIND-FIRST("WHERE STORNUMMERID = " + STRING(StorFelMtrlDBbuffh:BUFFER-FIELD("STORNUMMERID"):BUFFER-VALUE),NO-LOCK) NO-ERROR.
+      RUN StorFelMtrlDataUt_UI.
+      qH:GET-NEXT().
+   END.    
+   
+   /*
+   RUN Schema_UI.
+   */
+END PROCEDURE.
+PROCEDURE DistriktUt_UI :
+   CREATE DistriktData.
+   ASSIGN 
+   DistriktData.IdentifikationsnrForetag = DistriktDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE
+   DistriktData.DistriktsId = DistriktDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE       
+   DistriktData.Artal = DistriktDBbuffh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE
+   DistriktData.DistriktsNamn = DistriktDBbuffh:BUFFER-FIELD("NAMN"):BUFFER-VALUE
+   DistriktData.RID = RECID(ForetagData).
+  
+   /*
+   PUT UNFORMATTED
+      DistriktDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE ";"
+      DistriktDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE ";"
+      DistriktDBbuffh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE ";"
+      DistriktDBbuffh:BUFFER-FIELD("NAMN"):BUFFER-VALUE ";"
+      SKIP.
+    */
+      
+END PROCEDURE.
+
+PROCEDURE KundDataUt_UI :
+ 
+   CREATE KundData.
+   ASSIGN
+   KundData.IdentifikationsnrForetag    = KundDataDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE    
+   KundData.DistriktsId                 = KundDataDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE     
+   KundData.Artal                       = KundDataDBbuffh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE          
+   KundData.SpanNivId                   = KundDataDBbuffh:BUFFER-FIELD("SPANDARWINID"):BUFFER-VALUE 
+   /*Anders Olsson Elpool i Umeå AB  10 aug 2017 10:48:19 
+   Bort enligt Matz Tapper        
+   KundData.AntalKunderLuftnat          = KundDataDBbuffh:BUFFER-FIELD("ANTALLUFT"):BUFFER-VALUE      
+   KundData.AntalKunderBlandNat         = KundDataDBbuffh:BUFFER-FIELD("ANTALBLAND"):BUFFER-VALUE     
+   KundData.AntalKunderKabelNat         = KundDataDBbuffh:BUFFER-FIELD("ANTALKABEL"):BUFFER-VALUE
+   */     
+   KundData.AntalKunderTotalt           = KundDataDBbuffh:BUFFER-FIELD("ANTALKUNDER"):BUFFER-VALUE    
+   KundData.RID = RECID(DistriktData).   
+   /*
+   PUT UNFORMATTED
+      KundDataDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE ";"
+      KundDataDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE ";"
+      KundDataDBbuffh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE ";"
+      KundDataDBbuffh:BUFFER-FIELD("SPANID"):BUFFER-VALUE ";"
+      KundDataDBbuffh:BUFFER-FIELD("ANTALLUFT"):BUFFER-VALUE ";"
+      KundDataDBbuffh:BUFFER-FIELD("ANTALBLAND"):BUFFER-VALUE ";"
+      KundDataDBbuffh:BUFFER-FIELD("ANTALKABEL"):BUFFER-VALUE ";"
+      KundDataDBbuffh:BUFFER-FIELD("ANTALKUNDER"):BUFFER-VALUE ";"
+      
+      SKIP.
+      */
+END PROCEDURE.
+PROCEDURE LedningsDataUt_UI :
+   
+   CREATE LedningData.
+   ASSIGN
+   LedningData.IdentifikationsnrForetag     = LedninggsDataDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE    
+   LedningData.DistriktsId                  = LedninggsDataDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE     
+   LedningData.Artal                        = LedninggsDataDBbuffh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE          
+   LedningData.SpanNivId                    = LedninggsDataDBbuffh:BUFFER-FIELD("SPANDARWINID"):BUFFER-VALUE         
+   LedningData.Text1                        = LedninggsDataDBbuffh:BUFFER-FIELD("TEXT1"):BUFFER-VALUE          
+   LedningData.Text2                        = LedninggsDataDBbuffh:BUFFER-FIELD("TEXT2"):BUFFER-VALUE          
+   /*Anders Olsson Elpool i Umeå AB  10 aug 2017 10:48:19 
+   Bort enligt Matz Tapper
+   LedningData.AntalLuftnat                 = LedninggsDataDBbuffh:BUFFER-FIELD("LANGDLUFT"):BUFFER-VALUE      
+   LedningData.AntalBlandNat                = LedninggsDataDBbuffh:BUFFER-FIELD("LANGDBLAND"):BUFFER-VALUE     
+   LedningData.AntalKabelNat                = LedninggsDataDBbuffh:BUFFER-FIELD("LANGDKABEL"):BUFFER-VALUE
+   */     
+   LedningData.AntalTotalt                  = LedninggsDataDBbuffh:BUFFER-FIELD("LANGD"):BUFFER-VALUE          
+   LedningData.RID = RECID(DistriktData).
+  /*
+   PUT UNFORMATTED
+      LedninggsDataDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE ";"
+      LedninggsDataDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE ";"
+      LedninggsDataDBbuffh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE ";"
+      LedninggsDataDBbuffh:BUFFER-FIELD("SPANID"):BUFFER-VALUE ";"
+      LedninggsDataDBbuffh:BUFFER-FIELD("TEXT1"):BUFFER-VALUE ";"
+      LedninggsDataDBbuffh:BUFFER-FIELD("TEXT2"):BUFFER-VALUE ";"
+      LedninggsDataDBbuffh:BUFFER-FIELD("LANGDLUFT"):BUFFER-VALUE ";"
+      LedninggsDataDBbuffh:BUFFER-FIELD("LANGDBLAND"):BUFFER-VALUE ";"
+      LedninggsDataDBbuffh:BUFFER-FIELD("LANGDKABEL"):BUFFER-VALUE ";"
+      LedninggsDataDBbuffh:BUFFER-FIELD("LANGD"):BUFFER-VALUE ";"
+      SKIP.
+      */
+END PROCEDURE.
+ PROCEDURE StorningsDataUt_UI :
+   CREATE StorningData.
+   ASSIGN                                                                                                                
+   StorningData.IdentifikationsnrForetag    = StorningsDataDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE       
+   StorningData.DistriktsId                 = StorningsDataDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE          
+   StorningData.StorId                      = StorningsDataDBbuffh:BUFFER-FIELD("STORNUMMERID"):BUFFER-VALUE      
+   StorningData.StorningsDatum              = StorningsDataDBbuffh:BUFFER-FIELD("HDATUM"):BUFFER-VALUE         
+   StorningData.StorningKlockan                    = StorningsDataDBbuffh:BUFFER-FIELD("HKLOCKAN"):BUFFER-VALUE          
+   StorningData.StortypId                   = StorningsDataDBbuffh:BUFFER-FIELD("STORTYPID"):BUFFER-VALUE 
+   StorningData.FranspanId                  = StorningsDataDBbuffh:BUFFER-FIELD("FRANSPANDARWINID"):BUFFER-VALUE        
+   StorningData.FelspanId                   = StorningsDataDBbuffh:BUFFER-FIELD("FELSPANDARWINID"):BUFFER-VALUE         
+   StorningData.BrytoId                     = StorningsDataDBbuffh:BUFFER-FIELD("BRYTODARWINID"):BUFFER-VALUE           
+   StorningData.BrytorgLit                  = StorningsDataDBbuffh:BUFFER-FIELD("BRYTORGLIT"):BUFFER-VALUE          
+   StorningData.SektionerId                 = StorningsDataDBbuffh:BUFFER-FIELD("SEKTIONERDARWINID"):BUFFER-VALUE       
+   StorningData.SektionLit                  = StorningsDataDBbuffh:BUFFER-FIELD("SEKTIONLIT"):BUFFER-VALUE          
+   StorningData.UtlosId                     = StorningsDataDBbuffh:BUFFER-FIELD("UTLOSDARWINID"):BUFFER-VALUE           
+   StorningData.RelinId                     = StorningsDataDBbuffh:BUFFER-FIELD("RELINDARWINID"):BUFFER-VALUE           
+   StorningData.BortKW                      = StorningsDataDBbuffh:BUFFER-FIELD("BORTKW"):BUFFER-VALUE            
+   StorningData.SlutDatum                       = StorningsDataDBbuffh:BUFFER-FIELD("DATUM100%"):BUFFER-VALUE     
+   StorningData.SlutKlockan                  = StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN100%"):BUFFER-VALUE       
+   StorningData.KundAvbrottsTid                = StorningsDataDBbuffh:BUFFER-FIELD("AVBROTTSTID"):BUFFER-VALUE        
+   StorningData.AntalHSP                  = StorningsDataDBbuffh:BUFFER-FIELD("ANTALHSP"):BUFFER-VALUE          
+   StorningData.AntalLSP                    = StorningsDataDBbuffh:BUFFER-FIELD("ANTALLSP"):BUFFER-VALUE   
+   /*
+   StorningData.EjBortKund                  = StorningsDataDBbuffh:BUFFER-FIELD("EJBORTKUND"):BUFFER-VALUE        
+   StorningData.EjBortKW                    = StorningsDataDBbuffh:BUFFER-FIELD("EJBORTKW"):BUFFER-VALUE          
+   */
+   StorningData.StDriftId                   = StorningsDataDBbuffh:BUFFER-FIELD("STDRIFTDARWINID"):BUFFER-VALUE         
+   StorningData.StDriftLit                = StorningsDataDBbuffh:BUFFER-FIELD("STDRIFTLIT"):BUFFER-VALUE   
+   
+   StorningData.AdelId                      = StorningsDataDBbuffh:BUFFER-FIELD("ADELDARWINID"):BUFFER-VALUE            
+   StorningData.FelOId                      = StorningsDataDBbuffh:BUFFER-FIELD("FELODARWINID"):BUFFER-VALUE            
+   /*
+   StorningData.AntalReservKraft            = StorningsDataDBbuffh:BUFFER-FIELD("ANTALRESERVKRAFT"):BUFFER-VALUE  
+   StorningData.TidReservKraft            = StorningsDataDBbuffh:BUFFER-FIELD("TIDRESERVKRAFT"):BUFFER-VALUE
+   */
+   StorningData.RID = RECID(DistriktData).
+   
+   /*Anders Olsson Elpool i Umeå AB  10 aug 2017 10:44:12 
+   Bort enligt Matz Tapper 
+   StorningData.NattypId                    = StorningsDataDBbuffh:BUFFER-FIELD("NATTYPID"):BUFFER-VALUE          
+   */
+    /*Anders Olsson Elpool i Umeå AB  10 aug 2017 10:48:19 
+   Bort enligt Matz Tapper       
+   StorningData.AntalRegStn                  = StorningsDataDBbuffh:BUFFER-FIELD("ANTALREGSTN"):BUFFER-VALUE       
+   StorningData.AntalNatStn                 = StorningsDataDBbuffh:BUFFER-FIELD("ANTALNATSTN"):BUFFER-VALUE       
+   */
+   /*Anders Olsson Elpool i Umeå AB  10 aug 2017 10:47:57 
+   Bort enligt Matz Tapper 
+   
+   StorningData.NatStrukHSPID             = StorningsDataDBbuffh:BUFFER-FIELD("STRUKIDP1")
+   StorningData.NatStrukLSPID             = StorningsDataDBbuffh:BUFFER-FIELD("STRUKIDP2").
+   
+   IF StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN70%"):BUFFER-VALUE = ? THEN DO:
+       StorningData.SlutDatum70   = "".
+       StorningData.SlutKlockan70 = 0.
+   END.   
+   ELSE DO: 
+      StorningData.SlutDatum70   = STRING(StorningsDataDBbuffh:BUFFER-FIELD("DATUM70%"):BUFFER-VALUE,"9999/99/99"). 
+      StorningData.SlutKlockan70 = StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN70%"):BUFFER-VALUE.
+   END.
+   */               
+   
+   /*
+   PUT UNFORMATTED
+      StorningsDataDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE ';'
+      StorningsDataDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE  ';'
+      STRING(StorningsDataDBbuffh:BUFFER-FIELD("HDATUM"):BUFFER-VALUE,"9999/99/99")  ';'
+      STRING(StorningsDataDBbuffh:BUFFER-FIELD("HKLOCKAN"):BUFFER-VALUE,"9999")   ';' 
+      StorningsDataDBbuffh:BUFFER-FIELD("STORTYPID"):BUFFER-VALUE ';'
+      StorningsDataDBbuffh:BUFFER-FIELD("FRANSPANID"):BUFFER-VALUE ';'
+      StorningsDataDBbuffh:BUFFER-FIELD("FELSPANID"):BUFFER-VALUE  ';'
+      StorningsDataDBbuffh:BUFFER-FIELD("BRYTOID"):BUFFER-VALUE  ';'
+      '"' StorningsDataDBbuffh:BUFFER-FIELD("BRYTORGLIT"):BUFFER-VALUE '"' ';'
+      StorningsDataDBbuffh:BUFFER-FIELD("SEKTIONERID"):BUFFER-VALUE ';'
+      '"' StorningsDataDBbuffh:BUFFER-FIELD("SEKTIONLIT"):BUFFER-VALUE '"' ';'
+      StorningsDataDBbuffh:BUFFER-FIELD("UTLOSID"):BUFFER-VALUE ';'
+      StorningsDataDBbuffh:BUFFER-FIELD("RELINID"):BUFFER-VALUE ';'
+      "0;"
+      StorningsDataDBbuffh:BUFFER-FIELD("BORTKW"):BUFFER-VALUE  ';'.
+      
+      IF StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN70%"):BUFFER-VALUE = ? THEN DO:
+         PUT UNFORMATTED '          ;0000;'.
+         
+      END.   
+      ELSE DO: 
+         PUT UNFORMATTED  
+         STRING(StorningsDataDBbuffh:BUFFER-FIELD("DATUM70%"):BUFFER-VALUE,"9999/99/99") ';'
+         STRING(StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN70%"):BUFFER-VALUE,"9999") ';'.
+      END.
+      PUT UNFORMATTED  
+      STRING(StorningsDataDBbuffh:BUFFER-FIELD("DATUM100%"):BUFFER-VALUE,"9999/99/99") ';'
+      STRING(StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN100%"):BUFFER-VALUE,"9999") ';' 
+      STRING(StorningsDataDBbuffh:BUFFER-FIELD("AVBROTTSTID"):BUFFER-VALUE,">>>>>>9.99") ';' 
+      StorningsDataDBbuffh:BUFFER-FIELD("ANTALHSP"):BUFFER-VALUE ';'
+      StorningsDataDBbuffh:BUFFER-FIELD("ANTALLSP"):BUFFER-VALUE ';'
+      StorningsDataDBbuffh:BUFFER-FIELD("ANTALREGSTN"):BUFFER-VALUE ';'
+      StorningsDataDBbuffh:BUFFER-FIELD("ANTALNATSTN"):BUFFER-VALUE  ';'
+      StorningsDataDBbuffh:BUFFER-FIELD("EJBORTKUND"):BUFFER-VALUE ';'
+      StorningsDataDBbuffh:BUFFER-FIELD("EJBORTKW"):BUFFER-VALUE ';'
+      StorningsDataDBbuffh:BUFFER-FIELD("STDRIFTID"):BUFFER-VALUE  ';"'
+      StorningsDataDBbuffh:BUFFER-FIELD("STDRIFTLIT"):BUFFER-VALUE '";'
+      "0;"
+      "0;"
+      StorningsDataDBbuffh:BUFFER-FIELD("NATTYPID"):BUFFER-VALUE  ';'
+      StorningsDataDBbuffh:BUFFER-FIELD("ADELID"):BUFFER-VALUE  ';'
+      StorningsDataDBbuffh:BUFFER-FIELD("FELOID"):BUFFER-VALUE ';'
+       "0;" 
+      StorningsDataDBbuffh:BUFFER-FIELD("ANTALRESERVKRAFT"):BUFFER-VALUE ';'
+      StorningsDataDBbuffh:BUFFER-FIELD("TIDRESERVKRAFT"):BUFFER-VALUE ';'
+      SKIP.
+   */
+END PROCEDURE.
+PROCEDURE StorFelMtrlDataUt_UI:
+   CREATE StorFelMtrlData.
+   ASSIGN
+   StorFelMtrlData.IdentifikationsnrForetag    = StorFelMtrlDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE       
+   StorFelMtrlData.DistriktsId                 = StorFelMtrlDBbuffh:BUFFER-FIELD("VIDISTRIKT"):BUFFER-VALUE          
+   StorFelMtrlData.StorId                      = StorFelMtrlDBbuffh:BUFFER-FIELD("STORNUMMERID"):BUFFER-VALUE  
+   StorFelMtrlData.SfmId                 = StorFelMtrlDBbuffh:BUFFER-FIELD("SfmId"):BUFFER-VALUE
+   StorFelMtrlData.Apparat               = StorFelMtrlDBbuffh:BUFFER-FIELD("Apparat"):BUFFER-VALUE  
+   StorFelMtrlData.Leverantor            = StorFelMtrlDBbuffh:BUFFER-FIELD("Leverantor"):BUFFER-VALUE   
+   StorFelMtrlData.Fabrikat              = StorFelMtrlDBbuffh:BUFFER-FIELD("Fabrikat"):BUFFER-VALUE 
+   StorFelMtrlData.Artikelnr             = StorFelMtrlDBbuffh:BUFFER-FIELD("Artikelnr"):BUFFER-VALUE 
+   StorFelMtrlData.Artal                 = StorFelMtrlDBbuffh:BUFFER-FIELD("Artal"):BUFFER-VALUE   
+   StorFelMtrlData.RID = RECID(StorningData).
+END PROCEDURE.
+PROCEDURE DistriktCreate_UI :
+   DEFINE VARIABLE iField AS INTEGER NO-UNDO.
+   CREATE TEMP-TABLE Foretagtth IN WIDGET-POOL "DynTableSEX".
+   Foretagtth:CREATE-LIKE("AVDELNING").
+   Foretagtth:ADD-NEW-FIELD("TTRECID","RECID").
+   Foretagtth:TEMP-TABLE-PREPARE("Foretaget").
+   ForetagDBbuffh = Foretagtth:DEFAULT-BUFFER-HANDLE.
+   ForetagDBbuffh:BUFFER-FIELD("TTRECID"):XML-NODE-TYPE = "HIDDEN".
+   CREATE TEMP-TABLE Distrikttth IN WIDGET-POOL "DynTableSEX".
+   Distrikttth:CREATE-LIKE("STORDISTRIKT").
+   Distrikttth:ADD-NEW-FIELD("TTRECID","RECID").
+   Distrikttth:TEMP-TABLE-PREPARE("Distrikten").
+   DistriktDBbuffh = Distrikttth:DEFAULT-BUFFER-HANDLE.
+   DistriktDBbuffh:BUFFER-FIELD("VIDISTRIKT"):XML-NODE-NAME = "dId".   
+   DistriktDBbuffh:BUFFER-FIELD("DISTRIKTID"):XML-NODE-TYPE = "HIDDEN". 
+   DistriktDBbuffh:BUFFER-FIELD("AVDELNINGNR"):XML-NODE-TYPE = "HIDDEN".
+  /*
+   DistriktDBbuffh:BUFFER-FIELD("TTRECID"):XML-NODE-TYPE = "HIDDEN".
+   */
+   
+   CREATE TEMP-TABLE KundDatatth IN WIDGET-POOL "DynTableSEX".
+   KundDatatth:CREATE-LIKE("KUNDSTOR").
+   KundDatatth:ADD-NEW-FIELD("AVDELNINGNR","INTEGER").  
+   KundDatatth:ADD-NEW-FIELD("VIDISTRIKT","CHARACTER").
+   KundDatatth:ADD-NEW-FIELD("TTRECID","RECID"). 
+   KundDatatth:TEMP-TABLE-PREPARE("KundDatat").
+   KundDataDBbuffh = KundDatatth:DEFAULT-BUFFER-HANDLE.  
+   KundDataDBbuffh:BUFFER-FIELD("AVDELNINGNR"):XML-NODE-TYPE = "HIDDEN".
+   KundDataDBbuffh:BUFFER-FIELD("VIDISTRIKT"):XML-NODE-NAME = "dId". 
+   KundDataDBbuffh:BUFFER-FIELD("DISTRIKTID"):XML-NODE-TYPE = "HIDDEN".
+   KundDataDBbuffh:BUFFER-FIELD("INDATUM"):XML-NODE-TYPE = "HIDDEN".
+   KundDataDBbuffh:BUFFER-FIELD("SPANID"):XML-NODE-TYPE = "HIDDEN".
+   KundDataDBbuffh:BUFFER-FIELD("SPANDARWINID"):XML-NODE-NAME = "SPANID".  
+   
+   KundDataDBbuffh:BUFFER-FIELD("ANTALBLAND"):XML-NODE-TYPE = "HIDDEN".
+   KundDataDBbuffh:BUFFER-FIELD("ANTALLUFT"):XML-NODE-TYPE = "HIDDEN".
+   KundDataDBbuffh:BUFFER-FIELD("ANTALKABEL"):XML-NODE-TYPE = "HIDDEN".
+   
+   
+   /*
+   KundDataDBbuffh:BUFFER-FIELD("TTRECID"):XML-NODE-TYPE = "HIDDEN".
+   */
+   CREATE TEMP-TABLE LedninggsDatatth IN WIDGET-POOL "DynTableSEX".
+   LedninggsDatatth:CREATE-LIKE("LEDNINGSDATA").
+   LedninggsDatatth:ADD-NEW-FIELD("AVDELNINGNR","INTEGER").  
+   LedninggsDatatth:ADD-NEW-FIELD("VIDISTRIKT","CHARACTER"). 
+   LedninggsDatatth:ADD-NEW-FIELD("TEXT1","CHARACTER"). 
+   LedninggsDatatth:ADD-NEW-FIELD("TEXT2","CHARACTER"). 
+   LedninggsDatatth:ADD-NEW-FIELD("TTRECID","RECID").
+   LedninggsDatatth:TEMP-TABLE-PREPARE("LedningsDatat").
+   LedninggsDataDBbuffh = LedninggsDatatth:DEFAULT-BUFFER-HANDLE.
+   LedninggsDataDBbuffh:BUFFER-FIELD("VIDISTRIKT"):XML-NODE-NAME = "dId".    
+   LedninggsDataDBbuffh:BUFFER-FIELD("TTRECID"):XML-NODE-TYPE = "HIDDEN".
+   LedninggsDataDBbuffh:BUFFER-FIELD("SPANID"):XML-NODE-TYPE = "HIDDEN".
+   LedninggsDataDBbuffh:BUFFER-FIELD("SPANDARWINID"):XML-NODE-NAME = "SPANID".
+   LedninggsDataDBbuffh:BUFFER-FIELD("LANGDBLAND"):XML-NODE-TYPE = "HIDDEN".
+   LedninggsDataDBbuffh:BUFFER-FIELD("LANGDLUFT"):XML-NODE-TYPE = "HIDDEN".
+   LedninggsDataDBbuffh:BUFFER-FIELD("LANGDKABEL"):XML-NODE-TYPE = "HIDDEN".
+   
+   
+   CREATE TEMP-TABLE StorningsDatatth IN WIDGET-POOL "DynTableSEX".
+   StorningsDatatth:CREATE-LIKE("STORNINGSTAB").
+   StorningsDatatth:ADD-NEW-FIELD("AVDELNINGNR","INTEGER").  
+   StorningsDatatth:ADD-NEW-FIELD("VIDISTRIKT","CHARACTER").
+   StorningsDatatth:ADD-NEW-FIELD("ATERDATUM","DATE").
+   StorningsDatatth:ADD-NEW-FIELD("ATERKLOCKAN","INTEGER"). 
+   StorningsDatatth:ADD-NEW-FIELD("TTRECID","RECID").
+   StorningsDatatth:TEMP-TABLE-PREPARE("StorningsDatat").
+   StorningsDataDBbuffh = StorningsDatatth:DEFAULT-BUFFER-HANDLE.
+   StorningsDataDBbuffh:BUFFER-FIELD("TTRECID"):XML-NODE-TYPE = "HIDDEN".
+   StorningsDataDBbuffh:BUFFER-FIELD("FELSPANID"):XML-NODE-TYPE = "HIDDEN".
+   StorningsDataDBbuffh:BUFFER-FIELD("SEKTIONERID"):XML-NODE-TYPE = "HIDDEN".
+   StorningsDataDBbuffh:BUFFER-FIELD("UTLOSID"):XML-NODE-TYPE = "HIDDEN".
+   StorningsDataDBbuffh:BUFFER-FIELD("RELINID"):XML-NODE-TYPE = "HIDDEN".
+   StorningsDataDBbuffh:BUFFER-FIELD("FELOID"):XML-NODE-TYPE = "HIDDEN".
+   StorningsDataDBbuffh:BUFFER-FIELD("FRANSPANID"):XML-NODE-TYPE = "HIDDEN".
+   StorningsDataDBbuffh:BUFFER-FIELD("BRYTOID"):XML-NODE-TYPE = "HIDDEN".
+   StorningsDataDBbuffh:BUFFER-FIELD("STDRIFTID"):XML-NODE-TYPE = "HIDDEN".
+   StorningsDataDBbuffh:BUFFER-FIELD("NATTYPID"):XML-NODE-TYPE = "HIDDEN".
+   StorningsDataDBbuffh:BUFFER-FIELD("STRUKIDP1"):XML-NODE-TYPE = "HIDDEN".
+   StorningsDataDBbuffh:BUFFER-FIELD("STRUKIDP2"):XML-NODE-TYPE = "HIDDEN".
+   
+   
+   
+   DO iField = 1 TO StorningsDataDBbuffh:NUM-FIELDS:
+      IF StorningsDataDBbuffh:BUFFER-FIELD(iField):NAME MATCHES "*%*" THEN DO:
+         StorningsDataDBbuffh:BUFFER-FIELD(iField):XML-NODE-NAME = REPLACE(StorningsDataDBbuffh:BUFFER-FIELD(iField):NAME,"%","x").   
+      END. 
+   END. 
+   CREATE TEMP-TABLE StorFelMtrltth IN WIDGET-POOL "DynTableSEX".
+   StorFelMtrltth:CREATE-LIKE("STORFELMTRL").
+   StorFelMtrltth:ADD-NEW-FIELD("TTRECID","RECID").
+   StorFelMtrltth:TEMP-TABLE-PREPARE("StorFelMtrl").
+   StorFelMtrlDBbuffh = StorFelMtrltth:DEFAULT-BUFFER-HANDLE.  
+   StorFelMtrlDBbuffh:BUFFER-FIELD("TTRECID"):XML-NODE-TYPE = "HIDDEN".
+END PROCEDURE.
+
+PROCEDURE laddaDistriktsDataDS_UI :
+   DEFINE INPUT  PARAMETER vad AS INTEGER NO-UNDO. 
+   DEFINE INPUT  PARAMETER vadi AS INTEGER NO-UNDO.
+   
+    {InDarwinDS.I}
+  
+END PROCEDURE.
+
+PROCEDURE avsluta_UI :
+   DELETE WIDGET-POOL "DynTableSEX" NO-ERROR.
+   DELETE OBJECT Foretagtth NO-ERROR.
+   Foretagtth = ?.
+   DELETE OBJECT ForetagDBbuffh NO-ERROR.
+   ForetagDBbuffh = ?.
+   DELETE OBJECT Distrikttth NO-ERROR.
+   Distrikttth = ?.
+   DELETE OBJECT DistriktDBbuffh NO-ERROR.
+   DistriktDBbuffh = ?.
+   DELETE OBJECT KundDatatth NO-ERROR.
+   KundDatatth = ?.
+   DELETE OBJECT KundDataDBbuffh NO-ERROR.
+   KundDataDBbuffh = ?.
+   DELETE OBJECT LedninggsDatatth NO-ERROR.
+   LedninggsDatatth = ?.
+   DELETE OBJECT LedninggsDataDBbuffh NO-ERROR.
+   LedninggsDataDBbuffh = ?.
+   
+   DELETE OBJECT StorningsDatatth NO-ERROR.
+   StorningsDatatth = ?.
+   DELETE OBJECT StorningsDataDBbuffh NO-ERROR.
+   StorningsDataDBbuffh = ?.
+   DELETE OBJECT StorFelMtrltth NO-ERROR.
+   StorFelMtrltth = ?.
+   DELETE OBJECT StorFelMtrlDBbuffh NO-ERROR.
+   StorFelMtrlDBbuffh = ?.
+   IF VALID-HANDLE(dyndamicDSh) THEN DO:
+      RUN RelDatset_UI IN dyndamicDSh.
+      DELETE PROCEDURE dyndamicDSh NO-ERROR.
+      dyndamicDSh = ?.
+   END.   
+   
+END PROCEDURE.
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh IN WIDGET-POOL "DynTableSEX".
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+   
+PROCEDURE CloseCustomQuery:
+   DEFINE INPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CustomQueryh:QUERY-CLOSE()  NO-ERROR.
+   CustomQueryh = ?.
+END PROCEDURE.
+
+/*WRITE RÄTT*/
+PROCEDURE Schema_UI :
+   DEFINE VARIABLE cTargetType     AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cFile           AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE lFormatted      AS LOGICAL   NO-UNDO.
+   DEFINE VARIABLE cEncoding       AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cSchemaLocation AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE lWriteSchema    AS LOGICAL   NO-UNDO.
+   DEFINE VARIABLE lMinSchema      AS LOGICAL   NO-UNDO.
+   DEFINE VARIABLE lRetOK          AS LOGICAL   NO-UNDO.
+   
+   EMPTY TEMP-TABLE FilInfo NO-ERROR.
+   CREATE FilInfo.
+   ASSIGN 
+   FilInfo.Skapad = NOW.
+   
+   ASSIGN 
+   cTargetType    =  "FILE"
+   cFile           = "C:\PROTEMP10\StorningImportSchema.xsd"
+   lFormatted      = TRUE
+   cEncoding       = "UTF-8"
+   lWriteSchema = TRUE 
+   lMinSchema = TRUE.
+   lRetOK = DATASET  StorningImportDs:WRITE-XMLSCHEMA(cTargetType, cFile, lFormatted,  cEncoding, lMinSchema).
+   cFile           = "C:\PROTEMP10\sch1.json".
+   DATASET  StorningImportDs:WRITE-JSON(cTargetType,cFile, lFormatted).
+   DATASET StorningImportDs:WRITE-XML("FILE", "C:\PROTEMP10\" + "Exempelfil" + ".xml", lFormatted, cEncoding, cSchemaLocation, false, false).
+END PROCEDURE.
+      
+      
+ 
+      
+      
+      
+      
+      
+      
+      
+      
+      
+       
+   
+   
+
+      

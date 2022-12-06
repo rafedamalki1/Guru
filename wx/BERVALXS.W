@@ -1,0 +1,2766 @@
+&ANALYZE-SUSPEND _VERSION-NUMBER UIB_v8r12 GUI
+&ANALYZE-RESUME
+/* Connected Databases 
+          temp-db          PROGRESS
+*/
+&Scoped-define WINDOW-NAME WINDOW-3
+
+/* Temp-Table and Buffer definitions                                    */
+DEFINE TEMP-TABLE berfortemp NO-UNDO LIKE berfortemp.
+DEFINE TEMP-TABLE berlinjetemp NO-UNDO LIKE berlinjetemp.
+DEFINE TEMP-TABLE bernattemp NO-UNDO LIKE bernattemp.
+DEFINE TEMP-TABLE berstolptemp NO-UNDO LIKE berstolptemp.
+DEFINE TEMP-TABLE bildbertemp NO-UNDO LIKE bildbertemp.
+DEFINE TEMP-TABLE fastanmtemp NO-UNDO LIKE fastanmtemp.
+DEFINE TEMP-TABLE konstgrptemp NO-UNDO LIKE konstgrptemp.
+DEFINE TEMP-TABLE konsttemp NO-UNDO LIKE konsttemp.
+DEFINE TEMP-TABLE konstvaltemp NO-UNDO LIKE konstvaltemp.
+DEFINE TEMP-TABLE mtrltemp NO-UNDO LIKE mtrltemp.
+DEFINE TEMP-TABLE satstemp NO-UNDO LIKE satstemp.
+DEFINE TEMP-TABLE kalk_temp NO-UNDO LIKE kalk_temp.
+DEFINE TEMP-TABLE list_mtrl NO-UNDO LIKE list_mtrl.
+DEFINE TEMP-TABLE kon_val NO-UNDO LIKE kon_val.
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CUSTOM _DEFINITIONS WINDOW-3 
+/*------------------------------------------------------------------------
+
+  File: 
+
+  Description: 
+
+  Input Parameters:
+      <none>
+
+  Output Parameters:
+      <none>
+
+  Author: 
+
+  Created: 01/28/97 -  3:43 pm
+
+------------------------------------------------------------------------*/
+/*          This .W file was created with the Progress UIB.             */
+/*----------------------------------------------------------------------*/
+
+/* Create an unnamed pool to store all the widgets created 
+     by this procedure. This is a good default which assures
+     that this procedure's triggers and internal procedures 
+     will execute in this procedure's storage, and that proper
+     cleanup will occur on deletion of the procedure. */
+
+CREATE WIDGET-POOL.
+
+/* ***************************  Definitions  ************************** */
+
+/* Parameters Definitions ---                                           */
+
+/* Local Variable Definitions ---                                       */
+{ALLDEF.I}
+{WHANDLTEMP.I}
+   
+
+&Scoped-define NEW 
+{GLOBVAR2DEL1.I}
+/*{EGENBEN.I}*/
+{DEFSOK.I}
+{pdf_StartInc.i}
+/* {SPECMTRL.I} */
+&Scoped-define SHARED SHARED
+{BERANN.I}
+{MTRLTEMP.I}
+{KONVALTEMP.I}
+{KONID.I}   
+{LISTMTRL.I}   
+{KOPPLINA.I}    
+{FRITEMP.I}        
+{PUNKTTEM.I}  
+{SCHAKTTE.I}    
+{SKYDDTEM.I}     
+{KABTEMP.I}
+{KALKTEMP2.I}
+{SMTRL.I}
+{BILDBERTEMP.I}
+{AVDTEMP.I}
+{AVDELNINGTEMP.I}
+{OMRTEMPW.I}
+{MARKGRUPP.I}
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{BERVALH.I}
+{SOKDEF.I}
+{LEVTEMP.I}
+{HUVLEVTEMP.I}
+{ANMARKTEMP.I}
+{BBENAMNTEMP.I}
+{KONSTRMTRL.I}
+{BERSTOLP.I}
+{BERBILD.I}
+{ANNAMN.I}
+{PARSTOLP.I}
+{HOPPSEK2W.I}
+
+{BERSKAP.I} 
+
+&Scoped-define NEW
+&Scoped-define SHARED 
+{KONVAL2TEMP.I}
+DEFINE NEW SHARED VARIABLE btnbervalh AS HANDLE NO-UNDO.
+DEFINE NEW SHARED VARIABLE kabkortvar AS LOGICAL NO-UNDO.
+
+DEFINE NEW SHARED VARIABLE kon_rowid AS ROWID NO-UNDO. 
+DEFINE NEW SHARED VARIABLE valnum AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE valskapnum AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE snabbspar AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE bildvar AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE bildvar2 AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE bildvar3 AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE bildvar4 AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE bildvar5 AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE bildant AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE skapapar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE typkod AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE varbild AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE berval2 AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE satsinn AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE satstrue AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE satsmtrl AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE filnamn AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE xtillyvar AS CHARACTER NO-UNDO.
+
+
+DEFINE SHARED VARIABLE ejanv AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE valaonr AS CHARACTER NO-UNDO.
+DEFINE SHARED VARIABLE valdelnr AS INTEGER NO-UNDO.
+DEFINE SHARED VARIABLE valort AS CHARACTER NO-UNDO. 
+DEFINE SHARED VARIABLE valomrade AS CHARACTER NO-UNDO.  
+DEFINE SHARED VARIABLE nyvar AS LOGICAL NO-UNDO. 
+DEFINE SHARED VARIABLE datvar AS DATE NO-UNDO.
+DEFINE SHARED VARIABLE skapamtrl AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE vald_lev AS CHARACTER NO-UNDO.
+DEFINE SHARED VARIABLE huvudlev AS CHARACTER NO-UNDO.
+DEFINE SHARED VARIABLE vald_kundlev AS CHARACTER NO-UNDO.
+DEFINE SHARED VARIABLE sok AS LOGICAL NO-UNDO.  
+DEFINE VARIABLE komplikoll AS LOGICAL NO-UNDO.
+DEFINE VARIABLE globanv2 AS CHARACTER NO-UNDO.        
+DEFINE VARIABLE status-ok AS LOGICAL NO-UNDO. 
+DEFINE VARIABLE gruppkod AS INTEGER NO-UNDO.
+DEFINE VARIABLE antal_valda AS INTEGER NO-UNDO.
+DEFINE VARIABLE antal_raknare AS INTEGER NO-UNDO.
+DEFINE VARIABLE OKvald AS LOGICAL INITIAL TRUE.
+DEFINE VARIABLE dirnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE bild_rowid AS ROWID NO-UNDO.
+DEFINE VARIABLE kompmtrl AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kompmtrlnum AS INTEGER NO-UNDO.
+DEFINE VARIABLE vismtrl AS CHARACTER NO-UNDO.
+DEFINE VARIABLE visval AS INTEGER NO-UNDO.
+DEFINE VARIABLE entrymtrlantal AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER NO-UNDO.
+DEFINE VARIABLE frikortapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE valtab AS INTEGER NO-UNDO.
+DEFINE VARIABLE gommtrl AS LOGICAL NO-UNDO.
+DEFINE VARIABLE enval AS LOGICAL NO-UNDO.
+DEFINE VARIABLE counter AS INTEGER NO-UNDO.        
+DEFINE VARIABLE counter2 AS INTEGER NO-UNDO. 
+DEFINE VARIABLE counterord AS INTEGER NO-UNDO.
+DEFINE VARIABLE numval AS INTEGER NO-UNDO.
+DEFINE VARIABLE cmbspar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE deletenum AS INTEGER NO-UNDO. 
+DEFINE VARIABLE summeter AS INTEGER NO-UNDO. 
+DEFINE VARIABLE aonrrow2 AS ROWID NO-UNDO.
+DEFINE VARIABLE avbrytvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE newskap AS LOGICAL NO-UNDO.
+DEFINE VARIABLE trafovar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE svar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE sokannan AS LOGICAL NO-UNDO.
+DEFINE VARIABLE avar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE bvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE satsvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE valet AS LOGICAL NO-UNDO.
+DEFINE VARIABLE posok AS CHARACTER FORMAT "X(11)" NO-UNDO.
+DEFINE VARIABLE lev AS CHARACTER NO-UNDO.
+DEFINE VARIABLE procasynch AS HANDLE NO-UNDO.
+DEFINE VARIABLE felmedd AS CHARACTER NO-UNDO.
+DEFINE VARIABLE klar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE forsta AS LOGICAL NO-UNDO.
+DEFINE VARIABLE enrvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE enrvar2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE charvar1 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE charvar2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE laddabrwproch AS HANDLE NO-UNDO.
+DEFINE VARIABLE forstaenr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE setcolvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE spar_rowid AS ROWID NO-UNDO.
+DEFINE VARIABLE radspar AS INTEGER NO-UNDO.
+/*ID*/
+DEFINE NEW SHARED VARIABLE valford AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE vallinje AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE valnat AS CHARACTER NO-UNDO. 
+DEFINE NEW SHARED VARIABLE siff AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE andrakod AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE id AS LOGICAL NO-UNDO.   
+DEFINE NEW SHARED VARIABLE nyttidnr AS CHARACTER.
+DEFINE VARIABLE fordrow AS ROWID NO-UNDO.      
+DEFINE VARIABLE linjerow AS ROWID NO-UNDO.
+DEFINE VARIABLE natrow AS ROWID NO-UNDO.  
+DEFINE VARIABLE brw AS LOGICAL NO-UNDO. 
+DEFINE VARIABLE mess AS LOGICAL NO-UNDO. 
+DEFINE VARIABLE sparfor AS CHARACTER NO-UNDO.     
+DEFINE VARIABLE sparlin AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE sparnat AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE sparfri1 AS INTEGER NO-UNDO. 
+DEFINE VARIABLE sparfri2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE sparfri3 AS INTEGER NO-UNDO.
+
+DEFINE VARIABLE idenable AS LOGICAL NO-UNDO.
+DEFINE VARIABLE anmenable AS LOGICAL NO-UNDO.
+DEFINE VARIABLE mtrlenable AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kalkenable AS LOGICAL NO-UNDO.
+DEFINE VARIABLE sermtrl AS LOGICAL NO-UNDO.
+DEFINE VARIABLE bildenable AS LOGICAL NO-UNDO.
+
+DEFINE VARIABLE frannr AS INTEGER NO-UNDO.
+DEFINE VARIABLE tillnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE till_rowid AS ROWID NO-UNDO.
+DEFINE VARIABLE laddaproch AS HANDLE NO-UNDO.
+DEFINE VARIABLE bervalapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE rowkonval AS ROWID NO-UNDO.
+DEFINE VARIABLE bbnamningvar AS CHARACTER EXTENT 10 NO-UNDO.
+/*ID*/
+
+/*MTRL*/
+DEFINE NEW SHARED VARIABLE mtrl_rowid AS ROWID NO-UNDO.
+DEFINE VARIABLE aosok AS CHARACTER FORMAT "X(40)" NO-UNDO.
+/*MTRL*/
+
+
+
+/*TABELL FÖR KALKYLERING ENLIGT P3*/
+DEFINE SHARED VARIABLE katvar AS INTEGER NO-UNDO.
+DEFINE SHARED VARIABLE kalkvar AS LOGICAL NO-UNDO.
+   
+IF Guru.Konstanter:beresekvar[4] = FALSE  THEN RETURN.
+
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-PREPROCESSOR-BLOCK 
+
+/* ********************  Preprocessor Definitions  ******************** */
+
+&Scoped-define PROCEDURE-TYPE WINDOW
+&Scoped-define DB-AWARE no
+
+/* Name of first Frame and/or Browse and/or first Query                 */
+&Scoped-define FRAME-NAME FRAME-ANM
+&Scoped-define BROWSE-NAME BRW_ANM
+
+/* Internal Tables (found by Frame, Query & Browse Queries)             */
+&Scoped-define INTERNAL-TABLES fastanmtemp konstvaltemp bildbertemp ~
+mtrltemp kalk_temp konsttemp list_mtrl satstemp berstolptemp berlinjetemp ~
+bernattemp kon_val
+
+/* Definitions for BROWSE BRW_ANM                                       */
+&Scoped-define FIELDS-IN-QUERY-BRW_ANM fastanmtemp.ANMARK 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_ANM 
+&Scoped-define QUERY-STRING-BRW_ANM FOR EACH fastanmtemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_ANM OPEN QUERY BRW_ANM FOR EACH fastanmtemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_ANM fastanmtemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_ANM fastanmtemp
+
+
+/* Definitions for BROWSE BRW_B2                                        */
+&Scoped-define FIELDS-IN-QUERY-BRW_B2 konstvaltemp.TRIMKVALKOD ~
+konstvaltemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_B2 
+&Scoped-define QUERY-STRING-BRW_B2 FOR EACH konstvaltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_B2 OPEN QUERY BRW_B2 FOR EACH konstvaltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_B2 konstvaltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_B2 konstvaltemp
+
+
+/* Definitions for BROWSE BRW_B3                                        */
+&Scoped-define FIELDS-IN-QUERY-BRW_B3 konstvaltemp.TRIMKVALKOD ~
+konstvaltemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_B3 
+&Scoped-define QUERY-STRING-BRW_B3 FOR EACH konstvaltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_B3 OPEN QUERY BRW_B3 FOR EACH konstvaltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_B3 konstvaltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_B3 konstvaltemp
+
+
+/* Definitions for BROWSE BRW_B4                                        */
+&Scoped-define FIELDS-IN-QUERY-BRW_B4 konstvaltemp.TRIMKVALKOD ~
+konstvaltemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_B4 
+&Scoped-define QUERY-STRING-BRW_B4 FOR EACH konstvaltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_B4 OPEN QUERY BRW_B4 FOR EACH konstvaltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_B4 konstvaltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_B4 konstvaltemp
+
+
+/* Definitions for BROWSE BRW_B5                                        */
+&Scoped-define FIELDS-IN-QUERY-BRW_B5 konstvaltemp.TRIMKVALKOD ~
+konstvaltemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_B5 
+&Scoped-define QUERY-STRING-BRW_B5 FOR EACH konstvaltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_B5 OPEN QUERY BRW_B5 FOR EACH konstvaltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_B5 konstvaltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_B5 konstvaltemp
+
+
+/* Definitions for BROWSE BRW_B6                                        */
+&Scoped-define FIELDS-IN-QUERY-BRW_B6 konstvaltemp.TRIMKVALKOD ~
+konstvaltemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_B6 
+&Scoped-define QUERY-STRING-BRW_B6 FOR EACH konstvaltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_B6 OPEN QUERY BRW_B6 FOR EACH konstvaltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_B6 konstvaltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_B6 konstvaltemp
+
+
+/* Definitions for BROWSE BRW_BILD                                      */
+&Scoped-define FIELDS-IN-QUERY-BRW_BILD bildbertemp.NAMN ~
+bildbertemp.FILNAMN 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_BILD bildbertemp.NAMN 
+&Scoped-define ENABLED-TABLES-IN-QUERY-BRW_BILD bildbertemp
+&Scoped-define FIRST-ENABLED-TABLE-IN-QUERY-BRW_BILD bildbertemp
+&Scoped-define QUERY-STRING-BRW_BILD FOR EACH bildbertemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_BILD OPEN QUERY BRW_BILD FOR EACH bildbertemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_BILD bildbertemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_BILD bildbertemp
+
+
+/* Definitions for BROWSE BRW_HLEV                                      */
+&Scoped-define FIELDS-IN-QUERY-BRW_HLEV mtrltemp.Enr mtrltemp.Benamning ~
+mtrltemp.Enhet mtrltemp.NPRIS 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_HLEV 
+&Scoped-define QUERY-STRING-BRW_HLEV FOR EACH mtrltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_HLEV OPEN QUERY BRW_HLEV FOR EACH mtrltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_HLEV mtrltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_HLEV mtrltemp
+
+
+/* Definitions for BROWSE BRW_KALK                                      */
+&Scoped-define FIELDS-IN-QUERY-BRW_KALK kalk_temp.ARBKOD kalk_temp.LOPNR ~
+kalk_temp.BENAMNING kalk_temp.ANTAL kalk_temp.ENHET 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_KALK kalk_temp.ANTAL 
+&Scoped-define ENABLED-TABLES-IN-QUERY-BRW_KALK kalk_temp
+&Scoped-define FIRST-ENABLED-TABLE-IN-QUERY-BRW_KALK kalk_temp
+&Scoped-define QUERY-STRING-BRW_KALK FOR EACH kalk_temp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_KALK OPEN QUERY BRW_KALK FOR EACH kalk_temp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_KALK kalk_temp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_KALK kalk_temp
+
+
+/* Definitions for BROWSE BRW_KB2                                       */
+&Scoped-define FIELDS-IN-QUERY-BRW_KB2 konstvaltemp.TRIMKVALKOD ~
+konstvaltemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_KB2 
+&Scoped-define QUERY-STRING-BRW_KB2 FOR EACH konstvaltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_KB2 OPEN QUERY BRW_KB2 FOR EACH konstvaltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_KB2 konstvaltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_KB2 konstvaltemp
+
+
+/* Definitions for BROWSE BRW_KB3                                       */
+&Scoped-define FIELDS-IN-QUERY-BRW_KB3 konstvaltemp.TRIMKVALKOD ~
+konstvaltemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_KB3 
+&Scoped-define QUERY-STRING-BRW_KB3 FOR EACH konstvaltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_KB3 OPEN QUERY BRW_KB3 FOR EACH konstvaltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_KB3 konstvaltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_KB3 konstvaltemp
+
+
+/* Definitions for BROWSE BRW_KB4                                       */
+&Scoped-define FIELDS-IN-QUERY-BRW_KB4 konstvaltemp.TRIMKVALKOD ~
+konstvaltemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_KB4 
+&Scoped-define QUERY-STRING-BRW_KB4 FOR EACH konstvaltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_KB4 OPEN QUERY BRW_KB4 FOR EACH konstvaltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_KB4 konstvaltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_KB4 konstvaltemp
+
+
+/* Definitions for BROWSE BRW_KB5                                       */
+&Scoped-define FIELDS-IN-QUERY-BRW_KB5 konstvaltemp.TRIMKVALKOD ~
+konstvaltemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_KB5 
+&Scoped-define QUERY-STRING-BRW_KB5 FOR EACH konstvaltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_KB5 OPEN QUERY BRW_KB5 FOR EACH konstvaltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_KB5 konstvaltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_KB5 konstvaltemp
+
+
+/* Definitions for BROWSE BRW_KB6                                       */
+&Scoped-define FIELDS-IN-QUERY-BRW_KB6 konstvaltemp.TRIMKVALKOD ~
+konstvaltemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_KB6 
+&Scoped-define QUERY-STRING-BRW_KB6 FOR EACH konstvaltemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_KB6 OPEN QUERY BRW_KB6 FOR EACH konstvaltemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_KB6 konstvaltemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_KB6 konstvaltemp
+
+
+/* Definitions for BROWSE BRW_KON                                       */
+&Scoped-define FIELDS-IN-QUERY-BRW_KON konsttemp.KTYPKOD ~
+konsttemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_KON 
+&Scoped-define QUERY-STRING-BRW_KON FOR EACH konsttemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_KON OPEN QUERY BRW_KON FOR EACH konsttemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_KON konsttemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_KON konsttemp
+
+
+/* Definitions for BROWSE BRW_MTRL                                      */
+&Scoped-define FIELDS-IN-QUERY-BRW_MTRL list_mtrl.ENR list_mtrl.BENAMNING ~
+list_mtrl.ANTAL list_mtrl.ENHET list_mtrl.LINKAB list_mtrl.PAR2 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_MTRL list_mtrl.ANTAL 
+&Scoped-define ENABLED-TABLES-IN-QUERY-BRW_MTRL list_mtrl
+&Scoped-define FIRST-ENABLED-TABLE-IN-QUERY-BRW_MTRL list_mtrl
+&Scoped-define QUERY-STRING-BRW_MTRL FOR EACH list_mtrl NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_MTRL OPEN QUERY BRW_MTRL FOR EACH list_mtrl NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_MTRL list_mtrl
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_MTRL list_mtrl
+
+
+/* Definitions for BROWSE BRW_SATS                                      */
+&Scoped-define FIELDS-IN-QUERY-BRW_SATS satstemp.KOD satstemp.BENAMNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_SATS 
+&Scoped-define QUERY-STRING-BRW_SATS FOR EACH satstemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_SATS OPEN QUERY BRW_SATS FOR EACH satstemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_SATS satstemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_SATS satstemp
+
+
+/* Definitions for BROWSE BRW_STOLP                                     */
+&Scoped-define FIELDS-IN-QUERY-BRW_STOLP berstolptemp.ENR ~
+berstolptemp.BENAMNING berstolptemp.PRIS 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_STOLP 
+&Scoped-define QUERY-STRING-BRW_STOLP FOR EACH berstolptemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_STOLP OPEN QUERY BRW_STOLP FOR EACH berstolptemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_STOLP berstolptemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_STOLP berstolptemp
+
+
+/* Definitions for BROWSE BRW_TAB2                                      */
+&Scoped-define FIELDS-IN-QUERY-BRW_TAB2 berlinjetemp.LINNR ~
+berlinjetemp.NAMN 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_TAB2 
+&Scoped-define QUERY-STRING-BRW_TAB2 FOR EACH berlinjetemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_TAB2 OPEN QUERY BRW_TAB2 FOR EACH berlinjetemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_TAB2 berlinjetemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_TAB2 berlinjetemp
+
+
+/* Definitions for BROWSE BRW_TAB3                                      */
+&Scoped-define FIELDS-IN-QUERY-BRW_TAB3 bernattemp.NATNR bernattemp.NAMN 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_TAB3 
+&Scoped-define QUERY-STRING-BRW_TAB3 FOR EACH bernattemp NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_TAB3 OPEN QUERY BRW_TAB3 FOR EACH bernattemp NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_TAB3 bernattemp
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_TAB3 bernattemp
+
+
+/* Definitions for BROWSE BRW_VAL                                       */
+&Scoped-define FIELDS-IN-QUERY-BRW_VAL kon_val.ID2 kon_val.EXTRA1 ~
+kon_val.F1 kon_val.F2 kon_val.F3 kon_val.F4 kon_val.F5 kon_val.F6 ~
+kon_val.EXTRA2 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_VAL 
+&Scoped-define QUERY-STRING-BRW_VAL FOR EACH kon_val NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_VAL OPEN QUERY BRW_VAL FOR EACH kon_val NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_VAL kon_val
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_VAL kon_val
+
+
+/* Definitions for FRAME FRAME-ANM                                      */
+
+/* Definitions for FRAME FRAME-BARABREDD                                */
+
+/* Definitions for FRAME FRAME-BILD                                     */
+
+/* Definitions for FRAME FRAME-ID                                       */
+
+/* Definitions for FRAME FRAME-KALK                                     */
+
+/* Definitions for FRAME FRAME-KONST                                    */
+
+/* Definitions for FRAME FRAME-MTRL                                     */
+
+/* Standard List Definitions                                            */
+&Scoped-Define ENABLED-OBJECTS BRW_ANM ED_ANM BTN_OVER-2 BTN_KOPPANM ~
+FILL-IN-TEXT 
+
+/* Custom List Definitions                                              */
+/* List-1,List-2,List-3,List-4,List-5,List-6                            */
+
+/* _UIB-PREPROCESSOR-BLOCK-END */
+&ANALYZE-RESUME
+
+
+
+/* ***********************  Control Definitions  ********************** */
+
+/* Define the widget handle for the window                              */
+DEFINE VAR WINDOW-3 AS WIDGET-HANDLE NO-UNDO.
+
+/* Menu Definitions                                                     */
+DEFINE MENU POPUP-MENU-BRW_B2 
+       MENU-ITEM m_mtrlB2       LABEL "Visa materiel" 
+       MENU-ITEM m_bildB2       LABEL "Visa bild"     
+       MENU-ITEM m_AvmarkeraB2  LABEL "Avmarkera"     .
+
+DEFINE MENU POPUP-MENU-BRW_B3 
+       MENU-ITEM m_mtrlB3       LABEL "Visa materiel" 
+       MENU-ITEM m_bildB3       LABEL "Visa bild"     
+       MENU-ITEM m_AvmarkeraB3  LABEL "Avmarkera"     .
+
+DEFINE MENU POPUP-MENU-BRW_B4 
+       MENU-ITEM m_mtrlB4       LABEL "Visa materiel" 
+       MENU-ITEM m_bildB4       LABEL "Visa bild"     
+       MENU-ITEM m_AvmarkeraB4  LABEL "Avmarkera"     .
+
+DEFINE MENU POPUP-MENU-BRW_B5 
+       MENU-ITEM m_mtrlB5       LABEL "Visa materiel" 
+       MENU-ITEM m_bildB5       LABEL "Visa bild"     
+       MENU-ITEM m_AvmarkeraB5  LABEL "Avmarkera"     .
+
+DEFINE MENU POPUP-MENU-BRW_B6 
+       MENU-ITEM m_mtrlB6       LABEL "Visa materiel" 
+       MENU-ITEM m_bildB6       LABEL "Visa bild"     
+       MENU-ITEM m_AvmarkeraB6  LABEL "Avmarkera"     .
+
+DEFINE MENU POPUP-MENU-BRW_HLEV 
+       MENU-ITEM m_Visa_informationHLEV LABEL "Visa information"
+       MENU-ITEM m_Pris_information2 LABEL "Pris information".
+
+DEFINE MENU POPUP-MENU-BRW_KB2 
+       MENU-ITEM m_mtrlKB2      LABEL "Visa materiel" 
+       MENU-ITEM m_bildKB2      LABEL "Visa bild"     .
+
+DEFINE MENU POPUP-MENU-BRW_KB3 
+       MENU-ITEM m_mtrlKB3      LABEL "Visa materiel" 
+       MENU-ITEM m_bildKB3      LABEL "Visa bild"     .
+
+DEFINE MENU POPUP-MENU-BRW_KB4 
+       MENU-ITEM m_mtrlKB4      LABEL "Visa materiel" 
+       MENU-ITEM m_bildKB4      LABEL "Visa bild"     .
+
+DEFINE MENU POPUP-MENU-BRW_KB5 
+       MENU-ITEM m_mtrlKB5      LABEL "Visa materiel" 
+       MENU-ITEM m_bildKB5      LABEL "Visa bild"     .
+
+DEFINE MENU POPUP-MENU-BRW_KB6 
+       MENU-ITEM m_mtrlKB6      LABEL "Visa materiel" 
+       MENU-ITEM m_bildKB6      LABEL "Visa bild"     .
+
+DEFINE MENU POPUP-MENU-BRW_KON 
+       MENU-ITEM m_Visa_mtrl    LABEL "Visa materiel" 
+       MENU-ITEM m_Visa_bild    LABEL "Visa bild"     .
+
+DEFINE MENU POPUP-MENU-BRW_MTRL 
+       MENU-ITEM m_Visa_informationBRW_MTRL LABEL "Visa information".
+
+DEFINE MENU POPUP-MENU-BRW_SATS 
+       MENU-ITEM m_Visa_informationSATS LABEL "Visa information"
+       MENU-ITEM m_Pris_information LABEL "Pris information".
+
+DEFINE MENU POPUP-MENU-BRW_STOLP 
+       MENU-ITEM m_Visa_informationSTOLP LABEL "Visa information".
+
+DEFINE MENU POPUP-MENU-BRW_VAL 
+       MENU-ITEM m_Visa_informationVAL LABEL "Visa information".
+
+
+/* Definitions of the field level widgets                               */
+DEFINE BUTTON BTN_KOPPANM 
+     LABEL "Koppla Anmärkning" 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON BTN_OVER-2 
+     IMAGE-UP FILE "BILDER\next-u.bmp":U
+     LABEL "" 
+     SIZE 4 BY 1.21.
+
+DEFINE VARIABLE ED_ANM AS CHARACTER 
+     VIEW-AS EDITOR SCROLLBAR-VERTICAL
+     SIZE 53 BY 8
+     BGCOLOR 15  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-TEXT AS CHARACTER FORMAT "X(256)":U 
+      VIEW-AS TEXT 
+     SIZE 29.13 BY 1.46
+     FONT 17 NO-UNDO.
+
+DEFINE BUTTON BTN_AVB 
+     LABEL "Avbryt" 
+     SIZE 14 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON BTN_OK 
+     LABEL "Ok" 
+     SIZE 14 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON BTN_ORDNER 
+     IMAGE-UP FILE "BILDER\pilner":U
+     LABEL "Ner" 
+     SIZE 4 BY 1.5 TOOLTIP "Flytta ner".
+
+DEFINE BUTTON BTN_ORDUPP 
+     IMAGE-UP FILE "BILDER\pilupp":U
+     LABEL "" 
+     SIZE 4 BY 1.5 TOOLTIP "Flytta upp".
+
+DEFINE BUTTON BTN_SOLEN 
+     IMAGE-UP FILE "BILDER/glob.gif":U
+     LABEL "" 
+     SIZE 4.5 BY 1.71 TOOLTIP "Solen - karta".
+
+DEFINE BUTTON FBTN_ANDID 
+     LABEL "Ordning" 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON FBTN_FRIKORT 
+     LABEL "Frikort" 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON FBTN_KOPI 
+     LABEL "Kopiera" 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON FBTN_KSKAP 
+     LABEL "Kabelskåp" 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON FBTN_LIN 
+     LABEL "Lin/Kab" 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON FBTN_SNABB 
+     LABEL "Snabbspara" 
+     SIZE 14 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON FBTN_UPPL 
+     LABEL "Uppl-komb" 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON MBTN_ANM  NO-FOCUS FLAT-BUTTON
+     LABEL "Anmärkning" 
+     SIZE 14 BY 1.
+
+DEFINE BUTTON MBTN_DOK  NO-FOCUS FLAT-BUTTON
+     LABEL "Bild/Dokument" 
+     SIZE 14 BY 1.
+
+DEFINE BUTTON MBTN_ID  NO-FOCUS FLAT-BUTTON
+     LABEL "Identitet" 
+     SIZE 14 BY 1.
+
+DEFINE BUTTON MBTN_KALK  NO-FOCUS FLAT-BUTTON
+     LABEL "Kalkyl" 
+     SIZE 14 BY 1.
+
+DEFINE BUTTON MBTN_KONST  NO-FOCUS FLAT-BUTTON
+     LABEL "Konstruktioner" 
+     SIZE 14 BY 1.
+
+DEFINE BUTTON MBTN_LIST  NO-FOCUS FLAT-BUTTON
+     LABEL "Listor" 
+     SIZE 14 BY 1.
+
+DEFINE BUTTON MBTN_MTRL  NO-FOCUS FLAT-BUTTON
+     LABEL "Materiel" 
+     SIZE 14 BY 1.
+
+DEFINE IMAGE IMAGE-5
+     FILENAME "BILDER\meny.gif":U CONVERT-3D-COLORS
+     SIZE 10 BY 1.
+
+DEFINE VARIABLE RAD_VAL AS INTEGER 
+     VIEW-AS RADIO-SET HORIZONTAL
+     RADIO-BUTTONS 
+          "Konstruktioner", 1,
+"Identitet", 2,
+"Anmärkning", 3,
+"Materiel", 4
+     SIZE 2.25 BY .88 NO-UNDO.
+
+DEFINE RECTANGLE RECT-2
+     EDGE-PIXELS 2 GRAPHIC-EDGE  
+     SIZE 124.5 BY .38
+     BGCOLOR 1 .
+
+DEFINE RECTANGLE RECT-24
+     EDGE-PIXELS 2 GRAPHIC-EDGE  NO-FILL 
+     SIZE 124.5 BY 1.25.
+
+DEFINE BUTTON BTN_BORTA 
+     LABEL "Ta bort" 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_NYA 
+     LABEL "Ny" 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_VISA 
+     LABEL "Visa" 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_ANL 
+     LABEL "Anl.register" 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_HMT 
+     LABEL "Hämta" 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_KOPPID 
+     LABEL "Koppla identitet" 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE VARIABLE CMB_AVD AS CHARACTER FORMAT "X(256)":U INITIAL ? 
+     LABEL "Avdelning" 
+     VIEW-AS COMBO-BOX INNER-LINES 15
+     DROP-DOWN-LIST
+     SIZE 23 BY 1 NO-UNDO.
+
+DEFINE VARIABLE CMB_JURP AS CHARACTER FORMAT "X(256)":U INITIAL ? 
+     LABEL "Juridisp" 
+     VIEW-AS COMBO-BOX INNER-LINES 15
+     DROP-DOWN-LIST
+     SIZE 23 BY 1 NO-UNDO.
+
+DEFINE VARIABLE CMB_OMR AS CHARACTER FORMAT "X(256)":U INITIAL ? 
+     LABEL "Område" 
+     VIEW-AS COMBO-BOX INNER-LINES 5
+     DROP-DOWN-LIST
+     SIZE 23 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-A AS CHARACTER FORMAT "X(1)":U 
+      VIEW-AS TEXT 
+     SIZE 2.75 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-B AS CHARACTER FORMAT "X(1)":U 
+      VIEW-AS TEXT 
+     SIZE 2.75 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-C AS CHARACTER FORMAT "X(1)":U 
+      VIEW-AS TEXT 
+     SIZE 2.75 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-ID1 AS CHARACTER FORMAT "X(25)":U 
+      VIEW-AS TEXT 
+     SIZE 26 BY 1
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-ID2 AS CHARACTER FORMAT "X(25)":U 
+      VIEW-AS TEXT 
+     SIZE 26 BY 1
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-IDNR1 AS INTEGER FORMAT ">>>>>>>>>9":U INITIAL 0 
+     VIEW-AS FILL-IN 
+     SIZE 14 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-IDNR1LABEL AS CHARACTER FORMAT "X(256)":U INITIAL "Nr:" 
+      VIEW-AS TEXT 
+     SIZE 3.63 BY .63 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-IDNR2 AS INTEGER FORMAT ">>>>>>>>>>":U INITIAL 0 
+     VIEW-AS FILL-IN 
+     SIZE 14 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-IDNR2LABEL AS CHARACTER FORMAT "X(256)":U INITIAL "Nr:" 
+      VIEW-AS TEXT 
+     SIZE 3.63 BY .63 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-NR1 AS CHARACTER FORMAT "X(30)":U 
+     LABEL "Nr" 
+     VIEW-AS FILL-IN 
+     SIZE 14 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-NR2 AS CHARACTER FORMAT "X(30)":U 
+     LABEL "Nr" 
+     VIEW-AS FILL-IN 
+     SIZE 14 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-NR3 AS CHARACTER FORMAT "X(30)":U 
+     LABEL "Nr" 
+     VIEW-AS FILL-IN 
+     SIZE 14 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-SUND AS CHARACTER FORMAT "X(30)":U 
+     VIEW-AS FILL-IN 
+     SIZE 14 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-SUNDLABEL AS CHARACTER FORMAT "X(256)":U INITIAL "Fri id:" 
+      VIEW-AS TEXT 
+     SIZE 7.13 BY .63 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-TAB1 AS CHARACTER FORMAT "X(25)":U 
+      VIEW-AS TEXT 
+     SIZE 26 BY 1
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-TAB2 AS CHARACTER FORMAT "X(25)":U 
+      VIEW-AS TEXT 
+     SIZE 26 BY 1
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-TAB3 AS CHARACTER FORMAT "X(25)":U 
+      VIEW-AS TEXT 
+     SIZE 26 BY 1
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE TOG_A AS LOGICAL INITIAL no 
+     LABEL "" 
+     VIEW-AS TOGGLE-BOX
+     SIZE 2 BY .88 NO-UNDO.
+
+DEFINE VARIABLE TOG_B AS LOGICAL INITIAL no 
+     LABEL "" 
+     VIEW-AS TOGGLE-BOX
+     SIZE 2 BY .88 NO-UNDO.
+
+DEFINE VARIABLE TOG_C AS LOGICAL INITIAL no 
+     LABEL "" 
+     VIEW-AS TOGGLE-BOX
+     SIZE 2 BY .88 NO-UNDO.
+
+DEFINE BUTTON BTN_ANTAL2 
+     LABEL "Antal" 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON BTN_BORT2 
+     LABEL "Ta bort" 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON BTN_NYKOD 
+     LABEL "Ny kod" 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON BTN_NER 
+     IMAGE-UP FILE "BILDER\pilner":U
+     LABEL "Ner" 
+     SIZE 4 BY 1.5 TOOLTIP "Markerade tas bort från vallistan".
+
+DEFINE BUTTON BTN_UPP 
+     IMAGE-UP FILE "BILDER\pilupp":U
+     LABEL "" 
+     SIZE 4 BY 1.5 TOOLTIP "Markerade väljs".
+
+DEFINE VARIABLE CMB_VAL AS CHARACTER FORMAT "X(30)":U 
+     VIEW-AS COMBO-BOX INNER-LINES 5
+     LIST-ITEMS "0" 
+     DROP-DOWN-LIST
+     SIZE 28.5 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-B1 AS CHARACTER FORMAT "X(256)":U 
+      VIEW-AS TEXT 
+     SIZE 40 BY .83
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-B2 AS CHARACTER FORMAT "X(256)":U 
+      VIEW-AS TEXT 
+     SIZE 40 BY .83
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-B3 AS CHARACTER FORMAT "X(256)":U 
+      VIEW-AS TEXT 
+     SIZE 40 BY .83
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-B4 AS CHARACTER FORMAT "X(256)":U 
+      VIEW-AS TEXT 
+     SIZE 40 BY .83
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-B5 AS CHARACTER FORMAT "X(256)":U 
+      VIEW-AS TEXT 
+     SIZE 40 BY .83
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-B6 AS CHARACTER FORMAT "X(256)":U 
+      VIEW-AS TEXT 
+     SIZE 40 BY .83
+     BGCOLOR 7  NO-UNDO.
+
+DEFINE VARIABLE RAD_KOMP AS INTEGER 
+     VIEW-AS RADIO-SET VERTICAL
+     RADIO-BUTTONS 
+          "Skapa nytt skåp", 1,
+"Komplettera skåp", 2
+     SIZE 40.13 BY 1.67 NO-UNDO.
+
+DEFINE BUTTON BTN_ALLTMTRL 
+     LABEL "Allt bort" 
+     SIZE 12 BY 1 TOOLTIP "Tar bort allt materiel som är lagrat på konstruktionen"
+     BGCOLOR 8 .
+
+DEFINE BUTTON BTN_ANTAL 
+     LABEL "Antal" 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON BTN_BACK 
+     IMAGE-UP FILE "BILDER\prev-u":U
+     LABEL "":L 
+     SIZE 4 BY 1.21 TOOLTIP "Markerade tas bort från vallistan".
+
+DEFINE BUTTON BTN_LEV 
+     LABEL "Åter huvudleverantör" 
+     SIZE 14 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON BTN_LINKAB 
+     LABEL "Lin/Kab":L 
+     SIZE 12 BY 1.
+
+DEFINE BUTTON BTN_NOLL 
+     LABEL "Ta bort 0" 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON BTN_NY 
+     LABEL "Kopi. mtrl" 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON BTN_OVER 
+     IMAGE-UP FILE "BILDER\next-u.bmp":U
+     LABEL "":L 
+     SIZE 4 BY 1.21 TOOLTIP "Markerade väljs".
+
+DEFINE BUTTON BTN_PAR 
+     LABEL "Parstolpe" 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON BTN_SATS 
+     LABEL "Satsinfo." 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE BUTTON BTN_SPEC 
+     LABEL "Spec.mtrl" 
+     SIZE 12 BY 1
+     FGCOLOR 1 .
+
+DEFINE BUTTON BTN_TEXT 
+     LABEL "Text" 
+     SIZE 12 BY 1
+     BGCOLOR 8 .
+
+DEFINE VARIABLE CMB_LEV AS CHARACTER FORMAT "X(40)":U 
+     LABEL "Leverantörer" 
+     VIEW-AS COMBO-BOX INNER-LINES 5
+     LIST-ITEMS "0" 
+     DROP-DOWN-LIST
+     SIZE 20 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-BEN AS CHARACTER FORMAT "X(40)":U 
+     LABEL "Benämning" 
+     VIEW-AS FILL-IN 
+     SIZE 28.88 BY .83 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-ENR AS CHARACTER FORMAT "X(11)":U 
+     LABEL "Enr" 
+     VIEW-AS FILL-IN 
+     SIZE 17 BY .83 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-KOD AS CHARACTER FORMAT "X(11)":U 
+     LABEL "Kod" 
+     VIEW-AS FILL-IN 
+     SIZE 17 BY .83 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-SOKALT AS CHARACTER FORMAT "X(256)":U INITIAL "Sökalternativ:" 
+      VIEW-AS TEXT 
+     SIZE 14.5 BY .83 NO-UNDO.
+
+DEFINE IMAGE IMAGE-4
+     FILENAME "BILDER\sokpa.gif":U CONVERT-3D-COLORS
+     SIZE 8 BY .83.
+
+DEFINE VARIABLE RAD_MTRL AS INTEGER 
+     VIEW-AS RADIO-SET HORIZONTAL
+     RADIO-BUTTONS 
+          "Mtrl", 1,
+"Stolpar", 2,
+"Transf.", 3
+     SIZE 31.5 BY .83 NO-UNDO.
+
+DEFINE VARIABLE RAD_SOK AS INTEGER 
+     VIEW-AS RADIO-SET HORIZONTAL
+     RADIO-BUTTONS 
+          "Början", 1,
+"Någonstans", 2,
+"Slutet", 3
+     SIZE 40 BY .83 NO-UNDO.
+
+DEFINE RECTANGLE RECT-22
+     EDGE-PIXELS 2 GRAPHIC-EDGE  NO-FILL 
+     SIZE 56.5 BY 3.63
+     BGCOLOR 8 .
+
+/* Query definitions                                                    */
+&ANALYZE-SUSPEND
+DEFINE QUERY BRW_ANM FOR 
+      fastanmtemp SCROLLING.
+
+DEFINE QUERY BRW_B2 FOR 
+      konstvaltemp SCROLLING.
+
+DEFINE QUERY BRW_B3 FOR 
+      konstvaltemp SCROLLING.
+
+DEFINE QUERY BRW_B4 FOR 
+      konstvaltemp SCROLLING.
+
+DEFINE QUERY BRW_B5 FOR 
+      konstvaltemp SCROLLING.
+
+DEFINE QUERY BRW_B6 FOR 
+      konstvaltemp SCROLLING.
+
+DEFINE QUERY BRW_BILD FOR 
+      bildbertemp SCROLLING.
+
+DEFINE QUERY BRW_HLEV FOR 
+      mtrltemp SCROLLING.
+
+DEFINE QUERY BRW_KALK FOR 
+      kalk_temp SCROLLING.
+
+DEFINE QUERY BRW_KB2 FOR 
+      konstvaltemp SCROLLING.
+
+DEFINE QUERY BRW_KB3 FOR 
+      konstvaltemp SCROLLING.
+
+DEFINE QUERY BRW_KB4 FOR 
+      konstvaltemp SCROLLING.
+
+DEFINE QUERY BRW_KB5 FOR 
+      konstvaltemp SCROLLING.
+
+DEFINE QUERY BRW_KB6 FOR 
+      konstvaltemp SCROLLING.
+
+DEFINE QUERY BRW_KON FOR 
+      konsttemp SCROLLING.
+
+DEFINE QUERY BRW_MTRL FOR 
+      list_mtrl SCROLLING.
+
+DEFINE QUERY BRW_SATS FOR 
+      satstemp SCROLLING.
+
+DEFINE QUERY BRW_STOLP FOR 
+      berstolptemp SCROLLING.
+
+DEFINE QUERY BRW_TAB2 FOR 
+      berlinjetemp SCROLLING.
+
+DEFINE QUERY BRW_TAB3 FOR 
+      bernattemp SCROLLING.
+
+DEFINE QUERY BRW_VAL FOR 
+      kon_val SCROLLING.
+&ANALYZE-RESUME
+
+/* Browse definitions                                                   */
+DEFINE BROWSE BRW_ANM
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_ANM WINDOW-3 _STRUCTURED
+  QUERY BRW_ANM NO-LOCK DISPLAY
+      fastanmtemp.ANMARK COLUMN-LABEL "Fasta anmärkningar" FORMAT "X(50)":U
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-ROW-MARKERS NO-COLUMN-SCROLLING SIZE 53 BY 8
+         TITLE "Fasta anmärkningar".
+
+DEFINE BROWSE BRW_B2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_B2 WINDOW-3 _STRUCTURED
+  QUERY BRW_B2 NO-LOCK DISPLAY
+      konstvaltemp.TRIMKVALKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U
+            WIDTH 10
+      konstvaltemp.BENAMNING FORMAT "X(256)":U WIDTH 27
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING SIZE 40 BY 6.29.
+
+DEFINE BROWSE BRW_B3
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_B3 WINDOW-3 _STRUCTURED
+  QUERY BRW_B3 NO-LOCK DISPLAY
+      konstvaltemp.TRIMKVALKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U
+            WIDTH 10
+      konstvaltemp.BENAMNING FORMAT "X(256)":U WIDTH 27
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING SIZE 40 BY 6.29.
+
+DEFINE BROWSE BRW_B4
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_B4 WINDOW-3 _STRUCTURED
+  QUERY BRW_B4 NO-LOCK DISPLAY
+      konstvaltemp.TRIMKVALKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U
+            WIDTH 10
+      konstvaltemp.BENAMNING FORMAT "X(256)":U WIDTH 27
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING SIZE 40 BY 6.29.
+
+DEFINE BROWSE BRW_B5
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_B5 WINDOW-3 _STRUCTURED
+  QUERY BRW_B5 NO-LOCK DISPLAY
+      konstvaltemp.TRIMKVALKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U
+            WIDTH 10
+      konstvaltemp.BENAMNING FORMAT "X(256)":U WIDTH 27
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING SIZE 40 BY 6.29.
+
+DEFINE BROWSE BRW_B6
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_B6 WINDOW-3 _STRUCTURED
+  QUERY BRW_B6 NO-LOCK DISPLAY
+      konstvaltemp.TRIMKVALKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U
+            WIDTH 10
+      konstvaltemp.BENAMNING FORMAT "X(256)":U WIDTH 27
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING SIZE 40 BY 6.29.
+
+DEFINE BROWSE BRW_BILD
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_BILD WINDOW-3 _STRUCTURED
+  QUERY BRW_BILD NO-LOCK DISPLAY
+      bildbertemp.NAMN COLUMN-LABEL "Egen text" FORMAT "X(25)":U
+            WIDTH 23.63
+      bildbertemp.FILNAMN COLUMN-LABEL "Sökväg" FORMAT "X(80)":U
+            WIDTH 81.5
+  ENABLE
+      bildbertemp.NAMN
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING SIZE 110.63 BY 8.
+
+DEFINE BROWSE BRW_HLEV
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_HLEV WINDOW-3 _STRUCTURED
+  QUERY BRW_HLEV NO-LOCK DISPLAY
+      mtrltemp.Enr FORMAT "X(11)":U
+      mtrltemp.Benamning FORMAT "x(256)":U WIDTH 27
+      mtrltemp.Enhet FORMAT "x(5)":U
+      mtrltemp.NPRIS FORMAT ">>>>99.99":U
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-ROW-MARKERS NO-COLUMN-SCROLLING MULTIPLE SIZE 56.5 BY 10.33
+         TITLE "Materiel".
+
+DEFINE BROWSE BRW_KALK
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_KALK WINDOW-3 _STRUCTURED
+  QUERY BRW_KALK NO-LOCK DISPLAY
+      kalk_temp.ARBKOD COLUMN-LABEL "Arbetskod" FORMAT "X(5)":U
+      kalk_temp.LOPNR COLUMN-LABEL "Löpnr" FORMAT ">>>":U
+      kalk_temp.BENAMNING COLUMN-LABEL "Benämning" FORMAT "x(40)":U
+      kalk_temp.ANTAL COLUMN-LABEL "Antal" FORMAT ">>>>9.999":U
+      kalk_temp.ENHET COLUMN-LABEL "Enhet" FORMAT "x(5)":U
+  ENABLE
+      kalk_temp.ANTAL
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING MULTIPLE SIZE 76.5 BY 12
+         TITLE "P3 koder".
+
+DEFINE BROWSE BRW_KB2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_KB2 WINDOW-3 _STRUCTURED
+  QUERY BRW_KB2 NO-LOCK DISPLAY
+      konstvaltemp.TRIMKVALKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U
+            WIDTH 10
+      konstvaltemp.BENAMNING FORMAT "X(256)":U WIDTH 27
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING MULTIPLE SIZE 40 BY 6.29 ROW-HEIGHT-CHARS .46.
+
+DEFINE BROWSE BRW_KB3
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_KB3 WINDOW-3 _STRUCTURED
+  QUERY BRW_KB3 NO-LOCK DISPLAY
+      konstvaltemp.TRIMKVALKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U
+            WIDTH 10
+      konstvaltemp.BENAMNING FORMAT "X(256)":U WIDTH 27
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING MULTIPLE SIZE 40 BY 6.29.
+
+DEFINE BROWSE BRW_KB4
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_KB4 WINDOW-3 _STRUCTURED
+  QUERY BRW_KB4 NO-LOCK DISPLAY
+      konstvaltemp.TRIMKVALKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U
+            WIDTH 10
+      konstvaltemp.BENAMNING FORMAT "X(256)":U WIDTH 27
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING MULTIPLE SIZE 40 BY 6.29.
+
+DEFINE BROWSE BRW_KB5
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_KB5 WINDOW-3 _STRUCTURED
+  QUERY BRW_KB5 NO-LOCK DISPLAY
+      konstvaltemp.TRIMKVALKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U
+            WIDTH 10
+      konstvaltemp.BENAMNING FORMAT "X(256)":U WIDTH 27
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING MULTIPLE SIZE 40 BY 6.29.
+
+DEFINE BROWSE BRW_KB6
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_KB6 WINDOW-3 _STRUCTURED
+  QUERY BRW_KB6 NO-LOCK DISPLAY
+      konstvaltemp.TRIMKVALKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U
+            WIDTH 10
+      konstvaltemp.BENAMNING FORMAT "X(256)":U WIDTH 27
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING MULTIPLE SIZE 40 BY 6.29.
+
+DEFINE BROWSE BRW_KON
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_KON WINDOW-3 _STRUCTURED
+  QUERY BRW_KON NO-LOCK DISPLAY
+      konsttemp.KTYPKOD COLUMN-LABEL "Kod" FORMAT "X(12)":U WIDTH 10
+      konsttemp.BENAMNING FORMAT "X(256)":U WIDTH 27
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING SIZE 40 BY 6.29.
+
+DEFINE BROWSE BRW_MTRL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_MTRL WINDOW-3 _STRUCTURED
+  QUERY BRW_MTRL NO-LOCK DISPLAY
+      list_mtrl.ENR FORMAT "X(11)":U
+      list_mtrl.BENAMNING FORMAT "x(256)":U WIDTH 26
+      list_mtrl.ANTAL FORMAT ">>>>>9":U
+      list_mtrl.ENHET FORMAT "x(5)":U
+      list_mtrl.LINKAB FORMAT "Ja/Nej":U
+      list_mtrl.PAR2 FORMAT "X(1)":U
+  ENABLE
+      list_mtrl.ANTAL
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING MULTIPLE SIZE 63.25 BY 12.25
+         TITLE "Vald materiel".
+
+DEFINE BROWSE BRW_SATS
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_SATS WINDOW-3 _STRUCTURED
+  QUERY BRW_SATS NO-LOCK DISPLAY
+      satstemp.KOD FORMAT "X(11)":U
+      satstemp.BENAMNING FORMAT "x(256)":U WIDTH 42
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-ROW-MARKERS MULTIPLE SIZE 56.5 BY 10.33.
+
+DEFINE BROWSE BRW_STOLP
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_STOLP WINDOW-3 _STRUCTURED
+  QUERY BRW_STOLP NO-LOCK DISPLAY
+      berstolptemp.ENR FORMAT "X(11)":U
+      berstolptemp.BENAMNING FORMAT "x(256)":U WIDTH 31
+      berstolptemp.PRIS COLUMN-LABEL "Netto pris" FORMAT ">>>>99.99":U
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING MULTIPLE SIZE 56.5 BY 10.33.
+
+DEFINE BROWSE BRW_TAB2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_TAB2 WINDOW-3 _STRUCTURED
+  QUERY BRW_TAB2 NO-LOCK DISPLAY
+      berlinjetemp.LINNR FORMAT "X(10)":U
+      berlinjetemp.NAMN FORMAT "X(256)":U WIDTH 49.5
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING SIZE 63.5 BY 4.21.
+
+DEFINE BROWSE BRW_TAB3
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_TAB3 WINDOW-3 _STRUCTURED
+  QUERY BRW_TAB3 NO-LOCK DISPLAY
+      bernattemp.NATNR FORMAT "X(10)":U
+      bernattemp.NAMN FORMAT "X(256)":U WIDTH 49.5
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING SIZE 63.5 BY 4.21 ROW-HEIGHT-CHARS .63.
+
+DEFINE BROWSE BRW_VAL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_VAL WINDOW-3 _STRUCTURED
+  QUERY BRW_VAL NO-LOCK DISPLAY
+      kon_val.ID2 FORMAT "X(256)":U WIDTH 16
+      kon_val.EXTRA1 COLUMN-LABEL "Fri id" FORMAT "X(256)":U WIDTH 22
+      kon_val.F1 COLUMN-LABEL "F1" FORMAT "X(256)":U WIDTH 12
+      kon_val.F2 FORMAT "X(256)":U WIDTH 12
+      kon_val.F3 FORMAT "X(256)":U WIDTH 12
+      kon_val.F4 FORMAT "X(256)":U WIDTH 12
+      kon_val.F5 FORMAT "X(256)":U WIDTH 12
+      kon_val.F6 FORMAT "X(256)":U WIDTH 12
+      kon_val.EXTRA2 COLUMN-LABEL "+" FORMAT "X(1)":U
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING SEPARATORS SIZE 118 BY 8.92.
+
+
+/* ************************  Frame Definitions  *********************** */
+
+DEFINE FRAME FRAME-BARABREDD
+     MBTN_LIST AT ROW 1.08 COL 100
+     RAD_VAL AT ROW 1 COL 122 NO-LABEL
+     MBTN_KONST AT ROW 1.08 COL 16
+     FBTN_ANDID AT ROW 2.25 COL 10
+     FBTN_LIN AT ROW 2.25 COL 22
+     FBTN_UPPL AT ROW 2.25 COL 34
+     FBTN_KOPI AT ROW 2.25 COL 46
+     FBTN_FRIKORT AT ROW 2.25 COL 58
+     FBTN_KSKAP AT ROW 2.25 COL 70
+     FBTN_SNABB AT ROW 2.25 COL 82
+     BTN_OK AT ROW 2.25 COL 96
+     BTN_AVB AT ROW 2.25 COL 110
+     BRW_VAL AT ROW 3.83 COL 1.5
+     BTN_SOLEN AT ROW 3.83 COL 119.75
+     MBTN_ID AT ROW 1.08 COL 30
+     BTN_ORDUPP AT ROW 6 COL 120
+     BTN_ORDNER AT ROW 8.92 COL 120
+     MBTN_ANM AT ROW 1.08 COL 44
+     MBTN_DOK AT ROW 1.08 COL 72
+     MBTN_KALK AT ROW 1.08 COL 86
+     MBTN_MTRL AT ROW 1.08 COL 58
+     IMAGE-5 AT ROW 1.08 COL 1.63
+     RECT-2 AT ROW 3.38 COL 1
+     RECT-24 AT ROW 2.13 COL 1
+    WITH 1 DOWN NO-BOX KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 1
+         SIZE 124.63 BY 28.29.
+
+DEFINE FRAME FRAME-ID
+     CMB_JURP AT ROW 1.04 COL 8.5
+     CMB_AVD AT ROW 1.04 COL 42.88
+     CMB_OMR AT ROW 2.29 COL 45.88
+     BTN_HMT AT ROW 3.38 COL 58.25
+     FILL-IN-NR1 AT ROW 6.04 COL 9.13 COLON-ALIGNED
+     FILL-IN-IDNR1 AT ROW 6.04 COL 105.75 COLON-ALIGNED NO-LABEL
+     BRW_TAB2 AT ROW 8.88 COL 32.5
+     FILL-IN-NR2 AT ROW 10.42 COL 9.13 COLON-ALIGNED
+     FILL-IN-IDNR2 AT ROW 10.42 COL 105.75 COLON-ALIGNED NO-LABEL
+     FILL-IN-SUND AT ROW 11.92 COL 105.75 COLON-ALIGNED NO-LABEL
+     BRW_TAB3 AT ROW 13.17 COL 32.5
+     TOG_A AT ROW 14.42 COL 109.75
+     TOG_B AT ROW 14.42 COL 113.5
+     TOG_C AT ROW 14.42 COL 117.25
+     FILL-IN-NR3 AT ROW 14.75 COL 9.13 COLON-ALIGNED
+     BTN_ANL AT ROW 16.38 COL 11
+     BTN_KOPPID AT ROW 16.38 COL 108.25
+     FILL-IN-TAB1 AT ROW 4.5 COL 3.5 NO-LABEL
+     FILL-IN-ID1 AT ROW 4.5 COL 99 NO-LABEL
+     FILL-IN-IDNR1LABEL AT ROW 6.42 COL 101.5 COLON-ALIGNED NO-LABEL
+     FILL-IN-TAB2 AT ROW 8.88 COL 3.5 NO-LABEL
+     FILL-IN-ID2 AT ROW 8.88 COL 99 NO-LABEL
+     FILL-IN-IDNR2LABEL AT ROW 10.79 COL 101.5 COLON-ALIGNED NO-LABEL
+     FILL-IN-SUNDLABEL AT ROW 12.29 COL 97.5 COLON-ALIGNED NO-LABEL
+     FILL-IN-A AT ROW 13.13 COL 107.63 COLON-ALIGNED NO-LABEL
+     FILL-IN-B AT ROW 13.13 COL 113.38 NO-LABEL
+     FILL-IN-C AT ROW 13.13 COL 115.13 COLON-ALIGNED NO-LABEL
+     FILL-IN-TAB3 AT ROW 13.21 COL 3.5 NO-LABEL
+    WITH 1 DOWN NO-BOX KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 12.88
+         SIZE 124.5 BY 16.42.
+
+DEFINE FRAME FRAME-MTRL
+     RAD_MTRL AT ROW 1.17 COL 1.75 NO-LABEL
+     BRW_SATS AT ROW 2.08 COL 1.5
+     BRW_STOLP AT ROW 2.08 COL 1.5
+     BRW_HLEV AT ROW 2.08 COL 1.5
+     BRW_MTRL AT ROW 2.08 COL 62
+     BTN_OVER AT ROW 5.58 COL 58
+     BTN_BACK AT ROW 7.83 COL 58
+     CMB_LEV AT ROW 12.54 COL 26.63 COLON-ALIGNED
+     BTN_LEV AT ROW 12.54 COL 28.63
+     FILL-IN-ENR AT ROW 13.79 COL 26.63 COLON-ALIGNED
+     FILL-IN-KOD AT ROW 13.83 COL 26.63 COLON-ALIGNED
+     FILL-IN-BEN AT ROW 14.75 COL 26.63 COLON-ALIGNED
+     BTN_NY AT ROW 14.79 COL 63.13
+     BTN_ANTAL AT ROW 14.79 COL 75.38
+     BTN_SATS AT ROW 14.79 COL 87.63
+     BTN_TEXT AT ROW 14.79 COL 99.88
+     BTN_PAR AT ROW 14.79 COL 111.88
+     RAD_SOK AT ROW 15.88 COL 17.5 NO-LABEL
+     BTN_NOLL AT ROW 16.29 COL 63.13
+     BTN_ALLTMTRL AT ROW 16.29 COL 75.38
+     BTN_SPEC AT ROW 16.29 COL 87.63
+     BTN_LINKAB AT ROW 16.29 COL 99.88
+     FILL-IN-SOKALT AT ROW 15.88 COL 2.88 NO-LABEL
+     RECT-22 AT ROW 13.67 COL 1.5
+     IMAGE-4 AT ROW 13.83 COL 2.13
+    WITH 1 DOWN NO-BOX KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 12.88
+         SIZE 124.5 BY 16.38.
+
+DEFINE FRAME FRAME-KONST
+     RAD_KOMP AT ROW 1.08 COL 60.75 NO-LABEL
+     CMB_VAL AT ROW 1.21 COL 1.5 NO-LABEL
+     BTN_NER AT ROW 1.21 COL 42.38
+     BTN_UPP AT ROW 1.21 COL 50.75
+     BRW_KON AT ROW 3.71 COL 1.5
+     BRW_KB2 AT ROW 3.71 COL 42.5
+     BRW_B2 AT ROW 3.71 COL 42.63
+     BRW_KB3 AT ROW 3.71 COL 83.75
+     BRW_B3 AT ROW 3.71 COL 83.88
+     BRW_KB4 AT ROW 11 COL 1.5
+     BRW_B4 AT ROW 11 COL 1.5
+     BRW_KB5 AT ROW 11 COL 42.5
+     BRW_B5 AT ROW 11 COL 42.63
+     BRW_KB6 AT ROW 11 COL 83.75
+     BRW_B6 AT ROW 11 COL 83.88
+     FILL-IN-B1 AT ROW 2.88 COL 1.5 NO-LABEL
+     FILL-IN-B2 AT ROW 2.88 COL 40.5 COLON-ALIGNED NO-LABEL
+     FILL-IN-B3 AT ROW 2.88 COL 81.75 COLON-ALIGNED NO-LABEL
+     FILL-IN-B4 AT ROW 10.17 COL 1.5 NO-LABEL
+     FILL-IN-B5 AT ROW 10.17 COL 40.5 COLON-ALIGNED NO-LABEL
+     FILL-IN-B6 AT ROW 10.17 COL 81.75 COLON-ALIGNED NO-LABEL
+    WITH 1 DOWN NO-BOX KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 12.88
+         SIZE 124.5 BY 16.38.
+
+DEFINE FRAME FRAME-BILD
+     BRW_BILD AT ROW 5.46 COL 5.38
+     BTN_NYA AT ROW 14.54 COL 40
+     BTN_BORTA AT ROW 14.54 COL 55.88
+     BTN_VISA AT ROW 14.54 COL 71.75
+     "För bästa resultat, se till att bildens bredd inte är större än 620 pixlar." VIEW-AS TEXT
+          SIZE 80 BY .63 AT ROW 4.25 COL 5.5
+     "Det fungerar bäst med formatet jpg eller jpeg," VIEW-AS TEXT
+          SIZE 47 BY .63 AT ROW 2.75 COL 5.5
+     "men systemet klarar även formaten bmp och gif." VIEW-AS TEXT
+          SIZE 58 BY .63 AT ROW 3.5 COL 5.5
+     "Tips vid koppling av bilder" VIEW-AS TEXT
+          SIZE 28.5 BY .75 AT ROW 1.46 COL 5.5
+    WITH 1 DOWN NO-BOX KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 12.88
+         SIZE 124.5 BY 16.38.
+
+DEFINE FRAME FRAME-KALK
+     BRW_KALK AT ROW 1.75 COL 22
+     BTN_NYKOD AT ROW 13.88 COL 37.88
+     BTN_BORT2 AT ROW 13.88 COL 52.88
+     BTN_ANTAL2 AT ROW 13.88 COL 67.88
+    WITH 1 DOWN NO-BOX KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 12.88
+         SIZE 124.5 BY 16.38.
+
+DEFINE FRAME FRAME-ANM
+     BRW_ANM AT ROW 2.92 COL 5.38
+     ED_ANM AT ROW 2.92 COL 62.38 NO-LABEL
+     BTN_OVER-2 AT ROW 6.13 COL 58.38
+     BTN_KOPPANM AT ROW 11.08 COL 79.88
+     FILL-IN-TEXT AT ROW 1.29 COL 72.38 COLON-ALIGNED NO-LABEL
+    WITH 1 DOWN NO-BOX KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 12.88
+         SIZE 124.5 BY 16.38.
+
+
+/* *********************** Procedure Settings ************************ */
+
+&ANALYZE-SUSPEND _PROCEDURE-SETTINGS
+/* Settings for THIS-PROCEDURE
+   Type: WINDOW
+   Temp-Tables and Buffers:
+      TABLE: berfortemp T "?" NO-UNDO temp-db berfortemp
+      TABLE: berlinjetemp T "?" NO-UNDO temp-db berlinjetemp
+      TABLE: bernattemp T "?" NO-UNDO temp-db bernattemp
+      TABLE: berstolptemp T "?" NO-UNDO temp-db berstolptemp
+      TABLE: bildbertemp T "?" NO-UNDO temp-db bildbertemp
+      TABLE: fastanmtemp T "?" NO-UNDO temp-db fastanmtemp
+      TABLE: konstgrptemp T "?" NO-UNDO temp-db konstgrptemp
+      TABLE: konsttemp T "?" NO-UNDO temp-db konsttemp
+      TABLE: konstvaltemp T "?" NO-UNDO temp-db konstvaltemp
+      TABLE: mtrltemp T "?" NO-UNDO temp-db mtrltemp
+      TABLE: satstemp T "?" NO-UNDO temp-db satstemp
+      TABLE: ? T "?" NO-UNDO temp-db kalk_temp
+      TABLE: ? T "?" NO-UNDO temp-db list_mtrl
+      TABLE: ? T "?" NO-UNDO temp-db kon_val
+   END-TABLES.
+ */
+&ANALYZE-RESUME _END-PROCEDURE-SETTINGS
+
+/* *************************  Create Window  ************************** */
+
+&ANALYZE-SUSPEND _CREATE-WINDOW
+IF SESSION:DISPLAY-TYPE = "GUI":U THEN
+  CREATE WINDOW WINDOW-3 ASSIGN
+         HIDDEN             = YES
+         TITLE              = "Beredning"
+         HEIGHT             = 28.42
+         WIDTH              = 125
+         MAX-HEIGHT         = 28.42
+         MAX-WIDTH          = 125
+         VIRTUAL-HEIGHT     = 28.42
+         VIRTUAL-WIDTH      = 125
+         RESIZE             = yes
+         SCROLL-BARS        = no
+         STATUS-AREA        = no
+         BGCOLOR            = ?
+         FGCOLOR            = ?
+         KEEP-FRAME-Z-ORDER = yes
+         THREE-D            = yes
+         MESSAGE-AREA       = no
+         SENSITIVE          = yes.
+ELSE {&WINDOW-NAME} = CURRENT-WINDOW.
+/* END WINDOW DEFINITION                                                */
+&ANALYZE-RESUME
+
+
+
+/* ***********  Runtime Attributes and AppBuilder Settings  *********** */
+
+&ANALYZE-SUSPEND _RUN-TIME-ATTRIBUTES
+/* SETTINGS FOR WINDOW WINDOW-3
+  NOT-VISIBLE,,RUN-PERSISTENT                                           */
+/* REPARENT FRAME */
+ASSIGN FRAME FRAME-ANM:FRAME = FRAME FRAME-BARABREDD:HANDLE
+       FRAME FRAME-BILD:FRAME = FRAME FRAME-BARABREDD:HANDLE
+       FRAME FRAME-ID:FRAME = FRAME FRAME-BARABREDD:HANDLE
+       FRAME FRAME-KALK:FRAME = FRAME FRAME-BARABREDD:HANDLE
+       FRAME FRAME-KONST:FRAME = FRAME FRAME-BARABREDD:HANDLE
+       FRAME FRAME-MTRL:FRAME = FRAME FRAME-BARABREDD:HANDLE.
+
+/* SETTINGS FOR FRAME FRAME-ANM
+                                                                        */
+/* BROWSE-TAB BRW_ANM 1 FRAME-ANM */
+ASSIGN 
+       BRW_ANM:HIDDEN  IN FRAME FRAME-ANM                = TRUE.
+
+/* SETTINGS FOR EDITOR ED_ANM IN FRAME FRAME-ANM
+   NO-DISPLAY                                                           */
+/* SETTINGS FOR FILL-IN FILL-IN-TEXT IN FRAME FRAME-ANM
+   NO-DISPLAY                                                           */
+ASSIGN 
+       FILL-IN-TEXT:HIDDEN IN FRAME FRAME-ANM           = TRUE.
+
+/* SETTINGS FOR FRAME FRAME-BARABREDD
+                                                                        */
+/* BROWSE-TAB BRW_VAL BTN_AVB FRAME-BARABREDD */
+ASSIGN 
+       BRW_VAL:POPUP-MENU IN FRAME FRAME-BARABREDD             = MENU POPUP-MENU-BRW_VAL:HANDLE
+       BRW_VAL:MAX-DATA-GUESS IN FRAME FRAME-BARABREDD         = 300
+       BRW_VAL:COLUMN-RESIZABLE IN FRAME FRAME-BARABREDD       = TRUE.
+
+ASSIGN 
+       BTN_ORDNER:HIDDEN IN FRAME FRAME-BARABREDD           = TRUE.
+
+ASSIGN 
+       FBTN_ANDID:HIDDEN IN FRAME FRAME-BARABREDD           = TRUE.
+
+/* SETTINGS FOR RADIO-SET RAD_VAL IN FRAME FRAME-BARABREDD
+   NO-DISPLAY NO-ENABLE                                                 */
+ASSIGN 
+       RAD_VAL:HIDDEN IN FRAME FRAME-BARABREDD           = TRUE.
+
+/* SETTINGS FOR FRAME FRAME-BILD
+                                                                        */
+/* BROWSE-TAB BRW_BILD TEXT-4 FRAME-BILD */
+/* SETTINGS FOR BROWSE BRW_BILD IN FRAME FRAME-BILD
+   NO-ENABLE                                                            */
+ASSIGN 
+       BRW_BILD:HIDDEN  IN FRAME FRAME-BILD                = TRUE.
+
+ASSIGN 
+       BTN_BORTA:HIDDEN IN FRAME FRAME-BILD           = TRUE.
+
+ASSIGN 
+       BTN_NYA:HIDDEN IN FRAME FRAME-BILD           = TRUE.
+
+ASSIGN 
+       BTN_VISA:HIDDEN IN FRAME FRAME-BILD           = TRUE.
+
+/* SETTINGS FOR FRAME FRAME-ID
+                                                                        */
+/* BROWSE-TAB BRW_TAB2 FILL-IN-IDNR1 FRAME-ID */
+/* BROWSE-TAB BRW_TAB3 FILL-IN-SUND FRAME-ID */
+ASSIGN 
+       BRW_TAB2:HIDDEN  IN FRAME FRAME-ID                = TRUE.
+
+ASSIGN 
+       BRW_TAB3:HIDDEN  IN FRAME FRAME-ID                = TRUE.
+
+ASSIGN 
+       BTN_ANL:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+ASSIGN 
+       BTN_KOPPID:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+/* SETTINGS FOR COMBO-BOX CMB_AVD IN FRAME FRAME-ID
+   ALIGN-L                                                              */
+/* SETTINGS FOR COMBO-BOX CMB_JURP IN FRAME FRAME-ID
+   ALIGN-L                                                              */
+/* SETTINGS FOR COMBO-BOX CMB_OMR IN FRAME FRAME-ID
+   ALIGN-L                                                              */
+/* SETTINGS FOR FILL-IN FILL-IN-B IN FRAME FRAME-ID
+   ALIGN-L                                                              */
+ASSIGN 
+       FILL-IN-B:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+ASSIGN 
+       FILL-IN-C:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-ID1 IN FRAME FRAME-ID
+   NO-DISPLAY ALIGN-L                                                   */
+ASSIGN 
+       FILL-IN-ID1:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-ID2 IN FRAME FRAME-ID
+   NO-DISPLAY ALIGN-L                                                   */
+ASSIGN 
+       FILL-IN-ID2:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-IDNR1 IN FRAME FRAME-ID
+   NO-DISPLAY                                                           */
+ASSIGN 
+       FILL-IN-IDNR1:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+ASSIGN 
+       FILL-IN-IDNR1LABEL:READ-ONLY IN FRAME FRAME-ID        = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-IDNR2 IN FRAME FRAME-ID
+   NO-DISPLAY                                                           */
+ASSIGN 
+       FILL-IN-IDNR2:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+ASSIGN 
+       FILL-IN-IDNR2LABEL:READ-ONLY IN FRAME FRAME-ID        = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-NR1 IN FRAME FRAME-ID
+   NO-DISPLAY                                                           */
+ASSIGN 
+       FILL-IN-NR1:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-NR2 IN FRAME FRAME-ID
+   NO-DISPLAY                                                           */
+ASSIGN 
+       FILL-IN-NR2:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-NR3 IN FRAME FRAME-ID
+   NO-DISPLAY                                                           */
+ASSIGN 
+       FILL-IN-NR3:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+ASSIGN 
+       FILL-IN-SUND:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+ASSIGN 
+       FILL-IN-SUNDLABEL:READ-ONLY IN FRAME FRAME-ID        = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-TAB1 IN FRAME FRAME-ID
+   NO-DISPLAY ALIGN-L                                                   */
+ASSIGN 
+       FILL-IN-TAB1:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-TAB2 IN FRAME FRAME-ID
+   NO-DISPLAY ALIGN-L                                                   */
+ASSIGN 
+       FILL-IN-TAB2:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-TAB3 IN FRAME FRAME-ID
+   NO-DISPLAY ALIGN-L                                                   */
+ASSIGN 
+       FILL-IN-TAB3:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+ASSIGN 
+       TOG_A:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+ASSIGN 
+       TOG_B:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+ASSIGN 
+       TOG_C:HIDDEN IN FRAME FRAME-ID           = TRUE.
+
+/* SETTINGS FOR FRAME FRAME-KALK
+                                                                        */
+/* BROWSE-TAB BRW_KALK 1 FRAME-KALK */
+ASSIGN 
+       BRW_KALK:HIDDEN  IN FRAME FRAME-KALK                = TRUE
+       BRW_KALK:MAX-DATA-GUESS IN FRAME FRAME-KALK         = 10000.
+
+ASSIGN 
+       BTN_ANTAL2:HIDDEN IN FRAME FRAME-KALK           = TRUE.
+
+ASSIGN 
+       BTN_BORT2:HIDDEN IN FRAME FRAME-KALK           = TRUE.
+
+ASSIGN 
+       BTN_NYKOD:HIDDEN IN FRAME FRAME-KALK           = TRUE.
+
+/* SETTINGS FOR FRAME FRAME-KONST
+                                                                        */
+/* BROWSE-TAB BRW_KON BTN_UPP FRAME-KONST */
+/* BROWSE-TAB BRW_KB2 BRW_KON FRAME-KONST */
+/* BROWSE-TAB BRW_B2 BRW_KB2 FRAME-KONST */
+/* BROWSE-TAB BRW_KB3 BRW_B2 FRAME-KONST */
+/* BROWSE-TAB BRW_B3 BRW_KB3 FRAME-KONST */
+/* BROWSE-TAB BRW_KB4 BRW_B3 FRAME-KONST */
+/* BROWSE-TAB BRW_B4 BRW_KB4 FRAME-KONST */
+/* BROWSE-TAB BRW_KB5 BRW_B4 FRAME-KONST */
+/* BROWSE-TAB BRW_B5 BRW_KB5 FRAME-KONST */
+/* BROWSE-TAB BRW_KB6 BRW_B5 FRAME-KONST */
+/* BROWSE-TAB BRW_B6 BRW_KB6 FRAME-KONST */
+ASSIGN 
+       BRW_B2:HIDDEN  IN FRAME FRAME-KONST                = TRUE
+       BRW_B2:POPUP-MENU IN FRAME FRAME-KONST             = MENU POPUP-MENU-BRW_B2:HANDLE.
+
+ASSIGN 
+       BRW_B3:HIDDEN  IN FRAME FRAME-KONST                = TRUE
+       BRW_B3:POPUP-MENU IN FRAME FRAME-KONST             = MENU POPUP-MENU-BRW_B3:HANDLE.
+
+ASSIGN 
+       BRW_B4:HIDDEN  IN FRAME FRAME-KONST                = TRUE
+       BRW_B4:POPUP-MENU IN FRAME FRAME-KONST             = MENU POPUP-MENU-BRW_B4:HANDLE.
+
+ASSIGN 
+       BRW_B5:HIDDEN  IN FRAME FRAME-KONST                = TRUE
+       BRW_B5:POPUP-MENU IN FRAME FRAME-KONST             = MENU POPUP-MENU-BRW_B5:HANDLE.
+
+ASSIGN 
+       BRW_B6:HIDDEN  IN FRAME FRAME-KONST                = TRUE
+       BRW_B6:POPUP-MENU IN FRAME FRAME-KONST             = MENU POPUP-MENU-BRW_B6:HANDLE.
+
+ASSIGN 
+       BRW_KB2:HIDDEN  IN FRAME FRAME-KONST                = TRUE
+       BRW_KB2:POPUP-MENU IN FRAME FRAME-KONST             = MENU POPUP-MENU-BRW_KB2:HANDLE.
+
+ASSIGN 
+       BRW_KB3:HIDDEN  IN FRAME FRAME-KONST                = TRUE
+       BRW_KB3:POPUP-MENU IN FRAME FRAME-KONST             = MENU POPUP-MENU-BRW_KB3:HANDLE.
+
+ASSIGN 
+       BRW_KB4:HIDDEN  IN FRAME FRAME-KONST                = TRUE
+       BRW_KB4:POPUP-MENU IN FRAME FRAME-KONST             = MENU POPUP-MENU-BRW_KB4:HANDLE.
+
+ASSIGN 
+       BRW_KB5:HIDDEN  IN FRAME FRAME-KONST                = TRUE
+       BRW_KB5:POPUP-MENU IN FRAME FRAME-KONST             = MENU POPUP-MENU-BRW_KB5:HANDLE.
+
+ASSIGN 
+       BRW_KB6:HIDDEN  IN FRAME FRAME-KONST                = TRUE
+       BRW_KB6:POPUP-MENU IN FRAME FRAME-KONST             = MENU POPUP-MENU-BRW_KB6:HANDLE.
+
+ASSIGN 
+       BRW_KON:HIDDEN  IN FRAME FRAME-KONST                = TRUE
+       BRW_KON:POPUP-MENU IN FRAME FRAME-KONST             = MENU POPUP-MENU-BRW_KON:HANDLE.
+
+/* SETTINGS FOR COMBO-BOX CMB_VAL IN FRAME FRAME-KONST
+   ALIGN-L                                                              */
+/* SETTINGS FOR FILL-IN FILL-IN-B1 IN FRAME FRAME-KONST
+   ALIGN-L                                                              */
+ASSIGN 
+       FILL-IN-B1:HIDDEN IN FRAME FRAME-KONST           = TRUE.
+
+ASSIGN 
+       FILL-IN-B2:HIDDEN IN FRAME FRAME-KONST           = TRUE.
+
+ASSIGN 
+       FILL-IN-B3:HIDDEN IN FRAME FRAME-KONST           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-B4 IN FRAME FRAME-KONST
+   ALIGN-L                                                              */
+ASSIGN 
+       FILL-IN-B4:HIDDEN IN FRAME FRAME-KONST           = TRUE.
+
+ASSIGN 
+       FILL-IN-B5:HIDDEN IN FRAME FRAME-KONST           = TRUE.
+
+ASSIGN 
+       FILL-IN-B6:HIDDEN IN FRAME FRAME-KONST           = TRUE.
+
+ASSIGN 
+       RAD_KOMP:HIDDEN IN FRAME FRAME-KONST           = TRUE.
+
+/* SETTINGS FOR FRAME FRAME-MTRL
+                                                                        */
+/* BROWSE-TAB BRW_SATS RAD_MTRL FRAME-MTRL */
+/* BROWSE-TAB BRW_STOLP BRW_SATS FRAME-MTRL */
+/* BROWSE-TAB BRW_HLEV BRW_STOLP FRAME-MTRL */
+/* BROWSE-TAB BRW_MTRL BRW_HLEV FRAME-MTRL */
+ASSIGN 
+       BRW_HLEV:HIDDEN  IN FRAME FRAME-MTRL                = TRUE
+       BRW_HLEV:POPUP-MENU IN FRAME FRAME-MTRL             = MENU POPUP-MENU-BRW_HLEV:HANDLE
+       BRW_HLEV:MAX-DATA-GUESS IN FRAME FRAME-MTRL         = 1000
+       BRW_HLEV:ALLOW-COLUMN-SEARCHING IN FRAME FRAME-MTRL = TRUE
+       BRW_HLEV:COLUMN-RESIZABLE IN FRAME FRAME-MTRL       = TRUE.
+
+ASSIGN 
+       BRW_MTRL:HIDDEN  IN FRAME FRAME-MTRL                = TRUE
+       BRW_MTRL:POPUP-MENU IN FRAME FRAME-MTRL             = MENU POPUP-MENU-BRW_MTRL:HANDLE
+       BRW_MTRL:MAX-DATA-GUESS IN FRAME FRAME-MTRL         = 10000.
+
+ASSIGN 
+       BRW_SATS:POPUP-MENU IN FRAME FRAME-MTRL             = MENU POPUP-MENU-BRW_SATS:HANDLE
+       BRW_SATS:MAX-DATA-GUESS IN FRAME FRAME-MTRL         = 50000
+       BRW_SATS:ALLOW-COLUMN-SEARCHING IN FRAME FRAME-MTRL = TRUE
+       BRW_SATS:COLUMN-RESIZABLE IN FRAME FRAME-MTRL       = TRUE.
+
+ASSIGN 
+       BRW_STOLP:HIDDEN  IN FRAME FRAME-MTRL                = TRUE
+       BRW_STOLP:POPUP-MENU IN FRAME FRAME-MTRL             = MENU POPUP-MENU-BRW_STOLP:HANDLE
+       BRW_STOLP:MAX-DATA-GUESS IN FRAME FRAME-MTRL         = 10000
+       BRW_STOLP:ALLOW-COLUMN-SEARCHING IN FRAME FRAME-MTRL = TRUE
+       BRW_STOLP:COLUMN-RESIZABLE IN FRAME FRAME-MTRL       = TRUE.
+
+ASSIGN 
+       BTN_ALLTMTRL:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+ASSIGN 
+       BTN_BACK:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+ASSIGN 
+       BTN_LEV:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+ASSIGN 
+       BTN_LINKAB:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+ASSIGN 
+       BTN_NOLL:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+ASSIGN 
+       BTN_NY:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+ASSIGN 
+       BTN_OVER:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+ASSIGN 
+       BTN_PAR:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+ASSIGN 
+       BTN_SATS:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+ASSIGN 
+       BTN_SPEC:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+ASSIGN 
+       BTN_TEXT:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+ASSIGN 
+       CMB_LEV:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-BEN IN FRAME FRAME-MTRL
+   NO-DISPLAY                                                           */
+ASSIGN 
+       FILL-IN-BEN:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+ASSIGN 
+       FILL-IN-ENR:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+ASSIGN 
+       FILL-IN-KOD:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-SOKALT IN FRAME FRAME-MTRL
+   ALIGN-L                                                              */
+ASSIGN 
+       FILL-IN-SOKALT:READ-ONLY IN FRAME FRAME-MTRL        = TRUE.
+
+ASSIGN 
+       RAD_MTRL:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+/* SETTINGS FOR RECTANGLE RECT-22 IN FRAME FRAME-MTRL
+   NO-ENABLE                                                            */
+ASSIGN 
+       RECT-22:HIDDEN IN FRAME FRAME-MTRL           = TRUE.
+
+IF SESSION:DISPLAY-TYPE = "GUI":U AND VALID-HANDLE(WINDOW-3)
+THEN WINDOW-3:HIDDEN = yes.
+
+/* _RUN-TIME-ATTRIBUTES-END */
+&ANALYZE-RESUME
+
+
+/* Setting information for Queries and Browse Widgets fields            */
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_ANM
+/* Query rebuild information for BROWSE BRW_ANM
+     _TblList          = "Temp-Tables.fastanmtemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.fastanmtemp.ANMARK
+"fastanmtemp.ANMARK" "Fasta anmärkningar" "X(50)" "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_ANM */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_B2
+/* Query rebuild information for BROWSE BRW_B2
+     _TblList          = "Temp-Tables.konstvaltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konstvaltemp.TRIMKVALKOD
+"konstvaltemp.TRIMKVALKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konstvaltemp.BENAMNING
+"konstvaltemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "27" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_B2 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_B3
+/* Query rebuild information for BROWSE BRW_B3
+     _TblList          = "Temp-Tables.konstvaltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konstvaltemp.TRIMKVALKOD
+"konstvaltemp.TRIMKVALKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konstvaltemp.BENAMNING
+"konstvaltemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "27" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_B3 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_B4
+/* Query rebuild information for BROWSE BRW_B4
+     _TblList          = "Temp-Tables.konstvaltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konstvaltemp.TRIMKVALKOD
+"konstvaltemp.TRIMKVALKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konstvaltemp.BENAMNING
+"konstvaltemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "27" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_B4 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_B5
+/* Query rebuild information for BROWSE BRW_B5
+     _TblList          = "Temp-Tables.konstvaltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konstvaltemp.TRIMKVALKOD
+"konstvaltemp.TRIMKVALKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konstvaltemp.BENAMNING
+"konstvaltemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "27" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_B5 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_B6
+/* Query rebuild information for BROWSE BRW_B6
+     _TblList          = "Temp-Tables.konstvaltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konstvaltemp.TRIMKVALKOD
+"konstvaltemp.TRIMKVALKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konstvaltemp.BENAMNING
+"konstvaltemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "27" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_B6 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_BILD
+/* Query rebuild information for BROWSE BRW_BILD
+     _TblList          = "Temp-Tables.bildbertemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.bildbertemp.NAMN
+"bildbertemp.NAMN" "Egen text" "X(25)" "character" ? ? ? ? ? ? yes ? no no "23.63" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.bildbertemp.FILNAMN
+"bildbertemp.FILNAMN" "Sökväg" "X(80)" "character" ? ? ? ? ? ? no ? no no "81.5" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_BILD */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_HLEV
+/* Query rebuild information for BROWSE BRW_HLEV
+     _TblList          = "Temp-Tables.mtrltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   = Temp-Tables.mtrltemp.Enr
+     _FldNameList[2]   > Temp-Tables.mtrltemp.Benamning
+"mtrltemp.Benamning" ? "x(256)" "character" ? ? ? ? ? ? no ? no no "27" yes no no "U" "" ""
+     _FldNameList[3]   = Temp-Tables.mtrltemp.Enhet
+     _FldNameList[4]   = Temp-Tables.mtrltemp.NPRIS
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_HLEV */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_KALK
+/* Query rebuild information for BROWSE BRW_KALK
+     _TblList          = "Temp-Tables.kalk_temp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.kalk_temp.ARBKOD
+"kalk_temp.ARBKOD" "Arbetskod" ? "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.kalk_temp.LOPNR
+"kalk_temp.LOPNR" "Löpnr" ? "integer" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _FldNameList[3]   > Temp-Tables.kalk_temp.BENAMNING
+"kalk_temp.BENAMNING" "Benämning" ? "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _FldNameList[4]   > Temp-Tables.kalk_temp.ANTAL
+"kalk_temp.ANTAL" "Antal" ">>>>9.999" "decimal" ? ? ? ? ? ? yes ? no no ? yes no no "U" "" ""
+     _FldNameList[5]   > Temp-Tables.kalk_temp.ENHET
+"kalk_temp.ENHET" "Enhet" ? "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_KALK */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_KB2
+/* Query rebuild information for BROWSE BRW_KB2
+     _TblList          = "Temp-Tables.konstvaltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konstvaltemp.TRIMKVALKOD
+"konstvaltemp.TRIMKVALKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konstvaltemp.BENAMNING
+"konstvaltemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "27" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_KB2 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_KB3
+/* Query rebuild information for BROWSE BRW_KB3
+     _TblList          = "Temp-Tables.konstvaltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konstvaltemp.TRIMKVALKOD
+"konstvaltemp.TRIMKVALKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konstvaltemp.BENAMNING
+"konstvaltemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "27" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_KB3 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_KB4
+/* Query rebuild information for BROWSE BRW_KB4
+     _TblList          = "Temp-Tables.konstvaltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konstvaltemp.TRIMKVALKOD
+"konstvaltemp.TRIMKVALKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konstvaltemp.BENAMNING
+"konstvaltemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "27" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_KB4 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_KB5
+/* Query rebuild information for BROWSE BRW_KB5
+     _TblList          = "Temp-Tables.konstvaltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konstvaltemp.TRIMKVALKOD
+"konstvaltemp.TRIMKVALKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konstvaltemp.BENAMNING
+"konstvaltemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "27" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_KB5 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_KB6
+/* Query rebuild information for BROWSE BRW_KB6
+     _TblList          = "Temp-Tables.konstvaltemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konstvaltemp.TRIMKVALKOD
+"konstvaltemp.TRIMKVALKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konstvaltemp.BENAMNING
+"konstvaltemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "27" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_KB6 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_KON
+/* Query rebuild information for BROWSE BRW_KON
+     _TblList          = "Temp-Tables.konsttemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.konsttemp.KTYPKOD
+"konsttemp.KTYPKOD" "Kod" "X(12)" "character" ? ? ? ? ? ? no ? no no "10" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.konsttemp.BENAMNING
+"konsttemp.BENAMNING" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "27" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_KON */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_MTRL
+/* Query rebuild information for BROWSE BRW_MTRL
+     _TblList          = "Temp-Tables.list_mtrl"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   = Temp-Tables.list_mtrl.ENR
+     _FldNameList[2]   > Temp-Tables.list_mtrl.BENAMNING
+"list_mtrl.BENAMNING" ? "x(256)" "character" ? ? ? ? ? ? no ? no no "26" yes no no "U" "" ""
+     _FldNameList[3]   > Temp-Tables.list_mtrl.ANTAL
+"list_mtrl.ANTAL" ? ">>>>>9" "integer" ? ? ? ? ? ? yes ? no no ? yes no no "U" "" ""
+     _FldNameList[4]   = Temp-Tables.list_mtrl.ENHET
+     _FldNameList[5]   = Temp-Tables.list_mtrl.LINKAB
+     _FldNameList[6]   = Temp-Tables.list_mtrl.PAR2
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_MTRL */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_SATS
+/* Query rebuild information for BROWSE BRW_SATS
+     _TblList          = "Temp-Tables.satstemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   = Temp-Tables.satstemp.KOD
+     _FldNameList[2]   > Temp-Tables.satstemp.BENAMNING
+"satstemp.BENAMNING" ? "x(256)" "character" ? ? ? ? ? ? no ? no no "42" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_SATS */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_STOLP
+/* Query rebuild information for BROWSE BRW_STOLP
+     _TblList          = "Temp-Tables.berstolptemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   = Temp-Tables.berstolptemp.ENR
+     _FldNameList[2]   > Temp-Tables.berstolptemp.BENAMNING
+"berstolptemp.BENAMNING" ? "x(256)" "character" ? ? ? ? ? ? no ? no no "31" yes no no "U" "" ""
+     _FldNameList[3]   > Temp-Tables.berstolptemp.PRIS
+"berstolptemp.PRIS" "Netto pris" ? "decimal" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_STOLP */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_TAB2
+/* Query rebuild information for BROWSE BRW_TAB2
+     _TblList          = "Temp-Tables.berlinjetemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   = Temp-Tables.berlinjetemp.LINNR
+     _FldNameList[2]   > Temp-Tables.berlinjetemp.NAMN
+"berlinjetemp.NAMN" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "49.5" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_TAB2 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_TAB3
+/* Query rebuild information for BROWSE BRW_TAB3
+     _TblList          = "Temp-Tables.bernattemp"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   = Temp-Tables.bernattemp.NATNR
+     _FldNameList[2]   > Temp-Tables.bernattemp.NAMN
+"bernattemp.NAMN" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "49.5" yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_TAB3 */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_VAL
+/* Query rebuild information for BROWSE BRW_VAL
+     _TblList          = "Temp-Tables.kon_val"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.kon_val.ID2
+"kon_val.ID2" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "16" yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.kon_val.EXTRA1
+"kon_val.EXTRA1" "Fri id" "X(256)" "character" ? ? ? ? ? ? no ? no no "22" yes no no "U" "" ""
+     _FldNameList[3]   > Temp-Tables.kon_val.F1
+"kon_val.F1" "F1" "X(256)" "character" ? ? ? ? ? ? no ? no no "12" yes no no "U" "" ""
+     _FldNameList[4]   > Temp-Tables.kon_val.F2
+"kon_val.F2" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "12" yes no no "U" "" ""
+     _FldNameList[5]   > Temp-Tables.kon_val.F3
+"kon_val.F3" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "12" yes no no "U" "" ""
+     _FldNameList[6]   > Temp-Tables.kon_val.F4
+"kon_val.F4" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "12" yes no no "U" "" ""
+     _FldNameList[7]   > Temp-Tables.kon_val.F5
+"kon_val.F5" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "12" yes no no "U" "" ""
+     _FldNameList[8]   > Temp-Tables.kon_val.F6
+"kon_val.F6" ? "X(256)" "character" ? ? ? ? ? ? no ? no no "12" yes no no "U" "" ""
+     _FldNameList[9]   > Temp-Tables.kon_val.EXTRA2
+"kon_val.EXTRA2" "+" "X(1)" "character" ? ? ? ? ? ? no ? no no ? yes no no "U" "" ""
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_VAL */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK FRAME FRAME-BARABREDD
+/* Query rebuild information for FRAME FRAME-BARABREDD
+     _Query            is NOT OPENED
+*/  /* FRAME FRAME-BARABREDD */
+&ANALYZE-RESUME
+
+ 
+
+&Scoped-define BROWSE-NAME BRW_ANM
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CUSTOM _MAIN-BLOCK WINDOW-3 
+
+
+/* ***************************  Main Block  *************************** */
+
+/* Set CURRENT-WINDOW: this will parent dialog-boxes and frames.        */
+ASSIGN CURRENT-WINDOW                = {&WINDOW-NAME} 
+       THIS-PROCEDURE:CURRENT-WINDOW = {&WINDOW-NAME}.
+
+/* The CLOSE event can be used from inside or outside the procedure to  */
+/* terminate it.                                                        */
+ON CLOSE OF THIS-PROCEDURE 
+DO:
+   RUN avsluta_UI.
+   
+   RUN disable_UI.
+END.                                       
+   
+
+/* These events will close the window and terminate the procedure.      */
+/* (NOTE: this will override any user-defined triggers previously       */
+/*  defined on the window.)                                             */
+ON WINDOW-CLOSE OF {&WINDOW-NAME} DO:  
+   &Scoped-define FRAME-NAME FRAME-BARABREDD
+   RUN slut_UI.
+          
+END.
+ON ENDKEY, END-ERROR OF {&WINDOW-NAME} ANYWHERE DO:
+   RUN slut_UI.
+        
+END.
+
+/* Best default for GUI applications is...                              */
+PAUSE 0 BEFORE-HIDE.
+
+/* Now enable the interface and wait for the exit condition.            */
+/* (NOTE: handle ERROR and END-KEY so cleanup code will always fire.    */
+MAIN-BLOCK:
+DO ON ERROR   UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK
+   ON END-KEY UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK: 
+   DEFINE VARIABLE AA AS INTEGER NO-UNDO.
+   {STARTWIN2.I}
+   {BERTITLE.I}
+   RUN btnstart_UI.
+   RUN enable_UI. 
+   RUN DYNBERFRAMESIZEF.P PERSISTENT SET framesizeh (INPUT WINDOW-3:HANDLE, INPUT TABLE frametemp,BRW_VAL).
+   FIND FIRST kon_val WHERE kon_val.KSKAP = FALSE NO-LOCK NO-ERROR.
+   IF AVAILABLE kon_val THEN DO:         
+      APPLY "VALUE-CHANGED" TO BRW_VAL .
+   END.  
+   ELSE DO:
+      RUN nolabel_UI.      
+   END.   
+   ASSIGN FRAME FRAME-ID:HIDDEN = TRUE.
+   ASSIGN FRAME FRAME-ANM:HIDDEN = TRUE.
+   ASSIGN FRAME FRAME-MTRL:HIDDEN = TRUE.
+   ASSIGN FRAME FRAME-KALK:HIDDEN = TRUE.
+   ASSIGN FRAME FRAME-KONST:HIDDEN = FALSE.
+   IF Guru.Konstanter:mtrlsekvar[6] = TRUE THEN DO:
+      ASSIGN
+      mtrltemp.NPRIS:VISIBLE IN BROWSE BRW_HLEV = FALSE
+      berstolptemp.PRIS:VISIBLE IN BROWSE BRW_STOLP = FALSE. 
+   END.   
+   {WIN_M_SLUT.I}
+   {KRYSSBORT.I}   
+   IF NOT THIS-PROCEDURE:PERSISTENT THEN
+   WAIT-FOR CLOSE OF THIS-PROCEDURE.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+/* **********************  Internal Procedures  *********************** */
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE avsluta_UI WINDOW-3 
+PROCEDURE avsluta_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   IF VALID-HANDLE(btnbervalh) THEN DO:
+      RUN borthand_UI IN btnbervalh.
+      DELETE PROCEDURE btnbervalh NO-ERROR.      
+   END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE btnstart_UI WINDOW-3 
+PROCEDURE btnstart_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   DEFINE VARIABLE ordningnr AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE whandltemp NO-ERROR. 
+   ASSIGN
+   mtrltemp.ENR:LABEL IN BROWSE BRW_HLEV = Guru.Konstanter:genk
+   list_mtrl.ENR:LABEL IN BROWSE BRW_MTRL = Guru.Konstanter:genk
+   berfortemp.OMRADE:LABEL IN BROWSE BRW_TAB1 = Guru.Konstanter:gomrk
+   berfortemp.AVDNR:LABEL IN BROWSE BRW_TAB1= Guru.Konstanter:gavdk
+   berfortemp.VIJUDID:LABEL IN BROWSE BRW_TAB1 = Guru.Konstanter:gjuk.
+   CREATE whandltemp.
+   ordningnr = 0.   
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,WINDOW-3:HANDLE).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,RAD_VAL:HANDLE IN FRAME FRAME-BARABREDD).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MBTN_LIST:HANDLE IN FRAME FRAME-BARABREDD).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MBTN_KONST:HANDLE IN FRAME FRAME-BARABREDD).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FBTN_ANDID:HANDLE IN FRAME FRAME-BARABREDD).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FBTN_LIN:HANDLE IN FRAME FRAME-BARABREDD).         
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FBTN_UPPL:HANDLE IN FRAME FRAME-BARABREDD).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FBTN_KOPI:HANDLE IN FRAME FRAME-BARABREDD).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FBTN_FRIKORT:HANDLE IN FRAME FRAME-BARABREDD).     
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FBTN_KSKAP:HANDLE IN FRAME FRAME-BARABREDD).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FBTN_SNABB:HANDLE IN FRAME FRAME-BARABREDD).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_OK:HANDLE IN FRAME FRAME-BARABREDD).           
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MBTN_ID:HANDLE IN FRAME FRAME-BARABREDD).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_AVB:HANDLE IN FRAME FRAME-BARABREDD).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_VAL:HANDLE IN FRAME FRAME-BARABREDD).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_SOLEN:HANDLE IN FRAME FRAME-BARABREDD).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_ORDUPP:HANDLE IN FRAME FRAME-BARABREDD).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_ORDNER:HANDLE IN FRAME FRAME-BARABREDD).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MBTN_ANM:HANDLE IN FRAME FRAME-BARABREDD).         
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MBTN_DOK:HANDLE IN FRAME FRAME-BARABREDD).         
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MBTN_KALK:HANDLE IN FRAME FRAME-BARABREDD).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MBTN_MTRL:HANDLE IN FRAME FRAME-BARABREDD).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,IMAGE-5:HANDLE IN FRAME FRAME-BARABREDD).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,RECT-2:HANDLE IN FRAME FRAME-BARABREDD).           
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,RECT-24:HANDLE IN FRAME FRAME-BARABREDD).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,RAD_MTRL:HANDLE IN FRAME FRAME-MTRL).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_SATS:HANDLE IN FRAME FRAME-MTRL).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_STOLP:HANDLE IN FRAME FRAME-MTRL).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_HLEV:HANDLE IN FRAME FRAME-MTRL).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_MTRL:HANDLE IN FRAME FRAME-MTRL).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_OVER:HANDLE IN FRAME FRAME-MTRL).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_BACK:HANDLE IN FRAME FRAME-MTRL).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_LEV:HANDLE IN FRAME FRAME-MTRL).         
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,CMB_LEV:HANDLE IN FRAME FRAME-MTRL).         
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-ENR:HANDLE IN FRAME FRAME-MTRL).     
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-KOD:HANDLE IN FRAME FRAME-MTRL).     
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-BEN:HANDLE IN FRAME FRAME-MTRL).     
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_NY:HANDLE IN FRAME FRAME-MTRL).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_ANTAL:HANDLE IN FRAME FRAME-MTRL).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_SATS:HANDLE IN FRAME FRAME-MTRL).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_TEXT:HANDLE IN FRAME FRAME-MTRL).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_PAR:HANDLE IN FRAME FRAME-MTRL).         
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,RAD_SOK:HANDLE IN FRAME FRAME-MTRL).         
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_NOLL:HANDLE IN FRAME FRAME-MTRL).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_ALLTMTRL:HANDLE IN FRAME FRAME-MTRL).    
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_SPEC:HANDLE IN FRAME FRAME-MTRL).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_LINKAB:HANDLE IN FRAME FRAME-MTRL).      
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-SOKALT:HANDLE IN FRAME FRAME-MTRL).  
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,RECT-22:HANDLE IN FRAME FRAME-MTRL).         
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,IMAGE-4:HANDLE IN FRAME FRAME-MTRL).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_KALK:HANDLE IN FRAME FRAME-KALK).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_NYKOD:HANDLE IN FRAME FRAME-KALK).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_BORT2:HANDLE IN FRAME FRAME-KALK).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_ANTAL2:HANDLE IN FRAME FRAME-KALK).      
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_BILD:HANDLE IN FRAME FRAME-BILD).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_NYA:HANDLE IN FRAME FRAME-BILD).         
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_BORTA:HANDLE IN FRAME FRAME-BILD).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_VISA:HANDLE IN FRAME FRAME-BILD).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_ANM:HANDLE IN FRAME FRAME-ANM).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,ED_ANM:HANDLE IN FRAME FRAME-ANM).           
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_OVER-2:HANDLE IN FRAME FRAME-ANM).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_KOPPANM:HANDLE IN FRAME FRAME-ANM).      
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-TEXT:HANDLE IN FRAME FRAME-ANM).     
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,CMB_JURP:HANDLE IN FRAME FRAME-ID).         
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,CMB_AVD:HANDLE IN FRAME FRAME-ID).           
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,CMB_OMR:HANDLE IN FRAME FRAME-ID).           
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_HMT:HANDLE IN FRAME FRAME-ID).           
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_TAB1:HANDLE IN FRAME FRAME-ID).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-NR1:HANDLE IN FRAME FRAME-ID).      
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-IDNR1:HANDLE IN FRAME FRAME-ID).    
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_TAB2:HANDLE IN FRAME FRAME-ID).         
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-NR2:HANDLE IN FRAME FRAME-ID).      
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-IDNR2:HANDLE IN FRAME FRAME-ID).    
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-SUND:HANDLE IN FRAME FRAME-ID).     
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_TAB3:HANDLE IN FRAME FRAME-ID).         
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,TOG_A:HANDLE IN FRAME FRAME-ID).            
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,TOG_B:HANDLE IN FRAME FRAME-ID).            
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,TOG_C:HANDLE IN FRAME FRAME-ID).            
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-NR3:HANDLE IN FRAME FRAME-ID).      
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_ANL:HANDLE IN FRAME FRAME-ID).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_KOPPID:HANDLE IN FRAME FRAME-ID).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-TAB1:HANDLE IN FRAME FRAME-ID).     
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-ID1:HANDLE IN FRAME FRAME-ID).      
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-IDNR1LABEL:HANDLE IN FRAME FRAME-ID).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-TAB2:HANDLE IN FRAME FRAME-ID).     
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-ID2:HANDLE IN FRAME FRAME-ID).      
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-IDNR2LABEL:HANDLE IN FRAME FRAME-ID).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-SUNDLABEL:HANDLE IN FRAME FRAME-ID).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-A:HANDLE IN FRAME FRAME-ID).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-B:HANDLE IN FRAME FRAME-ID).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-C:HANDLE IN FRAME FRAME-ID).        
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-TAB3:HANDLE IN FRAME FRAME-ID).     
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,RAD_KOMP:HANDLE IN FRAME FRAME-KONST).         
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,CMB_VAL:HANDLE IN FRAME FRAME-KONST).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_NER:HANDLE IN FRAME FRAME-KONST).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BTN_UPP:HANDLE IN FRAME FRAME-KONST).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_KON:HANDLE IN FRAME FRAME-KONST).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_KB2:HANDLE IN FRAME FRAME-KONST).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_B2:HANDLE IN FRAME FRAME-KONST).           
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_KB3:HANDLE IN FRAME FRAME-KONST).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_B3:HANDLE IN FRAME FRAME-KONST).           
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_KB4:HANDLE IN FRAME FRAME-KONST).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_B4:HANDLE IN FRAME FRAME-KONST).           
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_KB5:HANDLE IN FRAME FRAME-KONST).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_B5:HANDLE IN FRAME FRAME-KONST).           
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_KB6:HANDLE IN FRAME FRAME-KONST).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,BRW_B6:HANDLE IN FRAME FRAME-KONST).           
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-B1:HANDLE IN FRAME FRAME-KONST).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-B2:HANDLE IN FRAME FRAME-KONST).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-B3:HANDLE IN FRAME FRAME-KONST).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-B4:HANDLE IN FRAME FRAME-KONST).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-B5:HANDLE IN FRAME FRAME-KONST).       
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FILL-IN-B6:HANDLE IN FRAME FRAME-KONST).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_mtrlB2:HANDLE IN MENU POPUP-MENU-BRW_B2).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_bildB2:HANDLE IN MENU POPUP-MENU-BRW_B2).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_AvmarkeraB2:HANDLE IN MENU POPUP-MENU-BRW_B2).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_mtrlB3:HANDLE IN MENU POPUP-MENU-BRW_B3).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_bildB3:HANDLE IN MENU POPUP-MENU-BRW_B3).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_AvmarkeraB3:HANDLE IN MENU POPUP-MENU-BRW_B3).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_mtrlB4:HANDLE IN MENU POPUP-MENU-BRW_B4).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_bildB4:HANDLE IN MENU POPUP-MENU-BRW_B4).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_AvmarkeraB4:HANDLE IN MENU POPUP-MENU-BRW_B4).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_mtrlB5:HANDLE IN MENU POPUP-MENU-BRW_B5).
+   ordningnr = ordningnr + 1.                
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_bildB5:HANDLE IN MENU POPUP-MENU-BRW_B5).
+   ordningnr = ordningnr + 1.                
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_AvmarkeraB5:HANDLE IN MENU POPUP-MENU-BRW_B5).
+   ordningnr = ordningnr + 1.                
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_mtrlB6:HANDLE IN MENU POPUP-MENU-BRW_B6).
+   ordningnr = ordningnr + 1.                
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_bildB6:HANDLE IN MENU POPUP-MENU-BRW_B6).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_AvmarkeraB6:HANDLE IN MENU POPUP-MENU-BRW_B6).
+   ordningnr = ordningnr + 1.                
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_Visa_informationHLEV:HANDLE IN MENU POPUP-MENU-BRW_HLEV). 
+   ordningnr = ordningnr + 1.                
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_Pris_information2:HANDLE IN MENU POPUP-MENU-BRW_HLEV).
+   ordningnr = ordningnr + 1.                
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_mtrlKB2:HANDLE IN MENU POPUP-MENU-BRW_KB2). 
+   ordningnr = ordningnr + 1.                
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_bildKB2:HANDLE IN MENU POPUP-MENU-BRW_KB2). 
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_mtrlKB3:HANDLE IN MENU POPUP-MENU-BRW_KB3). 
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_bildKB3:HANDLE IN MENU POPUP-MENU-BRW_KB3). 
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_mtrlKB4:HANDLE IN MENU POPUP-MENU-BRW_KB4). 
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_bildKB4:HANDLE IN MENU POPUP-MENU-BRW_KB4).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_mtrlKB5:HANDLE IN MENU POPUP-MENU-BRW_KB5).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_bildKB5:HANDLE IN MENU POPUP-MENU-BRW_KB5).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_mtrlKB6:HANDLE IN MENU POPUP-MENU-BRW_KB6).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_bildKB6:HANDLE IN MENU POPUP-MENU-BRW_KB6).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_Visa_mtrl:HANDLE IN MENU POPUP-MENU-BRW_KON). 
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_Visa_bild:HANDLE IN MENU POPUP-MENU-BRW_KON).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_Visa_informationBRW_MTRL:HANDLE IN MENU POPUP-MENU-BRW_MTRL).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_Visa_informationSATS:HANDLE IN MENU POPUP-MENU-BRW_SATS).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_Pris_information:HANDLE IN MENU POPUP-MENU-BRW_SATS). 
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_Visa_informationSTOLP:HANDLE IN MENU POPUP-MENU-BRW_STOLP).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,MENU-ITEM m_Visa_informationVAL:HANDLE IN MENU POPUP-MENU-BRW_VAL).
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FRAME FRAME-ANM:HANDLE).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FRAME FRAME-BARABREDD:HANDLE). 
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FRAME FRAME-BILD:HANDLE).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FRAME FRAME-ID:HANDLE).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FRAME FRAME-KALK:HANDLE).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FRAME FRAME-KONST:HANDLE).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,FRAME FRAME-MTRL:HANDLE).          
+   ordningnr = ordningnr + 1.      
+   RUN whandle_UI (INPUT ordningnr,list_mtrl.ANTAL:HANDLE IN BROWSE BRW_MTRL).     
+   /*
+   ordningnr = ordningnr + 1.  
+   RUN whandle_UI (INPUT ordningnr,MENU POPUP-MENU-BRW_B3:HANDLE IN FRAME FRAME-KONST).
+   ordningnr = ordningnr + 1.  
+   RUN whandle_UI (INPUT ordningnr,MENU POPUP-MENU-BRW_B4:HANDLE IN BROWSE BRW_B4).
+   */
+   RUN BERVALSW.P PERSISTENT SET btnbervalh (INPUT THIS-PROCEDURE ,INPUT framesizeh,INPUT TABLE whandltemp).                                         
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE disable_UI WINDOW-3  _DEFAULT-DISABLE
+PROCEDURE disable_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     DISABLE the User Interface
+  Parameters:  <none>
+  Notes:       Here we clean-up the user-interface by deleting
+               dynamic widgets we have created and/or hide 
+               frames.  This procedure is usually called when
+               we are ready to "clean-up" after running.
+------------------------------------------------------------------------------*/
+  /* Delete the WINDOW we created */
+  IF SESSION:DISPLAY-TYPE = "GUI":U AND VALID-HANDLE(WINDOW-3)
+  THEN DELETE WIDGET WINDOW-3.
+  IF THIS-PROCEDURE:PERSISTENT THEN DELETE PROCEDURE THIS-PROCEDURE.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE enable_UI WINDOW-3  _DEFAULT-ENABLE
+PROCEDURE enable_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     ENABLE the User Interface
+  Parameters:  <none>
+  Notes:       Here we display/view/enable the widgets in the
+               user-interface.  In addition, OPEN all queries
+               associated with each FRAME and BROWSE.
+               These statements here are based on the "Other 
+               Settings" section of the widget Property Sheets.
+------------------------------------------------------------------------------*/
+  ENABLE IMAGE-5 RECT-2 RECT-24 MBTN_LIST MBTN_KONST FBTN_ANDID FBTN_LIN 
+         FBTN_UPPL FBTN_KOPI FBTN_FRIKORT FBTN_KSKAP FBTN_SNABB BTN_OK BTN_AVB 
+         BRW_VAL BTN_SOLEN MBTN_ID BTN_ORDUPP BTN_ORDNER MBTN_ANM MBTN_DOK 
+         MBTN_KALK MBTN_MTRL 
+      WITH FRAME FRAME-BARABREDD IN WINDOW WINDOW-3.
+  {&OPEN-BROWSERS-IN-QUERY-FRAME-BARABREDD}
+  ENABLE BRW_ANM ED_ANM BTN_OVER-2 BTN_KOPPANM FILL-IN-TEXT 
+      WITH FRAME FRAME-ANM IN WINDOW WINDOW-3.
+  {&OPEN-BROWSERS-IN-QUERY-FRAME-ANM}
+  ENABLE BTN_NYA BTN_BORTA BTN_VISA 
+      WITH FRAME FRAME-BILD IN WINDOW WINDOW-3.
+  {&OPEN-BROWSERS-IN-QUERY-FRAME-BILD}
+  DISPLAY CMB_JURP CMB_AVD CMB_OMR FILL-IN-SUND TOG_A TOG_B TOG_C 
+          FILL-IN-IDNR1LABEL FILL-IN-IDNR2LABEL FILL-IN-SUNDLABEL FILL-IN-A 
+          FILL-IN-B FILL-IN-C 
+      WITH FRAME FRAME-ID IN WINDOW WINDOW-3.
+  ENABLE CMB_JURP CMB_AVD CMB_OMR BTN_HMT FILL-IN-NR1 FILL-IN-IDNR1 BRW_TAB2 
+         FILL-IN-NR2 FILL-IN-IDNR2 FILL-IN-SUND BRW_TAB3 TOG_A TOG_B TOG_C 
+         FILL-IN-NR3 BTN_ANL BTN_KOPPID FILL-IN-TAB1 FILL-IN-ID1 
+         FILL-IN-IDNR1LABEL FILL-IN-TAB2 FILL-IN-ID2 FILL-IN-IDNR2LABEL 
+         FILL-IN-SUNDLABEL FILL-IN-A FILL-IN-B FILL-IN-C FILL-IN-TAB3 
+      WITH FRAME FRAME-ID IN WINDOW WINDOW-3.
+  {&OPEN-BROWSERS-IN-QUERY-FRAME-ID}
+  ENABLE BRW_KALK BTN_NYKOD BTN_BORT2 BTN_ANTAL2 
+      WITH FRAME FRAME-KALK IN WINDOW WINDOW-3.
+  {&OPEN-BROWSERS-IN-QUERY-FRAME-KALK}
+  DISPLAY RAD_KOMP CMB_VAL FILL-IN-B1 FILL-IN-B2 FILL-IN-B3 FILL-IN-B4 
+          FILL-IN-B5 FILL-IN-B6 
+      WITH FRAME FRAME-KONST IN WINDOW WINDOW-3.
+  ENABLE RAD_KOMP CMB_VAL BTN_NER BTN_UPP BRW_KON BRW_KB2 BRW_B2 BRW_KB3 BRW_B3 
+         BRW_KB4 BRW_B4 BRW_KB5 BRW_B5 BRW_KB6 BRW_B6 FILL-IN-B1 FILL-IN-B2 
+         FILL-IN-B3 FILL-IN-B4 FILL-IN-B5 FILL-IN-B6 
+      WITH FRAME FRAME-KONST IN WINDOW WINDOW-3.
+  {&OPEN-BROWSERS-IN-QUERY-FRAME-KONST}
+  DISPLAY RAD_MTRL CMB_LEV FILL-IN-ENR FILL-IN-KOD RAD_SOK FILL-IN-SOKALT 
+      WITH FRAME FRAME-MTRL IN WINDOW WINDOW-3.
+  ENABLE IMAGE-4 RAD_MTRL BRW_SATS BRW_STOLP BRW_HLEV BRW_MTRL BTN_OVER 
+         BTN_BACK CMB_LEV BTN_LEV FILL-IN-ENR FILL-IN-KOD FILL-IN-BEN BTN_NY 
+         BTN_ANTAL BTN_SATS BTN_TEXT BTN_PAR RAD_SOK BTN_NOLL BTN_ALLTMTRL 
+         BTN_SPEC BTN_LINKAB FILL-IN-SOKALT 
+      WITH FRAME FRAME-MTRL IN WINDOW WINDOW-3.
+  {&OPEN-BROWSERS-IN-QUERY-FRAME-MTRL}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE konlabel_UI WINDOW-3 
+PROCEDURE konlabel_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   DEFINE INPUT PARAMETER f1var AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER f2var AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER f3var AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER f4var AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER f5var AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER f6var AS CHARACTER NO-UNDO.
+   ASSIGN
+   kon_val.F1:LABEL IN BROWSE BRW_VAL = f1var
+   kon_val.F2:LABEL IN BROWSE BRW_VAL = f2var  
+   kon_val.F3:LABEL IN BROWSE BRW_VAL = f3var
+   kon_val.F4:LABEL IN BROWSE BRW_VAL = f4var      
+   kon_val.F5:LABEL IN BROWSE BRW_VAL = f5var      
+   kon_val.F6:LABEL IN BROWSE BRW_VAL = f6var.
+   IF Guru.Konstanter:globforetag = "SUND" THEN DO:
+      kon_val.ID2:LABEL IN BROWSE BRW_VAL = "Objektnr".
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "UMEA" OR Guru.Konstanter:globforetag = "GRAN" OR Guru.Konstanter:globforetag = "GKAL" THEN DO:
+      kon_val.ID2:LABEL IN BROWSE BRW_VAL = "Byggnr".
+   END.
+   ELSE DO:
+      kon_val.ID2:LABEL IN BROWSE BRW_VAL = "Id".
+   END. 
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE nolabel_UI WINDOW-3 
+PROCEDURE nolabel_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   {NOLABEL.I}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE rowlbrwmtrl_UI WINDOW-3 
+PROCEDURE rowlbrwmtrl_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/      
+   IF AVAILABLE list_mtrl THEN DO:
+      DISPLAY list_mtrl.ANTAL WITH BROWSE BRW_MTRL NO-ERROR.
+      list_mtrl.ANTAL = INPUT BROWSE BRW_MTRL list_mtrl.ANTAL.
+      DISPLAY list_mtrl.ANTAL WITH BROWSE BRW_MTRL NO-ERROR.
+   END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE whandle_UI WINDOW-3 
+PROCEDURE whandle_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   DEFINE INPUT PARAMETER ordnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ordh AS HANDLE NO-UNDO.
+   ASSIGN
+   whandltemp.WF[ordnr] = ordh.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+

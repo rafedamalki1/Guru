@@ -1,0 +1,63 @@
+/*XESSTART.P. kör appat program sundsvall*/
+
+DEFINE NEW SHARED VARIABLE appcon AS LOGICAL NO-UNDO.
+
+
+
+/*{CONAPP.I} */
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE utbivar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE conappvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE gforetag AS CHARACTER NO-UNDO.
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.
+ASSIGN
+gforetag = SUBSTRING(FORETAG.VERSION,20,10)
+conappvar = SUBSTRING(FORETAG.VERSION,32).
+CREATE SERVER Guru.Konstanter:apphand.
+IF SUBSTRING(PROVERSION,1,1) = "9" THEN DO:
+ 
+  IF conappvar = "" THEN DO:
+     MESSAGE "Kontakta Elpool tel 090/184540 för du kan inte ansluta korrekt!"
+     VIEW-AS ALERT-BOX.
+  END.
+ 
+   /*obs case-sensitv -AppService appguru9*/
+   ELSE DO:
+      Guru.Konstanter:appcon = Guru.Konstanter:apphand:CONNECT(conappvar,CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79),"KAGGEN",gforetag) NO-ERROR.  
+      
+   END.
+END.
+ELSE DO:   
+/*    {CONAPP8.I}   */
+END.
+IF NOT Guru.Konstanter:appcon THEN DO:
+  MESSAGE 
+   ERROR-STATUS:NUM-MESSAGES 
+   " fel uppkom vid anslutningen." SKIP 
+   "Det går ej att ansluta appserver." SKIP 
+   "Felet kan bero på för många samtidiga användare." SKIP
+   "Kontakta system ansvarig." SKIP
+   "Kontakta Elpool tel 090/184540." SKIP
+   SKIP
+   "Vill du se felmeddelandena ?" 
+   VIEW-AS ALERT-BOX QUESTION BUTTONS YES-NO TITLE "Fel på anslutningen"
+   UPDATE view-errs AS LOGICAL .       
+   IF view-errs THEN DO i = 1 TO ERROR-STATUS:NUM-MESSAGES:
+      MESSAGE ERROR-STATUS:GET-NUMBER(i)
+      ERROR-STATUS:GET-MESSAGE(i)
+      VIEW-AS ALERT-BOX.
+   END.  
+   DELETE OBJECT Guru.Konstanter:apphand NO-ERROR.
+   Guru.Konstanter:apphand = ?.
+END.
+
+
+
+IF Guru.Konstanter:appcon THEN DO:
+   RUN DELKALK.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT .                                                  
+   
+END.
+
+IF Guru.Konstanter:appcon THEN Guru.Konstanter:appcon = Guru.Konstanter:apphand:DISCONNECT().
+DELETE OBJECT Guru.Konstanter:apphand.
+appcon = FALSE.

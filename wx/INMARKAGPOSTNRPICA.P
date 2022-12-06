@@ -1,0 +1,96 @@
+DEFINE TEMP-TABLE tempmarkagare NO-UNDO   /* markagaretemp*/
+   FIELD MARKNR       AS INTEGER   
+   FIELD MARKAGARE    AS CHARACTER 
+   FIELD GATUADRESS   AS CHARACTER 
+   FIELD POSTNUMMER   AS CHARACTER 
+   FIELD POSTADRESS   AS CHARACTER 
+   FIELD BOXEN        AS CHARACTER 
+   FIELD TELEFON      AS CHARACTER 
+   FIELD TELEFON2     AS CHARACTER 
+   FIELD PERSONNUMMER AS CHARACTER 
+   FIELD PNR2         AS CHARACTER
+
+   FIELD MOBIL     AS CHARACTER     /*extradata  "markag"*/
+   FIELD MAIL         AS CHARACTER
+   FIELD MAKA         AS CHARACTER
+   FIELD MBANKKONTO         AS CHARACTER
+   FIELD MBANKNAMN         AS CHARACTER
+
+   FIELD NMARKNR       AS INTEGER. /*NYTT MARKNR*/
+   
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE marknrvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE tabort AS LOGICAL NO-UNDO.
+DEFINE VARIABLE ponr AS CHARACTER NO-UNDO.
+
+{DYNTTDUMP.I}
+
+DEFINE VARIABLE ttbuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE tthandle AS HANDLE NO-UNDO.
+orgbufh = TEMP-TABLE tempmarkagare:HANDLE:DEFAULT-BUFFER-HANDLE.
+
+   CREATE TEMP-TABLE ttcopyh. 
+   ttcopyh:CREATE-LIKE(orgbufh).
+   CREATE TEMP-TABLE ttcopyh. 
+   ttcopyh:CREATE-LIKE(orgbufh).
+   ttcopyh:TEMP-TABLE-PREPARE("ttkopia"). 
+   ttbuffcopyh = ttcopyh:DEFAULT-BUFFER-HANDLE.
+   
+   ASSIGN
+   cFile = "C:\protemp11\markagar.xml"
+   cSourceType             = "FILE"
+   cReadMode               = "MERGE"
+   cSchemaLocation         = ?
+   lOverrideDefaultMapping = FALSE.
+   RUN tabkoll_UI.
+   ttcopyh:READ-XML (cSourceType, cFile, cReadMode,cSchemaLocation, lOverrideDefaultMapping).
+   
+   DEFINE VARIABLE komcop AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE ttgh AS HANDLE NO-UNDO.
+   komcop = "FOR EACH " + ttbuffcopyh:TABLE +  " NO-LOCK.".
+   CREATE QUERY ttgh.
+   ttgh:SET-BUFFERS(ttbuffcopyh).
+   ttgh:QUERY-PREPARE(komcop).
+   ttgh:QUERY-OPEN().
+   ttgh:GET-FIRST(NO-LOCK).
+   DO WHILE ttgh:QUERY-OFF-END = FALSE:
+      
+      DO TRANSACTION: 
+         orgbufh:BUFFER-CREATE().
+         orgbufh:BUFFER-COPY(ttbuffcopyh).
+      END.   
+                                                                    /*
+      display ttbuffcopyh:BUFFER-FIELD("personnummer"):BUFFER-value.
+      */
+      ttgh:GET-NEXT(NO-LOCK).
+   END.
+   FIND FIRST tempmarkagare.
+       DISPLAY tempmarkagare.PERSONNUMMER.
+
+
+
+
+
+ OUTPUT TO C:\PROTEMP11\MQ.TXT.
+
+ OPEN QUERY MQ FOR EACH MARKAGARE   NO-LOCK.
+     GET FIRST MQ NO-LOCK.
+     DO WHILE AVAILABLE(MARKAGARE).
+         
+         IF MARKAGARE.PERSONNUMMER = "0000000000" OR MARKAGARE.PERSONNUMMER = ""   THEN.
+         ELSE IF SUBSTRING(MARKAGARE.POSTNUMMER,1,1) > "9" THEN DO:
+             FIND FIRST tempmarkagare WHERE tempmarkagare.PERSONNUMMER = MARKAGARE.PERSONNUMMER NO-ERROR.
+             IF AVAILABLE tempmarkagare THEN DO TRANSACTION:
+                GET CURRENT MQ EXCLUSIVE-LOCK.
+                ASSIGN MARKAGARE.POSTNUMMER = tempmarkagare.POSTNUMMER.
+                PUT UNFORMATTED MARKAGARE.PERSONNUMMER AT 1 MARKAGARE.POSTNUMMER AT 30 SKIP.
+             END.
+         END.
+         GET NEXT MQ NO-LOCK.
+     END.
+
+ 
+ OUTPUT CLOSE.
+ 
+ 
+        

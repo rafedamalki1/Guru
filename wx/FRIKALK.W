@@ -1,0 +1,1404 @@
+&ANALYZE-SUSPEND _VERSION-NUMBER UIB_v8r12 GUI
+&ANALYZE-RESUME
+/* Connected Databases 
+          rt8              PROGRESS
+*/
+&Scoped-define WINDOW-NAME CURRENT-WINDOW
+&Scoped-define FRAME-NAME DIALOG-1
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CUSTOM _DEFINITIONS DIALOG-1 
+/*------------------------------------------------------------------------
+
+  File: 
+
+  Description: 
+
+  Input Parameters:
+      <none>
+
+  Output Parameters:
+      <none>
+
+  Author: 
+
+  Created: 95/11/03 -  3:31 pm
+
+------------------------------------------------------------------------*/
+/*          This .W file was created with the Progress UIB.             */
+/*----------------------------------------------------------------------*/
+
+/* ***************************  Definitions  ************************** */
+
+/* Parameters Definitions ---                                           */
+
+/* Local Variable Definitions ---                                       */
+&Scoped-define NEW NEW
+DEFINE NEW SHARED VARIABLE frikalkrec AS RECID NO-UNDO.
+DEFINE SHARED VARIABLE kalkrec AS RECID NO-UNDO.
+DEFINE SHARED VARIABLE kalkrec2 AS RECID NO-UNDO.
+DEFINE SHARED VARIABLE vart AS CHARACTER FORMAT "X(3)" NO-UNDO.
+DEFINE SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE frikalkrec2 AS RECID NO-UNDO.
+DEFINE VARIABLE status-ok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE raknanrvar LIKE KALKYL.RADNR NO-UNDO.
+DEFINE TEMP-TABLE raknanretemp
+  FIELD TYP LIKE KALKYL.TYP 
+  FIELD BEFATTNING LIKE KALKYL.BEFATTNING 
+  FIELD RADNR LIKE KALKYL.RADNR
+  INDEX TYP IS PRIMARY TYP BEFATTNING RADNR.
+         
+DEFINE BUFFER kalkbuff FOR KALKYL.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-PREPROCESSOR-BLOCK 
+
+/* ********************  Preprocessor Definitions  ******************** */
+
+&Scoped-define PROCEDURE-TYPE DIALOG-BOX
+
+/* Name of first Frame and/or Browse and/or first Query                 */
+&Scoped-define FRAME-NAME DIALOG-1
+&Scoped-define BROWSE-NAME BRW_MASK
+
+/* Internal Tables (found by Frame, Query & Browse Queries)             */
+&Scoped-define INTERNAL-TABLES KALKYL
+
+/* Definitions for BROWSE BRW_MASK                                      */
+&Scoped-define FIELDS-IN-QUERY-BRW_MASK KALKYL.BEFATTNING KALKYL.TIMMAR ~
+KALKYL.PRIS KALKYL.OT50 KALKYL.OT100 KALKYL.OMRADE KALKYL.OT75 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_MASK 
+&Scoped-define FIELD-PAIRS-IN-QUERY-BRW_MASK
+&Scoped-define OPEN-QUERY-BRW_MASK OPEN QUERY BRW_MASK FOR EACH KALKYL NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_MASK KALKYL
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_MASK KALKYL
+
+
+/* Definitions for BROWSE BRW_MATRL                                     */
+&Scoped-define FIELDS-IN-QUERY-BRW_MATRL KALKYL.BEFATTNING KALKYL.TIMMAR ~
+KALKYL.PRIS KALKYL.OT75 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_MATRL 
+&Scoped-define FIELD-PAIRS-IN-QUERY-BRW_MATRL
+&Scoped-define OPEN-QUERY-BRW_MATRL OPEN QUERY BRW_MATRL FOR EACH KALKYL NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_MATRL KALKYL
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_MATRL KALKYL
+
+
+/* Definitions for BROWSE BRW_MIL                                       */
+&Scoped-define FIELDS-IN-QUERY-BRW_MIL KALKYL.BEFATTNING KALKYL.TIMMAR ~
+KALKYL.PRIS KALKYL.OMRADE KALKYL.OT75 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_MIL 
+&Scoped-define FIELD-PAIRS-IN-QUERY-BRW_MIL
+&Scoped-define OPEN-QUERY-BRW_MIL OPEN QUERY BRW_MIL FOR EACH KALKYL NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_MIL KALKYL
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_MIL KALKYL
+
+
+/* Definitions for BROWSE BRW_OVER                                      */
+&Scoped-define FIELDS-IN-QUERY-BRW_OVER KALKYL.BEFATTNING KALKYL.TIMMAR ~
+KALKYL.PRIS KALKYL.OT75 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_OVER 
+&Scoped-define FIELD-PAIRS-IN-QUERY-BRW_OVER
+&Scoped-define OPEN-QUERY-BRW_OVER OPEN QUERY BRW_OVER FOR EACH KALKYL NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_OVER KALKYL
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_OVER KALKYL
+
+
+/* Definitions for BROWSE BRW_PERS                                      */
+&Scoped-define FIELDS-IN-QUERY-BRW_PERS KALKYL.BEFATTNING KALKYL.TIMMAR ~
+KALKYL.PRIS KALKYL.OT50 KALKYL.OT100 KALKYL.OMRADE KALKYL.OT75 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_PERS 
+&Scoped-define FIELD-PAIRS-IN-QUERY-BRW_PERS
+&Scoped-define OPEN-QUERY-BRW_PERS OPEN QUERY BRW_PERS FOR EACH KALKYL NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_PERS KALKYL
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_PERS KALKYL
+
+
+/* Definitions for BROWSE BRW_TRAK                                      */
+&Scoped-define FIELDS-IN-QUERY-BRW_TRAK KALKYL.BEFATTNING KALKYL.TIMMAR ~
+KALKYL.PRIS KALKYL.OMRADE KALKYL.OT75 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_TRAK 
+&Scoped-define FIELD-PAIRS-IN-QUERY-BRW_TRAK
+&Scoped-define OPEN-QUERY-BRW_TRAK OPEN QUERY BRW_TRAK FOR EACH KALKYL NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_TRAK KALKYL
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_TRAK KALKYL
+
+
+/* Definitions for DIALOG-BOX DIALOG-1                                  */
+
+/* Standard List Definitions                                            */
+&Scoped-Define ENABLED-OBJECTS RECT-22 RECT-21 RAD_VAL RECT-23 BTN_NY ~
+BTN_UPP BTN_BORT BTN_OK RECT-25 
+&Scoped-Define DISPLAYED-OBJECTS RAD_VAL FILL-IN-PERSTID FILL-IN-MASKTID ~
+FILL-IN-MILANTAL FILL-IN-PKOST FILL-IN-MASKKOST FILL-IN-TRAKTKOST ~
+FILL-IN-MILTKOST FILL-IN-MATRLKOST FILL-IN-OVERKOST FILL-IN-SUMMA 
+
+/* Custom List Definitions                                              */
+/* List-1,List-2,List-3,List-4,List-5,List-6                            */
+
+/* _UIB-PREPROCESSOR-BLOCK-END */
+&ANALYZE-RESUME
+
+
+
+/* ***********************  Control Definitions  ********************** */
+
+/* Define a dialog box                                                  */
+
+/* Definitions of the field level widgets                               */
+DEFINE BUTTON BTN_BORT 
+     LABEL "Ta Bort":L 
+     SIZE 10.5 BY 1.5.
+
+DEFINE BUTTON BTN_NY 
+     LABEL "Ny":L 
+     SIZE 10.5 BY 1.5.
+
+DEFINE BUTTON BTN_OK 
+     LABEL "Klar":L 
+     SIZE 16.5 BY 1.5.
+
+DEFINE BUTTON BTN_UPP 
+     LABEL "Ändra":L 
+     SIZE 10.5 BY 1.5.
+
+DEFINE VARIABLE FILL-IN-MASKKOST AS INTEGER FORMAT "->>>>>>>>9":U INITIAL 0 
+     VIEW-AS FILL-IN 
+     SIZE 11 BY 1
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-MASKTID AS INTEGER FORMAT "->>>>>>>>9":U INITIAL 0 
+     VIEW-AS FILL-IN 
+     SIZE 11 BY 1
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-MATRLKOST AS INTEGER FORMAT "->>>>>>>>9":U INITIAL 0 
+     VIEW-AS FILL-IN 
+     SIZE 11 BY 1
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-MILANTAL AS INTEGER FORMAT "->>>>>>>>9":U INITIAL 0 
+     VIEW-AS FILL-IN 
+     SIZE 11 BY 1
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-MILTKOST AS INTEGER FORMAT "->>>>>>>>9":U INITIAL 0 
+     VIEW-AS FILL-IN 
+     SIZE 11 BY 1
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-OVERKOST AS INTEGER FORMAT "->>>>>>>>9":U INITIAL 0 
+     VIEW-AS FILL-IN 
+     SIZE 11 BY 1
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-PERSTID AS INTEGER FORMAT "->>>>>>>>9":U INITIAL 0 
+     LABEL "TIMMAR/ANTAL" 
+     VIEW-AS FILL-IN 
+     SIZE 11 BY 1
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-PKOST AS INTEGER FORMAT "->>>>>>>>9":U INITIAL 0 
+     LABEL "KOSTNADER" 
+     VIEW-AS FILL-IN 
+     SIZE 11 BY 1
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-SUMMA AS INTEGER FORMAT "->>>>>>>>>>9":U INITIAL 0 
+     VIEW-AS FILL-IN 
+     SIZE 15 BY 1
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-TRAKTKOST AS INTEGER FORMAT "->>>>>>>>9":U INITIAL 0 
+     VIEW-AS FILL-IN 
+     SIZE 11 BY 1
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE {&NEW} SHARED VARIABLE RAD_VAL AS INTEGER 
+     VIEW-AS RADIO-SET HORIZONTAL
+     RADIO-BUTTONS 
+          "PERSONAL", 1,
+"FRÄMANDE TJ.", 2,
+"TRAKTAMENTE MM.", 3,
+"MIL", 4,
+"MATERIEL", 5,
+"ÖVRIGT", 6
+     SIZE 73.88 BY .9 NO-UNDO.
+
+DEFINE RECTANGLE RECT-21
+     EDGE-PIXELS 4 GRAPHIC-EDGE  
+     SIZE 81.5 BY 2.45
+     BGCOLOR 8 .
+
+DEFINE RECTANGLE RECT-22
+     EDGE-PIXELS 4 GRAPHIC-EDGE  
+     SIZE 96.25 BY 17.41
+     BGCOLOR 8 .
+
+DEFINE RECTANGLE RECT-23
+     EDGE-PIXELS 4 GRAPHIC-EDGE  NO-FILL 
+     SIZE 66.13 BY 2.14
+     BGCOLOR 8 .
+
+DEFINE RECTANGLE RECT-25
+     EDGE-PIXELS 4 GRAPHIC-EDGE  
+     SIZE 96.25 BY 7.59
+     BGCOLOR 8 .
+
+/* Query definitions                                                    */
+&ANALYZE-SUSPEND
+DEFINE QUERY BRW_MASK FOR 
+      KALKYL SCROLLING.
+
+DEFINE QUERY BRW_MATRL FOR 
+      KALKYL SCROLLING.
+
+DEFINE QUERY BRW_MIL FOR 
+      KALKYL SCROLLING.
+
+DEFINE QUERY BRW_OVER FOR 
+      KALKYL SCROLLING.
+
+DEFINE QUERY BRW_PERS FOR 
+      KALKYL SCROLLING.
+
+DEFINE QUERY BRW_TRAK FOR 
+      KALKYL SCROLLING.
+&ANALYZE-RESUME
+
+/* Browse definitions                                                   */
+DEFINE BROWSE BRW_MASK
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_MASK DIALOG-1 _STRUCTURED
+  QUERY BRW_MASK DISPLAY
+      KALKYL.BEFATTNING COLUMN-LABEL "KATEGORI! "
+      KALKYL.TIMMAR COLUMN-LABEL "TIMMAR  ! " FORMAT "->>>>>>9"
+      KALKYL.PRIS COLUMN-LABEL "PRIS     ! " FORMAT "->>>>>>>9"
+      KALKYL.OT50 COLUMN-LABEL "ÖVERTIDS!TIMMAR  " FORMAT "->>>>>9"
+      KALKYL.OT100 COLUMN-LABEL "ÖVERTIDS !PRIS     " FORMAT "->>>>>>>9"
+      KALKYL.OMRADE COLUMN-LABEL "OMRÅDE! "
+      KALKYL.OT75 COLUMN-LABEL "SUMMA    !KOSTNADER" FORMAT "->>>>>>>9"
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-ROW-MARKERS SIZE 76 BY 10.95
+         BGCOLOR 8 .
+
+DEFINE BROWSE BRW_MATRL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_MATRL DIALOG-1 _STRUCTURED
+  QUERY BRW_MATRL DISPLAY
+      KALKYL.BEFATTNING COLUMN-LABEL "KATEGORI! "
+      KALKYL.TIMMAR COLUMN-LABEL "ANTAL    ! " FORMAT "->>>>>>9"
+      KALKYL.PRIS COLUMN-LABEL "PRIS     ! " FORMAT "->>>>>>>9"
+      KALKYL.OT75 COLUMN-LABEL "SUMMA    !KOSTNADER" FORMAT "->>>>>>>9"
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-ROW-MARKERS SIZE 52 BY 10.95
+         BGCOLOR 8 .
+
+DEFINE BROWSE BRW_MIL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_MIL DIALOG-1 _STRUCTURED
+  QUERY BRW_MIL DISPLAY
+      KALKYL.BEFATTNING COLUMN-LABEL "KATEGORI! "
+      KALKYL.TIMMAR COLUMN-LABEL "ANTAL    ! " FORMAT "->>>>>>9"
+      KALKYL.PRIS COLUMN-LABEL "PRIS     ! " FORMAT "->>>>>>>9"
+      KALKYL.OMRADE COLUMN-LABEL "OMRÅDE! "
+      KALKYL.OT75 COLUMN-LABEL "SUMMA    !KOSTNADER" FORMAT "->>>>>>>9"
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-ROW-MARKERS SIZE 59 BY 10.95
+         BGCOLOR 8 .
+
+DEFINE BROWSE BRW_OVER
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_OVER DIALOG-1 _STRUCTURED
+  QUERY BRW_OVER DISPLAY
+      KALKYL.BEFATTNING COLUMN-LABEL "KATEGORI! "
+      KALKYL.TIMMAR COLUMN-LABEL "ANTAL    ! " FORMAT "->>>>>>9"
+      KALKYL.PRIS COLUMN-LABEL "PRIS     ! " FORMAT "->>>>>>>9"
+      KALKYL.OT75 COLUMN-LABEL "SUMMA    !KOSTNADER" FORMAT "->>>>>>>9"
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-ROW-MARKERS SIZE 52 BY 10.95
+         BGCOLOR 8 .
+
+DEFINE BROWSE BRW_PERS
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_PERS DIALOG-1 _STRUCTURED
+  QUERY BRW_PERS DISPLAY
+      KALKYL.BEFATTNING COLUMN-LABEL "KATEGORI! "
+      KALKYL.TIMMAR COLUMN-LABEL "TIMMAR  ! " FORMAT "->>>>>>9"
+      KALKYL.PRIS COLUMN-LABEL "PRIS     ! " FORMAT "->>>>>>>9"
+      KALKYL.OT50 COLUMN-LABEL "ÖVERTIDS!TIMMAR  " FORMAT "->>>>>9"
+      KALKYL.OT100 COLUMN-LABEL "ÖVERTIDS !PRIS     " FORMAT "->>>>>>>9"
+      KALKYL.OMRADE COLUMN-LABEL "OMRÅDE! "
+      KALKYL.OT75 COLUMN-LABEL "SUMMA    !KOSTNADER" FORMAT "->>>>>>>9"
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-ROW-MARKERS SIZE 76 BY 10.95
+         BGCOLOR 8 .
+
+DEFINE BROWSE BRW_TRAK
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_TRAK DIALOG-1 _STRUCTURED
+  QUERY BRW_TRAK DISPLAY
+      KALKYL.BEFATTNING COLUMN-LABEL "KATEGORI! "
+      KALKYL.TIMMAR COLUMN-LABEL "ANTAL    ! " FORMAT "->>>>>>9"
+      KALKYL.PRIS COLUMN-LABEL "PRIS     ! " FORMAT "->>>>>>>9"
+      KALKYL.OMRADE COLUMN-LABEL "OMRÅDE! "
+      KALKYL.OT75 COLUMN-LABEL "SUMMA    !KOSTNADER" FORMAT "->>>>>>>9"     
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-ROW-MARKERS SIZE 59 BY 10.95
+         BGCOLOR 8 .
+
+
+/* ************************  Frame Definitions  *********************** */
+
+DEFINE FRAME DIALOG-1
+     RAD_VAL AT ROW 2.75 COL 11.13 NO-LABEL
+     BRW_PERS AT ROW 4.45 COL 10.75
+     BRW_MASK AT ROW 4.45 COL 10.75
+     BRW_MIL AT ROW 4.45 COL 19
+     BRW_TRAK AT ROW 4.45 COL 19
+     BRW_OVER AT ROW 4.45 COL 22
+     BRW_MATRL AT ROW 4.45 COL 22
+     BTN_NY AT ROW 15.82 COL 23
+     BTN_UPP AT ROW 15.82 COL 35
+     BTN_BORT AT ROW 15.82 COL 47
+     BTN_OK AT ROW 15.86 COL 62.13
+     FILL-IN-PERSTID AT ROW 21.86 COL 14.88 COLON-ALIGNED
+     FILL-IN-MASKTID AT ROW 21.91 COL 26.88 COLON-ALIGNED NO-LABEL
+     FILL-IN-MILANTAL AT ROW 21.91 COL 50.88 COLON-ALIGNED NO-LABEL
+     FILL-IN-PKOST AT ROW 23 COL 14.88 COLON-ALIGNED
+     FILL-IN-MASKKOST AT ROW 23 COL 26.88 COLON-ALIGNED NO-LABEL
+     FILL-IN-TRAKTKOST AT ROW 23 COL 38.88 COLON-ALIGNED NO-LABEL
+     FILL-IN-MILTKOST AT ROW 23 COL 50.88 COLON-ALIGNED NO-LABEL
+     FILL-IN-MATRLKOST AT ROW 23 COL 62.88 COLON-ALIGNED NO-LABEL
+     FILL-IN-OVERKOST AT ROW 23 COL 74.88 COLON-ALIGNED NO-LABEL
+     FILL-IN-SUMMA AT ROW 24.5 COL 50.88 COLON-ALIGNED NO-LABEL
+     RECT-22 AT ROW 1 COL 1
+     RECT-21 AT ROW 1.45 COL 7.13
+     "Kalkylera:" VIEW-AS TEXT
+          SIZE 12 BY .9 AT ROW 1.77 COL 8.88
+          FONT 17
+     RECT-23 AT ROW 15.5 COL 15.13
+     RECT-25 AT ROW 18.41 COL 1
+     "Summering av kalkyl" VIEW-AS TEXT
+          SIZE 29.88 BY 1.18 AT ROW 19.41 COL 3.88
+          FONT 17
+     "Personal" VIEW-AS TEXT
+          SIZE 9.5 BY 1.05 AT ROW 20.64 COL 16.88
+     "Främade tj." VIEW-AS TEXT
+          SIZE 10 BY 1 AT ROW 20.68 COL 28.88
+     "Traktamente" VIEW-AS TEXT
+          SIZE 11.38 BY 1 AT ROW 20.68 COL 40.88
+     "Materiel" VIEW-AS TEXT
+          SIZE 9 BY 1 AT ROW 20.68 COL 64.88
+     "Övrigt" VIEW-AS TEXT
+          SIZE 9.13 BY 1 AT ROW 20.68 COL 76.88
+     "Mil" VIEW-AS TEXT
+          SIZE 6.75 BY .86 AT ROW 20.82 COL 52.88
+     "Tot. Summa Kalkyl:" VIEW-AS TEXT
+          SIZE 21 BY 1 AT ROW 24.45 COL 28.63
+          FONT 17
+     SPACE(47.86) SKIP(0.68)
+    WITH VIEW-AS DIALOG-BOX KEEP-TAB-ORDER 
+         SIDE-LABELS NO-UNDERLINE THREE-D  SCROLLABLE 
+         TITLE "Kalkylera":L.
+
+
+/* *********************** Procedure Settings ************************ */
+
+&ANALYZE-SUSPEND _PROCEDURE-SETTINGS
+/* Settings for THIS-PROCEDURE
+   Type: DIALOG-BOX
+ */
+&ANALYZE-RESUME _END-PROCEDURE-SETTINGS
+
+
+/* ***************  Runtime Attributes and UIB Settings  ************** */
+
+&ANALYZE-SUSPEND _RUN-TIME-ATTRIBUTES
+/* SETTINGS FOR DIALOG-BOX DIALOG-1
+                                                                        */
+/* BROWSE-TAB BRW_PERS RAD_VAL DIALOG-1 */
+/* BROWSE-TAB BRW_MASK BRW_PERS DIALOG-1 */
+/* BROWSE-TAB BRW_MIL BRW_MASK DIALOG-1 */
+/* BROWSE-TAB BRW_TRAK BRW_MIL DIALOG-1 */
+/* BROWSE-TAB BRW_OVER BRW_TRAK DIALOG-1 */
+/* BROWSE-TAB BRW_MATRL BRW_OVER DIALOG-1 */
+ASSIGN 
+       FRAME DIALOG-1:SCROLLABLE       = FALSE.
+
+/* SETTINGS FOR BROWSE BRW_MASK IN FRAME DIALOG-1
+   NO-ENABLE                                                            */
+ASSIGN 
+       BRW_MASK:HIDDEN  IN FRAME DIALOG-1            = TRUE.
+
+/* SETTINGS FOR BROWSE BRW_MATRL IN FRAME DIALOG-1
+   NO-ENABLE                                                            */
+ASSIGN 
+       BRW_MATRL:HIDDEN  IN FRAME DIALOG-1            = TRUE.
+
+/* SETTINGS FOR BROWSE BRW_MIL IN FRAME DIALOG-1
+   NO-ENABLE                                                            */
+ASSIGN 
+       BRW_MIL:HIDDEN  IN FRAME DIALOG-1            = TRUE.
+
+/* SETTINGS FOR BROWSE BRW_OVER IN FRAME DIALOG-1
+   NO-ENABLE                                                            */
+ASSIGN 
+       BRW_OVER:HIDDEN  IN FRAME DIALOG-1            = TRUE.
+
+/* SETTINGS FOR BROWSE BRW_PERS IN FRAME DIALOG-1
+   NO-ENABLE                                                            */
+ASSIGN 
+       BRW_PERS:HIDDEN  IN FRAME DIALOG-1            = TRUE.
+
+/* SETTINGS FOR BROWSE BRW_TRAK IN FRAME DIALOG-1
+   NO-ENABLE                                                            */
+ASSIGN 
+       BRW_TRAK:HIDDEN  IN FRAME DIALOG-1            = TRUE.
+
+ASSIGN 
+       BTN_BORT:HIDDEN IN FRAME DIALOG-1           = TRUE.
+
+ASSIGN 
+       BTN_NY:HIDDEN IN FRAME DIALOG-1           = TRUE.
+
+ASSIGN 
+       BTN_UPP:HIDDEN IN FRAME DIALOG-1           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-MASKKOST IN FRAME DIALOG-1
+   NO-ENABLE                                                            */
+/* SETTINGS FOR FILL-IN FILL-IN-MASKTID IN FRAME DIALOG-1
+   NO-ENABLE                                                            */
+/* SETTINGS FOR FILL-IN FILL-IN-MATRLKOST IN FRAME DIALOG-1
+   NO-ENABLE                                                            */
+/* SETTINGS FOR FILL-IN FILL-IN-MILANTAL IN FRAME DIALOG-1
+   NO-ENABLE                                                            */
+/* SETTINGS FOR FILL-IN FILL-IN-MILTKOST IN FRAME DIALOG-1
+   NO-ENABLE                                                            */
+/* SETTINGS FOR FILL-IN FILL-IN-OVERKOST IN FRAME DIALOG-1
+   NO-ENABLE                                                            */
+/* SETTINGS FOR FILL-IN FILL-IN-PERSTID IN FRAME DIALOG-1
+   NO-ENABLE                                                            */
+/* SETTINGS FOR FILL-IN FILL-IN-PKOST IN FRAME DIALOG-1
+   NO-ENABLE                                                            */
+/* SETTINGS FOR FILL-IN FILL-IN-SUMMA IN FRAME DIALOG-1
+   NO-ENABLE                                                            */
+/* SETTINGS FOR FILL-IN FILL-IN-TRAKTKOST IN FRAME DIALOG-1
+   NO-ENABLE                                                            */
+/* SETTINGS FOR RADIO-SET RAD_VAL IN FRAME DIALOG-1
+   SHARED                                                               */
+/* _RUN-TIME-ATTRIBUTES-END */
+&ANALYZE-RESUME
+
+
+/* Setting information for Queries and Browse Widgets fields            */
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_MASK
+/* Query rebuild information for BROWSE BRW_MASK
+     _TblList          = "RT8.KALKYL"
+     _FldNameList[1]   > RT8.KALKYL.BEFATTNING
+"KALKYL.BEFATTNING" "KATEGORI!" ? "character" ? ? ? ? ? ? no ?
+     _FldNameList[2]   > RT8.KALKYL.TIMMAR
+"KALKYL.TIMMAR" "TIMMAR  !" "->>>>>>9" "integer" ? ? ? ? ? ? no ?
+     _FldNameList[3]   > RT8.KALKYL.PRIS
+"KALKYL.PRIS" "PRIS     !" "->>>>>>>9" "decimal" ? ? ? ? ? ? no ?
+     _FldNameList[4]   > RT8.KALKYL.OT50
+"KALKYL.OT50" "ÖVERTIDS!TIMMAR" "->>>>>9" "integer" ? ? ? ? ? ? no ?
+     _FldNameList[5]   > RT8.KALKYL.OT100
+"KALKYL.OT100" "ÖVERTIDS !PRIS" "->>>>>>>9" "integer" ? ? ? ? ? ? no ?
+     _FldNameList[6]   > RT8.KALKYL.OMRADE
+"KALKYL.OMRADE" "OMRÅDE!" ? "character" ? ? ? ? ? ? no ?
+     _FldNameList[7]   > RT8.KALKYL.OT75
+"KALKYL.OT75" "SUMMA    !KOSTNADER" "->>>>>>>9" "integer" ? ? ? ? ? ? no ?
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_MASK */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_MATRL
+/* Query rebuild information for BROWSE BRW_MATRL
+     _TblList          = "RT8.KALKYL"
+     _FldNameList[1]   > RT8.KALKYL.BEFATTNING
+"KALKYL.BEFATTNING" "KATEGORI!" ? "character" ? ? ? ? ? ? no ?
+     _FldNameList[2]   > RT8.KALKYL.TIMMAR
+"KALKYL.TIMMAR" "ANTAL    !" "->>>>>>9" "integer" ? ? ? ? ? ? no ?
+     _FldNameList[3]   > RT8.KALKYL.PRIS
+"KALKYL.PRIS" "PRIS     !" "->>>>>>>9" "decimal" ? ? ? ? ? ? no ?
+     _FldNameList[4]   > RT8.KALKYL.OT75
+"KALKYL.OT75" "SUMMA    !KOSTNADER" "->>>>>>>9" "integer" ? ? ? ? ? ? no ?
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_MATRL */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_MIL
+/* Query rebuild information for BROWSE BRW_MIL
+     _TblList          = "RT8.KALKYL"
+     _FldNameList[1]   > RT8.KALKYL.BEFATTNING
+"KALKYL.BEFATTNING" "KATEGORI!" ? "character" ? ? ? ? ? ? no ?
+     _FldNameList[2]   > RT8.KALKYL.TIMMAR
+"KALKYL.TIMMAR" "ANTAL    !" "->>>>>>9" "integer" ? ? ? ? ? ? no ?
+     _FldNameList[3]   > RT8.KALKYL.PRIS
+"KALKYL.PRIS" "PRIS     !" "->>>>>>>9" "decimal" ? ? ? ? ? ? no ?
+     _FldNameList[4]   > RT8.KALKYL.OMRADE
+"KALKYL.OMRADE" "OMRÅDE!" ? "character" ? ? ? ? ? ? no ?
+     _FldNameList[5]   > RT8.KALKYL.OT75
+"KALKYL.OT75" "SUMMA    !KOSTNADER" "->>>>>>>9" "integer" ? ? ? ? ? ? no ?
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_MIL */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_OVER
+/* Query rebuild information for BROWSE BRW_OVER
+     _TblList          = "RT8.KALKYL"
+     _FldNameList[1]   > RT8.KALKYL.BEFATTNING
+"KALKYL.BEFATTNING" "KATEGORI!" ? "character" ? ? ? ? ? ? no ?
+     _FldNameList[2]   > RT8.KALKYL.TIMMAR
+"KALKYL.TIMMAR" "ANTAL    !" "->>>>>>9" "integer" ? ? ? ? ? ? no ?
+     _FldNameList[3]   > RT8.KALKYL.PRIS
+"KALKYL.PRIS" "PRIS     !" "->>>>>>>9" "decimal" ? ? ? ? ? ? no ?
+     _FldNameList[4]   > RT8.KALKYL.OT75
+"KALKYL.OT75" "SUMMA    !KOSTNADER" "->>>>>>>9" "integer" ? ? ? ? ? ? no ?
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_OVER */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_PERS
+/* Query rebuild information for BROWSE BRW_PERS
+     _TblList          = "RT8.KALKYL"
+     _FldNameList[1]   > RT8.KALKYL.BEFATTNING
+"KALKYL.BEFATTNING" "KATEGORI!" ? "character" ? ? ? ? ? ? no ?
+     _FldNameList[2]   > RT8.KALKYL.TIMMAR
+"KALKYL.TIMMAR" "TIMMAR  !" "->>>>>>9" "integer" ? ? ? ? ? ? no ?
+     _FldNameList[3]   > RT8.KALKYL.PRIS
+"KALKYL.PRIS" "PRIS     !" "->>>>>>>9" "decimal" ? ? ? ? ? ? no ?
+     _FldNameList[4]   > RT8.KALKYL.OT50
+"KALKYL.OT50" "ÖVERTIDS!TIMMAR" "->>>>>9" "integer" ? ? ? ? ? ? no ?
+     _FldNameList[5]   > RT8.KALKYL.OT100
+"KALKYL.OT100" "ÖVERTIDS !PRIS" "->>>>>>>9" "integer" ? ? ? ? ? ? no ?
+     _FldNameList[6]   > RT8.KALKYL.OMRADE
+"KALKYL.OMRADE" "OMRÅDE!" ? "character" ? ? ? ? ? ? no ?
+     _FldNameList[7]   > RT8.KALKYL.OT75
+"KALKYL.OT75" "SUMMA    !KOSTNADER" "->>>>>>>9" "integer" ? ? ? ? ? ? no ?
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_PERS */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_TRAK
+/* Query rebuild information for BROWSE BRW_TRAK
+     _TblList          = "RT8.KALKYL"
+     _FldNameList[1]   > RT8.KALKYL.BEFATTNING
+"KALKYL.BEFATTNING" "KATEGORI!" ? "character" ? ? ? ? ? ? no ?
+     _FldNameList[2]   > RT8.KALKYL.TIMMAR
+"KALKYL.TIMMAR" "ANTAL    !" "->>>>>>9" "integer" ? ? ? ? ? ? no ?
+     _FldNameList[3]   > RT8.KALKYL.PRIS
+"KALKYL.PRIS" "PRIS      !" "->>>>>>>9" "decimal" ? ? ? ? ? ? no ?
+     _FldNameList[4]   > RT8.KALKYL.OMRADE
+"KALKYL.OMRADE" "OMRÅDE!" ? "character" ? ? ? ? ? ? no ?
+     _FldNameList[5]   > RT8.KALKYL.OT75
+"KALKYL.OT75" "SUMMA    !KOSTNADER" "->>>>>>>9" "integer" ? ? ? ? ? ? no ?
+     _Query            is NOT OPENED
+*/  /* BROWSE BRW_TRAK */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK DIALOG-BOX DIALOG-1
+/* Query rebuild information for DIALOG-BOX DIALOG-1
+     _Options          = "NO-LOCK KEEP-EMPTY"
+     _Query            is NOT OPENED
+*/  /* DIALOG-BOX DIALOG-1 */
+&ANALYZE-RESUME
+
+ 
+
+
+
+
+/* ************************  Control Triggers  ************************ */
+
+&Scoped-define SELF-NAME DIALOG-1
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL DIALOG-1 DIALOG-1
+ON END-ERROR OF FRAME DIALOG-1 /* Kalkylera */
+DO:
+   RUN slut_UI.
+   {muswait.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL DIALOG-1 DIALOG-1
+ON ENDKEY OF FRAME DIALOG-1 /* Kalkylera */
+DO:
+   RUN slut_UI.
+   {muswait.i}
+   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_MASK
+&Scoped-define SELF-NAME BRW_MASK
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_MASK DIALOG-1
+ON VALUE-CHANGED OF BRW_MASK IN FRAME DIALOG-1
+DO:
+   status-ok = BRW_MASK:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME}.
+   APPLY "VALUE-CHANGED" TO BRW_MASK.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_MATRL
+&Scoped-define SELF-NAME BRW_MATRL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_MATRL DIALOG-1
+ON VALUE-CHANGED OF BRW_MATRL IN FRAME DIALOG-1
+DO:
+   status-ok = BRW_MATRL:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME}.
+   APPLY "VALUE-CHANGED" TO BRW_MATRL.
+
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_MIL
+&Scoped-define SELF-NAME BRW_MIL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_MIL DIALOG-1
+ON VALUE-CHANGED OF BRW_MIL IN FRAME DIALOG-1
+DO:
+   status-ok = BRW_MIL:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME}.
+   APPLY "VALUE-CHANGED" TO BRW_MIL.
+
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_OVER
+&Scoped-define SELF-NAME BRW_OVER
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_OVER DIALOG-1
+ON VALUE-CHANGED OF BRW_OVER IN FRAME DIALOG-1
+DO:
+   status-ok = BRW_OVER:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME}.
+   APPLY "VALUE-CHANGED" TO BRW_OVER.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_PERS
+&Scoped-define SELF-NAME BRW_PERS
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_PERS DIALOG-1
+ON VALUE-CHANGED OF BRW_PERS IN FRAME DIALOG-1
+DO:
+   status-ok = BRW_PERS:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME}.
+   APPLY "VALUE-CHANGED" TO BRW_PERS.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_TRAK
+&Scoped-define SELF-NAME BRW_TRAK
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_TRAK DIALOG-1
+ON VALUE-CHANGED OF BRW_TRAK IN FRAME DIALOG-1
+DO:
+   status-ok = BRW_TRAK:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME}.
+   APPLY "VALUE-CHANGED" TO BRW_TRAK.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_BORT
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_BORT DIALOG-1
+ON CHOOSE OF BTN_BORT IN FRAME DIALOG-1 /* Ta Bort */
+DO:
+   RUN bort_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_NY
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_NY DIALOG-1
+ON CHOOSE OF BTN_NY IN FRAME DIALOG-1 /* Ny */
+DO:
+   RUN ny_UI.  
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_OK
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_OK DIALOG-1
+ON CHOOSE OF BTN_OK IN FRAME DIALOG-1 /* Klar */
+DO:
+   /*RUN slut_UI.   */
+   APPLY "GO" TO BTN_OK IN FRAME {&FRAME-NAME}.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_OK DIALOG-1
+ON GO OF BTN_OK IN FRAME DIALOG-1 /* Klar */
+DO:                      
+   {muswait.i}
+   RETURN.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_UPP
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_UPP DIALOG-1
+ON CHOOSE OF BTN_UPP IN FRAME DIALOG-1 /* Ändra */
+DO:   
+   RUN andra_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME RAD_VAL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL RAD_VAL DIALOG-1
+ON VALUE-CHANGED OF RAD_VAL IN FRAME DIALOG-1
+DO:
+   RAD_VAL = INPUT RAD_VAL.
+   IF RAD_VAL = 1 THEN DO:
+      ASSIGN
+      BRW_MASK:HIDDEN IN FRAME {&FRAME-NAME} = TRUE   
+      BRW_MATRL:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_MIL:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_OVER:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_PERS:HIDDEN IN FRAME {&FRAME-NAME} = FALSE
+      BRW_TRAK:HIDDEN IN FRAME {&FRAME-NAME} = TRUE.
+   END.
+   ELSE IF RAD_VAL = 2 THEN DO:
+      ASSIGN
+      BRW_MASK:HIDDEN IN FRAME {&FRAME-NAME} = FALSE   
+      BRW_MATRL:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_MIL:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_OVER:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_PERS:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_TRAK:HIDDEN IN FRAME {&FRAME-NAME} = TRUE.
+   END.
+   ELSE IF RAD_VAL = 3 THEN DO:
+      ASSIGN
+      BRW_MASK:HIDDEN IN FRAME {&FRAME-NAME} = TRUE   
+      BRW_MATRL:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_MIL:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_OVER:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_PERS:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_TRAK:HIDDEN IN FRAME {&FRAME-NAME} = FALSE.
+   END.
+   ELSE IF RAD_VAL = 4 THEN DO:
+      ASSIGN
+      BRW_MASK:HIDDEN IN FRAME {&FRAME-NAME} = TRUE   
+      BRW_MATRL:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_MIL:HIDDEN IN FRAME {&FRAME-NAME} = FALSE
+      BRW_OVER:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_PERS:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_TRAK:HIDDEN IN FRAME {&FRAME-NAME} = TRUE.
+   END.
+   ELSE IF RAD_VAL = 5 THEN DO:
+      ASSIGN
+      BRW_MASK:HIDDEN IN FRAME {&FRAME-NAME} = TRUE   
+      BRW_MATRL:HIDDEN IN FRAME {&FRAME-NAME} = FALSE
+      BRW_MIL:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_OVER:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_PERS:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_TRAK:HIDDEN IN FRAME {&FRAME-NAME} = TRUE.
+   END.
+   ELSE IF RAD_VAL = 6 THEN DO:
+      ASSIGN
+      BRW_MASK:HIDDEN IN FRAME {&FRAME-NAME} = TRUE   
+      BRW_MATRL:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_MIL:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_OVER:HIDDEN IN FRAME {&FRAME-NAME} = FALSE
+      BRW_PERS:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+      BRW_TRAK:HIDDEN IN FRAME {&FRAME-NAME} = TRUE.
+   END.
+   
+   DISPLAY RAD_VAL WITH FRAME {&FRAME-NAME}.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_MASK
+&UNDEFINE SELF-NAME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CUSTOM _MAIN-BLOCK DIALOG-1 
+
+
+/* ***************************  Main Block  *************************** */
+
+/* Parent the dialog-box to the ACTIVE-WINDOW, if there is no parent.   */
+IF VALID-HANDLE(ACTIVE-WINDOW) AND FRAME {&FRAME-NAME}:PARENT eq ?
+THEN FRAME {&FRAME-NAME}:PARENT = ACTIVE-WINDOW.
+
+/* Add Trigger to equate WINDOW-CLOSE to END-ERROR                      */
+ON WINDOW-CLOSE OF FRAME {&FRAME-NAME} APPLY "END-ERROR":U TO SELF.
+
+/* Now enable the interface and wait for the exit condition.            */
+/* (NOTE: handle ERROR and END-KEY so cleanup code will always fire.    */
+MAIN-BLOCK:
+DO ON ERROR   UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK
+   ON END-KEY UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK:   
+   RAD_VAL = 1.      
+   FIND KALKSPEC WHERE RECID(KALKSPEC) = kalkrec NO-LOCK NO-ERROR.   
+   RUN grundkalk_UI.
+   RUN enable_UI.
+   {musarrow.i}
+   WAIT-FOR GO OF FRAME {&FRAME-NAME}.
+END.
+RUN disable_UI.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+/* **********************  Internal Procedures  *********************** */
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE andra_UI DIALOG-1 
+PROCEDURE andra_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   IF NOT AVAILABLE KALKYL THEN DO:
+      MESSAGE "VÄLJ NÅGON POST!" VIEW-AS ALERT-BOX.
+      RETURN.
+   END.
+   ASSIGN
+   frikalkrec = RECID(KALKYL)
+   frikalkrec2 = RECID(KALKYL).
+   RUN summa2_UI.
+   FILL-IN-SUMMA = FILL-IN-SUMMA - (KALKYL.TIMMAR * KALKYL.PRIS + KALKYL.OT50 * KALKYL.OT100).
+   RUN FRIKNY.W.
+   musz = FALSE.
+   FIND KALKYL WHERE RECID(KALKYL) = frikalkrec NO-LOCK.            
+   RUN summa_UI.
+   FILL-IN-SUMMA = FILL-IN-SUMMA + KALKYL.TIMMAR * KALKYL.PRIS + KALKYL.OT50 * KALKYL.OT100.
+   frikalkrec2 = frikalkrec.            
+   RUN open_UI.
+   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE bort_UI DIALOG-1 
+PROCEDURE bort_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   IF NOT AVAILABLE KALKYL THEN DO:
+      MESSAGE "VÄLJ NÅGON POST!" VIEW-AS ALERT-BOX.
+      RETURN.
+   END.
+   ASSIGN
+   frikalkrec = RECID(KALKYL)
+   frikalkrec2 = RECID(KALKYL).       
+   MESSAGE "VILL DU VERKLIGEN TA BORT DENNA KALKYLRAD "
+   KALKYL.BEFATTNING
+   VIEW-AS ALERT-BOX QUESTION BUTTONS YES-NO TITLE "BORTAGNING AV KALKYLRADER"
+   UPDATE answer AS LOGICAL.
+   {muswait.i}
+   IF answer THEN DO: 
+      IF RAD_VAL = 1 THEN     
+      status-ok = BRW_PERS:SELECT-NEXT-ROW() IN FRAME {&FRAME-NAME}.  
+      ELSE IF RAD_VAL = 2 THEN     
+      status-ok = BRW_MASK:SELECT-NEXT-ROW() IN FRAME {&FRAME-NAME}.
+      ELSE IF RAD_VAL = 3 THEN     
+      status-ok = BRW_TRAK:SELECT-NEXT-ROW() IN FRAME {&FRAME-NAME}.
+      ELSE IF RAD_VAL = 4 THEN     
+      status-ok = BRW_MIL:SELECT-NEXT-ROW() IN FRAME {&FRAME-NAME}.
+      ELSE IF RAD_VAL = 5 THEN     
+      status-ok = BRW_MATRL:SELECT-NEXT-ROW() IN FRAME {&FRAME-NAME}.
+      ELSE IF RAD_VAL = 6 THEN     
+      status-ok = BRW_OVER:SELECT-NEXT-ROW() IN FRAME {&FRAME-NAME}.
+      
+      IF status-ok = TRUE THEN frikalkrec2 = RECID(KALKYL).
+      ELSE DO:          
+         IF RAD_VAL = 1 THEN     
+         status-ok = BRW_PERS:SELECT-PREV-ROW() IN FRAME {&FRAME-NAME}.  
+         ELSE IF RAD_VAL = 2 THEN     
+         status-ok = BRW_MASK:SELECT-PREV-ROW() IN FRAME {&FRAME-NAME}.
+         ELSE IF RAD_VAL = 3 THEN     
+         status-ok = BRW_TRAK:SELECT-PREV-ROW() IN FRAME {&FRAME-NAME}.
+         ELSE IF RAD_VAL = 4 THEN     
+         status-ok = BRW_MIL:SELECT-PREV-ROW() IN FRAME {&FRAME-NAME}.
+         ELSE IF RAD_VAL = 5 THEN     
+         status-ok = BRW_MATRL:SELECT-PREV-ROW() IN FRAME {&FRAME-NAME}.
+         ELSE IF RAD_VAL = 6 THEN     
+         status-ok = BRW_OVER:SELECT-PREV-ROW() IN FRAME {&FRAME-NAME}.
+         IF status-ok = TRUE THEN frikalkrec2 = RECID(KALKYL).          
+         ELSE frikalkrec2 = frikalkrec.
+      END.
+      DO TRANSACTION:
+         FIND KALKYL WHERE RECID(KALKYL) = frikalkrec EXCLUSIVE-LOCK NO-ERROR.
+         RUN summa2_UI.
+         FILL-IN-SUMMA = FILL-IN-SUMMA - (KALKYL.TIMMAR * KALKYL.PRIS + KALKYL.OT50 * KALKYL.OT100).
+         DELETE KALKYL.  
+      END.
+      RUN open_UI.
+   END.   
+   musz = FALSE. 
+   {musarrow.i}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE disable_UI DIALOG-1 _DEFAULT-DISABLE
+PROCEDURE disable_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     DISABLE the User Interface
+  Parameters:  <none>
+  Notes:       Here we clean-up the user-interface by deleting
+               dynamic widgets we have created and/or hide 
+               frames.  This procedure is usually called when
+               we are ready to "clean-up" after running.
+------------------------------------------------------------------------------*/
+  /* Hide all frames. */
+  HIDE FRAME DIALOG-1.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE enable_UI DIALOG-1 _DEFAULT-ENABLE
+PROCEDURE enable_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     ENABLE the User Interface
+  Parameters:  <none>
+  Notes:       Here we display/view/enable the widgets in the
+               user-interface.  In addition, OPEN all queries
+               associated with each FRAME and BROWSE.
+               These statements here are based on the "Other 
+               Settings" section of the widget Property Sheets.
+------------------------------------------------------------------------------*/
+  DISPLAY RAD_VAL FILL-IN-PERSTID FILL-IN-MASKTID FILL-IN-MILANTAL FILL-IN-PKOST 
+          FILL-IN-MASKKOST FILL-IN-TRAKTKOST FILL-IN-MILTKOST FILL-IN-MATRLKOST 
+          FILL-IN-OVERKOST FILL-IN-SUMMA 
+      WITH FRAME DIALOG-1.
+  ENABLE RECT-22 RECT-21 RAD_VAL RECT-23 BTN_NY BTN_UPP BTN_BORT BTN_OK RECT-25 
+      WITH FRAME DIALOG-1.
+  {&OPEN-BROWSERS-IN-QUERY-DIALOG-1}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE grundkalk_UI DIALOG-1 
+PROCEDURE grundkalk_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   musz = TRUE.
+   FIND FIRST KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+   KALKYL.TYP = "MASK" AND KALKYL.PERSMASK = FALSE
+   USE-INDEX RADNR NO-LOCK NO-ERROR.   
+   IF AVAILABLE KALKYL THEN musz = FALSE. 
+   FIND FIRST KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+   KALKYL.TYP = "MATRL" 
+   USE-INDEX RADNR NO-LOCK NO-ERROR.   
+   IF AVAILABLE KALKYL THEN musz = FALSE.
+   FIND FIRST KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+   KALKYL.TYP = "MIL" 
+   USE-INDEX RADNR NO-LOCK NO-ERROR.   
+   IF AVAILABLE KALKYL THEN musz = FALSE.    
+   FIND FIRST KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+   KALKYL.TYP = "OVER" 
+   USE-INDEX RADNR NO-LOCK NO-ERROR.   
+   IF AVAILABLE KALKYL THEN musz = FALSE.
+   FIND FIRST KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+   KALKYL.TYP = "PERS" AND KALKYL.PERSMASK = TRUE
+   USE-INDEX RADNR NO-LOCK NO-ERROR.   
+   IF AVAILABLE KALKYL THEN musz = FALSE.   
+   FIND FIRST KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+   KALKYL.TYP = "TRAKT" 
+   USE-INDEX RADNR NO-LOCK NO-ERROR.   
+   IF AVAILABLE KALKYL THEN musz = FALSE.
+   IF musz = TRUE THEN DO:
+      musz = FALSE.
+      OPEN QUERY kalkkatq FOR EACH KALKKATEGORI USE-INDEX TYP NO-LOCK.      
+      GET FIRST kalkkatq NO-LOCK.
+      DO WHILE AVAILABLE(KALKKATEGORI):
+         DO TRANSACTION:
+            CREATE KALKYL.
+            ASSIGN
+            KALKYL.RECKALKYL = RECID(KALKSPEC)    
+            KALKYL.BEFATTNING = KALKKATEGORI.NAMN 
+            KALKYL.OMRADE = KALKKATEGORI.OMRADE 
+            KALKYL.PRIS = KALKKATEGORI.PRIS
+            KALKYL.OT100 = KALKKATEGORI.OPRIS 
+            KALKYL.RADNR = KALKKATEGORI.RADNR  
+            KALKYL.TYP = KALKKATEGORI.TYP
+            KALKYL.OMRADE = KALKSPEC.OMRADE.
+            IF KALKYL.TYP = "MATRL" OR KALKYL.TYP = "OVER" 
+            THEN KALKYL.TIMMAR = 1.
+            IF KALKYL.TYP = "MASK" THEN KALKYL.PERSMASK = FALSE.
+            IF KALKYL.TYP = "PERS" THEN KALKYL.PERSMASK = TRUE.
+            FIND FIRST raknanretemp WHERE raknanretemp.TYP = KALKYL.TYP AND
+            raknanretemp.BEFATTNING = KALKYL.BEFATTNING EXCLUSIVE-LOCK NO-ERROR.
+            IF NOT AVAILABLE raknanretemp THEN CREATE raknanretemp.
+            ASSIGN 
+            raknanretemp.TYP = KALKYL.TYP 
+            raknanretemp.BEFATTNING = KALKYL.BEFATTNING.
+            IF raknanretemp.RADNR < KALKYL.RADNR THEN raknanretemp.RADNR = KALKYL.RADNR.            
+            FILL-IN-SUMMA = FILL-IN-SUMMA + KALKYL.TIMMAR * KALKYL.PRIS + KALKYL.OT50 * KALKYL.OT100.              
+            RUN summa_UI.
+         END.
+         GET NEXT kalkkatq NO-LOCK.
+      END.      
+   END.
+   ELSE DO:
+      OPEN QUERY kalkq FOR EACH KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) 
+      USE-INDEX RADNR NO-LOCK.
+      GET FIRST kalkq NO-LOCK.
+      DO WHILE AVAILABLE(KALKYL): 
+         FIND FIRST raknanretemp WHERE raknanretemp.TYP = KALKYL.TYP AND
+         raknanretemp.BEFATTNING = KALKYL.BEFATTNING EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE raknanretemp THEN CREATE raknanretemp.
+         ASSIGN 
+         raknanretemp.TYP = KALKYL.TYP 
+         raknanretemp.BEFATTNING = KALKYL.BEFATTNING.
+         IF raknanretemp.RADNR < KALKYL.RADNR THEN raknanretemp.RADNR = KALKYL.RADNR.
+         FILL-IN-SUMMA = FILL-IN-SUMMA + KALKYL.TIMMAR * KALKYL.PRIS + KALKYL.OT50 * KALKYL.OT100.
+         RUN summa_UI.
+         GET NEXT kalkq NO-LOCK.
+      END.   
+      CLOSE QUERY kalkq.
+   END.
+   OPEN QUERY BRW_MASK FOR EACH KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+   KALKYL.TYP = "MASK" AND KALKYL.PERSMASK = FALSE
+   USE-INDEX RADNR NO-LOCK.      
+   OPEN QUERY BRW_MATRL FOR EACH KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+   KALKYL.TYP = "MATRL" 
+   USE-INDEX RADNR NO-LOCK.
+   OPEN QUERY BRW_MIL FOR EACH KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+   KALKYL.TYP = "MIL" 
+   USE-INDEX RADNR NO-LOCK.
+   OPEN QUERY BRW_OVER FOR EACH KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+   KALKYL.TYP = "OVER" 
+   USE-INDEX RADNR NO-LOCK.
+   OPEN QUERY BRW_PERS FOR EACH KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+   KALKYL.TYP = "PERS" AND KALKYL.PERSMASK = TRUE
+   USE-INDEX RADNR NO-LOCK.
+   OPEN QUERY BRW_TRAK FOR EACH KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+   KALKYL.TYP = "TRAKT" 
+   USE-INDEX RADNR NO-LOCK.
+   ENABLE BRW_MASK BRW_MATRL BRW_MIL BRW_OVER BRW_PERS BRW_TRAK WITH FRAME {&FRAME-NAME}.
+   ASSIGN
+   BRW_MASK:HIDDEN IN FRAME {&FRAME-NAME} = TRUE   
+   BRW_MATRL:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+   BRW_MIL:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+   BRW_OVER:HIDDEN IN FRAME {&FRAME-NAME} = TRUE
+   BRW_PERS:HIDDEN IN FRAME {&FRAME-NAME} = FALSE
+   BRW_TRAK:HIDDEN IN FRAME {&FRAME-NAME} = TRUE. 
+   RELEASE KALKYL.                         
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE ny_UI DIALOG-1 
+PROCEDURE ny_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   IF AVAILABLE KALKYL THEN DO TRANSACTION:      
+      ASSIGN
+      frikalkrec = RECID(KALKYL)
+      frikalkrec2 = RECID(KALKYL).                
+      CREATE kalkbuff.      
+      ASSIGN 
+      kalkbuff.RECKALKYL = RECID(KALKSPEC)    
+      kalkbuff.BEFATTNING = KALKYL.BEFATTNING 
+      kalkbuff.OMRADE = KALKYL.OMRADE 
+      kalkbuff.PRIS = KALKYL.PRIS         
+      kalkbuff.TYP = KALKYL.TYP
+      kalkbuff.OMRADE = KALKYL.OMRADE.
+      IF kalkbuff.TYP = "MATRL" OR kalkbuff.TYP = "OVER" 
+      THEN kalkbuff.TIMMAR = 1.
+      IF kalkbuff.TYP = "MASK" THEN kalkbuff.PERSMASK = FALSE.
+      IF kalkbuff.TYP = "PERS" THEN kalkbuff.PERSMASK = TRUE.
+      frikalkrec = RECID(kalkbuff).      
+   END.
+   ELSE DO:   
+      IF RAD_VAL = 1 THEN DO:
+         FIND FIRST KALKKATEGORI WHERE KALKKATEGORI.TYP = "PERS" 
+         USE-INDEX TYP NO-LOCK NO-ERROR.      
+      END.
+      ELSE IF RAD_VAL = 2 THEN DO:
+         FIND FIRST KALKKATEGORI WHERE KALKKATEGORI.TYP = "MASK" 
+         USE-INDEX TYP NO-LOCK NO-ERROR.         
+      END.
+      ELSE IF RAD_VAL = 3 THEN DO:
+         FIND FIRST KALKKATEGORI WHERE KALKKATEGORI.TYP = "TRAKT" 
+         USE-INDEX TYP NO-LOCK NO-ERROR.
+      END.
+      ELSE IF RAD_VAL = 4 THEN DO:
+         FIND FIRST KALKKATEGORI WHERE KALKKATEGORI.TYP = "MIL" 
+         USE-INDEX TYP NO-LOCK NO-ERROR.      
+      END.
+      ELSE IF RAD_VAL = 5 THEN DO:
+         FIND FIRST KALKKATEGORI WHERE KALKKATEGORI.TYP = "MATRL" 
+         USE-INDEX TYP NO-LOCK NO-ERROR.
+      END.
+      ELSE IF RAD_VAL = 6 THEN DO:
+         FIND FIRST KALKKATEGORI WHERE KALKKATEGORI.TYP = "OVER" 
+         USE-INDEX TYP NO-LOCK NO-ERROR.
+      END.      
+      DO TRANSACTION:
+         CREATE KALKYL.
+         ASSIGN
+         KALKYL.RECKALKYL = RECID(KALKSPEC)    
+         KALKYL.BEFATTNING = KALKKATEGORI.NAMN 
+         KALKYL.OMRADE = KALKKATEGORI.OMRADE 
+         KALKYL.PRIS = KALKKATEGORI.PRIS
+         KALKYL.OT100 = KALKKATEGORI.OPRIS 
+         KALKYL.RADNR = KALKKATEGORI.RADNR  
+         KALKYL.TYP = KALKKATEGORI.TYP
+         KALKYL.OMRADE = KALKSPEC.OMRADE.
+         frikalkrec = RECID(KALKYL).
+         IF KALKYL.TYP = "MATRL" OR KALKYL.TYP = "OVER" 
+         THEN KALKYL.TIMMAR = 1.
+         IF KALKYL.TYP = "MASK" THEN KALKYL.PERSMASK = FALSE.
+         IF KALKYL.TYP = "PERS" THEN KALKYL.PERSMASK = TRUE.
+         FIND FIRST raknanretemp WHERE raknanretemp.TYP = KALKYL.TYP AND
+         raknanretemp.BEFATTNING = KALKYL.BEFATTNING EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE raknanretemp THEN CREATE raknanretemp.
+         ASSIGN 
+         raknanretemp.TYP = KALKYL.TYP 
+         raknanretemp.BEFATTNING = KALKYL.BEFATTNING.
+         IF raknanretemp.RADNR < KALKYL.RADNR THEN raknanretemp.RADNR = KALKYL.RADNR.            
+         FILL-IN-SUMMA = FILL-IN-SUMMA + KALKYL.TIMMAR * KALKYL.PRIS + KALKYL.OT50 * KALKYL.OT100.              
+         RUN summa_UI.
+      END.
+   END.
+   RUN FRIKNY.W. 
+   IF musz = TRUE THEN DO TRANSACTION:
+      musz = FALSE.
+      FIND KALKYL WHERE RECID(KALKYL) = frikalkrec EXCLUSIVE-LOCK.
+      DELETE KALKYL.
+      RUN open_UI.
+   END.
+   ELSE DO:
+      DO TRANSACTION:
+         FIND KALKYL WHERE RECID(KALKYL) = frikalkrec EXCLUSIVE-LOCK.
+         FIND FIRST raknanretemp WHERE raknanretemp.TYP = KALKYL.TYP AND
+         raknanretemp.BEFATTNING = KALKYL.BEFATTNING EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE raknanretemp THEN do:
+            FIND LAST raknanretemp WHERE raknanretemp.TYP = KALKYL.TYP 
+            NO-LOCK NO-ERROR.
+            IF AVAILABLE raknanretemp THEN raknanrvar = TRUNCATE((raknanretemp.RADNR / 100),0) * 100 + 100 .
+            ELSE raknanrvar = 100.
+            CREATE raknanretemp.
+            ASSIGN 
+            raknanretemp.TYP = KALKYL.TYP 
+            raknanretemp.BEFATTNING = KALKYL.BEFATTNING.
+            raknanretemp.RADNR = raknanrvar.
+            KALKYL.RADNR = raknanrvar.
+         END.
+         ELSE DO:
+            KALKYL.RADNR = raknanretemp.RADNR + 1.
+            raknanretemp.RADNR = KALKYL.RADNR.
+         END.                           
+         RUN summa_UI.
+         FILL-IN-SUMMA = FILL-IN-SUMMA + KALKYL.TIMMAR * KALKYL.PRIS + KALKYL.OT50 * KALKYL.OT100.                  
+      END.   
+      frikalkrec2 = frikalkrec.
+      RUN open_UI.
+   END.    
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE open_UI DIALOG-1 
+PROCEDURE open_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   IF RAD_VAL = 2 THEN DO:    
+      OPEN QUERY BRW_MASK FOR EACH KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+      KALKYL.TYP = "MASK" AND KALKYL.PERSMASK = FALSE
+      USE-INDEX RADNR NO-LOCK.
+      GET FIRST BRW_MASK NO-LOCK.
+      IF AVAILABLE KALKYL THEN DO:               
+         REPOSITION BRW_MASK TO RECID frikalkrec2.
+         status-ok = BRW_MASK:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME}.
+      END.
+   END.      
+   ELSE IF RAD_VAL = 5 THEN DO:    
+      OPEN QUERY BRW_MATRL FOR EACH KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+      KALKYL.TYP = "MATRL" 
+      USE-INDEX RADNR NO-LOCK.
+      GET FIRST BRW_MATRL NO-LOCK.
+      IF AVAILABLE KALKYL THEN DO:
+         REPOSITION BRW_MATRL TO RECID frikalkrec2.
+         status-ok = BRW_MATRL:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME}.
+      END.
+   END.
+   ELSE IF RAD_VAL = 4 THEN DO:    
+      OPEN QUERY BRW_MIL FOR EACH KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+      KALKYL.TYP = "MIL" 
+      USE-INDEX RADNR NO-LOCK.
+      GET FIRST BRW_MIL NO-LOCK.
+      IF AVAILABLE KALKYL THEN DO:
+         REPOSITION BRW_MIL TO RECID frikalkrec2.
+         status-ok = BRW_MIL:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME}.
+      END.
+   END.
+   ELSE IF RAD_VAL = 6 THEN DO:    
+      OPEN QUERY BRW_OVER FOR EACH KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+      KALKYL.TYP = "OVER" 
+      USE-INDEX RADNR NO-LOCK.
+      GET FIRST BRW_OVER NO-LOCK.
+      IF AVAILABLE KALKYL THEN DO:
+         REPOSITION BRW_OVER TO RECID frikalkrec2.
+         status-ok = BRW_OVER:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME}.
+      END.
+   END.
+   ELSE IF RAD_VAL = 1 THEN DO:   
+      OPEN QUERY BRW_PERS FOR EACH KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+      KALKYL.TYP = "PERS" AND KALKYL.PERSMASK = TRUE
+      USE-INDEX RADNR NO-LOCK.
+      GET FIRST BRW_PERS NO-LOCK.
+      IF AVAILABLE KALKYL THEN DO:
+         IF frikalkrec2 NE ? THEN DO:
+            REPOSITION BRW_PERS TO RECID frikalkrec2.
+            status-ok = BRW_PERS:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME}.
+         END.
+      END.
+   END.
+   ELSE IF RAD_VAL = 3 THEN DO:   
+      OPEN QUERY BRW_TRAK FOR EACH KALKYL WHERE KALKYL.RECKALKYL = RECID(KALKSPEC) AND
+      KALKYL.TYP = "TRAKT" 
+      USE-INDEX RADNR NO-LOCK.
+      GET FIRST BRW_TRAK NO-LOCK.
+      IF AVAILABLE KALKYL THEN DO:
+         REPOSITION BRW_TRAK TO RECID frikalkrec2.
+         status-ok = BRW_TRAK:SELECT-FOCUSED-ROW() IN FRAME {&FRAME-NAME}.
+      END.
+   END.
+   DISPLAY FILL-IN-SUMMA WITH FRAME {&FRAME-NAME}.   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE summa2_UI DIALOG-1 
+PROCEDURE summa2_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/   
+   IF KALKYL.TYP = "MASK" THEN DO:    
+      ASSIGN 
+      FILL-IN-MASKKOST = FILL-IN-MASKKOST - KALKYL.OT75.
+      FILL-IN-MASKTID = FILL-IN-MASKTID - (KALKYL.TIMMAR + KALKYL.OT50).
+   END.      
+   ELSE IF KALKYL.TYP = "MATRL" THEN DO:    
+      FILL-IN-MATRLKOST = FILL-IN-MATRLKOST - KALKYL.OT75.
+   END.
+   ELSE IF KALKYL.TYP = "MIL" THEN DO:    
+      ASSIGN
+      FILL-IN-MILANTAL = FILL-IN-MILANTAL - KALKYL.TIMMAR
+      FILL-IN-MILTKOST = FILL-IN-MILTKOST - KALKYL.OT75.
+   END.
+   ELSE IF KALKYL.TYP = "OVER" THEN DO:    
+      FILL-IN-OVERKOST = FILL-IN-OVERKOST - KALKYL.OT75.
+   END.
+   ELSE IF KALKYL.TYP = "PERS" THEN DO:   
+      FILL-IN-PKOST = FILL-IN-PKOST - KALKYL.OT75.      
+      FILL-IN-PERSTID = FILL-IN-PERSTID - (KALKYL.TIMMAR + KALKYL.OT50).
+   END.
+   ELSE IF KALKYL.TYP = "TRAKT" THEN DO:   
+      FILL-IN-TRAKTKOST = FILL-IN-TRAKTKOST - KALKYL.OT75.
+   END. 
+   DISPLAY FILL-IN-MASKKOST FILL-IN-MASKTID FILL-IN-MATRLKOST FILL-IN-MILTKOST
+           FILL-IN-MILANTAL  
+           FILL-IN-OVERKOST FILL-IN-PERSTID FILL-IN-PKOST FILL-IN-TRAKTKOST 
+           WITH FRAME {&FRAME-NAME}. 
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE summa_UI DIALOG-1 
+PROCEDURE summa_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/   
+   IF KALKYL.TYP = "MASK" THEN DO:    
+      ASSIGN 
+      FILL-IN-MASKKOST = FILL-IN-MASKKOST + KALKYL.OT75.
+      FILL-IN-MASKTID = FILL-IN-MASKTID + KALKYL.TIMMAR + KALKYL.OT50.
+   END.      
+   ELSE IF KALKYL.TYP = "MATRL" THEN DO:    
+      FILL-IN-MATRLKOST = FILL-IN-MATRLKOST + KALKYL.OT75.
+   END.
+   ELSE IF KALKYL.TYP = "MIL" THEN DO:    
+      ASSIGN
+      FILL-IN-MILANTAL = FILL-IN-MILANTAL + KALKYL.TIMMAR
+      FILL-IN-MILTKOST = FILL-IN-MILTKOST + KALKYL.OT75.
+   END.
+   ELSE IF KALKYL.TYP = "OVER" THEN DO:    
+      FILL-IN-OVERKOST = FILL-IN-OVERKOST + KALKYL.OT75.
+   END.
+   ELSE IF KALKYL.TYP = "PERS" THEN DO:   
+      FILL-IN-PKOST = FILL-IN-PKOST + KALKYL.OT75.      
+      FILL-IN-PERSTID = FILL-IN-PERSTID + KALKYL.TIMMAR + KALKYL.OT50.
+   END.
+   ELSE IF KALKYL.TYP = "TRAKT" THEN DO:   
+      FILL-IN-TRAKTKOST = FILL-IN-TRAKTKOST + KALKYL.OT75.
+   END. 
+   DISPLAY FILL-IN-MASKKOST FILL-IN-MASKTID FILL-IN-MATRLKOST FILL-IN-MILTKOST 
+          FILL-IN-OVERKOST FILL-IN-PERSTID FILL-IN-PKOST FILL-IN-TRAKTKOST 
+          WITH FRAME {&FRAME-NAME}. 
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+

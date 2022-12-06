@@ -1,0 +1,23 @@
+
+/*------------------------------------------------------------------------
+    File        : ARBKALKtth.I
+    
+  ----------------------------------------------------------------------*/
+
+   DEFINE PUBLIC VARIABLE ArbKalkhuvTTh     AS HANDLE   NO-UNDO.
+   DEFINE PUBLIC VARIABLE ArbRubrikTTh      AS HANDLE   NO-UNDO.
+   DEFINE PUBLIC VARIABLE ArbKalkKoderTidTTh   AS HANDLE  NO-UNDO.
+   DEFINE PUBLIC VARIABLE ArbKalkKoderKostTTh   AS HANDLE  NO-UNDO.
+   DEFINE PUBLIC VARIABLE ArbKalkKoderTTh   AS HANDLE  NO-UNDO.
+   
+   DEFINE PUBLIC VARIABLE ArbKalkKoderTTbuffh   AS HANDLE  NO-UNDO.
+   DEFINE PUBLIC VARIABLE ArbKalkKoderTTbuff2h   AS HANDLE  NO-UNDO.
+   DEFINE PUBLIC VARIABLE ArbKalkAnmTTh   AS HANDLE  NO-UNDO.
+   DEFINE PUBLIC VARIABLE ArbEgnaPriserTTh   AS HANDLE  NO-UNDO.
+   DEFINE PUBLIC VARIABLE ArbFaktorerTTh   AS HANDLE  NO-UNDO.
+   DEFINE PUBLIC VARIABLE ArbMtrlTTh   AS HANDLE  NO-UNDO.
+   DEFINE PUBLIC VARIABLE ArbBerMtrlTTh   AS HANDLE  NO-UNDO.
+   DEFINE PUBLIC VARIABLE ArbFrekTTh   AS HANDLE  NO-UNDO.
+   DEFINE PUBLIC VARIABLE ArbKomTTh   AS HANDLE  NO-UNDO.
+   DEFINE PUBLIC VARIABLE ArbKalkTTh   AS HANDLE  NO-UNDO.        
+      

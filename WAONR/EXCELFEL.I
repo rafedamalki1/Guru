@@ -1,0 +1,6 @@
+/*EXCELFEL.I*/
+IF ERROR-STATUS:NUM-MESSAGES > 0 OR felexcel = TRUE THEN DO:
+   felexcel = TRUE.
+  
+   RETURN.
+END.

@@ -1,0 +1,93 @@
+/*EXCMTRLU3.P
+UTLÄSNING AV MTRL KOPPLAT TILL KONSTRUKTIONER TILL EXCEL*/   
+ 
+&Scoped-define SHARED SHARED
+{KONSTRMTRL.I}
+DEFINE VARIABLE felexcel AS LOGICAL NO-UNDO.
+DEFINE VARIABLE chExcelApplication      AS COM-HANDLE.
+DEFINE VARIABLE chWorkbook              AS COM-HANDLE.
+DEFINE VARIABLE chWorksheet             AS COM-HANDLE.
+DEFINE VARIABLE chChart                 AS COM-HANDLE.
+DEFINE VARIABLE chWorksheetRange        AS COM-HANDLE.
+DEFINE VARIABLE iCount                  AS INTEGER.
+DEFINE VARIABLE iIndex                  AS INTEGER.
+DEFINE VARIABLE iMonth                  AS INTEGER.
+DEFINE VARIABLE dAnnualQuota            AS DECIMAL.
+DEFINE VARIABLE dTotalSalesAmount       AS DECIMAL.
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 0.
+DEFINE VARIABLE cColumn                 AS CHARACTER.
+DEFINE VARIABLE cRange                  AS CHARACTER.   
+
+DEFINE SHARED TEMP-TABLE grupp_temp
+   FIELD KONSKOD AS INTEGER
+   FIELD BENAMNING AS CHARACTER
+   FIELD ORDNING AS INTEGER
+   INDEX ORD ORDNING ASCENDING.
+
+DEFINE VARIABLE nysats AS CHARACTER NO-UNDO.
+
+DEFINE TEMP-TABLE e_temp
+   FIELD ENR AS CHARACTER
+   FIELD BENAMNING AS CHARACTER
+   FIELD ENHET AS CHARACTER
+   FIELD PRIS AS DECIMAL
+   INDEX ENR ENR ASCENDING.
+     
+   CREATE "Excel.Application" chExcelApplication.
+   chExcelApplication:Visible = TRUE NO-ERROR.
+   chWorkbook = chExcelApplication:Workbooks:Add() NO-ERROR.
+   chWorkSheet = chExcelApplication:Sheets:Item(1) NO-ERROR.
+   chWorkSheet:Columns("A"):ColumnWidth = 11 NO-ERROR.
+   chWorkSheet:Columns("B"):ColumnWidth = 40 NO-ERROR.
+   chWorkSheet:Columns("C"):ColumnWidth = 6 NO-ERROR.
+   chWorkSheet:Columns("D"):ColumnWidth = 9 NO-ERROR.   
+   chWorkSheet:Range("A1:P1"):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range("A1"):Value = Guru.Konstanter:genk NO-ERROR.
+   chWorkSheet:Range("B1"):Value = "BENÄMNING" NO-ERROR.
+   chWorkSheet:Range("C1"):Value = "ENHET" NO-ERROR.
+   chWorkSheet:Range("D1"):Value = "PRIS" NO-ERROR.
+   chWorkSheet:Range("A:A"):NumberFormat = "@" NO-ERROR.
+   {EXCELFEL.I}
+   nysats = "".
+   FIND FIRST grupp_temp NO-LOCK NO-ERROR.
+   OPEN QUERY mq FOR EACH konsttemp WHERE konsttemp.KONSKOD = grupp_temp.KONSKOD
+   NO-LOCK.
+   GET FIRST mq NO-LOCK.
+   DO WHILE AVAILABLE(konsttemp):
+      OPEN QUERY satsq FOR EACH mtrlbertemp WHERE mtrlbertemp.KTYPKOD = konsttemp.KTYPKOD
+      NO-LOCK.
+      GET FIRST satsq NO-LOCK.
+      DO WHILE AVAILABLE(mtrlbertemp): 
+         FIND FIRST e_temp WHERE e_temp.ENR = mtrlbertemp.ENR NO-LOCK NO-ERROR. 
+         IF NOT AVAILABLE e_temp THEN DO:
+            CREATE e_temp.
+            ASSIGN
+            e_temp.ENR = mtrlbertemp.ENR
+            e_temp.BENAMNING = mtrlbertemp.BENAMNING
+            e_temp.ENHET = mtrlbertemp.ENHET
+            e_temp.PRIS = mtrlbertemp.PRIS.                     
+         END.
+         GET NEXT satsq NO-LOCK.
+      END.     
+      CLOSE QUERY satsq.
+      GET NEXT mq NO-LOCK.
+   END.   
+   CLOSE QUERY mq.
+   iColumn = 2.
+   FOR EACH e_temp USE-INDEX ENR:
+      iColumn = iColumn + 1.
+      cColumn = STRING(iColumn).
+      cRange = "A" + cColumn.
+      chWorkSheet:Range(cRange):Value = e_temp.ENR NO-ERROR.
+      cRange = "B" + cColumn.
+      chWorkSheet:Range(cRange):Value = SUBSTRING(e_temp.BENAMNING,1,40) NO-ERROR.
+      cRange = "C" + cColumn.
+      chWorkSheet:Range(cRange):Value = e_temp.ENHET NO-ERROR.
+      cRange = "D" + cColumn.
+      chWorkSheet:Range(cRange):Value = e_temp.PRIS NO-ERROR.
+      {EXCELFEL.I}
+   END.      
+   RELEASE OBJECT chExcelApplication NO-ERROR.      
+   RELEASE OBJECT chWorkbook NO-ERROR.
+   RELEASE OBJECT chWorksheet NO-ERROR.
+   

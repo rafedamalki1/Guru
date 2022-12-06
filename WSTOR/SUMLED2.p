@@ -1,0 +1,171 @@
+/*SUMLED2.P SUMMERING AV STÖRNING*/
+
+DEFINE VARIABLE bdatum AS DATE NO-UNDO.
+
+{NATUPPLAGG.I}
+DEFINE TEMP-TABLE avd_temp
+   FIELD AVDELNINGNR LIKE STORDISTRIKT.AVDELNINGNR   
+   FIELD NAMN LIKE STORDISTRIKT.NAMN
+   INDEX AVD IS PRIMARY AVDELNINGNR.
+
+DEFINE TEMP-TABLE led_temp
+   FIELD NATUPPLAGGID1 AS INTEGER
+   FIELD NATUPPLAGGID2 AS INTEGER
+   FIELD NATUPPLAGGID3 AS INTEGER
+   FIELD NATUPPLAGGID4 AS INTEGER
+   FIELD SPANID AS INTEGER
+   FIELD LANGD AS DECIMAL.
+
+
+{TIDUTTTNEW.I}
+  
+   
+PROCEDURE distrikt_UI:  
+   DEFINE INPUT PARAMETER bdatum2 AS DATE NO-UNDO.   
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   DEFINE INPUT PARAMETER TABLE FOR natuppl1temp.
+   DEFINE INPUT PARAMETER TABLE FOR natuppl2temp.
+   DEFINE INPUT PARAMETER TABLE FOR natuppl3temp.
+   DEFINE INPUT PARAMETER TABLE FOR natuppl4temp.
+   DEFINE INPUT PARAMETER TABLE FOR natuppkopptemp.
+   bdatum = bdatum2.
+
+   FOR EACH LEDNINGSDATA WHERE LEDNINGSDATA.ARTAL = YEAR(bdatum) NO-LOCK BREAK BY LEDNINGSDATA.NATUPPLAGGID1 BY 
+   LEDNINGSDATA.NATUPPLAGGID2 BY LEDNINGSDATA.NATUPPLAGGID3 BY LEDNINGSDATA.NATUPPLAGGID4 BY LEDNINGSDATA.SPANID :
+      ACCUMULATE LEDNINGSDATA.LANGD (TOTAL BY LEDNINGSDATA.NATUPPLAGGID1 BY 
+      LEDNINGSDATA.NATUPPLAGGID2 BY LEDNINGSDATA.NATUPPLAGGID3 BY LEDNINGSDATA.NATUPPLAGGID4 BY LEDNINGSDATA.SPANID).         
+      IF LAST-OF(LEDNINGSDATA.SPANID) THEN DO:
+         CREATE led_temp.
+         ASSIGN        
+         led_temp.NATUPPLAGGID1 = LEDNINGSDATA.NATUPPLAGGID1
+         led_temp.NATUPPLAGGID2 = LEDNINGSDATA.NATUPPLAGGID2
+         led_temp.NATUPPLAGGID3 = LEDNINGSDATA.NATUPPLAGGID3
+         led_temp.NATUPPLAGGID4 = LEDNINGSDATA.NATUPPLAGGID4
+         led_temp.SPANID = LEDNINGSDATA.SPANID
+         led_temp.LANGD = (ACCUM TOTAL BY LEDNINGSDATA.SPANID LEDNINGSDATA.LANGD).         
+      END.
+   END.   
+   RUN huvud_UI.
+   RUN totalt_UI.
+   RUN subtot_UI.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE huvud_UI :
+   DO TRANSACTION:              
+      CREATE tidut.                     
+      SUBSTRING(tidut.UT,1) = "Summering av ledningsdata".      
+      SUBSTRING(tidut.UT,60) = STRING(TODAY). 
+      CREATE tidut.
+      CREATE tidut.      
+      SUBSTRING(tidut.UT,1) = "Period:" + STRING(YEAR(bdatum)).      
+     
+   END.    
+END PROCEDURE.
+
+
+PROCEDURE totalt_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   CREATE tidut.
+   CREATE tidut.               
+   CREATE tidut.
+   tidut.UT =
+"================.=====================.===========================================.==========================.===========".
+   FOR EACH SPANNINGSNIV USE-INDEX SPANID NO-LOCK:
+      CREATE tidut.               
+      SUBSTRING(tidut.UT,1) = SPANNINGSNIV.NAMN.
+      CREATE tidut.                     
+      FOR EACH led_temp WHERE led_temp.SPANID = SPANNINGSNIV.SPANID:
+         FIND FIRST natuppl1temp WHERE natuppl1temp.NATUPPLAGGID1 = led_temp.NATUPPLAGGID1
+         NO-LOCK NO-ERROR.         
+         SUBSTRING(tidut.UT,1) = natuppl1temp.NAMN.
+         FIND FIRST natuppl2temp WHERE natuppl2temp.NATUPPLAGGID1 = led_temp.NATUPPLAGGID1 AND
+         natuppl2temp.NATUPPLAGGID2 = led_temp.NATUPPLAGGID2 NO-LOCK NO-ERROR.         
+         SUBSTRING(tidut.UT,18) = natuppl2temp.NAMN.
+         IF led_temp.NATUPPLAGGID3 > 0 THEN DO:
+            FIND FIRST natuppl3temp WHERE natuppl3temp.NATUPPLAGGID2 = led_temp.NATUPPLAGGID2 AND
+            natuppl3temp.NATUPPLAGGID3 = led_temp.NATUPPLAGGID3 NO-LOCK NO-ERROR.         
+            SUBSTRING(tidut.UT,40) = natuppl3temp.NAMN.
+         END.         
+         IF led_temp.NATUPPLAGGID4 > 0 THEN DO:
+            FIND FIRST natuppl4temp WHERE natuppl4temp.NATUPPLAGGID3 = led_temp.NATUPPLAGGID3 AND
+            natuppl4temp.NATUPPLAGGID4 = led_temp.NATUPPLAGGID4 NO-LOCK NO-ERROR.         
+            SUBSTRING(tidut.UT,84) = natuppl4temp.NAMN.
+         END.                  
+         SUBSTRING(tidut.UT,111) = STRING(led_temp.LANGD).
+         CREATE tidut.
+      END.
+   END.   
+   /*
+   FOR EACH natuppkopptemp:
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = "XX" + STRING(natuppkopptemp.NATUPPLAGGID1).
+   END.
+   */
+END PROCEDURE.
+
+PROCEDURE subtot_UI :
+   EMPTY TEMP-TABLE led_temp NO-ERROR. 
+   FOR EACH AVDELNING WHERE AVDELNING.KOSTMASK = 1 NO-LOCK.
+      CREATE tidut.                     
+      SUBSTRING(tidut.UT,1) = "Summering av ledningsdata per företag.".      
+      CREATE tidut.
+      SUBSTRING(tidut.UT,1) = AVDELNING.AVDELNINGNAMN.
+      CREATE tidut.   
+      FOR EACH STORDISTRIKT WHERE STORDISTRIKT.AVDELNINGNR = AVDELNING.AVDELNINGNR NO-LOCK:               
+         FOR EACH LEDNINGSDATA WHERE LEDNINGSDATA.ARTAL = YEAR(bdatum) AND LEDNINGSDATA.DISTRIKTID = STORDISTRIKT.DISTRIKTID NO-LOCK BREAK BY LEDNINGSDATA.NATUPPLAGGID1 BY 
+            LEDNINGSDATA.NATUPPLAGGID2 BY LEDNINGSDATA.NATUPPLAGGID3 BY LEDNINGSDATA.NATUPPLAGGID4 BY LEDNINGSDATA.SPANID :
+            ACCUMULATE LEDNINGSDATA.LANGD (TOTAL BY LEDNINGSDATA.NATUPPLAGGID1 BY 
+            LEDNINGSDATA.NATUPPLAGGID2 BY LEDNINGSDATA.NATUPPLAGGID3 BY LEDNINGSDATA.NATUPPLAGGID4 BY LEDNINGSDATA.SPANID).         
+            IF LAST-OF(LEDNINGSDATA.SPANID) THEN DO:                 
+               CREATE led_temp.
+               ASSIGN        
+               led_temp.NATUPPLAGGID1 = LEDNINGSDATA.NATUPPLAGGID1
+               led_temp.NATUPPLAGGID2 = LEDNINGSDATA.NATUPPLAGGID2
+               led_temp.NATUPPLAGGID3 = LEDNINGSDATA.NATUPPLAGGID3
+               led_temp.NATUPPLAGGID4 = LEDNINGSDATA.NATUPPLAGGID4
+               led_temp.SPANID = LEDNINGSDATA.SPANID
+               led_temp.LANGD = (ACCUM TOTAL BY LEDNINGSDATA.SPANID LEDNINGSDATA.LANGD).         
+            END.            
+         END.
+      END.
+      RUN totalt_UI.
+      EMPTY TEMP-TABLE led_temp NO-ERROR.
+   END.    
+  
+   /*
+   EMPTY TEMP-TABLE led_temp NO-ERROR.   
+   FOR EACH AVDELNING WHERE AVDELNING.KOSTMASK = 1 NO-LOCK.
+      
+      FOR EACH STORDISTRIKT WHERE STORDISTRIKT.AVDELNINGNR = AVDELNING.AVDELNINGNR NO-LOCK: 
+         CREATE tidut.                     
+         SUBSTRING(tidut.UT,1) = "Summering av ledningsdata per distrikt.".      
+         CREATE tidut.
+         SUBSTRING(tidut.UT,1) = AVDELNING.AVDELNINGNAMN " " + STORDISTRIKT.NAMN.
+         CREATE tidut.                 
+         FOR EACH LEDNINGSDATA WHERE LEDNINGSDATA.ARTAL = YEAR(bdatum) AND LEDNINGSDATA.DISTRIKTID = STORDISTRIKT.DISTRIKTID NO-LOCK BREAK BY LEDNINGSDATA.NATUPPLAGGID1 BY 
+            LEDNINGSDATA.NATUPPLAGGID2 BY LEDNINGSDATA.NATUPPLAGGID3 BY LEDNINGSDATA.NATUPPLAGGID4 BY LEDNINGSDATA.SPANID :
+            ACCUMULATE LEDNINGSDATA.LANGD (TOTAL BY LEDNINGSDATA.NATUPPLAGGID1 BY 
+            LEDNINGSDATA.NATUPPLAGGID2 BY LEDNINGSDATA.NATUPPLAGGID3 BY LEDNINGSDATA.NATUPPLAGGID4 BY LEDNINGSDATA.SPANID).         
+            IF LAST-OF(LEDNINGSDATA.SPANID) THEN DO:                 
+               CREATE led_temp.
+               ASSIGN        
+               led_temp.NATUPPLAGGID1 = LEDNINGSDATA.NATUPPLAGGID1
+               led_temp.NATUPPLAGGID2 = LEDNINGSDATA.NATUPPLAGGID2
+               led_temp.NATUPPLAGGID3 = LEDNINGSDATA.NATUPPLAGGID3
+               led_temp.NATUPPLAGGID4 = LEDNINGSDATA.NATUPPLAGGID4
+               led_temp.SPANID = LEDNINGSDATA.SPANID
+               led_temp.LANGD = (ACCUM TOTAL BY LEDNINGSDATA.SPANID LEDNINGSDATA.LANGD).         
+            END.            
+         END.
+         RUN totalt_UI.
+         EMPTY TEMP-TABLE led_temp NO-ERROR.   
+      END.
+   END.    
+   
+   */
+END PROCEDURE.

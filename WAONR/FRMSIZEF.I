@@ -1,0 +1,8 @@
+/*FRMSIZEF.I för window och flera framear*/
+ON esc OF {&WINDOW-NAME} ANYWHERE  DO:
+   RETURN NO-APPLY.
+END.  
+RUN DYNFRAMESIZEF.P PERSISTENT SET framesizeh
+   (INPUT {&WINDOW-NAME}:HANDLE, INPUT TABLE frametemp).
+
+

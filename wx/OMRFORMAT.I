@@ -1,0 +1,11 @@
+/*OMRFORMAT.I körs inte!*/
+
+ON ROW-DISPLAY OF {&BROWSE-NAME} IN FRAME {&FRAME-NAME}
+DO:
+   IF globforetag = "cSUND" OR globforetag = "ELPA" THEN DO:
+      {&FORMATNAMN}:FORMAT IN BROWSE {&BROWSE-NAME} = "X(2)" .
+   END.
+   ELSE DO:
+      {&FORMATNAMN}:FORMAT IN BROWSE {&BROWSE-NAME} = "X(6)" .
+   END.
+END.

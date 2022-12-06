@@ -1,0 +1,108 @@
+
+/*------------------------------------------------------------------------
+    File        : MANUALERIN.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Wed Nov 11 20:41:17 CET 2015
+    Notes       :
+  ----------------------------------------------------------------------*/
+   &SCOPED-DEFINE NEW NEW
+   &SCOPED-DEFINE SHARED SHARED
+   {BLOB.I}
+   {MANUALERTEMP.I}
+  
+   DEFINE INPUT  PARAMETER gurubilder AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR imptemp .
+   DEFINE STREAM dirstrom. 
+   DEFINE VARIABLE dirnamn AS CHARACTER  NO-UNDO.
+   DEFINE VARIABLE mvar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE tmpfilnamn AS CHARACTER FORMAT "X(77)" NO-UNDO.
+   DEFINE VARIABLE tmpdirlist AS CHARACTER  NO-UNDO
+   VIEW-AS EDITOR INNER-CHARS 78 INNER-LINES 3. 
+   DEFINE VARIABLE tmpattrlist AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE iord AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE imptemp NO-ERROR.
+   IF Guru.Konstanter:globforetag = "Celpa" OR Guru.Konstanter:globforetag = "SNAT" THEN RUN  SnatLathund_UI.
+   dirnamn = REPLACE(gurubilder,"bilder","manualer").
+    
+   mvar = "*.pdf".
+   ASSIGN
+   tmpfilnamn = ""
+   tmpattrlist = ""
+   tmpdirlist = "".
+   IF dirnamn = "" THEN RETURN.
+   IF dirnamn = ? THEN RETURN.
+   iord = iord + 1.
+  /* IF SEARCH(dirnamn) = "" OR  SEARCH(dirnamn) = ? THEN RETURN.*/
+   INPUT STREAM dirstrom FROM OS-DIR(dirnamn) NO-ECHO.
+  
+   
+   REPEAT:
+      SET STREAM dirstrom tmpfilnamn tmpdirlist tmpattrlist.
+      IF tmpfilnamn MATCHES mvar THEN DO:
+         FIND FIRST imptemp WHERE imptemp.INVAR = tmpfilnamn NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE imptemp THEN DO:
+        /*    iord = iord + 1.*/      
+            IF SUBSTRING(tmpfilnamn,1,11) = "Kap7 LagerS" THEN DO:
+               IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+                  CREATE imptemp.
+                  ASSIGN
+                  imptemp.FILNAMN = tmpfilnamn
+                  imptemp.INDIR = dirnamn
+                  imptemp.INVAR = tmpfilnamn.
+                  IF SUBSTRING(imptemp.INVAR,1,3) = "KAP" THEN imptemp.ORDNING = INTEGER(TRIM(SUBSTRING(imptemp.INVAR,4,2))) + iord.
+               END.   
+            END.                                                                        
+            ELSE IF SUBSTRING(tmpfilnamn,1,5) = "Kap13" OR SUBSTRING(tmpfilnamn,1,8) = "Kap6 Ekg" THEN DO:
+               IF Guru.Konstanter:globforetag = "SEKG" THEN DO:
+                  CREATE imptemp.
+                  ASSIGN
+                  imptemp.FILNAMN = tmpfilnamn
+                  imptemp.INDIR = dirnamn
+                  imptemp.INVAR = tmpfilnamn.
+                  IF SUBSTRING(imptemp.INVAR,1,3) = "KAP" THEN imptemp.ORDNING = INTEGER(TRIM(SUBSTRING(imptemp.INVAR,4,2))) + iord.
+               END.   
+            END. 
+            ELSE DO:  
+               CREATE imptemp.
+               ASSIGN
+               imptemp.FILNAMN = tmpfilnamn
+               imptemp.INDIR = dirnamn
+               imptemp.INVAR = tmpfilnamn.
+               IF SUBSTRING(imptemp.INVAR,1,3) = "KAP" THEN imptemp.ORDNING = INTEGER(TRIM(SUBSTRING(imptemp.INVAR,4,2))) + iord.
+            END.  
+            
+         END.
+      END.   
+   END.
+   FOR EACH imptemp WHERE SUBSTRING(imptemp.INVAR,1,3) = "KAP" NO-LOCK :
+   END.
+   INPUT STREAM dirstrom CLOSE. 
+
+PROCEDURE SnatLathund_UI :
+ 
+   DEFINE VARIABLE blobproch AS HANDLE NO-UNDO.
+   RUN DYNBLOBB.P PERSISTENT SET blobproch. 
+   RUN blobladda_UI IN blobproch (INPUT " WHERE BLOBINFO.FILNAMN BEGINS 'Guru Lathund'").
+   RUN deleteproc_UI IN blobproch.
+   
+         
+   FOR EACH blobinfotemp WHERE NO-LOCK:
+      iord = iord + 1.
+      CREATE imptemp.
+      
+      imptemp.FILNAMN  = blobinfotemp.FILNAMN.
+     
+      imptemp.INVAR  = REPLACE(blobinfotemp.FILNAMN,"Guru Lathund","Lathund").
+     
+      
+      imptemp.ORDNING = iord.
+   END. 
+   IF VALID-HANDLE(blobproch) THEN DELETE PROCEDURE blobproch NO-ERROR.  
+ 
+END PROCEDURE.   

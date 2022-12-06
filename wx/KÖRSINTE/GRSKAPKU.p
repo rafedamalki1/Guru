@@ -1,0 +1,355 @@
+/*GRSKAPKU.P*/
+ /*
+ ENHET         char        ENHET 
+ BESTID        char        KUNDNR Alltid 6 pos 
+ LEVERANSPLATS char        LEVERANSPLATS 
+ BESTNAMN      char        NAMN 
+ ADRESS        char        ADRESS   
+ PNR           char        POSTNUMMER
+ ORT           char        POSTADRESS
+ FAKADRESS     char        COADRESS + ADRESS
+ FAKPNR        char        POSTNUMMER
+ FAKORT        char        POSTADRESS
+ FAKINT        inte        Grundvärde 30            
+ FDAGAR        inte        Grundvärde 30
+ MOTPARTID     inte        KONCERNKUND
+ MOMSID        inte        Momskod
+ KUNDTYP       char        KUNDTYP
+                                          0 = extern, 
+                                          1 = strökund 
+                                          2 = intern sydkraft kund 
+
+ PRISNUM       inte        RABATTBREV   
+ PRELAN        INTEGER     PRELAN  O eller 1.
+ NYPOST        LOGICAL     TRUE/FALSE  OBS! BEHÖVS EV. Om kundnr återanvänds.
+ Filnamn KU*****.UPP.
+***** = DATUM + HHMMSS för unikt namn. 
+Filen läses till /u10/guru/import.
+Efter in läsning i Guru kopieras filen till /u12/guru/import/KU*****.OLD
+*/
+
+DEFINE NEW SHARED VARIABLE regdagnamn AS CHARACTER FORMAT "X(3)" NO-UNDO.
+DEFINE NEW SHARED VARIABLE regvnr AS INTEGER FORMAT "999" NO-UNDO.
+DEFINE NEW SHARED VARIABLE regdatum AS DATE NO-UNDO.
+DEFINE VARIABLE kuntypvar LIKE KUNDTYP.KUNDID NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE chdatvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE aorec AS RECID NO-UNDO.
+DEFINE VARIABLE varbestid AS CHARACTER NO-UNDO.
+DEFINE BUFFER fakbuff FOR FAKTPLAN.
+DEFINE BUFFER aobuff FOR AONRTAB.
+
+DEFINE TEMP-TABLE tidin
+   /*      
+           BOLAG DATABAS  FÖRKL 
+   ENHET   408 ESNORD   NS GAMLA TAS BORT 
+           409=ETA      ETA
+           414=ETA      ETA TRAFIKSYSTEM 
+           905=ESMAL    ES MÄLARDALEN
+           401=ESADM    ES AB ADMIN  
+           402=ESADM    ESNORD NYA
+   */
+   
+   FIELD ENHET         AS INTEGER 
+   FIELD BESTID        AS CHARACTER 
+   FIELD LEVERANSPLATS AS CHARACTER 
+   FIELD BESTNAMN      AS CHARACTER 
+   FIELD ADRESS        AS CHARACTER   
+   FIELD PNR           AS CHARACTER
+   FIELD ORT           AS CHARACTER
+   FIELD FAKADRESS     AS CHARACTER
+   FIELD FAKPNR        AS CHARACTER
+   FIELD FAKORT        AS CHARACTER
+   FIELD FAKINT        AS INTEGER            
+   FIELD FDAGAR        AS INTEGER
+   FIELD MOTPARTID     AS INTEGER
+   FIELD MOMSID        AS INTEGER
+   FIELD KUNDTYP       AS CHARACTER
+   FIELD PRISNUM       AS INTEGER   
+   FIELD PRELAN        AS INTEGER
+   FIELD NYPOST        AS LOGICAL
+   INDEX ENHET IS PRIMARY ENHET.
+DEFINE BUFFER bestbuff FOR BESTTAB.
+DEFINE INPUT PARAMETER indatvar AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR tidin.
+
+FOR EACH tidin WHERE tidin.ENHET = indatvar NO-LOCK:               
+   DO TRANSACTION:                        
+      FIND FIRST BESTTAB WHERE BESTTAB.VIBESTID = tidin.BESTID + tidin.LEVERANSPLATS      
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE BESTTAB THEN DO:
+         varbestid = "".
+         REPEAT:
+            varbestid = varbestid + tidin.BESTID + tidin.LEVERANSPLATS.
+            FIND FIRST bestbuff WHERE BESTTAB.BESTID = varbestid 
+            NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE bestbuff THEN LEAVE.
+         END.
+         CREATE BESTTAB.
+         ASSIGN BESTTAB.BESTID = varbestid
+         BESTTAB.VIBESTID = tidin.BESTID + tidin.LEVERANSPLATS. 
+      END.   
+      ELSE IF tidin.NYPOST = TRUE THEN DO:
+         varbestid = "".
+         REPEAT:
+            varbestid = varbestid + tidin.BESTID + tidin.LEVERANSPLATS.
+            FIND FIRST bestbuff WHERE BESTTAB.BESTID = varbestid 
+            NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE bestbuff THEN LEAVE.
+         END.
+         CREATE BESTTAB.
+         ASSIGN BESTTAB.BESTID = varbestid
+         BESTTAB.VIBESTID = tidin.BESTID + tidin.LEVERANSPLATS.         
+      END.         
+      ASSIGN 
+      BESTTAB.BESTNAMN = tidin.BESTNAMN 
+      BESTTAB.ADRESS = tidin.ADRESS           
+      BESTTAB.PNR = tidin.PNR           
+      BESTTAB.ORT = tidin.ORT           
+      BESTTAB.FAKADRESS = tidin.FAKADRESS     
+      BESTTAB.FAKPNR = tidin.FAKPNR        
+      BESTTAB.FAKORT = tidin.FAKORT.        
+      IF tidin.KUNDTYP = "0" THEN DO:
+         FIND FIRST KUNDTYP WHERE KUNDTYP.KUNDTYP = "Extern" NO-LOCK NO-ERROR. 
+      END.
+      IF tidin.KUNDTYP = "1" THEN DO:
+         FIND FIRST KUNDTYP WHERE KUNDTYP.KUNDTYP = "Strökund" NO-LOCK NO-ERROR. 
+      END.
+      IF tidin.KUNDTYP = "2" THEN DO:
+         FIND FIRST KUNDTYP WHERE KUNDTYP.KUNDTYP = "Intern" NO-LOCK NO-ERROR. 
+      END.              
+      IF NOT AVAILABLE KUNDTYP THEN DO:
+         FIND LAST KUNDTYP USE-INDEX KUNDTYP NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE KUNDTYP THEN DO:
+            kuntypvar = 1.
+         END.
+         ELSE kuntypvar = KUNDTYP.KUNDID + 1.    
+         CREATE KUNDTYP.
+         ASSIGN
+         KUNDTYP.KUNDID = kuntypvar.
+
+         IF tidin.KUNDTYP = "0" THEN KUNDTYP.KUNDTYP = "Extern".       
+         ELSE IF tidin.KUNDTYP = "1" THEN KUNDTYP.KUNDTYP = "Strökund". 
+         ELSE IF tidin.KUNDTYP = "2" THEN KUNDTYP.KUNDTYP = "Intern". 
+         ELSE DO:
+            KUNDTYP.KUNDTYP = "Okänd".
+         END.           
+      END. 
+      FIND FIRST KUNDREGLER WHERE KUNDREGLER.BESTID = BESTTAB.BESTID 
+      USE-INDEX KUNDREGLER EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE KUNDREGLER THEN DO:
+         CREATE KUNDREGLER.   
+         ASSIGN 
+         KUNDREGLER.BESTID = BESTTAB.BESTID      
+         KUNDREGLER.LONRGL = "ENDAST MILERSÄTTNING"
+         KUNDREGLER.MTRLRGL = "INGA"
+         KUNDREGLER.OVERTIDRGL = "EGNA REGLER"
+         KUNDREGLER.OVRKRGL = "INGA"
+         KUNDREGLER.SLUT% = 20
+         KUNDREGLER.START% = 10
+         KUNDREGLER.TIMRGL = "KUNDENS EGNA"
+         KUNDREGLER.TRAKTRGL = "EGET PRIS"
+         KUNDREGLER.KOSTREGRGL = "AUTOMATISKA"                                                                              
+         KUNDREGLER.MIL = 42
+         KUNDREGLER.FAKINT = 30
+         KUNDREGLER.FDAGAR = 30.      
+      END.  
+      IF tidin.MOTPARTID = 0 THEN DO:
+         FIND FIRST MOTPART WHERE MOTPART.MOTPART = STRING(999) NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE MOTPART THEN DO:
+            IF SETUSERID({setuser.I},{setpwd.I},"DICTDB") THEN DO:
+               CREATE MOTPART.
+               ASSIGN
+               MOTPART.MOTPARTID = NEXT-VALUE(PRISLISTSEQ)
+               MOTPART.MOTPART = STRING(999)
+               MOTPART.BORT = FALSE. 
+            END.
+         END.
+      END.
+      ELSE DO:
+         FIND FIRST MOTPART WHERE MOTPART.MOTPART = STRING(tidin.MOTPARTID) NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE MOTPART THEN DO:
+            IF SETUSERID({setuser.I},{setpwd.I},"DICTDB") THEN DO:
+               CREATE MOTPART.
+               ASSIGN
+               MOTPART.MOTPARTID = NEXT-VALUE(PRISLISTSEQ)
+               MOTPART.MOTPART = STRING(tidin.MOTPARTID)
+               MOTPART.BORT = FALSE. 
+            END.
+         END.   
+      END.
+      FIND FIRST MOMSTAB WHERE MOMSTAB.MOMSNR = STRING(tidin.MOMSID) NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE MOMSTAB THEN DO:
+         IF SETUSERID({setuser.I},{setpwd.I},"DICTDB") THEN DO:
+            CREATE MOMSTAB.
+            ASSIGN
+            MOMSTAB.MOMSNR = STRING(tidin.MOMSID)
+            MOMSTAB.MOMSID  = NEXT-VALUE(PRISLISTSEQ)
+            MOMSTAB.MOMSKOD = STRING(MOMSTAB.MOMSID)
+            MOMSTAB.BORT = FALSE.
+         END.
+      END.
+      ASSIGN
+      KUNDREGLER.MOMSID = MOMSTAB.MOMSID  
+      KUNDREGLER.MOTPARTID = MOTPART.MOTPARTID
+      KUNDREGLER.KUNDID = KUNDTYP.KUNDID
+      KUNDREGLER.FAKINT = tidin.FAKINT                   
+      KUNDREGLER.FDAGAR = tidin.FDAGAR.
+      IF KUNDREGLER.FAKINT = 0 THEN KUNDREGLER.FAKINT = 30.
+      IF KUNDREGLER.FDAGAR = 0 THEN KUNDREGLER.FDAGAR = 30.
+   END.    
+   FIND FIRST DEFPRISLISTA WHERE DEFPRISLISTA.PRISNUM = tidin.PRISNUM AND 
+   DEFPRISLISTA.OVER = FALSE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE DEFPRISLISTA THEN DO:
+      FIND FIRST DEFPRISLISTA WHERE DEFPRISLISTA.PRISNUM = 999 AND 
+      DEFPRISLISTA.OVER = FALSE NO-LOCK NO-ERROR.
+   END.
+   IF AVAILABLE DEFPRISLISTA THEN DO:
+      FIND FIRST KUNDPRISLIST WHERE KUNDPRISLIST.BESTID = BESTTAB.BESTID AND 
+      KUNDPRISLIST.OVER = FALSE
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE KUNDPRISLIST THEN DO:
+         IF KUNDPRISLIST.PRISID = DEFPRISLISTA.PRISID THEN musz = musz.
+         ELSE DO: 
+            DO TRANSACTION:
+               FIND CURRENT KUNDPRISLIST EXCLUSIVE-LOCK NO-ERROR.
+               ASSIGN
+               KUNDPRISLIST.BESTID = BESTTAB.BESTID
+               KUNDPRISLIST.PRISID = DEFPRISLISTA.PRISID
+               KUNDPRISLIST.OVER = FALSE
+               KUNDPRISLIST.STARTDATUM = TODAY.
+            END.
+            OPEN QUERY kundbefq
+            FOR EACH KUNDBEF WHERE KUNDBEF.BESTID = BESTTAB.BESTID 
+            USE-INDEX KUNDBEF NO-LOCK.                  
+            DO TRANSACTION:       
+               GET FIRST kundbefq EXCLUSIVE-LOCK.
+               IF AVAILABLE KUNDBEF THEN DELETE KUNDBEF.    
+            END.
+            REPEAT:  
+               DO TRANSACTION:
+                  GET NEXT kundbefq EXCLUSIVE-LOCK.
+                  IF AVAILABLE KUNDBEF THEN DELETE KUNDBEF.    
+                  ELSE LEAVE.      
+               END.         
+            END.  
+            RUN nynormp_UI.
+         END.         
+      END.
+      ELSE DO:
+         DO TRANSACTION:
+            CREATE KUNDPRISLIST.
+            ASSIGN
+            KUNDPRISLIST.BESTID = BESTTAB.BESTID
+            KUNDPRISLIST.PRISID = DEFPRISLISTA.PRISID
+            KUNDPRISLIST.OVER = FALSE
+            KUNDPRISLIST.STARTDATUM = TODAY.
+         END.
+         RUN nynormp_UI.
+      END.            
+      FIND FIRST PRISLISTOVRIGT WHERE 
+      PRISLISTOVRIGT.PRISID = DEFPRISLISTA.PRISID NO-LOCK NO-ERROR.
+      IF AVAILABLE PRISLISTOVRIGT THEN DO TRANSACTION:                                       
+         ASSIGN
+         KUNDREGLER.ENTRAK = PRISLISTOVRIGT.ENTRAK 
+         KUNDREGLER.FLERTRAK = PRISLISTOVRIGT.FLERTRAK
+         KUNDREGLER.FRTJPA = PRISLISTOVRIGT.FRTJPA
+         KUNDREGLER.MIL = PRISLISTOVRIGT.MIL
+         KUNDREGLER.MTRLPA = PRISLISTOVRIGT.MTRLPA.
+      END.              
+   END.   
+   FIND FIRST DEFPRISLISTA WHERE DEFPRISLISTA.PRISNUM = tidin.PRISNUM AND 
+   DEFPRISLISTA.OVER = TRUE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE DEFPRISLISTA THEN DO:
+      FIND FIRST DEFPRISLISTA WHERE DEFPRISLISTA.PRISNUM = 999 AND 
+      DEFPRISLISTA.OVER = TRUE NO-LOCK NO-ERROR.
+   END.
+   IF AVAILABLE DEFPRISLISTA THEN DO:
+      FIND FIRST KUNDPRISLIST WHERE KUNDPRISLIST.BESTID = BESTTAB.BESTID AND 
+      KUNDPRISLIST.OVER = TRUE
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE KUNDPRISLIST THEN DO:
+         IF KUNDPRISLIST.PRISID = DEFPRISLISTA.PRISID THEN musz = musz.
+         ELSE DO: 
+            DO TRANSACTION:
+               FIND CURRENT KUNDPRISLIST EXCLUSIVE-LOCK NO-ERROR.
+               ASSIGN
+               KUNDPRISLIST.BESTID = BESTTAB.BESTID
+               KUNDPRISLIST.PRISID = DEFPRISLISTA.PRISID
+               KUNDPRISLIST.OVER = TRUE
+               KUNDPRISLIST.STARTDATUM = TODAY.               
+            END.
+            OPEN QUERY kundovq
+            FOR EACH KUNDOVER WHERE KUNDOVER.BESTID = BESTTAB.BESTID 
+            USE-INDEX KUNDOVER NO-LOCK.         
+            DO TRANSACTION:       
+               GET FIRST kundovq EXCLUSIVE-LOCK.
+               IF AVAILABLE KUNDOVER THEN DELETE KUNDOVER.    
+            END.
+            REPEAT:  
+               DO TRANSACTION:
+                  GET NEXT kundovq EXCLUSIVE-LOCK.
+                  IF AVAILABLE KUNDOVER THEN DELETE KUNDOVER.    
+                  ELSE LEAVE.      
+               END.
+            END.                  
+            RUN nyoverp_UI.
+         END.   
+      END.         
+      ELSE DO:
+         DO TRANSACTION:   
+            CREATE KUNDPRISLIST.
+            ASSIGN
+            KUNDPRISLIST.BESTID = BESTTAB.BESTID
+            KUNDPRISLIST.PRISID = DEFPRISLISTA.PRISID
+            KUNDPRISLIST.OVER = TRUE
+            KUNDPRISLIST.STARTDATUM = TODAY.
+         END.   
+         RUN nyoverp_UI.
+      END.  
+   END.
+   DO TRANSACTION:
+      FIND FIRST BESTSTOP WHERE BESTSTOP.BESTID = BESTTAB.BESTID EXCLUSIVE-LOCK NO-ERROR.
+      IF tidin.PRELAN = 0 THEN DO:
+         IF AVAILABLE BESTSTOP THEN DELETE BESTSTOP. 
+      END.
+      ELSE DO:
+         IF NOT AVAILABLE BESTSTOP THEN CREATE BESTSTOP. 
+         ASSIGN BESTSTOP.BESTID = BESTTAB.BESTID.
+      END.
+   END.
+END.
+PROCEDURE nynormp_UI:
+   OPEN QUERY prisq FOR EACH PRISLISTFAKT WHERE PRISLISTFAKT.PRISID = DEFPRISLISTA.PRISID NO-LOCK.
+   GET FIRST prisq NO-LOCK.
+   DO WHILE AVAILABLE(PRISLISTFAKT):
+      DO TRANSACTION:
+         CREATE KUNDBEF.  
+         ASSIGN          
+         KUNDBEF.BEFATTNING = PRISLISTFAKT.BEFATTNING 
+         KUNDBEF.BESTID = BESTTAB.BESTID          
+         KUNDBEF.PRISA = PRISLISTFAKT.PRISA 
+         KUNDBEF.PRISRES = PRISLISTFAKT.PRISRES.                        
+      END.
+      GET NEXT prisq NO-LOCK.
+   END.              
+END PROCEDURE.
+PROCEDURE nyoverp_UI:
+   OPEN QUERY prisoq FOR EACH OVERPRISLIST WHERE OVERPRISLIST.PRISID = DEFPRISLISTA.PRISID NO-LOCK.
+   GET FIRST prisoq NO-LOCK.
+   DO WHILE AVAILABLE(OVERPRISLIST):          
+      DO TRANSACTION:
+         CREATE KUNDOVER.  
+         ASSIGN 
+         KUNDOVER.OTEXTID = OVERPRISLIST.OTEXTID
+         KUNDOVER.BEFATTNING = OVERPRISLIST.BEFATTNING 
+         KUNDOVER.BESTID = BESTTAB.BESTID 
+         KUNDOVER.DAGTYP = OVERPRISLIST.DAGTYP 
+         KUNDOVER.EQDAG = OVERPRISLIST.EQDAG 
+         KUNDOVER.PRISA = OVERPRISLIST.PRISA 
+         KUNDOVER.SLUT = OVERPRISLIST.SLUT 
+         KUNDOVER.START = OVERPRISLIST.START.      
+      END.                                   
+     GET NEXT prisoq NO-LOCK.                     
+  END.             
+END PROCEDURE.

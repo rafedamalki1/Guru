@@ -1,0 +1,1257 @@
+/*MAONRAPP.P*/
+DEFINE VARIABLE retvalue AS LOGICAL NO-UNDO.
+
+DEFINE QUERY aq FOR AONRTAB.
+DEFINE QUERY atidlq FOR AONRTIDLAGE,AONRTAB.
+DEFINE VARIABLE utkonto AS CHARACTER NO-UNDO.
+{AOTIDKOPP.I}
+{KTOTEMP.I} 
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+
+{EXTRADATA.I}
+{DIRDEF.I}
+{SOKDEF.I}
+{AONRDEF.I}
+{JURPERST.I}
+{BOLAGSEKSTART.I}
+{AVTPLANTEMP.I}
+{NAMNDB.I}
+DEFINE VARIABLE aonrrec2 AS RECID NO-UNDO.
+DEFINE VARIABLE valbestomr AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE refvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE valdatum AS DATE NO-UNDO. 
+DEFINE VARIABLE ejdelnr AS LOGICAL NO-UNDO.
+DEFINE BUFFER aonrbuff FOR AONRTAB.
+DEFINE BUFFER aonrkontbuff FOR AONRKONTKOD.
+DEFINE BUFFER ormbuff FOR OMRADETAB.
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.   
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+/*Ladda*/ 
+
+PROCEDURE anvglob_UI :
+   DEFINE INPUT PARAMETER anvglob AS CHARACTER NO-UNDO.
+   /*Guru.Konstanter:globanv = anvglob.*/
+END PROCEDURE.
+PROCEDURE vaonrfix :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valdaao.
+   FOR EACH valdaao,
+   EACH AONRTAB WHERE AONRTAB.AONR = valdaao.AONR AND AONRTAB.DELNR = valdaao.DELNR NO-LOCK:
+      ASSIGN
+      valdaao.AONRAVDATUM = AONRTAB.AONRAVDATUM
+      valdaao.AUTOREG = AONRTAB.AUTOREG.    
+   END.
+END PROCEDURE.
+PROCEDURE laddaaotid:
+   DEFINE INPUT PARAMETER TABLE FOR valdaao.
+   DEFINE OUTPUT PARAMETER TABLE FOR aotidslagtemp.
+   EMPTY TEMP-TABLE aotidslagtemp NO-ERROR. 
+   FOR EACH valdaao,
+   EACH AONRTIDLAGE WHERE AONRTIDLAGE.AONR = valdaao.AONR AND
+   AONRTIDLAGE.DELNR = valdaao.DELNR NO-LOCK, 
+   EACH TIDSLAGEN WHERE TIDSLAGEN.IDTIDLAG = AONRTIDLAGE.IDTIDLAG NO-LOCK.
+      CREATE aotidslagtemp.
+      ASSIGN 
+      aotidslagtemp.AONR         = AONRTIDLAGE.AONR
+      aotidslagtemp.DELNR        = AONRTIDLAGE.DELNR
+      aotidslagtemp.DAT1         = AONRTIDLAGE.DATUM1
+      aotidslagtemp.DAT2         = AONRTIDLAGE.DATUM2
+      aotidslagtemp.IDTLAG       = AONRTIDLAGE.IDTIDLAG
+      aotidslagtemp.ANVANDARE1   = AONRTIDLAGE.ANVANDARE1
+      aotidslagtemp.ANVANDARE2   = AONRTIDLAGE.ANVANDARE2
+      aotidslagtemp.AONRTIDLREC  = RECID(AONRTIDLAGE).
+      BUFFER-COPY TIDSLAGEN TO aotidslagtemp.      
+   END.
+ END PROCEDURE.
+
+
+PROCEDURE jurp_UI :
+   DEFINE INPUT  PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR jurperstemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR judavdtemp.
+   EMPTY TEMP-TABLE  jurperstemp NO-ERROR. 
+   EMPTY TEMP-TABLE judavdtemp NO-ERROR. 
+      
+   IF Guru.Konstanter:varforetypval[18] = 0 OR vem = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)   THEN DO:
+      FOR EACH JURPERS NO-LOCK:
+         CREATE  jurperstemp.
+         BUFFER-COPY JURPERS TO jurperstemp.     
+      END.          
+      FOR EACH AVDELNING WHERE AVDELNING.KOSTMASK = 0 :
+         CREATE judavdtemp.
+         ASSIGN              
+         judavdtemp.AVDELNINGNAMN = AVDELNING.AVDELNINGNAMN
+         judavdtemp.JUDID = AVDELNING.POSTANST
+         judavdtemp.AVDELNINGNR = AVDELNING.AVDELNINGNR.
+      END.
+   END. 
+   ELSE IF Guru.Konstanter:varforetypval[18] = 1 THEN DO: 
+      FOR EACH BOLAGSEK WHERE BOLAGSEK.ANVANDARE = vem NO-LOCK:
+         FOR EACH JURPERS WHERE JURPERS.JUDID = BOLAGSEK.OMRADE NO-LOCK:
+            CREATE jurperstemp.
+            BUFFER-COPY JURPERS TO jurperstemp.     
+         END. 
+      END.  
+      FOR EACH jurperstemp:  
+         FOR EACH AVDELNING WHERE AVDELNING.POSTANST = jurperstemp.JUDID AND AVDELNING.KOSTMASK = 0 :
+            CREATE judavdtemp.
+            ASSIGN              
+            judavdtemp.AVDELNINGNAMN = AVDELNING.AVDELNINGNAMN
+            judavdtemp.JUDID = AVDELNING.POSTANST
+            judavdtemp.AVDELNINGNR = AVDELNING.AVDELNINGNR.
+         END.   
+      END.
+   END.
+         
+END PROCEDURE.
+
+PROCEDURE bilkoll_UI :
+   DEFINE INPUT PARAMETER pbkoll AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER pbkollsv AS LOGICAL NO-UNDO.
+   pbkollsv = TRUE.
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pbkoll NO-LOCK NO-ERROR.
+   FIND FIRST ANSTFORMTAB WHERE ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+   USE-INDEX ANSTF NO-LOCK NO-ERROR.
+   FIND FIRST LONTILL WHERE LONTILL.KOD = ANSTFORMTAB.KOD AND LONTILL.VALBAR = TRUE 
+   AND SUBSTRING(LONTILL.TYPKOD,1,3) = "BIL"   NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE LONTILL THEN DO:
+      pbkollsv = FALSE.
+   END.
+   
+
+END PROCEDURE.
+
+
+PROCEDURE andraort.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR evaldaao.
+   EMPTY TEMP-TABLE evaldaao NO-ERROR. 
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.
+   IF AVAILABLE AONRTAB THEN DO:
+      FIND FIRST evaldaao WHERE evaldaao.AONR = aonrvar AND 
+      evaldaao.DELNR = delnrvar NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE evaldaao THEN CREATE evaldaao.
+      BUFFER-COPY AONRTAB TO evaldaao.
+      evaldaao.AONRREC = RECID(AONRTAB).
+      
+   END.
+END PROCEDURE.
+
+PROCEDURE aonrhmtaenejdel.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR evaldaao.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE evaldaao NO-ERROR. 
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   IF delnrvar NE ? THEN DO:
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+      AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.     
+   END.
+   ELSE DO:
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar NO-LOCK NO-ERROR.     
+   END.
+   IF NOT AVAILABLE AONRTAB THEN DO:
+      CREATE felmeddtemp.  
+      ASSIGN felmeddtemp.FELMEDD = Guru.Konstanter:gaok + " finns inte!".
+      RETURN.
+   END.
+   ELSE DO:
+      IF delnrvar NE ? THEN DO:
+         CREATE evaldaao.
+         BUFFER-COPY AONRTAB TO evaldaao.
+      END.
+      ELSE DO:
+         FOR EACH AONRTAB WHERE AONRTAB.AONR = aonrvar NO-LOCK:
+            CREATE evaldaao.
+            BUFFER-COPY AONRTAB TO evaldaao.
+         END.
+      END.
+   END.
+   RUN aonrsekkoll_UI (INPUT 2).
+   FIND FIRST evaldaao WHERE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE evaldaao THEN DO:
+      CREATE felmeddtemp.  
+      ASSIGN felmeddtemp.FELMEDD = "Du har inte behörighet för " + Guru.Konstanter:gaok + " " + aonrvar.
+      RETURN.
+   END.
+/*    RUN vskapao_UI. */
+END PROCEDURE.
+
+PROCEDURE aonrfran.   
+   DEFINE OUTPUT PARAMETER TABLE FOR evaldaao.   
+   EMPTY TEMP-TABLE evaldaao NO-ERROR. 
+   
+   
+   FOR EACH AONRTAB WHERE AONRTAB.PRISTYP = "FRÅNVARO." AND AONRTAB.aonravdatum = 01/01/91 NO-LOCK:
+      CREATE evaldaao.
+      BUFFER-COPY AONRTAB TO evaldaao.
+   END.
+      
+   /*RUN aonrsekkoll_UI (INPUT 2).
+   FIND FIRST evaldaao WHERE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE evaldaao THEN DO:
+      CREATE felmeddtemp.  
+      ASSIGN felmeddtemp.FELMEDD = "Du har inte behörighet för " + Guru.Konstanter:gaok + " " + aonrvar.
+      RETURN.
+   END.*/
+
+END PROCEDURE.
+
+PROCEDURE aonrhmtaen.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR evaldaao.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE evaldaao NO-ERROR. 
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   IF delnrvar NE ? THEN DO:
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+      AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.     
+   END.
+   ELSE DO:
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar NO-LOCK NO-ERROR.     
+   END.
+   IF NOT AVAILABLE AONRTAB THEN DO:
+      CREATE felmeddtemp.  
+      ASSIGN felmeddtemp.FELMEDD = Guru.Konstanter:gaok + " finns inte!".
+      RETURN.
+   END.
+   ELSE DO:
+      IF delnrvar NE ? THEN DO:
+         CREATE evaldaao.
+         BUFFER-COPY AONRTAB TO evaldaao.
+      END.
+      ELSE DO:
+         FOR EACH AONRTAB WHERE AONRTAB.AONR = aonrvar NO-LOCK:
+            CREATE evaldaao.
+            BUFFER-COPY AONRTAB TO evaldaao.
+         END.
+      END.
+   END.
+   RUN aonrsekkoll_UI (INPUT 2).
+   FIND FIRST evaldaao WHERE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE evaldaao THEN DO:
+      CREATE felmeddtemp.  
+      ASSIGN felmeddtemp.FELMEDD = "Du har inte behörighet för " + Guru.Konstanter:gaok + " " + aonrvar.
+   END.
+   /*
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR evaldaao.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE evaldaao NO-ERROR. 
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+   AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.     
+   IF NOT AVAILABLE AONRTAB THEN DO:
+      CREATE felmeddtemp.  
+      ASSIGN felmeddtemp.FELMEDD = Guru.Konstanter:gaok + " finns inte!".
+      RETURN.
+   END.
+   ELSE DO:
+      CREATE evaldaao.
+      BUFFER-COPY AONRTAB TO evaldaao.
+   END.
+   RUN aonrsekkoll_UI (INPUT 2).
+/*    RUN vskapao_UI. */
+*/
+END PROCEDURE.
+
+PROCEDURE refhmtaen.   
+   DEFINE INPUT PARAMETER refvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR evaldaao.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   DEFINE OUTPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.
+   EMPTY TEMP-TABLE evaldaao NO-ERROR.
+   RUN FINNSTABELL.P (INPUT "EXTRADATA", OUTPUT musz).
+   IF musz = FALSE THEN RETURN.
+   ELSE musz = FALSE.
+   RUN EXTRADATSPEC.P PERSISTENT SET edataapph (INPUT 2).     
+   RUN refhmtaen IN edataapph (INPUT refvar, 
+                               OUTPUT TABLE evaldaao APPEND,
+                               OUTPUT TABLE felmeddtemp,
+                               OUTPUT aonrvar, 
+                               OUTPUT delnrvar).   
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+   RUN aonrsekkoll_UI (INPUT 2).
+   
+END PROCEDURE.
+PROCEDURE refbort.   
+   DEFINE INPUT PARAMETER aonrref AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER aonrdelnrref AS INTEGER NO-UNDO.
+   DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+   EMPTY TEMP-TABLE evaldaao NO-ERROR.
+   DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+   RUN FINNSTABELL.P (INPUT "EXTRADATA", OUTPUT bloblog).   
+   IF bloblog = FALSE THEN RETURN.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "AOREF"                   
+   inextradatatemp.HUVUDCH = aonrref              
+   inextradatatemp.HUVUDINT =  aonrdelnrref.         
+   RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).
+   
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+   
+END PROCEDURE.
+
+/* PROCEDURE vskapao_UI :                       */
+/*    CREATE valdaao.                           */
+/*    BUFFER-COPY AONRTAB TO valdaao.           */
+/*    ASSIGN                                    */
+/*    valdaao.AONR = AONRTAB.AONR               */
+/*    valdaao.DELNR = AONRTAB.DELNR             */
+/*    valdaao.OMRADE = AONRTAB.OMRADE           */
+/*    valdaao.AONRAVDATUM = AONRTAB.AONRAVDATUM */
+/*    valdaao.STARTDATUM = AONRTAB.STARTDATUM   */
+/*    valdaao.ORT = AONRTAB.ORT                 */
+/*    valdaao.BESTID = AONRTAB.BESTID           */
+/*    valdaao.FAKTTYP = AONRTAB.FAKTTYP         */
+/*    valdaao.FAKTNR = AONRTAB.FAKTNR           */
+/*    valdaao.ARBANSVARIG = AONRTAB.ARBANSVARIG */
+/*    valdaao.BEREDARE = AONRTAB.BEREDARE.      */
+/* END PROCEDURE.                               */
+
+/*BTN_HAMT*/
+valdatum = 01/01/1991.
+PROCEDURE aonrhmt.
+   DEFINE INPUT PARAMETER SEL_UPP AS CHARACTER NO-UNDO. 
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp. 
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR uppvaltemp.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR utsokaonr.     
+   EMPTY TEMP-TABLE utsokaonr NO-ERROR. 
+   
+   FIND FIRST uppvaltemp NO-ERROR.
+   IF uppvaltemp.AVDNR NE "ALLA" THEN DO:
+      FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = INTEGER(uppvaltemp.AVDNR) NO-LOCK NO-ERROR. 
+   END.                                   
+   IF uppvaltemp.OMRADE NE "ALLA" THEN DO:
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = uppvaltemp.OMRADE NO-LOCK NO-ERROR. 
+   END.
+   IF Guru.Konstanter:varforetypval[45] = 1 THEN uppvaltemp.BESTID =  "Alla".
+   IF uppvaltemp.BESTID NE "ALLA" THEN DO:
+      FIND FIRST BESTTAB WHERE BESTTAB.BESTID = uppvaltemp.BESTID NO-LOCK NO-ERROR.    
+      IF NOT AVAILABLE BESTTAB THEN DO:
+         FIND FIRST ormbuff WHERE ormbuff.OMRADE = uppvaltemp.BESTID NO-LOCK NO-ERROR.
+         valbestomr = ormbuff.OMRADE.
+      END.   
+      ELSE valbestomr = BESTTAB.BESTID.
+   END.
+   IF uppvaltemp.TILLFALLFAST = 1 THEN DO:      
+      /*ALLA TILLFÄLIGA*/
+      IF uppvaltemp.PAAV = 1 THEN DO: 
+         /*ALLA PÅGÅENDE*/
+         RUN allpa_UI (INPUT FALSE).
+         RUN skapaao_UI.
+         RUN allpav_UI (INPUT FALSE).
+         RUN skapaao_UI.
+      END.
+      ELSE IF uppvaltemp.PAAV = 2 THEN DO:      
+         /*ALLA AVSLUTADE*/
+         RUN allav_UI (INPUT FALSE).
+         RUN skapaao_UI.
+      END.   
+      ELSE IF uppvaltemp.PAAV = 3 THEN DO:
+         /*ALLA*/
+         RUN allpa_UI (INPUT FALSE).
+         RUN skapaao_UI.
+         RUN allav_UI (INPUT FALSE). 
+         RUN skapaao_UI.
+      END.
+      ELSE IF uppvaltemp.PAAV = 4 THEN DO:
+         /*ALLA*/
+         RUN alltidlage_UI (INPUT FALSE,INPUT "AOUPPLAGT"). 
+         RUN skapaaotidl_UI.
+      END.
+   END.
+   ELSE IF uppvaltemp.TILLFALLFAST = 2 THEN DO:      
+      /*ALLA FASTA*/
+      IF uppvaltemp.PAAV = 1 THEN DO: 
+         /*ALLA PÅGÅENDE*/
+         RUN allpa_UI (INPUT TRUE).
+         RUN skapaao_UI.
+         RUN allpav_UI (INPUT TRUE).
+         RUN skapaao_UI.
+      END.
+      ELSE IF uppvaltemp.PAAV = 2 THEN DO:      
+         /*ALLA AVSLUTADE*/
+         RUN allav_UI (INPUT TRUE).
+         RUN skapaao_UI.
+      END.   
+      ELSE IF uppvaltemp.PAAV = 3 THEN DO:
+         /*ALLA*/
+         RUN allpa_UI (INPUT TRUE).
+         RUN skapaao_UI.
+         RUN allav_UI (INPUT TRUE). 
+         RUN skapaao_UI.
+      END.
+      ELSE IF uppvaltemp.PAAV = 4 THEN DO:
+         /*ALLA*/
+         RUN alltidlage_UI (INPUT TRUE,INPUT "AOUPPLAGT"). 
+         RUN skapaaotidl_UI.
+      END.
+   END.
+   ELSE IF uppvaltemp.TILLFALLFAST = 3 THEN DO:      
+      /*ALLA*/
+      IF uppvaltemp.PAAV = 1 THEN DO: 
+         /*ALLA PÅGÅENDE*/
+         RUN allpa_UI (INPUT FALSE).
+         RUN skapaao_UI.      
+         RUN allpa_UI (INPUT TRUE).
+         RUN skapaao_UI.
+         RUN allpav_UI (INPUT FALSE).
+         RUN skapaao_UI.      
+         RUN allpav_UI (INPUT TRUE).
+         RUN skapaao_UI.     
+      END.
+      ELSE IF uppvaltemp.PAAV = 2 THEN DO:      
+         /*ALLA AVSLUTADE*/
+         RUN allav_UI (INPUT FALSE).
+         RUN skapaao_UI.
+         RUN allav_UI (INPUT TRUE).
+         RUN skapaao_UI.
+      END.   
+      ELSE IF uppvaltemp.PAAV = 3 THEN DO:
+         /*ALLA*/
+         RUN allpa_UI (INPUT FALSE).
+         RUN skapaao_UI.
+         RUN allav_UI (INPUT FALSE). 
+         RUN skapaao_UI.
+         RUN allpa_UI (INPUT TRUE).
+         RUN skapaao_UI.
+         RUN allav_UI (INPUT TRUE). 
+         RUN skapaao_UI.
+      END.
+      ELSE IF uppvaltemp.PAAV = 4 THEN DO:
+         /*ALLA*/
+         RUN alltidlage_UI (INPUT FALSE,INPUT "AOUPPLAGT"). 
+         RUN skapaaotidl_UI.
+         RUN alltidlage_UI (INPUT TRUE,INPUT "AOUPPLAGT"). 
+         RUN skapaaotidl_UI.
+      END.
+   END.
+   RUN avdkoll_UI.
+   RUN aonrsekkoll_UI (INPUT 1).
+   
+END PROCEDURE.
+PROCEDURE aonrsekkoll2_UI :
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vforc AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omrvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felok AS LOGICAL NO-UNDO.
+   
+END PROCEDURE.
+
+PROCEDURE aonrsekkoll_UI :
+   DEFINE INPUT PARAMETER vad AS INTEGER NO-UNDO.
+   
+   IF Guru.Konstanter:varforetypchar[4] = "" AND Guru.Konstanter:varforetypval[18] = 0 THEN DO:
+      RETURN.
+   END.
+   IF Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)  
+   THEN RETURN.
+   IF Guru.Konstanter:globanv = "" THEN RETURN.
+   IF Guru.Konstanter:varforetypchar[4] = "ja" THEN DO:
+      IF vad = 1 THEN DO:
+         FOR EACH utsokaonr:
+            IF utsokaonr.OMRADE = "" THEN.
+            ELSE DO: 
+               FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = Guru.Konstanter:globanv AND OFFERT.OMRADE = utsokaonr.OMRADE NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE OFFERT THEN DO:
+                  FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = Guru.Konstanter:globanv AND OFFERT.AONR = utsokaonr.AONR AND OFFERT.DELNR = utsokaonr.DELNR
+                  NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE OFFERT THEN DO:
+                     DELETE utsokaonr.
+                  END.
+               END.
+            END.   
+         END.
+      END.
+      IF vad = 2 THEN DO:
+         FOR EACH evaldaao:
+            IF evaldaao.OMRADE = "" THEN.
+            ELSE DO: 
+               FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = Guru.Konstanter:globanv AND OFFERT.OMRADE = evaldaao.OMRADE NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE OFFERT THEN DO:
+                  FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = Guru.Konstanter:globanv AND OFFERT.AONR = evaldaao.AONR AND OFFERT.DELNR = evaldaao.DELNR
+                  NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE OFFERT THEN DO:
+                     DELETE evaldaao.
+                  END.
+               END.
+            END.   
+         END.
+      END.
+      RETURN.
+   END.
+   
+   IF Guru.Konstanter:varforetypval[18] = 1 THEN DO:
+      IF vad = 1 THEN DO:
+         FOR EACH utsokaonr:
+            FIND FIRST omvtemp WHERE omvtemp.OMRADE = utsokaonr.OMRADE NO-LOCK NO-ERROR.
+            IF AVAILABLE omvtemp THEN DO:
+               FIND FIRST BOLAGSEK WHERE BOLAGSEK.OMRADE = omvtemp.JUDID AND BOLAGSEK.ANVANDARE = Guru.Konstanter:globanv NO-LOCK NO-ERROR. 
+               IF NOT AVAILABLE BOLAGSEK THEN DELETE utsokaonr.               
+            END.
+            ELSE DO:
+               IF utsokaonr.OMRADE NE "" THEN DELETE utsokaonr.  
+            END.
+         END.
+      END.
+      IF vad = 2 THEN DO:
+         FOR EACH evaldaao:
+            FIND FIRST omvtemp WHERE omvtemp.OMRADE = evaldaao.OMRADE NO-LOCK NO-ERROR.
+            IF AVAILABLE omvtemp THEN DO:
+               FIND FIRST BOLAGSEK WHERE BOLAGSEK.OMRADE = omvtemp.JUDID AND BOLAGSEK.ANVANDARE = Guru.Konstanter:globanv NO-LOCK NO-ERROR. 
+               IF NOT AVAILABLE BOLAGSEK THEN DELETE evaldaao.               
+            END.
+            ELSE DO:
+               IF evaldaao.OMRADE NE "" THEN DELETE evaldaao.  
+            END.
+         END.
+      END.
+      RETURN.
+   END.
+   
+END PROCEDURE.
+PROCEDURE avdkoll_UI.
+   /*IF uppvaltemp.OMRADE NE "ALLA" THEN RETURN.*/   
+   IF uppvaltemp.AVDNR = "ALLA" THEN RETURN.   
+   RELEASE utsokaonr NO-ERROR.
+   OPEN QUERY omrq FOR EACH OMRADETAB WHERE OMRADETAB.AVDELNINGNR = AVDELNING.AVDELNINGNR NO-LOCK,
+   EACH utsokaonr WHERE utsokaonr.OMRADE = OMRADETAB.OMRADE NO-LOCK.
+   GET FIRST omrq NO-LOCK.
+   DO WHILE AVAILABLE(utsokaonr):
+      utsokaonr.TABORT = FALSE.
+      GET NEXT omrq NO-LOCK.
+   END.
+   FOR EACH utsokaonr WHERE utsokaonr.TABORT = TRUE:
+      DELETE utsokaonr.
+   END.
+END PROCEDURE.
+
+PROCEDURE allpa_UI.
+   DEFINE INPUT PARAMETER fastaonr AS LOGICAL NO-UNDO.
+   IF uppvaltemp.BESTID = "ALLA" THEN DO:
+      IF uppvaltemp.FAKTTYP = "ALLA" THEN DO:
+         OPEN QUERY aq FOR EACH AONRTAB WHERE             
+         AONRTAB.FASTAAONR = fastaonr AND 
+         AONRTAB.AONRAVDATUM = 01/01/1991 
+         NO-LOCK.
+      END.
+      ELSE DO:
+         OPEN QUERY aq FOR EACH AONRTAB WHERE             
+         AONRTAB.FASTAAONR = fastaonr AND 
+         AONRTAB.AONRAVDATUM = 01/01/1991 AND
+         AONRTAB.FAKTTYP = uppvaltemp.FAKTTYP
+         NO-LOCK.
+      END.
+   END.
+   ELSE DO:      
+      IF uppvaltemp.FAKTTYP = "ALLA" THEN DO:
+         OPEN QUERY aq FOR EACH AONRTAB WHERE 
+         AONRTAB.FASTAAONR = fastaonr AND
+         AONRTAB.AONRAVDATUM = 01/01/1991 AND
+         AONRTAB.BESTID = valbestomr                           
+         NO-LOCK.      
+      END.
+      ELSE DO:
+         OPEN QUERY aq FOR EACH AONRTAB WHERE 
+         AONRTAB.FASTAAONR = fastaonr AND
+         AONRTAB.AONRAVDATUM = 01/01/1991 AND
+         AONRTAB.BESTID = valbestomr AND                        
+         AONRTAB.FAKTTYP = uppvaltemp.FAKTTYP
+         NO-LOCK.
+      END.
+   END.  
+END PROCEDURE.
+PROCEDURE alltidlage_UI :
+   DEFINE INPUT PARAMETER fastaonr AS LOGICAL NO-UNDO.
+   DEFINE INPUT  PARAMETER tlagevar AS CHARACTER NO-UNDO.
+   
+   IF uppvaltemp.BESTID = "ALLA" THEN DO:
+      IF uppvaltemp.FAKTTYP = "ALLA" THEN DO:
+         OPEN QUERY atidlq FOR EACH AONRTIDLAGE WHERE AONRTIDLAGE.IDTIDLAG = tlagevar AND AONRTIDLAGE.DATUM1 >= uppvaltemp.AVSLUTSTART AND AONRTIDLAGE.DATUM1 <= uppvaltemp.AVSLUTSLUT NO-LOCK, 
+         EACH AONRTAB WHERE   
+         AONRTAB.AONR = AONRTIDLAGE.AONR AND
+         AONRTAB.DELNR = AONRTIDLAGE.DELNR AND          
+         AONRTAB.FASTAAONR = fastaonr           
+         NO-LOCK.      
+      END.
+      ELSE DO:
+         OPEN QUERY atidlq FOR EACH AONRTIDLAGE WHERE AONRTIDLAGE.IDTIDLAG = tlagevar AND AONRTIDLAGE.DATUM1 >= uppvaltemp.AVSLUTSTART AND AONRTIDLAGE.DATUM1 <= uppvaltemp.AVSLUTSLUT NO-LOCK, 
+         EACH AONRTAB WHERE             
+         AONRTAB.AONR = AONRTIDLAGE.AONR AND
+         AONRTAB.DELNR = AONRTIDLAGE.DELNR AND
+         AONRTAB.FASTAAONR = fastaonr AND 
+         AONRTAB.FAKTTYP = uppvaltemp.FAKTTYP
+         NO-LOCK.
+      END.
+   END.
+   ELSE DO:      
+      IF uppvaltemp.FAKTTYP = "ALLA" THEN DO:
+         OPEN QUERY atidlq FOR EACH AONRTIDLAGE WHERE AONRTIDLAGE.IDTIDLAG = tlagevar AND AONRTIDLAGE.DATUM1 >= uppvaltemp.AVSLUTSTART AND AONRTIDLAGE.DATUM1 <= uppvaltemp.AVSLUTSLUT NO-LOCK, 
+         EACH AONRTAB WHERE 
+         AONRTAB.AONR = AONRTIDLAGE.AONR AND
+         AONRTAB.DELNR = AONRTIDLAGE.DELNR AND
+         AONRTAB.FASTAAONR = fastaonr AND
+         AONRTAB.BESTID = valbestomr                           
+         NO-LOCK.      
+      END.
+      ELSE DO:
+         OPEN QUERY atidlq FOR EACH AONRTIDLAGE WHERE AONRTIDLAGE.IDTIDLAG = tlagevar AND AONRTIDLAGE.DATUM1 >= uppvaltemp.AVSLUTSTART AND AONRTIDLAGE.DATUM1 <= uppvaltemp.AVSLUTSLUT NO-LOCK, 
+         EACH AONRTAB WHERE 
+         AONRTAB.AONR = AONRTIDLAGE.AONR AND
+         AONRTAB.DELNR = AONRTIDLAGE.DELNR AND
+         AONRTAB.FASTAAONR = fastaonr AND
+         AONRTAB.BESTID = valbestomr AND                        
+         AONRTAB.FAKTTYP = uppvaltemp.FAKTTYP
+         NO-LOCK.
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE allpav_UI.
+   DEFINE INPUT PARAMETER fastaonr AS LOGICAL NO-UNDO.
+   IF uppvaltemp.BESTID = "ALLA" THEN DO:
+      IF uppvaltemp.FAKTTYP = "ALLA" THEN DO:
+         OPEN QUERY aq FOR EACH AONRTAB WHERE             
+         AONRTAB.FASTAAONR = fastaonr AND 
+         AONRTAB.AONRAVDATUM > TODAY 
+         NO-LOCK.      
+      END.
+      ELSE DO:
+         OPEN QUERY aq FOR EACH AONRTAB WHERE             
+         AONRTAB.FASTAAONR = fastaonr AND 
+         AONRTAB.AONRAVDATUM > TODAY AND
+         AONRTAB.FAKTTYP = uppvaltemp.FAKTTYP
+         NO-LOCK.
+      END.
+   END.
+   ELSE DO:      
+      IF uppvaltemp.FAKTTYP = "ALLA" THEN DO:
+         OPEN QUERY aq FOR EACH AONRTAB WHERE 
+         AONRTAB.FASTAAONR = fastaonr AND
+         AONRTAB.AONRAVDATUM > TODAY AND
+         AONRTAB.BESTID = valbestomr                           
+         NO-LOCK.      
+      END.
+      ELSE DO:
+         OPEN QUERY aq FOR EACH AONRTAB WHERE 
+         AONRTAB.FASTAAONR = fastaonr AND
+         AONRTAB.AONRAVDATUM > TODAY AND
+         AONRTAB.BESTID = valbestomr AND                        
+         AONRTAB.FAKTTYP = uppvaltemp.FAKTTYP
+         NO-LOCK.
+      END.
+   END.  
+END PROCEDURE.
+
+PROCEDURE allav_UI.
+   DEFINE INPUT PARAMETER fastaonr AS LOGICAL NO-UNDO. 
+   IF uppvaltemp.BESTID = "ALLA" THEN DO:
+      IF uppvaltemp.FAKTTYP = "ALLA" THEN DO:
+         OPEN QUERY aq FOR EACH AONRTAB WHERE             
+         AONRTAB.FASTAAONR = fastaonr AND 
+         AONRTAB.AONRAVDATUM >= uppvaltemp.AVSLUTSTART AND
+         AONRTAB.AONRAVDATUM <= uppvaltemp.AVSLUTSLUT  
+         NO-LOCK.      
+      END.
+      ELSE DO:
+         OPEN QUERY aq FOR EACH AONRTAB WHERE             
+         AONRTAB.FASTAAONR = fastaonr AND 
+         AONRTAB.AONRAVDATUM >= uppvaltemp.AVSLUTSTART AND
+         AONRTAB.AONRAVDATUM <= uppvaltemp.AVSLUTSLUT AND
+         AONRTAB.FAKTTYP = uppvaltemp.FAKTTYP
+         NO-LOCK.
+      END.
+   END.
+   ELSE DO:
+      IF uppvaltemp.FAKTTYP = "ALLA" THEN DO:
+         OPEN QUERY aq FOR EACH AONRTAB WHERE 
+         AONRTAB.FASTAAONR = fastaonr AND            
+         AONRTAB.AONRAVDATUM >= uppvaltemp.AVSLUTSTART AND
+         AONRTAB.AONRAVDATUM <= uppvaltemp.AVSLUTSLUT AND
+         AONRTAB.BESTID = valbestomr                           
+         NO-LOCK.      
+      END.
+      ELSE DO:
+         OPEN QUERY aq FOR EACH AONRTAB WHERE 
+         AONRTAB.FASTAAONR = fastaonr AND             
+         AONRTAB.AONRAVDATUM >= uppvaltemp.AVSLUTSTART AND
+         AONRTAB.AONRAVDATUM <= uppvaltemp.AVSLUTSLUT AND
+         AONRTAB.BESTID = valbestomr AND                        
+         AONRTAB.FAKTTYP = uppvaltemp.FAKTTYP
+         NO-LOCK.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE skapaao_UI:
+   GET FIRST aq NO-LOCK.
+   DO WHILE AVAILABLE(AONRTAB):         
+      {AOHMT.I}
+      GET NEXT aq NO-LOCK.
+   END.
+END PROCEDURE.
+PROCEDURE skapaaotidl_UI:
+   GET FIRST atidlq NO-LOCK.
+   DO WHILE AVAILABLE(AONRTAB):         
+      {AOHMT.I}
+      GET NEXT atidlq NO-LOCK.
+   END.
+END PROCEDURE.
+PROCEDURE skapaonr.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR evaldaao.
+   EMPTY TEMP-TABLE evaldaao NO-ERROR. 
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.  
+   FIND FIRST evaldaao WHERE evaldaao.AONR = aonrvar AND 
+   evaldaao.DELNR = delnrvar NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE evaldaao THEN DO:   
+      CREATE evaldaao.
+   END.
+   BUFFER-COPY AONRTAB TO evaldaao.
+   ASSIGN 
+   evaldaao.PROJEKTOR = AONRTAB.STARTDAG
+   evaldaao.AONRREC = RECID(AONRTAB)
+   evaldaao.TABORT = TRUE.
+END PROCEDURE.
+
+PROCEDURE bytaokoll.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   FIND FIRST BYTAONR WHERE BYTAONR.AONR = aonrvar AND 
+   BYTAONR.DELNR = delnrvar NO-LOCK NO-ERROR.
+   IF AVAILABLE BYTAONR THEN DO:
+      CREATE felmeddtemp.
+      ASSIGN felmeddtemp.FELMEDD = "Detta " + Guru.Konstanter:gaok + "är redan bytt till:" + BYTAONR.NAONR + STRING(BYTAONR.NDELNR).      
+      MESSAGE felmeddtemp.FELMEDD.
+   END.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE sistadelnr.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER hjdelvar AS INTEGER NO-UNDO.
+   FIND LAST aonrbuff WHERE aonrbuff.OMRADE = omr AND
+   aonrbuff.AONR = aonrvar USE-INDEX OMRADE NO-LOCK NO-ERROR.
+   hjdelvar = aonrbuff.DELNR.
+END PROCEDURE.
+
+PROCEDURE hamtaorec.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER aonrrec AS INTEGER NO-UNDO.
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND
+   AONRTAB.DELNR = delnrvar USE-INDEX AONR NO-LOCK NO-ERROR.
+   IF AVAILABLE AONRTAB THEN DO:
+      ASSIGN 
+      aonrrec = RECID(AONRTAB). 
+   END.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE relaonr:
+   IF AVAILABLE AONRTAB THEN DO:
+      RELEASE AONRTAB.
+   END.
+   RETURN.
+END PROCEDURE.
+PROCEDURE hamtaavslut.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER aoavslut AS DATE NO-UNDO.
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND
+   AONRTAB.DELNR = delnrvar USE-INDEX AONR NO-LOCK NO-ERROR.
+   IF AVAILABLE AONRTAB THEN DO:
+      ASSIGN 
+      aoavslut = AONRTAB.AONRAVDATUM. 
+   END.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE komplettaonr.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER aonrrec AS RECID NO-UNDO.
+   DEFINE OUTPUT PARAMETER projvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER bortvar AS LOGICAL NO-UNDO.
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND
+   AONRTAB.DELNR = delnrvar USE-INDEX AONR NO-LOCK NO-ERROR.
+   IF AVAILABLE AONRTAB THEN DO:
+      ASSIGN 
+      projvar = AONRTAB.STARTDAG
+      aonrrec = RECID(AONRTAB) 
+      bortvar = TRUE.       
+   END.
+   RETURN.
+END PROCEDURE.
+
+
+PROCEDURE delaonr.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEBUGGER:SET-BREAK().
+   /*aonr bort mm*/
+   DO TRANSACTION:
+      FIND AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+      AONRTAB.DELNR = delnrvar EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DELETE AONRTAB.
+
+      /*LENA 20100106 kontot kan väl inte ligga kvar om projektet är borttaget?*/
+      FOR EACH AONRKONTKOD WHERE AONRKONTKOD.AONR = aonrvar AND 
+      AONRKONTKOD.DELNR = delnrvar EXCLUSIVE-LOCK:
+         DELETE AONRKONTKOD.
+      END.
+      /*Anders Olsson Elpool i Umeå AB  11 jan 2016 17:05:46 
+      Sätt till baka nrserie om man avbryter utan att spara 
+      */
+     
+      IF Guru.Konstanter:globforetag = "GKAL" AND delnrvar = 0 THEN DO:
+         FIND FIRST NRSERIE USE-INDEX NRSERIE EXCLUSIVE-LOCK NO-ERROR.     
+         IF AVAILABLE NRSERIE THEN DO:
+            IF LENGTH(NRSERIE.PROJINT2) = 1 THEN DO:
+               
+               IF NRSERIE.SISTPROJ = STRING(INTEGER(aonrvar) + 1,"9") THEN NRSERIE.SISTPROJ = aonrvar.
+            END.
+            IF LENGTH(NRSERIE.PROJINT2) = 2 THEN DO:
+               IF
+               NRSERIE.SISTPROJ = STRING(INTEGER(aonrvar) + 1,"99") THEN NRSERIE.SISTPROJ = aonrvar.
+            END.
+            IF LENGTH(NRSERIE.PROJINT2) = 3 THEN DO:
+               IF            
+               NRSERIE.SISTPROJ = STRING(INTEGER(aonrvar) + 1,"999") THEN NRSERIE.SISTPROJ = aonrvar.
+            END.
+            IF LENGTH(NRSERIE.PROJINT2) = 4 THEN DO:
+               IF            
+               NRSERIE.SISTPROJ = STRING(INTEGER(aonrvar) + 1,"9999") THEN NRSERIE.SISTPROJ = aonrvar.
+            END.
+            IF LENGTH(NRSERIE.PROJINT2) = 5 THEN DO:
+               IF            
+               NRSERIE.SISTPROJ = STRING(INTEGER(aonrvar) + 1,"99999") THEN NRSERIE.SISTPROJ = aonrvar.
+            END.
+            IF LENGTH(NRSERIE.PROJINT2) = 6 THEN DO:
+               IF            
+               NRSERIE.SISTPROJ = STRING(INTEGER(aonrvar) + 1,"999999") THEN NRSERIE.SISTPROJ = aonrvar.
+            END.
+            IF LENGTH(NRSERIE.PROJINT2) = 7 THEN DO:
+               IF            
+               NRSERIE.SISTPROJ = STRING(INTEGER(aonrvar) + 1,"9999999") THEN NRSERIE.SISTPROJ = aonrvar.
+            END.
+            IF LENGTH(NRSERIE.PROJINT2) = 8 THEN DO:
+               IF                                                  
+               NRSERIE.SISTPROJ = STRING(INTEGER(aonrvar) + 1,"99999999") THEN NRSERIE.SISTPROJ = aonrvar.
+            END.
+                      
+         END.   
+      END.   
+     
+   END.
+   RELEASE NRSERIE NO-ERROR.
+END.
+PROCEDURE underantal_UI :
+ DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+ DEFINE OUTPUT PARAMETER antalunder AS INTEGER NO-UNDO.
+ DEFINE OUTPUT PARAMETER del99 AS LOGICAL NO-UNDO.
+   IF aonrvar BEGINS "30" THEN DO:
+       antalunder = 5.
+       del99 = FALSE.
+   END.    
+   IF aonrvar BEGINS "33" THEN DO:
+       antalunder = 4.
+       del99 = TRUE.
+   END.    
+END PROCEDURE.
+
+PROCEDURE underskap_UI:
+   DEFINE INPUT PARAMETER aonrrec AS RECID NO-UNDO.
+   DEFINE INPUT PARAMETER hjdelvar AS INTEGER NO-UNDO.
+   DEFINE VARIABLE aonrvar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE delnrvar AS INTEGER NO-UNDO.
+   DEFINE VARIABLE sldatum AS DATE NO-UNDO.
+   DEFINE VARIABLE stdatum AS DATE NO-UNDO.
+   DEFINE VARIABLE projrapp AS CHARACTER FORMAT "X(101)" NO-UNDO.
+   DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+  
+   DO TRANSACTION:
+      FIND AONRTAB WHERE RECID(AONRTAB) = aonrrec NO-LOCK NO-ERROR.
+      FIND FIRST aonrbuff WHERE aonrbuff.AONR = AONRTAB.AONR AND aonrbuff.DELNR = 0 EXCLUSIVE-LOCK NO-ERROR.     
+      IF NOT AVAILABLE aonrbuff THEN DO:
+         FIND aonrbuff WHERE RECID(aonrbuff) = aonrrec EXCLUSIVE-LOCK NO-ERROR.
+      END.
+      CREATE AONRTAB.
+      BUFFER-COPY aonrbuff TO AONRTAB.
+      ASSIGN
+      AONRTAB.BETNR = 0
+      AONRTAB.AUTOREG = TRUE
+      AONRTAB.DELNR = hjdelvar.
+      /*aonrsund*/
+      IF Guru.Konstanter:globforetag = "SNAT" THEN DO:      
+         /*IF AONRTAB.AONR BEGINS "78" THEN DO:            
+            RUN aoupp_UI.                          
+         END.*/
+         /*IF AONRTAB.AONR BEGINS "38" OR AONRTAB.AONR BEGINS "36" OR AONRTAB.AONR BEGINS "46" OR 
+         AONRTAB.AONR BEGINS "63" OR AONRTAB.AONR BEGINS "34" OR AONRTAB.AONR BEGINS "35" OR AONRTAB.AONR BEGINS "30" OR AONRTAB.AONR BEGINS "39"
+         OR AONRTAB.AONR BEGINS "47" OR AONRTAB.AONR BEGINS "30" THEN DO:*/
+         
+         IF AONRTAB.AONR BEGINS "30" OR  AONRTAB.AONR BEGINS "33" /*OR AONRTAB.AONR BEGINS "47"*/  THEN DO:
+            /*Lena  Olsson Elpool i Umeå AB  24 sep 2014 11:16:34 
+            35 KOMMER ATT TA ÖVER EFTER 34 
+            Lena  Olsson Elpool i Umeå AB  11 NOV 2015 11:16:34 
+            39 KOMMER ATT TA ÖVER EFTER 38*/
+            /*slut på nummer i 46 övergå till 47 Lena 20180611  47 skapar inte undernummer auto */
+            /*slut på nummer i 39 övergå till 30 Lena 20190627*/
+            /*35 full ny serie 33  Lena 20211020*/            
+            RUN aouppn_UI.                          
+         END.
+         /*IF AONRTAB.AONR BEGINS "79" THEN DO:            
+            RUN aoupp79_UI.                          
+         END.*/
+      END.
+      IF Guru.Konstanter:globforetag = "elpa" THEN DO:      
+         IF AONRTAB.AONR BEGINS "30" THEN DO:
+            RUN aoupp_UI.               
+         END.
+      END.                  
+    /*       aonrrec = RECID(AONRTAB). */
+     
+      OPEN QUERY akq FOR EACH AONRKONTKOD WHERE AONRKONTKOD.AONR = aonrbuff.AONR AND 
+      AONRKONTKOD.DELNR = aonrbuff.DELNR USE-INDEX AONRKON NO-LOCK.
+      GET FIRST akq NO-LOCK.
+      DO WHILE AVAILABLE(AONRKONTKOD):
+         CREATE aonrkontbuff.
+         BUFFER-COPY AONRKONTKOD TO aonrkontbuff.
+         ASSIGN 
+         aonrkontbuff.DELNR = AONRTAB.DELNR.        
+         GET NEXT akq NO-LOCK.
+      END.  
+      IF AONRTAB.FAKTNR NE 0 THEN DO:
+         CREATE FAKTAONR.
+         ASSIGN
+         FAKTAONR.AONR        = AONRTAB.AONR
+         FAKTAONR.DELNR       = AONRTAB.DELNR
+         FAKTAONR.FAKTNR      = AONRTAB.FAKTNR
+         FAKTAONR.OMRADE      = AONRTAB.OMRADE.
+         CREATE FAKTKOLL.
+         ASSIGN
+         FAKTKOLL.FAKTNR = FAKTAONR.FAKTNR
+         FAKTKOLL.AONR = FAKTAONR.AONR
+         FAKTKOLL.DELNR = FAKTAONR.DELNR
+         FAKTKOLL.SLUTFAKT = FALSE.
+        
+      END.              
+   END.
+
+   /*refnr*/
+   DEFINE BUFFER refbuff FOR EXTRADATA.
+   FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "AOREF" AND EXTRADATA.HUVUDCH = aonrbuff.AONR AND EXTRADATA.HUVUDINT = 0 NO-LOCK:
+      DO TRANSACTION:
+         CREATE refbuff.
+         BUFFER-COPY EXTRADATA TO refbuff.
+         ASSIGN
+         refbuff.HUVUDCH = AONRBUFF.AONR
+         refbuff.HUVUDINT = hjdelvar.
+      END.
+   END.
+    /*aonrsund*/
+   {AMERICANEUROPEAN.I}
+   FIND CURRENT AONRTAB NO-LOCK NO-ERROR.
+   IF namndb() = "UTBI" THEN Guru.Konstanter:globforetag = Guru.Konstanter:globforetag.
+   ELSE IF Guru.Konstanter:globforetag = "cELPA" OR Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" THEN DO:
+     
+     /*
+      IF nyttaovar = TRUE OR vadgora = 2 THEN DO:
+       */  
+         FIND CURRENT AONRTAB NO-LOCK NO-ERROR.
+         ASSIGN
+         aonrvar = AONRTAB.AONR
+         delnrvar = AONRTAB.DELNR.
+         IF MONTH(TODAY) GE 9 THEN sldatum = DATE(12,31,YEAR(TODAY) + 1).
+         ELSE sldatum = DATE(12,31,YEAR(TODAY)).
+         IF MONTH(TODAY) = 01 AND DAY(TODAY) < 5 THEN stdatum = DATE(12,01,YEAR(TODAY) - 1).
+         ELSE IF DAY(TODAY) < 5 THEN stdatum = DATE(MONTH(TODAY) - 1,01,YEAR(TODAY)).
+         ELSE stdatum = DATE(MONTH(TODAY),01,YEAR(TODAY)).
+         IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" THEN DO:
+            IF AONRTAB.OMRADE NE "" THEN DO:
+               FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = AONRTAB.OMRADE NO-LOCK NO-ERROR.
+               FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+               FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+               IF JURPERS.JUDID = "ELNÄT" THEN DO:
+                  IF LENGTH(AONRTAB.AONR) = 4 THEN aonrvar = aonrvar + "0".
+                  IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+                     /*SNATBERGET*/
+                      OUTPUT TO d:\delad\pro10s\EXPORT\nyproj.txt APPEND.
+                  END.
+               
+                  
+                  ASSIGN projrapp = "".
+                  ASSIGN
+                  SUBSTRING(projrapp,1,5) = aonrvar.
+                  SUBSTRING(projrapp,7,30) = SUBSTRING(AONRTAB.ORT,1,30).
+                  SUBSTRING(projrapp,38,10) = STRING(stdatum,"9999/99/99").
+                  IF AONRTAB.FASTAAONR = TRUE THEN musz = musz.
+                  ELSE SUBSTRING(projrapp,49,10) = STRING(sldatum,"9999/99/99").
+                  SUBSTRING(projrapp,60,3) = STRING(AONRTAB.DELNR,"999").
+                  PUT projrapp.
+                  PUT SKIP.         
+                  OUTPUT CLOSE.
+                  /*os appnend*/
+                  IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+                     /*SNATBERGET*/
+                      OUTPUT TO d:\delad\pro10s\EXPORT\allanyproj.txt APPEND.
+                  END.
+               
+                                 
+                  PUT projrapp.
+                  PUT SKIP.
+                  OUTPUT CLOSE.
+                   
+               END.
+               IF JURPERS.JUDID = "SEAB" THEN DO:
+                  IF LENGTH(AONRTAB.AONR) = 4 THEN aonrvar = aonrvar + "0".
+                  OUTPUT TO d:\delad\SERVER\pro10s\EXPORT\nyprojSEAB.txt APPEND.
+                  ASSIGN projrapp = "".
+                  IF aonrvar BEGINS "S" THEN DO:                  
+                     SUBSTRING(projrapp,1,5) = SUBSTRING(aonrvar,2,5).
+                  END.
+                  ELSE DO:
+                     SUBSTRING(projrapp,1,5) = aonrvar.
+                  END.
+                  SUBSTRING(projrapp,7,30) = SUBSTRING(AONRTAB.ORT,1,30).
+                  SUBSTRING(projrapp,38,10) = STRING(stdatum,"9999/99/99").
+                  IF AONRTAB.FASTAAONR = TRUE THEN musz = musz.
+                  ELSE SUBSTRING(projrapp,49,10) = STRING(sldatum,"9999/99/99").
+                  PUT projrapp.
+                  PUT SKIP.         
+                  OUTPUT CLOSE.
+                  /*os appnend*/
+                  OUTPUT TO d:\delad\SERVER\pro10s\EXPORT\allanyprojSEAB.txt APPEND.               
+                  PUT projrapp.
+                  PUT SKIP.
+                  OUTPUT CLOSE.
+                 
+               END.
+               IF JURPERS.JUDID = "ServaNet" THEN DO:
+                  IF LENGTH(AONRTAB.AONR) = 4 THEN aonrvar = aonrvar + "0".
+                  IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+                     /*SNATBERGET*/
+                     OUTPUT TO d:\delad\pro10s\EXPORT\nyprojSN.txt APPEND.
+                  END.
+               
+                  
+                  ASSIGN projrapp = "".
+                  
+                  SUBSTRING(projrapp,1,5) = aonrvar.                  
+                  SUBSTRING(projrapp,7,30) = SUBSTRING(AONRTAB.ORT,1,30).
+                  SUBSTRING(projrapp,38,10) = STRING(stdatum,"9999/99/99").
+                  IF AONRTAB.FASTAAONR = TRUE THEN musz = musz.
+                  ELSE SUBSTRING(projrapp,49,10) = STRING(sldatum,"9999/99/99").
+                  SUBSTRING(projrapp,60,3) = STRING(AONRTAB.DELNR,"999").
+                  PUT projrapp.
+                  PUT SKIP.         
+                  OUTPUT CLOSE.
+                  /*os appnend*/
+                  IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+                     /*SNATBERGET*/
+                      OUTPUT TO d:\delad\pro10s\EXPORT\allanyprojSN.txt APPEND.
+                  END.
+                  ELSE OUTPUT TO d:\delad\SERVER\pro10s\EXPORT\allanyprojSN.txt APPEND.
+                  PUT projrapp.
+                  PUT SKIP.
+                  OUTPUT CLOSE.
+                  
+               END.
+               IF JURPERS.JUDID = "REKO" THEN DO:
+                  IF LENGTH(AONRTAB.AONR) = 4 THEN aonrvar = aonrvar + "0".
+                  IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+                     /*SNATBERGET*/
+                      OUTPUT TO d:\delad\pro10s\EXPORT\nyprojREKO.txt APPEND.
+                  END.
+                  ELSE OUTPUT TO d:\delad\SERVER\pro10s\EXPORT\nyprojREKO.txt APPEND.
+                  ASSIGN projrapp = "".
+                  
+                  SUBSTRING(projrapp,1,5) = aonrvar.                  
+                  SUBSTRING(projrapp,7,30) = SUBSTRING(AONRTAB.ORT,1,30).
+                  SUBSTRING(projrapp,38,10) = STRING(stdatum,"9999/99/99").
+                  IF AONRTAB.FASTAAONR = TRUE THEN musz = musz.
+                  ELSE SUBSTRING(projrapp,49,10) = STRING(sldatum,"9999/99/99").
+                  PUT projrapp.
+                  PUT SKIP.         
+                  OUTPUT CLOSE.
+                  /*os appnend*/
+                  
+                  OUTPUT TO d:\delad\SERVER\pro10s\EXPORT\allanyprojREKO.txt APPEND.
+                  
+                  PUT projrapp.
+                  PUT SKIP.
+                  OUTPUT CLOSE.
+                  
+               END.
+               
+            END.
+         END.
+      /*   
+      END.
+      */
+   END.
+   {EUROPEANAMERICAN.I}
+   RELEASE refbuff NO-ERROR.
+   RELEASE FAKTKOLL NO-ERROR.
+   RELEASE FAKTAONR NO-ERROR.
+   RELEASE aonrbuff NO-ERROR.
+   RELEASE aonrkontbuff NO-ERROR.
+   RELEASE AONRTAB NO-ERROR.
+   /*CCCC*/
+END PROCEDURE.
+ 
+PROCEDURE aoupp_UI :
+   IF AONRTAB.DELNR = 0 THEN ASSIGN AONRTAB.ARBUPPG[1] = "Fakturering".               
+   IF AONRTAB.DELNR = 1 THEN ASSIGN AONRTAB.ARBUPPG[1] = "Projektering".          
+   IF AONRTAB.DELNR = 2 THEN ASSIGN AONRTAB.ARBUPPG[1] = "Marknad".               
+   IF AONRTAB.DELNR = 3 THEN ASSIGN AONRTAB.ARBUPPG[1] = "Arbete".               
+   IF AONRTAB.DELNR = 4 THEN ASSIGN AONRTAB.ARBUPPG[1] = "Dokumentation".               
+   IF AONRTAB.DELNR = 5 THEN ASSIGN AONRTAB.ARBUPPG[1] = "Materiel".               
+   IF AONRTAB.DELNR = 6 THEN DO:
+      ASSIGN 
+      AONRTAB.ARBUPPG[1] = "Förbindelsehyra"
+      aonrbuff.ARBUPPG[1] = "Fakturering " + aonrbuff.ARBUPPG[1].
+      
+   END.
+END PROCEDURE.
+
+PROCEDURE aouppn_UI :      
+   IF AONRTAB.DELNR = 1 THEN DO: 
+      ASSIGN 
+      AONRTAB.ARBUPPG[1] = "Entreprenad".
+      /*AONRTAB.ORT = aonrbuff.ORT + "Entreprenad".         FUNKAR INTE */
+   END.
+   IF AONRTAB.DELNR = 2 THEN DO:
+      ASSIGN 
+      AONRTAB.ARBUPPG[1] = "Projektledning".
+      /*AONRTAB.ORT = aonrbuff.ORT + "Projektledning".*/
+   END.
+   IF AONRTAB.DELNR = 3 THEN DO: 
+      ASSIGN
+      AONRTAB.ARBUPPG[1] = "Projektering".
+      /*AONRTAB.ORT = aonrbuff.ORT + "Projektering".*/
+   END.
+   IF AONRTAB.DELNR = 4 THEN DO:
+      ASSIGN
+      AONRTAB.ARBUPPG[1] = "Dokumentation".
+      /*AONRTAB.ORT = aonrbuff.ORT + "Dokumentation".*/
+   END.
+   IF AONRTAB.DELNR = 5 THEN DO:
+      ASSIGN
+      AONRTAB.ARBUPPG[1] = "Säljtid".
+      /*AONRTAB.ORT = aonrbuff.ORT + "Säljtid".*/
+   END.
+   IF AONRTAB.DELNR = 99 THEN DO:
+      ASSIGN
+      AONRTAB.ARBUPPG[1] = "Intäkt".
+      /*AONRTAB.ORT = aonrbuff.ORT + "Säljtid".*/
+   END.
+END PROCEDURE.
+
+
+PROCEDURE aoupp79_UI :      
+   IF AONRTAB.DELNR = 1 THEN DO: 
+      ASSIGN 
+      AONRTAB.ARBUPPG[1] = "Intäkter".      
+   END.   
+
+END PROCEDURE.
+
+PROCEDURE labelk2:
+   DEFINE OUTPUT PARAMETER labelvar AS CHARACTER NO-UNDO.
+   FIND FIRST KBENAMNING USE-INDEX KBEN NO-LOCK NO-ERROR.   
+   /*IF Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "celpa" THEN DO:
+      ASSIGN labelvar = CAPS(SUBSTRING(KBENAMNING.K1,1,1)) + LC(SUBSTRING(KBENAMNING.K1,2)).
+   END.
+   ELSE DO:*/
+      ASSIGN labelvar = CAPS(SUBSTRING(KBENAMNING.K2,1,1)) + LC(SUBSTRING(KBENAMNING.K2,2)).
+   /*END.*/
+END PROCEDURE.
+PROCEDURE labelk3:
+   DEFINE OUTPUT PARAMETER labelvar AS CHARACTER NO-UNDO.
+   FIND FIRST KBENAMNING USE-INDEX KBEN NO-LOCK NO-ERROR.   
+   ASSIGN labelvar = CAPS(SUBSTRING(KBENAMNING.K3,1,1)) + LC(SUBSTRING(KBENAMNING.K3,2)).
+   
+END PROCEDURE.
+
+PROCEDURE labelk4:
+   DEFINE OUTPUT PARAMETER labelvar AS CHARACTER NO-UNDO.
+   FIND FIRST KBENAMNING USE-INDEX KBEN NO-LOCK NO-ERROR.   
+   ASSIGN labelvar = CAPS(SUBSTRING(KBENAMNING.K4,1,1)) + LC(SUBSTRING(KBENAMNING.K4,2)).
+   
+END PROCEDURE.
+
+PROCEDURE labelk1:
+   DEFINE OUTPUT PARAMETER labelvar AS CHARACTER NO-UNDO.
+   FIND FIRST KBENAMNING USE-INDEX KBEN NO-LOCK NO-ERROR.      
+   ASSIGN labelvar = CAPS(SUBSTRING(KBENAMNING.K1,1,1)) + LC(SUBSTRING(KBENAMNING.K1,2)).   
+   
+END PROCEDURE.
+
+PROCEDURE kto_UI :
+   DEFINE INPUT PARAMETER TABLE FOR jurperstemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR ktotemp.
+   EMPTY TEMP-TABLE ktotemp NO-ERROR. 
+   OPEN QUERY ktq FOR EACH KONTO  USE-INDEX KONTO NO-LOCK.
+   GET FIRST ktq NO-LOCK.
+   DO WHILE AVAILABLE(KONTO):
+      FIND FIRST jurperstemp WHERE jurperstemp.JUDID = KONTO.JUDID NO-LOCK NO-ERROR.
+      IF AVAILABLE jurperstemp THEN DO:
+         CREATE ktotemp.
+         BUFFER-COPY KONTO TO ktotemp.
+         ktotemp.VIJUDID = jurperstemp.VIJUDID.
+         
+      END.   
+      GET NEXT ktq NO-LOCK.
+   END.
+   CLOSE QUERY ktq.  
+
+END PROCEDURE.
+
+PROCEDURE ktoALLT_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR ktotemp.
+   EMPTY TEMP-TABLE ktotemp NO-ERROR. 
+   OPEN QUERY ktq FOR EACH KONTO  USE-INDEX KONTO NO-LOCK.
+   GET FIRST ktq NO-LOCK.
+   DO WHILE AVAILABLE(KONTO):
+      CREATE ktotemp.
+      BUFFER-COPY KONTO TO ktotemp.
+      GET NEXT ktq NO-LOCK.
+   END.
+   CLOSE QUERY ktq.  
+
+END PROCEDURE.
+
+
+PROCEDURE laddakb_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR kbenamntemp.
+   EMPTY TEMP-TABLE kbenamntemp NO-ERROR. 
+   OPEN QUERY kbq FOR EACH KBENAMNING USE-INDEX KBEN NO-LOCK.
+   GET FIRST kbq NO-LOCK.
+   DO WHILE AVAILABLE(KBENAMNING):
+      CREATE kbenamntemp.
+      BUFFER-COPY KBENAMNING TO kbenamntemp.
+      GET NEXT kbq NO-LOCK.
+   END.
+   CLOSE QUERY kbq.  
+
+END PROCEDURE.

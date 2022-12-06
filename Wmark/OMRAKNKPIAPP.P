@@ -1,0 +1,76 @@
+/*OMRAKNKPIAPP.P*/
+{STARTFORAPP.I}
+{FASTIGHET.I}
+{MARKVARD.I}
+DEFINE VARIABLE kor AS LOGICAL NO-UNDO.
+DEFINE BUFFER kbuff FOR KINDEX.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{EXTRADATA.I}
+PROCEDURE btnreg.
+  DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+  DEFINE INPUT PARAMETER fastighbet AS CHARACTER NO-UNDO.
+  DEFINE INPUT PARAMETER stlpnr AS INTEGER NO-UNDO.
+  DEFINE INPUT PARAMETER TABLE FOR akervardtemp.
+  RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+  FIND FIRST akervardtemp WHERE akervardtemp.VARDNR = valvardnr AND 
+  akervardtemp.BETECKNING = fastighbet AND akervardtemp.STOLPNR = stlpnr NO-LOCK NO-ERROR.
+  IF AVAILABLE akervardtemp THEN DO TRANSACTION:
+     FIND FIRST AKERVARD WHERE AKERVARD.VARDNR = akervardtemp.VARDNR AND 
+     AKERVARD.BETECKNING = akervardtemp.BETECKNING AND 
+     AKERVARD.STOLPNR = akervardtemp.STOLPNR EXCLUSIVE-LOCK NO-ERROR.
+     IF AVAILABLE AKERVARD THEN DO:
+        BUFFER-COPY akervardtemp TO AKERVARD.
+     END.
+  END.
+  RELEASE AKERVARD NO-ERROR.
+  DO TRANSACTION:  
+
+     kor = TRUE.
+     EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+     EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+     CREATE inextradatatemp.          
+     ASSIGN
+     inextradatatemp.PROGRAM = "VARDFAST"     
+     inextradatatemp.HUVUDINT = valvardnr
+     inextradatatemp.HUVUDCH = fastighbet.         
+     RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+     FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+     IF AVAILABLE extradatatemp THEN DO:      
+        IF extradatatemp.SOKCH[3] NE "" THEN kor = FALSE.        
+     END.     
+     IF kor = TRUE THEN DO:     
+        FOR EACH AKERKAB  WHERE AKERKAB.VARDNR = valvardnr AND 
+        AKERKAB.BETECKNING = fastighbet EXCLUSIVE-LOCK:
+           IF AKERKAB.FASTPRIS = TRUE THEN.         
+           ELSE DO:         
+              FIND FIRST KINDEX WHERE KINDEX.AR = 1995 AND KINDEX.MANAD = 10 USE-INDEX AR NO-LOCK NO-ERROR.
+              FIND FIRST kbuff WHERE kbuff.AR = (YEAR(TODAY)- 1) AND kbuff.MANAD = 10 USE-INDEX AR NO-LOCK NO-ERROR.
+              FIND FIRST MARKDIV NO-LOCK NO-ERROR.       
+              IF AKERKAB.FLKAB = FALSE THEN DO:
+                 ASSIGN AKERKAB.KRONOR = AKERKAB.L1 * 3.15.
+                 ASSIGN AKERKAB.L2 = 0.
+                 IF AVAILABLE KINDEX THEN DO:
+                     IF AVAILABLE kbuff THEN DO:
+                        ASSIGN AKERKAB.KRONOR = AKERKAB.L1 * 3.1 * kbuff.VARDE / KINDEX.VARDE.
+                     END.
+                 END.           
+              END.
+              ELSE DO:               
+                 ASSIGN AKERKAB.KRONOR = AKERKAB.L1 *  3.15 * ( ( 6 + AKERKAB.L2) / 6 ).
+                 IF AVAILABLE KINDEX THEN DO:
+                     IF AVAILABLE kbuff THEN DO:
+                        ASSIGN AKERKAB.KRONOR = AKERKAB.L1 * 3.1 * ( ( 6 + AKERKAB.L2) / 6 ) * kbuff.VARDE / KINDEX.VARDE.
+                     END.
+                 END.
+              END.
+           END.
+        END.
+     END.
+  END.
+  RELEASE AKERKAB.
+  EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+  EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+  IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.        
+  edataapph = ?.
+  RETURN.
+END PROCEDURE.

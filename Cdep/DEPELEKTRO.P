@@ -1,0 +1,404 @@
+/*DEPELEKTRO.P*/
+DEFINE INPUT  PARAMETER levidvar AS CHARACTER     NO-UNDO.
+DEFINE INPUT  PARAMETER aonrdelnrvar AS CHARACTER NO-UNDO.
+&Scoped-define NEW 
+{GLOBVAR2DEL1.I}
+&Scoped-define SHARED SHARED
+{LEVTEMP.I}
+{SPECMTRLTEMP.I}
+{SKAPAMTRL.I} 
+DEFINE SHARED VARIABLE vald_depa AS INTEGER NO-UNDO.
+
+DEFINE TEMP-TABLE felmeddftptemp 
+   FIELD FELMEDD AS CHARACTER
+   FIELD VAL AS INTEGER.
+         
+
+
+DEFINE VARIABLE inkberh AS HANDLE NO-UNDO.
+DEFINE VARIABLE ordernummervar AS CHARACTER NO-UNDO.
+{VARXMLDYNOE10.I}
+{TTBESTXML.I}
+IF NOT VALID-HANDLE(inkberh) THEN DO:
+   IF Guru.Konstanter:appcon THEN DO:
+      RUN INKBERAPP.P PERSISTENT SET inkberh ON Guru.Konstanter:apphand TRANSACTION DISTINCT.      
+   END.                             
+   ELSE DO:
+      RUN INKBERAPP.P PERSISTENT SET inkberh.   
+   END.
+END.
+IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "VAST" THEN  RUN bestelektro_UI (INPUT "VATTENFALL").
+IF VALID-HANDLE(inkberh) THEN DO: 
+   RUN InkAvs_UI IN inkberh.
+   DELETE PROCEDURE inkberh NO-ERROR.
+END.   
+PROCEDURE bestelektro_UI :
+   DEFINE INPUT  PARAMETER IDSender AS CHARACTER NO-UNDO.
+   
+   DEFINE VARIABLE prognamn AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE sparfilnamn AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE filnamnsp AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE nivar AS INTEGER NO-UNDO.
+   DEFINE VARIABLE extraradut AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE ejnivtab AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+   
+   DEFINE VARIABLE kommandoquery2 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE kommandoquery3 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE kommandoquery11 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE kommandoquery12 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE hjid AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE hjrakn AS INTEGER NO-UNDO.
+   DEFINE VARIABLE infillong AS LONGCHAR NO-UNDO.
+   EMPTY TEMP-TABLE tempnamn NO-ERROR. 
+   EMPTY TEMP-TABLE ProjectOrder NO-ERROR.
+   EMPTY TEMP-TABLE tempheader NO-ERROR.
+   EMPTY TEMP-TABLE tempmessage NO-ERROR.
+   EMPTY TEMP-TABLE Order NO-ERROR.
+   EMPTY TEMP-TABLE Buyer NO-ERROR.   
+   EMPTY TEMP-TABLE bDeliveryAddress NO-ERROR.  
+   EMPTY TEMP-TABLE bForeignDeliveryAddress NO-ERROR.  
+   EMPTY TEMP-TABLE Seller NO-ERROR.  
+   EMPTY TEMP-TABLE Passage NO-ERROR.    
+   EMPTY TEMP-TABLE BuildingPart NO-ERROR.  
+   EMPTY TEMP-TABLE OrderRows NO-ERROR.
+   
+   DEFINE VARIABLE hjkom AS CHARACTER NO-UNDO.
+   RUN uttabelektro_UI.
+   CREATE ProjectOrder.
+   ASSIGN
+   ProjectOrder.ut =   "".
+   CREATE tempheader.
+   ASSIGN
+   tempheader.ut =   "".   
+   CREATE tempmessage.
+   ASSIGN
+   tempmessage.SenderID =  IDSender 
+   tempmessage.MessageType = "ORDERS"
+   tempmessage.ReceiverId  =  "SESKA"
+   tempmessage.MessageDate = STRING(TODAY,"9999-99-99").
+   FIND FIRST skapa_mtrl NO-LOCK NO-ERROR.
+
+   hjkom = skapa_mtrl.KOM + " Kontaktperson inköp:" + STRING(skapa_mtrl.KIKONTAKT).
+   IF STRING(skapa_mtrl.KITELE) NE "" THEN hjkom = hjkom +  " Tele:" + STRING(STRING(skapa_mtrl.KITELE)).
+   IF skapa_mtrl.KIMOBIL  NE "" THEN hjkom = hjkom +  " Mobil:" + STRING(skapa_mtrl.KIMOBIL).    
+   /*
+   hjkom = hjkom + "Kontaktperson teknik:" + STRING(inkadresssparb.TKONTAKT).
+   
+   IF inkadresssparb.TTELE NE "" THEN hjkom = hjkom +  " Tele:" + STRING(inkadresssparb.TTELE).
+   IF inkadresssparb.TMOBIL NE "" THEN hjkom = hjkom +  " Mobil:" + STRING(inkadresssparb.TMOBIL).
+   */
+   ordernummervar = "VD." + STRING(vald_depa) + "." + STRING(skapa_mtrl.BESTNR) + "." + aonrdelnrvar.
+   CREATE Order.
+   ASSIGN
+   Order.BuyerOrderNumber    = TRIM(STRING(ordernummervar))
+   Order.RegistrationDate    = STRING(TODAY,"9999-99-99") 
+   Order.ObjectID            = "GRUNDOBJ"      
+   Order.CurrencyCode        = "SEK"         
+   Order.DeliveryNoteText    = skapa_mtrl.AVISPERS 
+   Order.GoodsMarking        = skapa_mtrl.MARK   
+           
+   Order.DeliveryTermCode    = "" 
+   Order.DeliveryTermCity    = skapa_mtrl.KORT
+   Order.SplitDelivery       = "N"
+   Order.BuyerInvoiceNumber  = ""
+   Order.OrderChange         = "N"    
+   Order.AKG                 = "".
+   Order.OrderText           = hjkom.
+   
+   CREATE buyer. 
+   ASSIGN
+   buyer.BuyerID     = STRING(skapa_mtrl.KUNDNR,"99999")
+   buyer.Name         = skapa_mtrl.FORE
+   buyer.Handler      = skapa_mtrl.KIKONTAKT
+   buyer.Phone        = skapa_mtrl.KITELE.
+   buyer.Fax  = skapa_mtrl.FAX.
+   
+   ASSIGN
+   buyer.MobilePhone  = skapa_mtrl.KIMOBIL
+   buyer.Reference    = TRIM(STRING(ordernummervar))
+   buyer.eMailAddress = skapa_mtrl.KIEPOST.
+   buyer.ProjectName = "Depå beställning".
+   /*
+   RUN hmtpben_UI IN inkberh (OUTPUT buyer.ProjectName).
+    */
+   CREATE bDeliveryAddress.
+   ASSIGN
+   bDeliveryAddress.Name       =  skapa_mtrl.FORE
+   bDeliveryAddress.Street     = skapa_mtrl.L1
+   bDeliveryAddress.City       = skapa_mtrl.L3
+   bDeliveryAddress.PostalCode = STRING(REPLACE(skapa_mtrl.L2," ",""),"99999")
+   bDeliveryAddress.CountryCode= "SE".
+
+   CREATE bForeignDeliveryAddress.
+   ASSIGN
+   bForeignDeliveryAddress.Address1   = ""
+   bForeignDeliveryAddress.Address2   = ""
+   bForeignDeliveryAddress.Address3   = ""
+   bForeignDeliveryAddress.Address4   = ""
+   bForeignDeliveryAddress.Address5   = ""
+   bForeignDeliveryAddress.GateCountryCode  = "".
+
+   
+   CREATE seller.
+   ASSIGN
+   seller.SellerID   = "ELEKTROSKANDIA"
+   seller.Name       = "Elektroskandia AB"
+   seller.Handler    = skapa_mtrl.LKONTAKT
+   seller.Phone      = skapa_mtrl.LTELE.
+   /*
+   seller.Fax        = inkadresssparb.GFAX.
+   */
+   CREATE passage. 
+   ASSIGN
+   passage.PassageID     = STRING(1)
+   passage.PassageName   = skapa_mtrl.L1.
+   /*
+   passage.Infotext      = beruppinktemp.ANMARK.
+   */
+   CREATE DeliveryAddress.
+   ASSIGN
+   DeliveryAddress.PassageID     = STRING(1)
+   DeliveryAddress.Name        = skapa_mtrl.FORE
+   DeliveryAddress.Street      = skapa_mtrl.L1
+   DeliveryAddress.City        = skapa_mtrl.L3
+   DeliveryAddress.PostalCode  = skapa_mtrl.L2
+   DeliveryAddress.CountryCode = "".
+   CREATE ForeignDeliveryAddress.
+   ASSIGN
+   ForeignDeliveryAddress.PassageID     = STRING(1)
+   ForeignDeliveryAddress.Address1    = ""
+   ForeignDeliveryAddress.Address2    = ""
+   ForeignDeliveryAddress.Address3    = ""
+   ForeignDeliveryAddress.Address4    = ""
+   ForeignDeliveryAddress.Address5    = ""
+   ForeignDeliveryAddress.GateCountryCode = "" .            
+   
+   CREATE buildingpart.  
+   ASSIGN
+   buildingpart.PassageID        = STRING(1)
+   buildingpart.BuildingPartID   = "Ingen"
+   buildingpart.PartName         = "Ingen".
+        
+   hjrakn = 1.
+   FOR EACH spec_mtrl WHERE spec_mtrl.LEVKOD = levidvar AND spec_mtrl.BERKVANT > 0:
+      CREATE OrderRows.  
+      ASSIGN
+      OrderRows.PassageID        = STRING(1)
+      OrderRows.BuildingPartID           = "Ingen".
+      
+      ASSIGN
+      OrderRows.BuyerRowNumber           = STRING(hjrakn)
+      OrderRows.BuyerArticleNumber       = ""
+      OrderRows.BuyerArticleDescription  = ""
+      OrderRows.SellerRowNumber          = STRING(hjrakn)
+      OrderRows.SellerArticleNumber      = spec_mtrl.ENR
+      OrderRows.SellerArticleDescription = spec_mtrl.BENAMNING
+      OrderRows.OrderedQuantity          = STRING(DECIMAL(OrderRows.OrderedQuantity) + spec_mtrl.BERKVANT)
+      OrderRows.UnitCode                 = SUBSTRING(spec_mtrl.ENHET,1,2)
+      OrderRows.Price                    = STRING(spec_mtrl.PRIS)
+      OrderRows.PriceType                = "1"
+      OrderRows.RequestedDeliveryDate    = STRING(skapa_mtrl.DATUM,"9999-99-99")
+      OrderRows.Discount                 = ""
+      OrderRows.NewRequestedDeliveryDate  = ""
+      OrderRows.DynamicArticle            = "".
+      IF SUBSTRING(OrderRows.SellerArticleNumber,1,1) NE "E"  THEN OrderRows.SellerArticleNumber = "E" + OrderRows.SellerArticleNumber.
+
+/*     
+      OrderRows.Comment                = spec_mtrl.MTRLTEXT .
+  */   
+      hjrakn = hjrakn + 1.
+   END.
+      
+   prognamn = SESSION:TEMP-DIRECTORY + Guru.Konstanter:globanv + "\".
+   {SESSIONTEMPDIR.I}
+   IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN prognamn = webclienttempdir.
+   sparfilnamn = prognamn + "gurubest" + "\". 
+   OS-CREATE-DIR VALUE(sparfilnamn) NO-ERROR.
+   sparfilnamn = prognamn + "gurubest" + "\" + "bestkopia\". 
+   OS-CREATE-DIR VALUE(sparfilnamn) NO-ERROR.
+   sparfilnamn = prognamn + "gurubest" + "\".
+   filnamnsp = sparfilnamn + "bestkopia\" + TRIM(STRING(ordernummervar)).
+   sparfilnamn = sparfilnamn + TRIM(STRING(ordernummervar)) + ".xml".
+   
+   sparfilnamn = REPLACE(sparfilnamn,",","").         
+   {UTXKMLKOLL.I}
+   RUN VALUE(vxmlpro) PERSISTENT SET dynxml (INPUT FALSE).
+   /*
+   RUN radbryt_UI IN dynxml (INPUT TRUE).
+   */ 
+   RUN radbryt_UI IN dynxml (INPUT true).
+   ejnivtab = "tempheader,ProjectOrder".
+   extraradut = "ProjectName".
+   RUN creatnodniv_UI IN dynxml (INPUT 5).
+   RUN xmlutstartniv_UI IN dynxml (INPUT "ns0:ProjectOrders",INPUT sparfilnamn,INPUT "http://Elektroskandia.ESXML.ProjectOrder",INPUT "xmlns:ns0").
+   FIND FIRST tempnamn WHERE tempnamn.NODTAB = "ProjectOrder" NO-LOCK NO-ERROR.
+   IF AVAILABLE tempnamn THEN DO:
+      ASSIGN
+      nivar = 1.
+      kommandoquery = "FOR EACH " + tempnamn.NODTAB.
+      RUN nivut_UI IN dynxml (INPUT nivar,INPUT tempnamn.NAMNH,INPUT kommandoquery,INPUT tempnamn.NODTAB,INPUT ejnivtab,INPUT extraradut).                     
+   END.
+   FOR EACH tempnamn:      
+      IF tempnamn.NODTAB = "tempheader" THEN DO:      
+         ASSIGN
+         nivar = 2.
+         kommandoquery = "FOR EACH " + tempnamn.NODTAB.
+         RUN nivut_UI IN dynxml (INPUT nivar,INPUT tempnamn.NAMNH,INPUT kommandoquery,INPUT "Header",INPUT ejnivtab,INPUT extraradut).                     
+      END.
+      ELSE IF tempnamn.NODTAB = "tempmessage" THEN DO:       
+         ASSIGN
+         nivar = 3.
+         kommandoquery = "FOR EACH " + tempnamn.NODTAB.
+         RUN nivut_UI IN dynxml (INPUT nivar,INPUT tempnamn.NAMNH,INPUT kommandoquery,INPUT "Message",INPUT ejnivtab,INPUT extraradut).                     
+      END.
+      ELSE IF tempnamn.NODTAB = "Order"  OR  tempnamn.NODTAB = "Seller" OR tempnamn.NODTAB = "Buyer" 
+      THEN DO:   
+         ASSIGN
+         nivar = 3.
+         kommandoquery = "FOR EACH " + tempnamn.NODTAB.
+         RUN nivut_UI IN dynxml (INPUT nivar,INPUT tempnamn.NAMNH,INPUT kommandoquery,INPUT tempnamn.NODTAB,INPUT ejnivtab,INPUT extraradut ).                     
+      END.
+      ELSE IF tempnamn.NODTAB = "bDeliveryAddress"  THEN DO:       
+         ASSIGN
+         nivar = 4.
+         kommandoquery = "FOR EACH " + tempnamn.NODTAB.
+         RUN nivut_UI IN dynxml (INPUT nivar,INPUT tempnamn.NAMNH,INPUT kommandoquery,INPUT "DeliveryAddress",INPUT ejnivtab,INPUT extraradut).                              
+      END.
+      ELSE IF  tempnamn.NODTAB = "bForeignDeliveryAddress" THEN DO:       
+         ASSIGN
+         nivar = 4.
+         kommandoquery = "FOR EACH " + tempnamn.NODTAB.
+         RUN nivut_UI IN dynxml (INPUT nivar,INPUT tempnamn.NAMNH,INPUT kommandoquery,INPUT "ForeignDeliveryAddress",INPUT ejnivtab,INPUT extraradut). 
+         RUN extraut_UI IN dynxml (INPUT 3,INPUT "ProjectName").
+         
+      END.
+   END.
+   FOR EACH tempnamn WHERE  tempnamn.NODTAB = "Passage":      
+      ASSIGN
+      nivar = 2.
+      kommandoquery = "FOR EACH Passage  NO-LOCK".
+      kommandoquery2 = "FOR EACH buildingpart  WHERE buildingpart.PassageID = '".
+      kommandoquery3 = "FOR EACH OrderRows  WHERE OrderRows.PassageID = '".
+      kommandoquery11 = "FOR EACH DeliveryAddress  WHERE DeliveryAddress.PassageID = '".
+      kommandoquery12 = "FOR EACH ForeignDeliveryAddress  WHERE ForeignDeliveryAddress.PassageID = '".
+      RUN inladd_UI IN dynxml 
+      (INPUT kommandoquery2, INPUT kommandoquery3,INPUT kommandoquery11,INPUT kommandoquery12, INPUT "PassageID",INPUT "BuildingPartID",
+      INPUT TEMP-TABLE buildingpart:DEFAULT-BUFFER-HANDLE, INPUT TEMP-TABLE OrderRows:DEFAULT-BUFFER-HANDLE,
+      INPUT TEMP-TABLE DeliveryAddress:DEFAULT-BUFFER-HANDLE,INPUT TEMP-TABLE ForeignDeliveryAddress:DEFAULT-BUFFER-HANDLE).
+      RUN huvnivut_UI IN dynxml (INPUT nivar,INPUT TEMP-TABLE Passage:DEFAULT-BUFFER-HANDLE,INPUT kommandoquery).            
+   END. 
+      
+   RUN xmlutslut_UI IN dynxml.
+   RUN xmlslut_UI IN dynxml.
+    
+   filnamnsp = filnamnsp + STRING(TODAY,"99999999") + STRING(TIME) + ".xml".     
+   OS-COPY VALUE(sparfilnamn) VALUE(filnamnsp).
+   /* 
+   RUN radbryt_UI IN dynxml (INPUT FALSE).
+   EMPTY TEMP-TABLE bytxmltemp NO-ERROR. 
+   CREATE bytxmltemp.
+   ASSIGN 
+   bytxmltemp.ORDNING = 1                        
+   bytxmltemp.FRAN = "CHR(9)"
+   bytxmltemp.TILL = "".
+   CREATE bytxmltemp.
+   ASSIGN 
+   bytxmltemp.ORDNING = 2
+   bytxmltemp.FRAN = "CHR(13)"
+   bytxmltemp.TILL = "".
+   CREATE bytxmltemp.
+   ASSIGN 
+   bytxmltemp.ORDNING = 3
+   bytxmltemp.FRAN = "CHR(10)"
+   bytxmltemp.TILL = "".
+   RUN byttxttab_UI IN dynxml (INPUT sparfilnamn,INPUT TABLE bytxmltemp). 
+  */
+   EMPTY TEMP-TABLE bytxmltemp NO-ERROR. 
+   CREATE bytxmltemp.
+   ASSIGN 
+   bytxmltemp.ORDNING = 1                        
+   bytxmltemp.FRAN = "CHR(9)"
+   bytxmltemp.TILL = "".
+   CREATE bytxmltemp.
+   ASSIGN 
+   bytxmltemp.ORDNING = 2
+   bytxmltemp.FRAN = "CHR(13)"
+   bytxmltemp.TILL = "".
+   CREATE bytxmltemp.
+   ASSIGN 
+   bytxmltemp.ORDNING = 3
+   bytxmltemp.FRAN = "CHR(10)"
+   bytxmltemp.TILL = "".
+   
+   COPY-LOB FROM  FILE sparfilnamn TO infillong.
+   FOR EACH bytxmltemp USE-INDEX ordning WHERE NO-LOCK:    
+      infillong = REPLACE(infillong,bytxmltemp.FRAN,bytxmltemp.TILL).      
+   END. 
+   infillong = REPLACE(infillong,CHR(10),"").
+   infillong = REPLACE(infillong,CHR(13),"").
+   infillong = REPLACE(infillong,CHR(9),"").  
+   IF VALID-HANDLE(dynxml) THEN DELETE PROCEDURE dynxml NO-ERROR.
+    
+   
+   EMPTY TEMP-TABLE felmeddftptemp NO-ERROR.  
+       
+   RUN skickelektro_UI IN inkberh (INPUT ordernummervar, INPUT infillong,OUTPUT TABLE felmeddftptemp).
+   
+   FOR EACH felmeddftptemp WHERE NO-LOCK:
+      MESSAGE TRIM(felmeddftptemp.FELMEDD) VIEW-AS ALERT-BOX.
+   END.
+   MESSAGE "Filen finns både på Eran server och i " filnamnsp
+   VIEW-AS ALERT-BOX.
+   OS-DELETE VALUE(sparfilnamn).
+   
+END PROCEDURE.
+
+PROCEDURE uttabelektro_UI :
+   EMPTY TEMP-TABLE tempnamn NO-ERROR. 
+   CREATE tempnamn.
+   tempnamn.NAMNH = BUFFER ProjectOrder:HANDLE.
+   tempnamn.TORGTH = TEMP-TABLE ProjectOrder:HANDLE.
+   tempnamn.NODTAB = "ProjectOrder".
+   CREATE tempnamn.
+   tempnamn.NAMNH = BUFFER tempheader:HANDLE.
+   tempnamn.TORGTH = TEMP-TABLE tempheader:HANDLE.
+   tempnamn.NODTAB = "tempheader".
+   CREATE tempnamn.
+   tempnamn.NAMNH = BUFFER tempmessage:HANDLE.
+   tempnamn.TORGTH = TEMP-TABLE tempmessage:HANDLE.
+   tempnamn.NODTAB = "tempmessage".
+   CREATE tempnamn.
+   tempnamn.NAMNH = BUFFER Order:HANDLE.
+   tempnamn.TORGTH = TEMP-TABLE Order:HANDLE.
+   tempnamn.NODTAB = "Order".
+   CREATE tempnamn.        
+   tempnamn.NAMNH = BUFFER Buyer:HANDLE.   
+   tempnamn.TORGTH = TEMP-TABLE Buyer:HANDLE.
+   tempnamn.NODTAB = "Buyer".
+   CREATE tempnamn.        
+   tempnamn.NAMNH = BUFFER bDeliveryAddress:HANDLE.  
+   tempnamn.TORGTH = TEMP-TABLE bDeliveryAddress:HANDLE.
+   tempnamn.NODTAB = "bDeliveryAddress".
+   CREATE tempnamn.        
+   tempnamn.NAMNH = BUFFER bForeignDeliveryAddress:HANDLE.  
+   tempnamn.TORGTH = TEMP-TABLE bForeignDeliveryAddress:HANDLE.
+   tempnamn.NODTAB = "bForeignDeliveryAddress".
+   CREATE tempnamn.        
+   tempnamn.NAMNH = BUFFER Seller:HANDLE.  
+   tempnamn.TORGTH = TEMP-TABLE Seller:HANDLE.
+   tempnamn.NODTAB = "Seller".
+   CREATE tempnamn.        
+   tempnamn.NAMNH = BUFFER Passage:HANDLE.    
+   tempnamn.TORGTH = TEMP-TABLE Passage:HANDLE.
+   tempnamn.NODTAB = "Passage".
+   CREATE tempnamn.        
+   tempnamn.NAMNH = BUFFER BuildingPart:HANDLE.  
+   tempnamn.TORGTH = TEMP-TABLE BuildingPart:HANDLE.
+   tempnamn.NODTAB = "BuildingPart".
+   CREATE tempnamn.        
+   tempnamn.NAMNH = BUFFER OrderRows:HANDLE.
+   tempnamn.TORGTH = TEMP-TABLE OrderRows:HANDLE.
+   tempnamn.NODTAB = "OrderRows".
+         
+END PROCEDURE.

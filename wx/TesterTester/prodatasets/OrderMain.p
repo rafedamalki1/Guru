@@ -1,0 +1,14 @@
+/* OrderMain.p -- Main procedure for an Order Dataset */
+{dsOrderTT.i}
+{dsOrder.i}
+DEFINE INPUT PARAMETER piOrderNum AS INTEGER NO-UNDO.
+DEFINE OUTPUT PARAMETER DATASET FOR dsOrder.
+DEFINE VARIABLE hDSOrder AS HANDLE NO-UNDO.
+DEFINE VARIABLE hEvents AS HANDLE NO-UNDO.
+DEFINE VARIABLE hDataSet AS HANDLE NO-UNDO.
+hDSOrder = DATASET dsOrder:HANDLE.
+RUN OrderEvents.p PERSISTENT SET hEvents
+(INPUT piOrderNum,
+INPUT hDSOrder).
+hDSOrder:FILL().
+DELETE PROCEDURE hEvents.

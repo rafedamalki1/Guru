@@ -1,0 +1,11 @@
+def var i as integer.
+   CREATE ALIAS vv FOR DATABASE VUTBI.
+MESSAGE LDBNAME(1) num-aliases VIEW-AS ALERT-BOX.
+REPEAT I = 1 TO NUM-ALIASES:
+
+
+   MESSAGE ALIAS(I)LDBNAME(ALIAS(I)) VIEW-AS ALERT-BOX.
+END.   
+MESSAGE ALIAS(3).
+   delete alias vv.
+   

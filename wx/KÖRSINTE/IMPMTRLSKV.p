@@ -1,0 +1,88 @@
+/*IMPMTRLSKV.p INLÄSNING AV SEMIKOLONFIL FÖR IMPORT AV KONSTRUKTION*/       
+DEFINE NEW SHARED VARIABLE quotervar AS CHARACTER FORMAT "X(256)" NO-UNDO.
+
+
+
+
+
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+
+DEFINE VARIABLE rad AS INTEGER NO-UNDO.
+DEFINE VARIABLE prognamn AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamndat AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamnque AS CHARACTER FORMAT "X(20)" NO-UNDO.                
+DEFINE VARIABLE words AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE kommandoprog AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE satsvar AS CHARACTER FORMAT "X(11)" NO-UNDO.
+DEFINE VARIABLE enrvar AS CHARACTER FORMAT "X(11)" NO-UNDO.
+DEFINE VARIABLE melvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE melvar2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE langd AS INTEGER NO-UNDO.
+DEFINE VARIABLE pos1 AS INTEGER NO-UNDO. 
+DEFINE VARIABLE svar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE var2 AS CHARACTER NO-UNDO.
+
+
+DEFINE TEMP-TABLE tidin   
+   FIELD ENR                AS CHARACTER 
+   FIELD BENAMNING          AS CHARACTER 
+   FIELD ENHET              AS CHARACTER
+   FIELD BPRIS              AS DECIMAL
+   FIELD NPRIS              AS DECIMAL
+   INDEX ENR IS PRIMARY ENR.
+   
+
+DEFINE TEMP-TABLE infil
+   FIELD PROGNAMN AS CHARACTER FORMAT "X(78)" 
+   INDEX PRO IS PRIMARY PROGNAMN.
+DEFINE TEMP-TABLE intid
+   FIELD TIN AS CHARACTER FORMAT "X(78)" .
+   
+DEFINE INPUT PARAMETER filnamn AS CHARACTER NO-UNDO.   
+DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.   
+DEFINE INPUT PARAMETER svar5 AS LOGICAL NO-UNDO.
+{AMERICANEUROPEAN.I}
+{muswait.i}      
+   EMPTY TEMP-TABLE intid NO-ERROR. 
+   EMPTY TEMP-TABLE tidin NO-ERROR.    
+   
+
+   INPUT FROM VALUE(filnamn) NO-ECHO.
+   REPEAT:
+      DO TRANSACTION: 
+         CREATE tidin.
+         ASSIGN.
+         IMPORT DELIMITER ";" tidin   NO-ERROR.
+      END.               
+   END.
+/*    FOR EACH TIDIN:                                                                     */
+/*       MESSAGE TIDIN.KTYPKOD TIDIN.ENR TIDIN.BENAMNING TIDIN.ENHET TIDIN.ANTAL TIDIN.F1 */
+/*       TIDIN.F2 TIDIN.F3 TIDIN.F4 TIDIN.F5 TIDIN.LINKAB TIDIN.DIAMETER TIDIN.MODULER    */
+/*       TIDIN.TYPBER TIDIN.FEL.                                                          */
+/*    END.                                                                                */
+   FOR EACH tidin WHERE tidin.ENR = "":
+      DELETE tidin.
+   END.  
+   /*FOR EACH tidin WHERE tidin.ENR = "ENR":
+      DELETE tidin.      
+   END.*/
+   /*FOR EACH tidin USE-INDEX enr NO-LOCK:   
+      MESSAGE tidin.enr tidin.npris VIEW-AS ALERT-BOX.
+   END.*/
+   RUN skapaenr_UI.
+/*    OS-DELETE VALUE(wtidvar). */
+
+{EUROPEANAMERICAN.I}
+PROCEDURE skapaenr_UI:         
+   IF Guru.Konstanter:appcon THEN DO:                           
+      RUN IMPMTRLSKV2.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+      (INPUT TABLE tidin, INPUT leverant,INPUT svar5).
+   END.
+   ELSE DO:
+      RUN IMPMTRLSKV2.P 
+      (INPUT TABLE tidin, INPUT leverant,INPUT svar5).
+   END.         
+END PROCEDURE.   
+
+                

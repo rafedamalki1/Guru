@@ -1,0 +1,515 @@
+/*PHMTAPP.P*/
+{STARTFORAPP.I}
+{BOLAGSEKSTART.I}
+{PHMT.I}
+&Scoped-define NEW NEW 
+{PHMTA.I}
+{SOKDEF.I}
+DEFINE TEMP-TABLE avdjurkoll NO-UNDO
+   FIELD OMRADE AS CHARACTER
+   INDEX OMRADE OMRADE.
+DEFINE QUERY pq FOR PERSONALTAB.
+DEFINE VARIABLE sekkollvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE sektidkollvar AS LOGICAL NO-UNDO.
+PROCEDURE allpers_UI :
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER gniv AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR personaltemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR godkannartemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR avdelningtemp.
+   DEFINE VARIABLE titta AS LOGICAL NO-UNDO.
+   EMPTY TEMP-TABLE personaltemp NO-ERROR.       
+   FOR EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE NO-LOCK.
+      titta = FALSE.
+      IF gniv = 0 THEN titta = TRUE.
+      ELSE IF gniv NE 0 THEN DO:
+         FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = ganv AND TIDSEK.PERSONALKOD = PERSONALTAB.PERSONALKOD  USE-INDEX TIDSEK NO-LOCK NO-ERROR.
+         IF AVAILABLE TIDSEK THEN titta = TRUE.
+      END.
+      IF titta = TRUE THEN DO:    
+         CREATE personaltemp.
+         BUFFER-COPY PERSONALTAB TO personaltemp.
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+      END.        
+   END.
+            
+   EMPTY TEMP-TABLE godkannartemp NO-ERROR.
+   FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = ganv NO-LOCK NO-ERROR. 
+   FOR EACH GODKANNARTAB NO-LOCK:
+      titta = FALSE.
+      IF gniv = 0 THEN titta = TRUE.
+      ELSE IF gniv NE 0 THEN DO:
+         FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = ganv AND TIDSEK.PERSONALKOD = GODKANNARTAB.PERSONALKOD  USE-INDEX TIDSEK NO-LOCK NO-ERROR.
+         IF AVAILABLE TIDSEK THEN titta = TRUE.
+         /* 20180423 Lena. Användaren ska även kunna se godkännaren om användaren har behörighet för någon av personerna gokännaren ska godkänna.*/
+         IF titta = FALSE THEN DO:            
+            FOR EACH PERSONALTAB WHERE PERSONALTAB.TIDSGODK = GODKANNARTAB.PERSONALKOD AND PERSONALTAB.AKTIV = TRUE NO-LOCK:
+               IF titta = FALSE THEN DO:
+                  IF ANVANDARE.PERSONALKOD = PERSONALTAB.PERSONALKOD THEN.    
+                  ELSE DO:                
+                     FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = ganv AND TIDSEK.PERSONALKOD = PERSONALTAB.PERSONALKOD AND TIDSEK.PANDRA = TRUE USE-INDEX TIDSEK NO-LOCK NO-ERROR.
+                     IF AVAILABLE TIDSEK THEN titta = TRUE.
+                  END.   
+               END.   
+            END.
+         END.   
+      END.
+      IF titta = TRUE THEN DO:
+         /* Ta bort godkännare som bara har inaktiva personer */
+         DEBUGGER:SET-BREAK().
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.TIDSGODK = GODKANNARTAB.PERSONALKOD AND PERSONALTAB.AKTIV = TRUE NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO:
+            CREATE godkannartemp.
+            BUFFER-COPY GODKANNARTAB TO godkannartemp.
+            godkannartemp.NAMN = godkannartemp.PERSONALKOD + " " + godkannartemp.FORNAMN + " " + godkannartemp.EFTERNAMN.
+            Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + GODKANNARTAB.PERSONALKOD.
+         END.
+      END.   
+   END.
+   /*FOR EACH godkannartemp WHERE NO-LOCK:
+      MESSAGE  godkannartemp.PERSONALKO
+      VIEW-AS ALERT-BOX.
+   END.*/
+   EMPTY TEMP-TABLE avdelningtemp  NO-ERROR.       
+   FOR EACH AVDELNING WHERE AVDELNING.KOSTMASK = 0 NO-LOCK:
+      CREATE avdelningtemp.
+      BUFFER-COPY AVDELNING TO avdelningtemp.     
+   END.   
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+PROCEDURE persen_UI :
+   /*6*/
+   
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR personaltemp.
+   EMPTY TEMP-TABLE personaltemp NO-ERROR.       
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = vem NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      FIND FIRST personaltemp WHERE personaltemp.PERSONALKOD = vem NO-ERROR.
+      IF NOT AVAILABLE personaltemp THEN CREATE personaltemp.
+      BUFFER-COPY PERSONALTAB TO personaltemp.
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+   END.
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+PROCEDURE godk_UI :
+   /*2*/
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR godkannartemp.
+   EMPTY TEMP-TABLE godkannartemp NO-ERROR. 
+    
+   IF vem = ""  THEN DO:
+      FOR EACH GODKANNARTAB NO-LOCK:
+         CREATE godkannartemp.
+         BUFFER-COPY GODKANNARTAB TO godkannartemp.
+         godkannartemp.NAMN = godkannartemp.PERSONALKOD + " " + godkannartemp.FORNAMN + " " + godkannartemp.EFTERNAMN.
+      END.
+   
+      FOR EACH godkannartemp :
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.TIDSGODK = godkannartemp.PERSONALKOD AND PERSONALTAB.AKTIV = TRUE   NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE PERSONALTAB THEN DO:
+            DELETE godkannartemp.
+         END.
+         ELSE Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + godkannartemp.PERSONALKOD.     
+      END.   
+   END.
+   ELSE DO:
+      FIND FIRST GODKANNARTAB WHERE GODKANNARTAB.PERSONALKOD = vem 
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE GODKANNARTAB THEN DO:
+         CREATE godkannartemp.
+         BUFFER-COPY GODKANNARTAB TO godkannartemp.
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + GODKANNARTAB.PERSONALKOD.
+      END.
+   END.
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+PROCEDURE recidset_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR personaltemp.
+   FOR EACH personaltemp:
+     FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = personaltemp.PERSONALKOD NO-LOCK NO-ERROR.
+     IF AVAILABLE PERSONALTAB THEN DO:
+         ASSIGN personaltemp.PERSRECID = RECID(PERSONALTAB).
+      END.     
+   END.
+END PROCEDURE.
+
+PROCEDURE phamta_UI :
+   DEFINE INPUT PARAMETER sektidkoll AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER sekkoll AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR uppvalPerstemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR personaltemp.
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+   sekkollvar = sekkoll.
+   sektidkollvar = sektidkoll.
+   FIND FIRST uppvalPerstemp NO-ERROR.
+   EMPTY TEMP-TABLE personaltemp NO-ERROR. 
+   /*Öppna olika querys*/
+   IF uppvalPerstemp.OMRADE = "ALLA" THEN DO:
+      OPEN QUERY pq FOR EACH PERSONALTAB NO-LOCK.
+   END.
+   ELSE IF uppvalPerstemp.OMRADE NE "ALLA" THEN DO:
+      OPEN QUERY pq FOR EACH PERSONALTAB WHERE PERSONALTAB.OMRADE = uppvalPerstemp.OMRADE  NO-LOCK.
+   END.
+   ELSE IF uppvalPerstemp.TIDSGODK NE "ALLA" THEN DO:
+      OPEN QUERY pq FOR EACH PERSONALTAB WHERE PERSONALTAB.TIDSGODK = uppvalPerstemp.TIDSGODK NO-LOCK.
+   END.
+   ELSE IF uppvalPerstemp.BEFATTNING NE "ALLA" THEN DO:
+      OPEN QUERY pq FOR EACH PERSONALTAB WHERE PERSONALTAB.BEFATTNING = uppvalPerstemp.BEFATTNING NO-LOCK.
+   END.
+   ELSE IF uppvalPerstemp.ANSTALLNING NE "ALLA" THEN DO:
+      OPEN QUERY pq FOR EACH PERSONALTAB WHERE PERSONALTAB.ANSTALLNING = uppvalPerstemp.ANSTALLNING NO-LOCK.
+   END.
+   ELSE IF uppvalPerstemp.BEREDSKAPSAVTAL NE "ALLA" THEN DO:
+      OPEN QUERY pq FOR EACH PERSONALTAB WHERE PERSONALTAB.BEREDSKAPSAVTAL = uppvalPerstemp.BEREDSKAPSAVTAL NO-LOCK.
+   END.
+   ELSE IF uppvalPerstemp.TRAAVTAL NE "ALLA" THEN DO:
+      OPEN QUERY pq FOR EACH PERSONALTAB WHERE PERSONALTAB.TRAAVTAL = uppvalPerstemp.TRAAVTAL NO-LOCK.
+   END.
+   ELSE IF uppvalPerstemp.VECKOSCHEMA NE "ALLA" THEN DO:
+      OPEN QUERY pq FOR EACH PERSONALTAB WHERE PERSONALTAB.VECKOSCHEMA = INTEGER(uppvalPerstemp.VECKOSCHEMA) NO-LOCK.
+   END.
+   
+   RUN skapa_UI.
+   RUN avdkoll_UI.    
+   
+END PROCEDURE.
+
+PROCEDURE avdkoll_UI.
+   IF uppvalPerstemp.AVDNR NE "ALLA" THEN DO:
+      FOR EACH avdjurkoll:
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = avdjurkoll.OMRADE NO-LOCK NO-ERROR.
+         IF AVAILABLE OMRADETAB THEN DO:
+            IF OMRADETAB.AVDELNINGNR = INTEGER(uppvalPerstemp.AVDNR) THEN uppvalPerstemp.AVDNR = uppvalPerstemp.AVDNR.
+            ELSE DO:
+               FOR EACH personaltemp WHERE personaltemp.OMRADE = avdjurkoll.OMRADE:
+                  DELETE personaltemp.
+               END.
+            END.
+         END.
+      END.
+   END.
+   IF uppvalPerstemp.JUDID NE "ALLA" THEN DO:
+      FOR EACH avdjurkoll:
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = avdjurkoll.OMRADE NO-LOCK NO-ERROR.
+         IF AVAILABLE OMRADETAB THEN DO:
+            FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+            IF AVAILABLE AVDELNING THEN DO:
+               IF AVDELNING.POSTANST = uppvalPerstemp.JUDID THEN uppvalPerstemp.AVDNR = uppvalPerstemp.AVDNR.
+               ELSE DO:
+                  FOR EACH personaltemp WHERE personaltemp.OMRADE = avdjurkoll.OMRADE:
+                     DELETE personaltemp.
+                  END.
+               END.
+            END.
+         END.
+      END.
+   END.  
+   FOR EACH personaltemp: 
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + personaltemp.PERSONALKOD.
+   END.  
+   {GDPRLOGGCLIENT.I} 
+END PROCEDURE.
+
+PROCEDURE skapa_UI:
+   GET FIRST pq NO-LOCK.
+   DO WHILE AVAILABLE(PERSONALTAB):          
+      CREATE personaltemp.          
+      BUFFER-COPY PERSONALTAB TO personaltemp.
+      personaltemp.PERSRECID = RECID(PERSONALTAB).           
+      IF AVAILABLE personaltemp THEN DO:
+         IF uppvalPerstemp.OMRADE NE "ALLA" THEN DO:
+            IF personaltemp.OMRADE NE uppvalPerstemp.OMRADE THEN DELETE personaltemp. 
+         END.
+      END.
+      IF AVAILABLE personaltemp THEN DO:
+         IF uppvalPerstemp.TIDSGODK NE "ALLA" THEN DO:
+            IF personaltemp.TIDSGODK NE uppvalPerstemp.TIDSGODK THEN DELETE personaltemp. 
+         END.
+      END.
+
+      IF AVAILABLE personaltemp THEN DO:
+         /*eftersom företag som ej har tidskrivning inte har aktiv eller iaktiv så sätts det tillbaka att hämta alla!! 20140210 lena*/
+         IF Guru.Konstanter:varforetypval[2] = 1 THEN uppvalPerstemp.AKTIV = "AKTIV ELLER INAKTIV".
+         IF uppvalPerstemp.AKTIV = "AKTIV ELLER INAKTIV" THEN DO:
+         
+         END.
+                     
+         ELSE IF uppvalPerstemp.AKTIV = "INAKTIV" THEN DO:
+            IF personaltemp.AKTIV = TRUE THEN DELETE personaltemp.     
+         END.
+         ELSE IF uppvalPerstemp.AKTIV = "AKTIV" THEN DO:
+            IF personaltemp.AKTIV = FALSE THEN DELETE personaltemp. 
+         END.
+      END.      
+      IF AVAILABLE personaltemp THEN DO:
+         IF uppvalPerstemp.SEMFOR = "Ja eller Nej" THEN DO:
+            
+         END.
+         ELSE IF uppvalPerstemp.SEMFOR = "Nej" THEN DO:
+            IF personaltemp.OMREGTID = 1 THEN DELETE personaltemp.     
+         END.
+         ELSE IF uppvalPerstemp.SEMFOR = "Ja" THEN DO:
+            IF personaltemp.OMREGTID = 0 THEN DELETE personaltemp. 
+         END.
+      END.
+      IF AVAILABLE personaltemp THEN DO:
+         IF uppvalPerstemp.DTID = "Ja eller Nej" THEN DO:
+            
+         END.
+         ELSE IF uppvalPerstemp.DTID = "Nej" THEN DO:
+            IF personaltemp.DELTID = TRUE THEN DELETE personaltemp.     
+         END.
+         ELSE IF uppvalPerstemp.DTID = "Ja" THEN DO:
+            IF personaltemp.DELTID = FALSE  THEN DELETE personaltemp. 
+         END.
+      END.
+      IF AVAILABLE personaltemp THEN DO:
+         IF uppvalPerstemp.FLX = "Ja eller Nej" THEN .                    
+         ELSE DO:         
+            FIND FIRST FLEXAVT WHERE FLEXAVT.PERSONALKOD = PERSONALTAB.PERSONALKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE FLEXAVT THEN DO:
+               IF uppvalPerstemp.FLX = "Nej" THEN DO:
+                  IF FLEXAVT.FLEXTID = TRUE THEN DELETE personaltemp.     
+               END.
+               ELSE IF uppvalPerstemp.FLX = "Ja" THEN DO:
+                  IF FLEXAVT.FLEXTID = FALSE  THEN DELETE personaltemp. 
+               END.
+            END.
+         END.
+      END.
+      
+      IF AVAILABLE personaltemp THEN DO:
+         IF uppvalPerstemp.RULLID = "ALLA"  THEN.  
+         ELSE IF uppvalPerstemp.RULLID = "Alla med aktivt rullschema"  THEN DO:
+            FIND FIRST RULLPERS WHERE RULLPERS.PERSONALKOD = PERSONALTAB.PERSONALKOD AND RULLPERS.SLUTDATUM = 01/01/2199 NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE RULLPERS THEN DELETE personaltemp.   
+         END.                       
+         ELSE DO:         
+            FIND FIRST RULLPERS WHERE RULLPERS.PERSONALKOD = PERSONALTAB.PERSONALKOD AND RULLPERS.RULLID = INTEGER(uppvalPerstemp.RULLID) 
+            AND RULLPERS.SLUTDATUM = 01/01/2199 NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE RULLPERS THEN DELETE personaltemp.     
+         END.
+      END.   
+      IF AVAILABLE personaltemp THEN DO:
+         IF uppvalPerstemp.VECKOSCHEMA NE "ALLA" THEN DO:
+            IF personaltemp.VECKOSCHEMA NE INTEGER(uppvalPerstemp.VECKOSCHEMA) THEN DELETE personaltemp.
+         END.
+      END.
+      IF AVAILABLE personaltemp THEN DO:
+         IF uppvalPerstemp.BEREDSKAPSAVTAL NE "ALLA" THEN DO:
+            IF personaltemp.BEREDSKAPSAVTAL NE uppvalPerstemp.BEREDSKAPSAVTAL THEN DELETE personaltemp. 
+         END.
+      END.
+      IF AVAILABLE personaltemp THEN DO:
+         IF uppvalPerstemp.FORNAMN NE "" THEN DO:
+            IF personaltemp.FORNAMN NE uppvalPerstemp.FORNAMN THEN DELETE personaltemp. 
+         END.
+      END.
+      IF AVAILABLE personaltemp THEN DO:
+         IF uppvalPerstemp.EFTERNAMN NE "" THEN DO:
+            IF personaltemp.EFTERNAMN NE uppvalPerstemp.EFTERNAMN THEN DELETE personaltemp. 
+         END.
+      END.
+      IF AVAILABLE personaltemp THEN DO:
+         IF uppvalPerstemp.BEFATTNING NE "ALLA" THEN DO:
+            IF personaltemp.BEFATTNING NE uppvalPerstemp.BEFATTNING THEN DELETE personaltemp. 
+         END.
+      END.
+      IF AVAILABLE personaltemp THEN DO:
+         IF uppvalPerstemp.ANSTALLNING NE "ALLA" THEN DO:
+            IF personaltemp.ANSTALLNING NE uppvalPerstemp.ANSTALLNING THEN DELETE personaltemp. 
+         END.
+      END.
+      IF AVAILABLE personaltemp THEN DO:
+         IF uppvalPerstemp.TRAAVTAL NE "ALLA" THEN DO:
+            IF personaltemp.TRAAVTAL NE uppvalPerstemp.TRAAVTAL THEN DELETE personaltemp. 
+         END.
+      END.
+      
+      IF AVAILABLE personaltemp THEN DO:
+         IF sekkollvar= FALSE THEN.
+         ELSE DO:
+            FIND FIRST valsoktemp WHERE valsoktemp.SOKVAL = 1 NO-ERROR.
+            IF valsoktemp.SOKINT[1] NE 0 THEN DO:
+               FIND FIRST PERSEK WHERE PERSEK.ANVANDARE = valsoktemp.SOKCHAR[1] AND
+               PERSEK.PERSONALKOD = personaltemp.PERSONALKOD 
+               USE-INDEX PERSEK NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE PERSEK THEN DO: 
+                  DELETE personaltemp.
+               END.   
+               ELSE DO:
+                  IF PERSEK.PANDRA = FALSE THEN DO:
+                     DELETE personaltemp.
+                  END.
+               END.                 
+            END.      
+         END.         
+         IF sektidkollvar = TRUE THEN DO:
+            FIND FIRST valsoktemp WHERE valsoktemp.SOKVAL = 1 NO-ERROR.
+            IF valsoktemp.SOKINT[1] NE 0 THEN DO:
+               FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = valsoktemp.SOKCHAR[1] AND
+               TIDSEK.PERSONALKOD = personaltemp.PERSONALKOD 
+               USE-INDEX TIDSEK NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE TIDSEK THEN DO: 
+                  DELETE personaltemp.
+               END.   
+               ELSE DO:
+                  IF TIDSEK.PANDRA = FALSE THEN DO:
+                     DELETE personaltemp.
+                  END.
+               END.                 
+            END.
+         END.   
+      END.
+      
+      IF AVAILABLE personaltemp THEN DO:
+         FIND FIRST avdjurkoll WHERE avdjurkoll.OMRADE = personaltemp.OMRADE NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE avdjurkoll THEN DO:
+            CREATE avdjurkoll.
+            avdjurkoll.OMRADE = personaltemp.OMRADE.
+         END.
+      END.
+      
+      GET NEXT pq NO-LOCK.
+      
+   END.
+END PROCEDURE.  
+  
+PROCEDURE ptidsek_UI:
+DEFINE INPUT PARAMETER TABLE FOR valsoktemp.   
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR personaltemp.
+
+
+   /*används ej
+   FOR EACH personaltemp :       
+      FIND FIRST valsoktemp WHERE valsoktemp.SOKVAL = 1 NO-ERROR.
+      IF valsoktemp.SOKINT[1] NE 0 THEN DO:
+         FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = valsoktemp.SOKCHAR[1] AND
+         TIDSEK.PERSONALKOD = personaltemp.PERSONALKOD 
+         USE-INDEX TIDSEK NO-ERROR.
+         IF NOT AVAILABLE TIDSEK THEN DO: 
+            DELETE personaltemp.
+         END.   
+         ELSE DO:
+            IF TIDSEK.PANDRA = FALSE THEN DO:
+               DELETE personaltemp.
+            END.
+            ELSE Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + personaltemp.PERSONALKOD.
+         END.                 
+      END.         
+   END.
+   {GDPRLOGGCLIENT.I}
+*/
+  
+END PROCEDURE.  
+PROCEDURE kollbolagen_UI :
+   DEFINE INPUT  PARAMETER globanv2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER FILL-IN_EPERSONALKOD AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valperstemp.
+  /* Guru.Konstanter:globanv = globanv2.*/
+   IF Guru.Konstanter:varforetypval[18] = 0 OR Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)   THEN RETURN.
+   
+   FIND FIRST valperstemp WHERE valperstemp.PERSONALKOD = FILL-IN_EPERSONALKOD     
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE valperstemp THEN DO:
+      FIND FIRST omvtemp WHERE omvtemp.OMRADE = valperstemp.OMRADE NO-LOCK NO-ERROR.
+      FIND FIRST BOLAGSEK WHERE BOLAGSEK.ANVANDARE = Guru.Konstanter:globanv AND BOLAGSEK.OMRADE = omvtemp.JUDID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BOLAGSEK THEN DO:
+         DELETE valperstemp.
+      END.  
+   END. 
+END PROCEDURE.
+PROCEDURE kollbolag_UI :
+   DEFINE INPUT  PARAMETER globanv2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR personaltemp.
+   Guru.Konstanter:globanv = globanv2.
+   IF Guru.Konstanter:varforetypval[18] = 0 OR Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)   THEN RETURN.
+   FOR EACH personaltemp,
+   EACH omvtemp WHERE omvtemp.OMRADE = personaltemp.OMRADE:
+      FIND FIRST BOLAGSEK WHERE BOLAGSEK.ANVANDARE = Guru.Konstanter:globanv AND BOLAGSEK.OMRADE = omvtemp.JUDID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BOLAGSEK THEN DO:
+         DELETE personaltemp.
+      END.
+      ELSE Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + personaltemp.PERSONALKOD.  
+   END.
+     
+   {GDPRLOGGCLIENT.I} 
+END PROCEDURE.
+
+PROCEDURE kolldatum_UI :
+   DEFINE INPUT  PARAMETER hjdat AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER hjrak AS INTEGER.
+   DEFINE VARIABLE hjrak2 AS INTEGER NO-UNDO.
+   DEFINE VARIABLE arbd AS LOGICAL NO-UNDO.
+   hjrak = 0.
+   hjrak2 = 0.
+   arbd = TRUE.
+   REPEAT:   
+      IF WEEKDAY(hjdat) = 1 OR WEEKDAY(hjdat) = 7 THEN arbd = FALSE.
+      ELSE DO:
+         FIND FIRST OVERAVTAB WHERE OVERAVTAB.DATUM = hjdat AND OVERAVTAB.EQDAG = 7 NO-LOCK NO-ERROR.
+         IF AVAILABLE OVERAVTAB THEN DO:
+            arbd = FALSE.   
+         END.
+         FIND FIRST OVERAVTAB WHERE OVERAVTAB.DATUM = hjdat AND OVERAVTAB.EQDAG = 1 NO-LOCK NO-ERROR.
+         IF AVAILABLE OVERAVTAB THEN DO:
+            arbd = FALSE.
+         END.
+      END.
+      IF arbd = TRUE THEN DO:         
+         hjrak2 = hjrak2 + 1.
+      END.
+      ELSE arbd = TRUE.
+      hjrak = hjrak + 1.
+      hjdat = hjdat + 1.
+      IF hjrak2 GE 3 THEN LEAVE.
+      IF DAY(hjdat) > 7 THEN LEAVE.
+   END.
+      
+END PROCEDURE.
+  
+PROCEDURE hmtpnren_UI :
+   DEFINE INPUT PARAMETER pnr AS CHARACTER   NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR valperstemp.
+   EMPTY TEMP-TABLE valperstemp NO-ERROR.  
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONNUMMER = pnr
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      FIND FIRST valperstemp WHERE valperstemp.PERSONNUMMER = pnr NO-ERROR.
+      IF NOT AVAILABLE valperstemp THEN CREATE valperstemp.
+      BUFFER-COPY PERSONALTAB TO valperstemp.
+      valperstemp.PERSRECID = RECID(PERSONALTAB).
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.  
+      {GDPRLOGGCLIENT.I}
+   END.
+END PROCEDURE.
+
+PROCEDURE atkdat_UI :   
+   DEFINE OUTPUT PARAMETER atkman  AS INTEGER NO-UNDO.
+   /*finns även i ASFAKTAPP:P*/
+   FIND FIRST FORETAG  NO-LOCK NO-ERROR.
+   /*kalmar ska inte längre välja atk. De ska sättas till att alla får ta ut atk i tid vid årsskiftet 20230101 Lena 20220615*/
+   IF FORETAG.FORETAG = "cgkal" THEN atkman = 10.
+   IF FORETAG.FORETAG = "sund" THEN atkman = 10.
+   IF FORETAG.FORETAG = "misv" THEN atkman = 11.
+   IF FORETAG.FORETAG = "SNAT" THEN atkman = 11. 
+   
+END PROCEDURE.
+
+PROCEDURE lasupptid_UI :
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER ptraff AS LOGICAL NO-UNDO.  
+   ptraff = FALSE.
+   DO TRANSACTION:
+      FIND FIRST ANVPER WHERE ANVPER.ANVANDARE = pkod EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE ANVPER THEN DO :
+         DELETE ANVPER.
+         ptraff = TRUE.          
+      END.
+   END.   
+
+   
+END PROCEDURE.

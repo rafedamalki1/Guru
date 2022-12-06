@@ -1,0 +1,1023 @@
+/*BESTKUNDAPP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{BESTKUNDALLT.I}
+{ORGPRIS.I}
+{KUNDTYP.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE fbestapph AS HANDLE NO-UNDO.
+{EXTRATAB.I}  
+{EXTRADATA.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+DEFINE VARIABLE str AS CHARACTER NO-UNDO.
+DEFINE VARIABLE morgon AS DECIMAL NO-UNDO.
+DEFINE VARIABLE kvall AS DECIMAL NO-UNDO.
+
+{TIDUTTTNEW.I}
+DEFINE BUFFER ebuff FOR EXTRADATA.
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+{DYNHMT.I}
+
+PROCEDURE fixepost_UI :
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "BESTEPOST" AND
+   EXTRADATA.HUVUDCH = vem AND EXTRADATA.SOKCHAR[1] NE "":
+      CREATE ebuff.
+      BUFFER-COPY EXTRADATA TO ebuff.
+      ASSIGN
+      EXTRADATA.SOKCHAR[1] = ""
+      ebuff.SOKCHAR[2] = ""
+      ebuff.PROGRAM = "BESTEPOST2".  
+   END.
+END PROCEDURE.
+
+PROCEDURE nypris_UI :                         
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.           
+   DEFINE INPUT PARAMETER vadpris AS CHARACTER NO-UNDO.           
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR kundregeltemp.   
+   DEFINE OUTPUT PARAMETER TABLE FOR kundbeftemp.
+   EMPTY TEMP-TABLE kundbeftemp NO-ERROR. 
+   OPEN QUERY prisq FOR EACH PRISLISTFAKT WHERE PRISLISTFAKT.PRISID = vadpris NO-LOCK.
+   GET FIRST prisq NO-LOCK.
+   DO WHILE AVAILABLE(PRISLISTFAKT):
+      CREATE kundbeftemp.  
+      ASSIGN          
+      kundbeftemp.BEFATTNING = PRISLISTFAKT.BEFATTNING 
+      kundbeftemp.BESTID = vem          
+      kundbeftemp.PRISA = PRISLISTFAKT.PRISA 
+      kundbeftemp.PRISRES = PRISLISTFAKT.PRISRES.                        
+      GET NEXT prisq NO-LOCK.                     
+   END.
+   OPEN QUERY bkq FOR EACH kundbeftemp,
+   EACH BEFATTNINGSTAB WHERE BEFATTNINGSTAB.BEFATTNING = kundbeftemp.BEFATTNING NO-LOCK.
+   GET FIRST bkq NO-LOCK.
+   DO WHILE AVAILABLE(kundbeftemp):
+      kundbeftemp.NAMN = BEFATTNINGSTAB.NAMN.      
+      GET NEXT bkq NO-LOCK.
+   END.       
+   FIND FIRST PRISLISTOVRIGT WHERE 
+   PRISLISTOVRIGT.PRISID = vadpris NO-LOCK NO-ERROR.
+   IF AVAILABLE PRISLISTOVRIGT THEN DO:
+      FIND FIRST kundregeltemp WHERE kundregeltemp.BESTID = vem
+      NO-ERROR.
+      IF AVAILABLE kundregeltemp THEN DO:          
+         IF kundregeltemp.TIMRGL = "KUNDENS EGNA" THEN DO:
+            ASSIGN
+            kundregeltemp.ENTRAK = PRISLISTOVRIGT.ENTRAK 
+            kundregeltemp.FLERTRAK = PRISLISTOVRIGT.FLERTRAK
+            kundregeltemp.FRTJPA = PRISLISTOVRIGT.FRTJPA
+            kundregeltemp.MIL = PRISLISTOVRIGT.MIL
+            kundregeltemp.MTRLPA = PRISLISTOVRIGT.MTRLPA.
+         END.         
+      END.
+   END.        
+END PROCEDURE.
+PROCEDURE nypriso_UI :                         
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.           
+   DEFINE INPUT PARAMETER vadpris AS CHARACTER NO-UNDO.               
+   DEFINE OUTPUT PARAMETER TABLE FOR kundovertemp.
+   EMPTY TEMP-TABLE kundovertemp NO-ERROR. 
+   
+   OPEN QUERY prisq FOR EACH OVERPRISLIST WHERE OVERPRISLIST.PRISID = vadpris NO-LOCK.
+   GET FIRST prisq NO-LOCK.
+   DO WHILE AVAILABLE(OVERPRISLIST):
+      DO TRANSACTION:
+         CREATE  kundovertemp.  
+         ASSIGN 
+         kundovertemp.OTEXTID = OVERPRISLIST.OTEXTID
+         kundovertemp.BEFATTNING = OVERPRISLIST.BEFATTNING 
+         kundovertemp.BESTID = vem 
+         kundovertemp.DAGTYP = OVERPRISLIST.DAGTYP 
+         kundovertemp.EQDAG = OVERPRISLIST.EQDAG 
+         kundovertemp.PRISA = OVERPRISLIST.PRISA 
+         kundovertemp.SLUT = OVERPRISLIST.SLUT 
+         kundovertemp.START = OVERPRISLIST.START.                        
+      END.   
+      GET NEXT prisq NO-LOCK.                     
+   END.
+   OPEN QUERY bkoq FOR EACH kundovertemp,
+   EACH OVERTEXTFAKT WHERE OVERTEXTFAKT.OTEXTID = kundovertemp.OTEXTID NO-LOCK.
+   GET FIRST bkoq NO-LOCK.
+   DO WHILE AVAILABLE(kundovertemp):
+      kundovertemp.OTEXT = OVERTEXTFAKT.OTEXT.
+      GET NEXT bkoq NO-LOCK.
+   END.   
+END PROCEDURE.
+
+PROCEDURE besthmt_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR bestkundallt.   
+   EMPTY TEMP-TABLE bestkundallt NO-ERROR. 
+   ASSIGN
+   nytab      = "bestkundallt"
+   orginaltab = "BESTTAB".  
+   kommandoquery = "FOR EACH " +  orginaltab + " NO-LOCK".       
+      /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE bestkundallt:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.
+END PROCEDURE.
+PROCEDURE autobestid_UI :
+   DEFINE OUTPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE vemi AS INTEGER NO-UNDO.
+   /*SNATFAKT*/
+   IF Guru.Konstanter:globforetag = "SNAT" THEN.
+   ELSE  RETURN.
+   FIND FIRST BESTTAB WHERE INTEGER(BESTTAB.BESTID) NE  ? NO-LOCK NO-ERROR.
+   IF AVAILABLE BESTTAB THEN DO:
+      vemi = INTEGER(BESTID) + 1.
+   END.
+   ELSE vemi = 1.
+   REPEAT:
+      FIND FIRST BESTTAB WHERE BESTTAB.BESTID =  STRING(vemi) NO-LOCK NO-ERROR.
+      IF AVAILABLE BESTTAB THEN  vemi = INTEGER(BESTID) + 1.
+      ELSE LEAVE.
+   END.
+   vem = STRING(vemi).
+END PROCEDURE.
+PROCEDURE hamtaen_UI:
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR bestkundallt.     
+   EMPTY TEMP-TABLE bestkundallt NO-ERROR. 
+   IF vem = ? THEN DO:
+      CREATE bestkundallt.
+      RETURN.
+   END.
+   
+   ASSIGN
+   nytab      = "bestkundallt"
+   orginaltab = "BESTTAB".
+   /*IF vemid = "" THEN kommandoquery = "BESTTAB.VIBESTID = " + '"' + vem + '"'.
+   ELSE 
+   */
+   kommandoquery = "BESTTAB.BESTID = " + "'" + vem + "'".
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+   /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE bestkundallt:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.
+END PROCEDURE.
+PROCEDURE hamtaenextra_UI:
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR bestkundextra.     
+   EMPTY TEMP-TABLE bestkundextra NO-ERROR. 
+   IF vem = ? THEN DO:
+      CREATE bestkundextra.
+      RETURN.
+   END.
+   FIND FIRST BESTTAB WHERE BESTTAB.BESTID =  vem NO-LOCK NO-ERROR.   
+   IF AVAILABLE BESTTAB THEN DO:
+      FIND FIRST EXTRADATA WHERE EXTRADATA.PROGRAM = "BESTEPOST" AND EXTRADATA.HUVUDCH = BESTTAB.BESTID NO-LOCK NO-ERROR.
+      IF AVAILABLE EXTRADATA  THEN DO:
+         CREATE bestkundextra.
+         ASSIGN
+         bestkundextra.BESTID     =      BESTTAB.BESTID   
+         bestkundextra.BESTNAMN   =      BESTTAB.BESTNAMN 
+         bestkundextra.VIBESTID   =      BESTTAB.VIBESTID 
+         bestkundextra.AVDELNING  =      EXTRADATA.SOKCHAR[2]
+         bestkundextra.EPOST      =      EXTRADATA.SOKCHAR[1].
+      END.
+   END.
+   
+END PROCEDURE.
+PROCEDURE namnkoll_UI :                         
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vemsok AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.      
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   
+   IF vem = ? THEN DO:
+      FIND FIRST BESTTAB WHERE BESTTAB.BESTID = vemsok NO-LOCK NO-ERROR.    
+      IF AVAILABLE BESTTAB THEN DO:
+         CREATE felmeddtemp.
+         ASSIGN
+         felmeddtemp.FELMEDD = Guru.Konstanter:gbestk + "-ID finns redan.".
+         RETURN.        
+      END.  
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = vemsok 
+      USE-INDEX OMR NO-LOCK NO-ERROR.
+      IF AVAILABLE OMRADETAB THEN DO:
+         CREATE felmeddtemp.
+         ASSIGN
+         felmeddtemp.FELMEDD = "Det finns redan ett " + LC(Guru.Konstanter:gomrl) + " med denna beteckning.". 
+         RETURN.
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE bestspara_UI :                         
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.           
+   DEFINE INPUT PARAMETER TABLE FOR bestkundallt.             
+   DEFINE INPUT PARAMETER TABLE FOR kundregeltemp.            
+   DEFINE INPUT PARAMETER TABLE FOR kundbeftemp.              
+   DEFINE INPUT PARAMETER TABLE FOR kundovertemp.             
+   DEFINE INPUT PARAMETER TABLE FOR kundprislisttemp.         
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.             
+   DEFINE VARIABLE likaok AS LOGICAL NO-UNDO.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   FIND FIRST bestkundallt NO-ERROR. 
+   RUN namnkoll_UI (INPUT vem,INPUT bestkundallt.VIBESTID,OUTPUT TABLE felmeddtemp).                   .     
+   DO TRANSACTION:
+      FIND FIRST BESTTAB WHERE BESTTAB.BESTID = bestkundallt.BESTID EXCLUSIVE-LOCK NO-ERROR.    
+      IF NOT AVAILABLE BESTTAB THEN DO:
+         CREATE BESTTAB.
+      END.
+      BUFFER-COMPARE bestkundallt TO BESTTAB SAVE likaok.
+      IF likaok = FALSE THEN DO:
+         BUFFER-COPY bestkundallt TO BESTTAB.
+         BESTTAB.KUNDPRISF = 1.
+      END.
+      
+   END.
+   IF Guru.Konstanter:varforetypval[3] >= 1 AND Guru.Konstanter:varforetypval[3] < 4 THEN DO:
+      DO TRANSACTION:
+         FIND FIRST kundregeltemp WHERE kundregeltemp.BESTID = bestkundallt.BESTID NO-ERROR. 
+         FIND FIRST KUNDREGLER WHERE KUNDREGLER.BESTID = kundregeltemp.BESTID EXCLUSIVE-LOCK NO-ERROR.    
+         IF NOT AVAILABLE KUNDREGLER THEN CREATE KUNDREGLER.
+         BUFFER-COPY kundregeltemp TO KUNDREGLER.
+      END. 
+      DO TRANSACTION:
+         FOR EACH KUNDBEF WHERE KUNDBEF.BESTID  = bestkundallt.BESTID:
+            DELETE KUNDBEF.
+         END.
+      END.  
+      FOR EACH kundbeftemp WHERE kundbeftemp.BESTID  = bestkundallt.BESTID:
+         DO TRANSACTION:
+            CREATE KUNDBEF.
+            BUFFER-COPY kundbeftemp TO KUNDBEF.
+         END.
+      END. 
+      DO TRANSACTION:
+         FOR EACH KUNDOVER WHERE KUNDOVER.BESTID  = bestkundallt.BESTID.
+            DELETE KUNDOVER.
+         END.
+      END.  
+      FOR EACH kundovertemp WHERE kundovertemp.BESTID  = bestkundallt.BESTID:
+         DO TRANSACTION:
+            CREATE KUNDOVER.
+            BUFFER-COPY kundovertemp TO KUNDOVER.
+         END.
+      END.
+      DO TRANSACTION:
+         FOR EACH KUNDPRISLIST WHERE KUNDPRISLIST.BESTID  = bestkundallt.BESTID.
+            DELETE KUNDPRISLIST.
+         END.
+      END.  
+      FOR EACH kundprislisttemp WHERE kundprislisttemp.BESTID  = bestkundallt.BESTID:
+         DO TRANSACTION:
+            CREATE KUNDPRISLIST.
+            BUFFER-COPY kundprislisttemp TO KUNDPRISLIST.
+         END.
+      END.
+   END.
+   RELEASE KUNDREGLER NO-ERROR.
+   RELEASE BESTTAB NO-ERROR.
+   RELEASE KUNDPRISLIST NO-ERROR.
+   RELEASE KUNDOVER NO-ERROR.
+   RELEASE KUNDBEF NO-ERROR.
+   RELEASE KUNDOVER NO-ERROR.
+   
+END PROCEDURE.
+
+PROCEDURE bestbort_UI:
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.      
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   FIND FIRST BESTTAB WHERE BESTTAB.BESTID = vem NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE BESTTAB THEN RETURN.
+   /*
+   FIND FIRST AONRTAB WHERE AONRTAB.BESTID = BESTTAB.BESTID NO-LOCK NO-ERROR.
+   IF AVAILABLE AONRTAB THEN DO:
+      CREATE felmeddtemp.
+      ASSIGN
+      felmeddtemp.FELMEDD = "Finns kopplad till " + AONRTAB.AONR + STRING(AONRTAB.DELNR,Guru.Konstanter:varforetypchar[1]). 
+      RETURN.
+   END.
+   */
+   IF AVAILABLE BESTTAB THEN DO:        
+      orginaltab = "KUNDBEF".
+      kommandoquery = "KUNDBEF.BESTID = " + '"' + BESTTAB.BESTID + '"'.
+      kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+      RUN dyndelete_UI (INPUT FALSE).
+      orginaltab = "KUNDREGLER".
+      kommandoquery = "KUNDREGLER.BESTID = " + '"' + BESTTAB.BESTID + '"'.
+      kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+      RUN dyndelete_UI (INPUT FALSE).
+      orginaltab = "KUNDOVER".
+      kommandoquery = "KUNDOVER.BESTID = " + '"' + BESTTAB.BESTID + '"'.
+      kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+      RUN dyndelete_UI (INPUT FALSE).
+      orginaltab = "KUNDPRISLIST".
+      kommandoquery = "KUNDPRISLIST.BESTID = " + '"' + BESTTAB.BESTID + '"'.
+      kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+      RUN dyndelete_UI (INPUT FALSE).
+      DO TRANSACTION:
+         FIND CURRENT BESTTAB EXCLUSIVE-LOCK NO-ERROR.
+         DELETE BESTTAB.
+      END.
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+      RUN EXTRATABHMT.P PERSISTENT SET fbestapph.      
+      DO TRANSACTION:
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "BESTEPOST"                   
+         inextradatatemp.HUVUDCH = vem.     
+         RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).                    
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "BESTEPOST2"                   
+         inextradatatemp.HUVUDCH = vem.     
+         RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).                    
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         /*
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "BESTAVD"                   
+         inextradatatemp.HUVUDCH = vem.     
+         RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).           
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.           
+         */
+      END.
+      IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.
+      edataapph = ?.
+
+      EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+      CREATE inextrakopptemp.          
+      ASSIGN
+      inextrakopptemp.PROGRAM = "FBBESID"                   
+      inextrakopptemp.KOPPLACHAR1 = vem              
+      inextrakopptemp.KOPPLAINT1 =  ?      
+      inextrakopptemp.KOPPLACHAR2 = ?            
+      inextrakopptemp.KOPPLAINT2 =  ?.   
+      RUN exbort_UI IN fbestapph (INPUT TABLE inextrakopptemp).
+      EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+      IF VALID-HANDLE(fbestapph) THEN DELETE PROCEDURE fbestapph.      
+      fbestapph = ?.
+   END.
+END PROCEDURE.
+PROCEDURE visaalla_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.   
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   EMPTY TEMP-TABLE tidut NO-ERROR.    
+   str = "======.================.====================.==============.".
+   EMPTY TEMP-TABLE tidut NO-ERROR. 
+   
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:gbestk)
+   SUBSTRING(tidut.UT,30) = STRING(TODAY).
+   CREATE tidut.
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "ID"
+   SUBSTRING(tidut.UT,8) = CAPS(Guru.Konstanter:gbestk)
+   SUBSTRING(tidut.UT,25) = "TELEFON"
+   SUBSTRING(tidut.UT,46) = Guru.Konstanter:gavdl.  
+   CREATE tidut.
+   ASSIGN tidut.UT = str. 
+   OPEN QUERY bestq   
+   FOR EACH BESTTAB NO-LOCK BY BESTTAB.VIBESTID.
+   GET FIRST bestq NO-LOCK.
+   DO WHILE AVAILABLE(BESTTAB):
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = SUBSTRING(BESTTAB.VIBESTID,1,6)  
+      SUBSTRING(tidut.UT,8) = BESTTAB.BESTNAMN
+      SUBSTRING(tidut.UT,25) = BESTTAB.TEL.  
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "BESTEPOST"                   
+      inextradatatemp.HUVUDCH = BESTTAB.BESTID.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO:      
+         IF extradatatemp.SOKCHAR[2] = "Allmän" THEN SUBSTRING(tidut.UT,46) = extradatatemp.SOKCHAR[2].
+         ELSE IF extradatatemp.SOKCHAR[2] = "Ej kopplad" THEN SUBSTRING(tidut.UT,46) = extradatatemp.SOKCHAR[2].
+         ELSE IF extradatatemp.SOKCHAR[2] = "" THEN SUBSTRING(tidut.UT,46) = extradatatemp.SOKCHAR[2].
+         ELSE DO:
+            FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = INTEGER(extradatatemp.SOKCHAR[2]) NO-LOCK NO-ERROR.
+            ASSIGN
+            SUBSTRING(tidut.UT,46) = AVDELNING.AVDELNINGNAMN.
+         END.
+      END.                                                     
+      IF Guru.Konstanter:globforetag = "ELPA" THEN DO:
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR.       
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "BESTEPOST"                   
+         inextradatatemp.HUVUDCH = BESTTAB.BESTID.                    
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+         FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+         IF AVAILABLE  extradatatemp THEN SUBSTRING(tidut.UT,62) =  extradatatemp.SOKCHAR[1].  
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR.       
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      END.
+      GET NEXT bestq NO-LOCK.      
+   END.
+   CLOSE QUERY bestq.
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.
+   edataapph = ?.
+END PROCEDURE.
+PROCEDURE viskund_UI:
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.   
+   EMPTY TEMP-TABLE tidut NO-ERROR. 
+   IF Guru.Konstanter:varforetypval[3] >= 1 THEN DO:
+      FIND FIRST BESTTAB WHERE BESTTAB.BESTID = vem NO-LOCK NO-ERROR.
+      IF AVAILABLE BESTTAB THEN DO:
+         str =    
+         "========================================================================================".      
+         CREATE tidut. 
+         SUBSTRING(tidut.UT,60) = STRING(TODAY).
+         CREATE tidut.   
+         CREATE tidut. 
+         CREATE tidut. 
+         ASSIGN                   
+         SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:gbestk)
+         SUBSTRING(tidut.UT,21) =":"    
+         SUBSTRING(tidut.UT,23) = STRING(BESTTAB.VIBESTID) + " " + BESTTAB.BESTNAMN.   
+         CREATE tidut. 
+         CREATE tidut. 
+         ASSIGN                   
+         SUBSTRING(tidut.UT,1) = "KONTAKTPERSON       :"
+         SUBSTRING(tidut.UT,23) = BESTTAB.KONTAKT.
+         CREATE tidut. 
+         ASSIGN                   
+         SUBSTRING(tidut.UT,1) = "TELE                :"
+         SUBSTRING(tidut.UT,23) = STRING(BESTTAB.TEL)
+         SUBSTRING(tidut.UT,40) = "FAX:"
+         SUBSTRING(tidut.UT,44) = STRING(BESTTAB.FAXNR).
+         CREATE tidut. 
+         ASSIGN                   
+         SUBSTRING(tidut.UT,1) = "ADRESS              :"
+         SUBSTRING(tidut.UT,23) = BESTTAB.ADRESS.
+         CREATE tidut.
+         ASSIGN                   
+         SUBSTRING(tidut.UT,1) = "POSTNR              :"
+         SUBSTRING(tidut.UT,23) = STRING(BESTTAB.PNR)
+         SUBSTRING(tidut.UT,40) = "ORT:"
+         SUBSTRING(tidut.UT,44) = BESTTAB.ORT.
+         
+         CREATE tidut.
+         SUBSTRING(tidut.UT,1) = str.                         
+         FIND FIRST KUNDREGLER WHERE KUNDREGLER.BESTID = BESTTAB.BESTID 
+         USE-INDEX KUNDREGLER NO-LOCK NO-ERROR.
+         IF AVAILABLE KUNDREGLER THEN DO:
+            CREATE tidut. 
+            CREATE tidut. 
+            ASSIGN                                                                
+            SUBSTRING(tidut.UT,25) = "REGLER FÖR FAKTURORNA".   
+            CREATE tidut.  
+            CREATE tidut.
+            ASSIGN                                                                
+            SUBSTRING(tidut.UT,1) = "TIMKOSTNAD   :"   
+            SUBSTRING(tidut.UT,16) = KUNDREGLER.TIMRGL 
+            SUBSTRING(tidut.UT,35) = "ÖVERTID           :"
+            SUBSTRING(tidut.UT,55) = KUNDREGLER.OVERTIDRGL.
+            CREATE tidut.
+            ASSIGN                                                                
+            SUBSTRING(tidut.UT,1) = "TRAKTAMENTE  :"   
+            SUBSTRING(tidut.UT,16) = KUNDREGLER.TRAKTRGL  
+            SUBSTRING(tidut.UT,35) = "LÖNETILLÄGG       :"
+            SUBSTRING(tidut.UT,55) = KUNDREGLER.LONRGL.  
+            CREATE tidut.
+            ASSIGN                                                                
+            SUBSTRING(tidut.UT,1) = "MATERIEL     :"   
+            SUBSTRING(tidut.UT,16) = KUNDREGLER.MTRLRGL  
+            SUBSTRING(tidut.UT,35) = "ÖVRIGA KOSTNADER  :"
+            SUBSTRING(tidut.UT,55) = KUNDREGLER.OVRKRGL . 
+            CREATE tidut.
+            ASSIGN                                                               
+            SUBSTRING(tidut.UT,1) = "KOSTNADSREG. :"   
+            SUBSTRING(tidut.UT,16) = KUNDREGLER.KOSTREGRGL 
+            SUBSTRING(tidut.UT,35) = "FAKTURA INTERVALL :"
+            SUBSTRING(tidut.UT,55) = STRING(KUNDREGLER.FAKINT). 
+            CREATE tidut.
+            ASSIGN                     
+            SUBSTRING(tidut.UT,1) = "PÅSLAG MTRL. :"   
+            SUBSTRING(tidut.UT,16) = STRING(KUNDREGLER.MTRLPA) + " %"
+            SUBSTRING(tidut.UT,35) = "PÅSLAG FR.TJÄNST  :"
+            SUBSTRING(tidut.UT,55) = STRING(KUNDREGLER.FRTJPA) + " %". 
+            CREATE tidut. 
+            CREATE tidut.
+            CREATE tidut.     
+            SUBSTRING(tidut.UT,1) = str.           
+            IF KUNDREGLER.TIMRGL = "KUNDENS EGNA" THEN DO: 
+               CREATE tidut. 
+               CREATE tidut. 
+               ASSIGN                                                                
+               SUBSTRING(tidut.UT,25) = "GÄLLANDE TIMPRISER FÖR :".   
+               CREATE tidut. 
+               CREATE tidut.
+               ASSIGN 
+               SUBSTRING(tidut.UT,11) = "BEFFATNING"   
+               SUBSTRING(tidut.UT,32) = "TIM PRIS"
+               SUBSTRING(tidut.UT,42) = "RES PRIS". 
+               CREATE tidut.
+               ASSIGN                                         
+               SUBSTRING(tidut.UT,11) = "====================.=========.=========".                
+               OPEN QUERY kundbefq FOR EACH KUNDBEF WHERE KUNDBEF.BESTID = BESTTAB.BESTID
+               USE-INDEX KUNDBEF NO-LOCK.
+               GET FIRST kundbefq NO-LOCK.
+               DO WHILE AVAILABLE(KUNDBEF): 
+                  FIND FIRST BEFATTNINGSTAB WHERE 
+                  BEFATTNINGSTAB.BEFATTNING = KUNDBEF.BEFATTNING
+                  NO-LOCK NO-ERROR.
+                  CREATE tidut.
+                  ASSIGN                                                                
+                  SUBSTRING(tidut.UT,11) = BEFATTNINGSTAB.NAMN   
+                  SUBSTRING(tidut.UT,32) = STRING(KUNDBEF.PRISA,">>>>>>>>9")
+                  SUBSTRING(tidut.UT,42) = STRING(KUNDBEF.PRISRES,">>>>>>>>9").          
+                  GET NEXT kundbefq NO-LOCK.
+               END.  
+               CREATE tidut. 
+               CREATE tidut.
+               CREATE tidut.     
+               SUBSTRING(tidut.UT,1) = str.       
+            END.
+            IF KUNDREGLER.OVERTIDRGL = "EGNA REGLER" THEN DO:
+               CREATE tidut. 
+               CREATE tidut. 
+               ASSIGN                                                                
+               SUBSTRING(tidut.UT,25) = "GÄLLANDE ÖVERTIDSRISER FÖR :".   
+               CREATE tidut. 
+               CREATE tidut.
+               ASSIGN 
+               SUBSTRING(tidut.UT,11) = "BEFFATNING"   
+               SUBSTRING(tidut.UT,32) = "PRIS"
+               SUBSTRING(tidut.UT,38) = "DAGAR"
+               SUBSTRING(tidut.UT,48) = "START"
+               SUBSTRING(tidut.UT,54) = "SLUT". 
+               CREATE tidut.
+               ASSIGN                           
+               SUBSTRING(tidut.UT,11) = "====================.=====.=========.=====.=====".   
+               OPEN QUERY KUNDOVERq FOR EACH KUNDOVER WHERE KUNDOVER.BESTID = BESTTAB.BESTID
+               USE-INDEX KUNDOVER NO-LOCK. 
+               GET FIRST KUNDOVERq NO-LOCK.
+               DO WHILE AVAILABLE(KUNDOVER): 
+                  FIND FIRST OVERTEXTFAKT WHERE 
+                  OVERTEXTFAKT.OTEXTID = KUNDOVER.OTEXTID
+                  NO-LOCK NO-ERROR.
+                  CREATE tidut.
+                  ASSIGN                                                                
+                  SUBSTRING(tidut.UT,11) = OVERTEXTFAKT.OTEXT   
+                  SUBSTRING(tidut.UT,32) = STRING(KUNDOVER.PRISA,">>>>9")
+                  SUBSTRING(tidut.UT,38) = KUNDOVER.DAGTYP
+                  SUBSTRING(tidut.UT,48) = STRING(KUNDOVER.START,">9.99")  
+                  SUBSTRING(tidut.UT,54) = STRING(KUNDOVER.SLUT,">9.99").       
+                  GET NEXT KUNDOVERq NO-LOCK.
+               END. 
+               CREATE tidut. 
+               CREATE tidut.
+               CREATE tidut.     
+               SUBSTRING(tidut.UT,1) = str.                                       
+            END.                                
+            CREATE tidut. 
+            CREATE tidut.   
+            CREATE tidut.
+         END.  
+      END.                       
+   END.
+   ELSE DO:
+      FIND FIRST BESTTAB WHERE BESTTAB.BESTID = vem NO-LOCK NO-ERROR.
+      IF AVAILABLE BESTTAB THEN DO:
+         str =    
+         "========================================================================================".      
+         CREATE tidut. 
+         SUBSTRING(tidut.UT,60) = STRING(TODAY).
+         CREATE tidut.   
+         CREATE tidut. 
+         CREATE tidut. 
+         ASSIGN                   
+         SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:gbestk)    
+         SUBSTRING(tidut.UT,21) = ":"
+         SUBSTRING(tidut.UT,23) = STRING(BESTTAB.VIBESTID) + " " + BESTTAB.BESTNAMN.   
+         CREATE tidut. 
+         CREATE tidut. 
+         ASSIGN                   
+         SUBSTRING(tidut.UT,1) = "KONTAKTPERSON       :"
+         SUBSTRING(tidut.UT,23) = BESTTAB.KONTAKT.
+         CREATE tidut. 
+         ASSIGN                   
+         SUBSTRING(tidut.UT,1) = "TELE                :"
+         SUBSTRING(tidut.UT,23) = STRING(BESTTAB.TEL)
+         SUBSTRING(tidut.UT,40) = "FAX:"
+         SUBSTRING(tidut.UT,44) = STRING(BESTTAB.FAXNR).
+         CREATE tidut. 
+         ASSIGN                   
+         SUBSTRING(tidut.UT,1) = "ADRESS              :"
+         SUBSTRING(tidut.UT,23) = BESTTAB.ADRESS.
+         CREATE tidut.
+         ASSIGN                   
+         SUBSTRING(tidut.UT,1) = "POSTNR              :"
+         SUBSTRING(tidut.UT,23) = STRING(BESTTAB.PNR)
+         SUBSTRING(tidut.UT,40) = "ORT:"
+         SUBSTRING(tidut.UT,44) = BESTTAB.ORT.
+         
+         CREATE tidut.
+         SUBSTRING(tidut.UT,1) = str.                         
+         FIND FIRST KUNDREGLER WHERE KUNDREGLER.BESTID = BESTTAB.BESTID 
+         USE-INDEX KUNDREGLER NO-LOCK NO-ERROR.
+         IF AVAILABLE KUNDREGLER THEN DO:
+            CREATE tidut. 
+            CREATE tidut. 
+            ASSIGN                                                                
+            SUBSTRING(tidut.UT,25) = "REGLER FÖR FAKTURORNA".   
+            CREATE tidut.  
+            CREATE tidut.
+            ASSIGN                                                                
+            SUBSTRING(tidut.UT,1) = "TIMKOSTNAD   :"   
+            SUBSTRING(tidut.UT,16) = KUNDREGLER.TIMRGL 
+            SUBSTRING(tidut.UT,35) = "ÖVEtemp-dbID           :"
+            SUBSTRING(tidut.UT,55) = KUNDREGLER.OVERTIDRGL.
+            CREATE tidut.
+            ASSIGN                                                                
+            SUBSTRING(tidut.UT,1) = "TRAKTAMENTE  :"   
+            SUBSTRING(tidut.UT,16) = KUNDREGLER.TRAKTRGL  
+            SUBSTRING(tidut.UT,35) = "LÖNETILLÄGG       :"
+            SUBSTRING(tidut.UT,55) = KUNDREGLER.LONRGL.  
+            CREATE tidut.
+            ASSIGN                                                                
+            SUBSTRING(tidut.UT,1) = "MATERIEL     :"   
+            SUBSTRING(tidut.UT,16) = KUNDREGLER.MTRLRGL  
+            SUBSTRING(tidut.UT,35) = "ÖVRIGA KOSTNADER  :"
+            SUBSTRING(tidut.UT,55) = KUNDREGLER.OVRKRGL . 
+            CREATE tidut.
+            ASSIGN                                                               
+            SUBSTRING(tidut.UT,1) = "KOSTNADSREG. :"   
+            SUBSTRING(tidut.UT,16) = KUNDREGLER.KOSTREGRGL 
+            SUBSTRING(tidut.UT,35) = "FAKTURA INTERVALL :"
+            SUBSTRING(tidut.UT,55) = STRING(KUNDREGLER.FAKINT). 
+            CREATE tidut.
+            ASSIGN                     
+            SUBSTRING(tidut.UT,1) = "PÅSLAG MTRL. :"   
+            SUBSTRING(tidut.UT,16) = STRING(KUNDREGLER.MTRLPA) + " %"
+            SUBSTRING(tidut.UT,35) = "PÅSLAG FR.TJÄNST  :"
+            SUBSTRING(tidut.UT,55) = STRING(KUNDREGLER.FRTJPA) + " %". 
+            CREATE tidut. 
+            CREATE tidut.
+            CREATE tidut.     
+            SUBSTRING(tidut.UT,1) = str.           
+            IF KUNDREGLER.TIMRGL = "KUNDENS EGNA" THEN DO: 
+               CREATE tidut. 
+               CREATE tidut. 
+               ASSIGN                                                                
+               SUBSTRING(tidut.UT,25) = "GÄLLANDE TIMPRISER FÖR :".   
+               CREATE tidut. 
+               CREATE tidut.
+               ASSIGN 
+               SUBSTRING(tidut.UT,11) = "BEFFATNING"   
+               SUBSTRING(tidut.UT,32) = "TIM PRIS"
+               SUBSTRING(tidut.UT,42) = "RES PRIS". 
+               CREATE tidut.
+               ASSIGN                                         
+               SUBSTRING(tidut.UT,11) = "====================.=========.=========".                
+               OPEN QUERY kundbefq FOR EACH KUNDBEF WHERE KUNDBEF.BESTID = BESTTAB.BESTID
+               USE-INDEX KUNDBEF NO-LOCK.
+               GET FIRST kundbefq NO-LOCK.
+               DO WHILE AVAILABLE(KUNDBEF): 
+                  FIND FIRST BEFATTNINGSTAB WHERE 
+                  BEFATTNINGSTAB.BEFATTNING = KUNDBEF.BEFATTNING
+                  NO-LOCK NO-ERROR.
+                  CREATE tidut.
+                  ASSIGN                                                                
+                  SUBSTRING(tidut.UT,11) = BEFATTNINGSTAB.NAMN   
+                  SUBSTRING(tidut.UT,32) = STRING(KUNDBEF.PRISA,">>>>>>>>9")
+                  SUBSTRING(tidut.UT,42) = STRING(KUNDBEF.PRISRES,">>>>>>>>9").          
+                  GET NEXT kundbefq NO-LOCK.
+               END.  
+               CREATE tidut. 
+               CREATE tidut.
+               CREATE tidut.     
+               SUBSTRING(tidut.UT,1) = str.       
+            END.
+            IF KUNDREGLER.OVERTIDRGL = "EGNA REGLER" THEN DO:
+               CREATE tidut. 
+               CREATE tidut. 
+               ASSIGN                                                                
+               SUBSTRING(tidut.UT,25) = "GÄLLANDE ÖVEtemp-dbIDSRISER FÖR :".   
+               CREATE tidut. 
+               CREATE tidut.
+               ASSIGN 
+               SUBSTRING(tidut.UT,11) = "BEFFATNING"   
+               SUBSTRING(tidut.UT,32) = "PRIS"
+               SUBSTRING(tidut.UT,38) = "DAGAR"
+               SUBSTRING(tidut.UT,48) = "START"
+               SUBSTRING(tidut.UT,54) = "SLUT". 
+               CREATE tidut.
+               ASSIGN                           
+               SUBSTRING(tidut.UT,11) = "====================.=====.=========.=====.=====".   
+               OPEN QUERY KUNDOVERq FOR EACH KUNDOVER WHERE KUNDOVER.BESTID = BESTTAB.BESTID
+               USE-INDEX KUNDOVER NO-LOCK. 
+               GET FIRST KUNDOVERq NO-LOCK.
+               DO WHILE AVAILABLE(KUNDOVER): 
+                  FIND FIRST BEFATTNINGSTAB WHERE 
+                  BEFATTNINGSTAB.BEFATTNING = KUNDOVER.BEFATTNING
+                  NO-LOCK NO-ERROR.
+                  CREATE tidut.
+                  ASSIGN                                                                
+                  SUBSTRING(tidut.UT,11) = BEFATTNINGSTAB.NAMN   
+                  SUBSTRING(tidut.UT,32) = STRING(KUNDOVER.PRISA,">>>>9")
+                  SUBSTRING(tidut.UT,38) = KUNDOVER.DAGTYP
+                  SUBSTRING(tidut.UT,48) = STRING(KUNDOVER.START,">9.99")  
+                  SUBSTRING(tidut.UT,54) = STRING(KUNDOVER.SLUT,">9.99").       
+                  GET NEXT KUNDOVERq NO-LOCK.
+               END. 
+               CREATE tidut. 
+               CREATE tidut.
+               CREATE tidut.     
+               SUBSTRING(tidut.UT,1) = str.                                       
+            END.                                
+            CREATE tidut. 
+            CREATE tidut.   
+            CREATE tidut.  
+         END. 
+      END.     
+   END.  
+END PROCEDURE.
+PROCEDURE fakupphmt_UI :
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR kundtyptemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR kundregeltemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR kundbeftemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR defpristemp.  
+   DEFINE OUTPUT PARAMETER TABLE FOR kundovertemp.   
+   DEFINE OUTPUT PARAMETER TABLE FOR kundprislisttemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.      
+   EMPTY TEMP-TABLE kundtyptemp NO-ERROR. 
+   EMPTY TEMP-TABLE kundregeltemp NO-ERROR. 
+   EMPTY TEMP-TABLE kundbeftemp NO-ERROR. 
+   EMPTY TEMP-TABLE defpristemp NO-ERROR. 
+   EMPTY TEMP-TABLE kundovertemp NO-ERROR. 
+   EMPTY TEMP-TABLE kundprislisttemp NO-ERROR. 
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   CREATE WIDGET-POOL "fdynTemp" NO-ERROR. 
+   /*finns prislistor*/
+   FIND FIRST DEFPRISLISTA WHERE DEFPRISLISTA.OVER = FALSE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE DEFPRISLISTA THEN DO:
+      CREATE felmeddtemp.
+      ASSIGN
+      felmeddtemp.FELMEDD = "Det finns inga prislistor upplaggda i systemet". 
+      RETURN.
+   END.
+   /*finns prislistor*/
+   FIND FIRST DEFPRISLISTA WHERE DEFPRISLISTA.OVER = TRUE NO-LOCK NO-ERROR.      
+   IF NOT AVAILABLE DEFPRISLISTA THEN DO:
+      CREATE felmeddtemp.
+      ASSIGN
+      felmeddtemp.FELMEDD = "Det finns inga övertidsprislistor upplaggda i systemet". 
+      RETURN.
+   END.
+   /*har kunden prislistor*/
+   FIND FIRST KUNDPRISLIST WHERE KUNDPRISLIST.BESTID = vem AND 
+   KUNDPRISLIST.OVER = FALSE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KUNDPRISLIST THEN DO:
+      FIND FIRST DEFPRISLISTA WHERE DEFPRISLISTA.OVER = FALSE NO-LOCK NO-ERROR.
+      DO TRANSACTION:
+         CREATE KUNDPRISLIST.
+         ASSIGN
+         KUNDPRISLIST.BESTID = vem
+         KUNDPRISLIST.PRISID = DEFPRISLISTA.PRISID
+         KUNDPRISLIST.OVER = FALSE
+         KUNDPRISLIST.STARTDATUM = TODAY.     
+      END.      
+      RELEASE KUNDPRISLIST NO-ERROR.
+      OPEN QUERY prisq FOR EACH PRISLISTFAKT WHERE 
+      PRISLISTFAKT.PRISID = DEFPRISLISTA.PRISID NO-LOCK.
+      GET FIRST prisq NO-LOCK.
+      DO WHILE AVAILABLE(PRISLISTFAKT):
+         DO TRANSACTION:
+            CREATE KUNDBEF.  
+            ASSIGN          
+            KUNDBEF.BEFATTNING = PRISLISTFAKT.BEFATTNING 
+            KUNDBEF.BESTID = vem          
+            KUNDBEF.PRISA = PRISLISTFAKT.PRISA 
+            KUNDBEF.PRISRES = PRISLISTFAKT.PRISRES.                        
+         END.   
+         GET NEXT prisq NO-LOCK.                                 
+         RELEASE KUNDBEF NO-ERROR.
+      END.
+   END.
+   /*har kunden prislistor*/
+   FIND FIRST KUNDOVER WHERE KUNDOVER.BESTID = vem 
+   USE-INDEX KUNDOVER NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KUNDOVER THEN DO:
+      FIND FIRST DEFPRISLISTA WHERE DEFPRISLISTA.OVER = TRUE NO-LOCK NO-ERROR.      
+      IF AVAILABLE DEFPRISLISTA THEN DO:
+         DO TRANSACTION:
+            CREATE KUNDPRISLIST.
+            ASSIGN
+            KUNDPRISLIST.BESTID = vem
+            KUNDPRISLIST.PRISID = DEFPRISLISTA.PRISID
+            KUNDPRISLIST.OVER = TRUE
+            KUNDPRISLIST.STARTDATUM = TODAY.
+         END.
+         RELEASE KUNDPRISLIST NO-ERROR.
+         OPEN QUERY prisoq FOR EACH OVERPRISLIST WHERE 
+         OVERPRISLIST.PRISID = DEFPRISLISTA.PRISID NO-LOCK.
+         GET FIRST prisoq NO-LOCK.
+         DO WHILE AVAILABLE(OVERPRISLIST):
+            DO TRANSACTION:
+               CREATE  KUNDOVER.  
+               ASSIGN 
+               KUNDOVER.OTEXTID = OVERPRISLIST.OTEXTID
+               KUNDOVER.BEFATTNING = OVERPRISLIST.BEFATTNING 
+               KUNDOVER.BESTID = vem 
+               KUNDOVER.DAGTYP = OVERPRISLIST.DAGTYP 
+               KUNDOVER.EQDAG = OVERPRISLIST.EQDAG 
+               KUNDOVER.PRISA = OVERPRISLIST.PRISA 
+               KUNDOVER.SLUT = OVERPRISLIST.SLUT 
+               KUNDOVER.START = OVERPRISLIST.START.                        
+            END.   
+            GET NEXT prisoq NO-LOCK.                     
+         END.
+         RELEASE KUNDOVER NO-ERROR.
+      END.
+      ELSE DO:
+         OPEN QUERY befq FOR EACH BEFATTNINGSTAB USE-INDEX BEF NO-LOCK.
+         GET FIRST befq NO-LOCK.
+         DO WHILE AVAILABLE(BEFATTNINGSTAB):
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.BEFATTNING = BEFATTNINGSTAB.BEFATTNING
+            USE-INDEX PBEF NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE PERSONALTAB THEN DO:
+               ASSIGN
+               morgon = 7.00
+               kvall = 16.00.
+            END.
+            ELSE DO:
+               FIND FIRST VECKOARBETID WHERE VECKOARBETID.VECKOSCHEMA = PERSONALTAB.VECKOSCHEMA
+               USE-INDEX VECKOSCHEMA NO-LOCK NO-ERROR.
+               FIND FIRST ARBETSTIDTAB WHERE ARBETSTIDTAB.ARBTIDKOD = VECKOARBETID.ARBTIDMAN
+               USE-INDEX ARBTIDKOD NO-LOCK NO-ERROR.
+               ASSIGN
+               morgon = ARBETSTIDTAB.START
+               kvall = ARBETSTIDTAB.SLUT.
+            END.
+            FIND FIRST OVERTEXTFAKT WHERE OVERTEXTFAKT.BEFATTNING = BEFATTNINGSTAB.BEFATTNING
+            NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               CREATE KUNDOVER.
+               ASSIGN 
+               KUNDOVER.OTEXTID = OVERTEXTFAKT.OTEXTID
+               KUNDOVER.BEFATTNING = BEFATTNINGSTAB.BEFATTNING
+               KUNDOVER.BESTID = vem 
+               KUNDOVER.DAGTYP = "VARDAGAR"
+               KUNDOVER.EQDAG = 2 
+               KUNDOVER.PRISA = BEFATTNINGSTAB.PRISA
+               KUNDOVER.START = 00.00
+               KUNDOVER.SLUT = morgon.
+               CREATE KUNDOVER.
+               ASSIGN 
+               KUNDOVER.OTEXTID = OVERTEXTFAKT.OTEXTID
+               KUNDOVER.BEFATTNING = BEFATTNINGSTAB.BEFATTNING
+               KUNDOVER.BESTID = vem 
+               KUNDOVER.DAGTYP = "VARDAGAR"
+               KUNDOVER.EQDAG = 2 
+               KUNDOVER.PRISA = BEFATTNINGSTAB.PRISA
+               KUNDOVER.START = kvall
+               KUNDOVER.SLUT = 24.00.        
+               CREATE KUNDOVER.
+               ASSIGN 
+               KUNDOVER.OTEXTID = OVERTEXTFAKT.OTEXTID         
+               KUNDOVER.BEFATTNING = BEFATTNINGSTAB.BEFATTNING
+               KUNDOVER.BESTID = vem 
+               KUNDOVER.DAGTYP = "LÖRDAGAR"
+               KUNDOVER.EQDAG = 7 
+               KUNDOVER.PRISA = BEFATTNINGSTAB.PRISA
+               KUNDOVER.START = 00.00
+               KUNDOVER.SLUT = 24.00.         
+               CREATE KUNDOVER.
+               ASSIGN 
+               KUNDOVER.OTEXTID = OVERTEXTFAKT.OTEXTID
+               KUNDOVER.BEFATTNING = BEFATTNINGSTAB.BEFATTNING
+               KUNDOVER.BESTID = vem 
+               KUNDOVER.DAGTYP = "SÖNDAGAR"
+               KUNDOVER.EQDAG = 8
+               KUNDOVER.PRISA = BEFATTNINGSTAB.PRISA
+               KUNDOVER.START = 00.00
+               KUNDOVER.SLUT = 24.00.
+            END.
+            GET NEXT befq NO-LOCK.
+         END.
+         RELEASE KUNDPRISLIST NO-ERROR.
+      END.   
+   END.
+   /*KUNDTYPR*/
+   EMPTY TEMP-TABLE kundtyptemp NO-ERROR. 
+   
+   ASSIGN
+   nytab      = "kundtyptemp"
+   orginaltab = "KUNDTYP".
+   kommandoquery = "FOR EACH " +  orginaltab + " NO-LOCK".       
+      /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE kundtyptemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   /*NAMN PÅ PRISLISTOR*/
+   EMPTY TEMP-TABLE defpristemp NO-ERROR. 
+   ASSIGN
+   nytab      = "defpristemp"
+   orginaltab = "DEFPRISLISTA".
+   kommandoquery = "FOR EACH " +  orginaltab + " NO-LOCK".       
+      /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE defpristemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   /*REGLER*/
+   EMPTY TEMP-TABLE kundregeltemp NO-ERROR. 
+   IF vem = ? THEN DO:
+      vem = vem.      
+   END.
+   ELSE DO:
+      ASSIGN
+      nytab      = "kundregeltemp"
+      orginaltab = "KUNDREGLER".
+      /*IF vemid = "" THEN kommandoquery = "BESTTAB.VIBESTID = " + '"' + vem + '"'.
+      ELSE 
+      */
+      kommandoquery = "KUNDREGLER.BESTID = " + '"' + vem + '"'.
+      kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+         /*BUGG 9.1c FIX*/
+      ASSIGN extratemptabh = TEMP-TABLE kundregeltemp:DEFAULT-BUFFER-HANDLE.
+      RUN dynquery_UI (INPUT FALSE,INPUT FALSE).         
+   END.
+   FIND FIRST kundregeltemp NO-ERROR.
+   IF NOT AVAILABLE kundregeltemp THEN DO TRANSACTION:
+      CREATE kundregeltemp.
+      ASSIGN 
+      kundregeltemp.BESTID = vem      
+      kundregeltemp.KOSTREGRGL = "AUTOMATISKA" 
+      kundregeltemp.LONRGL = "" 
+      kundregeltemp.MTRLRGL = "KALKYL"
+      kundregeltemp.OVERTIDRGL = "TIDREDOVISNING"
+      kundregeltemp.OVRKRGL = "KALKYL"
+      kundregeltemp.SLUT% = 50
+      kundregeltemp.START% = 50
+      kundregeltemp.TIMRGL = "TIDREDOVISNING"
+      kundregeltemp.TRAKTRGL = "TIDREDOVISNING"
+      kundregeltemp.FAKINT = 30
+      kundregeltemp.FDAGAR = 30.      
+   END.
+   /*KUNDPRISLISTOR*/
+   EMPTY TEMP-TABLE kundprislisttemp NO-ERROR. 
+   
+   IF vem = ? THEN DO:
+      vem = vem.      
+   END.
+   ELSE DO:
+      ASSIGN
+      nytab      = "kundprislisttemp"
+      orginaltab = "KUNDPRISLIST".
+      /*IF vemid = "" THEN kommandoquery = "BESTTAB.VIBESTID = " + '"' + vem + '"'.
+      ELSE 
+      */
+      kommandoquery = "KUNDPRISLIST.BESTID = " + '"' + vem + '"'.
+      kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+         /*BUGG 9.1c FIX*/
+      ASSIGN extratemptabh = TEMP-TABLE kundprislisttemp:DEFAULT-BUFFER-HANDLE.
+      RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   END.
+   /*POSTERNA TILL NORMAL PRISLITOR*/
+   EMPTY TEMP-TABLE kundbeftemp NO-ERROR. 
+   ASSIGN
+   kommandoquery = "FOR EACH BEFATTNINGSTAB NO-LOCK,".
+   kommandoquery = kommandoquery + " EACH KUNDBEF WHERE " + "KUNDBEF.BESTID = " + '"' + vem + '"'.
+   RUN and_UI.
+   kommandoquery = kommandoquery + " KUNDBEF.BEFATTNING = BEFATTNINGSTAB.BEFATTNING NO-LOCK". 
+   ASSIGN
+   jointab    = "BEFATTNINGSTAB"
+   orginaltab = "KUNDBEF"
+   nytab      = "kundbeftemp".
+   
+   /*BUGG 9.1c FIX*/
+   ASSIGN 
+   extratemptabh = TEMP-TABLE kundbeftemp:DEFAULT-BUFFER-HANDLE.
+   CREATE BUFFER extrajointemptabh FOR TABLE "BEFATTNINGSTAB" IN WIDGET-POOL "fdynTemp".
+   RUN dynqueryom_UI (INPUT FALSE,INPUT TRUE).
+   /*POSTERNA TILL ÖVERTIDS PRISLITOR*/
+   EMPTY TEMP-TABLE kundovertemp NO-ERROR. 
+   ASSIGN
+   kommandoquery = "FOR EACH KUNDOVER WHERE KUNDOVER.BESTID = " + '"' + vem + '"' + " NO-LOCK,".
+   kommandoquery = kommandoquery + " EACH OVERTEXTFAKT WHERE " +
+   "OVERTEXTFAKT.OTEXTID = KUNDOVER.OTEXTID NO-LOCK". 
+   ASSIGN
+   jointab    = "KUNDOVER"
+   orginaltab = "OVERTEXTFAKT"
+   nytab      = "kundovertemp".
+   
+   /*BUGG 9.1c FIX*/
+   ASSIGN 
+   extratemptabh = TEMP-TABLE kundovertemp:DEFAULT-BUFFER-HANDLE.
+   CREATE BUFFER extrajointemptabh FOR TABLE "KUNDOVER" IN WIDGET-POOL "fdynTemp".
+   RUN dynquery_UI (INPUT FALSE,INPUT TRUE).   
+   RUN objdelete_UI.
+   DELETE WIDGET-POOL "fdynTemp" NO-ERROR.
+END PROCEDURE.
+
+

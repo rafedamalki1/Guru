@@ -1,0 +1,102 @@
+/* Define the widget handle for the window */
+DEFINE VARIABLE C-Win AS WIDGET-HANDLE NO-UNDO.
+
+/* Definitions of the field level widgets  */
+DEFINE BUTTON cmdFind
+     LABEL "&Find" 
+     SIZE 15 BY 1.14.
+
+DEFINE VARIABLE lstPrinter AS CHARACTER 
+     VIEW-AS SELECTION-LIST SINGLE SCROLLBAR-VERTICAL 
+     SIZE 54 BY 8.57
+     FGCOLOR 1 FONT 6 NO-UNDO.
+
+/* ************************  Definitions  ************************ */
+
+PROCEDURE EnumPrintersA EXTERNAL "winspool.drv":
+     DEFINE RETURN PARAMETER res  AS LONG.
+     DEFINE INPUT PARAMETER flags AS LONG.
+     DEFINE INPUT PARAMETER name AS CHARACTER.
+     DEFINE INPUT PARAMETER Level AS LONG.
+     DEFINE INPUT-OUTPUT PARAMETER pPrinterEnum AS MEMPTR.
+     DEFINE INPUT PARAMETER cdBuf AS LONG.
+     DEFINE OUTPUT PARAMETER pcbNeeded AS LONG.
+     DEFINE OUTPUT PARAMETER pcReturned AS LONG.
+END PROCEDURE.
+
+
+/* **********************  Frame Definitions  ********************* */
+
+DEFINE FRAME frmMain
+     lstPrinter AT ROW 1.95 COL 4 NO-LABEL
+     cmdFind AT ROW 11 COL 43
+    WITH 1 DOWN NO-BOX KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 1
+         SIZE 62 BY 11.62.
+
+/* ******************** Triggers ********************************/
+
+ON CHOOSE OF cmdFind IN FRAME frmMain /* Find */
+DO:
+  define variable pPrinterInfo as memptr no-undo.
+  define variable lpPrinterName as memptr no-undo.   
+  define variable pPrinterEnum as memptr no-undo.
+
+  define variable i as integer no-undo.
+  define variable res as integer no-undo.
+  define variable pcbNeeded as integer no-undo.
+  define variable pcReturned as integer no-undo.
+  
+  /* initial value */
+  /* Just want to know the correct size of the pPrinterEnum MEMPTR */
+  set-size(pPrinterEnum)= 1208.  
+  
+  /* Delete the printer list  */
+  /*run deletePrinterList .*/
+  
+  run EnumPrintersA(
+        output res,
+        input 2,
+        input  "",
+        input 2,
+        input-output pPrinterEnum,
+        input get-size(pPrinterEnum),
+        OUTPUT pcbNeeded,       
+        OUTPUT pcReturned).     /* Number of printers */
+  
+  /* Get the size of the pPrinterEnum MEMPTR */
+  SET-SIZE(pPrinterEnum)= 0.  
+  SET-SIZE(pPrinterEnum)= pcbNeeded.  
+
+  run EnumPrintersA(
+        output res,
+        input 2,
+        input  "",
+        input 2,
+        input-output pPrinterEnum,
+        input get-size(pPrinterEnum),
+        OUTPUT pcbNeeded,       
+        OUTPUT pcReturned).     /* Number of printers */
+  
+  /* Printer list */
+  DO i = 0 TO pcReturned - 1 :
+    SET-POINTER-VALUE(pPrinterInfo) = GET-POINTER-VALUE(pPrinterEnum) + (i * 84 ).
+    SET-POINTER-VALUE(lpPrinterName) = GET-LONG(pPrinterInfo,5). 
+    lstPrinter:insert(string(GET-STRING(lpPrinterName,1)),1).
+  END.
+  
+  /* Clean Up  */
+  SET-SIZE(pPrinterEnum) = 0.
+  SET-SIZE(pPrinterInfo) = 0.
+  SET-SIZE(lpPrinterName) = 0.     
+END.
+
+DO ON ERROR Undo, leave
+   ON END-KEY undo, leave:
+      DISPLAY cmdFind lstPrinter WITH FRAME frmMain.
+      ENABLE cmdFind lstPrinter WITH FRAME frmMain.
+
+    WAIT-FOR CLOSE OF THIS-PROCEDURE.
+
+END.

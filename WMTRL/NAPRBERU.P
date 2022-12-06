@@ -1,0 +1,194 @@
+/*NAPRBERU.P UPPDATERAR PRISER FÖR TABELLER SOM ANVÄNDS I BEREDNING VATTENFALL*/
+
+DEFINE VARIABLE leverant LIKE LEVERANTOR.LEVKOD NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{TIDUTTT.I}
+{EXTRADATA.I}
+RUN EXTRADATAHMT.P PERSISTENT SET edataapph.  
+{INKKOLL3.I}
+/*{DYNPOSTFINNS.I}*/
+DEFINE VARIABLE musz AS LOGICAL     NO-UNDO.
+DEFINE VARIABLE fragavar AS CHARACTER   NO-UNDO.
+DEFINE BUFFER mtrlbuff FOR MTRL.
+DEFINE BUFFER bermtrlbuff FOR BERMTRL.
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+CREATE inextradatatemp.          
+ASSIGN
+inextradatatemp.PROGRAM = "INLKAT"
+inextradatatemp.HUVUDCH = ?.  
+                    
+RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp).
+FIND FIRST extradatatemp WHERE extradatatemp.SOKLOG[1] =  TRUE NO-LOCK NO-ERROR.
+IF AVAILABLE extradatatemp THEN DO:
+   IF Guru.Konstanter:globforetag = "VAST"   THEN DO:
+      OUTPUT TO e:\delad\pro9\guru\kollber.txt APPEND.
+      PUT "STARTUPP"  STRING(TODAY) " " STRING(TIME,"HH:MM:SS") SKIP SKIP.
+      OUTPUT CLOSE.
+   END.   
+
+END. 
+FOR EACH extradatatemp WHERE extradatatemp.SOKLOG[1] =  TRUE:
+   leverant = extradatatemp.HUVUDCH.
+   /*Uppdatera priser i adm.bered. för vald lev.*/
+   RUN BERKOLL2.P (INPUT leverant, INPUT-OUTPUT TABLE tidut).
+   /*Uppdatera satsers priser i bered. för vald lev.*/
+   RUN PRISUPP6.P (INPUT leverant, INPUT Guru.Konstanter:globforetag).
+  
+   
+   
+   FIND FIRST BEREDNING WHERE BEREDNING.AKTIV = TRUE NO-LOCK.
+   REPEAT: 
+     IF AVAILABLE BEREDNING THEN RUN UppBer_UI.
+     ELSE LEAVE.   
+     FIND NEXT BEREDNING WHERE BEREDNING.AKTIV = TRUE NO-LOCK.
+   END.      
+         
+   OUTPUT TO e:\delad\pro9\guru\kollber.txt.
+   PUT UNFORMATTED "extraspar_UI" SKIP.
+   OUTPUT CLOSE.  
+   
+   OUTPUT TO e:\delad\pro9\guru\kollber.txt APPEND.
+   PUT UNFORMATTED extradatatemp.SOKLOG[1] " " extradatatemp.HUVUDCH SKIP.
+   OUTPUT CLOSE.  
+   extradatatemp.SOKLOG[1] =  FALSE.
+   RUN extraspar_UI IN edataapph (INPUT TABLE extradatatemp). 
+   {AMERICANEUROPEAN.I}
+   OUTPUT TO e:\delad\pro9\guru\kollber.txt.
+   PUT UNFORMATTED "extraspar_UI OK" SKIP.
+   OUTPUT CLOSE.      
+   IF Guru.Konstanter:globforetag = "VAST"   THEN DO:
+      OUTPUT TO e:\delad\pro9\guru\koll.txt APPEND.
+      PUT "NAPRBERU.P uppdatering bered. klart. " leverant  SUBSTRING(Guru.Konstanter:globforetag,1,10)  STRING(TODAY)  " " STRING(TIME,"HH:MM:SS") SKIP.
+      OUTPUT CLOSE.
+   END. 
+   ELSE IF Guru.Konstanter:globforetag = "FORS" THEN DO:
+      OUTPUT TO C:\DELAD\PRO9\GURU\koll.txt APPEND.
+      PUT "NAPRBERU.P uppdatering bered. klart. " leverant  SUBSTRING(Guru.Konstanter:globforetag,1,10)  STRING(TODAY)  " " STRING(TIME,"HH:MM:SS") SKIP.
+      OUTPUT CLOSE.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "GKAL" THEN DO:
+      OUTPUT TO D:\DELAD\klient\PRO9\koll.txt APPEND.
+      PUT "NAPRBERU.P uppdatering bered. klart. " leverant  SUBSTRING(Guru.Konstanter:globforetag,1,10)  STRING(TODAY)  " " STRING(TIME,"HH:MM:SS") SKIP.
+      OUTPUT CLOSE.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "GRAN" THEN DO:
+      OUTPUT TO d:\elpool\delad\pro9\wrk\koll.txt APPEND.
+      PUT "NAPRBERU.P uppdatering bered. klart. " leverant  SUBSTRING(Guru.Konstanter:globforetag,1,10)  STRING(TODAY)  " " STRING(TIME,"HH:MM:SS") SKIP.
+      OUTPUT CLOSE.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "STRA" THEN DO:
+      OUTPUT TO E:\DELAD\PRO9\koll.txt APPEND.
+      PUT "NAPRBERU.P uppdatering bered. klart. " leverant  SUBSTRING(Guru.Konstanter:globforetag,1,10)  STRING(TODAY)  " " STRING(TIME,"HH:MM:SS") SKIP.
+      OUTPUT CLOSE.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "BORL" THEN DO:
+      OUTPUT TO D:\GURU\PRO9\koll.txt APPEND.
+      PUT "NAPRBER.P uppdatering bered. klart. " leverant  SUBSTRING(Guru.Konstanter:globforetag,1,10)  STRING(TODAY)  " " STRING(TIME,"HH:MM:SS") SKIP.
+      OUTPUT CLOSE.
+   END.
+   {EUROPEANAMERICAN.I}
+END.
+
+PROCEDURE UppBer_UI:
+   IF AVAILABLE BEREDNING THEN DO:   
+      IF Guru.Konstanter:globforetag = "VAST"   THEN DO:
+         OUTPUT TO e:\delad\pro9\guru\kollber.txt.
+         PUT UNFORMATTED BEREDNING.OMRADE " " BEREDNING.AONR " " BEREDNING.DELNR  " "
+         BEREDNING.BERNR " " leverant " " SUBSTRING(Guru.Konstanter:globforetag,1,10) " " STRING(TODAY)  " " STRING(TIME,"HH:MM:SS") SKIP.
+         OUTPUT CLOSE.
+      END.
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = BEREDNING.OMRADE AND  OMRADETAB.ELVOMRKOD = 0 NO-LOCK NO-ERROR.
+      IF AVAILABLE OMRADETAB THEN DO:
+         OUTPUT TO e:\delad\pro9\guru\kollber.txt APPEND.
+         PUT UNFORMATTED "OMRADE" SKIP. 
+         OUTPUT CLOSE.
+         FIND FIRST BERMTRL WHERE BERMTRL.AONR = STRING(BEREDNING.BERNR) AND BERMTRL.OMRADE = BEREDNING.OMRADE AND BERMTRL.LEVKOD = leverant  NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE BERMTRL THEN.
+         ELSE DO:
+            OUTPUT TO e:\delad\pro9\guru\kollber.txt APPEND.
+            PUT UNFORMATTED "BERMTRL" SKIP. 
+            OUTPUT CLOSE.
+            FIND FIRST BERMTRL WHERE BERMTRL.AONR = STRING(BEREDNING.BERNR) AND BERMTRL.OMRADE = BEREDNING.OMRADE AND BERMTRL.INKOP = TRUE NO-LOCK NO-ERROR.
+            IF AVAILABLE BERMTRL THEN.
+            ELSE DO:
+                
+              /*
+               fragavar = "INKMTRL.BERNR = " + STRING(BEREDNING.BERNR) + " AND INKMTRL.OMRADE = '" + BEREDNING.OMRADE + "'". 
+               RUN finnspostdyn_UI (INPUT "INKMTRL",INPUT fragavar,OUTPUT musz). 
+               RUN queryclose_UI.
+               */
+               FIND FIRST INKMTRL WHERE INKMTRL.BERNR = BEREDNING.BERNR AND INKMTRL.OMRADE =  BEREDNING.OMRADE NO-LOCK NO-ERROR.
+               OUTPUT TO e:\delad\pro9\guru\kollber.txt APPEND.
+               PUT UNFORMATTED "INKMTRL" SKIP. 
+               OUTPUT CLOSE.
+               IF AVAILABLE INKMTRL THEN.
+               ELSE DO:
+                  RUN Berm_UI.
+                  /*
+                  OPEN QUERY bmq FOR EACH BERMTRL WHERE BERMTRL.LEVKOD = leverant AND
+                  BERMTRL.AONR = STRING(BEREDNING.BERNR) AND BERMTRL.OMRADE = BEREDNING.OMRADE AND         
+                  BERMTRL.INKOP = FALSE NO-LOCK BY BERMTRL.AONR.
+                  OUTPUT TO e:\delad\pro9\guru\kollber.txt APPEND.
+                  PUT UNFORMATTED "QRMTRL" SKIP. 
+                  OUTPUT CLOSE.
+                  GET FIRST bmq NO-LOCK.
+                  DO WHILE AVAILABLE(BERMTRL):
+                     OUTPUT TO e:\delad\pro9\guru\kollber.txt APPEND.
+                     PUT UNFORMATTED "FFRMTRL" SKIP. 
+                     OUTPUT CLOSE.
+                     FIND FIRST MTRL WHERE MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 AND MTRL.ENR = BERMTRL.ENR NO-LOCK NO-ERROR.
+                     IF AVAILABLE MTRL THEN DO:
+                        OUTPUT TO e:\delad\pro9\guru\kollber.txt APPEND.
+                        PUT UNFORMATTED BERMTRL.ENR  " " BERMTRL.NUM " " BERMTRL.SKAPNUM  " " SKIP. 
+                        OUTPUT CLOSE.
+                        IF  BERMTRL.PRIS = MTRL.NPRIS THEN.
+                        ELSE DO TRANSACTION:
+                           GET CURRENT bmq EXCLUSIVE-LOCK.
+                           ASSIGN
+                           BERMTRL.PRIS = MTRL.NPRIS
+                           BERMTRL.ENHET = MTRL.Enhet
+                           BERMTRL.BENAMNING = MTRL.Benamning.                                                       
+                        END. 
+                        GET CURRENT bmq NO-LOCK.  
+                     END.
+                     GET NEXT bmq NO-LOCK.   
+                  END.
+                  CLOSE QUERY bmq NO-ERROR.
+                  */
+               END.
+            END.
+         END.   
+      END.   
+      OUTPUT TO e:\delad\pro9\guru\kollber.txt.
+      PUT UNFORMATTED "NEXT" SKIP.
+   END.    
+   
+END PROCEDURE.
+PROCEDURE Berm_UI :
+   FOR EACH BERMTRL WHERE BERMTRL.LEVKOD = leverant AND
+      BERMTRL.AONR = STRING(BEREDNING.BERNR) AND BERMTRL.OMRADE = BEREDNING.OMRADE AND         
+      BERMTRL.INKOP = FALSE NO-LOCK BY BERMTRL.AONR:
+      OUTPUT TO e:\delad\pro9\guru\kollber.txt APPEND.
+      PUT UNFORMATTED "QRMTRL" SKIP. 
+      OUTPUT CLOSE.
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 AND MTRL.ENR = BERMTRL.ENR NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         OUTPUT TO e:\delad\pro9\guru\kollber.txt APPEND.
+         PUT UNFORMATTED BERMTRL.ENR  " " BERMTRL.NUM " " BERMTRL.SKAPNUM  " " SKIP. 
+         OUTPUT CLOSE.
+         IF  BERMTRL.PRIS = MTRL.NPRIS THEN.
+         ELSE DO TRANSACTION:
+            FIND FIRST bermtrlbuff WHERE RECID(bermtrlbuff) = RECID(BERMTRL) EXCLUSIVE-LOCK NO-ERROR.
+            ASSIGN
+            bermtrlbuff.PRIS = MTRL.NPRIS
+            bermtrlbuff.ENHET = MTRL.Enhet
+            bermtrlbuff.BENAMNING = MTRL.Benamning.                                                       
+         END.
+         RELEASE bermtrlbuff NO-ERROR. 
+      END. 
+   END.
+END PROCEDURE.

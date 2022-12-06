@@ -1,0 +1,8 @@
+/*KALKTEMP.I*/
+{KALKTEMPE.I}
+
+   
+DEFINE BUFFER befbuff FOR KALKBEF.   
+DEFINE BUFFER mtrlbuff FOR MTRL.
+
+ 

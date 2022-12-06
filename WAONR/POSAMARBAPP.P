@@ -1,0 +1,929 @@
+/*POSAMARBAPP.P*/
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+{REGVAR.I}
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE TEMP-TABLE intakttemp NO-UNDO
+   FIELD AONR         LIKE KOSTREG.AONR
+   FIELD DELNR        LIKE KOSTREG.DELNR   
+   FIELD BOKKONTO     LIKE KOSTREG.BOKKONTO
+   FIELD INTINTAKT    AS DECIMAL
+   FIELD EXTERNINTAKT AS DECIMAL
+   FIELD RESULTAT     AS DECIMAL
+   INDEX AONR IS PRIMARY AONR DELNR BOKKONTO.
+DEFINE TEMP-TABLE inkomsttemp NO-UNDO
+   FIELD AONR         LIKE KOSTREG.AONR
+   FIELD DELNR        LIKE KOSTREG.DELNR   
+   FIELD BOKKONTO     LIKE KOSTREG.BOKKONTO
+   FIELD INKOMST    AS DECIMAL   
+   INDEX AONR IS PRIMARY AONR DELNR BOKKONTO.
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+&Scoped-define NEW NEW
+{FAKTTYPDEF.I}
+&Scoped-define NEW 
+{FAKTTYPSKAP.I}
+FUNCTION klockan100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+
+FUNCTION klockan60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ):
+  RETURN TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) / 100) * 60 . 
+
+END FUNCTION.
+DEFINE VARIABLE superhandle AS HANDLE.
+DEFINE VARIABLE vartvar AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE kalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE intkalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE exkalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE summakostvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE hjalpvar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE sparpers AS CHARACTER NO-UNDO.
+DEFINE VARIABLE spardatum AS DATE NO-UNDO.
+DEFINE VARIABLE bertid AS DECIMAL NO-UNDO.
+DEFINE VARIABLE hjkon AS INTEGER NO-UNDO.
+DEFINE VARIABLE hjkonint AS INTEGER NO-UNDO.
+DEFINE VARIABLE hjkondec AS DECIMAL NO-UNDO.
+ 
+
+DEFINE QUERY fq FOR FAKTINTAKTKONT,FAKTURERAD.
+DEFINE QUERY fkq FOR FAKTINTAKTKONTKRED,FAKTKRED.
+DEFINE QUERY kq FOR KOSTREG.
+DEFINE QUERY sq FOR SUMTID.
+DEFINE QUERY stq FOR SUMTIDDAG.
+DEFINE QUERY tq FOR TIDREGITAB.
+DEFINE QUERY stovq FOR TIDREGITAB.
+DEFINE BUFFER tidbuff FOR TIDREGITAB.
+{DIRDEF.I}
+{PHMT.I}
+{KALKTEMP.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+IF FORETAG.FORETAG = "GRIT" THEN DO:
+   RUN GRITIN.P PERSISTENT SET superhandle (INPUT 1).
+   THIS-PROCEDURE:ADD-SUPER-PROCEDURE (superhandle).
+END.
+{TIDUTTT.I}
+
+
+
+DEFINE TEMP-TABLE dagtemp
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD
+   FIELD NAMN AS CHARACTER 
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR 
+   FIELD ORT LIKE AONRTAB.ORT
+   FIELD PERSMASK LIKE SUMTIDDAG.PERSMASK
+   FIELD BELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"           
+   FIELD TIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"         
+   FIELD NTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"         
+   FIELD OATIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "OTIMMAR"
+   FIELD ABELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"                      
+   FIELD BEFATTNING AS CHARACTER           
+   FIELD LONKOST AS DECIMAL
+   
+   FIELD GEOMRADE AS CHARACTER
+   FIELD NORMARB AS DECIMAL
+   FIELD FVARO AS DECIMAL
+   FIELD FLUT AS DECIMAL
+   FIELD DATUM AS DATE
+   
+   FIELD OMRADE AS CHARACTER
+   FIELD OMRADENAMN AS CHARACTER
+   FIELD P110 AS DECIMAL    
+   FIELD P117 AS DECIMAL
+   FIELD P118 AS DECIMAL
+   FIELD P119 AS DECIMAL
+   FIELD P135 AS DECIMAL
+   FIELD P150 AS DECIMAL
+   FIELD P155 AS DECIMAL
+   FIELD P160 AS DECIMAL
+   FIELD P170 AS DECIMAL   
+   FIELD OVERTIM AS DECIMAL
+   FIELD OVBEREDSKAPTIM AS DECIMAL
+   INDEX AONR IS PRIMARY AONR DELNR. 
+
+DEFINE TEMP-TABLE slutsum           
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD 
+   FIELD NAMN AS CHARACTER 
+   FIELD PRIS LIKE TIDREGITAB.PRIS     
+   FIELD PRISTYP LIKE TIDREGITAB.PRISTYP 
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR 
+   FIELD ORT LIKE AONRTAB.ORT
+   FIELD TIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD NTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD OATIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD BELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"           
+   FIELD ABELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"           
+   FIELD MBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "Ö-KOSTNAD"  
+   FIELD IBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "Ö-KOSTNAD"  
+   FIELD FBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "Ö-KOSTNAD"  
+   FIELD OANTAL LIKE EKRAPPRESULT.EANTAL  LABEL "Ö-ANTAL"         
+   FIELD TBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "T-KOSTNAD"
+   FIELD TANTAL LIKE EKRAPPRESULT.EANTAL  LABEL "T-ANTAL"       
+   FIELD LONKOST LIKE EKRAPPRESULT.EBELOPP LABEL "L-KOSTNAD"    
+   FIELD MTRL LIKE KOSTREG.MTRL    
+   FIELD OVRKR LIKE KOSTREG.OVRKR    
+   FIELD INKOMST LIKE KOSTREG.INKOMST   
+   FIELD NY AS LOGICAL INITIAL FALSE
+   FIELD NORMARB AS DECIMAL
+   FIELD FVARO AS DECIMAL
+   FIELD FLUT AS DECIMAL
+   
+   FIELD OMRADE AS CHARACTER
+   FIELD OMRADENAMN AS CHARACTER
+   FIELD stdatum AS DATE
+   FIELD sldatum AS DATE
+   FIELD P110 AS DECIMAL    
+   FIELD P117 AS DECIMAL
+   FIELD P118 AS DECIMAL
+   FIELD P119 AS DECIMAL
+   FIELD P135 AS DECIMAL
+   FIELD P150 AS DECIMAL
+   FIELD P155 AS DECIMAL
+   FIELD P160 AS DECIMAL
+   FIELD P170 AS DECIMAL   
+   FIELD OVERTIM AS DECIMAL
+   FIELD OVBEREDSKAPTIM AS DECIMAL
+   FIELD KON AS CHARACTER
+   INDEX PERSONALKOD PERSONALKOD ASCENDING
+   INDEX OMRADE IS PRIMARY OMRADE PERSONALKOD ASCENDING.
+       
+DEFINE TEMP-TABLE sumsum           
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD 
+   FIELD MASKGBELOPP AS DECIMAL
+   FIELD MONTTIMMAR  AS DECIMAL
+   FIELD PRIS LIKE TIDREGITAB.PRIS     
+   FIELD PRISTYP LIKE TIDREGITAB.PRISTYP 
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR 
+   FIELD TIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD NTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD OATIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"   
+   FIELD ABELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"
+   /*
+   FIELD BTIMMAR LIKE EKRAPPRESULT.EBELOPP LABEL "Ö-KOSTNAD"
+   FIELD NBTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD OBTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"   
+   FIELD BBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"
+   FIELD OTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "OTIMMAR"   
+   FIELD NOTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD OOTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"   
+   FIELD OBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"*/
+   FIELD MBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"   
+   FIELD BELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"
+   FIELD SKOSTNAD LIKE EKRAPPRESULT.EBELOPP LABEL "SUMMA KOSTNADER"
+   
+   FIELD GRAVARE LIKE KOSTREG.MASKKOST  
+   FIELD MASKOVRIG LIKE KOSTREG.MASKKOST
+   FIELD FORDON LIKE KOSTREG.MASKKOST  
+   FIELD OANTAL LIKE EKRAPPRESULT.EANTAL  LABEL "Ö-ANTAL"         
+   FIELD TBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "T-KOSTNAD"
+   FIELD TANTAL LIKE EKRAPPRESULT.EANTAL  LABEL "T-ANTAL"       
+   FIELD LONKOST LIKE EKRAPPRESULT.EBELOPP LABEL "L-KOSTNAD"    
+   FIELD MTRL LIKE KOSTREG.MTRL    
+   FIELD OVRKR LIKE KOSTREG.OVRKR    
+   FIELD INKOMST LIKE KOSTREG.INKOMST
+   FIELD MBLOPP AS DECIMAL
+   FIELD TINKOMST AS DECIMAL
+   FIELD RESTIM AS DECIMAL
+   INDEX PERSONALKOD IS PRIMARY PERSONALKOD ASCENDING.    
+   
+DEFINE INPUT PARAMETER TABLE FOR uppvaltemp.
+DEFINE INPUT PARAMETER TABLE FOR valperstemp.
+DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+/*DEFINE OUTPUT PARAMETER str2 AS CHARACTER FORMAT "X(92)" NO-UNDO.
+DEFINE OUTPUT PARAMETER str3 AS CHARACTER FORMAT "X(92)" NO-UNDO.*/
+DEFINE NEW SHARED VARIABLE fastrec AS RECID NO-UNDO.
+DEFINE VARIABLE offert AS LOGICAL NO-UNDO.
+DEFINE VARIABLE xtypmtrl AS INTEGER NO-UNDO.
+DEFINE VARIABLE monpris LIKE EBRPRIS.MONT NO-UNDO.
+DEFINE VARIABLE berpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE kalkvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE breddantal AS INTEGER NO-UNDO.
+DEFINE VARIABLE utnr AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE bredd AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE nrcol AS INTEGER EXTENT 60 NO-UNDO.
+DEFINE VARIABLE ingakostver AS LOGICAL NO-UNDO.
+DEFINE VARIABLE stim AS DECIMAL NO-UNDO.   
+DEFINE VARIABLE o50 AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE o75 AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE o100 AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE stimk AS DECIMAL NO-UNDO.   
+DEFINE VARIABLE o50k AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE o75k AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE o100k AS DECIMAL NO-UNDO.
+
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(256)" NO-UNDO.
+DEFINE VARIABLE pekod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE aokod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE delkod AS INTEGER NO-UNDO.
+
+/*BEREDNING*/
+{LISTDEF.I} 
+DEFINE NEW SHARED TEMP-TABLE mtrl_temp2   
+   {MTRLTEMP2TT.I}
+/*SLUT BEREDNING*/
+
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR. 
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+FUNCTION klock60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) * 60 / 100 ).
+
+END FUNCTION.
+EMPTY TEMP-TABLE dagtemp NO-ERROR. 
+EMPTY TEMP-TABLE slutsum NO-ERROR. 
+EMPTY TEMP-TABLE sumsum NO-ERROR. 
+EMPTY TEMP-TABLE tidut NO-ERROR. 
+FIND FIRST uppvaltemp NO-ERROR.
+sparpers = "".
+spardatum = ?.
+OPEN QUERY aq FOR EACH valperstemp NO-LOCK. 
+GET FIRST aq NO-LOCK.
+GET NEXT aq  NO-LOCK.
+IF AVAILABLE valperstemp THEN ingakostver = TRUE.
+ELSE ingakostver = FALSE.
+IF uppvaltemp.DELNRKOLL = FALSE THEN ingakostver = TRUE.
+GET FIRST aq NO-LOCK.
+DO WHILE AVAILABLE(valperstemp):
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = valperstemp.PERSONALKOD NO-LOCK NO-ERROR.
+   persrec = RECID(PERSONALTAB).      
+   {SUPEOPEN.I}
+   IF uppvaltemp.VISPERAR = FALSE THEN DO:
+   
+      RUN sopov_UI (INPUT 11,INPUT uppvaltemp.DELNRKOLL,INPUT uppvaltemp.VISGODKANDA).
+      RUN skapaovdag_UI.    
+         
+   END.
+   ELSE DO:                     
+      RUN sopov_UI (INPUT 12,INPUT uppvaltemp.DELNRKOLL,INPUT uppvaltemp.VISGODKANDA).         
+      RUN skapaovdag_UI.
+      
+   END.   
+   GET NEXT aq NO-LOCK.
+END.      
+RUN summa_UI.
+/*FOR EACH slutsum WHERE NO-LOCK:
+   
+   MESSAGE slutsum.personalkod slutsum.P110 slutsum.P170 slutsum.p160 slutsum.overtim slutsum.OVBEREDSKAPTIM
+   VIEW-AS ALERT-BOX.
+END.*/
+RUN huvud_UI.
+
+{GDPRLOGGCLIENT.I}
+PROCEDURE huvud_UI :  
+   DEBUGGER:SET-BREAK().   
+   /*ASSIGN   
+   nrcol[4] = 2
+   nrcol[7] = 4   
+   nrcol[8] = 5         
+   nrcol[22] = 3   
+   nrcol[28] = 1
+   nrcol[29] = 6
+   nrcol[30] = 7
+   nrcol[31] = 8
+   nrcol[32] = 9         
+   breddantal = 9   /*antal kolumner*/*/
+   ASSIGN
+   nrcol[40] = 1
+   nrcol[41] = 2
+   nrcol[55] = 3
+   nrcol[28] = 4
+   nrcol[42] = 5
+   nrcol[43] = 6   
+   nrcol[4] = 7
+   nrcol[22] = 8
+   nrcol[44] = 9
+   nrcol[45] = 10
+   nrcol[7] = 11   
+   nrcol[8] = 12              
+   nrcol[29] = 13
+   nrcol[30] = 14
+   nrcol[31] = 15
+   nrcol[32] = 16
+   nrcol[46] = 17
+   nrcol[47] = 18
+   nrcol[48] = 19
+   nrcol[49] = 20
+   nrcol[50] = 21
+   nrcol[51] = 22
+   nrcol[52] = 23
+   nrcol[53] = 24
+   nrcol[54] = 25        
+   breddantal = 25   /*antal kolumner*/
+   
+   bredd[1] = 12
+   bredd[2] = 12
+   bredd[3] = 6
+   bredd[4] = 30
+   bredd[5] = 6
+   bredd[6] = 25
+   bredd[7] = 15   
+   bredd[8] = 15
+   bredd[9] = 15
+   bredd[10] = 15
+   bredd[11] = 15
+   bredd[12] = 15
+   bredd[13] = 15
+   bredd[14] = 15
+   bredd[15] = 15
+   bredd[16] = 15
+   bredd[17] = 15
+   bredd[18] = 15
+   bredd[19] = 15
+   bredd[20] = 15
+   bredd[21] = 15
+   bredd[22] = 15
+   bredd[23] = 15
+   bredd[24] = 15
+   bredd[25] = 15.
+   
+   ASSIGN
+   i = 2.     
+   utnr[nrcol[40]] = 1.
+   /*utnr[nrcol[28]] = 1.*/
+   
+   DO WHILE i <= breddantal:             
+      utnr[i] = utnr[i - 1] + bredd[i - 1] + 1.            
+      i = i + 1.
+   END.   
+   ASSIGN
+   str = "".  
+   i = 1.
+   DO WHILE i <= utnr[breddantal] + bredd[breddantal] - 1:
+      str = str + "=".     
+      i = i + 1.
+   END.   
+   i = 2.      
+   DO WHILE i <= breddantal:             
+      SUBSTRING(str,(utnr[i] - 1),1) = ".".      
+      i = i + 1.
+   END.          
+   CREATE tidut.      
+   ASSIGN                                  
+   SUBSTRING(tidut.UT,utnr[nrcol[40]]) = "Periodstart"
+   SUBSTRING(tidut.UT,utnr[nrcol[41]]) = "Periodslut"
+   SUBSTRING(tidut.UT,utnr[nrcol[55]]) = "Kön"
+   SUBSTRING(tidut.UT,utnr[nrcol[28]]) = "Enhet/Sign"
+   SUBSTRING(tidut.UT,utnr[nrcol[42]]) = "Process"
+   SUBSTRING(tidut.UT,utnr[nrcol[43]]) = "Avdelning"   
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "Normaltid"     
+   SUBSTRING(tidut.UT,utnr[nrcol[22]]) = "Övertid verkl."
+   SUBSTRING(tidut.UT,utnr[nrcol[44]]) = "Övertid avrundad"  
+   SUBSTRING(tidut.UT,utnr[nrcol[45]]) = "Varav UB"           
+   SUBSTRING(tidut.UT,utnr[nrcol[7]]) = "Kostnad"
+   SUBSTRING(tidut.UT,utnr[nrcol[8]]) = "L-tillägg"
+   SUBSTRING(tidut.UT,utnr[nrcol[29]]) = "Frånvaro"
+   SUBSTRING(tidut.UT,utnr[nrcol[30]]) = "Plusflex"
+   SUBSTRING(tidut.UT,utnr[nrcol[31]]) = "Normarb"
+   SUBSTRING(tidut.UT,utnr[nrcol[32]]) = "Varav Flexuttag"
+   SUBSTRING(tidut.UT,utnr[nrcol[46]]) = "110-Sjuk"
+   SUBSTRING(tidut.UT,utnr[nrcol[47]]) = "117-Pappaled. bf"
+   SUBSTRING(tidut.UT,utnr[nrcol[48]]) = "118-VAB"
+   SUBSTRING(tidut.UT,utnr[nrcol[49]]) = "119-Föräldraled"
+   SUBSTRING(tidut.UT,utnr[nrcol[50]]) = "135-Ensk.angel."
+   SUBSTRING(tidut.UT,utnr[nrcol[51]]) = "150-Semester"
+   SUBSTRING(tidut.UT,utnr[nrcol[52]]) = "155-Flexuttag"
+   SUBSTRING(tidut.UT,utnr[nrcol[53]]) = "160-Atk"
+   SUBSTRING(tidut.UT,utnr[nrcol[54]]) = "170-Kompled".
+   
+   
+      
+   /*CREATE tidut.      
+   ASSIGN                                  
+   SUBSTRING(tidut.UT,utnr[nrcol[28]]) = "Enhet/Sign"   
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "Normaltid"     
+   SUBSTRING(tidut.UT,utnr[nrcol[22]]) = "Övertid verkl."             
+   SUBSTRING(tidut.UT,utnr[nrcol[7]]) = "Kostnad"
+   SUBSTRING(tidut.UT,utnr[nrcol[8]]) = "L-tillägg"
+   SUBSTRING(tidut.UT,utnr[nrcol[29]]) = "Frånvaro".
+   SUBSTRING(tidut.UT,utnr[nrcol[30]]) = "Plusflex".
+   SUBSTRING(tidut.UT,utnr[nrcol[31]]) = "Normarb".
+   SUBSTRING(tidut.UT,utnr[nrcol[32]]) = "Varav Flexuttag".*/  
+   
+   DEBUGGER:SET-BREAK().
+   FOR EACH slutsum USE-INDEX OMRADE:        
+          
+      CREATE tidut. 
+      ASSIGN                           
+      SUBSTRING(tidut.UT,utnr[nrcol[40]]) = STRING( slutsum.STDATUM,"9999-99-99").
+      SUBSTRING(tidut.UT,utnr[nrcol[41]]) = STRING( slutsum.SLDATUM,"9999-99-99").
+      SUBSTRING(tidut.UT,utnr[nrcol[55]]) = slutsum.KON.            
+      SUBSTRING(tidut.UT,utnr[nrcol[28]]) = slutsum.PERSONALKOD + " " + SUBSTRING(slutsum.NAMN,1,30).
+      SUBSTRING(tidut.UT,utnr[nrcol[42]]) = slutsum.OMRADE.
+      SUBSTRING(tidut.UT,utnr[nrcol[43]]) = slutsum.OMRADENAMN.
+      SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING( slutsum.NTIMMAR,">>>>>9.99").    
+      SUBSTRING(tidut.UT,utnr[nrcol[22]]) = STRING( slutsum.OATIMMAR,">>>>>9.99").
+      
+      SUBSTRING(tidut.UT,utnr[nrcol[44]]) = STRING( slutsum.OVERTIM,">>>>>9.99").
+      SUBSTRING(tidut.UT,utnr[nrcol[45]]) = STRING( slutsum.OVBEREDSKAPTIM,">>>>>9.99").
+                                                                      
+      SUBSTRING(tidut.UT,utnr[nrcol[7]]) = STRING( slutsum.ABELOPP,">>>>>>>9").
+      SUBSTRING(tidut.UT,utnr[nrcol[8]]) = STRING( slutsum.LONKOST,">>>>>>>9").
+      SUBSTRING(tidut.UT,utnr[nrcol[29]]) = STRING( slutsum.fvaro,">>>>>9.99").
+      SUBSTRING(tidut.UT,utnr[nrcol[30]]) = STRING((slutsum.NTIMMAR + slutsum.fvaro - slutsum.NORMARB) ,"->>>>>9.99").
+      SUBSTRING(tidut.UT,utnr[nrcol[31]]) = STRING( slutsum.NORMARB,">>>>>>>9.99").
+      SUBSTRING(tidut.UT,utnr[nrcol[32]]) = STRING( slutsum.FLUT,">>>>9.99").
+      
+      SUBSTRING(tidut.UT,utnr[nrcol[46]]) = STRING( slutsum.P110,">>>>9.99").
+      SUBSTRING(tidut.UT,utnr[nrcol[47]]) = STRING( slutsum.P117,">>>>9.99").
+      SUBSTRING(tidut.UT,utnr[nrcol[48]]) = STRING( slutsum.P118,">>>>9.99").
+      SUBSTRING(tidut.UT,utnr[nrcol[49]]) = STRING( slutsum.P119,">>>>9.99").
+      SUBSTRING(tidut.UT,utnr[nrcol[50]]) = STRING( slutsum.P135,">>>>9.99").
+      SUBSTRING(tidut.UT,utnr[nrcol[51]]) = STRING( slutsum.P150,">>>>9.99").
+      SUBSTRING(tidut.UT,utnr[nrcol[52]]) = STRING( slutsum.P155,">>>>9.99").
+      SUBSTRING(tidut.UT,utnr[nrcol[53]]) = STRING( slutsum.P160,">>>>9.99").
+      SUBSTRING(tidut.UT,utnr[nrcol[54]]) = STRING( slutsum.P170,">>>>9.99").   
+      
+      
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + slutsum.PERSONALKOD.                  
+   END.   
+END PROCEDURE.
+
+
+PROCEDURE skapaovdag_UI :
+    
+
+   GET FIRST stovq NO-LOCK.
+   DO WHILE AVAILABLE(TIDREGITAB):  
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = TIDREGITAB.PERSONALKOD NO-LOCK NO-ERROR.      
+      CREATE dagtemp.
+      ASSIGN         
+      dagtemp.PERSONALKOD = TIDREGITAB.PERSONALKOD
+      dagtemp.NAMN =  SUBSTRING(PERSONALTAB.FORNAMN,1,1) + "." + 
+      SUBSTRING(PERSONALTAB.EFTERNAMN,1,30)           
+      dagtemp.OMRADE = PERSONALTAB.OMRADE
+     
+      dagtemp.DATUM = TIDREGITAB.DATUM
+      dagtemp.AONR = TIDREGITAB.AONR
+      dagtemp.DELNR = TIDREGITAB.DELNR
+
+      dagtemp.OVERTIM = klockan100(TIDREGITAB.OANT1) + klockan100(TIDREGITAB.OANT2) + klockan100(TIDREGITAB.OANT3).
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = TIDREGITAB.AONR AND AONRTAB.DELNR = TIDREGITAB.DELNR  NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DO:
+         dagtemp.ORT = AONRTAB.ORT.
+      END.   
+      dagtemp.OVBEREDSKAPTIM = 0.
+      bertid = 0.
+      FOR EACH tidbuff WHERE tidbuff.PERSONALKOD = TIDREGITAB.PERSONALKOD AND
+      tidbuff.DATUM = TIDREGITAB.DATUM AND tidbuff.BEREDSKAP NE "" USE-INDEX PSTART NO-LOCK:
+         IF TIDREGITAB.START GE tidbuff.BEREDSKAPSTART AND
+         TIDREGITAB.START < tidbuff.BEREDSKAPSLUT THEN DO:
+            IF TIDREGITAB.SLUT > tidbuff.BEREDSKAPSTART AND
+            TIDREGITAB.SLUT LE tidbuff.BEREDSKAPSLUT THEN DO:  
+               bertid = bertid + klockan100(TIDREGITAB.OANT1) + klockan100(TIDREGITAB.OANT2) + klockan100(TIDREGITAB.OANT3).            
+            END.
+            ELSE DO:          
+               IF klockan100(tidbuff.BEREDSKAPSLUT) - klockan100(TIDREGITAB.START) > 0 THEN 
+               bertid = bertid + klockan100(tidbuff.BEREDSKAPSLUT) - klockan100(TIDREGITAB.START).               
+            
+            END.
+         END.
+         ELSE IF TIDREGITAB.SLUT > tidbuff.BEREDSKAPSTART AND
+         TIDREGITAB.SLUT LE tidbuff.BEREDSKAPSLUT THEN DO:  
+            IF klockan100(TIDREGITAB.SLUT) - klockan100(tidbuff.BEREDSKAPSTART) > 0 THEN
+            bertid = bertid + klockan100(TIDREGITAB.SLUT) - klockan100(tidbuff.BEREDSKAPSTART).            
+         END.                         
+      END.      
+      dagtemp.OVBEREDSKAPTIM = bertid.
+      GET NEXT stovq NO-LOCK.
+   END.
+       
+END PROCEDURE.
+
+PROCEDURE sopov_UI:
+   DEFINE INPUT PARAMETER openvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER delkoll AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER visgvar AS LOGICAL NO-UNDO.
+   IF visgvar = FALSE THEN DO:                  
+      IF openvar = 11 THEN DO:                  
+         OPEN QUERY stovq FOR EACH TIDREGITAB WHERE 
+         TIDREGITAB.PERSONALKOD = valperstemp.PERSONALKOD AND 
+         TIDREGITAB.DATUM >= uppvaltemp.STARTDATUM AND 
+         TIDREGITAB.DATUM <= uppvaltemp.SLUTDATUM
+         AND TIDREGITAB.OKOD1 NE ""  NO-LOCK.                        
+      END.      
+      IF openvar = 12 THEN DO:                  
+         OPEN QUERY stovq FOR EACH TIDREGITAB WHERE 
+         TIDREGITAB.PERSONALKOD = valperstemp.PERSONALKOD AND TIDREGITAB.OKOD1 NE "" NO-LOCK.                     
+      END.     
+   END.
+   ELSE DO:      
+      IF openvar = 11 THEN DO:         
+         OPEN QUERY stovq FOR EACH TIDREGITAB WHERE 
+         TIDREGITAB.PERSONALKOD = valperstemp.PERSONALKOD  AND 
+         TIDREGITAB.DATUM >= uppvaltemp.STARTDATUM AND 
+         TIDREGITAB.DATUM <= uppvaltemp.SLUTDATUM AND TIDREGITAB.VECKOKORD NE "" AND TIDREGITAB.OKOD1 NE ""  NO-LOCK.                              
+      END.      
+      IF openvar = 12 THEN DO:         
+         OPEN QUERY stovq FOR EACH TIDREGITAB WHERE 
+         TIDREGITAB.PERSONALKOD = valperstemp.PERSONALKOD AND TIDREGITAB.VECKOKORD NE "" AND TIDREGITAB.OKOD1 NE ""  NO-LOCK.                     
+      END.           
+   END.
+END PROCEDURE.
+
+
+PROCEDURE skapadagdag_UI :
+   GET FIRST stq NO-LOCK.
+   DO WHILE AVAILABLE(SUMTIDDAG):
+      IF SUMTIDDAG.PERSONALKOD = sparpers AND SUMTIDDAG.DATUM = spardatum THEN DO:
+         regtotalt = 0.
+      END.
+      ELSE DO:            
+         regdatum = SUMTIDDAG.DATUM.
+         RUN REGVEC.P.
+         RUN SLUTARB.P.
+      END.   
+          
+      IF SUMTIDDAG.PRISTYP = "FRÅNVARO." THEN DO:
+         
+         IF SUMTIDDAG.AONR = "155" THEN DO:
+            /*Flexuttag skall ej med*/
+            CREATE dagtemp.
+            ASSIGN         
+            dagtemp.PERSONALKOD = SUMTIDDAG.PERSONALKOD
+            dagtemp.NAMN = SUBSTRING(SUMTIDDAG.FORNAMN,1,1) + "." + 
+            SUBSTRING(SUMTIDDAG.EFTERNAMN,1,30)           
+            dagtemp.OMRADE = PERSONALTAB.OMRADE
+            dagtemp.DATUM = SUMTIDDAG.DATUM             
+            dagtemp.AONR = SUMTIDDAG.AONR
+            dagtemp.DELNR = SUMTIDDAG.DELNR 
+            dagtemp.ORT = SUMTIDDAG.ORT
+            dagtemp.PERSMASK = SUMTIDDAG.PERSMASK   
+            dagtemp.FLUT = SUMTIDDAG.TIMMAR     
+            dagtemp.NORMARB = klock100(regtotalt)
+            dagtemp.P155 = SUMTIDDAG.TIMMAR.
+            spardatum = SUMTIDDAG.DATUM.
+            sparpers = SUMTIDDAG.PERSONALKOD.
+         END.
+         
+         ELSE IF SUMTIDDAG.AONR = "119" OR  SUMTIDDAG.AONR = "191" OR  SUMTIDDAG.AONR = "192" OR  SUMTIDDAG.AONR = "193" OR  SUMTIDDAG.AONR = "194" THEN DO:            
+            CREATE dagtemp.
+            ASSIGN         
+            dagtemp.PERSONALKOD = SUMTIDDAG.PERSONALKOD
+            dagtemp.NAMN = SUBSTRING(SUMTIDDAG.FORNAMN,1,1) + "." + 
+            SUBSTRING(SUMTIDDAG.EFTERNAMN,1,30)           
+            dagtemp.OMRADE = PERSONALTAB.OMRADE
+            dagtemp.DATUM = SUMTIDDAG.DATUM     
+            dagtemp.AONR = SUMTIDDAG.AONR
+            dagtemp.DELNR = SUMTIDDAG.DELNR 
+            dagtemp.ORT = SUMTIDDAG.ORT
+            dagtemp.PERSMASK = SUMTIDDAG.PERSMASK
+            dagtemp.FVARO = SUMTIDDAG.TIMMAR                    
+            dagtemp.NORMARB = klock100(regtotalt)
+            dagtemp.P119 = SUMTIDDAG.TIMMAR.
+            spardatum = SUMTIDDAG.DATUM.
+            sparpers = SUMTIDDAG.PERSONALKOD.
+         END.
+         ELSE IF SUMTIDDAG.AONR = "170" THEN DO:            
+            CREATE dagtemp.
+            ASSIGN         
+            dagtemp.PERSONALKOD = SUMTIDDAG.PERSONALKOD
+            dagtemp.NAMN = SUBSTRING(SUMTIDDAG.FORNAMN,1,1) + "." + 
+            SUBSTRING(SUMTIDDAG.EFTERNAMN,1,30)           
+            dagtemp.OMRADE = PERSONALTAB.OMRADE
+            dagtemp.DATUM = SUMTIDDAG.DATUM     
+            dagtemp.AONR = SUMTIDDAG.AONR
+            dagtemp.DELNR = SUMTIDDAG.DELNR 
+            dagtemp.ORT = SUMTIDDAG.ORT
+            dagtemp.PERSMASK = SUMTIDDAG.PERSMASK
+            dagtemp.FVARO = SUMTIDDAG.TIMMAR                    
+            dagtemp.NORMARB = klock100(regtotalt)
+            dagtemp.P170 = SUMTIDDAG.TIMMAR.
+            spardatum = SUMTIDDAG.DATUM.
+            sparpers = SUMTIDDAG.PERSONALKOD.
+         END.
+         ELSE IF SUMTIDDAG.AONR = "160" THEN DO:            
+            CREATE dagtemp.
+            ASSIGN         
+            dagtemp.PERSONALKOD = SUMTIDDAG.PERSONALKOD
+            dagtemp.NAMN =  SUBSTRING(SUMTIDDAG.FORNAMN,1,1) + "." + 
+            SUBSTRING(SUMTIDDAG.EFTERNAMN,1,30)           
+            dagtemp.OMRADE = PERSONALTAB.OMRADE
+            dagtemp.DATUM = SUMTIDDAG.DATUM     
+            dagtemp.AONR = SUMTIDDAG.AONR
+            dagtemp.DELNR = SUMTIDDAG.DELNR 
+            dagtemp.ORT = SUMTIDDAG.ORT
+            dagtemp.PERSMASK = SUMTIDDAG.PERSMASK
+            dagtemp.FVARO = SUMTIDDAG.TIMMAR                    
+            dagtemp.NORMARB = klock100(regtotalt)
+            dagtemp.P160 = SUMTIDDAG.TIMMAR.
+            spardatum = SUMTIDDAG.DATUM.
+            sparpers = SUMTIDDAG.PERSONALKOD.
+         END.
+         ELSE IF SUMTIDDAG.AONR = "117" THEN DO:            
+            CREATE dagtemp.
+            ASSIGN         
+            dagtemp.PERSONALKOD = SUMTIDDAG.PERSONALKOD
+            dagtemp.NAMN = SUBSTRING(SUMTIDDAG.FORNAMN,1,1) + "." + 
+            SUBSTRING(SUMTIDDAG.EFTERNAMN,1,30)           
+            dagtemp.OMRADE = PERSONALTAB.OMRADE
+            dagtemp.DATUM = SUMTIDDAG.DATUM     
+            dagtemp.AONR = SUMTIDDAG.AONR
+            dagtemp.DELNR = SUMTIDDAG.DELNR 
+            dagtemp.ORT = SUMTIDDAG.ORT
+            dagtemp.PERSMASK = SUMTIDDAG.PERSMASK
+            dagtemp.FVARO = SUMTIDDAG.TIMMAR                    
+            dagtemp.NORMARB = klock100(regtotalt)
+            dagtemp.P117 = SUMTIDDAG.TIMMAR.
+            spardatum = SUMTIDDAG.DATUM.
+            sparpers = SUMTIDDAG.PERSONALKOD.
+         END.
+         ELSE IF SUMTIDDAG.AONR = "150" THEN DO:            
+            CREATE dagtemp.
+            ASSIGN         
+            dagtemp.PERSONALKOD = SUMTIDDAG.PERSONALKOD
+            dagtemp.NAMN =  SUBSTRING(SUMTIDDAG.FORNAMN,1,1) + "." + 
+            SUBSTRING(SUMTIDDAG.EFTERNAMN,1,30)           
+            dagtemp.OMRADE = PERSONALTAB.OMRADE
+            dagtemp.DATUM = SUMTIDDAG.DATUM    
+            dagtemp.AONR = SUMTIDDAG.AONR
+            dagtemp.DELNR = SUMTIDDAG.DELNR 
+            dagtemp.ORT = SUMTIDDAG.ORT
+            dagtemp.PERSMASK = SUMTIDDAG.PERSMASK
+            dagtemp.FVARO = SUMTIDDAG.TIMMAR                    
+            dagtemp.NORMARB = klock100(regtotalt)
+            dagtemp.P150 = SUMTIDDAG.TIMMAR.
+            spardatum = SUMTIDDAG.DATUM.
+            sparpers = SUMTIDDAG.PERSONALKOD.
+         END.
+         ELSE IF SUMTIDDAG.AONR = "110" THEN DO:            
+            CREATE dagtemp.
+            ASSIGN         
+            dagtemp.PERSONALKOD = SUMTIDDAG.PERSONALKOD
+            dagtemp.NAMN =  SUBSTRING(SUMTIDDAG.FORNAMN,1,1) + "." + 
+            SUBSTRING(SUMTIDDAG.EFTERNAMN,1,30)           
+            dagtemp.OMRADE = PERSONALTAB.OMRADE
+            dagtemp.DATUM = SUMTIDDAG.DATUM    
+            dagtemp.AONR = SUMTIDDAG.AONR
+            dagtemp.DELNR = SUMTIDDAG.DELNR 
+            dagtemp.ORT = SUMTIDDAG.ORT
+            dagtemp.PERSMASK = SUMTIDDAG.PERSMASK
+            dagtemp.FVARO = SUMTIDDAG.TIMMAR                    
+            dagtemp.NORMARB = klock100(regtotalt)
+            dagtemp.P110 = SUMTIDDAG.TIMMAR.
+            spardatum = SUMTIDDAG.DATUM.
+            sparpers = SUMTIDDAG.PERSONALKOD.
+         END.
+         ELSE IF SUMTIDDAG.AONR = "118" THEN DO:            
+            CREATE dagtemp.
+            ASSIGN         
+            dagtemp.PERSONALKOD = SUMTIDDAG.PERSONALKOD
+            dagtemp.NAMN =  SUBSTRING(SUMTIDDAG.FORNAMN,1,1) + "." + 
+            SUBSTRING(SUMTIDDAG.EFTERNAMN,1,30)           
+            dagtemp.OMRADE = PERSONALTAB.OMRADE
+            dagtemp.DATUM = SUMTIDDAG.DATUM    
+            dagtemp.AONR = SUMTIDDAG.AONR
+            dagtemp.DELNR = SUMTIDDAG.DELNR 
+            dagtemp.ORT = SUMTIDDAG.ORT
+            dagtemp.PERSMASK = SUMTIDDAG.PERSMASK
+            dagtemp.FVARO = SUMTIDDAG.TIMMAR                    
+            dagtemp.NORMARB = klock100(regtotalt)
+            dagtemp.P118 = SUMTIDDAG.TIMMAR.
+            spardatum = SUMTIDDAG.DATUM.
+            sparpers = SUMTIDDAG.PERSONALKOD.
+         END.
+         ELSE IF SUMTIDDAG.AONR = "135" THEN DO:            
+            CREATE dagtemp.
+            ASSIGN         
+            dagtemp.PERSONALKOD = SUMTIDDAG.PERSONALKOD
+            dagtemp.NAMN = SUBSTRING(SUMTIDDAG.FORNAMN,1,1) + "." + 
+            SUBSTRING(SUMTIDDAG.EFTERNAMN,1,30)           
+            dagtemp.OMRADE = PERSONALTAB.OMRADE
+            dagtemp.DATUM = SUMTIDDAG.DATUM    
+            dagtemp.AONR = SUMTIDDAG.AONR
+            dagtemp.DELNR = SUMTIDDAG.DELNR 
+            dagtemp.ORT = SUMTIDDAG.ORT
+            dagtemp.PERSMASK = SUMTIDDAG.PERSMASK
+            dagtemp.FVARO = SUMTIDDAG.TIMMAR                    
+            dagtemp.NORMARB = klock100(regtotalt)
+            dagtemp.P135 = SUMTIDDAG.TIMMAR.
+            spardatum = SUMTIDDAG.DATUM.
+            sparpers = SUMTIDDAG.PERSONALKOD.
+         END.
+         ELSE DO:
+            CREATE dagtemp.
+            ASSIGN         
+            dagtemp.PERSONALKOD = SUMTIDDAG.PERSONALKOD
+            dagtemp.NAMN =  SUBSTRING(SUMTIDDAG.FORNAMN,1,1) + "." + 
+            SUBSTRING(SUMTIDDAG.EFTERNAMN,1,30)           
+            dagtemp.OMRADE = PERSONALTAB.OMRADE
+            dagtemp.DATUM = SUMTIDDAG.DATUM     
+            dagtemp.AONR = SUMTIDDAG.AONR
+            dagtemp.DELNR = SUMTIDDAG.DELNR 
+            dagtemp.ORT = SUMTIDDAG.ORT
+            dagtemp.PERSMASK = SUMTIDDAG.PERSMASK   
+            dagtemp.FVARO = SUMTIDDAG.TIMMAR     
+            dagtemp.NORMARB = klock100(regtotalt).
+            spardatum = SUMTIDDAG.DATUM.
+            sparpers = SUMTIDDAG.PERSONALKOD.
+         END.   
+      END.   
+      ELSE DO:
+         
+                      
+         IF SUMTIDDAG.PERSMASK = FALSE THEN musz = musz.
+         ELSE IF SUMTIDDAG.PRISTYP = "RESTID..." THEN musz = musz.               
+         ELSE DO:
+            
+            CREATE dagtemp.
+            ASSIGN         
+            dagtemp.PERSONALKOD = SUMTIDDAG.PERSONALKOD
+            dagtemp.NAMN = SUBSTRING(SUMTIDDAG.FORNAMN,1,1) + "." + 
+            SUBSTRING(SUMTIDDAG.EFTERNAMN,1,30)           
+            dagtemp.OMRADE = PERSONALTAB.OMRADE
+            dagtemp.DATUM = SUMTIDDAG.DATUM    
+            dagtemp.AONR = SUMTIDDAG.AONR
+            dagtemp.DELNR = SUMTIDDAG.DELNR 
+            dagtemp.ORT = SUMTIDDAG.ORT
+            dagtemp.PERSMASK = SUMTIDDAG.PERSMASK
+            dagtemp.BELOPP = SUMTIDDAG.BELOPP + SUMTIDDAG.OBELOPP
+            dagtemp.TIMMAR = SUMTIDDAG.TIMMAR + SUMTIDDAG.OTIMMAR.
+            dagtemp.NTIMMAR = SUMTIDDAG.TIMMAR. 
+            dagtemp.OATIMMAR = SUMTIDDAG.OTIMMAR.    
+            dagtemp.ABELOPP = dagtemp.BELOPP.
+            dagtemp.LONKOST = SUMTIDDAG.LONKOST.
+            dagtemp.NORMARB = klock100(regtotalt).
+            spardatum = SUMTIDDAG.DATUM.
+            sparpers = SUMTIDDAG.PERSONALKOD.
+         END.
+         
+      END.
+      regtotalt = 0.
+      
+      
+      GET NEXT stq NO-LOCK.      
+   END.
+   IF Guru.Konstanter:globforetag = "sund" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "misv" THEN RUN ejov_UI.   
+END PROCEDURE.
+PROCEDURE ejov_UI.
+   FIND PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = valperstemp.PERSONALKOD NO-LOCK NO-ERROR. 
+   IF PERSONALTAB.OVERTIDUTTAG = "I" THEN DO:                                              
+      FIND FIRST FLEXAVT WHERE FLEXAVT.PERSONALKOD = PERSONALTAB.PERSONALKOD NO-LOCK NO-ERROR.                            
+      FIND FIRST FLEXREG WHERE FLEXREG.KOD = FLEXAVT.FLEXKOD USE-INDEX FLEXREG NO-LOCK NO-ERROR.
+      IF AVAILABLE FLEXREG AND FLEXAVT.FLEXTID = TRUE THEN DO:                                          
+         OPEN QUERY tidq FOR EACH FLEXTID WHERE FLEXTID.PERSONALKOD = PERSONALTAB.PERSONALKOD AND FLEXTID.DATUM >= uppvaltemp.STARTDATUM AND 
+         FLEXTID.DATUM <= uppvaltemp.SLUTDATUM AND FLEXTID.TID < FLEXREG.MOSTART NO-LOCK.
+         GET FIRST tidq NO-LOCK.           
+         DO WHILE AVAILABLE(FLEXTID) TRANSACTION:
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND  TIDREGITAB.DATUM = FLEXTID.DATUM AND 
+            TIDREGITAB.START = FLEXTID.TID AND TIDREGITAB.SLUT = FLEXREG.MOSTART NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE TIDREGITAB THEN DO:            
+               CREATE dagtemp.
+               ASSIGN
+               dagtemp.PERSONALKOD = FLEXTID.PERSONALKOD
+               dagtemp.NAMN =  SUBSTRING(PERSONALTAB.FORNAMN,1,1) + "." + 
+               SUBSTRING(PERSONALTAB.EFTERNAMN,1,30)           
+               dagtemp.OMRADE = PERSONALTAB.OMRADE
+               dagtemp.DATUM = FLEXTID.DATUM    
+                                                                        
+               dagtemp.AONR = FLEXTID.AONR
+               dagtemp.DELNR = FLEXTID.DELNR
+               dagtemp.NTIMMAR = FLEXREG.MOSTART - klock100(FLEXTID.TID). 
+               dagtemp.TIMMAR = FLEXREG.MOSTART - klock100(FLEXTID.TID).
+            END.                                 
+            GET NEXT tidq NO-LOCK. 
+         END.
+         OPEN QUERY tidq FOR EACH FLEXTID WHERE FLEXTID.PERSONALKOD = PERSONALTAB.PERSONALKOD AND FLEXTID.DATUM >= uppvaltemp.STARTDATUM AND 
+         FLEXTID.DATUM <= uppvaltemp.SLUTDATUM AND FLEXTID.TID > FLEXREG.KVSLUT NO-LOCK.
+         GET FIRST tidq NO-LOCK.           
+         DO WHILE AVAILABLE(FLEXTID) TRANSACTION:
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND  TIDREGITAB.DATUM = FLEXTID.DATUM AND 
+            TIDREGITAB.START = FLEXREG.KVSLUT AND TIDREGITAB.SLUT = FLEXTID.TID NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE TIDREGITAB THEN DO:                           
+               CREATE dagtemp.
+               ASSIGN
+               dagtemp.PERSONALKOD = FLEXTID.PERSONALKOD
+               dagtemp.NAMN =  SUBSTRING(PERSONALTAB.FORNAMN,1,1) + "." + 
+               SUBSTRING(PERSONALTAB.EFTERNAMN,1,30)           
+               dagtemp.OMRADE = PERSONALTAB.OMRADE
+               dagtemp.DATUM = FLEXTID.DATUM                                                            
+               dagtemp.AONR = FLEXTID.AONR
+               dagtemp.DELNR = FLEXTID.DELNR
+               dagtemp.NTIMMAR = klock100(FLEXTID.TID) - FLEXREG.KVSLUT. 
+               dagtemp.TIMMAR = klock100(FLEXTID.TID) - FLEXREG.KVSLUT.
+            END.                                                                                 
+            GET NEXT tidq NO-LOCK. 
+         END.
+      END.
+   END.       
+   
+
+END PROCEDURE.
+
+PROCEDURE summa_UI.
+   
+   FOR EACH dagtemp NO-LOCK 
+   BREAK BY dagtemp.PERSONALKOD BY dagtemp.PERSMASK: 
+      ACCUMULATE dagtemp.BELOPP (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.PERSMASK). 
+      ACCUMULATE dagtemp.TIMMAR (TOTAL BY dagtemp.PERSONALKOD   BY dagtemp.PERSMASK). 
+      ACCUMULATE dagtemp.NTIMMAR (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK). 
+      ACCUMULATE dagtemp.OATIMMAR (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.PERSMASK). 
+      ACCUMULATE dagtemp.ABELOPP (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK). 
+      /*ACCUMULATE dagtemp.OTIMMAR (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK). 
+      ACCUMULATE dagtemp.NOTIMMAR (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.PERSMASK). 
+      ACCUMULATE dagtemp.OOTIMMAR (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.PERSMASK). 
+      ACCUMULATE dagtemp.OBELOPP (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK). 
+      ACCUMULATE dagtemp.BTIMMAR (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).        
+      ACCUMULATE dagtemp.NBTIMMAR (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.PERSMASK). 
+      ACCUMULATE dagtemp.OBTIMMAR (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.PERSMASK). 
+      ACCUMULATE dagtemp.BBELOPP (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).*/ 
+      ACCUMULATE dagtemp.LONKOST (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).
+      ACCUMULATE dagtemp.NORMARB (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).
+      ACCUMULATE dagtemp.FVARO (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).
+      ACCUMULATE dagtemp.FLUT (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).
+      
+      
+      ACCUMULATE dagtemp.P160 (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).
+      ACCUMULATE dagtemp.P119 (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).
+      ACCUMULATE dagtemp.P170 (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).
+      ACCUMULATE dagtemp.P117 (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).
+      ACCUMULATE dagtemp.P155 (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).
+      ACCUMULATE dagtemp.P150 (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).
+      ACCUMULATE dagtemp.P110 (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).
+      ACCUMULATE dagtemp.P118 (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).
+      ACCUMULATE dagtemp.P135 (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).
+      ACCUMULATE dagtemp.OVERTIM (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).
+      ACCUMULATE dagtemp.OVBEREDSKAPTIM (TOTAL BY dagtemp.PERSONALKOD  BY dagtemp.PERSMASK).
+      
+       
+      IF LAST-OF(dagtemp.PERSMASK) THEN DO:
+         CREATE slutsum.
+         ASSIGN 
+         slutsum.PERSONALKOD = dagtemp.PERSONALKOD
+         slutsum.NAMN = dagtemp.NAMN         
+         slutsum.ORT = dagtemp.ORT          
+         slutsum.OMRADE = dagtemp.OMRADE 
+         slutsum.BELOPP = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.BELOPP)                      
+         slutsum.TIMMAR = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.TIMMAR) 
+         slutsum.NTIMMAR = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.NTIMMAR) 
+         slutsum.OATIMMAR = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.OATIMMAR) 
+         slutsum.ABELOPP = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.ABELOPP).                      
+         slutsum.LONKOST = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.LONKOST).  
+         slutsum.NORMARB = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.NORMARB).
+         slutsum.FVARO = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.FVARO).
+         slutsum.FLUT = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.FLUT).
+         
+         slutsum.P160 = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.P160).
+         slutsum.P119 = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.P119).
+         slutsum.P170 = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.P170).
+         slutsum.P117 = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.P117).
+         slutsum.P155 = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.P155).
+         slutsum.P150 = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.P150).
+         slutsum.P110 = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.P110).
+         slutsum.P118 = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.P118).
+         slutsum.P135 = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.P135).
+         slutsum.OVERTIM = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.OVERTIM).
+         slutsum.OVBEREDSKAPTIM = (ACCUM TOTAL BY dagtemp.PERSMASK dagtemp.OVBEREDSKAPTIM).                      
+         
+      END.     
+   END.
+   FOR EACH slutsum  NO-LOCK:
+      ASSIGN
+      slutsum.STDATUM = uppvaltemp.STARTDATUM
+      slutsum.SLDATUM = uppvaltemp.SLUTDATUM.           
+      FIND FIRST OMRADETAB  WHERE OMRADETAB.OMRADE = slutsum.OMRADE NO-LOCK NO-ERROR.
+      IF AVAILABLE OMRADETAB THEN DO:
+         slutsum.OMRADENAMN = OMRADETAB.NAMN.
+      END.   
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = slutsum.PERSONALKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN DO:
+         /*om nästsista siffran i personnummer är jämnt delbar men 2 = kvinna , annars man*/
+         hjkon = INTEGER(SUBSTRING(STRING(PERSONALTAB.PERSONNUMMER,"999999-9999"),10,1)).
+         hjkonint = hjkon / 2. 
+         hjkondec = hjkon / 2.
+         IF hjkonint NE hjkondec THEN slutsum.KON = "Man".
+         ELSE slutsum.KON = "Kvinna".                  
+      END.         
+   END.
+   
+END PROCEDURE.
+
+   
+

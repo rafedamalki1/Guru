@@ -1,0 +1,7 @@
+
+
+/*    File        : TIDUTTT.I*/
+   
+DEFINE TEMP-TABLE tidut
+   FIELD UT AS CHARACTER FORMAT "X(132)"
+   FIELD TTRECID AS RECID.

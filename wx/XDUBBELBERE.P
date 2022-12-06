@@ -1,0 +1,48 @@
+/*XDUBBELBERE.P*/
+DEFINE INPUT PARAMETER datkoll AS DATE NO-UNDO.
+DEFINE VARIABLE felberlist AS CHARACTER NO-UNDO.
+DEFINE VARIABLE jmfor AS LOGICAL NO-UNDO.
+DEFINE BUFFER bmtrlbuff FOR BERMTRL.
+                     
+felberlist = "d:\delad\server\PRO9S\dubbe.txt".
+OUTPUT TO VALUE(felberlist) APPEND.
+PUT "HEJ" SKIP.
+OUTPUT CLOSE.
+OPEN QUERY bq FOR EACH BEREDNING WHERE BEREDNING.AKTIV = TRUE     
+USE-INDEX BERNR NO-LOCK.
+GET FIRST bq NO-LOCK.
+DO WHILE AVAILABLE(BEREDNING):
+   OUTPUT TO VALUE(felberlist) APPEND.
+   PUT BEREDNING.OMRADE BEREDNING.BERNR  " START KOLL" SKIP.
+   OUTPUT CLOSE.
+   OPEN QUERY berqmtrl FOR EACH BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAO AND
+   BERMTRL.OMRADE = BEREDNING.OMRADE AND
+   BERMTRL.DATUM >= datkoll USE-INDEX DATUM NO-LOCK.
+   GET FIRST berqmtrl NO-LOCK.
+   REPEAT:
+      IF AVAILABLE BERMTRL THEN DO:
+         FIND FIRST bmtrlbuff WHERE
+         bmtrlbuff.OMRADE = BERMTRL.OMRADE AND
+         bmtrlbuff.AONR = BERMTRL.AONR AND 
+         bmtrlbuff.NUM = BERMTRL.NUM AND
+         bmtrlbuff.ENR = BERMTRL.ENR AND
+         bmtrlbuff.ANTAL = BERMTRL.ANTAL AND
+         bmtrlbuff.LEVKOD = BERMTRL.LEVKOD AND
+         bmtrlbuff.INKOP = BERMTRL.INKOP AND 
+         RECID(bmtrlbuff) NE RECID(BERMTRL)
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE bmtrlbuff THEN DO:
+            BUFFER-COMPARE bmtrlbuff TO BERMTRL SAVE jmfor.
+            IF jmfor = TRUE THEN DO:           
+               OUTPUT TO VALUE(felberlist) APPEND.
+               PUT bmtrlbuff.OMRADE bmtrlbuff.AONR bmtrlbuff.ENR " FEL" SKIP.
+               OUTPUT CLOSE.
+               LEAVE.
+            END.
+         END.
+      END.
+      ELSE LEAVE.
+      GET NEXT berqmtrl NO-LOCK.
+   END.
+   GET NEXT bq NO-LOCK.
+END.

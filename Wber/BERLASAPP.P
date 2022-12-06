@@ -1,0 +1,125 @@
+/*BERLASAPP.P*/
+{STARTFORAPP.I}
+DEFINE VARIABLE berkopptabbuffh AS HANDLE NO-UNDO.
+DEFINE TEMP-TABLE lasberpers
+   FIELD BERNR AS CHARACTER
+   FIELD OMRADE AS CHARACTER
+   FIELD NAMN AS CHARACTER
+   FIELD ANVANDARE AS CHARACTER
+   FIELD BENAMNING AS CHARACTER
+   FIELD EXPBER AS CHARACTER
+   FIELD AONR AS CHARACTER
+   FIELD DELNR AS INTEGER
+   FIELD BERANVROW AS ROWID
+   INDEX BERNR BERNR OMRADE.
+PROCEDURE globanvin_UI :
+   DEFINE INPUT  PARAMETER globanvin AS CHARACTER NO-UNDO.
+   
+END PROCEDURE.
+PROCEDURE laddaberlas_UI :
+   DEFINE OUTPUT PARAMETER anamn AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR lasberpers.
+   EMPTY TEMP-TABLE lasberpers NO-ERROR. 
+   FOR EACH BERANV WHERE BERANV.AONR = ? EXCLUSIVE-LOCK:
+      DELETE BERANV.
+   END.
+   FOR EACH BERANV WHERE BERANV.AONR = "" EXCLUSIVE-LOCK:
+      DELETE BERANV.
+   END.
+   FOR EACH BERANV NO-LOCK.
+      FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = SUBSTRING(BERANV.ANVANDARE,1,40) NO-LOCK NO-ERROR.
+      IF AVAILABLE ANVANDARE THEN anamn = ANVANDARE.AV-NAMN.
+      ELSE anamn = "Ingen användare".
+      FIND FIRST BEREDNING WHERE BEREDNING.OMRADE = BERANV.OMRADE AND BEREDNING.BERNR = INTEGER(BERANV.AONR) 
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE BEREDNING THEN DO:
+         CREATE lasberpers.
+         ASSIGN
+         lasberpers.BERNR = BERANV.AONR
+         lasberpers.OMRADE = BERANV.OMRADE
+         lasberpers.NAMN = anamn
+         lasberpers.ANVANDARE = SUBSTRING(BERANV.ANVANDARE,1,40)
+         lasberpers.BENAMNING = BEREDNING.BENAMNING
+         lasberpers.AONR = BEREDNING.AONR
+         lasberpers.DELNR = BEREDNING.DELNR
+         lasberpers.BERANVROW = ROWID(BERANV).
+         IF SUBSTRING(BERANV.ANVANDARE,50,6) = "Export" THEN lasberpers.EXPBER = "Export".
+         ELSE DO :
+            FIND FIRST INKBER WHERE INKBER.BERNR = INTEGER(BERANV.AONR) AND INKBER.OMRADE = BERANV.OMRADE AND INKBER.PAGAENDE = TRUE NO-LOCK NO-ERROR.
+            IF AVAILABLE INKBER THEN lasberpers.EXPBER = "Inköp".
+            ELSE lasberpers.EXPBER = "Beredning".
+         END.   
+      END.
+   END. 
+  
+END PROCEDURE.
+PROCEDURE aonrsekkoll_UI :
+   IF Guru.Konstanter:varforetypchar[4] = "" AND Guru.Konstanter:varforetypval[18] = 0 THEN DO:
+      RETURN.
+   END.
+   IF Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)   THEN RETURN.
+   IF Guru.Konstanter:varforetypchar[4] = "ja" THEN DO:
+      FOR EACH lasberpers:
+         IF lasberpers.OMRADE = "" THEN.
+         
+         ELSE DO:
+            FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = Guru.Konstanter:globanv AND 
+            OFFERT.OMRADE = lasberpers.OMRADE NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE OFFERT THEN DO:
+               FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = Guru.Konstanter:globanv AND 
+               OFFERT.AONR = lasberpers.AONR AND OFFERT.DELNR = lasberpers.DELNR
+               NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE OFFERT THEN DO:
+                  IF Guru.Konstanter:globanv = lasberpers.ANVANDARE THEN. 
+                  ELSE DELETE lasberpers.
+               END.
+            END. 
+         END.
+      END.
+   END.
+     
+END PROCEDURE.
+PROCEDURE bort_UI :
+   DEFINE INPUT PARAMETER TABLE FOR lasberpers.
+   DEFINE OUTPUT PARAMETER val AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE bernrvar AS INTEGER NO-UNDO.
+   DEFINE VARIABLE omrvar AS CHARACTER NO-UNDO.
+   DEBUGGER:SET-BREAK().
+   val = FALSE.
+   FIND FIRST lasberpers NO-ERROR.
+   IF AVAILABLE lasberpers THEN DO TRANSACTION:
+      FIND FIRST BERANV WHERE ROWID(BERANV) = lasberpers.BERANVROW EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BERANV THEN DO:
+         bernrvar = INTEGER(BERANV.AONR).
+         omrvar = BERANV.OMRADE.
+         DELETE BERANV.
+      END.
+      ELSE val = TRUE.
+   END.
+   ELSE val = TRUE.
+   RELEASE BERANV NO-ERROR.
+   RUN BerkoppbuffCreate_UI (INPUT bernrvar, INPUT omrvar).
+    
+END PROCEDURE.
+
+PROCEDURE BerkoppbuffCreate_UI :
+   DEFINE INPUT PARAMETER bernrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER omrvar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE sokvar AS CHARACTER NO-UNDO.
+   IF NOT VALID-HANDLE(berkopptabbuffh) THEN CREATE BUFFER berkopptabbuffh FOR TABLE "BERKALKOPPLA".
+   berkopptabbuffh:FIND-FIRST("WHERE BERNR = " + STRING(bernrvar) + " AND OMRADE = '" + omrvar + "'", NO-LOCK) NO-ERROR.
+   IF berkopptabbuffh:AVAILABLE THEN DO:
+      sokvar = "K" + berkopptabbuffh:BUFFER-FIELD("KALKNR"):BUFFER-VALUE + "$" + omrvar.
+      FIND FIRST ANVPER WHERE ANVPER.ANVANDARE = sokvar NO-LOCK NO-ERROR.
+      IF AVAILABLE ANVPER THEN DO TRANSACTION:
+         FIND CURRENT ANVPER EXCLUSIVE-LOCK.
+         DELETE ANVPER.
+      END.
+   END.   
+      
+   RUN BerkoppbufAvs_UI.
+END PROCEDURE.
+PROCEDURE BerkoppbufAvs_UI :
+   DELETE OBJECT berkopptabbuffh NO-ERROR.
+   berkopptabbuffh = ?.
+END PROCEDURE.

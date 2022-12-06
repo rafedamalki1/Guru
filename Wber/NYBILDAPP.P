@@ -1,0 +1,86 @@
+/*NYBILDAPP.P*/
+
+{BERBILD.I}
+DEFINE VARIABLE benvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE konstvalvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE ord AS INTEGER NO-UNDO.
+
+PROCEDURE btnok_UI :
+   DEFINE INPUT-OUTPUT PARAMETER rowidvar AS ROWID NO-UNDO.
+   DEFINE INPUT PARAMETER nybild AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER konstvalvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER benvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER sparkod AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR berbildtemp.
+   ord = 0.
+   felmedd = "".
+   IF nybild = TRUE THEN DO:
+      FIND FIRST BERBILD WHERE BERBILD.KTYPKOD = konstvalvar AND
+      BERBILD.FILNAMN = benvar
+      USE-INDEX KOD NO-LOCK NO-ERROR.
+      IF AVAILABLE BERBILD THEN DO:
+         ASSIGN felmedd = "Det finns redan en bild med detta filnamn. Ange nytt filnamn.". 
+         RETURN.
+      END.
+      ELSE DO:   
+         FIND LAST BERBILD WHERE BERBILD.KTYPKOD = konstvalvar
+         USE-INDEX KOD NO-LOCK NO-ERROR.
+         IF AVAILABLE BERBILD THEN DO:
+            ord = BERBILD.ORDNING + 1.
+         END.
+         ELSE DO:
+            ord = 1.
+         END. 
+         DO TRANSACTION:
+            CREATE BERBILD.
+            ASSIGN                                                                                     
+            BERBILD.KTYPKOD = konstvalvar
+            BERBILD.FILNAMN = benvar
+            BERBILD.ORDNING = ord
+            rowidvar = ROWID(BERBILD).
+            CREATE berbildtemp.
+            BUFFER-COPY BERBILD TO berbildtemp.
+            ASSIGN berbildtemp.BBROW = rowidvar.
+         END.
+         RELEASE BERBILD NO-ERROR.
+         RETURN.            
+      END.   
+   END.
+   ELSE DO:
+      IF benvar NE sparkod THEN DO:
+         FIND FIRST BERBILD WHERE BERBILD.KTYPKOD = konstvalvar AND
+         BERBILD.FILNAMN = benvar
+         USE-INDEX KOD NO-LOCK NO-ERROR.
+         IF AVAILABLE BERBILD THEN DO:
+            ASSIGN felmedd = "Det finns redan en bild med detta filnamn. Ange nytt filnamn.". 
+            RETURN.
+         END.
+         ELSE DO TRANSACTION: 
+            FIND FIRST BERBILD WHERE ROWID(BERBILD) = rowidvar EXCLUSIVE-LOCK NO-ERROR. 
+            IF AVAILABLE BERBILD THEN DO:
+               ASSIGN BERBILD.FILNAMN = benvar.
+               FIND FIRST berbildtemp WHERE berbildtemp.BBROW = rowidvar NO-LOCK NO-ERROR.
+               IF AVAILABLE berbildtemp THEN DO:
+                  ASSIGN berbildtemp.FILNAMN = benvar.
+               END.
+            END.         
+         END.   
+         RELEASE BERBILD NO-ERROR.
+         RETURN.
+      END.
+      ELSE DO TRANSACTION:
+         FIND FIRST BERBILD WHERE ROWID(BERBILD) = rowidvar EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE BERBILD THEN DO:
+            ASSIGN            
+            BERBILD.FILNAMN = benvar.
+            FIND FIRST berbildtemp WHERE berbildtemp.BBROW = rowidvar NO-LOCK NO-ERROR.
+            IF AVAILABLE berbildtemp THEN DO:
+               ASSIGN berbildtemp.FILNAMN = benvar.
+            END.
+         END.         
+      END.   
+      RELEASE BERBILD NO-ERROR.
+      RETURN.
+   END.
+END PROCEDURE.

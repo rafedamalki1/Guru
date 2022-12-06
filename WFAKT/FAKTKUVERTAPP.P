@@ -1,0 +1,94 @@
+/*FAKTKUVERTAPP.P*/
+{FAKTPLANTEMP.I} 
+
+DEFINE INPUT PARAMETER startdatumvar AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER slutdatumvar  AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR vfaktplantemp.
+DEFINE OUTPUT PARAMETER TABLE FOR faktnamntemp.
+DEFINE OUTPUT PARAMETER TABLE FOR faktmail.
+DEFINE OUTPUT PARAMETER TABLE FOR Epeppol.
+EMPTY TEMP-TABLE faktnamntemp. 
+
+{FAKTMAIL.I}
+
+FOR EACH vfaktplantemp  NO-LOCK:
+   /*
+   FIND LAST FAKTINTAKTKONT WHERE 
+   FAKTINTAKTKONT.FAKTNR = vfaktplantemp.FAKTNR AND
+   FAKTINTAKTKONT.VFAKTNR NE 0 USE-INDEX VFAKTNR NO-LOCK NO-ERROR.
+      FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = FAKTINTAKTKONT.FAKTNR AND 
+      FAKTURERAD.VFAKTNR = FAKTINTAKTKONT.VFAKTNR AND
+      FAKTURERAD.DATUM >= startdatumvar AND  FAKTURERAD.DATUM <= slutdatumvar NO-LOCK NO-ERROR.
+  
+   */
+   /*Anders Olsson Elpool i Umeå AB  20 apr 2017 10:39:23 
+   Det går bara en deb resp en kreditfaktura per kund per datum svep 
+   */
+   FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = vfaktplantemp.FAKTNR AND 
+   FAKTURERAD.VFAKTNR > 0 AND
+   FAKTURERAD.DATUM >= startdatumvar AND  FAKTURERAD.DATUM <= slutdatumvar NO-LOCK NO-ERROR.
+   IF AVAILABLE FAKTURERAD THEN DO:
+      FIND FIRST FAKTNAMN WHERE FAKTNAMN.FAKTURNR = FAKTURERAD.FAKTNR AND FAKTNAMN.FDELNR = FAKTURERAD.FDELNR NO-LOCK NO-ERROR.
+      IF AVAILABLE FAKTNAMN THEN DO:
+         FIND FIRST Epeppol WHERE Epeppol.FAKTNR = FAKTURERAD.FAKTNR NO-LOCK NO-ERROR.
+         IF AVAILABLE Epeppol THEN DO:
+            ASSIGN    
+            Epeppol.BESTNAMN = FAKTNAMN.BESTNAMN 
+            Epeppol.VFAKTNR = FAKTURERAD.VFAKTNR.
+         END.
+         ELSE DO:
+            FIND FIRST faktmail WHERE faktmail.FAKTNR = FAKTURERAD.FAKTNR NO-LOCK NO-ERROR.
+            IF AVAILABLE faktmail THEN DO:
+               ASSIGN    
+               faktmail.BESTNAMN = FAKTNAMN.BESTNAMN 
+               faktmail.VFAKTNR = FAKTURERAD.VFAKTNR.  
+            END.   
+            ELSE DO:
+               CREATE faktnamntemp.
+               BUFFER-COPY FAKTNAMN TO faktnamntemp.
+               faktnamntemp.VFAKTNR = FAKTURERAD.VFAKTNR.
+            END.
+         END.      
+      END.   
+   END.
+       
+END.
+FOR EACH vfaktplantemp  NO-LOCK:
+   /*
+   FIND LAST FAKTINTAKTKONTKRED WHERE 
+   FAKTINTAKTKONTKRED.FAKTNR = vfaktplantemp.FAKTNR AND
+   FAKTINTAKTKONTKRED.VKREDIT NE 0 USE-INDEX VFAKTNR NO-LOCK NO-ERROR.
+   IF AVAILABLE FAKTINTAKTKONTKRED THEN DO:
+      */
+   /*Anders Olsson Elpool i Umeå AB  20 apr 2017 10:39:23 
+   Det går bara en deb resp en kreditfaktura per kund per datum svep 
+   */   
+   FIND FIRST FAKTKRED WHERE FAKTKRED.FAKTNR = vfaktplantemp.FAKTNR AND 
+   FAKTKRED.VKREDIT > 0 AND
+   FAKTKRED.DATUM >= startdatumvar AND  FAKTKRED.DATUM <= slutdatumvar NO-LOCK NO-ERROR.
+   IF AVAILABLE FAKTKRED THEN DO:
+      FIND FIRST FAKTNAMNKRED WHERE FAKTNAMNKRED.FAKTURNR = FAKTKRED.FAKTNR AND FAKTNAMNKRED.FDELNR = FAKTKRED.FDELNR NO-LOCK NO-ERROR.
+      IF AVAILABLE FAKTNAMNKRED THEN DO:
+         FIND FIRST Epeppol WHERE Epeppol.FAKTNR = FAKTKRED.FAKTNR NO-LOCK NO-ERROR.
+         IF AVAILABLE Epeppol THEN DO:
+            ASSIGN    
+            Epeppol.BESTNAMN = FAKTNAMNKRED.BESTNAMN 
+            Epeppol.VKREDIT = FAKTKRED.VKREDIT.
+         END.
+         ELSE DO:
+            FIND FIRST faktmail WHERE faktmail.FAKTNR = FAKTKRED.FAKTNR NO-LOCK NO-ERROR.
+            IF AVAILABLE faktmail THEN DO:
+               ASSIGN    
+               faktmail.BESTNAMN = FAKTNAMNKRED.BESTNAMN 
+               faktmail.VKREDIT = FAKTKRED.VKREDIT.
+            END.   
+            ELSE DO:
+               CREATE faktnamntemp.
+               BUFFER-COPY FAKTNAMNKRED TO faktnamntemp.
+               faktnamntemp.VKREDIT = FAKTKRED.VKREDIT.
+            END.
+         END.      
+      END.   
+   END.
+            
+END.

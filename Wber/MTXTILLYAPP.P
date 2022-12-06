@@ -1,0 +1,458 @@
+/*MTXTILLYAPP.P*/
+{KONSTRMTRL.I}
+{SMTRL.I} 
+{BMTRL.I}  
+{MTRLTEMP.I}
+{BYTENRTEMP.I}
+DEFINE  TEMP-TABLE kon_temp
+   FIELD KONSKOD AS INTEGER
+   FIELD KTYPKOD AS CHARACTER
+   FIELD BENAMNING AS CHARACTER
+   FIELD ORDNING AS INTEGER
+   INDEX ORD ORDNING ASCENDING.
+DEFINE VARIABLE valgrupp AS INTEGER NO-UNDO.
+DEFINE TEMP-TABLE grupp_temp NO-UNDO
+   FIELD KONSKOD AS INTEGER
+   FIELD BENAMNING AS CHARACTER.
+
+DEFINE VARIABLE kabelskapup AS LOGICAL NO-UNDO.
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+DEFINE QUERY mtrlq FOR MTRLBER.
+DEFINE QUERY mskapq FOR BERSKAP.
+DEFINE QUERY mstolpq FOR BERSTOLP.
+   
+DEFINE BUFFER mtrlberbuff FOR MTRLBER. 
+DEFINE BUFFER berskapbuff FOR BERSKAP. 
+DEFINE BUFFER berstolpbuff FOR BERSTOLP. 
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE Utbyttabbuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE ErsattEnr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE ErsattRow AS ROWID NO-UNDO.
+CREATE BUFFER Utbyttabbuffh FOR TABLE "UTBYTESLISTA".
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+PROCEDURE laggtill_UI :
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+   DEFINE INPUT PARAMETER TABLE FOR byt_mtrl.
+   DEFINE INPUT PARAMETER TABLE FOR grupp_temp.
+   DEFINE INPUT PARAMETER valla AS LOGICAL NO-UNDO.
+   FIND FIRST byt_mtrl NO-LOCK NO-ERROR.        
+   FIND FIRST spec_mtrl NO-LOCK NO-ERROR.    
+     
+   FOR EACH grupp_temp:
+      valgrupp = grupp_temp.KONSKOD.  
+      IF valgrupp = 0 THEN kabelskapup = TRUE.
+      FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = valgrupp NO-LOCK:
+         
+         OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+         MTRLBER.ENR = spec_mtrl.ENR AND MTRLBER.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.
+         RUN mtill_UI.
+         
+      END.         
+   END.
+   /*skåpupp*/
+   IF kabelskapup = TRUE THEN DO:
+      
+      OPEN QUERY mskapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND
+      BERSKAP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+      RUN ktill_UI.
+   END.
+   /*stolpar trafo*/
+   IF kabelskapup = TRUE THEN DO:
+      OPEN QUERY mstolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND
+      BERSTOLP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+      RUN still_UI.
+   END.
+END PROCEDURE.
+
+PROCEDURE laggtillKonst_UI :
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+   DEFINE INPUT PARAMETER TABLE FOR byt_mtrl.
+   DEFINE INPUT PARAMETER TABLE FOR kon_temp.
+   FIND FIRST byt_mtrl NO-LOCK NO-ERROR.        
+   FIND FIRST spec_mtrl NO-LOCK NO-ERROR.    
+     
+   FIND FIRST byt_mtrl NO-LOCK NO-ERROR.        
+   FOR EACH kon_temp:
+      FOR EACH spec_mtrl :
+         FOR EACH  MTRLBER WHERE MTRLBER.KTYPKOD = kon_temp.KTYPKOD AND  MTRLBER.ENR = spec_mtrl.ENR AND
+         MTRLBER.LEVKOD = spec_mtrl.LEVKOD EXCLUSIVE-LOCK:
+            FIND FIRST mtrlberbuff WHERE mtrlberbuff.ENR =  byt_mtrl.ENR AND mtrlberbuff.LEVKOD = byt_mtrl.LEVKOD AND 
+            mtrlberbuff.KTYPKOD  = MTRLBER.KTYPKOD  AND 
+            mtrlberbuff.F1  = MTRLBER.F1 AND 
+            mtrlberbuff.F2  = MTRLBER.F2 AND 
+            mtrlberbuff.F3  = MTRLBER.F3 AND 
+            mtrlberbuff.F4  = MTRLBER.F4 AND 
+            mtrlberbuff.F5  = MTRLBER.F5 AND 
+            mtrlberbuff.LEVKOD   = MTRLBER.LEVKOD NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE mtrlberbuff THEN DO:
+               CREATE mtrlberbuff.
+            END.
+            BUFFER-COPY MTRLBER TO mtrlberbuff.
+            ASSIGN
+            mtrlberbuff.ENR = byt_mtrl.ENR
+            mtrlberbuff.BENAMNING = byt_mtrl.BENAMNING
+            mtrlberbuff.ENHET = byt_mtrl.ENHET
+            mtrlberbuff.PRIS = byt_mtrl.NPRIS
+            mtrlberbuff.SATS = byt_mtrl.SATS
+            mtrlberbuff.LEVKOD = byt_mtrl.LEVKOD
+            mtrlberbuff.ANTAL = byt_mtrl.BERKVANT.
+            IF MTRLBER.ANTAL = 0 THEN mtrlberbuff.ANTAL = 0. 
+         END.
+      END.         
+   END.
+   
+END PROCEDURE.
+
+
+PROCEDURE ktill_UI :
+   GET FIRST mskapq NO-LOCK.
+   DO WHILE AVAILABLE(BERSKAP):
+      DO TRANSACTION:
+         
+         CREATE berskapbuff.
+         BUFFER-COPY BERSKAP TO berskapbuff.
+         ASSIGN
+         berskapbuff.ENR = byt_mtrl.ENR
+         berskapbuff.BENAMNING = byt_mtrl.BENAMNING
+         berskapbuff.ENHET = byt_mtrl.ENHET
+         berskapbuff.PRIS = byt_mtrl.NPRIS
+         berskapbuff.LEVKOD = byt_mtrl.LEVKOD
+         berskapbuff.ANTAL = byt_mtrl.BERKVANT.
+         IF BERSKAP.ANTAL = 0 THEN berskapbuff.ANTAL = 0.
+      END.
+      GET NEXT mskapq NO-LOCK.
+   END.      
+    
+   RELEASE berskapbuff NO-ERROR. 
+   
+END PROCEDURE.
+
+PROCEDURE still_UI :
+   GET FIRST mstolpq NO-LOCK.
+   DO WHILE AVAILABLE(BERSTOLP):
+      DO TRANSACTION:
+         
+         CREATE berskapbuff.
+         BUFFER-COPY BERSTOLP TO berstolpbuff.
+         ASSIGN
+         berstolpbuff.ENR = byt_mtrl.ENR
+         berstolpbuff.BENAMNING = byt_mtrl.BENAMNING
+         berstolpbuff.ENHET = byt_mtrl.ENHET
+         berstolpbuff.PRIS = byt_mtrl.NPRIS
+         berstolpbuff.LEVKOD = byt_mtrl.LEVKOD
+         berstolpbuff.ANTAL = byt_mtrl.BERKVANT.
+         IF BERSTOLP.ANTAL = 0 THEN berstolpbuff.ANTAL = 0.
+      END.
+      GET NEXT mstolpq NO-LOCK.
+   END.      
+    
+   RELEASE berskapbuff NO-ERROR. 
+   
+END PROCEDURE.
+
+
+PROCEDURE mtill_UI :
+   GET FIRST mtrlq NO-LOCK.
+   DO WHILE AVAILABLE(MTRLBER):
+      DO TRANSACTION:
+         /*Om materielet redan finns ska det inte läggas till. Lena 20100407*/
+         FIND FIRST mtrlberbuff WHERE mtrlberbuff.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+         mtrlberbuff.ENR = byt_mtrl.ENR AND mtrlberbuff.LEVKOD = byt_mtrl.LEVKOD AND
+         mtrlberbuff.F1 = MTRLBER.F1 AND 
+         mtrlberbuff.F2 = MTRLBER.F2 AND 
+         mtrlberbuff.F3 = MTRLBER.F3 AND 
+         mtrlberbuff.F4 = MTRLBER.F4 AND 
+         mtrlberbuff.F5 = MTRLBER.F5 EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE mtrlberbuff THEN DO:
+            CREATE mtrlberbuff.
+         END.
+         
+         BUFFER-COPY MTRLBER TO mtrlberbuff.
+         ASSIGN
+         mtrlberbuff.ENR = byt_mtrl.ENR
+         mtrlberbuff.BENAMNING = byt_mtrl.BENAMNING
+         mtrlberbuff.ENHET = byt_mtrl.ENHET
+         mtrlberbuff.PRIS = byt_mtrl.NPRIS
+         mtrlberbuff.SATS = byt_mtrl.SATS
+         mtrlberbuff.LEVKOD = byt_mtrl.LEVKOD
+         mtrlberbuff.ANTAL = byt_mtrl.BERKVANT.
+         IF MTRLBER.ANTAL = 0 THEN mtrlberbuff.ANTAL = 0.
+      END.
+      GET NEXT mtrlq NO-LOCK.
+   END.      
+   CLOSE QUERY mtrlq.   
+   RELEASE mtrlberbuff NO-ERROR. 
+   
+END PROCEDURE.
+PROCEDURE laddamtrlber_UI :
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   
+   DEFINE INPUT PARAMETER TABLE FOR grupp_temp.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrlbertemp.
+   DEFINE INPUT PARAMETER valla AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER erslev AS LOGICAL NO-UNDO.
+   EMPTY TEMP-TABLE mtrlbertemp NO-ERROR. 
+   FOR EACH grupp_temp:
+      valgrupp = grupp_temp.KONSKOD. 
+      IF valgrupp = 0 THEN kabelskapup = TRUE.
+      FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = valgrupp NO-LOCK:
+         FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+            MTRLBER.LEVKOD = vald_lev NO-LOCK :
+            FIND FIRST mtrlbertemp WHERE mtrlbertemp.ENR = MTRLBER.ENR USE-INDEX ENR NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE mtrlbertemp THEN DO:
+               CREATE mtrlbertemp.
+               BUFFER-COPY MTRLBER TO mtrlbertemp.
+               ASSIGN mtrlbertemp.ENHET = LC(mtrlbertemp.ENHET)
+               mtrlbertemp.MTRLROW = ROWID(MTRLBER).
+            END.
+         END.
+      END.
+      IF erslev = TRUE THEN DO:    
+         /* Om ej huvudlev hämta även ersättningsmateriel */
+         FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+         IF AVAILABLE HUVUDLEV THEN DO:
+            IF HUVUDLEV.LEVKOD NE vald_lev THEN DO:
+               FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = valgrupp NO-LOCK:
+                  FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+                  MTRLBER.LEVKOD = HUVUDLEV.LEVKOD NO-LOCK :
+                     ErsattRow = ?.
+                     IF Utbyttabbuffh NE ? THEN DO:
+                        Utbyttabbuffh:FIND-FIRST("WHERE UID = " + STRING(0) + " AND ORGLEVKOD = " + QUOTER(HUVUDLEV.LEVKOD)  + " AND ORGENR = " + QUOTER(MTRLBER.ENR),NO-LOCK) NO-ERROR.
+                        IF Utbyttabbuffh:AVAILABLE THEN DO:
+                           ErsattEnr = Utbyttabbuffh:BUFFER-FIELD("BYTTILLENR"):BUFFER-VALUE. 
+                           ErsattRow = Utbyttabbuffh:ROWID. 
+                        END.   
+                     END.
+                     IF ErsattRow NE  ? THEN DO:
+                        FIND FIRST mtrlbertemp WHERE mtrlbertemp.ENR = ErsattEnr USE-INDEX ENR NO-LOCK NO-ERROR.
+                        IF NOT AVAILABLE mtrlbertemp THEN DO:
+                           CREATE mtrlbertemp.                        
+                           BUFFER-COPY MTRLBER TO mtrlbertemp.
+                           ASSIGN 
+                           mtrlbertemp.LEVKOD = vald_lev
+                           mtrlbertemp.ENR = ErsattEnr.
+                           ASSIGN mtrlbertemp.ENHET = LC(mtrlbertemp.ENHET)
+                           mtrlbertemp.MTRLROW = ErsattRow.                        
+                        END.
+                     END.   
+                  END.
+               END.
+            END.
+            ELSE IF Guru.Konstanter:globforetag = "GRAN" OR Guru.Konstanter:globforetag = "ELKB" OR Guru.Konstanter:globforetag = "NAEK" OR Guru.Konstanter:globforetag = "CPOMA" OR Guru.Konstanter:globforetag = "elpa"  THEN DO:
+               /* Hämta onninens "1" översättning till ahlsell "2" som är huvudleverantör*/
+               IF HUVUDLEV.LEVKOD = vald_lev THEN DO:
+                  FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = valgrupp NO-LOCK:
+                     FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+                     MTRLBER.LEVKOD = "1" NO-LOCK :
+                        ErsattRow = ?.
+                        IF Utbyttabbuffh NE ? THEN DO:
+                           Utbyttabbuffh:FIND-FIRST("WHERE UID = " + STRING(0) + " AND ORGLEVKOD = " + QUOTER(1)  + " AND ORGENR = " + QUOTER(MTRLBER.ENR),NO-LOCK) NO-ERROR.
+                           IF Utbyttabbuffh:AVAILABLE THEN DO:
+                              ErsattEnr = Utbyttabbuffh:BUFFER-FIELD("BYTTILLENR"):BUFFER-VALUE. 
+                              ErsattRow = Utbyttabbuffh:ROWID. 
+                           END.   
+                        END.
+                          
+                        IF ErsattRow NE  ? THEN DO:  
+                           FIND FIRST mtrlbertemp WHERE mtrlbertemp.ENR = ErsattEnr USE-INDEX ENR NO-LOCK NO-ERROR.
+                           IF NOT AVAILABLE mtrlbertemp THEN DO:
+                              CREATE mtrlbertemp.                        
+                              BUFFER-COPY MTRLBER TO mtrlbertemp.
+                              ASSIGN 
+                              mtrlbertemp.LEVKOD = vald_lev
+                              mtrlbertemp.ENR = ErsattEnr.
+                              mtrlbertemp.MTRLROW = ErsattRow. 
+                              mtrlbertemp.ENHET = LC(mtrlbertemp.ENHET). 
+                           END.
+                        END.   
+                     END.
+                  END.
+               END.
+            END.
+         END.
+      END.
+      
+   END.
+   /*skåpupp*/
+   IF kabelskapup = TRUE THEN DO:
+      FOR EACH BERSKAP WHERE BERSKAP.LEVKOD = vald_lev NO-LOCK:
+         FIND FIRST mtrlbertemp WHERE mtrlbertemp.ENR = BERSKAP.ENR USE-INDEX ENR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE mtrlbertemp THEN DO:
+            CREATE mtrlbertemp.
+            BUFFER-COPY BERSKAP TO mtrlbertemp.
+            ASSIGN mtrlbertemp.MTRLROW = ROWID(BERSKAP)
+            mtrlbertemp.ENHET = LC(mtrlbertemp.ENHET).
+         END.
+      END.
+   END.
+   /*berstolp*/
+   IF valla = TRUE THEN DO:
+      FOR EACH BERSTOLP WHERE BERSTOLP.LEVKOD = vald_lev NO-LOCK:
+         FIND FIRST mtrlbertemp WHERE mtrlbertemp.ENR = BERSTOLP.ENR USE-INDEX ENR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE mtrlbertemp THEN DO:
+            CREATE mtrlbertemp.
+            BUFFER-COPY BERSTOLP TO mtrlbertemp.
+            ASSIGN mtrlbertemp.MTRLROW = ROWID(BERSTOLP)
+            mtrlbertemp.ENHET = LC(mtrlbertemp.ENHET).
+         END.
+      END.
+   END.
+   
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE laddamtrlberKonst_UI :
+   DEFINE INPUT PARAMETER TABLE FOR kon_temp. 
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrlbertemp.
+   EMPTY TEMP-TABLE mtrlbertemp NO-ERROR. 
+   
+   FOR EACH kon_temp NO-LOCK:
+      IF kon_temp.KONSKOD = 0 THEN kabelskapup = TRUE.
+      FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = kon_temp.KTYPKOD     NO-LOCK :
+         FIND FIRST mtrlbertemp WHERE mtrlbertemp.ENR = MTRLBER.ENR AND mtrlbertemp.LEVKOD = MTRLBER.LEVKOD  USE-INDEX ENR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE mtrlbertemp THEN DO:
+            CREATE mtrlbertemp.
+            BUFFER-COPY MTRLBER TO mtrlbertemp.
+            ASSIGN mtrlbertemp.ENHET = LC(mtrlbertemp.ENHET)
+            mtrlbertemp.MTRLROW = ROWID(MTRLBER).
+         END.
+      END.
+   END.   
+   /*skåpupp*/
+   IF kabelskapup = TRUE THEN DO:
+      FOR EACH BERSKAP WHERE NO-LOCK:
+         FIND FIRST mtrlbertemp WHERE mtrlbertemp.ENR = BERSKAP.ENR AND mtrlbertemp.LEVKOD =  BERSKAP.LEVKOD USE-INDEX ENR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE mtrlbertemp THEN DO:
+            CREATE mtrlbertemp.
+            BUFFER-COPY BERSKAP TO mtrlbertemp.
+            ASSIGN mtrlbertemp.MTRLROW = ROWID(BERSKAP)
+            mtrlbertemp.ENHET = LC(mtrlbertemp.ENHET).
+         END.
+      END.
+   END.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE kollmtrl_UI :
+   DEFINE INPUT PARAMETER mtrl_rowid AS ROWID NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR spec_mtrl.
+   DEFINE INPUT PARAMETER valla AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER erslev AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE OrgLev AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE OrgEnr AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE ErsattLev AS CHARACTER NO-UNDO.
+   
+   EMPTY TEMP-TABLE spec_mtrl NO-ERROR. 
+   FIND FIRST MTRLBER WHERE ROWID(MTRLBER) = mtrl_rowid NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRLBER THEN DO:
+      CREATE spec_mtrl.
+      ASSIGN
+      spec_mtrl.ENR = MTRLBER.ENR
+      spec_mtrl.BENAMNING = MTRLBER.BENAMNING
+      spec_mtrl.ENHET = MTRLBER.ENHET
+      spec_mtrl.NPRIS = MTRLBER.PRIS
+      spec_mtrl.LEVKOD = MTRLBER.LEVKOD
+      spec_mtrl.BERKVANT = 1
+      spec_mtrl.SATS = FALSE.
+   END.
+   ELSE DO:
+      /*skåpupp*/
+      IF kabelskapup = TRUE THEN DO:
+         FIND FIRST BERSKAP WHERE ROWID(BERSKAP) = mtrl_rowid NO-LOCK NO-ERROR.
+         IF AVAILABLE BERSKAP THEN DO:
+            CREATE spec_mtrl.
+            ASSIGN
+            spec_mtrl.ENR = BERSKAP.ENR
+            spec_mtrl.BENAMNING = BERSKAP.BENAMNING
+            spec_mtrl.ENHET = BERSKAP.ENHET
+            spec_mtrl.NPRIS = BERSKAP.PRIS
+            spec_mtrl.LEVKOD = BERSKAP.LEVKOD
+            spec_mtrl.BERKVANT = 1
+            spec_mtrl.SATS = FALSE.
+         END.
+      END.
+      IF valla = TRUE THEN DO:
+         FIND FIRST BERSTOLP WHERE ROWID(BERSTOLP) = mtrl_rowid NO-LOCK NO-ERROR.
+         IF AVAILABLE BERSTOLP THEN DO:
+            CREATE spec_mtrl.
+            ASSIGN
+            spec_mtrl.ENR = BERSTOLP.ENR            
+            spec_mtrl.ENHET = BERSTOLP.ENHET
+            spec_mtrl.NPRIS = BERSTOLP.PRIS
+            spec_mtrl.LEVKOD = BERSTOLP.LEVKOD
+            spec_mtrl.BERKVANT = 1
+            spec_mtrl.SATS = FALSE.
+            IF BERSTOLP.STOLPE = TRUE THEN spec_mtrl.BENAMNING = "Stolpar: " + BERSTOLP.BENAMNING.
+            ELSE spec_mtrl.BENAMNING = "Transformatorer: " + BERSTOLP.BENAMNING.
+
+         END.
+      END.
+      ErsattRow = ?.
+      IF erslev = TRUE THEN DO:
+         /*ERSÄTTNING*/
+         IF Utbyttabbuffh NE ? THEN DO:
+            Utbyttabbuffh:FIND-FIRST("WHERE Utbyttabbuffh:ROWID = " + STRING(mtrl_rowid),NO-LOCK) NO-ERROR.
+            IF Utbyttabbuffh:AVAILABLE THEN DO:
+               OrgLev = Utbyttabbuffh:BUFFER-FIELD("ORGLEVKOD"):BUFFER-VALUE.
+               OrgEnr = Utbyttabbuffh:BUFFER-FIELD("ORGENR"):BUFFER-VALUE.
+               ErsattEnr = Utbyttabbuffh:BUFFER-FIELD("BYTTILLENR"):BUFFER-VALUE. 
+               ErsattLev = Utbyttabbuffh:BUFFER-FIELD("BYTTILLLEVKOD"):BUFFER-VALUE.
+               ErsattRow = Utbyttabbuffh:ROWID. 
+            END. 
+         END.   
+         IF ErsattRow NE ? THEN DO: 
+            CREATE spec_mtrl.
+            ASSIGN
+            spec_mtrl.ENR = ErsattEnr            
+            spec_mtrl.LEVKOD = ErsattLev
+            spec_mtrl.BERKVANT = 1
+            spec_mtrl.SATS = FALSE. 
+                   
+            FIND FIRST MTRL WHERE MTRL.ENR = ErsattEnr AND  MTRL.LEVKOD = ErsattLev AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN
+               spec_mtrl.ENHET = MTRL.ENHET
+               spec_mtrl.NPRIS = MTRL.NPRIS.
+               spec_mtrl.BENAMNING = MTRL.BENAMNING + " (Översatt från " + OrgEnr + " Lev-id: " + OrgEnr + ")".
+            END.
+            ELSE spec_mtrl.BENAMNING = " (Översatt från " + OrgEnr + " Lev-id: " + OrgEnr + ")".         
+         END.   
+      END.
+      
+   END.
+END PROCEDURE.
+PROCEDURE kollmtrlMulti_UI :
+   DEFINE INPUT PARAMETER TABLE FOR mtrlbertemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR spec_mtrl.
+   EMPTY TEMP-TABLE spec_mtrl NO-ERROR. 
+   FOR EACH mtrlbertemp:
+      FIND FIRST MTRLBER WHERE ROWID(MTRLBER) =  mtrlbertemp.MTRLROW NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRLBER THEN DO:
+         CREATE spec_mtrl.
+         ASSIGN
+         spec_mtrl.ENR = MTRLBER.ENR
+         spec_mtrl.BENAMNING = MTRLBER.BENAMNING
+         spec_mtrl.ENHET = MTRLBER.ENHET
+         spec_mtrl.NPRIS = MTRLBER.PRIS
+         spec_mtrl.LEVKOD = MTRLBER.LEVKOD
+         spec_mtrl.BERKVANT = 1
+         spec_mtrl.SATS = FALSE.
+      END.
+   END.    
+END PROCEDURE.
+PROCEDURE kollenr_UI :
+   
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR bytenrtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR delmbytenrtemp.
+   EMPTY TEMP-TABLE delmbytenrtemp NO-ERROR.
+   FOR EACH bytenrtemp :
+      FIND FIRST MTRL WHERE MTRL.ENR = bytenrtemp.TENR AND  MTRL.LEVKOD = bytenrtemp.TLEV AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE MTRL THEN DO:
+         CREATE delmbytenrtemp.
+         BUFFER-COPY bytenrtemp TO delmbytenrtemp .
+         DELETE bytenrtemp.
+      END.   
+   END.
+   
+END PROCEDURE.
+    

@@ -1,0 +1,14 @@
+/* p-osfile.p */
+
+DEFINE VARIABLE os-file  AS CHARACTER FORMAT "x(60)" LABEL "File".
+
+REPEAT:
+   SET os-file WITH FRAME osfile-info.
+
+   FILE-INFO:FILE-NAME = os-file.
+
+   DISPLAY FILE-INFO:FULL-PATHNAME FORMAT "x(60)" LABEL "Full Path"
+	   FILE-INFO:PATHNAME FORMAT "x(60)" LABEL "Path"
+	   FILE-INFO:FILE-TYPE LABEL "Type"
+	   WITH FRAME osfile-info SIDE-LABELS TITLE "OS File Info".
+END.

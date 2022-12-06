@@ -1,0 +1,1610 @@
+/*FAKTMENY.P*/
+FUNCTION brwval RETURNS LOGICAL
+  (  )  FORWARD.
+{FAKTWID.I}
+{ALLDEF.I}
+{ORGPRIS.I}
+{SOKDEF.I}
+{FORETEMP.I}
+&Scoped-define NEW
+&Scoped-define SHARED SHARED
+{DIRDEF.I}
+{FAKTTEMP.I}
+{FAKTPLANTEMP.I}                 
+{OMRTEMPW.I}
+&Scoped-define NEW
+{FAKTTYPDEF.I}
+{GLOBVAR2DEL1.I}
+{REGVAR.I}
+{EXTRATAB.I} 
+{HOPPSEK2W.I}
+{BESTKUNDALLT.I}
+DEFINE SHARED VARIABLE skrivut AS LOGICAL NO-UNDO.   
+DEFINE SHARED VARIABLE faktrec AS RECID NO-UNDO.     
+DEFINE SHARED VARIABLE fakthmth AS HANDLE NO-UNDO.
+DEFINE SHARED VARIABLE fbestapph AS HANDLE NO-UNDO.
+DEFINE SHARED VARIABLE skarpfaktok AS LOGICAL NO-UNDO. 
+DEFINE SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE outfakt AS LOGICAL NO-UNDO.
+DEFINE VARIABLE status-ok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE feltextvar AS CHARACTER FORMAT "X(10)" NO-UNDO.
+DEFINE VARIABLE sparfaktnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE lasanv AS CHARACTER NO-UNDO.
+framesizeh = framesizeextrah.
+DEFINE VARIABLE valdfakth AS HANDLE NO-UNDO.
+valdfakth = TEMP-TABLE vfaktplantemp:DEFAULT-BUFFER-HANDLE.  
+DEFINE VARIABLE ualdfakth AS HANDLE NO-UNDO.
+DEFINE VARIABLE bigsize AS DECIMAL NO-UNDO.
+DEFINE VARIABLE x-multi AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE y-multi AS DECIMAL NO-UNDO.
+ualdfakth = TEMP-TABLE faktplantemp:DEFAULT-BUFFER-HANDLE.  
+
+ON 'VALUE-CHANGED':U OF BRW_UFAKT PERSISTENT RUN vcbrwufakt_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF BRW_VFAKT PERSISTENT RUN vcbrwfakt_UI IN THIS-PROCEDURE.
+ON 'ENTRY':U OF BRW_VFAKT PERSISTENT RUN entrybrwfakt_UI IN THIS-PROCEDURE.
+ON 'MOUSE-SELECT-DBLCLICK':U OF BRW_VFAKT PERSISTENT RUN mdbrwfakt_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_AVB PERSISTENT RUN avb_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_AOF PERSISTENT RUN sparaaofavoriter_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_BORT PERSISTENT RUN btnbort_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_HAMT PERSISTENT RUN btnhmt_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_NY PERSISTENT RUN btnny_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_ADM PERSISTENT RUN btnadm_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_AONRM PERSISTENT RUN btnaom_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_AONRU PERSISTENT RUN btnaou_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_FAK PERSISTENT RUN btnfak_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_FLISTA PERSISTENT RUN btnlista_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_KOPP PERSISTENT RUN btnkopp_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_Kred PERSISTENT RUN btnkred_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_PRELB PERSISTENT RUN btnprel_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_UPP PERSISTENT RUN btnupp_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_VFAK PERSISTENT RUN btnvfak_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_VISAO PERSISTENT RUN btnvao_UI IN THIS-PROCEDURE.
+ON 'MOUSE-MENU-CLICK':U OF FILL-IN-STARTDAT PERSISTENT RUN mmcstart_UI IN THIS-PROCEDURE.
+ON 'MOUSE-MENU-CLICK':U OF FILL-IN-STOPPDAT PERSISTENT RUN mmcslut_UI IN THIS-PROCEDURE.
+ON 'MOUSE-SELECT-DBLCLICK':U OF FILL-IN_EAONR PERSISTENT RUN mdeaonr_UI IN THIS-PROCEDURE.
+ON 'ANY-KEY':U OF FILL-IN_EAONR PERSISTENT RUN akeaonr_UI IN THIS-PROCEDURE.
+ON 'MOUSE-SELECT-DBLCLICK':U OF FILL-IN_DELNR PERSISTENT RUN mddelnr_UI IN THIS-PROCEDURE.
+ON 'ANY-KEY':U OF FILL-IN_DELNR PERSISTENT RUN akdelnr_UI IN THIS-PROCEDURE.
+ON 'MOUSE-SELECT-DBLCLICK':U OF FILL-IN_EFAKTNR PERSISTENT RUN mdfaktnr_UI IN THIS-PROCEDURE.
+ON 'ANY-KEY':U OF FILL-IN_EFAKTNR PERSISTENT RUN akfaktnr_UI IN THIS-PROCEDURE.
+ON 'MOUSE-SELECT-DBLCLICK':U OF FILL-IN_EFAKUNR PERSISTENT RUN mdfakunr_UI IN THIS-PROCEDURE.
+ON 'ANY-KEY':U OF FILL-IN_EFAKUNR PERSISTENT RUN akfakunr_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF TOG_GAMLA PERSISTENT RUN tgamla_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_HAOF PERSISTENT RUN hmtfavoriter_UI IN THIS-PROCEDURE.
+PROCEDURE autofavo_UI :
+   FIND FIRST vfaktplantemp NO-LOCK NO-ERROR.
+   IF AVAILABLE vfaktplantemp THEN DO:
+      RUN sparaaofavoriter_UI.
+   END.
+END PROCEDURE.
+PROCEDURE hmtfavoriter_UI :
+   DEFINE VARIABLE ttbuffh AS HANDLE NO-UNDO.
+   tthandle = TEMP-TABLE vfaktplantemp:HANDLE.
+   ttbuffh = tthandle:DEFAULT-BUFFER-HANDLE.
+   RUN ttcopy_UI IN huvprogh (INPUT TABLE-HANDLE tthandle).
+   ttbuffh:EMPTY-TEMP-TABLE() NO-ERROR.
+   FIND FIRST sparaladdatemp NO-ERROR.
+   IF NOT AVAILABLE sparaladdatemp THEN CREATE sparaladdatemp.
+   ASSIGN
+   sparaladdatemp.GLOBANV = Guru.Konstanter:globanv /*Användare, i detta fall ELPAO*/
+   sparaladdatemp.BENAMNING = "FAKT" /*Benämnings sufix, i detta fall ELPAO$STOR*/
+   sparaladdatemp.TABVAL = "FAKTPLAN" /*Tabellnamn*/
+   sparaladdatemp.FALTVALAO = "" /*CHARACTER  field*/
+   sparaladdatemp.FALTVALDEL = "FAKTNR" /*Integer field*/
+   sparaladdatemp.FALTVALDATE = "".   /*DATE field*/
+   EMPTY TEMP-TABLE vfaktplantemp NO-ERROR. 
+   RUN laddabrw_UI IN brwproc[{&RIGHT-BROWSE}] 
+   (INPUT TABLE-HANDLE tthandle, INPUT TABLE sparaladdatemp).  
+   RUN fakomp_UI (INPUT 1).
+   RUN ttjmf_UI IN huvprogh (INPUT-OUTPUT ttbuffh).
+   RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").  
+END PROCEDURE.
+
+RUN main_UI.
+
+PROCEDURE fakomp_UI :
+   DEFINE INPUT PARAMETER vad AS INTEGER NO-UNDO.
+   IF vad = 1 THEN DO:
+      FOR EACH vfaktplantemp WHERE vfaktplantemp.VIBESTID = "",
+      EACH bestkundallt WHERE bestkundallt.BESTID = vfaktplantemp.BESTID:
+         vfaktplantemp.VIBESTID = bestkundallt.VIBESTID.         
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE tgamla_UI :
+   IF TOG_GAMLA:CHECKED = TRUE THEN DO:
+       ASSIGN
+       FILL-IN-STARTDAT:HIDDEN = FALSE 
+       FILL-IN-STOPPDAT:HIDDEN = FALSE.
+       Guru.GlobalaVariabler:StartKolumnForKnappar = TOG_ANSV:COLUMN + TOG_ANSV:WIDTH-CHARS + 10.
+       Guru.Konstanter:PlaceraKnapparVagratt(FILL-IN-STARTDAT,TRUE).
+       Guru.Konstanter:PlaceraKnapparVagratt(FILL-IN-STOPPDAT,TRUE).
+    END.
+    ELSE DO:
+       ASSIGN
+       FILL-IN-STARTDAT:HIDDEN = TRUE 
+       FILL-IN-STOPPDAT:HIDDEN = TRUE.
+    END.
+END PROCEDURE.
+PROCEDURE mdfakunr_UI :
+   
+   IF FILL-IN_EFAKUNR:SCREEN-VALUE = "" THEN DO:
+      MESSAGE "Sökbegreppet kan inte vara blankt." VIEW-AS ALERT-BOX.
+      RETURN NO-APPLY.
+   END.
+   EMPTY TEMP-TABLE extravfaktplantemp NO-ERROR.
+   RUN hamtaffaktnr_UI IN fakthmth (INPUT Guru.Konstanter:globanv,INPUT Guru.Konstanter:globniv,INPUT FILL-IN_EFAKUNR:SCREEN-VALUE,OUTPUT TABLE extravfaktplantemp).     
+   FIND FIRST extravfaktplantemp NO-ERROR.   
+   IF NOT AVAILABLE extravfaktplantemp THEN DO:
+      MESSAGE FILL-IN_EFAKUNR:SCREEN-VALUE " finns inte!" VIEW-AS ALERT-BOX.
+      RETURN NO-APPLY.
+   END.
+   FOR EACH extravfaktplantemp:
+      FIND FIRST vfaktplantemp WHERE vfaktplantemp.FAKTNR = extravfaktplantemp.FAKTNR     
+      NO-LOCK NO-ERROR.             
+      IF NOT AVAILABLE vfaktplantemp THEN DO:
+         CREATE vfaktplantemp.
+         BUFFER-COPY extravfaktplantemp TO vfaktplantemp.
+      END.
+   END.
+   RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(vfaktplantemp)).              
+   RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+   RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].     
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE akfakunr_UI :
+   {TRYCKS.I}
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      APPLY "MOUSE-SELECT-DBLCLICK" TO FILL-IN_EFAKUNR.
+   END.
+END PROCEDURE.
+PROCEDURE akfaktnr_UI :
+   {TRYCKS.I}
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      APPLY "MOUSE-SELECT-DBLCLICK" TO FILL-IN_EFAKTNR.
+   END.
+END PROCEDURE.
+PROCEDURE mdfaktnr_UI :
+   IF INTEGER(FILL-IN_EFAKTNR:SCREEN-VALUE) = 0 THEN DO:
+      MESSAGE "Sökbegreppet kan inte vara blankt." VIEW-AS ALERT-BOX.
+      RETURN NO-APPLY.
+   END.
+   FIND FIRST vfaktplantemp WHERE vfaktplantemp.FAKTNR = INTEGER(FILL-IN_EFAKTNR:SCREEN-VALUE)     
+   NO-LOCK NO-ERROR. 
+   IF NOT AVAILABLE vfaktplantemp THEN DO:
+      EMPTY TEMP-TABLE extravfaktplantemp NO-ERROR.
+      IF NOT AVAILABLE vfaktplantemp THEN DO:  
+         RUN hamtafplan_UI IN fakthmth (INPUT Guru.Konstanter:globanv,INPUT Guru.Konstanter:globniv,INPUT INTEGER(FILL-IN_EFAKTNR:SCREEN-VALUE),OUTPUT TABLE extravfaktplantemp).     
+         FIND FIRST extravfaktplantemp NO-ERROR.   
+         IF NOT AVAILABLE extravfaktplantemp THEN DO:
+            MESSAGE INTEGER(FILL-IN_EFAKTNR:SCREEN-VALUE) " finns inte!" VIEW-AS ALERT-BOX.
+            RETURN NO-APPLY.
+         END.
+         FOR EACH extravfaktplantemp:
+            FIND FIRST vfaktplantemp WHERE vfaktplantemp.FAKTNR = extravfaktplantemp.FAKTNR     
+            NO-LOCK NO-ERROR.             
+            IF NOT AVAILABLE vfaktplantemp THEN DO:
+               CREATE vfaktplantemp.
+               BUFFER-COPY extravfaktplantemp TO vfaktplantemp.
+            END.
+         END.
+      END.
+   END.
+   RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(vfaktplantemp)).              
+   RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+   RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].     
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE mdeaonr_UI :
+   /*sökfaktplan*/
+   IF FILL-IN_EAONR:SCREEN-VALUE = "" THEN DO:
+      MESSAGE "Sökbegreppet kan inte vara blankt." VIEW-AS ALERT-BOX.
+      RETURN NO-APPLY.
+   END.
+   EMPTY TEMP-TABLE extravfaktplantemp NO-ERROR.
+   RUN hamtafaonr_UI IN fakthmth 
+   (INPUT Guru.Konstanter:globanv,INPUT Guru.Konstanter:globniv,INPUT FILL-IN_EAONR:SCREEN-VALUE,INPUT INTEGER(FILL-IN_DELNR:SCREEN-VALUE),OUTPUT TABLE extravfaktplantemp).     
+   FIND FIRST extravfaktplantemp NO-ERROR.   
+   IF NOT AVAILABLE extravfaktplantemp THEN DO:
+      MESSAGE FILL-IN_EAONR:SCREEN-VALUE FILL-IN_DELNR:SCREEN-VALUE " finns inte!" VIEW-AS ALERT-BOX.
+      RETURN NO-APPLY.
+   END.
+   FOR EACH extravfaktplantemp:
+      FIND FIRST vfaktplantemp WHERE vfaktplantemp.FAKTNR = extravfaktplantemp.FAKTNR     
+      NO-LOCK NO-ERROR.             
+      IF NOT AVAILABLE vfaktplantemp THEN DO:
+         CREATE vfaktplantemp.
+         BUFFER-COPY extravfaktplantemp TO vfaktplantemp.
+      END.
+   END.
+   RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(vfaktplantemp)).              
+   RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+   RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].     
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE akeaonr_UI :
+   {TRYCKS.I}
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      APPLY "MOUSE-SELECT-DBLCLICK" TO FILL-IN_EAONR.
+   END.
+END PROCEDURE.
+PROCEDURE akdelnr_UI :
+    {TRYCKS.I}
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      APPLY "MOUSE-SELECT-DBLCLICK" TO FILL-IN_EAONR.
+   END.
+END PROCEDURE.
+PROCEDURE mddelnr_UI :
+    APPLY "MOUSE-SELECT-DBLCLICK" TO FILL-IN_EAONR .
+END PROCEDURE.
+PROCEDURE mmcslut_UI :
+   Guru.GlobalaVariabler:regdatum = DATE(FILL-IN-STOPPDAT:SCREEN-VALUE).
+   RUN AlmanBtn.w.
+   FILL-IN-STOPPDAT:SCREEN-VALUE = STRING(Guru.GlobalaVariabler:regdatum).   
+END PROCEDURE.
+PROCEDURE mmcstart_UI :
+   Guru.GlobalaVariabler:regdatum = DATE(FILL-IN-STARTDAT:SCREEN-VALUE).
+   RUN AlmanBtn.w.
+   FILL-IN-STARTDAT:SCREEN-VALUE = STRING(Guru.GlobalaVariabler:regdatum).   
+END PROCEDURE.
+PROCEDURE btnvao_UI :
+   IF brwval() = TRUE THEN RETURN.
+   RUN visafak_UI.
+END PROCEDURE.
+PROCEDURE btnvfak_UI :
+   IF brwval() = TRUE THEN RETURN.
+   skrivut = FALSE.   
+   {OMSTARTAVGURUH.I}
+   {AMERICANEUROPEAN.I}
+   RUN VLOPFAKA.W (INPUT vfaktplantemp.FAKTNR,INPUT FALSE, INPUT FALSE, INPUT TABLE sumtidtemp,INPUT 0).
+   {EUROPEANAMERICAN.I}
+   musz = FALSE.
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE btnupp_UI :
+   IF brwval() = TRUE THEN RETURN.
+   IF vfaktplantemp.SLUTFAKT = TRUE THEN DO:
+      {AVBGOM2.I}
+      RUN LOPANDFA.W (INPUT vfaktplantemp.FAKTNR).
+      RUN efterupp_UI (INPUT vfaktplantemp.FAKTNR).            
+      {AVBFRAM2.I}
+   END.
+   ELSE DO:
+      RUN nyprisl_UI.
+      IF musz = TRUE THEN DO:
+         MESSAGE feltextvar VIEW-AS ALERT-BOX.
+         musz = FALSE.
+      END.      
+      RUN andra_UI.    
+   END.
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE btnprel_UI :
+   IF brwval() = TRUE THEN RETURN.
+   IF musz = TRUE THEN musz = FALSE.
+   ELSE DO:
+      {OMSTARTAVGURUH.I}
+      RUN faktstop_UI (INPUT TRUE,INPUT vfaktplantemp.FAKTNR).
+      IF musz = FALSE THEN RUN prelbo_UI.
+      musz = FALSE.
+      RUN faktstop_UI (INPUT FALSE,INPUT vfaktplantemp.FAKTNR).
+      {musarrow.i} 
+   END.
+END PROCEDURE.
+PROCEDURE btnkred_UI :
+   {OMSTARTAVGURUH.I}
+   IF brwval() = TRUE THEN RETURN.   
+   RUN bestopp_UI IN fakthmth 
+   (INPUT vfaktplantemp.FAKTNR,INPUT 2,INPUT vfaktplantemp.BESTID,OUTPUT feltextvar).     
+   IF feltextvar NE "" THEN DO:
+      MESSAGE feltextvar VIEW-AS ALERT-BOX.
+      RETURN NO-APPLY.
+   END.
+   IF musz = TRUE THEN musz = FALSE.
+   ELSE DO:
+      RUN vkoll_UI (OUTPUT musz).
+      IF musz = TRUE THEN DO:
+         musz = FALSE.
+         RETURN.
+      END.      
+      {AVBGOM2.I}         
+      RUN faktstop_UI (INPUT TRUE,INPUT vfaktplantemp.FAKTNR).
+      IF musz = FALSE THEN RUN ORDERHKA.W (INPUT vfaktplantemp.FAKTNR).
+      musz = FALSE.
+      RUN faktstop_UI (INPUT FALSE,INPUT vfaktplantemp.FAKTNR).
+      IF franvart > 1 THEN .
+      ELSE DO:
+         {AVBFRAM2.I}      
+      END.
+      {musarrow.i}
+
+   END.
+END PROCEDURE.
+
+PROCEDURE vkoll_UI :
+   DEFINE OUTPUT PARAMETER koll AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE sok1 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE sok2 AS INTEGER NO-UNDO.
+   DEFINE VARIABLE sok3 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE sok4 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE sok5 AS DECIMAL NO-UNDO.
+   sok1 = "".
+   IF Guru.Konstanter:appcon THEN DO: 
+      RUN FLEXTIDH.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+      (INPUT 15,INPUT-OUTPUT sok1,INPUT-OUTPUT sok2,INPUT-OUTPUT sok3,
+      INPUT-OUTPUT sok4,INPUT-OUTPUT sok5).            
+   END.
+   ELSE DO:
+      RUN FLEXTIDH.P 
+      (INPUT 15,INPUT-OUTPUT sok1,INPUT-OUTPUT sok2,INPUT-OUTPUT sok3,
+      INPUT-OUTPUT sok4,INPUT-OUTPUT sok5).            
+   END.
+   IF sok1 = "KOR"  THEN DO:
+      koll = TRUE.
+      MESSAGE "Det går inte att fakturera," Skip
+      "för att det pågår en ekonomi- och lönesammanställning."
+      VIEW-AS ALERT-BOX.              
+      RETURN.      
+   END.  
+
+END PROCEDURE.
+PROCEDURE btnkopp_UI :
+   
+   IF NOT AVAILABLE faktplantemp THEN RETURN NO-APPLY.      
+   FIND FIRST vfaktplantemp WHERE vfaktplantemp.FAKTNR = faktplantemp.FAKTNR NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE vfaktplantemp THEN DO:
+      CREATE vfaktplantemp.
+      BUFFER-COPY faktplantemp TO vfaktplantemp.
+   END.
+   IF musz = TRUE THEN musz = FALSE.
+   ELSE DO:
+      RUN faktstop_UI (INPUT TRUE,INPUT faktplantemp.FAKTNR).
+      IF musz = FALSE THEN RUN ANDFAKTA.W (INPUT franvart,INPUT faktplantemp.FAKTNR,INPUT faonr,INPUT fdelnr,OUTPUT outfakt).  
+      musz = FALSE.
+      RUN faktstop_UI (INPUT FALSE,INPUT faktplantemp.FAKTNR).
+      IF musz = TRUE THEN musz = FALSE.
+      ELSE DO:
+        IF outfakt = TRUE THEN DO:
+            outfakt = FALSE. 
+            APPLY "CHOOSE" TO FBTN_FAK.
+         END.   
+         APPLY "CLOSE":U TO THIS-PROCEDURE.
+         RETURN.
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE btnlista_UI :
+   {OMSTARTAVGURUH.I}
+   {AVBGOM2.I}
+   RUN FAKTUKRDATUM.W.     
+   IF franvart > 1 THEN .
+   ELSE DO:
+      {AVBFRAM2.I}      
+   END.  
+  {musarrow.i} 
+END PROCEDURE.
+PROCEDURE btnfak_UI :
+    {OMSTARTAVGURUH.I}
+   IF brwval() = TRUE THEN RETURN.
+   IF vfaktplantemp.SLUTFAKT = TRUE THEN DO:
+      MESSAGE "Denna plan är slutfakturerad!" VIEW-AS ALERT-BOX.
+      RETURN NO-APPLY.
+   END.
+   /*FAKTFOR*/
+   /*SNATFAKT*/
+   IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "CSNAT" OR Guru.Konstanter:globforetag = "cELPA" THEN DO:
+      EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+      RUN fbaonrkoll_UI IN fakthmth (INPUT vfaktplantemp.FAKTNR, OUTPUT TABLE felmeddtemp).
+      FIND FIRST felmeddtemp NO-LOCK NO-ERROR.
+      IF AVAILABLE felmeddtemp THEN DO:
+         MESSAGE felmeddtemp.FELMEDD VIEW-AS ALERT-BOX.
+         DELETE felmeddtemp.  
+         RETURN.
+      END.
+   END.  
+   {SOKSTART.I}
+   ASSIGN
+   soktemp.SOKVAL = 79
+   soktemp.SOKINT[1] = vfaktplantemp.FAKTNR.
+   {SOKANROP.I}      
+   IF Guru.Konstanter:faktsekvar[5] = TRUE THEN DO:
+      IF soktemp.SOKLOG[1] = FALSE THEN DO:
+         MESSAGE "Du kan bara fakturera godkända preliminär fakturor!" VIEW-AS ALERT-BOX.
+         RETURN.    
+      END.
+   END.
+   IF Guru.Konstanter:faktsekvar[4] = FALSE AND Guru.Konstanter:faktsekvar[5] = FALSE THEN DO:
+      IF soktemp.SOKLOG[1] = TRUE THEN DO:
+         MESSAGE "Fakturan är preliminär godkända och kan inte ändras!" VIEW-AS ALERT-BOX.
+         RETURN.    
+      END.
+   END.   
+   RUN nyprisl_UI.
+   IF musz = TRUE THEN DO:
+      MESSAGE feltextvar VIEW-AS ALERT-BOX.
+      musz = FALSE.
+   END.
+   ELSE DO:
+      RUN bestopp_UI IN fakthmth 
+      (INPUT vfaktplantemp.FAKTNR,INPUT 1,INPUT vfaktplantemp.BESTID,OUTPUT feltextvar).     
+      IF feltextvar NE "" THEN DO:
+         MESSAGE feltextvar VIEW-AS ALERT-BOX.
+         RETURN NO-APPLY.
+      END.
+      IF musz = TRUE THEN musz = FALSE.
+      ELSE DO:
+         RUN vkoll_UI (OUTPUT musz).
+         IF musz = TRUE THEN DO:
+            musz = FALSE.
+            RETURN.
+         END.       
+         {AVBGOM2.I}                     
+         RUN faktstop_UI (INPUT TRUE,INPUT vfaktplantemp.FAKTNR).
+         IF musz = FALSE THEN RUN LOPFAKA.W (INPUT vfaktplantemp.FAKTNR).        
+         RUN faktstop_UI (INPUT FALSE,INPUT vfaktplantemp.FAKTNR).
+         musz = FALSE.
+         IF franvart > 1 THEN .
+         ELSE DO:
+            {AVBFRAM2.I}      
+         END.
+         RUN efterupp_UI (INPUT vfaktplantemp.FAKTNR).      
+      END.     
+   END.
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE btnaou_UI :
+   {OMSTARTAVGURUH.I}
+   {AVBGOM2.I}
+   FIND faktyptemp WHERE faktyptemp.VIFAKTTYP = CMB_FAK:SCREEN-VALUE NO-ERROR.  
+   IF TOG_HUVA:CHECKED THEN RUN AOUTANF.W (INPUT 2,INPUT CMB_OMR:SCREEN-VALUE,INPUT FALSE,INPUT faktyptemp.FAKTTYP,INPUT Guru.Konstanter:faktsekvar[3]).            
+   ELSE IF TOG_ANSV:CHECKED THEN RUN AOUTANF.W (INPUT 1,INPUT CMB_OMR:SCREEN-VALUE,INPUT FALSE,INPUT faktyptemp.FAKTTYP,INPUT Guru.Konstanter:faktsekvar[3]).            
+   ELSE DO:
+      RUN AOUTANF.W (INPUT 3,INPUT CMB_OMR:SCREEN-VALUE,INPUT FALSE,INPUT faktyptemp.FAKTTYP,INPUT Guru.Konstanter:faktsekvar[3]).  
+   END.
+   {AVBFRAM2.I}
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE btnaom_UI :
+   {OMSTARTAVGURUH.I}
+   {AVBGOM2.I}   
+   FIND FIRST faktyptemp WHERE faktyptemp.VIFAKTTYP = CMB_FAK:SCREEN-VALUE NO-ERROR.    
+   IF TOG_HUVA:CHECKED THEN RUN AOUTANF.W (INPUT 2,INPUT CMB_OMR:SCREEN-VALUE,INPUT TRUE,INPUT faktyptemp.FAKTTYP,INPUT Guru.Konstanter:faktsekvar[3]).
+   ELSE IF TOG_ANSV:CHECKED THEN RUN AOUTANF.W (INPUT 1,INPUT CMB_OMR:SCREEN-VALUE,INPUT TRUE,INPUT faktyptemp.FAKTTYP,INPUT Guru.Konstanter:faktsekvar[3]).
+   ELSE DO:
+      RUN AOUTANF.W (INPUT 3,INPUT CMB_OMR:SCREEN-VALUE,INPUT TRUE,INPUT faktyptemp.FAKTTYP,INPUT Guru.Konstanter:faktsekvar[3]).
+   END.
+   {AVBFRAM2.I}
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE btnadm_UI :
+  {OMSTARTAVGURUH.I}  
+  RUN FAKTADMA.W.  
+  FOR EACH vfaktplantemp:
+     RUN efterupp_UI (INPUT vfaktplantemp.FAKTNR).
+  END.  
+  {musarrow.i} 
+END PROCEDURE.
+PROCEDURE btnny_UI :
+   RUN ny_UI.
+   ASSIGN
+   musz= FALSE.      
+   {musarrow.i} 
+END PROCEDURE.
+PROCEDURE btnhmt_UI :
+   BTN_HAMT:LOAD-IMAGE("BILDER\xbtn_hamt_over.gif") NO-ERROR.
+   RUN hamta_UI (INPUT 1,INPUT "").  
+   BTN_HAMT:LOAD-IMAGE("BILDER\xbtn_hamt.gif") NO-ERROR.
+END PROCEDURE.
+PROCEDURE btnbort_UI :
+   IF brwval() = TRUE THEN RETURN .
+   RUN bort_UI.
+END PROCEDURE.
+PROCEDURE visafak_UI :
+   skrivut = FALSE.
+   {OMSTARTAVGURUH.I}
+   {AVBGOM2.I}   
+   RUN VFAKTA.W (INPUT vfaktplantemp.FAKTNR).  
+   IF franvart > 1 THEN .
+   ELSE DO:
+      {AVBFRAM2.I}      
+   END.
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE andra_UI :
+   
+   IF musz = TRUE THEN musz = FALSE.
+   ELSE DO:
+      {OMSTARTAVGURUH.I}
+      RUN faktstop_UI (INPUT TRUE,INPUT vfaktplantemp.FAKTNR).
+      IF musz = FALSE  THEN RUN ANDFAKTA.W (INPUT franvart,INPUT vfaktplantemp.FAKTNR,INPUT faonr,INPUT fdelnr,OUTPUT outfakt).
+      musz = FALSE.      
+      RUN faktstop_UI (INPUT FALSE,INPUT vfaktplantemp.FAKTNR).
+      IF musz = FALSE THEN DO:
+         IF franvart > 1 THEN RUN planfinns_UI IN fakthmth (INPUT vfaktplantemp.FAKTNR,OUTPUT musz).     
+         IF musz = TRUE THEN DO:
+            musz = FALSE.
+            RUN bort_UI.         
+         END.
+         ELSE DO:
+            RUN efterupp_UI (INPUT vfaktplantemp.FAKTNR).
+            IF outfakt = TRUE THEN DO:
+               outfakt = FALSE. 
+               APPLY "CHOOSE" TO FBTN_FAK.
+            END.   
+         END.               
+         musz = FALSE.
+      END.
+      musz = FALSE.
+      {musarrow.i}
+   END.   
+END PROCEDURE.
+
+PROCEDURE efterupp_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   DEFINE INPUT PARAMETER varfnr AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE extravfaktplantemp NO-ERROR.
+   RUN hamtafplan_UI IN fakthmth (INPUT Guru.Konstanter:globanv,INPUT Guru.Konstanter:globniv,INPUT varfnr,OUTPUT TABLE extravfaktplantemp).     
+   FIND FIRST extravfaktplantemp NO-ERROR.   
+   IF NOT AVAILABLE extravfaktplantemp THEN DO:
+      MESSAGE INTEGER(FILL-IN_EFAKTNR:SCREEN-VALUE) " finns inte!" VIEW-AS ALERT-BOX.
+      RETURN NO-APPLY.
+   END.
+   FOR EACH extravfaktplantemp:
+      FIND FIRST vfaktplantemp WHERE vfaktplantemp.FAKTNR = extravfaktplantemp.FAKTNR     
+      NO-LOCK NO-ERROR.             
+      IF NOT AVAILABLE vfaktplantemp THEN CREATE vfaktplantemp.
+      BUFFER-COPY extravfaktplantemp TO vfaktplantemp.         
+      DELETE extravfaktplantemp.
+   END.
+   RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(vfaktplantemp)).              
+   RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+   RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].                
+   RUN gorlika_UI IN brwproc[{&ARROWS}] (INPUT "FAKTNR", INPUT "").
+   RUN openbdyn_UI IN brwproc[{&LEFT-BROWSE}] (INPUT "").
+END PROCEDURE.
+PROCEDURE prelbo_UI :
+   {OMSTARTAVGURUH.I}
+   IF vfaktplantemp.FDELNR = 0 THEN DO:
+      MESSAGE "Preliminärfaktura saknas."      
+      VIEW-AS ALERT-BOX.
+      RETURN.
+   END.
+   {SOKSTART.I}
+   ASSIGN
+   soktemp.SOKVAL = 79
+   soktemp.SOKINT[1] = vfaktplantemp.FAKTNR.
+   {SOKANROP.I}      
+   IF Guru.Konstanter:faktsekvar[4] = FALSE AND Guru.Konstanter:faktsekvar[5] = FALSE THEN DO:      
+      IF soktemp.SOKLOG[1] = TRUE THEN DO:
+         MESSAGE "Du kan inte ta bort en godkänd preliminär faktura!" VIEW-AS ALERT-BOX.
+         RETURN NO-APPLY.    
+      END.      
+   END.
+   IF Guru.Konstanter:faktsekvar[5] = TRUE THEN DO:      
+      IF soktemp.SOKLOG[1] = FALSE THEN DO:
+         MESSAGE "Du kan inte ta bort denna faktura!" VIEW-AS ALERT-BOX.
+         RETURN NO-APPLY.    
+      END.      
+   END.
+   faktrec = RECID(vfaktplantemp).
+   MESSAGE "Vill du verkligen ta bort denna preliminärfaktura "
+   vfaktplantemp.FAKTNR vfaktplantemp.FDELNR " " vfaktplantemp.NAMN " ?"
+   VIEW-AS ALERT-BOX QUESTION BUTTONS YES-NO TITLE "Bortag av preliminärfaktura"
+   UPDATE answer AS LOGICAL.
+   IF answer THEN DO:  
+      IF Guru.Konstanter:faktsekvar[5] = TRUE THEN DO: 
+         {SOKSTART.I}
+         ASSIGN
+         soktemp.SOKVAL = 98
+         soktemp.SOKINT[1] = vfaktplantemp.FAKTNR.
+         {SOKANROP.I}      
+         MESSAGE "Nu är faktura öppen för ändringar." VIEW-AS ALERT-BOX.
+         RETURN.
+      END.
+      
+      {SOKSTART.I}
+      ASSIGN
+      soktemp.SOKVAL = 68
+      soktemp.SOKINT[1] = vfaktplantemp.FAKTNR.
+      {SOKANROP.I}     
+      EMPTY TEMP-TABLE extravfaktplantemp NO-ERROR.
+      RUN efterupp_UI (INPUT soktemp.SOKINT[1]).      
+      {musarrow.i}
+   END.          
+END PROCEDURE.
+PROCEDURE nyprisl_UI :
+   {OMSTARTAVGURUH.I}      
+   /*KOLL ATT PRISLISTOR FINNS*/
+   IF Guru.Konstanter:appcon THEN DO:                           
+      RUN FPRISKOL.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+      (INPUT vfaktplantemp.FAKTNR, OUTPUT musz, OUTPUT feltextvar). 
+   END.
+   ELSE DO:
+      RUN FPRISKOL.P  
+      (INPUT vfaktplantemp.FAKTNR, OUTPUT musz, OUTPUT feltextvar).                  
+   END.
+   /*SKALL PRISLISTOR UPPDATERAS*/
+   FIND FIRST faktpristemp WHERE faktpristemp.FAKTNR = vfaktplantemp.FAKTNR NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE faktpristemp THEN DO:
+      RUN hamtaprisf_UI IN fakthmth (INPUT vfaktplantemp.FAKTNR,OUTPUT TABLE faktpristemp APPEND).     
+   END.
+   OPEN QUERY fpq FOR EACH faktpristemp WHERE faktpristemp.FAKTNR = vfaktplantemp.FAKTNR NO-LOCK.
+   GET FIRST fpq NO-LOCK.
+   DO WHILE AVAILABLE(faktpristemp):
+      IF faktpristemp.FRAGAEJ = TRUE THEN musz = musz.
+      ELSE DO:         
+         FIND FIRST defpristemp WHERE defpristemp.PRISID = faktpristemp.PRISID NO-LOCK NO-ERROR.         
+         IF NOT AVAILABLE defpristemp THEN DO:
+            RUN hamtaprisdef_UI IN fakthmth (OUTPUT TABLE defpristemp APPEND).
+            FIND FIRST defpristemp WHERE defpristemp.PRISID = faktpristemp.PRISID NO-LOCK NO-ERROR.         
+         END.
+         IF AVAILABLE defpristemp THEN DO:            
+            IF defpristemp.STARTDATUM > faktpristemp.STARTDATUM AND defpristemp.STARTDATUM <= TODAY THEN DO:
+               RUN PRISUPPA.W (INPUT vfaktplantemp.FAKTNR, INPUT faktpristemp.PRISID, INPUT defpristemp.PRISID, INPUT faktpristemp.OVER).            
+            END.
+         END.          
+      END.      
+      GET NEXT fpq NO-LOCK.
+   END.
+   {musarrow.i}
+END PROCEDURE.
+
+PROCEDURE hamta_UI :
+   DEFINE INPUT PARAMETER vadgora AS INTEGER NO-UNDO. 
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO. 
+   {OMSTARTAVGURUH.I}
+   EMPTY TEMP-TABLE valsoktemp NO-ERROR.
+   CREATE valsoktemp.
+   IF CMB_OMR:SCREEN-VALUE =  Guru.Konstanter:gomrk + " : alla" OR CMB_OMR:SCREEN-VALUE = ? THEN valsoktemp.SOKCHAR[2] = "Alla".
+   ELSE valsoktemp.SOKCHAR[2] = CMB_OMR:SCREEN-VALUE.             
+   ASSIGN
+   valsoktemp.SOKVAL = 1
+   valsoktemp.SOKINT[1]  =  Guru.Konstanter:globniv 
+   valsoktemp.SOKCHAR[1] =  Guru.Konstanter:globanv           
+   valsoktemp.SOKCHAR[4] = faktypVI(CMB_FAK:SCREEN-VALUE)             
+   valsoktemp.SOKCHAR[5] = FILL-IN_PROJEKTKOD:SCREEN-VALUE  
+   valsoktemp.SOKDATE[1] = DATE(FILL-IN-STARTDAT:SCREEN-VALUE)    
+   valsoktemp.SOKDATE[2] = DATE(FILL-IN-STOPPDAT:SCREEN-VALUE)    
+   valsoktemp.SOKLOG[1] = TOG_ANSV:CHECKED            
+   valsoktemp.SOKLOG[2] = TOG_GAMLA:CHECKED           
+   valsoktemp.SOKLOG[3] = TOG_GOD:CHECKED             
+   valsoktemp.SOKLOG[4] = TOG_PREL:CHECKED
+   valsoktemp.SOKLOG[5] = TOG_HUVA:CHECKED 
+   valsoktemp.SOKCHAR[3] = CMB_BESORG:SCREEN-VALUE.    
+   IF franvart = 5 THEN RUN skapvalda5_UI IN fakthmth (INPUT franvart).
+   RUN skapvaldastart_UI IN fakthmth.
+   RUN skapvalda_UI IN fakthmth (INPUT Guru.Konstanter:globanv,INPUT Guru.Konstanter:globniv,INPUT TABLE valsoktemp, OUTPUT TABLE faktplantemp).
+   RUN openbdyn_UI IN brwproc[{&LEFT-BROWSE}] (INPUT "").
+   RUN fetchselrowid_UI IN brwproc[{&LEFT-BROWSE}].      
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE bort_UI :
+   {OMSTARTAVGURUH.I}
+   IF vfaktplantemp.SENASTFAK NE ? THEN DO:
+      MESSAGE "Du kan inte ta bort denna fakturaplan då den har fakturor"
+      VIEW-AS ALERT-BOX.
+      RETURN.   
+   END.
+   IF vfaktplantemp.FDELNR NE 0 THEN DO:
+      MESSAGE "Denna faktura går ej att ta bort då det finns en preliminär faktura uttagen."
+      VIEW-AS ALERT-BOX TITLE "Bortag av faktura".
+      RETURN.
+   END.
+   {SOKSTART.I}
+   ASSIGN
+   soktemp.SOKVAL = 70
+   soktemp.SOKINT[1] = vfaktplantemp.FAKTNR.
+   {SOKANROP.I}      
+   IF soktemp.SOKLOG[1] = TRUE THEN DO:
+      MESSAGE "Du kan inte ta bort denna fakturaplan då den har kreditfakturor"
+      VIEW-AS ALERT-BOX.
+      RETURN.
+   END.
+   MESSAGE "Vill du ta bort denna fakturaplan "
+   vfaktplantemp.FAKTNR " " vfaktplantemp.NAMN " ?"
+   VIEW-AS ALERT-BOX QUESTION BUTTONS YES-NO TITLE "Bortag av fakturaplan"
+   UPDATE answer AS LOGICAL.
+   
+   IF answer THEN DO:      
+      faktrec = RECID(vfaktplantemp).  
+      IF Guru.Konstanter:appcon THEN DO:                           
+         RUN BORTFAK.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+         (INPUT soktemp.SOKINT[1]).
+      END.
+      ELSE DO:
+         RUN BORTFAK.P 
+         (INPUT soktemp.SOKINT[1]).                  
+      END.  
+      
+      FIND vfaktplantemp WHERE RECID(vfaktplantemp) = faktrec NO-ERROR.
+      EMPTY TEMP-TABLE inextrakopptemp NO-ERROR.
+      CREATE inextrakopptemp.          
+      ASSIGN
+      inextrakopptemp.PROGRAM = "FBFPLAN"                   
+      inextrakopptemp.KOPPLACHAR1 = ?              
+      inextrakopptemp.KOPPLAINT1 =  vfaktplantemp.FAKTNR      
+      inextrakopptemp.KOPPLACHAR2 = ?            
+      inextrakopptemp.KOPPLAINT2 =  ?.   
+      RUN exbort_UI IN fbestapph (INPUT TABLE inextrakopptemp).
+      FIND FIRST faktplantemp WHERE faktplantemp.FAKTNR = vfaktplantemp.FAKTNR
+      NO-ERROR.
+      IF AVAILABLE faktplantemp THEN DELETE faktplantemp.
+      RUN refreshbrw_UI IN brwproc[{&LEFT-BROWSE}].
+      DELETE vfaktplantemp.                                  
+      RUN selnextprevrow_UI IN brwproc[{&RIGHT-BROWSE}].
+      RUN refreshbrw_UI IN brwproc[{&RIGHT-BROWSE}].
+      RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].        
+   END. 
+   {musarrow.i}
+END PROCEDURE.
+
+PROCEDURE sparaaofavoriter_UI :
+   tthandle = TEMP-TABLE vfaktplantemp:HANDLE.
+   FIND FIRST sparaladdatemp NO-ERROR.
+   IF NOT AVAILABLE sparaladdatemp THEN CREATE sparaladdatemp.
+   ASSIGN
+   sparaladdatemp.GLOBANV = Guru.Konstanter:globanv /*Användare, i detta fall ELPAO*/
+   sparaladdatemp.BENAMNING = "FAKT" /*Benämnings sufix, i detta fall ELPAO$STOR*/
+   sparaladdatemp.TABVAL = "FAKTPLAN" /*Tabellnamn*/
+   sparaladdatemp.FALTVALAO = "" /*Integer field*/
+   sparaladdatemp.FALTVALDEL = "FAKTNR" /*Integer field*/
+   sparaladdatemp.FALTVALDATE = "".  /*DATE field*/
+   RUN sparabrw_UI IN brwproc[{&RIGHT-BROWSE}] 
+      (INPUT TABLE-HANDLE tthandle, INPUT TABLE sparaladdatemp).
+END PROCEDURE.
+PROCEDURE selectfoc2_UI :
+   DEFINE VARIABLE brwrowid AS ROWID NO-UNDO.
+   DEFINE VARIABLE brwrecid AS RECID NO-UNDO.
+   IF NOT VALID-HANDLE(ualdfakth) THEN DO:
+      ualdfakth = TEMP-TABLE faktplantemp:DEFAULT-BUFFER-HANDLE.
+   END.
+   RUN selectrowid_UI IN brwproc[{&LEFT-BROWSE}] (OUTPUT brwrowid).
+   RUN selectrecid_UI IN brwproc[{&LEFT-BROWSE}] (OUTPUT brwrecid).
+   FIND FIRST faktplantemp WHERE ROWID(faktplantemp) = brwrowid NO-LOCK NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE selectfoc_UI :
+   DEFINE VARIABLE brwrowid AS ROWID NO-UNDO.
+   DEFINE VARIABLE brwrecid AS RECID NO-UNDO.
+   IF NOT VALID-HANDLE(valdfakth) THEN DO:
+      valdfakth = TEMP-TABLE vfaktplantemp:DEFAULT-BUFFER-HANDLE.
+   END.
+   RUN selectrowid_UI IN brwproc[{&RIGHT-BROWSE}] (OUTPUT brwrowid).
+   RUN selectrecid_UI IN brwproc[{&RIGHT-BROWSE}] (OUTPUT brwrecid).
+   FIND FIRST vfaktplantemp WHERE ROWID(vfaktplantemp) = brwrowid NO-LOCK NO-ERROR.
+      
+   END PROCEDURE.
+
+PROCEDURE avbe_UI :
+   RUN selectfoc_UI.   
+   IF AVAILABLE vfaktplantemp THEN DO:
+      ASSIGN
+      sparfaktnr = vfaktplantemp.FAKTNR.
+   END.
+END PROCEDURE.
+PROCEDURE avb_UI :
+   IF franvart NE 1 THEN DO:      
+      EMPTY TEMP-TABLE vfaktplantemp NO-ERROR. 
+   END.
+   IF franvart = 0 THEN.
+   ELSE DO:
+      IF BTN_AVB:IMAGE = "BILDER\xbtn_ater.gif" THEN DO:
+         x-multi = c-win:WIDTH-PIXELS / c-win:MIN-WIDTH-PIXELS. 
+         y-multi = c-win:HEIGHT-PIXELS / c-win:MIN-HEIGHT-PIXELS.  
+         
+         BRW_UFAKT:WIDTH-PIXELS  = x-multi * ubrworgwith. 
+        /* 
+         x-multi = c-win:WIDTH-PIXELS / c-win:MIN-WIDTH-PIXELS. 
+         y-multi = c-win:HEIGHT-PIXELS / c-win:MIN-HEIGHT-PIXELS.  
+         ASSIGN
+         BRW_UFAKT:WIDTH-CHARS  = x-multi * ubrworgwith 
+         BRW_VFAKT:WIDTH-CHARS =  x-multi * brworgwith  
+         BRW_VFAKT:HEIGHT-CHARS =  y-multi * brworghight 
+         BRW_VFAKT:ROW         =  y-multi * brworgrow   
+         BRW_VFAKT:COLUMN      =  x-multi * brworgcol.            
+         */
+      END.
+   END.
+   IF franvart = 1 THEN DO:
+      RUN avbe_UI.     
+      IF BTN_AVB:IMAGE = "BILDER\xbtn_ater.gif" THEN DO:
+         RUN goma_UI IN huvprogh (INPUT FALSE,INPUT "AONR").
+      END.
+      ELSE DO:         
+         MESSAGE "Du avslutar nu " + SUBSTRING(foretemp.VERSION,1,10)
+         VIEW-AS ALERT-BOX QUESTION BUTTONS OK-CANCEL UPDATE val AS LOGICAL.   
+         IF val = FALSE THEN RETURN NO-APPLY.
+         RUN avb_UI IN huvprogh.
+      END.
+   END.
+   ELSE RUN goma_UI IN huvprogh (INPUT FALSE,INPUT "AONR").
+
+END PROCEDURE.
+PROCEDURE mdbrwfakt_UI :
+   APPLY "CHOOSE" TO FBTN_FAK.
+END PROCEDURE.
+PROCEDURE entrybrwfakt_UI :
+   IF franvart = 2 THEN DO:
+      IF AVAILABLE vfaktplantemp THEN DO:
+         FIND FIRST faktintemp WHERE faktintemp.FAKTNR = vfaktplantemp.FAKTNR NO-ERROR.
+         IF AVAILABLE faktintemp THEN
+         BRW_VFAKT:TOOLTIP = faktintemp.AONR + " " + STRING(faktintemp.DELNR) + " " + faktintemp.ORT.
+      END.
+   END.
+   
+END PROCEDURE.
+PROCEDURE vcbrwfakt_UI :
+   RUN selectfoc_UI.   
+   IF franvart = 2 THEN DO:
+      IF AVAILABLE vfaktplantemp THEN DO:
+         FIND FIRST faktintemp WHERE faktintemp.FAKTNR = vfaktplantemp.FAKTNR NO-ERROR.
+         IF AVAILABLE faktintemp THEN DO:
+            BRW_VFAKT:TOOLTIP = faktintemp.AONR + " " + STRING(faktintemp.DELNR) + " " + faktintemp.ORT.
+            ASSIGN
+            Guru.GlobalaVariabler:plusaonr = faktintemp.AONR
+            Guru.GlobalaVariabler:plusdnr = faktintemp.DELNR.           
+         END.
+         ELSE DO:
+            Guru.GlobalaVariabler:plusaonr = ?.
+         END.
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE vcbrwufakt_UI :
+   RUN selectfoc2_UI.
+   IF franvart = 5 THEN DO:
+      RUN ejtmultibr_UI IN brwproc[{&LEFT-BROWSE}] (INPUT ROWID(faktplantemp)).
+   END.
+END PROCEDURE.
+PROCEDURE main_UI :
+   C-Win:TITLE = "Fakturarutin" + "-" + "Systemsupport 090/184540    elpool.ume@elpool.se".   
+   {OMSTARTAVGURUH.I}
+   {ALLSTARTDYN.I}
+   RUN gomfalt_UI IN huvprogh (INPUT "FAKT",INPUT franvart).   
+   RUN VISMEDDU.W.   
+   IF franvart > 1 THEN RUN altstart_UI.
+   ELSE DO:
+      /*direkt här*/
+      FIND FIRST vfaktplantemp NO-ERROR.
+      IF NOT AVAILABLE vfaktplantemp THEN DO:
+         FOR EACH faktintemp:            
+            RUN hamtafaonr_UI IN fakthmth 
+            (INPUT Guru.Konstanter:globanv,INPUT Guru.Konstanter:globniv,INPUT faktintemp.AONR,INPUT faktintemp.DELNR,OUTPUT TABLE extravfaktplantemp). 
+            FOR EACH extravfaktplantemp WHERE NO-LOCK:
+               FIND FIRST vfaktplantemp WHERE vfaktplantemp.FAKTNR = extravfaktplantemp.FAKTNR     
+               NO-LOCK NO-ERROR.             
+               IF NOT AVAILABLE vfaktplantemp THEN DO:
+                  CREATE vfaktplantemp.
+                  BUFFER-COPY extravfaktplantemp TO vfaktplantemp.
+               END.
+               faktintemp.FAKTNR = extravfaktplantemp.FAKTNR.
+               DELETE extravfaktplantemp.
+            END.      
+         END.
+         RUN startkoll_UI IN fakthmth (INPUT-OUTPUT TABLE vfaktplantemp).  
+         FIND FIRST vfaktplantemp NO-ERROR.
+         IF NOT AVAILABLE vfaktplantemp THEN DO:
+            
+         END.
+         ELSE DO:
+            FIND FIRST faktintemp WHERE faktintemp.AONR = faonr AND faktintemp.DELNR = fdelnr
+            NO-ERROR.
+            IF AVAILABLE faktintemp THEN DO:
+               FIND FIRST vfaktplantemp WHERE vfaktplantemp.FAKTNR = faktintemp.FAKTNR
+               NO-ERROR.
+               IF AVAILABLE vfaktplantemp THEN DO:
+                  RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(vfaktplantemp)).              
+                  RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").  
+                  RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].
+               END.
+               ELSE RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+            END.
+            ELSE RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+         END.
+      END.
+      RUN goma_UI (INPUT FALSE).
+   END.
+   IF musz = TRUE THEN DO:
+      musz = FALSE.
+      RETURN.
+   END.
+   
+   APPLY "VALUE-CHANGED" TO TOG_GAMLA.
+   IF Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)  
+   THEN FBTN_ADM:HIDDEN = FALSE.
+   ELSE IF Guru.Konstanter:faktsekvar[3] = TRUE THEN  FBTN_ADM:HIDDEN = FALSE.
+   ELSE FBTN_ADM:HIDDEN = TRUE.
+   FILL-IN_PROJEKTKOD       :HIDDEN = TRUE.
+   IF CMB_OMR:SCREEN-VALUE = ? OR CMB_OMR:SCREEN-VALUE = "" THEN CMB_OMR:HIDDEN = TRUE.   
+   {musarrow.i}   
+   
+END PROCEDURE.
+PROCEDURE PlaceraKnapp_UI :
+   Guru.GlobalaVariabler:StartRadForKnappar = BRW_VFAKT:ROW.
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_KOPP).
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_UPP).
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_VISAO).
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_FAK).
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_VFAK).
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_PRELB).
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_Kred).
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_AONRU).
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_AONRM).
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_FLISTA).
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_ADM).
+   Guru.Konstanter:PlaceraKnapparLodratt(BTN_HAOF).
+   Guru.Konstanter:PlaceraKnapparLodratt(BTN_AOF).
+   RUN placeraCmb_UI.
+END PROCEDURE.
+
+PROCEDURE placeraCmb_UI :
+   
+   Guru.GlobalaVariabler:StartRadForKnappar = CMB_FAK:ROW.
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_FAK). 
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_OMR).
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_BESORG).
+   Guru.Konstanter:PlaceraKnapparLodratt(TOG_ANSV).
+   Guru.Konstanter:PlaceraKnapparLodratt(TOG_GAMLA).
+   IF C-WIN:HIDDEN THEN RETURN.
+   TOG_HUVA:ROW = TOG_ANSV:ROW.
+   TOG_PREL:ROW = TOG_ANSV:ROW.
+   TOG_GOD:ROW = TOG_ANSV:ROW.
+   FILL-IN-STARTDAT:ROW = TOG_GAMLA:ROW.
+   FILL-IN-STOPPDAT:ROW = TOG_GAMLA:ROW. 
+   Guru.GlobalaVariabler:StartKolumnForKnappar = TOG_ANSV:COLUMN + TOG_ANSV:WIDTH-CHARS - 10.
+   Guru.Konstanter:PlaceraKnapparVagratt(TOG_HUVA,TRUE).
+   Guru.GlobalaVariabler:StartKolumnForKnappar = Guru.GlobalaVariabler:StartKolumnForKnappar - 15.
+   Guru.Konstanter:PlaceraKnapparVagratt(TOG_PREL,TRUE).
+   Guru.GlobalaVariabler:StartKolumnForKnappar = Guru.GlobalaVariabler:StartKolumnForKnappar - 20.
+   Guru.Konstanter:PlaceraKnapparVagratt(TOG_GOD,TRUE).      
+END PROCEDURE.
+PROCEDURE btnplac_UI :
+   Guru.GlobalaVariabler:collefth = ?.
+   FBTN_KOPP:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = FBTN_KOPP:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   IF franvart NE 5 THEN FBTN_KOPP:HIDDEN = TRUE.
+   Guru.GlobalaVariabler:collefth = ?.
+   FBTN_UPP:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = FBTN_UPP:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   FBTN_VISAO:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = FBTN_VISAO:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   FBTN_FAK:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = FBTN_FAK:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   FBTN_VFAK:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = FBTN_VFAK:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   FBTN_PRELB:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = FBTN_PRELB:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   FBTN_Kred:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = FBTN_Kred:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   FBTN_AONRU:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = FBTN_AONRU:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   FBTN_AONRM:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = FBTN_AONRM:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   FBTN_FLISTA:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = FBTN_FLISTA:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   FBTN_ADM:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = FBTN_ADM:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   BTN_HAOF:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = BTN_HAOF:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).      
+   BTN_AOF:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = BTN_AOF:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).      
+END PROCEDURE.
+PROCEDURE allstartbrw_UI :
+
+   DEFINE VARIABLE korextra AS LOGICAL NO-UNDO.
+   korextra = FALSE.
+   IF NOT VALID-HANDLE(brwproc[{&LEFT-BROWSE}]) THEN  RUN DYNBRW.P PERSISTENT SET brwproc[{&LEFT-BROWSE}] (INPUT BRW_UFAKT).
+   IF NOT VALID-HANDLE(brwproc[{&RIGHT-BROWSE}]) THEN RUN DYNBRW.P PERSISTENT SET brwproc[{&RIGHT-BROWSE}] (INPUT BRW_VFAKT).
+   IF NOT VALID-HANDLE(brwproc[{&ARROWS}]) THEN  DO:
+      RUN DYNARROW.P PERSISTENT SET brwproc[{&ARROWS}] 
+      (INPUT BRW_UFAKT, INPUT BRW_VFAKT,
+       INPUT BTN_OVER, INPUT BTN_ALLOVER,
+       INPUT BTN_ALLBACK,INPUT BTN_BACK).    
+      RUN addfillin_UI IN brwproc[{&ARROWS}] (INPUT FILL-IN_SFAKTNR, INPUT "FAKTNR").
+      RUN addfillin_UI IN brwproc[{&ARROWS}] (INPUT FILL-IN_SNAMN, INPUT "NAMN"). 
+   END.
+   IF NOT VALID-HANDLE(fbestapph) THEN korextra = TRUE.
+   IF Guru.Konstanter:appcon THEN DO:
+      IF NOT VALID-HANDLE(fbestapph) THEN RUN EXTRATABHMT.P PERSISTENT SET fbestapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT.
+      IF NOT VALID-HANDLE(fakthmth) THEN RUN FAKTHMT.P PERSISTENT SET fakthmth ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+   END.
+   ELSE DO:
+      IF NOT VALID-HANDLE(fbestapph) THEN RUN EXTRATABHMT.P PERSISTENT SET fbestapph.      
+      IF NOT VALID-HANDLE(fakthmth) THEN RUN FAKTHMT.P PERSISTENT SET fakthmth.
+   END.
+   IF franvart = 1 THEN DO:
+      /*    direkt här
+      
+      */
+   END.
+   IF korextra = TRUE THEN DO:
+      korextra = FALSE.
+      RUN korextra_UI.
+      
+   END.
+   RUN btnplac_UI.
+   /*FAKTURA BESTÄLLARE*/
+   IF Guru.Konstanter:faktsekvar[5] = TRUE THEN DO:               
+      ASSIGN 
+      TOG_ANSV:CHECKED = FALSE
+      TOG_GOD:CHECKED = TRUE.      
+   END.
+   IF Guru.Konstanter:faktsekvar[5] = TRUE THEN FBTN_FAK:LABEL = "Godkänn faktura" . 
+   IF skarpfaktok = FALSE THEN DO:
+      IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+         IF Guru.Konstanter:faktsekvar[5] = FALSE AND Guru.Konstanter:faktsekvar[4] = FALSE THEN FBTN_FAK:LABEL = "Klar till beställare" .
+      END.  
+   END.   
+END PROCEDURE.
+
+PROCEDURE korextra_UI :  
+   /*ADMIN*/   
+   {SOKSTART.I}
+   ASSIGN
+   soktemp.SOKVAL = 66
+   soktemp.SOKCHAR[1] = Guru.Konstanter:globanv.
+   {SOKANROP.I}    
+      
+   IF soktemp.SOKLOG[1] = FALSE THEN DO:
+      MESSAGE "Det går inte att använda denna funktion då" SKIP
+      "det inte finns en huvudansvarig för fakturarutinen" VIEW-AS ALERT-BOX.
+      RETURN.
+   END.     
+
+   /*SKARPFAKT*/
+   IF Guru.Konstanter:faktsekvar[4] = TRUE THEN skarpfaktok = TRUE.  
+   ELSE skarpfaktok = FALSE.
+   /*FAKTURA BESTÄLLARE*/
+   {OMRHMT.I}
+   IF Guru.Konstanter:globanv = soktemp.SOKCHAR[2] OR Guru.Konstanter:globniv = 0  OR Guru.Konstanter:faktsekvar[5] = TRUE THEN DO:
+      CMB_OMR:LIST-ITEMS = "".
+      status-ok = CMB_OMR:ADD-LAST(Guru.Konstanter:gomrk + " : alla").    
+      
+      FOR EACH omrtemp:
+         status-ok = CMB_OMR:ADD-LAST(omrtemp.NAMN).
+      END.   
+      CMB_OMR:SCREEN-VALUE = Guru.Konstanter:gomrk + " : alla".
+   END. 
+   ELSE DO:      
+      RUN skapomr_UI IN fakthmth (INPUT Guru.Konstanter:globanv, OUTPUT TABLE omrtempsek).
+      CMB_OMR:LIST-ITEMS = "".
+      FOR EACH omrtempsek:
+         status-ok = CMB_OMR:ADD-LAST(omrtempsek.NAMN).
+      END.   
+      FIND FIRST omrtempsek NO-ERROR.
+      IF AVAILABLE omrtempsek THEN DO:
+         CMB_OMR:SCREEN-VALUE = omrtempsek.NAMN.
+      END.
+      ELSE DO:
+         CMB_OMR:SCREEN-VALUE = "".
+         CMB_OMR:HIDDEN = TRUE.
+      END.
+   END.
+   EMPTY TEMP-TABLE bestkundallt NO-ERROR.    
+   FIND FIRST bestkundallt NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE bestkundallt THEN DO:    
+      bestvad = 3.
+      {BESTHMT.I}      
+   END.      
+   IF Guru.Konstanter:varforetypval[3] >= 1 THEN DO:
+   END.
+   ELSE DO:  
+      OPEN QUERY oq FOR EACH omrtemp USE-INDEX OMR NO-LOCK.
+      GET FIRST oq NO-LOCK.
+      DO WHILE AVAILABLE(omrtemp):
+         FIND FIRST bestkundallt WHERE bestkundallt.BESTID = omrtemp.OMRADE NO-ERROR.
+         IF NOT AVAILABLE bestkundallt THEN DO:
+            CREATE bestkundallt.
+            ASSIGN 
+            bestkundallt.VIBESTID = omrtemp.OMRADE 
+            bestkundallt.BESTID = omrtemp.OMRADE 
+            bestkundallt.BESTNAMN = omrtemp.NAMN.                      
+         END.
+         GET NEXT oq NO-LOCK.
+      END.
+   END.
+   CMB_BESORG:LIST-ITEMS = "".
+   IF Guru.Konstanter:varforetypval[45] = 1 THEN DO:
+      status-ok = CMB_BESORG:ADD-FIRST("Alla").
+      CMB_BESORG:HIDDEN = TRUE.
+   END.
+   ELSE DO: 
+      status-ok = CMB_BESORG:ADD-FIRST("Alla").
+      FOR EACH bestkundallt USE-INDEX BESTID NO-LOCK:
+        status-ok = CMB_BESORG:ADD-LAST(bestkundallt.BESTNAMN).
+      END.
+   END.     
+   CMB_FAK:LIST-ITEMS = "".
+   FOR EACH faktyptemp : 
+      IF faktyptemp.TYP = 0 THEN musz = musz.
+      ELSE status-ok = CMB_FAK:ADD-LAST(faktyptemp.VIFAKTTYP).      
+   END.   
+   ASSIGN 
+   TOG_GAMLA:CHECKED = FALSE
+   CMB_BESORG:SCREEN-VALUE = "Alla"
+   CMB_FAK:SCREEN-VALUE = "Alla".   
+   FIND FIRST faktyptemp WHERE faktyptemp.VIFAKTTYP = CMB_FAK:SCREEN-VALUE NO-ERROR.            
+   ASSIGN   
+   FILL-IN-STARTDAT:SCREEN-VALUE = STRING(DATE(01,01,YEAR(TODAY)))
+   FILL-IN-STOPPDAT:SCREEN-VALUE = string(TODAY).
+   ASSIGN
+   CMB_BESORG:LABEL = RIGHT-TRIM(SUBSTRING(Guru.Konstanter:gbestk,1,12))
+   FILL-IN_EAONR:LABEL = Guru.Konstanter:gaok
+   CMB_OMR:LABEL = Guru.Konstanter:gomrk  
+   FBTN_AONRM:LABEL = Guru.Konstanter:gaok + " med Faktp.nr" 
+   FBTN_AONRU:LABEL = Guru.Konstanter:gaok + " utan Faktp.nr".   
+   /*FAKTFOR*/
+   IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+      TOG_GOD:LABEL = "Fakturor klara för köpare".
+   END.
+   &Scoped-define FORMATNAMN FILL-IN_EAONR   
+   {AOFORMAT4.I}
+   &Scoped-define FORMATNAMN FILL-IN_DELNR   
+   {DELNRFORMAT2.I}
+   APPLY "VALUE-CHANGED" TO TOG_GAMLA.
+   FIND FIRST omrtemp NO-ERROR.
+   IF NOT AVAILABLE omrtemp THEN CMB_OMR:HIDDEN = TRUE.
+   RUN openbdyn_UI IN brwproc[{&LEFT-BROWSE}] (INPUT "").
+   RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+   
+END PROCEDURE.
+PROCEDURE altstart_UI :
+   
+/*franvart = 1 HUVUDMENY   franvart = 2 AOMENY  ÄNDRA franvart = 3 AOMENY  NY 
+franvart = 4 AOMENY KOPPLING BORT 
+franvart = 5 AOMENY KOPPLA*/
+   RUN goma_UI (INPUT TRUE).
+   EMPTY TEMP-TABLE vfaktplantemp NO-ERROR.
+   EMPTY TEMP-TABLE extravfaktplantemp NO-ERROR.
+   
+
+   IF franvart > 1 THEN DO:
+      /*
+      x-multi = c-win:WIDTH-PIXELS / c-win:MIN-WIDTH-PIXELS. 
+      y-multi = c-win:HEIGHT-PIXELS / c-win:MIN-HEIGHT-PIXELS.  
+      ASSIGN
+      BTN_HAOF:HIDDEN = TRUE
+      BTN_AOF:HIDDEN = TRUE.
+      IF franvart NE 5 THEN DO:
+         ASSIGN         
+         brworgwith = BRW_VFAKT:WIDTH-CHARS / x-multi
+         brworghight = BRW_VFAKT:HEIGHT-CHARS / y-multi
+         brworgrow = BRW_VFAKT:ROW            / y-multi
+         brworgcol = BRW_VFAKT:COLUMN        / x-multi.
+         ASSIGN
+         BRW_VFAKT:WIDTH-CHARS =    BRW_MAXMALL:WIDTH-CHARS  
+         BRW_VFAKT:ROW =            BRW_MAXMALL:ROW                   
+         BRW_VFAKT:COLUMN =         BRW_MAXMALL:COLUMN      
+         BRW_VFAKT:HEIGHT-CHARS =   BRW_MAXMALL:HEIGHT-CHARS. 
+      END.
+      ubrworgwith = BRW_UFAKT:WIDTH-CHARS / x-multi.       
+      */
+   END.
+   ELSE DO:
+      ASSIGN
+      BTN_HAOF:HIDDEN = FALSE
+      BTN_AOF:HIDDEN = FALSE.
+   END.
+                         
+   IF franvart = 2 THEN DO:
+      /*aonr*/    
+      FOR EACH faktintemp:         
+         RUN hamtafaonr_UI IN fakthmth 
+         (INPUT Guru.Konstanter:globanv,INPUT Guru.Konstanter:globniv,INPUT faktintemp.AONR,INPUT faktintemp.DELNR,OUTPUT TABLE extravfaktplantemp).     
+         FIND FIRST extravfaktplantemp WHERE extravfaktplantemp.FAKTNR = faktintemp.FAKTNR NO-ERROR.   
+         IF AVAILABLE extravfaktplantemp THEN DO:
+            FIND FIRST vfaktplantemp WHERE vfaktplantemp.FAKTNR = extravfaktplantemp.FAKTNR     
+            NO-LOCK NO-ERROR.             
+            IF NOT AVAILABLE vfaktplantemp THEN DO:
+               CREATE vfaktplantemp.
+               BUFFER-COPY extravfaktplantemp TO vfaktplantemp.
+            END.
+            faktintemp.FAKTNR = extravfaktplantemp.FAKTNR.
+            DELETE extravfaktplantemp.
+         END.      
+      END.
+      RUN startkoll_UI IN fakthmth (INPUT-OUTPUT TABLE vfaktplantemp).
+      FIND FIRST vfaktplantemp NO-ERROR.
+      IF NOT AVAILABLE vfaktplantemp THEN DO:
+         musz = TRUE.
+         RETURN.
+      END.
+      FIND FIRST faktintemp WHERE faktintemp.AONR = faonr AND faktintemp.DELNR = fdelnr
+      NO-ERROR.
+      FIND FIRST vfaktplantemp WHERE vfaktplantemp.FAKTNR = faktintemp.FAKTNR
+      NO-ERROR.
+      IF AVAILABLE vfaktplantemp THEN DO:
+         RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(vfaktplantemp)).              
+         RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").  
+         RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].
+      END.
+      ELSE RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").  
+   END.
+   ELSE IF franvart = 3 THEN DO:
+      RUN ny_UI.
+      IF musz = TRUE THEN RETURN.      
+      franvart = 2.
+   END.
+   ELSE IF franvart = 4 THEN DO:
+      FIND FIRST faktintemp WHERE faktintemp.AONR = faonr AND faktintemp.DELNR = fdelnr
+      NO-ERROR.
+      FIND FIRST vfaktplantemp WHERE vfaktplantemp.FAKTNR = faktintemp.FAKTNR NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE vfaktplantemp THEN DO:
+         
+         RUN hamtafaonr_UI IN fakthmth 
+         (INPUT Guru.Konstanter:globanv,INPUT Guru.Konstanter:globniv,INPUT faktintemp.AONR,INPUT faktintemp.DELNR,OUTPUT TABLE extravfaktplantemp).     
+         FIND FIRST extravfaktplantemp WHERE extravfaktplantemp.FAKTNR = faktintemp.FAKTNR NO-ERROR.   
+         IF AVAILABLE extravfaktplantemp THEN DO:
+            CREATE vfaktplantemp.
+            BUFFER-COPY extravfaktplantemp TO vfaktplantemp.
+         END.
+         EMPTY TEMP-TABLE extravfaktplantemp NO-ERROR.         
+      END.
+      IF musz = TRUE THEN musz = FALSE.
+      ELSE DO:
+         RUN faktstop_UI (INPUT TRUE,INPUT faktintemp.FAKTNR).
+         IF musz = FALSE THEN RUN ANDFAKTA.W (INPUT 4,INPUT faktintemp.FAKTNR,INPUT faonr,INPUT fdelnr,OUTPUT outfakt).
+         musz = FALSE.
+         RUN faktstop_UI (INPUT FALSE,INPUT faktintemp.FAKTNR).
+         musz = TRUE.
+         RETURN.   
+        
+      END.
+   END.  
+   ELSE IF franvart = 5 THEN DO:      
+      RUN bigsize_UI IN brwproc[{&ARROWS}] (OUTPUT bigsize).
+      ubrworgwith = BRW_UFAKT:WIDTH-PIXELS.
+      BRW_UFAKT:WIDTH-PIXELS = bigsize.
+      
+      RUN setmultvar_UI IN brwproc[{&LEFT-BROWSE}] (INPUT FALSE).
+      FIND FIRST faktintemp WHERE faktintemp.AONR = faonr AND faktintemp.DELNR = fdelnr
+      NO-ERROR.
+      ASSIGN
+      FBTN_ADM                  :HIDDEN  = TRUE
+      FBTN_VFAK                 :HIDDEN  = TRUE  
+      FBTN_AONRM                :HIDDEN  = TRUE 
+      FBTN_AONRU                :HIDDEN  = TRUE
+      FBTN_FAK                  :HIDDEN  = TRUE
+      FBTN_FLISTA               :HIDDEN  = TRUE
+      FBTN_Kred                 :HIDDEN  = TRUE
+      FBTN_PRELB                :HIDDEN  = TRUE
+      FBTN_UPP                  :HIDDEN  = TRUE
+      RECT-21                  :HIDDEN  = FALSE
+      BTN_HAMT                 :HIDDEN  = FALSE
+      FILL-IN_SFAKTNR          :HIDDEN  = FALSE
+      FILL-IN_SNAMN            :HIDDEN  = FALSE
+      FILL-IN_PROJEKTKOD       :HIDDEN  = FALSE
+      FILL-IN-SOK              :HIDDEN  = FALSE
+      CMB_BESORG               :HIDDEN  = TRUE 
+      CMB_FAK                  :HIDDEN  = TRUE 
+      CMB_OMR                  :HIDDEN  = FALSE
+      TOG_ANSV                 :HIDDEN  = FALSE
+      TOG_HUVA                 :HIDDEN  = FALSE
+      BRW_UFAKT                :HIDDEN  = FALSE
+      BRW_VFAKT                :HIDDEN  = TRUE.
+      FIND FIRST omrtemp WHERE omrtemp.OMRADE = faktintemp.OMRADE NO-ERROR.
+      FIND FIRST bestkundallt WHERE bestkundallt.BESTID = faktintemp.BESTID NO-ERROR.
+      IF AVAILABLE omrtemp THEN CMB_OMR:SCREEN-VALUE = omrtemp.NAMN.
+      IF Guru.Konstanter:varforetypval[45] = 1 THEN.
+      ELSE DO:
+         IF AVAILABLE bestkundallt THEN CMB_BESORG:SCREEN-VALUE = bestkundallt.BESTNAMN.
+      END.       
+      IF AVAILABLE faktintemp THEN CMB_FAK:SCREEN-VALUE = faktyp(faktintemp.FAKTTYP). 
+      ASSIGN
+      BTN_AVB:LABEL = "Avbryt".      
+      IF NOT AVAILABLE omrtemp THEN CMB_OMR:HIDDEN = TRUE.                
+      IF NOT AVAILABLE bestkundallt THEN CMB_BESORG:HIDDEN = TRUE.
+      IF NOT AVAILABLE faktintemp THEN CMB_FAK:HIDDEN  = TRUE.
+      IF Guru.Konstanter:varforetypval[45] = 1 THEN DO:
+         CMB_BESORG:HIDDEN = TRUE.
+      END.   
+      RUN changesize_UI IN brwproc[{&ARROWS}] (INPUT TRUE).
+   END.
+   
+END PROCEDURE.
+PROCEDURE faktstop_UI :
+   DEFINE INPUT PARAMETER stopvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER inrvar AS INTEGER NO-UNDO.
+   IF stopvar = TRUE THEN DO:
+      musz = FALSE.
+      EMPTY TEMP-TABLE felmeddtemp NO-ERROR.
+      IF Guru.Konstanter:appcon THEN DO:                           
+         RUN TIDSTOPP.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+         (INPUT 7,INPUT "FAKTURERING FEL" + STRING(inrvar),INPUT Guru.Konstanter:globanv, OUTPUT lasanv,INPUT-OUTPUT TABLE felmeddtemp).
+      END.
+      ELSE DO:
+         RUN TIDSTOPP.P 
+         (INPUT 7,INPUT "FAKTURERING FEL" + STRING(inrvar),INPUT Guru.Konstanter:globanv, OUTPUT lasanv,INPUT-OUTPUT TABLE felmeddtemp).
+      END.
+      FIND FIRST felmeddtemp WHERE NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE felmeddtemp THEN DO: 
+         IF Guru.Konstanter:appcon THEN DO:                           
+            RUN TIDSTOPP.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+            (INPUT 4,INPUT "FAKTURA PLAN " + STRING(inrvar),INPUT Guru.Konstanter:globanv, OUTPUT lasanv,INPUT-OUTPUT TABLE felmeddtemp).
+         END.
+         ELSE DO:
+            RUN TIDSTOPP.P 
+            (INPUT 4,INPUT "FAKTURA PLAN " + STRING(inrvar),INPUT Guru.Konstanter:globanv, OUTPUT lasanv,INPUT-OUTPUT TABLE felmeddtemp).
+         END.
+      END.   
+      FIND FIRST felmeddtemp NO-LOCK NO-ERROR.
+      IF AVAILABLE felmeddtemp THEN DO:
+         MESSAGE felmeddtemp.FELMEDD VIEW-AS ALERT-BOX.
+         DELETE felmeddtemp.  
+         musz = TRUE.
+         RETURN.
+      END.
+   END.
+   ELSE DO:
+      IF Guru.Konstanter:appcon THEN DO:                           
+         RUN TIDSTOPP.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+         (INPUT 2,INPUT "FAKTURA PLAN " + STRING(inrvar),INPUT Guru.Konstanter:globanv, OUTPUT lasanv,INPUT-OUTPUT TABLE felmeddtemp).
+      END.
+      ELSE DO:
+         RUN TIDSTOPP.P 
+         (INPUT 2,INPUT "FAKTURA PLAN " + STRING(inrvar),INPUT Guru.Konstanter:globanv, OUTPUT lasanv,INPUT-OUTPUT TABLE felmeddtemp).
+      END.   
+   END.
+   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+PROCEDURE ny_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/     
+   DEFINE VARIABLE status-mus2 AS LOGICAL NO-UNDO. 
+   {OMSTARTAVGURUH.I}
+   {SOKSTART.I}        
+   IF franvart = 3 THEN DO:
+      RUN skapfplan_UI IN fakthmth 
+      (INPUT Guru.Konstanter:globanv,INPUT Guru.Konstanter:globniv,INPUT faonr,INPUT fdelnr,OUTPUT musz,OUTPUT soktemp.SOKINT[1]).     
+      IF musz = TRUE THEN DO:
+         MESSAGE "Du har inte rätt behörighet att skapa en ny fakturaplan!" VIEW-AS ALERT-BOX.
+         RETURN.
+      END.
+      /*SNATFAKT*/
+      IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+         FIND FIRST faktintemp WHERE NO-LOCK NO-ERROR.
+         IF AVAILABLE faktintemp THEN RUN skapfplanextra_UI IN fakthmth (INPUT soktemp.SOKINT[1], INPUT faktintemp.BESTID).
+      END.   
+      RUN hamtafplan_UI IN fakthmth (INPUT Guru.Konstanter:globanv,INPUT Guru.Konstanter:globniv,INPUT soktemp.SOKINT[1],OUTPUT TABLE extravfaktplantemp).     
+      FIND FIRST extravfaktplantemp WHERE extravfaktplantemp.FAKTNR = soktemp.SOKINT[1] NO-ERROR.   
+      IF NOT AVAILABLE extravfaktplantemp THEN DO:
+         RETURN.
+      END.
+      FIND FIRST vfaktplantemp WHERE vfaktplantemp.FAKTNR = extravfaktplantemp.FAKTNR     
+      NO-LOCK NO-ERROR.             
+      IF NOT AVAILABLE vfaktplantemp THEN DO:
+         CREATE vfaktplantemp.
+         BUFFER-COPY extravfaktplantemp TO vfaktplantemp.
+      END.  
+   END.
+   ELSE DO:
+      {SOKSTART.I}
+      ASSIGN
+      soktemp.SOKVAL = 67
+      soktemp.SOKCHAR[1] = Guru.Konstanter:globanv.
+      {SOKANROP.I} 
+      CREATE vfaktplantemp.
+      ASSIGN 
+      vfaktplantemp.FAKTNR = soktemp.SOKINT[1]
+      vfaktplantemp.FAKTTYP = "Löpande räkning"      
+      vfaktplantemp.PANVANDARE = soktemp.SOKCHAR[1]
+      vfaktplantemp.ANVANDARE = soktemp.SOKCHAR[1].
+   END.        
+   RUN ANDFAKTA.W (INPUT franvart,INPUT soktemp.SOKINT[1],INPUT faonr,INPUT fdelnr,OUTPUT outfakt).   
+   status-mus2 = SESSION:SET-WAIT-STATE("GENERAL").
+   IF musz = TRUE THEN DO:
+      FIND FIRST vfaktplantemp WHERE vfaktplantemp.FAKTNR = soktemp.SOKINT[1] NO-ERROR.
+      IF AVAILABLE vfaktplantemp THEN DELETE vfaktplantemp.
+      IF Guru.Konstanter:appcon THEN DO:                           
+         RUN BORTFAK.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+         (INPUT soktemp.SOKINT[1]).
+      END.
+      ELSE DO:
+         RUN BORTFAK.P 
+         (INPUT soktemp.SOKINT[1]).                  
+      END.                      
+   END.
+   ELSE DO:      
+      IF franvart = 3 THEN RUN planfinns_UI IN fakthmth (INPUT soktemp.SOKINT[1],OUTPUT musz).     
+      IF musz = TRUE THEN DO:
+         FIND FIRST vfaktplantemp WHERE vfaktplantemp.FAKTNR = soktemp.SOKINT[1] NO-ERROR.
+         IF AVAILABLE vfaktplantemp THEN DELETE vfaktplantemp.
+         IF Guru.Konstanter:appcon THEN DO:                           
+            RUN BORTFAK.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+            (INPUT soktemp.SOKINT[1]).
+         END.
+         ELSE DO:
+            RUN BORTFAK.P 
+            (INPUT soktemp.SOKINT[1]).                  
+         END.
+      END.
+      ELSE DO:
+         RUN efterupp_UI (INPUT soktemp.SOKINT[1]).
+         IF outfakt = TRUE THEN DO:
+            outfakt = FALSE. 
+            APPLY "CHOOSE" TO FBTN_FAK.
+         END.   
+      END.   
+   END.
+   {musarrow.i} 
+       
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+PROCEDURE goma_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   DEFINE INPUT PARAMETER hidvar AS LOGICAL NO-UNDO.
+   ASSIGN
+   RECT-20                  :HIDDEN  = hidvar
+   RECT-21                  :HIDDEN  = hidvar
+   BRW_UFAKT                :HIDDEN  = hidvar
+   BRW_VFAKT                :HIDDEN  = hidvar
+   /*BTN_ADM                  :HIDDE   = hidvar */
+   BTN_ALLBACK              :HIDDEN  = hidvar
+   BTN_ALLOVER              :HIDDEN  = hidvar
+   BTN_BACK                 :HIDDEN  = hidvar
+   BTN_HAMT                 :HIDDEN  = hidvar
+   BTN_NY                   :HIDDEN  = hidvar
+   BTN_BORT                 :HIDDEN  = hidvar
+   BTN_OVER                 :HIDDEN  = hidvar
+   CMB_BESORG               :HIDDEN  = hidvar
+   CMB_FAK                  :HIDDEN  = hidvar
+   CMB_OMR                  :HIDDEN  = hidvar
+   FILL-IN-HAMT             :HIDDEN  = hidvar
+   FILL-IN-SOK              :HIDDEN  = hidvar
+   FILL-IN_DELNR            :HIDDEN  = hidvar
+   FILL-IN_EAONR            :HIDDEN  = hidvar
+   FILL-IN_EFAKTNR          :HIDDEN  = hidvar
+   FILL-IN_EFAKUNR          :HIDDEN  = hidvar
+   FILL-IN_PROJEKTKOD       :HIDDEN  = hidvar
+   FILL-IN_SFAKTNR          :HIDDEN  = hidvar
+   FILL-IN_SNAMN            :HIDDEN  = hidvar
+   FILL-IN-STARTDAT         :HIDDEN  = hidvar
+   FILL-IN-STOPPDAT         :HIDDEN  = hidvar
+   TOG_ANSV                 :HIDDEN  = hidvar
+   TOG_GAMLA                :HIDDEN  = hidvar
+   TOG_GOD                  :HIDDEN  = hidvar
+   TOG_HUVA                 :HIDDEN  = hidvar
+   TOG_PREL                 :HIDDEN  = hidvar.
+   BRW_VFAKT                :HIDDEN  = FALSE.
+   IF Guru.Konstanter:varforetypval[45] = 1 THEN DO:
+      CMB_BESORG:HIDDEN = TRUE.
+   END.   
+END PROCEDURE.
+
+PROCEDURE openb_UI :
+   RUN uppdatfaktplan_UI IN fakthmth (INPUT-OUTPUT TABLE vfaktplantemp).
+   RUN openbdynspec_UI IN brwproc[{&RIGHT-BROWSE}].
+   FIND FIRST vfaktplantemp WHERE vfaktplantemp.FAKTNR = sparfaktnr
+   NO-LOCK NO-ERROR.
+   RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(vfaktplantemp)).
+   RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].     
+END PROCEDURE.
+
+
+PROCEDURE aohmt_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR evaldaao.
+   RUN vaohmt_UI IN fakthmth (INPUT TABLE vfaktplantemp,OUTPUT TABLE evaldaao).
+END PROCEDURE.
+
+PROCEDURE wingom_UI :  
+   {AVBGOM2.I} 
+END PROCEDURE.
+PROCEDURE menyfaktval_UI :
+   DEFINE INPUT PARAMETER vad AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER franvart2 AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER faonr2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER fdelnr2 AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR faktintemp.
+   ASSIGN
+   franvart = franvart2
+   faonr  = faonr2 
+   fdelnr = fdelnr2.
+   RUN btnfaktstart_UI IN huvprogh (INPUT franvart, INPUT faonr, INPUT fdelnr, INPUT TABLE faktintemp).   
+   IF vad = 3 THEN DO:
+      APPLY "CHOOSE" TO FBTN_FAK.
+   END.
+   IF vad = 4 THEN DO:
+      APPLY "CHOOSE" TO FBTN_FLISTA.
+   END.
+   IF vad = 5 THEN DO:
+      APPLY "CHOOSE" TO FBTN_Kred.
+   END.
+   IF vad = 6 THEN DO:
+      APPLY "CHOOSE" TO FBTN_PRELB.
+   END.
+   IF vad = 7 THEN DO:
+      APPLY "CHOOSE" TO FBTN_UPP.
+   END.
+   IF vad = 8 THEN DO:
+      APPLY "CHOOSE" TO FBTN_VFAK.
+   END.
+   IF vad = 9 THEN DO:
+      APPLY "CHOOSE" TO FBTN_VISAO.
+   END.
+   IF vad = 10 THEN DO:
+      APPLY "CHOOSE" TO FBTN_KOPP.
+   END.
+   
+   APPLY "CHOOSE" TO BTN_AVB.   
+END PROCEDURE.
+PROCEDURE menyfakt_UI :
+   DEFINE INPUT PARAMETER franvart2 AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER faonr2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER fdelnr2 AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR faktintemp.
+   ASSIGN
+   franvart = franvart2
+   faonr  = faonr2 
+   fdelnr = fdelnr2.
+   RUN btnfaktstart_UI IN huvprogh (INPUT franvart, INPUT faonr, INPUT fdelnr, INPUT TABLE faktintemp).
+   {AVBFRAM2.I}
+   RUN SetDefaultCursors IN Guru.Konstanter:hpApi.      
+   WAIT-FOR CHOOSE OF BTN_AVB OR WINDOW-CLOSE OF C-WIN OR END-ERROR OF C-Win OR ENDKEY OF C-Win.
+END PROCEDURE.
+PROCEDURE repo_UI :
+   RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].
+   RUN vcbrwfakt_UI.
+END PROCEDURE.
+PROCEDURE borthand_UI :
+   valdfakth:EMPTY-TEMP-TABLE() NO-ERROR.    
+   IF VALID-HANDLE(valdfakth) THEN   DELETE OBJECT valdfakth NO-ERROR.
+   valdfakth = ?.
+   {BORTBRWPROC.I}
+   IF VALID-HANDLE(fbestapph) THEN DELETE PROCEDURE fbestapph NO-ERROR.      
+   IF VALID-HANDLE(fakthmth) THEN DELETE PROCEDURE fakthmth NO-ERROR.
+END PROCEDURE.
+/* ************************  Function Implementations ***************** */
+FUNCTION brwval RETURNS LOGICAL
+    (  ) :
+   DEFINE VARIABLE leftbrwakt AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE antal_valda AS INTEGER NO-UNDO.
+   RUN urvalaktiv_UI IN brwproc[{&ARROWS}] (OUTPUT leftbrwakt).
+   IF leftbrwakt = TRUE THEN antal_valda = BRW_UFAKT:NUM-SELECTED-ROWS.
+   ELSE antal_valda = BRW_VFAKT:NUM-SELECTED-ROWS. 
+   IF antal_valda = 0 THEN DO:      
+      MESSAGE "Ingen fakturaplan är vald!" VIEW-AS ALERT-BOX.
+      RETURN TRUE.                
+   END.
+   IF leftbrwakt = TRUE THEN DO:
+      EMPTY TEMP-TABLE vfaktplantemp NO-ERROR.      
+      RUN sel_over_UI IN brwproc[{&ARROWS}].
+      RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(vfaktplantemp)).
+      RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").  
+      RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].
+   END.
+   ELSE DO:
+      RUN selectfoc_UI.      
+   END.
+   RETURN FALSE.   /* Function return value. */
+END FUNCTION.

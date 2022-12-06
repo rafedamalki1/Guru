@@ -1,0 +1,129 @@
+/*EXTRKODAPP.P*/
+{STARTFORAPP.I}
+/*{LOP.I}*/
+{LOPTEMP.I}
+{PTEMP.I}                            
+
+{PTEMPLOPTEMP.I}      
+{EBRPRISTEMP.I}
+/*{KALKBEFBTEMP.I}  */
+{KALKTEMP2.I}
+DEFINE VARIABLE emask3 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{EXTRADATA.I}
+
+DEFINE BUFFER befbuff FOR KALKBEF.
+
+   
+PROCEDURE ladda_UI :
+   DEFINE INPUT PARAMETER valaonr LIKE AONRTAB.AONR NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade LIKE AONRTAB.OMRADE NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR ptemp3.
+   DEFINE OUTPUT PARAMETER TABLE FOR loptemp3.
+
+  
+END PROCEDURE.
+
+PROCEDURE ladda2_UI :
+   DEFINE INPUT PARAMETER valaonr LIKE AONRTAB.AONR NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade LIKE AONRTAB.OMRADE NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR ptemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR loptemp.
+   EMPTY TEMP-TABLE ptemp NO-ERROR. 
+   EMPTY TEMP-TABLE loptemp NO-ERROR. 
+     
+END PROCEDURE.
+
+
+PROCEDURE hmtebr_UI :   
+   DEFINE OUTPUT PARAMETER TABLE FOR ebrpristemp.
+   
+     
+END PROCEDURE.
+
+PROCEDURE emask3_UI:
+   DEFINE INPUT PARAMETER eartal AS INTEGER  NO-UNDO.
+   DEFINE OUTPUT PARAMETER emask3 AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER berpris AS DECIMAL NO-UNDO.
+   emask3 = 0.
+   berpris = 0.
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   CREATE inextradatatemp.
+   ASSIGN
+   inextradatatemp.PROGRAM = "EBRNYPRIS"                   
+   inextradatatemp.HUVUDCH = ?              
+   inextradatatemp.HUVUDINT = eartal.      
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp,OUTPUT TABLE extradatatemp).
+   
+   FIND FIRST extradatatemp WHERE extradatatemp.PROGRAM = "EBRNYPRIS" AND 
+   extradatatemp.HUVUDINT = eartal NO-LOCK NO-ERROR.
+   IF AVAILABLE extradatatemp THEN DO:
+      emask3 = extradatatemp.SOKDEC[4].   
+      berpris = extradatatemp.SOKDEC[6].  
+      IF berpris = 0 THEN berpris = extradatatemp.SOKDEC[1].  /*mont*/
+   END.
+   
+   /*ELSE DO:
+      IF FORETAG.FORETAG = "gran" AND eartal = 2013 THEN emask3 = 663.
+      ELSE if eartal = 2012 THEN emask3 = 663.      
+   END.   */
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+   edataapph = ?. 
+END PROCEDURE.
+
+PROCEDURE uppdatberkalk_UI :
+   DEFINE INPUT PARAMETER valaonr LIKE AONRTAB.AONR NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade LIKE AONRTAB.OMRADE NO-UNDO.
+   DEFINE INPUT PARAMETER radk AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR esumkalk_temp.
+   DEFINE INPUT PARAMETER TABLE FOR ebytkalk_temp.
+   DEFINE BUFFER berkalkbuff FOR BERKALK.
+   DEFINE BUFFER knumbuff FOR KALKNUM.
+   FIND FIRST esumkalk_temp NO-LOCK NO-ERROR.
+   FIND FIRST ebytkalk_temp NO-LOCK NO-ERROR.
+   FIND FIRST BERKALKOPPLA WHERE BERKALKOPPLA.AONR = valaonr AND BERKALKOPPLA.OMRADE = valomrade NO-LOCK NO-ERROR.
+   IF AVAILABLE BERKALKOPPLA THEN DO:
+      IF radk = 1 THEN DO:
+         DO TRANSACTION:
+            FOR EACH KALKNUM  WHERE KALKNUM.KALKNR = BERKALKOPPLA.KALKNR AND KALKNUM.ARBKOD = esumkalk_temp.ARBKOD AND
+            KALKNUM.LOPNR = esumkalk_temp.LOPNR  EXCLUSIVE-LOCK:
+               ASSIGN 
+               KALKNUM.ARBKOD = ebytkalk_temp.ARBKOD 
+               KALKNUM.LOPNR = ebytkalk_temp.LOPNR
+               KALKNUM.BENAMNING =  ebytkalk_temp.BENAMNING
+               KALKNUM.ENHET  =  ebytkalk_temp.ENHET.               
+            END.
+         END.
+         RELEASE KALKNUM.      
+      END.   
+      ELSE IF radk = 2 THEN DO:
+         DO TRANSACTION:
+            FOR EACH KALKNUM  WHERE KALKNUM.KALKNR = BERKALKOPPLA.KALKNR AND KALKNUM.ARBKOD = esumkalk_temp.ARBKOD AND
+            KALKNUM.LOPNR = esumkalk_temp.LOPNR NO-LOCK:                 
+               CREATE knumbuff.
+               BUFFER-COPY KALKNUM  TO knumbuff.
+               ASSIGN 
+               knumbuff.ARBKOD = ebytkalk_temp.ARBKOD 
+               knumbuff.LOPNR = ebytkalk_temp.LOPNR
+               knumbuff.BENAMNING =  ebytkalk_temp.BENAMNING
+               knumbuff.ENHET  =  ebytkalk_temp.ENHET.
+            END.
+         END.
+         RELEASE KALKNUM.
+      END.
+      ELSE IF radk = 3 THEN DO:
+         DO TRANSACTION:
+            FOR EACH KALKNUM  WHERE KALKNUM.KALKNR = BERKALKOPPLA.KALKNR AND KALKNUM.ARBKOD = esumkalk_temp.ARBKOD AND
+            KALKNUM.LOPNR = esumkalk_temp.LOPNR  EXCLUSIVE-LOCK:
+               DELETE KALKNUM.
+            END.
+         END.              
+      END. 
+   END.
+      
+   
+   
+END PROCEDURE.   

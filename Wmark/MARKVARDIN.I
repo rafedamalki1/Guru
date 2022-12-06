@@ -1,0 +1,46 @@
+/*MARKVARDIN.I*/
+DEFINE {&NEW} {&SHARED} TEMP-TABLE markintemp NO-UNDO
+   FIELD AONR             AS CHARACTER                           
+   FIELD DELNR            AS INTEGER                            
+   FIELD OMRADE           AS CHARACTER                         
+   FIELD ORT              AS CHARACTER                            
+   FIELD BESTID           AS CHARACTER                         
+   FIELD AONRAVDATUM      AS DATE                         
+   FIELD STARTDATUM       AS DATE                          
+   FIELD AONRREC          AS RECID                            
+   FIELD FAKTTYP          AS CHARACTER                        
+   FIELD FAKTNR           AS INTEGER                           
+   FIELD ARBANSVARIG      AS CHARACTER                    
+   FIELD BEREDARE         AS CHARACTER                       
+   FIELD PROJEKTOR        AS CHARACTER                      
+   FIELD TABORT           AS LOGICAL                           
+   FIELD FASTAAONR        AS LOGICAL                        
+   FIELD TRAKTAMENTE      AS INTEGER                      
+   FIELD PRISTYP          AS CHARACTER
+   FIELD UTRYCKNING       AS LOGICAL
+   FIELD AVDELNINGNR      AS INTEGER
+   FIELD ANLNR            AS CHARACTER
+   FIELD ANM              AS CHARACTER EXTENT 6
+   FIELD ANVANDARE        AS CHARACTER  
+   FIELD ARBARTKOD        AS INTEGER  
+   FIELD ARBBESKED        AS LOGICAL 
+   FIELD ARBUPPG          AS CHARACTER EXTENT 2 
+   FIELD ARTAL            AS INTEGER 
+   FIELD AUTOREG          AS LOGICAL     
+   FIELD BETNR            AS INTEGER   
+   FIELD ELVOMRKOD        AS INTEGER 
+   FIELD FASTKALK         AS LOGICAL  
+   FIELD KALKNR           AS INTEGER 
+   FIELD PKOD             AS INTEGER 
+   FIELD PLANNR           AS CHARACTER   
+   FIELD SLUTDAG          AS CHARACTER 
+   FIELD SLUTVNR          AS INTEGER 
+   FIELD STARTDAG         AS CHARACTER   
+   FIELD STARTVNR         AS INTEGER   
+   FIELD UTFARDAT         AS CHARACTER   
+   FIELD JUDID            AS CHARACTER
+   FIELD VIJUDID          AS CHARACTER
+   INDEX AONR IS PRIMARY AONR DELNR
+   INDEX OMRADE OMRADE AONR DELNR
+   INDEX ORT ORT AONR DELNR
+   INDEX TABORT TABORT. 

@@ -1,0 +1,279 @@
+/*NORDAOEK.P*/
+DEFINE STREAM eko.  
+DEFINE STREAM ekospar.
+DEFINE STREAM ekoaonr.   
+DEFINE STREAM ekoaonrspar.  
+DEFINE VARIABLE typdatum LIKE EKRAPPRESULT.EVERDATUM NO-UNDO. 
+DEFINE VARIABLE ekrid AS RECID EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLE regvnr AS INTEGER FORMAT "999" NO-UNDO.
+DEFINE NEW SHARED VARIABLE regdagnamn AS CHARACTER FORMAT "X(3)" NO-UNDO.
+DEFINE NEW SHARED VARIABLE regdatum AS DATE NO-UNDO. 
+DEFINE VARIABLE avdatum AS DATE NO-UNDO.
+DEFINE VARIABLE paav AS CHARACTER FORMAT "X(1)" NO-UNDO.
+DEFINE VARIABLE bestnr LIKE AONRTAB.BESTID NO-UNDO.  
+DEFINE VARIABLE fk1 LIKE AONRKONTKO.K1 NO-UNDO. 
+DEFINE VARIABLE fk2 LIKE AONRKONTKO.K2 NO-UNDO.
+DEFINE VARIABLE fk3 LIKE AONRKONTKO.K3 NO-UNDO.
+DEFINE VARIABLE fk4 LIKE AONRKONTKO.K4 NO-UNDO. 
+DEFINE VARIABLE fk4i AS INTEGER format "999" NO-UNDO.
+DEFINE VARIABLE fk5 LIKE AONRKONTKO.K5 NO-UNDO.
+DEFINE VARIABLE antalc AS CHARACTER FORMAT "X(2)" NO-UNDO.
+DEFINE VARIABLE antali AS INTEGER NO-UNDO. 
+DEFINE VARIABLE raknare1 AS INTEGER NO-UNDO. 
+DEFINE VARIABLE raknare2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE raknare3 AS INTEGER NO-UNDO.
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(245)" NO-UNDO.
+DEFINE VARIABLE varblank AS CHARACTER FORMAT "X(248)" NO-UNDO. 
+DEFINE VARIABLE delnrc AS CHARACTER FORMAT "X(3)" NO-UNDO.
+DEFINE VARIABLE anlnri AS INTEGER NO-UNDO.                
+DEFINE VARIABLE prognamn AS CHARACTER FORMAT "X(20)" NO-UNDO.
+prognamn = "/eko1/guru/export/GURUX" + STRING(TODAY,"999999"). 
+OUTPUT STREAM ekoaonr TO /eko1/guru/export/KODPLAN.DAT APPEND.
+OUTPUT STREAM ekoaonrspar TO /eko1/guru/export/KODPLAN.SPA APPEND.           
+FIND FIRST AONRTAB WHERE AONRTAB.AUTOREG = TRUE USE-INDEX AONR NO-LOCK NO-ERROR.
+IF NOT AVAILABLE AONRTAB THEN str = str.
+ELSE DO:                   
+   /*DELNR OK*/                              
+   FOR EACH AONRTAB WHERE AONRTAB.AUTOREG = TRUE USE-INDEX AONR:
+      ASSIGN AONRTAB.AUTOREG = FALSE.
+     /* IF AONRTAB.DELNR > 0 THEN NEXT.    */
+      IF AONRTAB.PRISTYP = "FRÅNVARO." THEN NEXT.
+      bestnr = SUBSTRING(AONRTAB.BESTID,1,3).   /*1998/02/23 */
+      IF bestnr = "099" THEN bestnr = "100".
+      ELSE DO:
+         FIND FIRST BESTTAB WHERE BESTTAB.BESTID = bestnr USE-INDEX BEST NO-LOCK NO-ERROR.     
+         IF NOT AVAILABLE BESTTAB THEN bestnr = "100".
+      END.  
+      ASSIGN 
+      fk1 = "" 
+      fk2 = "" 
+      fk3 = "" 
+      fk4 = "" 
+      fk5 = "" 
+      regdagnamn = AONRTAB.STARTDAG
+      regvnr = AONRTAB.STARTVNR.              
+      RUN VECODAT.P. 
+      typdatum = STRING(DATE(MONTH(regdatum),01,YEAR(regdatum)),"999999"). 
+      IF AONRTAB.AONRAVDATUM = 01/01/91 THEN do :
+         avdatum = 12/31/99.
+         paav = "P".
+      END.
+      ELSE DO:
+         avdatum =  AONRTAB.AONRAVDATUM.
+         paav = "A".
+      END.
+      FIND FIRST AONRKONTKOD WHERE AONRKONTKOD.AONR = AONRTAB.AONR  AND 
+      AONRKONTKOD.DELNR = AONRTAB.DELNR USE-INDEX AONRKONT NO-LOCK NO-ERROR. 
+      IF AVAILABLE AONRKONTKOD THEN DO:
+         ASSIGN
+         fk1 = AONRKONTKOD.K1 
+         fk2 = AONRKONTKOD.K2
+         fk3 = AONRKONTKOD.K3
+         fk4 = AONRKONTKOD.K4    
+         fk5 = AONRKONTKOD.K5.
+      END.                 
+      ASSIGN
+      str = ""
+      antali = 0
+      raknare1 = 1 
+      raknare2 = 4.
+      raknare3 = 24.                  
+      IF fk3  NE "" THEN DO:
+         ASSIGN
+         SUBSTRING(str,raknare1,3) = '041'
+         SUBSTRING(str,raknare2,20) = fk3.
+         SUBSTRING(str,raknare3,12) = "000000000000".
+         ASSIGN                       
+         antali = antali + 1
+         raknare1 = raknare1 + 35 
+         raknare2 = raknare2 + 35
+         raknare3 = raknare3 + 35.
+      END. 
+      IF AONRTAB.FASTAAONR = FALSE THEN DO: 
+         IF bestnr NE "" THEN DO:
+            ASSIGN
+            SUBSTRING(str,raknare1,3) = '042'
+            SUBSTRING(str,raknare2,20) = bestnr. 
+            SUBSTRING(str,raknare3,12) = "000000000000".
+            ASSIGN                       
+            antali = antali + 1
+            raknare1 = raknare1 + 35 
+            raknare2 = raknare2 + 35
+            raknare3 = raknare3 + 35.
+         END.
+      END.
+      IF fk2 NE "" THEN DO:         
+         ASSIGN
+         SUBSTRING(str,raknare1,3) = '043'
+         SUBSTRING(str,raknare2,20) = fk2.
+         SUBSTRING(str,raknare3,12) = "000000000000".
+         ASSIGN                       
+         antali = antali + 1
+         raknare1 = raknare1 + 35 
+         raknare2 = raknare2 + 35
+         raknare3 = raknare3 + 35.
+      END.
+      IF AONRTAB.ARBANSVARIG  NE "" THEN DO:
+         ASSIGN
+         SUBSTRING(str,raknare1,3) = '044'
+         SUBSTRING(str,raknare2,20) = AONRTAB.ARBANSVARIG. 
+         SUBSTRING(str,raknare3,12) = "000000000000".
+         ASSIGN                       
+         antali = antali + 1
+         raknare1 = raknare1 + 35 
+         raknare2 = raknare2 + 35
+         raknare3 = raknare3 + 35.
+      END.       
+      IF paav  NE "" THEN DO:    
+         ASSIGN
+         SUBSTRING(str,raknare1,3) = '046'
+         SUBSTRING(str,raknare2,20) = paav.
+         SUBSTRING(str,raknare3,12) = "000000000000".
+         ASSIGN                       
+         antali = antali + 1
+         raknare1 = raknare1 + 35 
+         raknare2 = raknare2 + 35
+         raknare3 = raknare3 + 35.
+      END.                               
+      IF avdatum NE 01/01/91 THEN DO:
+         ASSIGN
+         SUBSTRING(str,raknare1,3) = '047'
+         SUBSTRING(str,raknare2,20) = SUBSTRING(STRING(avdatum,"999999"),1,4).
+         SUBSTRING(str,raknare3,12) = "000000000000".
+         ASSIGN                       
+         antali = antali + 1
+         raknare1 = raknare1 + 35 
+         raknare2 = raknare2 + 35
+         raknare3 = raknare3 + 35.
+      END.
+      IF AONRTAB.OMRADE NE "" THEN DO:
+         ASSIGN
+         SUBSTRING(str,raknare1,3) = '048'
+         SUBSTRING(str,raknare2,20) = AONRTAB.OMRADE. 
+         SUBSTRING(str,raknare3,12) = "000000000000".
+         ASSIGN                       
+         antali = antali + 1
+         raknare1 = raknare1 + 35 
+         raknare2 = raknare2 + 35
+         raknare3 = raknare3 + 35.
+      END. 
+      IF AONRTAB.ANLNR NE "" THEN DO:
+         /*FIXA*/
+         ASSIGN
+         SUBSTRING(str,raknare1,3) = '049'
+         SUBSTRING(str,raknare2,20) = TRIM(AONRTAB.ANLNR). 
+         ASSIGN
+         antali = antali + 1.         
+      END.
+      antalc = STRING(antali,"99").   
+      delnrc = STRING(AONRTAB.DELNR,"999").
+      IF delnrc = "000" THEN delnrc = "" .      
+      fk4i = INTEGER(fk4).      
+      fk4 = STRING(fk4i,"999").
+      PUT STREAM ekoaonr UNFORMATTED
+      '001' AT 1 
+      SUBSTRING(fk4,1,3) AT 4
+      AONRTAB.AONR AT 7 
+      delnrc AT 13
+      SUBSTRING(AONRTAB.ORT,1,30) AT 27
+      SUBSTRING(varblank,1,248) AT 57
+      SUBSTRING(fk5,1,1) AT 305
+      STRING(typdatum,"999999") AT 306   
+      STRING(avdatum,"999999") AT 312 
+      antalc AT 318                      
+      str AT 320
+      SKIP.   
+      PUT STREAM ekoaonrspar UNFORMATTED
+      '001' AT 1 
+      SUBSTRING(fk4,1,3) AT 4
+      AONRTAB.AONR AT 7 
+      delnrc AT 13
+      SUBSTRING(AONRTAB.ORT,1,30) AT 27
+      SUBSTRING(fk5,1,1) AT 57
+      STRING(typdatum,"999999") AT 58   
+      STRING(avdatum,"999999") AT 64 
+      antalc AT 70                      
+      str AT 72
+      SKIP.                   
+   END.   
+END.
+OUTPUT STREAM ekoaonr CLOSE. 
+OUTPUT STREAM ekoaonrspar CLOSE.
+str = "".                                                                   
+FIND FIRST EKRAPPRESULT WHERE EKRAPPRESULT.ENY = TRUE USE-INDEX PERSORG NO-LOCK NO-ERROR.
+IF NOT AVAILABLE EKRAPPRESULT THEN RETURN.
+DO TRANSACTION:        
+   FIND FIRST VKORN WHERE VKORN.VECKOK = FALSE
+   USE-INDEX VKORN EXCLUSIVE-LOCK NO-ERROR.
+   IF NOT AVAILABLE VKORN THEN DO:
+      RETURN.
+   END.
+   ELSE ASSIGN VKORN.VECKOK = TRUE.
+END.  
+OUTPUT STREAM eko TO /eko1/guru/export/GURUX9601.001 APPEND.
+OUTPUT STREAM ekospar TO VALUE(prognamn).
+FOR EACH EKRAPPRESULT WHERE EKRAPPRESULT.ENY = TRUE USE-INDEX EPERS NO-LOCK:
+   str = "".                                                
+   SUBSTRING(str,4,7) = "0000000".  
+   SUBSTRING(str,11,2) = "00".                                   
+   SUBSTRING(str,13,42) = "GURU".  
+   SUBSTRING(str,47,3) = SUBSTRING(EKRAPPRESULT.EORG,1,3).  
+   SUBSTRING(str,50,6) = SUBSTRING(EKRAPPRESULT.EPROJEKT,1,6).
+   SUBSTRING(str,56,3) = STRING(EKRAPPRESULT.EANL,"999").
+   SUBSTRING(str,40,4) = SUBSTRING(EKRAPPRESULT.EKOSTNADSSLAG,1,4).
+   SUBSTRING(str,100,6) = EKRAPPRESULT.EVERDATUM.      
+   IF EKRAPPRESULT.EBELOPP >= 0 THEN DO:                         
+      SUBSTRING(str,106,15) = STRING(EKRAPPRESULT.EBELOPP * 100,"999999999999999").  
+      SUBSTRING(str,121,1) = "+".
+   END.
+   ELSE DO:                                                       
+      SUBSTRING(str,106,15) = STRING(EKRAPPRESULT.EBELOPP * -100,"999999999999999"). 
+      SUBSTRING(str,121,1) = "-".
+   END.    
+   IF EKRAPPRESULT.EDEBKRED = TRUE /*DEBET*/ THEN DO:   
+      SUBSTRING(str,122,1) = "1".
+   END.
+   ELSE DO:
+      SUBSTRING(str,122,1) = "2".
+   END. 
+   IF EKRAPPRESULT.EANTAL >= 0 THEN DO:                       
+      SUBSTRING(str,123,15) = STRING(EKRAPPRESULT.EANTAL * 100,"999999999999999").  
+      SUBSTRING(str,138,1) = "+".
+   END.
+   ELSE DO:
+      SUBSTRING(str,123,15) = STRING(EKRAPPRESULT.EANTAL * -100,"999999999999999"). 
+      SUBSTRING(str,138,1) = "-".
+   END.    
+   IF EKRAPPRESULT.EDEBKRED = TRUE /*DEBET*/ THEN DO:   
+      SUBSTRING(str,139,1) = "1".
+   END.
+   ELSE DO:
+      SUBSTRING(str,139,1) = "2".
+   END.
+   PUT STREAM eko UNFORMATTED str AT 1
+   SKIP.
+   PUT STREAM ekospar UNFORMATTED str AT 1
+   SKIP.
+END.  
+OUTPUT STREAM eko CLOSE.
+OUTPUT STREAM ekospar CLOSE.
+DEFINE QUERY eq FOR EKRAPPRESULT. 
+OPEN QUERY eq FOR EACH EKRAPPRESULT USE-INDEX EPERS NO-LOCK.
+DO TRANSACTION:      
+   GET FIRST eq EXCLUSIVE-LOCK.
+   DO WHILE AVAILABLE(EKRAPPRESULT):
+      DELETE EKRAPPRESULT.
+      GET NEXT eq EXCLUSIVE-LOCK.
+   END.     
+END.  
+
+DO TRANSACTION:        
+   FIND FIRST VKORN WHERE VKORN.VECKOK = TRUE
+   USE-INDEX VKORN EXCLUSIVE-LOCK NO-ERROR.
+   IF NOT AVAILABLE VKORN THEN DO:
+      RETURN.
+   END.
+   ELSE ASSIGN VKORN.VECKOK = FALSE.
+END.          
+
+  

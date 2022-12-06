@@ -1,0 +1,206 @@
+/*
+     Filename: COMPTABLE.P
+      Created: 2003.11.06 12:38ELPAO     
+     Modified: 
+*/
+
+/********************* VARIABLE AND DEFINITION **************************/
+{VALDBTEMP.I}
+DEFINE TEMP-TABLE extravaldbtemp NO-UNDO LIKE valdbtemp.   
+
+DEFINE VARIABLE tablename AS CHARACTER NO-UNDO.
+DEFINE VARIABLE fieldnamefirst AS CHARACTER NO-UNDO.
+DEFINE VARIABLE fieldnamesecond AS CHARACTER NO-UNDO.
+DEFINE VARIABLE firstdbname AS CHARACTER NO-UNDO.
+DEFINE VARIABLE ftcommand AS CHARACTER NO-UNDO.
+DEFINE VARIABLE stcommand AS CHARACTER NO-UNDO.
+DEFINE VARIABLE ffieldcommand AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sfieldcommand AS CHARACTER NO-UNDO.
+DEFINE VARIABLE opencommand AS CHARACTER NO-UNDO.
+DEFINE VARIABLE firstbh AS HANDLE NO-UNDO.
+DEFINE VARIABLE secondbh AS HANDLE NO-UNDO.
+DEFINE VARIABLE compqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE buffieldh AS HANDLE NO-UNDO.
+DEFINE VARIABLE counter AS INTEGER NO-UNDO.
+
+/********************************* PARAMETERS *******************************/
+DEFINE INPUT PARAMETER TABLE FOR valdbtemp.
+DEFINE INPUT PARAMETER tbname AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER fnamef AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER fnames AS CHARACTER NO-UNDO.
+
+/******************************** INITIAL CODE ********************************/
+FOR EACH valdbtemp:
+   IF  {TAEJMEDDB.I} THEN.
+   ELSE DO:
+      CREATE extravaldbtemp.
+      BUFFER-COPY valdbtemp TO extravaldbtemp.
+   END.   
+END.
+ASSIGN
+tablename = tbname
+fieldnamefirst = fnamef
+fieldnamesecond = fnames.
+
+OPEN QUERY dbq FOR EACH extravaldbtemp NO-LOCK.
+GET FIRST dbq NO-LOCK.
+firstdbname = extravaldbtemp.DBNAMN.
+IF NOT CONNECTED(extravaldbtemp.DBNAMN) THEN 
+   CONNECT VALUE(extravaldbtemp.DBCON + " -P " + QUOTER({setpwd.I}) +  " -U " + QUOTER({setuser.I})) NO-ERROR.   
+
+/********************************* PROCEDURES ******************************/
+PROCEDURE countrecords_UI:
+   DEFINE OUTPUT PARAMETER numrec AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER dbnamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER dbcon AS CHARACTER NO-UNDO.
+
+   numrec = 0.
+   IF NOT CONNECTED(dbnamn) THEN
+      CONNECT VALUE(dbcon + " -P " + QUOTER({setpwd.I}) +  " -U " + QUOTER({setuser.I})) NO-ERROR.  
+   ftcommand = dbnamn + "." + tablename.
+   opencommand = "FOR EACH " + ftcommand + " NO-LOCK.".
+   CREATE BUFFER firstbh FOR TABLE ftcommand.
+   CREATE QUERY compqh.
+   compqh:SET-BUFFERS(firstbh).
+   compqh:QUERY-PREPARE(opencommand).
+   compqh:QUERY-OPEN().   
+   compqh:GET-FIRST(NO-LOCK).
+   DO WHILE compqh:QUERY-OFF-END = FALSE:
+      numrec = numrec + 1.
+      compqh:GET-NEXT(NO-LOCK).
+   END.
+   DISCONNECT VALUE(dbnamn) NO-ERROR.
+   DELETE ALIAS VALUE(dbcon).
+END PROCEDURE.
+
+PROCEDURE condb_UI:
+   DEFINE OUTPUT PARAMETER textmedd AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER dbname1 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER dbname2 AS CHARACTER NO-UNDO.
+
+   ASSIGN
+   counter = 0
+   textmedd = ""
+   dbname1 = ""
+   dbname2 = "".
+   IF AVAILABLE extravaldbtemp THEN DO:
+      GET NEXT dbq NO-LOCK.
+      IF AVAILABLE extravaldbtemp THEN DO:
+         RUN connectdb_UI (INPUT extravaldbtemp.DBCON, INPUT extravaldbtemp.DBNAMN, OUTPUT textmedd).
+         IF textmedd = "" THEN DO:
+            RUN preptables_UI.
+            ASSIGN
+            dbname1 = firstdbname
+            dbname2 = extravaldbtemp.DBNAMN.
+         END.
+      END.
+      ELSE DO: 
+         GET FIRST dbq NO-LOCK.
+         IF AVAILABLE extravaldbtemp THEN DO:
+            IF CONNECTED(extravaldbtemp.DBNAMN) THEN DO:
+               DISCONNECT VALUE(extravaldbtemp.DBNAMN) NO-ERROR.
+               DELETE ALIAS VALUE(extravaldbtemp.DBNAMN).
+            END.
+            DELETE extravaldbtemp.
+            GET FIRST dbq NO-LOCK.
+            IF AVAILABLE extravaldbtemp THEN DO: 
+               RUN connectdb_UI (INPUT extravaldbtemp.DBCON, INPUT extravaldbtemp.DBNAMN, OUTPUT textmedd).
+               IF textmedd = "" THEN firstdbname = extravaldbtemp.DBNAMN.               
+            END.
+            ELSE textmedd = "Klar!".
+         END.
+      END.
+   END.
+   ELSE textmedd = "Klar!".
+END PROCEDURE.
+
+PROCEDURE connectdb_UI:
+   DEFINE INPUT PARAMETER connstring AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER dbn AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER textmedd AS CHARACTER NO-UNDO.
+   textmedd = "".
+   connstring = connstring + 
+" -P " + QUOTER({setpwd.I}) +  " -U " + QUOTER({setuser.I}).
+   CONNECT VALUE(connstring) NO-ERROR.
+   IF NOT CONNECTED(dbn) THEN DO:
+      textmedd = "Går ej att ansluta till databasen " + dbn.      
+   END.
+END PROCEDURE.
+
+PROCEDURE preptables_UI:
+   ftcommand = firstdbname + "." + tablename.
+   stcommand = extravaldbtemp.DBNAMN + "." + tablename.
+   ffieldcommand = ftcommand + "." + fieldnamefirst + " = " + stcommand + "." + fieldnamefirst.
+   IF fieldnamesecond = "?" THEN sfieldcommand = "".
+   ELSE sfieldcommand = " AND " + ftcommand + "." + fieldnamesecond + " = " + stcommand + "." + fieldnamesecond.
+   opencommand = "FOR EACH " + ftcommand + ", EACH " + stcommand 
+                  + " WHERE " + ffieldcommand + sfieldcommand + " NO-LOCK.".
+
+   /* Skapar en buffer för till-tabellen och från-tabellen */
+   CREATE WIDGET-POOL "pool" PERSISTENT.
+   CREATE BUFFER firstbh FOR TABLE ftcommand IN WIDGET-POOL "pool".
+   CREATE BUFFER secondbh FOR TABLE stcommand IN WIDGET-POOL "pool".
+   CREATE QUERY compqh IN WIDGET-POOL "pool".      
+   compqh:SET-BUFFERS(firstbh, secondbh).
+   compqh:QUERY-PREPARE(opencommand).
+   compqh:QUERY-OPEN().
+   compqh:GET-FIRST(NO-LOCK).
+END PROCEDURE.
+
+PROCEDURE disconnectdb_UI:
+   IF VALID-HANDLE(compqh) THEN DO:
+      compqh:QUERY-CLOSE().
+      DELETE OBJECT firstbh.
+      DELETE OBJECT secondbh.
+      DELETE OBJECT compqh.
+      DELETE WIDGET-POOL "pool".
+   END.
+   IF CONNECTED(firstdbname) THEN DO:
+      DISCONNECT VALUE(firstdbname) NO-ERROR.
+      DELETE ALIAS VALUE(firstdbname).
+   END.
+   IF AVAILABLE extravaldbtemp THEN DO:
+      IF CONNECTED(extravaldbtemp.DBNAMN) THEN DO:
+         DISCONNECT VALUE(extravaldbtemp.DBNAMN) NO-ERROR.
+         DELETE ALIAS VALUE(extravaldbtemp.DBNAMN).
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE compfield_UI:
+   DEFINE OUTPUT PARAMETER klarlog AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER field1 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER field2 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER antalposter AS INTEGER NO-UNDO.
+    antalposter = 0.
+   klarlog = FALSE.
+   IF compqh:QUERY-OFF-END = FALSE THEN DO:
+      antalposter = antalposter + 1.
+      IF fieldnamesecond = "?" THEN DO:
+         buffieldh = firstbh:BUFFER-FIELD(fieldnamefirst).
+         field1 = STRING(buffieldh:BUFFER-VALUE).
+         compqh:GET-NEXT(NO-LOCK).
+      END.
+      ELSE DO:
+         buffieldh = firstbh:BUFFER-FIELD(fieldnamefirst).
+         field1 = STRING(buffieldh:BUFFER-VALUE).
+         buffieldh = firstbh:BUFFER-FIELD(fieldnamesecond).
+         field2 = STRING(buffieldh:BUFFER-VALUE).
+         compqh:GET-NEXT(NO-LOCK).
+      END.
+   END.
+   ELSE DO:
+      klarlog = TRUE.
+      IF VALID-HANDLE(compqh) THEN DO:
+         compqh:QUERY-CLOSE().        
+         DELETE OBJECT firstbh.       
+         DELETE OBJECT secondbh.      
+         DELETE OBJECT compqh.        
+         DELETE WIDGET-POOL "pool".   
+      END.                            
+      IF CONNECTED(extravaldbtemp.DBNAMN) THEN DO:
+         DISCONNECT VALUE(extravaldbtemp.DBNAMN) NO-ERROR.
+         DELETE ALIAS VALUE(extravaldbtemp.DBNAMN).
+      END.
+   END.
+END PROCEDURE.

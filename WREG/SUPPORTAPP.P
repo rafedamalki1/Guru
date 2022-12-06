@@ -1,0 +1,347 @@
+/*SUPPORTAPP.P*/
+{PERSONALTEMP.I}
+{LOGGNING.I}
+{EXTRADATA.I}
+DEFINE VARIABLE exdatahmth AS HANDLE NO-UNDO.
+DEFINE VARIABLE sistavar AS INTEGER NO-UNDO.
+DEFINE TEMP-TABLE pmpersonaltemp NO-UNDO LIKE personaltemp
+   FIELD FORETAG AS CHARACTER
+   FIELD E-POST AS CHARACTER
+   /*FIELD ANVANDARE AS CHARACTER*/
+   FIELD SISTA AS INTEGER
+   INDEX FORETAG FORETAG ANVANDARE.
+DEFINE TEMP-TABLE supportdagbok NO-UNDO
+   FIELD SUPPORTID AS INTEGER
+   FIELD ANVANDARE AS CHARACTER
+   FIELD STARTDATUM  AS DATE
+   FIELD STARTKLOCKAN AS DECIMAL
+   FIELD SLUTDATUM AS DATE
+   FIELD SLUTKLOCKAN AS DECIMAL
+   FIELD KATEGORI AS INTEGER
+   FIELD FRAGA AS CHARACTER
+   FIELD SVAR AS CHARACTER
+   FIELD FORETAG AS CHARACTER
+   INDEX FORETAG FORETAG SUPPORTID.
+
+PROCEDURE sparasup_UI :
+   DEFINE INPUT PARAMETER TABLE FOR supportdagbok.
+   RUN EXTRADATAHMT.P PERSISTENT SET exdatahmth.  
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   FOR EACH supportdagbok:
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "SUPANM"                   
+      inextradatatemp.HUVUDCH = supportdagbok.FORETAG
+      inextradatatemp.HUVUDINT = supportdagbok.SUPPORTID
+      inextradatatemp.SOKCHAR[1] = supportdagbok.ANVANDARE 
+      inextradatatemp.SOKCHAR[2] = supportdagbok.FRAGA
+      inextradatatemp.SOKCHAR[3] = supportdagbok.SVAR
+      inextradatatemp.SOKDATE[1] =  supportdagbok.STARTDATUM 
+      inextradatatemp.SOKDATE[2] = supportdagbok.SLUTDATUM 
+      inextradatatemp.SOKDEC[1]= supportdagbok.STARTKLOCKAN 
+      inextradatatemp.SOKDEC[2] = supportdagbok.SLUTKLOCKAN.      
+   END.
+   RUN extraspar_UI IN exdatahmth (INPUT TABLE inextradatatemp).
+   
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   IF VALID-HANDLE(exdatahmth) THEN DELETE PROCEDURE exdatahmth NO-ERROR.
+END PROCEDURE.
+PROCEDURE sistasup_UI :
+   DEFINE INPUT PARAMETER gfore AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER varsista AS INTEGER NO-UNDO.
+   RUN EXTRADATAHMT.P PERSISTENT SET exdatahmth.  
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   inextradatatemp.PROGRAM = "SUPANM".                   
+   RUN sista_UI IN exdatahmth (INPUT FALSE,INPUT-OUTPUT TABLE inextradatatemp).
+   FIND FIRST inextradatatemp WHERE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE inextradatatemp THEN varsista = 0.
+   ELSE varsista = inextradatatemp.HUVUDINT.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   varsista = varsista + 1.
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "SUPANM"                   
+   inextradatatemp.HUVUDCH = gfore            
+   inextradatatemp.HUVUDINT = varsista.
+   
+   RUN extraspar_UI IN exdatahmth (INPUT TABLE inextradatatemp).
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   IF VALID-HANDLE(exdatahmth) THEN DELETE PROCEDURE exdatahmth NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE sparapers_UI :
+   DEFINE INPUT PARAMETER TABLE FOR pmpersonaltemp.
+   DEFINE OUTPUT PARAMETER finns AS LOGICAL NO-UNDO.
+   RUN EXTRADATAHMT.P PERSISTENT SET exdatahmth.  
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   FIND FIRST pmpersonaltemp NO-LOCK NO-ERROR.
+   FIND FIRST EXTRADATA WHERE EXTRADATA.PROGRAM = "SUPPERS" AND EXTRADATA.HUVUDCH = pmpersonaltemp.FORETAG AND
+   EXTRADATA.SOKCHAR[1] = pmpersonaltemp.PERSONALKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE EXTRADATA THEN DO:
+      finns = TRUE.
+      RETURN.
+   END.
+   finns = FALSE.
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "SUPPERS".                   
+   RUN sista_UI IN exdatahmth (INPUT FALSE,INPUT-OUTPUT TABLE inextradatatemp).
+   FIND FIRST inextradatatemp WHERE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE inextradatatemp THEN sistavar = 0.
+   ELSE sistavar = inextradatatemp.HUVUDINT.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   FOR EACH pmpersonaltemp:
+      sistavar = sistavar + 1.
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "SUPPERS"                   
+      inextradatatemp.HUVUDCH = pmpersonaltemp.FORETAG            
+      inextradatatemp.HUVUDINT = sistavar
+      inextradatatemp.SOKCHAR[1] = pmpersonaltemp.PERSONALKOD
+      inextradatatemp.SOKCHAR[2] = pmpersonaltemp.ANVANDARE
+      inextradatatemp.SOKCHAR[3] = pmpersonaltemp.FORNAMN
+      inextradatatemp.SOKCHAR[4] = pmpersonaltemp.EFTERNAMN
+      inextradatatemp.SOKCHAR[5] = pmpersonaltemp.TELEFON
+      inextradatatemp.SOKCHAR[6] = pmpersonaltemp.MOBILTEL
+      inextradatatemp.SOKCHAR[7] = pmpersonaltemp.E-POST.
+      RUN extraspar_UI IN exdatahmth (INPUT TABLE inextradatatemp).
+   END.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   IF VALID-HANDLE(exdatahmth) THEN DELETE PROCEDURE exdatahmth NO-ERROR.
+END PROCEDURE.
+PROCEDURE export_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR pmpersonaltemp.
+   EMPTY TEMP-TABLE pmpersonaltemp NO-ERROR. 
+   FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+   FOR EACH PERSONALTAB NO-LOCK:
+      FIND FIRST ANVANDARE WHERE ANVANDARE.PERSONALKOD = PERSONALTAB.PERSONALKOD NO-LOCK NO-ERROR.
+      CREATE pmpersonaltemp.
+      BUFFER-COPY PERSONALTAB TO pmpersonaltemp.
+      ASSIGN
+      pmpersonaltemp.FORETAG = Guru.Konstanter:AppSpringSet[1]
+      pmpersonaltemp.E-POST   =  SUBSTRING(PERSONALTAB.PERSONSOK,20).
+      IF AVAILABLE ANVANDARE THEN DO:
+         pmpersonaltemp.ANVANDARE = ANVANDARE.ANVANDARE.
+      END.
+      ELSE DO:
+         pmpersonaltemp.ANVANDARE = PERSONALTAB.PERSONALKOD.
+      END.
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+   END.
+   
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+PROCEDURE import_UI :
+   DEFINE INPUT PARAMETER TABLE FOR pmpersonaltemp.
+   RUN EXTRADATAHMT.P PERSISTENT SET exdatahmth.  
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "SUPPERS".                   
+   RUN sista_UI IN exdatahmth (INPUT FALSE,INPUT-OUTPUT TABLE inextradatatemp).
+   FIND FIRST inextradatatemp WHERE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE inextradatatemp THEN sistavar = 0.
+   ELSE sistavar = inextradatatemp.HUVUDINT.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   FOR EACH pmpersonaltemp WHERE pmpersonaltemp.FORETAG = "":
+      DELETE pmpersonaltemp.
+   END.
+   FOR EACH pmpersonaltemp:
+      sistavar = sistavar + 1.
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "SUPPERS"                   
+      inextradatatemp.HUVUDCH = pmpersonaltemp.FORETAG            
+      inextradatatemp.HUVUDINT = sistavar
+      inextradatatemp.SOKCHAR[1] = pmpersonaltemp.PERSONALKOD
+      inextradatatemp.SOKCHAR[2] = pmpersonaltemp.ANVANDARE
+      inextradatatemp.SOKCHAR[3] = pmpersonaltemp.FORNAMN
+      inextradatatemp.SOKCHAR[4] = pmpersonaltemp.EFTERNAMN
+      inextradatatemp.SOKCHAR[5] = pmpersonaltemp.TELEFON
+      inextradatatemp.SOKCHAR[6] = pmpersonaltemp.MOBILTEL
+      inextradatatemp.SOKCHAR[7] = pmpersonaltemp.E-POST.      
+   END.
+   RUN extraspar_UI IN exdatahmth (INPUT TABLE inextradatatemp).
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   IF VALID-HANDLE(exdatahmth) THEN DELETE PROCEDURE exdatahmth NO-ERROR.
+END PROCEDURE.
+PROCEDURE hmtpers_UI :
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR pmpersonaltemp.
+   EMPTY TEMP-TABLE pmpersonaltemp NO-ERROR. 
+   RUN EXTRADATAHMT.P PERSISTENT SET exdatahmth.                  
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "SUPPERS"                   
+   inextradatatemp.HUVUDCH = gforetag                    
+   inextradatatemp.HUVUDINT = ?.
+   RUN etabhamt_UI IN exdatahmth (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp APPEND). 
+   FOR EACH extradatatemp:
+      CREATE pmpersonaltemp.
+      ASSIGN
+      pmpersonaltemp.SISTA        = extradatatemp.HUVUDINT
+      pmpersonaltemp.FORETAG      = extradatatemp.HUVUDCH          
+      pmpersonaltemp.PERSONALKOD  = extradatatemp.SOKCHAR[1]  
+      pmpersonaltemp.ANVANDARE    = extradatatemp.SOKCHAR[2]  
+      pmpersonaltemp.FORNAMN      = extradatatemp.SOKCHAR[3]  
+      pmpersonaltemp.EFTERNAMN    = extradatatemp.SOKCHAR[4]  
+      pmpersonaltemp.TELEFON      = extradatatemp.SOKCHAR[5]  
+      pmpersonaltemp.MOBILTEL     = extradatatemp.SOKCHAR[6]  
+      pmpersonaltemp.E-POST       = extradatatemp.SOKCHAR[7]. 
+   END.
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   IF VALID-HANDLE(exdatahmth) THEN DELETE PROCEDURE exdatahmth NO-ERROR.
+END PROCEDURE.
+PROCEDURE hmtsupp_UI :
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR supportdagbok.
+   EMPTY TEMP-TABLE supportdagbok NO-ERROR. 
+   RUN EXTRADATAHMT.P PERSISTENT SET exdatahmth.                  
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "SUPANM"                   
+   inextradatatemp.HUVUDCH = gforetag
+   inextradatatemp.HUVUDINT = ?.
+   RUN etabhamt_UI IN exdatahmth (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp APPEND). 
+   FOR EACH extradatatemp:
+      CREATE supportdagbok.              
+      ASSIGN
+      supportdagbok.FORETAG      =  extradatatemp.HUVUDCH    
+      supportdagbok.SUPPORTID    =  extradatatemp.HUVUDINT   
+      supportdagbok.ANVANDARE    =  extradatatemp.SOKCHAR[1] 
+      supportdagbok.FRAGA        =  extradatatemp.SOKCHAR[2] 
+      supportdagbok.SVAR         =  extradatatemp.SOKCHAR[3] 
+      supportdagbok.STARTDATUM   =  extradatatemp.SOKDATE[1] 
+      supportdagbok.SLUTDATUM    =  extradatatemp.SOKDATE[2] 
+      supportdagbok.STARTKLOCKAN =  extradatatemp.SOKDEC[1]  
+      supportdagbok.SLUTKLOCKAN  =  extradatatemp.SOKDEC[2].            
+   END.
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   IF VALID-HANDLE(exdatahmth) THEN DELETE PROCEDURE exdatahmth NO-ERROR.
+END PROCEDURE.
+
+
+PROCEDURE hmtlogniv_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR templogniv.
+   EMPTY TEMP-TABLE templogniv NO-ERROR. 
+   RUN EXTRADATAHMT.P PERSISTENT SET exdatahmth.                  
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+      inextradatatemp.PROGRAM = "LOGNIV"
+      inextradatatemp.HUVUDCH = ?
+      inextradatatemp.HUVUDINT = ?.
+   RUN etabhamt_UI IN exdatahmth (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp APPEND). 
+   FOR EACH extradatatemp:
+      CREATE templogniv.              
+      ASSIGN
+         templogniv.LOGNIV = extradatatemp.HUVUDINT.
+         /*templogniv.BESKRIV = extradatatemp.SOKCHAR[1]
+         templogniv.AKTIV = extradatatemp.SOKLOG[1].*/
+   END.
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   IF VALID-HANDLE(exdatahmth) THEN DELETE PROCEDURE exdatahmth NO-ERROR.
+      
+
+END PROCEDURE.
+
+PROCEDURE hmtlogpost_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR templogpost.
+   EMPTY TEMP-TABLE templogpost NO-ERROR. 
+   RUN EXTRADATAHMT.P PERSISTENT SET exdatahmth.                  
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+      inextradatatemp.PROGRAM = "LOGPOST"
+      inextradatatemp.HUVUDINT = ?.
+
+   RUN etabhamt_UI IN exdatahmth (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp APPEND). 
+   FOR EACH extradatatemp:
+      CREATE templogpost.              
+      ASSIGN
+         templogpost.LOGNIV = extradatatemp.HUVUDINT
+         templogpost.PRONAMN = extradatatemp.SOKCHAR[1]
+         templogpost.DATORNAMN = extradatatemp.SOKCHAR[2]
+         templogpost.ANVANDARE = extradatatemp.SOKCHAR[3]
+         templogpost.TYP = extradatatemp.SOKCHAR[4]
+         templogpost.SOKBEGREPP = extradatatemp.SOKCHAR[5]
+         templogpost.DATUM = extradatatemp.SOKDAT[1]
+         templogpost.TID = extradatatemp.SOKINT[1].
+
+   END.
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   IF VALID-HANDLE(exdatahmth) THEN DELETE PROCEDURE exdatahmth NO-ERROR.
+END PROCEDURE.
+
+
+
+PROCEDURE bortlogpost_UI :
+   DEFINE INPUT PARAMETER TABLE FOR templogpost2.   
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   RUN EXTRADATAHMT.P PERSISTENT SET exdatahmth.                  
+
+   FOR EACH templogpost2 NO-LOCK:
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "LOGPOST"                   
+      inextradatatemp.HUVUDCH = ?
+      inextradatatemp.HUVUDINT = templogpost2.LOGNIV
+      inextradatatemp.SOKCHAR[1] = templogpost2.PRONAMN
+      inextradatatemp.SOKCHAR[2] = templogpost2.DATORNAMN
+      inextradatatemp.SOKCHAR[3] = templogpost2.ANVANDARE
+      inextradatatemp.SOKCHAR[4] = templogpost2.TYP
+      inextradatatemp.SOKCHAR[5] = templogpost2.SOKBEGREPP
+      inextradatatemp.SOKDAT[1] = templogpost2.DATUM
+      inextradatatemp.SOKINT[1] = templogpost2.TID.      
+   END.
+   RUN exbort_UI IN exdatahmth (INPUT TABLE inextradatatemp).
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+
+   IF VALID-HANDLE(exdatahmth) THEN DELETE PROCEDURE exdatahmth NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE sparlogniv_UI :
+   DEFINE INPUT PARAMETER TABLE FOR templogniv2.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   RUN EXTRADATAHMT.P PERSISTENT SET exdatahmth. 
+
+   FOR EACH templogniv2 NO-LOCK:
+      CREATE inextradatatemp.          
+      ASSIGN
+         inextradatatemp.PROGRAM = "LOGNIV"
+         inextradatatemp.HUVUDINT = templogniv2.LOGNIV
+         inextradatatemp.HUVUDCH = ?.
+   END.
+
+   RUN extraspar_UI IN exdatahmth (INPUT TABLE inextradatatemp).
+
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   IF VALID-HANDLE(exdatahmth) THEN DELETE PROCEDURE exdatahmth NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE bortlogniv_UI :
+   DEFINE INPUT PARAMETER TABLE FOR templogniv2.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   RUN EXTRADATAHMT.P PERSISTENT SET exdatahmth.                  
+
+   FOR EACH templogniv2 NO-LOCK:
+      CREATE inextradatatemp.
+      ASSIGN
+         inextradatatemp.PROGRAM = "LOGNIV"                   
+         inextradatatemp.HUVUDCH = ?
+         inextradatatemp.HUVUDINT = templogniv2.LOGNIV.
+   END.
+   RUN exbort_UI IN exdatahmth (INPUT TABLE inextradatatemp).
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+
+   IF VALID-HANDLE(exdatahmth) THEN DELETE PROCEDURE exdatahmth NO-ERROR.
+
+END PROCEDURE.

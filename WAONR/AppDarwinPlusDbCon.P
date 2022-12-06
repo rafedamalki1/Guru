@@ -1,0 +1,115 @@
+
+/*------------------------------------------------------------------------
+    File        : AppDarwinPlusDbCon.P
+    Purpose     : kopplar databasen och verifierar lösen
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Tue May 02 10:48:58 CEST 2017
+    Notes       :
+  ----------------------------------------------------------------------*/
+DEFINE INPUT PARAMETER app_server_info AS CHARACTER {AppServerInfoExtent.i}.
+DEFINE INPUT  PARAMETER varforetypval51 AS INTEGER NO-UNDO.
+
+DEFINE OUTPUT PARAMETER springfel AS CHARACTER NO-UNDO.
+
+
+
+
+DEFINE VARIABLE koppla AS CHARACTER NO-UNDO.
+DEFINE VARIABLE ivar AS INTEGER NO-UNDO.
+DEFINE VARIABLE lognamvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kopplaut AS CHARACTER NO-UNDO.
+DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE feltxt AS CHARACTER NO-UNDO.
+DEFINE VARIABLE pasoevar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE alltOk AS LOGICAL NO-UNDO.
+filnamn = "DARWINUSER.TXT".
+&Scoped-define NEW NEW 
+
+{VALDBDEF.I}
+{VALDBSEKG.I}
+/*{VALDBDARPLU.I}*/
+{VALDBELPADPLUS.I}
+ 
+FIND FIRST valdbtemp WHERE valdbtemp.GFORETAG = TRIM(app_server_info[1]) NO-ERROR.
+Guru.Konstanter:AppSpringSet = app_server_info.
+IF NOT AVAILABLE valdbtemp THEN DO:
+   OUTPUT TO VALUE(Guru.Konstanter:guruvar + "felapp.txt") APPEND.
+   PUT UNFORMATTED "1 " app_server_info " " TODAY " " STRING(TIME,"hh:mm:ss") SKIP.
+   OUTPUT CLOSE.  
+   springfel = "Databasen är inte ansluten.". 
+   RETURN.
+END.
+
+
+RUN koppladb_UI.
+
+RUN inkoll_UI.
+PROCEDURE inkoll_UI :
+      springfel = {LOSENKOLLFEL9.I}.
+      RETURN.
+   
+   
+END PROCEDURE.      
+ 
+PROCEDURE koppladb_UI :
+   koppla = valdbtemp.DBPLATS + valdbtemp.DBNAMN.
+/*dbflex*/
+
+DEBUGGER:SET-BREAK().
+kopplaut = koppla + " " + lognamvar.
+koppla = koppla + " " + lognamvar + " -P " + QUOTER({setpwd.I}) +  " -U " + QUOTER({setuser.I}).
+
+
+IF NOT CONNECTED("DARPLU") THEN DO: 
+   koppla = valdbtemp.DBCON.
+   koppla = REPLACE(koppla,"www.guruonweb.se","webguru") NO-ERROR.
+   koppla = REPLACE(koppla,"www2.guruonweb.se","webguru") NO-ERROR.
+   block1:
+   DO ON STOP UNDO, LEAVE block1:
+      kopplaut = koppla + " " + lognamvar.
+      koppla = koppla + " " + lognamvar + " -P " + QUOTER({setpwd.I}) +  " -U " + QUOTER({setuser.I}).  
+      CONNECT VALUE(koppla) NO-ERROR. 
+      OUTPUT TO VALUE(Guru.Konstanter:guruvar + filnamn) APPEND.
+      PUT UNFORMATTED kopplaut + " " + STRING(CONNECTED("DARPLU")) + " andra " + app_server_info[1] + " "  STRING(TODAY)  SKIP.
+      DO ivar = 1 TO ERROR-STATUS:NUM-MESSAGES:
+         PUT UNFORMATTED ERROR-STATUS:GET-NUMBER(ivar) " " STRING(TODAY) " " STRING(TIME,"hh:mm:ss") SKIP.
+         feltxt = ERROR-STATUS:GET-MESSAGE(ivar). 
+         PUT feltxt SKIP.      
+      END.     
+      OUTPUT CLOSE.
+   END.   
+END.
+IF CONNECTED("DARPLU") THEN DO: 
+
+   OUTPUT TO VALUE(Guru.Konstanter:guruvar + filnamn) APPEND.
+   PUT UNFORMATTED kopplaut + " " + STRING(CONNECTED("DARPLU")) " " STRING(TODAY) SKIP.
+   OUTPUT CLOSE.
+END.   
+ELSE springfel = "iNTE ANSLUTEN".   
+/*
+IF NOT CONNECTED("DARPLU") THEN DO:
+   ivar = 1.
+   OUTPUT TO VALUE(Guru.Konstanter:guruvar + filnamn) APPEND.
+   PUT UNFORMATTED kopplaut + " " + STRING(CONNECTED("rt9")) + " " + app_server_info[1] SKIP.
+   DO ivar = 1 TO ERROR-STATUS:NUM-MESSAGES:
+      PUT UNFORMATTED ERROR-STATUS:GET-NUMBER(ivar) " " TODAY " " string(time,"hh:mm:ss") SKIP.
+      feltxt = ERROR-STATUS:GET-MESSAGE(ivar). 
+      PUT feltxt SKIP.      
+   END.      
+     
+   OUTPUT CLOSE.
+END.   
+*/
+
+
+
+
+END PROCEDURE.
+   
+
+

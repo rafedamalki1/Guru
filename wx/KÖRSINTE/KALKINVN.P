@@ -1,0 +1,152 @@
+/*KALKINV.P*/
+/* INLÄSNING AV EBR:S KOSTNADSKATALOGER FRÅN FIL                            */
+/* OBS! LÄS IN GRÖNA FÖRE DEN VITA                                          */
+/* OBS! TIMMARNA MÅSTE VARA MED fyra DECIMALER, pengar med 2 decimaler      */
+/*kolla så att ej -"- i kommentars fältet                                   */
+/* OBS! INGA FÄLT MED KR D.V.S KRONOR                                       */
+/* GRÖNA. KOLLA OCKSÅ ATT ALLA KODER HAR EN 00 RAD SOM SKAPAR EN P1,P2 ELLER P3 */ 
+/*  OBS! I P3:AN MÅSTE VI LÄGGA TILL EN KOLUMN FÖR BEREDARE. kolumnn I-L infogas = 0,00   */
+/* BÖRJA MED ATT GÖRA OM EXCEL-FILERNA TILL SEMIKOLONAVGRÄNSADE             */
+
+/* LÄS IN VARJE FIL FÖR SIG OCH SÄTT VARIABLERNA TYP OCH ÅRTAL OCH          */
+/* RÖRLIG KOSTNAD SAMT OM DET ÄR VITA KATALOGEN ELLER EJ                    */
+/* GLÖM EJ ATT MANUELLT ÄNDRA RETURER FÖR MATERIEL SOM SKALL VARA NEGATIVA. 291 i p2*/
+/* OBS!!! KOLLA SÅ ATT DET INTE FINNS KODER I VITA SOM REDAN ÄR UPPLAGDA I   om så lägg et R framför koden i vita se r850*/
+
+{GLOBVAR2DEL1.I}      
+DEFINE NEW SHARED VARIABLE quotervar AS CHARACTER FORMAT "X(256)" NO-UNDO.
+/*
+
+*/
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+
+DEFINE VARIABLE rad AS INTEGER NO-UNDO.
+DEFINE VARIABLE prognamn AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamndat AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamnque AS CHARACTER FORMAT "X(20)" NO-UNDO.                
+DEFINE VARIABLE words AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE kommandoprog AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE satsvar AS CHARACTER FORMAT "X(11)" NO-UNDO.
+DEFINE VARIABLE enrvar AS CHARACTER FORMAT "X(11)" NO-UNDO.
+DEFINE VARIABLE melvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE melvar2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE langd AS INTEGER NO-UNDO.
+DEFINE VARIABLE pos1 AS INTEGER NO-UNDO. 
+DEFINE VARIABLE typvar AS INTEGER NO-UNDO. 
+DEFINE VARIABLE arvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE arbvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lopvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE kabmsk AS LOGICAL NO-UNDO.
+DEFINE VARIABLE rorlig AS DECIMAL NO-UNDO.
+DEFINE VARIABLE ebrmont AS DECIMAL NO-UNDO.
+DEFINE VARIABLE ebrmask1 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE ebrmask2 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE ebrmask3 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE mskpris AS INTEGER NO-UNDO.
+DEFINE VARIABLE vitkatalog AS LOGICAL NO-UNDO.
+
+DEFINE TEMP-TABLE tidin
+   FIELD ARBKOD                 AS CHARACTER 
+   FIELD LOPNR                  AS CHARACTER
+   FIELD BENAMNING              AS CHARACTER 
+   FIELD ENHET                  AS CHARACTER
+   FIELD F1                     AS DECIMAL
+   FIELD F2                     AS DECIMAL
+   FIELD F3                     AS DECIMAL
+   FIELD EA                     AS DECIMAL
+   FIELD ARB                    AS DECIMAL
+   FIELD MTRL                   AS DECIMAL
+   FIELD MASK                   AS DECIMAL
+   FIELD OVRIGT                 AS DECIMAL
+   FIELD TOTALT                 AS DECIMAL
+   FIELD KOMMENTAR              AS CHARACTER.
+
+DEFINE TEMP-TABLE tidin2
+   FIELD ARBKOD                 AS CHARACTER
+   FIELD LOPNR                  AS CHARACTER 
+   FIELD BENAMNING              AS CHARACTER 
+   FIELD ENHET                  AS CHARACTER
+   FIELD F1                     AS DECIMAL
+   FIELD F2                     AS DECIMAL
+   FIELD F3                     AS DECIMAL
+   FIELD UTRUST                 AS DECIMAL
+   FIELD EA                     AS DECIMAL
+   FIELD ARB                    AS DECIMAL
+   FIELD MTRL                   AS DECIMAL
+   FIELD MASK                   AS DECIMAL
+   FIELD UTRUSTKOST             AS DECIMAL
+   FIELD OVRIGT                 AS DECIMAL
+   FIELD SUMMA                  AS DECIMAL
+   FIELD KOMMENTAR              AS CHARACTER.
+
+DEFINE TEMP-TABLE infil
+   FIELD PROGNAMN AS CHARACTER FORMAT "X(78)" 
+   INDEX PRO IS PRIMARY PROGNAMN.
+DEFINE TEMP-TABLE intid
+   FIELD TIN AS CHARACTER FORMAT "X(78)" .
+DEFINE TEMP-TABLE vartemp
+   FIELD VKATALOG  AS LOGICAL
+   FIELD VTYPVAR   AS INTEGER
+   FIELD VARVAR    AS INTEGER
+   FIELD VEBRMONT  AS DECIMAL
+   FIELD VEBRMASK1 AS DECIMAL
+   FIELD VEBRMASK2 AS DECIMAL
+   FIELD VEBRMASK3 AS DECIMAL
+   FIELD VRORLIG   AS DECIMAL.
+DEFINE INPUT PARAMETER filnamn AS CHARACTER NO-UNDO.   
+DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.   
+DEFINE INPUT PARAMETER TABLE FOR vartemp.
+{muswait.i} 
+{AMERICANEUROPEAN.I}
+   FIND FIRST vartemp NO-ERROR.
+   ASSIGN
+   vitkatalog = vartemp.VKATALOG     
+   typvar =     vartemp.VTYPVAR   
+   arvar =      vartemp.VARVAR    
+   ebrmont =    vartemp.VEBRMONT  
+   ebrmask1 =   vartemp.VEBRMASK1 
+   ebrmask2 =   vartemp.VEBRMASK2
+   ebrmask3 =   vartemp.VEBRMASK3 
+   rorlig =     vartemp.VRORLIG.   
+
+   EMPTY TEMP-TABLE intid NO-ERROR. 
+   EMPTY TEMP-TABLE tidin NO-ERROR.    
+   IF vitkatalog = FALSE THEN DO:
+      INPUT FROM VALUE(filnamn) NO-ECHO.
+      REPEAT:
+         DO TRANSACTION: 
+            CREATE tidin.
+            ASSIGN.
+            IMPORT DELIMITER ";" tidin   NO-ERROR.
+         END.               
+      END.
+   END.
+   ELSE DO:
+      INPUT FROM VALUE(filnamn) NO-ECHO.
+      REPEAT:
+         DO TRANSACTION: 
+            CREATE tidin2.
+            ASSIGN.
+            IMPORT DELIMITER ";" tidin2   NO-ERROR.
+         END.               
+      END.
+   END.
+   FOR EACH tidin WHERE tidin.ARBKOD = "":
+      DELETE tidin.
+   END.
+   FOR EACH tidin2 WHERE tidin2.ARBKOD = "":
+      DELETE tidin2.
+   END.
+   
+   IF Guru.Konstanter:appcon THEN DO:                              
+      RUN SKAPEBRVN.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+      (INPUT TABLE tidin,INPUT TABLE tidin2, INPUT arvar, INPUT vitkatalog,INPUT typvar ,INPUT ebrmont, INPUT ebrmask1,INPUT ebrmask2,input ebrmask3,INPUT rorlig).          
+   END. 
+   ELSE DO:
+      RUN SKAPEBRVN.P 
+      (INPUT TABLE tidin,INPUT TABLE tidin2, INPUT arvar, INPUT vitkatalog,INPUT typvar ,INPUT ebrmont, INPUT ebrmask1,INPUT ebrmask2,input ebrmask3,INPUT rorlig).          
+   END.
+   
+{musarrow.i}
+{EUROPEANAMERICAN.I}

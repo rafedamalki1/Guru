@@ -1,0 +1,463 @@
+/*MARKAGAREAPP.P*/
+{STARTFORAPP.I}
+{MARKTEMP.I}
+{FASTIGHET.I}
+DEFINE TEMP-TABLE mfasttmp NO-UNDO
+   FIELD BETECKNING AS CHARACTER FORMAT "x(8)"
+   FIELD MARKNR         AS INTEGER FORMAT ">>>9" INITIAL 0 LABEL "MARKÄGARNUMMER".
+
+   DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{EXTRADATA.I}
+PROCEDURE ladda :
+   DEFINE INPUT PARAMETER fastighbet AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR valfastvard.
+   DEFINE OUTPUT PARAMETER TABLE FOR valmarkfast.
+   EMPTY TEMP-TABLE valfastvard NO-ERROR. 
+   OPEN QUERY vvq FOR EACH FASTVARD WHERE FASTVARD.BETECKNING = fastighbet USE-INDEX FAST NO-LOCK.
+   GET FIRST vvq NO-LOCK.
+   DO WHILE AVAILABLE(FASTVARD):
+      FIND FIRST VARDERING WHERE VARDERING.VARDNR = FASTVARD.VARDNR NO-LOCK NO-ERROR.
+      IF AVAILABLE VARDERING THEN DO:
+         CREATE valfastvard.
+         BUFFER-COPY VARDERING TO valfastvard.
+         ASSIGN
+         valfastvard.BETECKNING = FASTVARD.BETECKNING
+         valfastvard.FORDYRAD = FASTVARD.FORDYRAD.
+      END.
+      GET NEXT vvq NO-LOCK.
+   END.
+   CLOSE QUERY vvq.
+   EMPTY TEMP-TABLE valmarkfast NO-ERROR. 
+   OPEN QUERY vmq FOR EACH MARKFAST WHERE MARKFAST.BETECKNING = fastighbet USE-INDEX FAST NO-LOCK.
+   GET FIRST vmq NO-LOCK.
+   DO WHILE AVAILABLE(MARKFAST):
+      FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = MARKFAST.MARKNR NO-LOCK NO-ERROR.
+      IF AVAILABLE MARKAGARE THEN DO:
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).
+         CREATE valmarkfast.
+         BUFFER-COPY MARKAGARE TO valmarkfast.
+         ASSIGN 
+         valmarkfast.BETECKNING = MARKFAST.BETECKNING
+         valmarkfast.PROCENT = MARKFAST.PROCENT.
+      END.          
+      GET NEXT vmq NO-LOCK.
+   END.
+   CLOSE QUERY vmq.
+   Guru.GlobalaVariabler:GDPRtyp = "M". 
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+PROCEDURE ladda2 :
+   DEFINE INPUT PARAMETER fastighbet AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR valfastvard.
+   DEFINE OUTPUT PARAMETER TABLE FOR valmarkfast2.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   EMPTY TEMP-TABLE valfastvard NO-ERROR. 
+   OPEN QUERY vvq FOR EACH FASTVARD WHERE FASTVARD.BETECKNING = fastighbet USE-INDEX FAST NO-LOCK.
+   GET FIRST vvq NO-LOCK.
+   DO WHILE AVAILABLE(FASTVARD):
+      FIND FIRST VARDERING WHERE VARDERING.VARDNR = FASTVARD.VARDNR NO-LOCK NO-ERROR.
+      IF AVAILABLE VARDERING THEN DO:
+         CREATE valfastvard.
+         BUFFER-COPY VARDERING TO valfastvard.
+         ASSIGN
+         valfastvard.BETECKNING = FASTVARD.BETECKNING
+         valfastvard.FORDYRAD = FASTVARD.FORDYRAD.
+      END.
+      GET NEXT vvq NO-LOCK.
+   END.
+   CLOSE QUERY vvq.
+   EMPTY TEMP-TABLE valmarkfast NO-ERROR. 
+   OPEN QUERY vmq FOR EACH MARKFAST WHERE MARKFAST.BETECKNING = fastighbet USE-INDEX FAST NO-LOCK.
+   GET FIRST vmq NO-LOCK.
+   DO WHILE AVAILABLE(MARKFAST):
+      FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = MARKFAST.MARKNR NO-LOCK NO-ERROR.
+      IF AVAILABLE MARKAGARE THEN DO:
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).
+         CREATE valmarkfast2.
+         BUFFER-COPY MARKAGARE TO valmarkfast2.
+         ASSIGN 
+         valmarkfast2.BETECKNING = MARKFAST.BETECKNING
+         valmarkfast2.PROCENT = MARKFAST.PROCENT.         
+       
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "MARKFASTANDEL"                   
+         inextradatatemp.HUVUDINT = valmarkfast2.MARKNR.                    
+         inextradatatemp.HUVUDCH = valmarkfast2.BETECKNING.                    
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+         FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+         IF AVAILABLE extradatatemp THEN DO:      
+            ASSIGN
+            valmarkfast2.ANDEL = extradatatemp.SOKCHAR[1]
+            valmarkfast2.ANDEL1 = extradatatemp.SOKINT[1]
+            valmarkfast2.ANDEL2 = extradatatemp.SOKINT[2]
+            valmarkfast2.PRODEL = extradatatemp.SOKDEC[1].         
+         END.       
+         ELSE DO:
+            ASSIGN         
+            valmarkfast2.ANDEL1 = valmarkfast2.PROCENT
+            valmarkfast2.ANDEL2 = 100
+            valmarkfast2.PRODEL = valmarkfast2.PROCENT .
+            IF valmarkfast2.PROCENT = 100 THEN valmarkfast2.ANDEL = "1/1".
+            ELSE IF valmarkfast2.PROCENT = 80 THEN valmarkfast2.ANDEL = "4/5".         
+            ELSE IF valmarkfast2.PROCENT = 66 THEN valmarkfast2.ANDEL = "2/3".         
+            ELSE IF valmarkfast2.PROCENT = 60 THEN valmarkfast2.ANDEL = "3/5".         
+            ELSE IF valmarkfast2.PROCENT = 50 THEN valmarkfast2.ANDEL = "1/2".         
+            ELSE IF valmarkfast2.PROCENT = 40 THEN valmarkfast2.ANDEL = "2/5".         
+            ELSE IF valmarkfast2.PROCENT = 33 THEN valmarkfast2.ANDEL = "1/3".         
+            ELSE IF valmarkfast2.PROCENT = 34 THEN valmarkfast2.ANDEL = "1/3".   
+            ELSE IF valmarkfast2.PROCENT = 25 THEN valmarkfast2.ANDEL = "1/4".
+            ELSE IF valmarkfast2.PROCENT = 20 THEN valmarkfast2.ANDEL = "1/5".
+            ELSE IF valmarkfast2.PROCENT = 10 THEN valmarkfast2.ANDEL = "1/10".
+            ELSE valmarkfast2.ANDEL = STRING(valmarkfast2.PROCENT) + "/100".
+         END.      
+
+      END.          
+      GET NEXT vmq NO-LOCK.
+   END.
+   CLOSE QUERY vmq.
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+   edataapph = ?.
+   Guru.GlobalaVariabler:GDPRtyp = "M". 
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+PROCEDURE ladda3 :
+   DEFINE INPUT PARAMETER fastighbet AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER TABLE FOR valmarkfast3.
+   DEFINE BUFFER mfastbuff FOR MARKFAST.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   
+   EMPTY TEMP-TABLE mfasttmp NO-ERROR. 
+   FOR EACH MARKFAST WHERE MARKFAST.BETECKNING = fastighbet USE-INDEX FAST NO-LOCK.
+     CREATE mfasttmp.
+     ASSIGN mfasttmp.BETECKNING = fastighbet
+     mfasttmp.MARKNR = MARKFAST.MARKNR.
+   END.
+
+
+   EMPTY TEMP-TABLE valmarkfast3 NO-ERROR. 
+   OPEN QUERY vmfq FOR EACH mfasttmp,
+   EACH MARKFAST WHERE MARKFAST.MARKNR = mfasttmp.MARKNR USE-INDEX FAST NO-LOCK.
+   GET FIRST vmfq NO-LOCK.
+   DO WHILE AVAILABLE(MARKFAST):
+      FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = MARKFAST.MARKNR NO-LOCK NO-ERROR.
+      IF AVAILABLE MARKAGARE THEN DO:
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).
+         CREATE valmarkfast3.
+         BUFFER-COPY MARKAGARE TO valmarkfast3.
+         ASSIGN 
+         valmarkfast3.BETECKNING = MARKFAST.BETECKNING
+         valmarkfast3.PROCENT = MARKFAST.PROCENT.         
+       
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "MARKFASTANDEL"                   
+         inextradatatemp.HUVUDINT = valmarkfast3.MARKNR.                    
+         inextradatatemp.HUVUDCH = valmarkfast3.BETECKNING.                    
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+         FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+         IF AVAILABLE extradatatemp THEN DO:      
+            ASSIGN
+            valmarkfast3.ANDEL = extradatatemp.SOKCHAR[1]
+            valmarkfast3.ANDEL1 = extradatatemp.SOKINT[1]
+            valmarkfast3.ANDEL2 = extradatatemp.SOKINT[2]
+            valmarkfast3.PRODEL = extradatatemp.SOKDEC[1].         
+         END.       
+         ELSE DO:
+            ASSIGN         
+            valmarkfast3.ANDEL1 = valmarkfast3.PROCENT
+            valmarkfast3.ANDEL2 = 100
+            valmarkfast3.PRODEL = valmarkfast3.PROCENT .
+            IF valmarkfast3.PROCENT = 100 THEN valmarkfast3.ANDEL = "1/1".
+            ELSE IF valmarkfast3.PROCENT = 80 THEN valmarkfast3.ANDEL = "4/5".         
+            ELSE IF valmarkfast3.PROCENT = 66 THEN valmarkfast3.ANDEL = "2/3".         
+            ELSE IF valmarkfast3.PROCENT = 60 THEN valmarkfast3.ANDEL = "3/5".         
+            ELSE IF valmarkfast3.PROCENT = 50 THEN valmarkfast3.ANDEL = "1/2".         
+            ELSE IF valmarkfast3.PROCENT = 40 THEN valmarkfast3.ANDEL = "2/5".         
+            ELSE IF valmarkfast3.PROCENT = 33 THEN valmarkfast3.ANDEL = "1/3".         
+            ELSE IF valmarkfast3.PROCENT = 34 THEN valmarkfast3.ANDEL = "1/3".   
+            ELSE IF valmarkfast3.PROCENT = 25 THEN valmarkfast3.ANDEL = "1/4".
+            ELSE IF valmarkfast3.PROCENT = 20 THEN valmarkfast3.ANDEL = "1/5".
+            ELSE IF valmarkfast3.PROCENT = 10 THEN valmarkfast3.ANDEL = "1/10".
+            ELSE valmarkfast3.ANDEL = STRING(valmarkfast3.PROCENT) + "/100".
+         END.      
+
+      END.          
+      GET NEXT vmfq NO-LOCK.
+   END.
+   CLOSE QUERY vmfq.
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+   edataapph = ?.
+   Guru.GlobalaVariabler:GDPRtyp = "M". 
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+PROCEDURE ladda4 :
+   DEFINE INPUT PARAMETER TABLE FOR emarkagaretemp.   
+   DEFINE OUTPUT PARAMETER TABLE FOR valmarkfast4.
+   /*DEFINE BUFFER mfastbuff FOR MARKFAST.*/
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   FIND FIRST emarkagaretemp WHERE NO-LOCK NO-ERROR.
+   
+   EMPTY TEMP-TABLE valmarkfast4 NO-ERROR. 
+   OPEN QUERY vmfq FOR EACH emarkagaretemp,
+   EACH MARKFAST WHERE MARKFAST.MARKNR = emarkagaretemp.MARKNR USE-INDEX FAST NO-LOCK.
+   GET FIRST vmfq NO-LOCK.
+   DO WHILE AVAILABLE(MARKFAST):
+      FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = MARKFAST.MARKNR NO-LOCK NO-ERROR.
+      IF AVAILABLE MARKAGARE THEN DO:
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + STRING(MARKAGARE.MARKNR).
+         CREATE valmarkfast4.
+         BUFFER-COPY MARKAGARE TO valmarkfast4.
+         ASSIGN 
+         valmarkfast4.BETECKNING = MARKFAST.BETECKNING
+         valmarkfast4.PROCENT = MARKFAST.PROCENT.         
+       
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "MARKFASTANDEL"                   
+         inextradatatemp.HUVUDINT = valmarkfast4.MARKNR.                    
+         inextradatatemp.HUVUDCH = valmarkfast4.BETECKNING.                    
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+         FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+         IF AVAILABLE extradatatemp THEN DO:      
+            ASSIGN
+            valmarkfast4.ANDEL = extradatatemp.SOKCHAR[1]
+            valmarkfast4.ANDEL1 = extradatatemp.SOKINT[1]
+            valmarkfast4.ANDEL2 = extradatatemp.SOKINT[2]
+            valmarkfast4.PRODEL = extradatatemp.SOKDEC[1].         
+         END.       
+         ELSE DO:
+            ASSIGN         
+            valmarkfast4.ANDEL1 = valmarkfast4.PROCENT
+            valmarkfast4.ANDEL2 = 100
+            valmarkfast4.PRODEL = valmarkfast4.PROCENT .
+            IF valmarkfast4.PROCENT = 100 THEN valmarkfast4.ANDEL = "1/1".
+            ELSE IF valmarkfast4.PROCENT = 80 THEN valmarkfast4.ANDEL = "4/5".         
+            ELSE IF valmarkfast4.PROCENT = 66 THEN valmarkfast4.ANDEL = "2/3".         
+            ELSE IF valmarkfast4.PROCENT = 60 THEN valmarkfast4.ANDEL = "3/5".         
+            ELSE IF valmarkfast4.PROCENT = 50 THEN valmarkfast4.ANDEL = "1/2".         
+            ELSE IF valmarkfast4.PROCENT = 40 THEN valmarkfast4.ANDEL = "2/5".         
+            ELSE IF valmarkfast4.PROCENT = 33 THEN valmarkfast4.ANDEL = "1/3".         
+            ELSE IF valmarkfast4.PROCENT = 34 THEN valmarkfast4.ANDEL = "1/3".   
+            ELSE IF valmarkfast4.PROCENT = 25 THEN valmarkfast4.ANDEL = "1/4".
+            ELSE IF valmarkfast4.PROCENT = 20 THEN valmarkfast4.ANDEL = "1/5".
+            ELSE IF valmarkfast4.PROCENT = 10 THEN valmarkfast4.ANDEL = "1/10".
+            ELSE valmarkfast4.ANDEL = STRING(valmarkfast4.PROCENT) + "/100".
+         END.      
+
+      END.          
+      GET NEXT vmfq NO-LOCK.
+   END.
+   CLOSE QUERY vmfq.
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+   edataapph = ?.
+   Guru.GlobalaVariabler:GDPRtyp = "M". 
+   {GDPRLOGGCLIENT.I}
+   
+END PROCEDURE.
+
+
+
+PROCEDURE bortcheck_UI :
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fasthetbet AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   felmedd = "".
+   FIND FIRST SKOGVARD WHERE SKOGVARD.VARDNR = valvardnr AND SKOGVARD.BETECKNING = fasthetbet 
+   USE-INDEX VARDNR NO-LOCK NO-ERROR.
+   FIND FIRST VOLSKOG WHERE VOLSKOG.VARDNR = valvardnr AND VOLSKOG.BETECKNING = fasthetbet
+   USE-INDEX VARDNR NO-LOCK NO-ERROR.      
+   FIND FIRST AKERVARD WHERE AKERVARD.VARDNR = valvardnr AND AKERVARD.BETECKNING = fasthetbet
+   USE-INDEX VARDNR NO-LOCK NO-ERROR.      
+   FIND FIRST AKERKAB WHERE AKERKAB.VARDNR = valvardnr AND AKERKAB.BETECKNING = fasthetbet
+   USE-INDEX VARDNR NO-LOCK NO-ERROR.
+   IF AVAILABLE SKOGVARD THEN DO:         
+      ASSIGN felmedd = "Förenklad skogsnorm är upplagd på värderingsnummer:" + STRING(SKOGVARD.VARDNR) + " för fastighet:'" + SKOGVARD.BETECKNING + "' Ta bort denna först.".
+      RETURN.
+   END.      
+   ELSE IF AVAILABLE VOLSKOG THEN DO:  
+      ASSIGN felmedd =  "Volymberäkning är upplagd för värderingsnummer:" + STRING(VOLSKOG.VARDNR) + " för fastighet:'" + VOLSKOG.BETECKNING +  "'Ta bort denna först.".
+      RETURN.
+   END.   
+   ELSE IF AVAILABLE AKERVARD AND AKERVARD.L5 = 0 THEN DO:    
+      ASSIGN felmedd =  "Åkervärdering är upplagd på värderingsnummer:" + STRING(AKERVARD.VARDNR) + " för fastighet:'" + AKERVARD.BETECKNING + "' Ta bort denna först.".
+      RETURN.
+   END.
+   ELSE IF AVAILABLE AKERVARD AND AKERVARD.L5 = 1 THEN DO:    
+      ASSIGN felmedd = "Station är upplagd på värderingsnummer:" + STRING(AKERVARD.VARDNR) + " för fastighet:'" + AKERVARD.BETECKNING + "' Ta bort denna först.".
+      RETURN.
+   END.
+   ELSE IF AVAILABLE AKERKAB THEN DO:    
+      ASSIGN felmedd = "Kabel i mark är upplagd på värderingsnummer:" + STRING(AKERKAB.VARDNR) + " för fastighet:'" + AKERKAB.BETECKNING + "' Ta bort denna först.".
+      RETURN.
+   END.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE btnok :
+   DEFINE INPUT PARAMETER fasthetbet AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR valfastvard.
+   DEFINE INPUT PARAMETER TABLE FOR valmarkfast.
+   
+   /*Om tillkommen*/
+   OPEN QUERY vfq FOR EACH valfastvard WHERE valfastvard.BETECKNING = fasthetbet NO-LOCK.
+   GET FIRST vfq NO-LOCK.
+   DO WHILE AVAILABLE(valfastvard):
+      FIND FIRST FASTVARD WHERE FASTVARD.BETECKNING = valfastvard.BETECKNING
+      AND FASTVARD.VARDNR = valfastvard.VARDNR USE-INDEX FAST EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE FASTVARD THEN DO:
+         CREATE FASTVARD.
+      END.
+      ASSIGN     
+      FASTVARD.VARDNR = valfastvard.VARDNR
+      FASTVARD.BETECKNING = valfastvard.BETECKNING.              
+      GET NEXT vfq NO-LOCK.
+   END.
+   CLOSE QUERY vfq.
+   /*Om borttagen*/
+   OPEN QUERY dvfq FOR EACH FASTVARD WHERE FASTVARD.BETECKNING = fasthetbet NO-LOCK.
+   GET FIRST dvfq EXCLUSIVE-LOCK.
+   DO WHILE AVAILABLE(FASTVARD):
+      FIND FIRST valfastvard WHERE valfastvard.BETECKNING = FASTVARD.BETECKNING
+      AND valfastvard.VARDNR = FASTVARD.VARDNR USE-INDEX FAST NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE valfastvard THEN DO:
+         DELETE FASTVARD.
+      END.           
+      GET NEXT dvfq EXCLUSIVE-LOCK.
+   END.
+   CLOSE QUERY dvfq.
+   /*Om tillkommen*/
+   OPEN QUERY vmq FOR EACH valmarkfast WHERE valmarkfast.BETECKNING = fasthetbet NO-LOCK.
+   GET FIRST vmq NO-LOCK.
+   DO WHILE AVAILABLE(valmarkfast):
+      FIND FIRST MARKFAST WHERE MARKFAST.BETECKNING = valmarkfast.BETECKNING AND
+      MARKFAST.MARKNR = valmarkfast.MARKNR USE-INDEX FAST EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE MARKFAST THEN DO:
+         CREATE MARKFAST.
+      END.
+      ASSIGN     
+      MARKFAST.MARKNR = valmarkfast.MARKNR
+      MARKFAST.BETECKNING = valmarkfast.BETECKNING
+      MARKFAST.PROCENT = valmarkfast.PROCENT.
+      GET NEXT vmq NO-LOCK.
+   END.
+   CLOSE QUERY vmq.
+   /*Om borttagen*/
+   OPEN QUERY bvmq FOR EACH MARKFAST WHERE MARKFAST.BETECKNING = fasthetbet NO-LOCK.
+   GET FIRST bvmq EXCLUSIVE-LOCK.
+   DO WHILE AVAILABLE(MARKFAST):     
+      FIND FIRST valmarkfast WHERE valmarkfast.BETECKNING = MARKFAST.BETECKNING AND
+      valmarkfast.MARKNR = MARKFAST.MARKNR USE-INDEX FAST NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE valmarkfast THEN DO:
+         DELETE MARKFAST.
+      END.     
+      GET NEXT bvmq EXCLUSIVE-LOCK.
+   END.
+   CLOSE QUERY bvmq.
+
+END PROCEDURE.
+
+PROCEDURE btnok2 :
+   DEFINE INPUT PARAMETER fasthetbet AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR valfastvard.
+   DEFINE INPUT PARAMETER TABLE FOR valmarkfast2.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   /*Om tillkommen*/
+   OPEN QUERY vfq FOR EACH valfastvard WHERE valfastvard.BETECKNING = fasthetbet NO-LOCK.
+   GET FIRST vfq NO-LOCK.
+   DO WHILE AVAILABLE(valfastvard):
+      FIND FIRST FASTVARD WHERE FASTVARD.BETECKNING = valfastvard.BETECKNING
+      AND FASTVARD.VARDNR = valfastvard.VARDNR USE-INDEX FAST EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE FASTVARD THEN DO:
+         CREATE FASTVARD.
+      END.
+      ASSIGN     
+      FASTVARD.VARDNR = valfastvard.VARDNR
+      FASTVARD.BETECKNING = valfastvard.BETECKNING.              
+      GET NEXT vfq NO-LOCK.
+   END.
+   CLOSE QUERY vfq.
+   /*Om borttagen*/
+   OPEN QUERY dvfq FOR EACH FASTVARD WHERE FASTVARD.BETECKNING = fasthetbet NO-LOCK.
+   GET FIRST dvfq EXCLUSIVE-LOCK.
+   DO WHILE AVAILABLE(FASTVARD):
+      FIND FIRST valfastvard WHERE valfastvard.BETECKNING = FASTVARD.BETECKNING
+      AND valfastvard.VARDNR = FASTVARD.VARDNR USE-INDEX FAST NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE valfastvard THEN DO:
+         DELETE FASTVARD.
+      END.           
+      GET NEXT dvfq EXCLUSIVE-LOCK.
+   END.
+   CLOSE QUERY dvfq.
+   /*Om tillkommen*/
+   OPEN QUERY vmq FOR EACH valmarkfast2 WHERE valmarkfast2.BETECKNING = fasthetbet NO-LOCK.
+   GET FIRST vmq NO-LOCK.
+   DO WHILE AVAILABLE(valmarkfast2):
+      FIND FIRST MARKFAST WHERE MARKFAST.BETECKNING = valmarkfast2.BETECKNING AND
+      MARKFAST.MARKNR = valmarkfast2.MARKNR USE-INDEX FAST EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE MARKFAST THEN DO:
+         CREATE MARKFAST.
+      END.
+      ASSIGN     
+      MARKFAST.MARKNR = valmarkfast2.MARKNR
+      MARKFAST.BETECKNING = valmarkfast2.BETECKNING
+      MARKFAST.PROCENT = valmarkfast2.PROCENT.
+
+      GET NEXT vmq NO-LOCK.
+   END.
+   CLOSE QUERY vmq.
+   /*Om borttagen*/
+   OPEN QUERY bvmq FOR EACH MARKFAST WHERE MARKFAST.BETECKNING = fasthetbet NO-LOCK.
+   GET FIRST bvmq EXCLUSIVE-LOCK.
+   DO WHILE AVAILABLE(MARKFAST):     
+      FIND FIRST valmarkfast2 WHERE valmarkfast2.BETECKNING = MARKFAST.BETECKNING AND
+      valmarkfast2.MARKNR = MARKFAST.MARKNR USE-INDEX FAST NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE valmarkfast2 THEN DO:
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "MARKFASTANDEL"                   
+         inextradatatemp.HUVUDINT = MARKFAST.MARKNR
+         inextradatatemp.HUVUDCH = MARKFAST.BETECKNING.
+         RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).           
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+
+         DELETE MARKFAST.
+      END.     
+      GET NEXT bvmq EXCLUSIVE-LOCK.
+   END.
+   CLOSE QUERY bvmq.
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+   edataapph = ?.
+
+END PROCEDURE.
+
+
+
+PROCEDURE bort :
+   DEFINE INPUT PARAMETER marknrvar AS INTEGER NO-UNDO.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   DO TRANSACTION:
+      FIND FIRST MARKAGARE WHERE MARKAGARE.MARKNR = marknrvar EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MARKAGARE THEN DELETE MARKAGARE.  
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "MARKAG"                   
+      inextradatatemp.HUVUDINT = marknrvar.     
+      RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).           
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+
+   END.
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+   edataapph = ?.
+END PROCEDURE.
+

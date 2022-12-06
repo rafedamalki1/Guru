@@ -1,0 +1,538 @@
+/*ORGAPP2.P*/
+{AVDELNINGTEMP.I}
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{OMRALLT.I}
+DEFINE VARIABLE str AS CHARACTER NO-UNDO.
+{TIDUTTTNEW.I}   
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+{SOKDEF.I}
+{DYNHMT.I}
+
+
+PROCEDURE orghmt_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR juromravd.   
+   EMPTY TEMP-TABLE juromravd NO-ERROR.    
+   OPEN QUERY oq FOR EACH OMRADETAB WHERE OMRADETAB.ELVOMRKOD = 0 NO-LOCK.         
+   GET FIRST oq NO-LOCK.
+   DO WHILE AVAILABLE(OMRADETAB):
+      CREATE juromravd.
+      ASSIGN
+      juromravd.TYP = "OMR"
+      juromravd.ID = OMRADETAB.OMRADE
+      juromravd.NAMN = OMRADETAB.NAMN.
+
+      juromravd.AVDELNINGNR = OMRADETAB.AVDELNINGNR.      
+      FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+      IF AVAILABLE  AVDELNING THEN DO:
+         juromravd.SID = AVDELNING.POSTANST.
+      END.
+      GET NEXT oq NO-LOCK.
+   END.
+   OPEN QUERY aq FOR EACH AVDELNING WHERE AVDELNING.KOSTMASK = 0 NO-LOCK . 
+   GET FIRST aq NO-LOCK.
+   DO WHILE AVAILABLE(AVDELNING):
+      CREATE juromravd.
+      ASSIGN
+      juromravd.TYP = "AVD"
+      juromravd.AVDELNINGNR = AVDELNING.AVDELNINGNR      
+      juromravd.NAMN = AVDELNING.AVDELNINGNAMN.
+
+      juromravd.SID = AVDELNING.POSTANST.
+      GET NEXT aq NO-LOCK.
+   END.
+   OPEN QUERY jq FOR EACH JURPERS NO-LOCK . 
+   GET FIRST jq NO-LOCK.
+   DO WHILE AVAILABLE(JURPERS):
+      CREATE juromravd.
+      ASSIGN
+      juromravd.TYP = "JUR"
+      juromravd.ID = JURPERS.VIJUDID
+      juromravd.SID = JURPERS.JUDID
+      juromravd.NAMN = JURPERS.NAMN.
+      GET NEXT jq NO-LOCK.
+   END.   
+END PROCEDURE.
+PROCEDURE hamtaen_UI:
+   DEFINE INPUT PARAMETER vad AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER ejnoll AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR juromravd.   
+   EMPTY TEMP-TABLE juromravd NO-ERROR.    
+   IF vad = 1 THEN DO:
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = vem AND 
+      OMRADETAB.ELVOMRKOD = 0 NO-LOCK NO-ERROR.         
+      IF AVAILABLE OMRADETAB THEN DO:
+         CREATE juromravd.
+         ASSIGN
+         juromravd.TYP = "OMR"
+         juromravd.ID = OMRADETAB.OMRADE
+         juromravd.NAMN = OMRADETAB.NAMN.         
+         juromravd.AVDELNINGNR = OMRADETAB.AVDELNINGNR.      
+         FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+         IF AVAILABLE  AVDELNING THEN DO:
+            juromravd.SID = AVDELNING.POSTANST.
+         END.
+         
+      END.
+   END.
+   IF vad = 2 THEN DO:
+      FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = INTEGER(vem) NO-LOCK NO-ERROR. 
+      IF AVAILABLE AVDELNING THEN DO:
+         CREATE juromravd.
+         ASSIGN
+         juromravd.TYP = "AVD"
+         juromravd.AVDELNINGNR = AVDELNING.AVDELNINGNR      
+         juromravd.NAMN = AVDELNING.AVDELNINGNAMN
+         juromravd.SID = AVDELNING.POSTANST.
+      END.
+   END.
+   IF vad = 3 THEN DO:
+      FIND FIRST JURPERS WHERE JURPERS.JUDID = vem NO-LOCK NO-ERROR.   
+      IF AVAILABLE JURPERS THEN DO:
+         CREATE juromravd.
+         ASSIGN
+         juromravd.TYP = "JUR"
+         juromravd.ID = JURPERS.VIJUDID
+         juromravd.SID = JURPERS.JUDID
+         juromravd.NAMN = JURPERS.NAMN.      
+      END.   
+   END.
+END PROCEDURE.
+PROCEDURE orgbort_UI:
+   DEFINE INPUT PARAMETER vad AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.      
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   IF vad = 1 THEN DO:      
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = vem NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE OMRADETAB THEN RETURN.
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.OMRADE = OMRADETAB.OMRADE 
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN DO:
+         CREATE felmeddtemp.
+         ASSIGN
+         felmeddtemp.FELMEDD = "Det finns personal på detta " + LC(Guru.Konstanter:gomrl) + "." + CHR(10) +
+          "Dessa personer måste kopplas till andra " + LC(Guru.Konstanter:gomrl) + " först.".
+         RETURN.
+      END.
+      FIND FIRST AONRTAB WHERE AONRTAB.OMRADE = OMRADETAB.OMRADE AND
+      AONRTAB.AONRAVDATUM = 01/01/91
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DO:
+         CREATE felmeddtemp.
+         ASSIGN
+         felmeddtemp.FELMEDD = "Det finns " + LC(Guru.Konstanter:gaol) + " på detta " + 
+         LC(Guru.Konstanter:gomrl) + "." + CHR(10) +
+         "Dessa " + LC(Guru.Konstanter:gaol) + " måste kopplas till andra " + LC(Guru.Konstanter:gomrl) + " först.".
+         RETURN.
+      END.
+      DO TRANSACTION:
+         FIND CURRENT OMRADETAB EXCLUSIVE-LOCK NO-ERROR.         
+         IF AVAILABLE OMRADETAB THEN DO:
+           
+            OMRADETAB.ELVOMRKOD = 1.
+         END.              
+      END.
+      RELEASE OMRADETAB.
+   END. 
+   ELSE IF vad = 2 THEN DO:
+      FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = INTEGER(vem) NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE AVDELNING THEN RETURN.
+      DO TRANSACTION:
+         FIND CURRENT AVDELNING EXCLUSIVE-LOCK NO-ERROR.         
+         FIND FIRST AVDELNINGEXTRA WHERE AVDELNINGEXTRA.AVDELNINGNR = AVDELNING.AVDELNINGNR
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE AVDELNINGEXTRA THEN DO:
+            DELETE AVDELNINGEXTRA.         
+         END.
+         DELETE AVDELNING.
+      END.            
+   END.
+   ELSE IF vad = 3 THEN DO TRANSACTION:
+      FIND FIRST JURPERS WHERE JURPERS.JUDID = vem EXCLUSIVE-LOCK NO-ERROR.         
+      IF AVAILABLE JURPERS THEN DO:
+         DELETE JURPERS.
+      END.      
+   END.
+END PROCEDURE.
+PROCEDURE visa_UI:
+   DEFINE INPUT PARAMETER vad AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.   
+   DEFINE VARIABLE tempint AS INTEGER NO-UNDO.
+   DEFINE VARIABLE tempstr AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE tidut NO-ERROR.    
+   DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE breddantal AS INTEGER NO-UNDO.
+DEFINE VARIABLE utnr AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE bredd AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE nrcol AS INTEGER EXTENT 50 NO-UNDO.
+ASSIGN
+   nrcol[1] = 1
+   nrcol[2] = 2
+   nrcol[3] = 3
+   nrcol[4] = 4
+   nrcol[5] = 5
+   nrcol[6] = 6
+   nrcol[7] = 7
+   nrcol[8] = 8
+   nrcol[9] = 9
+   nrcol[10] = 10   
+   nrcol[11] = 11
+   breddantal = 11   /*antal kolumner*/
+   bredd[1] = 6
+   bredd[2] = 16
+   bredd[3] = 9
+   bredd[4] = 9
+   bredd[5] = 9
+   bredd[6] = 9
+   bredd[7] = 8
+   bredd[8] = 9
+   bredd[9] = 9
+   bredd[10] = 9
+   bredd[11] = 9.     
+   ASSIGN
+   i = 2.     
+   utnr[nrcol[1]] = 1.
+   DO WHILE i <= breddantal:             
+      utnr[i] = utnr[i - 1] + bredd[i - 1] + 1.            
+      i = i + 1.
+   END.   
+   ASSIGN
+   str = "".  
+   i = 1.
+   DO WHILE i <= utnr[breddantal] + bredd[breddantal] - 1:
+      str = str + "=".     
+      i = i + 1.
+   END.   
+   i = 2.      
+   DO WHILE i <= breddantal:             
+      SUBSTRING(str,(utnr[i] - 1),1) = ".".      
+      i = i + 1.
+   END.
+   
+   IF vad = 1 THEN DO:       
+      
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = "ORGANISATIONSREGISTER"
+      SUBSTRING(tidut.UT,30) = STRING(TODAY).
+      CREATE tidut.
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,utnr[nrcol[1]]) = CAPS(Guru.Konstanter:gomrl)
+      SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "BENÄMNING"                                
+      SUBSTRING(tidut.UT,utnr[nrcol[3]]) = "KALKYLNR INTERVALL"
+      SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "NÄSTA NR."
+      SUBSTRING(tidut.UT,utnr[nrcol[6]]) = CAPS(Guru.Konstanter:gaok) + " INTERVALL"
+      SUBSTRING(tidut.UT,utnr[nrcol[8]]) = "NÄSTA NR"
+      SUBSTRING(tidut.UT,utnr[nrcol[9]]) = "VÄRDERING INTERVALL"
+      SUBSTRING(tidut.UT,utnr[nrcol[11]]) = "NÄSTA NR.".
+      CREATE tidut.
+      ASSIGN tidut.UT = str.      
+      
+      FOR EACH OMRADETAB WHERE OMRADETAB.ELVOMRKOD = 0 NO-LOCK.   
+         CREATE tidut.
+         ASSIGN
+         SUBSTRING(tidut.UT,utnr[nrcol[1]]) = OMRADETAB.OMRADE
+         SUBSTRING(tidut.UT,utnr[nrcol[2]]) = SUBSTRING(OMRADETAB.NAMN,1,16)
+         SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING(OMRADETAB.KALKYLINT1)
+         SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(OMRADETAB.KALKYLINT2) 
+         SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(OMRADETAB.KALKYLSIST)      
+         SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(OMRADETAB.PROJINT1,"X(9)")
+         SUBSTRING(tidut.UT,utnr[nrcol[7]]) = STRING(OMRADETAB.PROJINT2,"X(9)")
+         SUBSTRING(tidut.UT,utnr[nrcol[8]]) = STRING(OMRADETAB.SISTPROJ,"X(9)").
+         FIND FIRST VARDINT WHERE VARDINT.OMRADE = OMRADETAB.OMRADE NO-LOCK NO-ERROR.
+         IF AVAILABLE VARDINT THEN DO:
+            ASSIGN
+            SUBSTRING(tidut.UT,utnr[nrcol[9]]) = STRING(VARDINT.VARDINT1) 
+            SUBSTRING(tidut.UT,utnr[nrcol[10]]) = STRING(VARDINT.VARDINT2) 
+            SUBSTRING(tidut.UT,utnr[nrcol[11]]) = STRING(VARDINT.VARDSIST). 
+         END.
+         
+      END.                           
+   END.
+   ELSE IF vad = 2 THEN DO:       
+             
+      str = "=========.================".
+      OPEN QUERY BRW_AVD FOR EACH AVDELNING NO-LOCK.
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:gavdl)
+      SUBSTRING(tidut.UT,30) = STRING(TODAY).
+      CREATE tidut.
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = CAPS( Guru.Konstanter:gavdk)
+      SUBSTRING(tidut.UT,11) = "NAMN".                                
+      CREATE tidut.
+      ASSIGN tidut.UT = str.      
+      GET FIRST BRW_AVD NO-LOCK.
+      DO WHILE AVAILABLE(AVDELNING):
+         CREATE tidut.
+         ASSIGN
+         SUBSTRING(tidut.UT,1) = STRING(AVDELNING.AVDELNINGNR,">>>>>9") 
+         SUBSTRING(tidut.UT,11) = AVDELNING.AVDELNINGNAMN. 
+         GET NEXT BRW_AVD NO-LOCK.
+      END.                                 
+   END.
+   ELSE IF vad = 3 THEN DO:       
+      OPEN QUERY BRW_JUR FOR EACH JURPERS NO-LOCK.
+      str = "========.================".
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:gjul)
+      SUBSTRING(tidut.UT,30) = STRING(TODAY).
+      CREATE tidut.
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = CAPS( Guru.Konstanter:gjuk)
+      SUBSTRING(tidut.UT,10) = "NAMN".                                
+      CREATE tidut.
+      ASSIGN tidut.UT = str.      
+      GET FIRST BRW_JUR NO-LOCK.
+      DO WHILE AVAILABLE(JURPERS):
+         CREATE tidut.
+         ASSIGN
+         SUBSTRING(tidut.UT,1) = JURPERS.VIJUDID 
+         SUBSTRING(tidut.UT,10) = JURPERS.NAMN. 
+         GET NEXT BRW_JUR NO-LOCK.
+      END.                                 
+   END.   
+END PROCEDURE.
+PROCEDURE orghmten_UI :
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR omrallt.   
+   EMPTY TEMP-TABLE omrallt NO-ERROR.    
+   IF vem = ? THEN DO:
+      CREATE omrallt.
+      RETURN.
+   END.
+   ASSIGN
+   nytab      = "omrallt"
+   orginaltab = "OMRADETAB".
+   kommandoquery = "OMRADETAB.OMRADE = " + '"' + vem + '"'.
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+      /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE omrallt:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).
+   FOR EACH omrallt:
+      FIND FIRST VARDINT WHERE VARDINT.OMRADE = omrallt.OMRADE NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE VARDINT THEN DO: 
+         CREATE VARDINT.            
+         ASSIGN VARDINT.OMRADE = omrallt.OMRADE.
+      END.
+      ASSIGN 
+      omrallt.VARDINT1 = VARDINT.VARDINT1
+      omrallt.VARDINT2 = VARDINT.VARDINT2
+      omrallt.VARDSIST = VARDINT.VARDSIST.
+   END.
+   RUN objdelete_UI.
+END PROCEDURE.
+PROCEDURE avdhmten_UI:
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR avdelningtemp. 
+   DEFINE OUTPUT PARAMETER TABLE FOR avdelningextratemp.
+   EMPTY TEMP-TABLE avdelningtemp NO-ERROR.    
+   EMPTY TEMP-TABLE avdelningextratemp NO-ERROR.    
+   IF vem = ? THEN DO:
+      CREATE avdelningtemp.
+      CREATE avdelningextratemp.
+      RETURN.
+   END.
+   ASSIGN
+   nytab      = "avdelningtemp"
+   orginaltab = "AVDELNING".
+   kommandoquery = "AVDELNING.AVDELNINGNR = " + vem.
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+      /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE avdelningtemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   ASSIGN
+   nytab      = "avdelningextratemp"
+   orginaltab = "AVDELNINGEXTRA".
+   kommandoquery = "AVDELNINGEXTRA.AVDELNINGNR = " + vem.
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+      /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE avdelningextratemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).
+   FIND FIRST avdelningextratemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE avdelningextratemp THEN DO:
+      CREATE avdelningextratemp.
+   END.
+   RUN objdelete_UI.
+END PROCEDURE.
+PROCEDURE jurhmten_UI:
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR jurperstemp.   
+   EMPTY TEMP-TABLE jurperstemp NO-ERROR.    
+   IF vem = ? THEN DO:
+      CREATE jurperstemp.
+      RETURN.
+   END.
+   ASSIGN
+   nytab      = "jurperstemp"
+   orginaltab = "JURPERS".
+   kommandoquery = "JURPERS.JUDID = " + '"' + vem + '"'.
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+      /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE jurperstemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.
+END PROCEDURE.
+PROCEDURE intervallkoll_UI:
+   DEFINE INPUT PARAMETER TABLE FOR omrallt.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.      
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   FIND FIRST omrallt NO-ERROR.
+   IF NOT AVAILABLE omrallt THEN RETURN.
+   IF omrallt.PROJINT1 = omrallt.PROJINT2 THEN nytab = nytab.
+   ELSE DO:
+      FIND FIRST OMRADETAB WHERE INTEGER(OMRADETAB.PROJINT1) <= INTEGER(omrallt.PROJINT1) AND
+      INTEGER(OMRADETAB.PROJINT2) >= INTEGER(omrallt.PROJINT1) AND OMRADETAB.OMRADE NE omrallt.OMRADE
+      USE-INDEX OMR NO-LOCK NO-ERROR.
+      IF AVAILABLE OMRADETAB THEN DO:
+         CREATE felmeddtemp.
+         ASSIGN
+         felmeddtemp.FELMEDD = "Det finns redan ett " + LC(Guru.Konstanter:gaol) + "intervall registrerat med detta nummer. Se " + LC(Guru.Konstanter:gomrk) + " " + OMRADETAB.OMRADE + " " + OMRADETAB.NAMN.            
+         RETURN.
+      END.
+      FIND FIRST OMRADETAB WHERE INTEGER(OMRADETAB.PROJINT1) LE INTEGER(omrallt.PROJINT2) AND
+      INTEGER(OMRADETAB.PROJINT2) GE INTEGER(omrallt.PROJINT2) AND OMRADETAB.OMRADE NE omrallt.OMRADE
+      USE-INDEX OMR NO-LOCK NO-ERROR.
+      IF AVAILABLE OMRADETAB THEN DO:      
+         CREATE felmeddtemp.
+         ASSIGN
+         felmeddtemp.FELMEDD = "Det finns redan ett " + LC(Guru.Konstanter:gaok) + "intervall registrerat med detta nummer. Se " + LC(Guru.Konstanter:gomrk) + " " + OMRADETAB.OMRADE + " " + OMRADETAB.NAMN.     
+         RETURN.
+      END.
+   END.
+   IF omrallt.KALKYLINT1 = omrallt.KALKYLINT2 THEN nytab = nytab.
+   ELSE DO:
+      FIND FIRST OMRADETAB WHERE OMRADETAB.KALKYLINT1 <= INTEGER(omrallt.KALKYLINT1) AND
+      OMRADETAB.KALKYLINT2 >= INTEGER(omrallt.KALKYLINT1) AND OMRADETAB.OMRADE NE omrallt.OMRADE
+      USE-INDEX OMR NO-LOCK NO-ERROR.
+      IF AVAILABLE OMRADETAB THEN DO:
+         CREATE felmeddtemp.
+         ASSIGN
+         felmeddtemp.FELMEDD = "Det finns redan ett kalkylintervall registrerat med detta nummer. Se " + LC(Guru.Konstanter:gomrk) + " " + OMRADETAB.OMRADE + " " + OMRADETAB.NAMN.            
+         RETURN.
+      END.
+      FIND FIRST OMRADETAB WHERE OMRADETAB.KALKYLINT1 LE INTEGER(omrallt.KALKYLINT2) AND
+      OMRADETAB.KALKYLINT2 GE INTEGER(omrallt.KALKYLINT2) AND OMRADETAB.OMRADE NE omrallt.OMRADE
+      USE-INDEX OMR NO-LOCK NO-ERROR.
+      IF AVAILABLE OMRADETAB THEN DO:      
+         CREATE felmeddtemp.
+         ASSIGN
+         felmeddtemp.FELMEDD = "Det finns redan ett kalkylintervall registrerat med detta nummer. Se " + LC(Guru.Konstanter:gomrk) + " " + OMRADETAB.OMRADE + " " + OMRADETAB.NAMN.
+         RETURN.
+      END.
+   END.
+   IF omrallt.PLANINT1 = omrallt.PLANINT2 THEN nytab = nytab.
+   ELSE DO:
+      /*PLANFOR*/
+      IF Guru.Konstanter:varforetypval[7] = 1 THEN DO: 
+         FIND FIRST OMRADETAB WHERE INTEGER(OMRADETAB.PLANINT1) <= INTEGER(omrallt.PLANINT1) AND
+         INTEGER(OMRADETAB.PLANINT2) >= INTEGER(omrallt.PLANINT1) AND OMRADETAB.OMRADE NE omrallt.OMRADE
+         USE-INDEX OMR NO-LOCK NO-ERROR.
+         IF AVAILABLE OMRADETAB THEN DO:
+            CREATE felmeddtemp.
+            ASSIGN 
+            felmeddtemp.FELMEDD = "Det finns redan ett " + LC(Guru.Konstanter:gplk) + "intervall registrerat med detta nummer. Se " + LC(Guru.Konstanter:gomrk) + " " + OMRADETAB.OMRADE + " " + OMRADETAB.NAMN.     
+            RETURN.
+         END.    
+         FIND FIRST OMRADETAB WHERE INTEGER(OMRADETAB.PLANINT1) LE INTEGER(omrallt.PLANINT2) AND
+         INTEGER(OMRADETAB.PLANINT2) GE INTEGER(omrallt.PLANINT2) AND OMRADETAB.OMRADE NE omrallt.OMRADE
+         USE-INDEX OMR NO-LOCK NO-ERROR.
+         IF AVAILABLE OMRADETAB THEN DO:      
+            CREATE felmeddtemp.
+            ASSIGN
+            felmeddtemp.FELMEDD = "Det finns redan ett " + LC(Guru.Konstanter:gplk) + "intervall registrerat med detta nummer. Se " + LC(Guru.Konstanter:gomrk) + " " + OMRADETAB.OMRADE + " " + OMRADETAB.NAMN.     
+            RETURN.
+         END.
+      END.
+   END.
+   IF omrallt.VARDINT1 = omrallt.VARDINT2 THEN nytab = nytab.
+   ELSE DO:
+      FIND FIRST VARDINT WHERE VARDINT.VARDINT1 <= omrallt.VARDINT1 AND
+      VARDINT.VARDINT2 >= omrallt.VARDINT1 AND VARDINT.OMRADE NE omrallt.OMRADE
+      USE-INDEX OMR NO-LOCK NO-ERROR.
+      IF AVAILABLE VARDINT THEN DO:
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = omrallt.OMRADE
+         USE-INDEX OMR NO-LOCK NO-ERROR.
+         IF AVAILABLE OMRADETAB THEN DO:
+            CREATE felmeddtemp.
+            ASSIGN
+            felmeddtemp.FELMEDD = "Det finns redan ett värderingsintervall registrerat med detta nummer. Se " + LC(Guru.Konstanter:gomrk) + " " + OMRADETAB.OMRADE + " " + OMRADETAB.NAMN.     
+            RETURN.
+         END.   
+      END.
+      FIND FIRST VARDINT WHERE VARDINT.VARDINT1 LE omrallt.VARDINT2 AND
+      VARDINT.VARDINT2 GE omrallt.VARDINT2 AND VARDINT.OMRADE NE omrallt.OMRADE
+      USE-INDEX OMR NO-LOCK NO-ERROR.
+      IF AVAILABLE VARDINT THEN DO: 
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = omrallt.OMRADE
+         USE-INDEX OMR NO-LOCK NO-ERROR.
+         IF AVAILABLE OMRADETAB THEN DO:
+            CREATE felmeddtemp.
+            ASSIGN
+            felmeddtemp.FELMEDD = "Det finns redan ett värderingsintervall registrerat med detta nummer. Se " + LC(Guru.Konstanter:gomrk) + " " + OMRADETAB.OMRADE + " " + OMRADETAB.NAMN.
+            RETURN.
+         END.   
+      END.
+   END.
+   DO TRANSACTION:
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = omrallt.OMRADE EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE OMRADETAB THEN CREATE OMRADETAB.
+      BUFFER-COPY omrallt TO OMRADETAB.
+      FIND FIRST VARDINT WHERE VARDINT.OMRADE = omrallt.OMRADE EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE VARDINT THEN CREATE VARDINT.            
+      ASSIGN 
+      VARDINT.OMRADE = omrallt.OMRADE
+      VARDINT.VARDINT1 = omrallt.VARDINT1
+      VARDINT.VARDINT2 = omrallt.VARDINT2
+      VARDINT.VARDSIST = omrallt.VARDSIST.
+   END.
+   RELEASE OMRADETAB.
+   RELEASE VARDINT.
+END PROCEDURE.
+PROCEDURE sparavd_UI:                         
+   DEFINE INPUT PARAMETER TABLE FOR avdelningtemp.
+   DEFINE INPUT PARAMETER TABLE FOR avdelningextratemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.      
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   FIND FIRST avdelningtemp NO-ERROR.
+   IF NOT AVAILABLE avdelningtemp THEN RETURN.
+   DO TRANSACTION:
+      FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = avdelningtemp.AVDELNINGNR EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE AVDELNING THEN CREATE AVDELNING.
+      BUFFER-COPY avdelningtemp TO AVDELNING.
+      FIND FIRST avdelningextratemp NO-ERROR.
+      IF NOT AVAILABLE avdelningextratemp THEN RETURN.      
+      FIND FIRST AVDELNINGEXTRA WHERE AVDELNINGEXTRA.AVDELNINGNR = avdelningextratemp.AVDELNINGNR 
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE AVDELNINGEXTRA THEN CREATE AVDELNINGEXTRA.            
+      BUFFER-COPY avdelningextratemp TO AVDELNINGEXTRA.
+   END.
+   RELEASE AVDELNINGEXTRA.
+   RELEASE AVDELNING.
+END PROCEDURE.
+PROCEDURE sparjur_UI:                         
+   DEFINE INPUT PARAMETER TABLE FOR jurperstemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.      
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   FIND FIRST jurperstemp NO-ERROR.
+   
+   IF NOT AVAILABLE jurperstemp THEN RETURN.
+   DO TRANSACTION:
+      FIND FIRST JURPERS WHERE JURPERS.JUDID = jurperstemp.JUDID EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE JURPERS THEN CREATE JURPERS.
+      BUFFER-COPY jurperstemp TO JURPERS.        
+   END.
+   RELEASE JURPERS.
+END PROCEDURE.

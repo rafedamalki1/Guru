@@ -1,0 +1,996 @@
+/*STORRAPPU.P*/
+FUNCTION klockan100 RETURNS DECIMAL (INPUT ber60 AS DECIMAL)  FORWARD.
+FUNCTION klockan60 RETURNS DECIMAL   (INPUT ber100 AS DECIMAL)  FORWARD.
+DEFINE NEW SHARED VARIABLE vallista   AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE alla       AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE alla2      AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE allaspann  AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE forvar     AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE bdatum     AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE avdatum    AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE uttyp      AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE period     AS INTEGER NO-UNDO.
+DEFINE NEW SHARED VARIABLE valfore    AS LOGICAL NO-UNDO.
+DEFINE VARIABLE antalomr AS INTEGER NO-UNDO.
+DEFINE VARIABLE timmar100 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE timmar60 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE distvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE driftvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE spannvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(92)" NO-UNDO.
+DEFINE VARIABLE endsum AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kant AS INTEGER NO-UNDO.
+DEFINE VARIABLE tant AS INTEGER NO-UNDO.
+DEFINE VARIABLE utrec AS RECID NO-UNDO.
+DEFINE VARIABLE utrec2 AS RECID NO-UNDO.
+DEFINE VARIABLE sidlangd AS INTEGER NO-UNDO.
+DEFINE VARIABLE omrrec AS RECID NO-UNDO.
+DEFINE VARIABLE antaletkunder AS INTEGER NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE utnr               AS INTEGER    EXTENT 50 NO-UNDO.
+DEFINE VARIABLE estartnr           AS INTEGER    EXTENT 50 NO-UNDO.
+DEFINE VARIABLE bredd              AS INTEGER    EXTENT 50 NO-UNDO.
+DEFINE VARIABLE nrcol              AS INTEGER    EXTENT 50 NO-UNDO.
+DEFINE VARIABLE breddantal         AS INTEGER    NO-UNDO.
+DEFINE VARIABLE totkunder AS INTEGER NO-UNDO.
+
+
+&SCOPED-DEFINE NEW NEW 
+&SCOPED-DEFINE SHARED SHARED 
+{STORTEMP.I}
+{AVDELNINGTEMP.I}
+
+{TIDUTTTNEW.I}
+   
+DEFINE NEW SHARED TEMP-TABLE omr_temp
+   FIELD AVDELNINGNR AS INTEGER
+   FIELD DISTRIKTID AS INTEGER
+   FIELD NAMN AS CHARACTER
+   INDEX OMR IS PRIMARY AVDELNINGNR DISTRIKTID.
+
+DEFINE NEW SHARED TEMP-TABLE avd_temp
+   FIELD AVDELNINGNR AS INTEGER   
+   FIELD NAMN AS CHARACTER
+   INDEX AVD IS PRIMARY AVDELNINGNR.
+   
+DEFINE NEW SHARED TEMP-TABLE spann_temp2    
+   FIELD SPANID AS INTEGER
+   FIELD NAMN AS CHARACTER
+   INDEX SPAN SPANID. 
+
+DEFINE TEMP-TABLE slut_allt
+   FIELD SPANID AS INTEGER
+   FIELD FELOID AS INTEGER
+   FIELD ADELID AS INTEGER.
+
+DEFINE TEMP-TABLE slut_allt2
+   FIELD SPANID AS INTEGER
+   FIELD FELOID AS INTEGER
+   FIELD ADELID AS INTEGER
+   FIELD ANTAL AS INTEGER.
+
+DEFINE TEMP-TABLE slut_allt3
+   FIELD SPANID AS INTEGER
+   FIELD FELOID AS INTEGER
+   FIELD ADELID AS INTEGER
+   FIELD ANTAL AS INTEGER.
+
+DEFINE TEMP-TABLE slut_omr
+   FIELD SPANID AS INTEGER
+   FIELD FELOID AS INTEGER
+   FIELD ADELID AS INTEGER.
+
+DEFINE TEMP-TABLE slut_omr2
+   FIELD SPANID AS INTEGER
+   FIELD FELOID AS INTEGER
+   FIELD ADELID AS INTEGER
+   FIELD ANTAL AS INTEGER.
+
+DEFINE TEMP-TABLE slut_omr3
+   FIELD SPANID AS INTEGER
+   FIELD FELOID AS INTEGER
+   FIELD ADELID AS INTEGER
+   FIELD ANTAL AS INTEGER.
+
+DEFINE TEMP-TABLE summ_temp
+   FIELD SPANID AS INTEGER
+   FIELD FELOID AS INTEGER
+   FIELD ADELID AS INTEGER.
+{DRIFTTEMP.I}
+/*
+DEFINE TEMP-TABLE drift_temp
+   FIELD SPANID AS INTEGER
+   FIELD FELOID AS INTEGER
+   FIELD ADELID AS INTEGER.
+
+DEFINE TEMP-TABLE drift_temp2
+   FIELD SPANID AS INTEGER
+   FIELD FELOID AS INTEGER
+   FIELD ADELID AS INTEGER
+   FIELD ANTAL AS INTEGER
+   INDEX ADELID ADELID ASCENDING.
+
+DEFINE TEMP-TABLE drift_temp3   
+   FIELD SPANID AS INTEGER
+   FIELD FELOID AS INTEGER
+   FIELD ADELID AS INTEGER
+   FIELD ANTAL AS INTEGER
+   INDEX ADELID ADELID ASCENDING.
+*/
+PROCEDURE varhuvud_UI :
+   DEFINE INPUT PARAMETER isidlangd   LIKE  sidlangd  NO-UNDO.
+   DEFINE INPUT PARAMETER ivallista   LIKE  vallista  NO-UNDO.
+   DEFINE INPUT PARAMETER ialla       LIKE  alla      NO-UNDO.
+   DEFINE INPUT PARAMETER ialla2      LIKE  alla2     NO-UNDO.
+   DEFINE INPUT PARAMETER iallaspann  LIKE  allaspann NO-UNDO.
+   DEFINE INPUT PARAMETER iforvar     LIKE  forvar    NO-UNDO.
+   DEFINE INPUT PARAMETER ibdatum     LIKE  bdatum    NO-UNDO.
+   DEFINE INPUT PARAMETER iavdatum    LIKE  avdatum   NO-UNDO.
+   DEFINE INPUT PARAMETER iuttyp      LIKE  uttyp     NO-UNDO.
+   DEFINE INPUT PARAMETER iperiod     LIKE  period    NO-UNDO.
+   DEFINE INPUT PARAMETER ivalfore    LIKE  valfore   NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR avd_temp     .
+   DEFINE INPUT PARAMETER TABLE FOR omr_temp     .
+   DEFINE INPUT PARAMETER TABLE FOR spann_temp2  .
+   DEFINE INPUT PARAMETER TABLE FOR avdelningtemp.
+   DEFINE INPUT PARAMETER TABLE FOR stordistemp  .
+   DEFINE INPUT PARAMETER TABLE FOR stordriftomrtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   ASSIGN
+   sidlangd     = isidlangd 
+   vallista     = ivallista 
+   alla         = ialla     
+   alla2        = ialla2    
+   allaspann    = iallaspann
+   forvar       = iforvar   
+   bdatum       = ibdatum   
+   avdatum      = iavdatum  
+   uttyp        = iuttyp    
+   period       = iperiod   
+   valfore      = ivalfore.  
+   EMPTY TEMP-TABLE tidut NO-ERROR. 
+   str="==============================================================================================================".
+   tant = 0.
+   RUN huvud_UI.   
+   RUN huvud2_UI.     
+   RUN fore_UI.   
+END PROCEDURE.
+
+
+PROCEDURE bryt_UI :
+   IF kant > sidlangd THEN tant = (kant - (sidlangd - tant)).
+   ELSE DO:
+      IF kant > sidlangd - tant THEN DO:                  
+         FIND tidut WHERE RECID(tidut) = utrec NO-LOCK NO-ERROR.
+         ASSIGN
+         SUBSTRING(tidut.UT,132) = "$"
+         tant = kant.
+      END.
+      ELSE DO:
+         tant = tant + kant.
+         IF tant = sidlangd THEN tant = 0.
+      END.
+   END.      
+END PROCEDURE.
+
+PROCEDURE fore_UI :
+   EMPTY TEMP-TABLE slut_allt NO-ERROR.    
+   IF valfore = TRUE THEN DO:
+      RUN valelalla_UI.
+   END.
+   ELSE DO:
+      IF alla = TRUE THEN DO: 
+         RUN valelalla_UI.         
+      END.
+      ELSE DO:
+         IF alla2 = TRUE THEN DO:
+            FIND FIRST stordriftomrtemp WHERE stordriftomrtemp.STDRIFTID = 2 NO-LOCK NO-ERROR.
+            CREATE tidut.
+            SUBSTRING(tidut.UT,1) = stordriftomrtemp.NAMN.
+            CREATE tidut.
+            tant = tant + 2. 
+            EMPTY TEMP-TABLE slut_omr NO-ERROR.             
+            FOR EACH spann_temp2:
+               EMPTY TEMP-TABLE summ_temp NO-ERROR.                
+               ASSIGN
+               spannvar = spann_temp2.SPANID
+               driftvar = stordriftomrtemp.STDRIFTID
+               endsum = FALSE.
+               OPEN QUERY kq FOR EACH stordistemp WHERE stordistemp.AVDELNINGNR = forvar
+               AND stordistemp.ARTAL = YEAR(bdatum) USE-INDEX AVDARTAL NO-LOCK.
+               GET FIRST kq NO-LOCK.
+               DO WHILE AVAILABLE(stordistemp):
+                  ASSIGN
+                  distvar = stordistemp.DISTRIKTID.       
+                  RUN storning_UI.                           
+                  GET NEXT kq NO-LOCK.
+               END.
+               CLOSE QUERY kq.
+               RUN storning3_UI.
+               RUN bryt_UI.
+            END.
+            RUN str_UI.
+            RUN slutomr_UI.
+            CREATE tidut.
+            FOR EACH stordriftomrtemp WHERE stordriftomrtemp.STDRIFTID NE 2 USE-INDEX STDRIFTID NO-LOCK:                  
+               CREATE tidut.         
+               ASSIGN
+               omrrec = RECID(tidut)
+               SUBSTRING(tidut.UT,1) = stordriftomrtemp.NAMN
+               driftvar = stordriftomrtemp.STDRIFTID.
+               EMPTY TEMP-TABLE slut_omr NO-ERROR.                
+               FOR EACH spann_temp2 USE-INDEX SPAN:
+                  EMPTY TEMP-TABLE summ_temp NO-ERROR.                   
+                  ASSIGN
+                  spannvar = spann_temp2.SPANID            
+                  endsum = TRUE.
+                  OPEN QUERY kq FOR EACH stordistemp WHERE stordistemp.AVDELNINGNR = forvar
+                  AND stordistemp.ARTAL = YEAR(bdatum) USE-INDEX AVDARTAL NO-LOCK.
+                  GET FIRST kq NO-LOCK.
+                  DO WHILE AVAILABLE(stordistemp):
+                     ASSIGN
+                     distvar = stordistemp.DISTRIKTID.       
+                     RUN storning_UI.                           
+                     GET NEXT kq NO-LOCK.
+                  END.
+                  CLOSE QUERY kq.
+                  RUN storning3_UI.               
+               END.            
+               RUN slutomr_UI.
+            END.
+            RUN str_UI.
+            RUN slutallt_UI.
+            RUN str2_UI.
+         END.
+         ELSE DO:
+            FIND FIRST stordriftomrtemp WHERE stordriftomrtemp.STDRIFTID = 2 NO-LOCK NO-ERROR.
+            CREATE tidut.
+            ASSIGN
+            SUBSTRING(tidut.UT,1) = stordriftomrtemp.NAMN
+            driftvar = stordriftomrtemp.STDRIFTID.
+            CREATE tidut.
+            tant = tant + 2.
+            EMPTY TEMP-TABLE slut_omr NO-ERROR.             
+            FOR EACH spann_temp2:
+               EMPTY TEMP-TABLE summ_temp NO-ERROR.                
+               ASSIGN
+               spannvar = spann_temp2.SPANID            
+               endsum = FALSE.
+               FOR EACH omr_temp USE-INDEX OMR NO-LOCK:
+                  ASSIGN
+                  distvar = omr_temp.DISTRIKTID.       
+                  RUN storning_UI.                           
+               END.
+               RUN storning3_UI.
+               RUN bryt_UI.
+            END.
+            RUN str_UI.
+            RUN slutomr_UI.
+            CREATE tidut.      
+            FOR EACH stordriftomrtemp WHERE stordriftomrtemp.STDRIFTID NE 2 USE-INDEX STDRIFTID NO-LOCK:                  
+               CREATE tidut. 
+               ASSIGN
+               omrrec = RECID(tidut)
+               SUBSTRING(tidut.UT,1) = stordriftomrtemp.NAMN
+               driftvar = stordriftomrtemp.STDRIFTID.
+               EMPTY TEMP-TABLE slut_omr NO-ERROR.                
+               FOR EACH spann_temp2 USE-INDEX SPAN:
+                  EMPTY TEMP-TABLE summ_temp NO-ERROR.                   
+                  ASSIGN
+                  spannvar = spann_temp2.SPANID            
+                  endsum = TRUE.
+                  FOR EACH omr_temp USE-INDEX OMR NO-LOCK:
+                     ASSIGN
+                     distvar = omr_temp.DISTRIKTID.       
+                     RUN storning_UI.                           
+                  END.               
+                  RUN storning3_UI.               
+               END.           
+               RUN slutomr_UI.
+            END.
+            RUN str_UI.
+            RUN slutallt_UI.
+            RUN str2_UI.
+         END.
+      END.
+   END.
+END PROCEDURE.
+
+
+PROCEDURE huvud2_UI :        
+   ASSIGN
+   nrcol[1] = 1
+   nrcol[2] = 2
+   nrcol[3] = 3
+   nrcol[4] = 4
+   nrcol[5] = 5
+   nrcol[6] = 6
+   nrcol[7] = 7
+   nrcol[8] = 8
+   nrcol[9] = 9
+   nrcol[10] = 10
+   nrcol[11] = 11
+   breddantal = 11   /*antal kolumner*/
+   bredd[1] = 26
+   bredd[2] = 8
+   bredd[3] = 8
+   bredd[4] = 8
+   bredd[5] = 8
+   bredd[6] = 8
+   bredd[7] = 8
+   bredd[8] = 8
+   bredd[9] = 8
+   bredd[10] = 8
+   bredd[11] = 8.   
+   
+   ASSIGN
+   i = 2.     
+   utnr[nrcol[1]] = 1.
+   DO WHILE i <= breddantal:             
+      utnr[i] = utnr[i - 1] + bredd[i - 1] + 2.            
+      i = i + 1.
+   END.   
+   utnr[nrcol[11]] = utnr[nrcol[11]] - 1.
+   CREATE tidut.                     
+   SUBSTRING(tidut.UT,1) = str.
+   CREATE tidut.   
+   CREATE tidut.
+   ASSIGN                            
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "<-------------- Minuter ------------->  <------------------- Timmar ------------------->".
+   CREATE tidut.
+   ASSIGN                                
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "   0- <3"
+   SUBSTRING(tidut.UT,utnr[nrcol[3]]) = "  3- <10"
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = " 10- <30"
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = " 30- <60"
+   SUBSTRING(tidut.UT,utnr[nrcol[6]]) = "   1- <2"
+   SUBSTRING(tidut.UT,utnr[nrcol[7]]) = "   2- <6"
+   SUBSTRING(tidut.UT,utnr[nrcol[8]]) = "  6- <12"
+   SUBSTRING(tidut.UT,utnr[nrcol[9]]) = " 12- <24"
+   SUBSTRING(tidut.UT,utnr[nrcol[10]]) = "    >=24"
+   SUBSTRING(tidut.UT,utnr[nrcol[11]]) = "   Total".    
+   CREATE tidut.
+   ASSIGN                                
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[3]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[6]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[7]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[8]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[9]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[10]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[11]]) = "--------".   
+   tant = tant + 5.
+END PROCEDURE.
+
+
+
+PROCEDURE huvud_UI :
+   CREATE tidut.                     
+   SUBSTRING(tidut.UT,1) = "Driftstörningars varaktighetsfördelning".      
+   SUBSTRING(tidut.UT,60) = STRING(TODAY).      
+   CREATE tidut.
+   CREATE tidut.
+   SUBSTRING(tidut.UT,1) = "Urval:".
+   CREATE tidut.      
+   IF uttyp = 1 THEN SUBSTRING(tidut.UT,1) = "Driftstörningar".
+   ELSE IF uttyp = 2 THEN SUBSTRING(tidut.UT,1) = "Planerade avbrott".
+   ELSE SUBSTRING(tidut.UT,1) = "Driftstörningar och planerade avbrott".      
+   CREATE tidut.
+   IF period = 1 THEN
+   SUBSTRING(tidut.UT,1) = "Period:" + STRING(YEAR(bdatum)).
+   ELSE
+   SUBSTRING(tidut.UT,1) = "Period:" + STRING(bdatum,"9999/99/99") + " - " + STRING(avdatum,"9999/99/99").
+   CREATE tidut.
+   tant = tant + 6.
+   IF valfore = TRUE THEN DO:
+      SUBSTRING(tidut.UT,1) = "Valda företag:".
+      CREATE tidut.  
+      tant = tant + 1.
+      FOR EACH avd_temp USE-INDEX AVD:
+         SUBSTRING(tidut.UT,10) = avd_temp.NAMN.
+         CREATE tidut.
+         tant = tant + 1.
+      END.
+   END.
+   ELSE DO:
+      IF alla = TRUE THEN DO:
+         SUBSTRING(tidut.UT,1) = "Alla företag".
+      END.
+      ELSE DO:
+         FIND FIRST avdelningtemp WHERE avdelningtemp.AVDELNINGNR = forvar NO-LOCK NO-ERROR.
+         IF alla2 = TRUE THEN DO:
+            SUBSTRING(tidut.UT,1) = "Valt företag:" + avdelningtemp.AVDELNINGNAMN.
+         END.
+         ELSE DO:
+            SUBSTRING(tidut.UT,1) = "Valt företag:" + avdelningtemp.AVDELNINGNAMN.
+            CREATE tidut.
+            tant = tant + 1.
+            SUBSTRING(tidut.UT,1) = "Distrikt:".
+            FOR EACH omr_temp USE-INDEX OMR:
+               SUBSTRING(tidut.UT,10) = omr_temp.NAMN.
+               CREATE tidut.
+               tant = tant + 1.
+            END.
+         END.
+      END.
+   END.
+   IF allaspann = TRUE THEN DO:
+      CREATE tidut.
+      CREATE tidut.
+      tant = tant + 2.
+      SUBSTRING(tidut.UT,1) = "Alla spänningsnivåer".
+   END.
+   ELSE DO:
+      CREATE tidut.
+      CREATE tidut.
+      tant = tant + 2.
+      SUBSTRING(tidut.UT,1) = "Spänningsnivåer:".
+      FOR EACH spann_temp2 USE-INDEX SPAN:
+         SUBSTRING(tidut.UT,17) = spann_temp2.NAMN.
+         CREATE tidut.
+         tant = tant + 1.
+      END.
+   END.
+   RUN kundst_UI (INPUT 1).      
+   CREATE tidut.
+   CREATE tidut.
+   tant = tant + 3.
+   SUBSTRING(tidut.UT,1) = "Antalet kunder som ingår i beräkningen:" + STRING(antaletkunder).
+   CREATE tidut.   
+END PROCEDURE.
+
+
+PROCEDURE kundst_UI :
+   /*KUNDSTOR.P SUMMERING AV ANTALET KUNDER SOM INGÅR I RAPPORTEN*/
+   DEFINE VARIABLE distvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER val AS INTEGER NO-UNDO. 
+
+   IF val = 2 THEN DO:
+      FOR EACH spann_temp2:
+         DELETE spann_temp2.
+      END.
+      OPEN QUERY sysq FOR EACH INLASTAB WHERE INLASTAB.INKOD = "D" NO-LOCK.
+      GET FIRST sysq NO-LOCK.
+      DO WHILE AVAILABLE(INLASTAB):
+         IF INLASTAB.INKODPOSCH NE "" THEN DO:
+            IF INLASTAB.INKODTYP = "1" THEN DO:
+               FIND FIRST SPANNINGSNIV WHERE SPANNINGSNIV.INKODID = 
+               INLASTAB.INKODID NO-LOCK NO-ERROR.
+               IF AVAILABLE SPANNINGSNIV THEN DO:
+                  CREATE spann_temp2.
+                  ASSIGN
+                  spann_temp2.NAMN = SPANNINGSNIV.NAMN
+                  spann_temp2.SPANID = SPANNINGSNIV.SPANID.               
+               END.
+            END.         
+         END.
+         GET NEXT sysq NO-LOCK.         
+      END.   
+      CLOSE QUERY sysq.
+   END.
+   IF valfore = TRUE THEN DO:
+      FOR EACH avd_temp USE-INDEX AVD:
+         OPEN QUERY dq FOR EACH STORDISTRIKT WHERE 
+         STORDISTRIKT.AVDELNINGNR = avd_temp.AVDELNINGNR AND 
+         STORDISTRIKT.ARTAL = YEAR(bdatum) USE-INDEX AVDARTAL NO-LOCK.
+         GET FIRST dq NO-LOCK.
+         DO WHILE AVAILABLE(STORDISTRIKT):
+            distvar = STORDISTRIKT.DISTRIKTID.
+            RUN distrikt_UI.
+            GET NEXT dq NO-LOCK.
+         END.
+         CLOSE QUERY dq.
+      END.         
+   END.
+   ELSE DO:
+      IF alla = TRUE THEN DO:         
+         OPEN QUERY dq FOR EACH STORDISTRIKT WHERE           
+         STORDISTRIKT.ARTAL = YEAR(bdatum) NO-LOCK.
+         GET FIRST dq NO-LOCK.
+         DO WHILE AVAILABLE(STORDISTRIKT):
+            distvar = STORDISTRIKT.DISTRIKTID.
+            RUN distrikt_UI.
+            GET NEXT dq NO-LOCK.
+         END.
+         CLOSE QUERY dq.
+      END.
+      ELSE DO:
+         FOR EACH omr_temp:         
+            distvar = omr_temp.DISTRIKTID.
+            RUN distrikt_UI.         
+         END.
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE distrikt_UI:   
+   FOR EACH spann_temp2:   
+      OPEN QUERY kq FOR EACH KUNDSTOR WHERE KUNDSTOR.DISTRIKTID = distvar AND
+      KUNDSTOR.ARTAL = YEAR(bdatum) AND KUNDSTOR.SPANID = spann_temp2.SPANID NO-LOCK.
+      GET FIRST kq NO-LOCK.
+      DO WHILE AVAILABLE(KUNDSTOR):      
+         ASSIGN      
+         totkunder = totkunder + KUNDSTOR.ANTALKUNDER.
+         GET NEXT kq NO-LOCK.
+      END.
+      CLOSE QUERY kq.
+   END.
+END PROCEDURE.
+
+PROCEDURE slutallt_UI :
+   EMPTY TEMP-TABLE slut_allt2 NO-ERROR. 
+   EMPTY TEMP-TABLE slut_allt3 NO-ERROR.   
+   FOR EACH slut_allt BREAK BY slut_allt.FELOID:      
+      ACCUMULATE slut_allt.SPANID (COUNT BY slut_allt.FELOID).      
+      IF LAST-OF(slut_allt.FELOID) THEN DO TRANSACTION:
+         CREATE slut_allt2.
+         ASSIGN                                          
+         slut_allt2.FELOID = slut_allt.FELOID.
+         slut_allt2.ANTAL = (ACCUM COUNT BY slut_allt.FELOID slut_allt.SPANID).         
+      END.     
+   END.
+   FIND FIRST slut_allt NO-LOCK NO-ERROR.
+   IF AVAILABLE slut_allt THEN DO:
+      FOR EACH slut_allt:      
+         ACCUMULATE slut_allt.SPANID (COUNT).            
+      END.
+      CREATE slut_allt3.   
+      slut_allt3.ANTAL = (ACCUM COUNT slut_allt.SPANID).
+   END.
+   CREATE tidut.
+   kant = kant + 1.
+   SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "TOTAL:".   
+   FIND FIRST slut_allt2 NO-LOCK NO-ERROR.
+   IF AVAILABLE slut_allt2 THEN DO:
+      FIND FIRST slut_allt3 NO-LOCK NO-ERROR.         
+      FOR EACH slut_allt2 NO-LOCK:
+         IF slut_allt2.FELOID = 1 THEN                                 
+         SUBSTRING(tidut.UT,utnr[nrcol[2]]) = STRING(slut_allt2.ANTAL,">>>>>>>9").
+         ELSE IF slut_allt2.FELOID = 2 THEN 
+         SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING(slut_allt2.ANTAL,">>>>>>>9").
+         ELSE IF slut_allt2.FELOID = 3 THEN 
+         SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(slut_allt2.ANTAL,">>>>>>>9").
+         ELSE IF slut_allt2.FELOID = 4 THEN 
+         SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(slut_allt2.ANTAL,">>>>>>>9").
+         ELSE IF slut_allt2.FELOID = 5 THEN 
+         SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(slut_allt2.ANTAL,">>>>>>>9").
+         ELSE IF slut_allt2.FELOID = 6 THEN 
+         SUBSTRING(tidut.UT,utnr[nrcol[7]]) = STRING(slut_allt2.ANTAL,">>>>>>>9").
+         ELSE IF slut_allt2.FELOID = 7 THEN 
+         SUBSTRING(tidut.UT,utnr[nrcol[8]]) = STRING(slut_allt2.ANTAL,">>>>>>>9").
+         ELSE IF slut_allt2.FELOID = 8 THEN                           
+         SUBSTRING(tidut.UT,utnr[nrcol[9]]) = STRING(slut_allt2.ANTAL,">>>>>>>9").
+         ELSE IF slut_allt2.FELOID = 9 THEN                             
+         SUBSTRING(tidut.UT,utnr[nrcol[10]]) = STRING(slut_allt2.ANTAL,">>>>>>>9").
+         SUBSTRING(tidut.UT,utnr[nrcol[11]]) = STRING(slut_allt3.ANTAL,">>>>>>>9").
+      END.
+   END.  
+END PROCEDURE.
+
+
+
+PROCEDURE slutomr_UI :
+   EMPTY TEMP-TABLE slut_omr2 NO-ERROR. 
+   EMPTY TEMP-TABLE slut_omr3 NO-ERROR.    
+   FOR EACH slut_omr BREAK BY slut_omr.FELOID:      
+      ACCUMULATE slut_omr.SPANID (COUNT BY slut_omr.FELOID).      
+      IF LAST-OF(slut_omr.FELOID) THEN DO TRANSACTION:
+         CREATE slut_omr2.
+         ASSIGN                                          
+         slut_omr2.FELOID = slut_omr.FELOID.
+         slut_omr2.ANTAL = (ACCUM COUNT BY slut_omr.FELOID slut_omr.SPANID).         
+      END.     
+   END.
+   FIND FIRST slut_omr NO-LOCK NO-ERROR.
+   IF AVAILABLE slut_omr THEN DO:
+      FOR EACH slut_omr:      
+         ACCUMULATE slut_omr.SPANID (COUNT).            
+      END.
+      CREATE slut_omr3.   
+      slut_omr3.ANTAL = (ACCUM COUNT slut_omr.SPANID).
+   END.
+   IF endsum = FALSE THEN DO:
+      CREATE tidut.
+      omrrec = RECID(tidut).
+      kant = kant + 1.                      
+      SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "SA: " + (SUBSTRING(TRIM(stordriftomrtemp.NAMN),1,19)).
+   END.
+   FIND FIRST slut_omr2 NO-LOCK NO-ERROR.
+   IF AVAILABLE slut_omr2 THEN DO:
+      FIND FIRST tidut WHERE RECID(tidut) = omrrec NO-LOCK NO-ERROR.
+      FIND FIRST slut_omr3 NO-LOCK NO-ERROR.         
+      FOR EACH slut_omr2 NO-LOCK:
+         IF slut_omr2.FELOID = 1 THEN 
+         SUBSTRING(tidut.UT,utnr[nrcol[2]]) = STRING(slut_omr2.ANTAL,">>>>>>>9").
+         ELSE IF slut_omr2.FELOID = 2 THEN 
+         SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING(slut_omr2.ANTAL,">>>>>>>9").
+         ELSE IF slut_omr2.FELOID = 3 THEN 
+         SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(slut_omr2.ANTAL,">>>>>>>9").
+         ELSE IF slut_omr2.FELOID = 4 THEN 
+         SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(slut_omr2.ANTAL,">>>>>>>9").
+         ELSE IF slut_omr2.FELOID = 5 THEN 
+         SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(slut_omr2.ANTAL,">>>>>>>9").
+         ELSE IF slut_omr2.FELOID = 6 THEN 
+         SUBSTRING(tidut.UT,utnr[nrcol[7]]) = STRING(slut_omr2.ANTAL,">>>>>>>9").
+         ELSE IF slut_omr2.FELOID = 7 THEN 
+         SUBSTRING(tidut.UT,utnr[nrcol[8]]) = STRING(slut_omr2.ANTAL,">>>>>>>9").
+         ELSE IF slut_omr2.FELOID = 8 THEN                            
+         SUBSTRING(tidut.UT,utnr[nrcol[9]]) = STRING(slut_omr2.ANTAL,">>>>>>>9").
+         ELSE IF slut_omr2.FELOID = 9 THEN 
+         SUBSTRING(tidut.UT,utnr[nrcol[10]]) = STRING(slut_omr2.ANTAL,">>>>>>>9").
+         SUBSTRING(tidut.UT,utnr[nrcol[11]]) = STRING(slut_omr3.ANTAL,">>>>>>>9").
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE spann_UI :
+   IF endsum = FALSE THEN DO:
+      CREATE tidut.
+      utrec = RECID(tidut).
+      SUBSTRING(tidut.UT,utnr[nrcol[1]]) = spann_temp2.NAMN.
+      kant = 1.
+      OPEN QUERY aq FOR EACH anlaggningsdeltemp USE-INDEX ADELID NO-LOCK.
+      GET FIRST aq NO-LOCK.
+      DO WHILE AVAILABLE(anlaggningsdeltemp):
+         FIND FIRST drift_temp2 WHERE drift_temp2.ADELID = anlaggningsdeltemp.ADELID
+         USE-INDEX ADELID NO-LOCK NO-ERROR.
+         IF AVAILABLE drift_temp2 THEN DO:
+            FIND FIRST drift_temp3 WHERE drift_temp3.ADELID = anlaggningsdeltemp.ADELID
+            USE-INDEX ADELID NO-LOCK NO-ERROR.
+            CREATE tidut.
+            kant = kant + 1.
+            SUBSTRING(tidut.UT,4) = SUBSTRING(anlaggningsdeltemp.NAMN,1,19).
+            FOR EACH drift_temp2 WHERE drift_temp2.ADELID = anlaggningsdeltemp.ADELID
+            USE-INDEX ADELID NO-LOCK:
+               IF drift_temp2.FELOID = 1 THEN 
+               SUBSTRING(tidut.UT,utnr[nrcol[2]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+               ELSE IF drift_temp2.FELOID = 2 THEN 
+               SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+               ELSE IF drift_temp2.FELOID = 3 THEN 
+               SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+               ELSE IF drift_temp2.FELOID = 4 THEN 
+               SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+               ELSE IF drift_temp2.FELOID = 5 THEN 
+               SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+               ELSE IF drift_temp2.FELOID = 6 THEN 
+               SUBSTRING(tidut.UT,utnr[nrcol[7]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+               ELSE IF drift_temp2.FELOID = 7 THEN 
+               SUBSTRING(tidut.UT,utnr[nrcol[8]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+               ELSE IF drift_temp2.FELOID = 8 THEN                            
+               SUBSTRING(tidut.UT,utnr[nrcol[9]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+               ELSE IF drift_temp2.FELOID = 9 THEN 
+               SUBSTRING(tidut.UT,utnr[nrcol[10]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+               SUBSTRING(tidut.UT,utnr[nrcol[11]]) = STRING(drift_temp3.ANTAL,">>>>>>>9").
+            END.
+         END.
+         GET NEXT aq NO-LOCK.
+      END.
+      CLOSE QUERY aq.
+      RUN str_UI.      
+      RUN slutspann_UI.
+   END.   
+END PROCEDURE.
+
+
+PROCEDURE slutspann_UI :
+   EMPTY TEMP-TABLE drift_temp2 NO-ERROR. 
+   EMPTY TEMP-TABLE drift_temp3 NO-ERROR.    
+   FOR EACH drift_temp BREAK BY drift_temp.FELOID:      
+      ACCUMULATE drift_temp.SPANID (COUNT BY drift_temp.FELOID).      
+      IF LAST-OF(drift_temp.FELOID) THEN DO TRANSACTION:
+         CREATE drift_temp2.
+         ASSIGN                                          
+         drift_temp2.FELOID = drift_temp.FELOID.
+         drift_temp2.ANTAL = (ACCUM COUNT BY drift_temp.FELOID drift_temp.SPANID).         
+      END.     
+   END.
+   FIND FIRST drift_temp NO-LOCK NO-ERROR.
+   IF AVAILABLE drift_temp THEN DO:
+      FOR EACH drift_temp:      
+         ACCUMULATE drift_temp.SPANID (COUNT).            
+      END.
+      CREATE drift_temp3.   
+      drift_temp3.ANTAL = (ACCUM COUNT drift_temp.SPANID).
+   END.
+   IF endsum = FALSE THEN DO:
+      CREATE tidut.
+      kant = kant + 1.
+      SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "SA: " + (SUBSTRING(TRIM(spann_temp2.NAMN),1,19)).
+      FIND FIRST drift_temp2 NO-LOCK NO-ERROR.
+      IF AVAILABLE drift_temp2 THEN DO:
+         FIND FIRST drift_temp3 NO-LOCK NO-ERROR.         
+         FOR EACH drift_temp2 NO-LOCK:
+            IF drift_temp2.FELOID = 1 THEN                                 
+            SUBSTRING(tidut.UT,utnr[nrcol[2]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+            ELSE IF drift_temp2.FELOID = 2 THEN 
+            SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+            ELSE IF drift_temp2.FELOID = 3 THEN 
+            SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+            ELSE IF drift_temp2.FELOID = 4 THEN 
+            SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+            ELSE IF drift_temp2.FELOID = 5 THEN 
+            SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+            ELSE IF drift_temp2.FELOID = 6 THEN 
+            SUBSTRING(tidut.UT,utnr[nrcol[7]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+            ELSE IF drift_temp2.FELOID = 7 THEN 
+            SUBSTRING(tidut.UT,utnr[nrcol[8]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+            ELSE IF drift_temp2.FELOID = 8 THEN                            
+            SUBSTRING(tidut.UT,utnr[nrcol[9]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+            ELSE IF drift_temp2.FELOID = 9 THEN 
+            SUBSTRING(tidut.UT,utnr[nrcol[10]]) = STRING(drift_temp2.ANTAL,">>>>>>>9").
+            SUBSTRING(tidut.UT,utnr[nrcol[11]]) = STRING(drift_temp3.ANTAL,">>>>>>>9").
+         END.
+      END.
+      CREATE tidut.
+      kant = kant + 1.
+   END.
+END PROCEDURE.
+
+PROCEDURE storning3_UI :
+   EMPTY TEMP-TABLE drift_temp NO-ERROR. 
+   EMPTY TEMP-TABLE drift_temp2 NO-ERROR. 
+   EMPTY TEMP-TABLE drift_temp3 NO-ERROR.    
+   FOR EACH summ_temp:      
+      CREATE drift_temp.
+      ASSIGN
+      drift_temp.ADELID = summ_temp.ADELID
+      drift_temp.FELOID = summ_temp.FELOID
+      drift_temp.SPANID = summ_temp.SPANID.         
+   END.
+   FOR EACH summ_temp:      
+      CREATE slut_omr.
+      ASSIGN
+      slut_omr.ADELID = summ_temp.ADELID
+      slut_omr.FELOID = summ_temp.FELOID
+      slut_omr.SPANID = summ_temp.SPANID.         
+   END.
+   FOR EACH summ_temp:      
+      CREATE slut_allt.
+      ASSIGN
+      slut_allt.ADELID = summ_temp.ADELID
+      slut_allt.FELOID = summ_temp.FELOID
+      slut_allt.SPANID = summ_temp.SPANID.         
+   END.
+   FOR EACH drift_temp BREAK BY drift_temp.ADELID BY drift_temp.FELOID:      
+      ACCUMULATE drift_temp.SPANID (COUNT BY drift_temp.ADELID BY drift_temp.FELOID).      
+      IF LAST-OF(drift_temp.FELOID) THEN DO TRANSACTION:
+         CREATE drift_temp2.
+         ASSIGN                                 
+         drift_temp2.ADELID = drift_temp.ADELID
+         drift_temp2.FELOID = drift_temp.FELOID.
+         drift_temp2.ANTAL = (ACCUM COUNT BY drift_temp.FELOID drift_temp.SPANID).         
+      END.     
+   END. 
+   FOR EACH drift_temp BREAK BY drift_temp.ADELID:      
+      ACCUMULATE drift_temp.SPANID (COUNT BY drift_temp.ADELID).      
+      IF LAST-OF(drift_temp.ADELID) THEN DO TRANSACTION:
+         CREATE drift_temp3.
+         ASSIGN                                 
+         drift_temp3.ADELID = drift_temp.ADELID
+         drift_temp3.FELOID = drift_temp.FELOID.
+         drift_temp3.ANTAL = (ACCUM COUNT BY drift_temp.ADELID drift_temp.SPANID).         
+      END.     
+   END.
+   RUN spann_UI.
+END PROCEDURE.
+
+PROCEDURE storning_UI :
+   RUN storsum7_UI.
+END PROCEDURE.
+
+
+PROCEDURE storsum7_UI:
+   IF valfore = TRUE THEN DO:
+      FOR EACH avd_temp USE-INDEX AVD:
+         OPEN QUERY dq FOR EACH STORDISTRIKT WHERE 
+         STORDISTRIKT.AVDELNINGNR = avd_temp.AVDELNINGNR AND 
+         STORDISTRIKT.ARTAL = YEAR(bdatum) USE-INDEX AVDARTAL NO-LOCK.
+         GET FIRST dq NO-LOCK.
+         DO WHILE AVAILABLE(STORDISTRIKT):
+            distvar = STORDISTRIKT.DISTRIKTID.
+            RUN distrikt7_UI.
+            GET NEXT dq NO-LOCK.
+         END.
+         CLOSE QUERY dq.
+      END.         
+   END.
+   ELSE DO:
+      IF alla = TRUE THEN DO:
+         IF uttyp = 3 THEN DO:
+            IF period = 1 THEN DO:
+               OPEN QUERY sq FOR EACH STORNINGSTAB WHERE YEAR(STORNINGSTAB.HDATUM) = YEAR(bdatum) AND
+               STORNINGSTAB.STDRIFTID = driftvar AND STORNINGSTAB.FRANSPANID = spannvar
+               USE-INDEX LISTA1 NO-LOCK.
+            END.
+            ELSE DO:
+               OPEN QUERY sq FOR EACH STORNINGSTAB WHERE STORNINGSTAB.HDATUM >= bdatum AND
+               STORNINGSTAB.HDATUM <= avdatum AND
+               STORNINGSTAB.STDRIFTID = driftvar AND STORNINGSTAB.FRANSPANID = spannvar
+               USE-INDEX LISTA1 NO-LOCK.
+            END.
+         END.
+         ELSE DO:
+            IF period = 1 THEN DO:
+               OPEN QUERY sq FOR EACH STORNINGSTAB WHERE YEAR(STORNINGSTAB.HDATUM) = YEAR(bdatum) AND
+               STORNINGSTAB.STDRIFTID = driftvar AND STORNINGSTAB.FRANSPANID = spannvar AND 
+               STORNINGSTAB.STORTYPID = uttyp 
+               USE-INDEX LISTA2 NO-LOCK.
+            END.
+            ELSE DO:
+               OPEN QUERY sq FOR EACH STORNINGSTAB WHERE STORNINGSTAB.HDATUM >= bdatum AND
+               STORNINGSTAB.HDATUM <= avdatum AND
+               STORNINGSTAB.STDRIFTID = driftvar AND STORNINGSTAB.FRANSPANID = spannvar AND 
+               STORNINGSTAB.STORTYPID = uttyp 
+               USE-INDEX LISTA2 NO-LOCK.
+            END.
+         END.      
+         GET FIRST sq NO-LOCK.
+         DO WHILE AVAILABLE(STORNINGSTAB):         
+            RUN summa_UI.         
+            GET NEXT sq NO-LOCK.
+         END.
+         CLOSE QUERY sq.      
+      END.
+      ELSE DO:
+         RUN distrikt7_UI.                  
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE distrikt7_UI:   
+   IF uttyp = 3 THEN DO:
+      IF period = 1 THEN DO:
+         OPEN QUERY sq FOR EACH STORNINGSTAB WHERE STORNINGSTAB.DISTRIKTID = distvar AND
+         YEAR(STORNINGSTAB.HDATUM) = YEAR(bdatum) AND STORNINGSTAB.STDRIFTID = driftvar AND
+         STORNINGSTAB.FRANSPANID = spannvar 
+         USE-INDEX LISTA3 NO-LOCK.
+      END.
+      ELSE DO:
+         OPEN QUERY sq FOR EACH STORNINGSTAB WHERE STORNINGSTAB.DISTRIKTID = distvar AND
+         STORNINGSTAB.HDATUM >= bdatum AND
+         STORNINGSTAB.HDATUM <= avdatum AND STORNINGSTAB.STDRIFTID = driftvar AND
+         STORNINGSTAB.FRANSPANID = spannvar 
+         USE-INDEX LISTA3 NO-LOCK.
+      END.
+   END.
+   ELSE DO:
+      IF period = 1 THEN DO:
+         OPEN QUERY sq FOR EACH STORNINGSTAB WHERE STORNINGSTAB.DISTRIKTID = distvar AND
+         YEAR(STORNINGSTAB.HDATUM) = YEAR(bdatum) AND STORNINGSTAB.FRANSPANID = spannvar AND 
+         STORNINGSTAB.STDRIFTID = driftvar AND STORNINGSTAB.STORTYPID = uttyp
+         USE-INDEX LISTA3 NO-LOCK.
+      END.
+      ELSE DO:
+         OPEN QUERY sq FOR EACH STORNINGSTAB WHERE STORNINGSTAB.DISTRIKTID = distvar AND
+         STORNINGSTAB.HDATUM >= bdatum AND
+         STORNINGSTAB.HDATUM <= avdatum AND STORNINGSTAB.FRANSPANID = spannvar AND 
+         STORNINGSTAB.STDRIFTID = driftvar AND STORNINGSTAB.STORTYPID = uttyp
+         USE-INDEX LISTA3 NO-LOCK.
+      END.
+   END.     
+   GET FIRST sq NO-LOCK.
+   DO WHILE AVAILABLE(STORNINGSTAB): 
+      RUN summa_UI.
+      GET NEXT sq NO-LOCK.
+   END.
+   CLOSE QUERY sq.
+END PROCEDURE.
+
+PROCEDURE summa_UI.    
+   CREATE summ_temp.
+   ASSIGN
+   summ_temp.SPANID = STORNINGSTAB.FRANSPANID
+   summ_temp.ADELID = STORNINGSTAB.ADELID.
+   FIND LAST BORTKOPPLAD WHERE BORTKOPPLAD.STORNUMMERID = STORNINGSTAB.STORNUMMERID
+   USE-INDEX AVBROTT NO-LOCK NO-ERROR.
+   IF AVAILABLE BORTKOPPLAD THEN DO:
+      RUN TIDBER.P (INPUT STORNINGSTAB.HDATUM, INPUT BORTKOPPLAD.ATERDATUM, INPUT STORNINGSTAB.HKLOCKAN,
+      INPUT BORTKOPPLAD.ATERKLOCKAN, OUTPUT timmar100, OUTPUT timmar60).
+   END.
+   ELSE DO:
+      RUN TIDBER.P (INPUT STORNINGSTAB.HDATUM, INPUT STORNINGSTAB.DATUM100%, INPUT STORNINGSTAB.HKLOCKAN,
+      INPUT STORNINGSTAB.KLOCKAN100%, OUTPUT timmar100, OUTPUT timmar60).
+   END.   
+   IF timmar60 <= 0000.03 THEN summ_temp.FELOID = 1.
+   ELSE IF timmar60 >  0000.03 AND  timmar60< 0000.10 THEN summ_temp.FELOID = 2.
+   ELSE IF timmar60 >= 0000.10 AND timmar60< 0000.30 THEN summ_temp.FELOID = 3.
+   ELSE IF timmar60 >= 0000.30 AND timmar60< 0001.00 THEN summ_temp.FELOID = 4.
+   ELSE IF timmar60 >= 0001.00 AND timmar60< 0002.00 THEN summ_temp.FELOID = 5.
+   ELSE IF timmar60 >= 0002.00 AND timmar60< 0006.00 THEN summ_temp.FELOID = 6.
+   ELSE IF timmar60 >= 0006.00 AND timmar60< 0012.00 THEN summ_temp.FELOID = 7.
+   ELSE IF timmar60 >= 0012.00 AND timmar60< 0024.00 THEN summ_temp.FELOID = 8.
+   ELSE DO:
+      summ_temp.FELOID = 9.      
+   END.     
+END PROCEDURE.
+
+
+
+PROCEDURE str2_UI :
+   CREATE tidut.                        
+   ASSIGN                                
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "========"
+   SUBSTRING(tidut.UT,utnr[nrcol[3]]) = "========"
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "========"
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "========"
+   SUBSTRING(tidut.UT,utnr[nrcol[6]]) = "========"
+   SUBSTRING(tidut.UT,utnr[nrcol[7]]) = "========"
+   SUBSTRING(tidut.UT,utnr[nrcol[8]]) = "========"
+   SUBSTRING(tidut.UT,utnr[nrcol[9]]) = "========"
+   SUBSTRING(tidut.UT,utnr[nrcol[10]]) = "========"
+   SUBSTRING(tidut.UT,utnr[nrcol[11]]) = "========".
+   kant = kant + 1.
+END PROCEDURE.
+
+
+PROCEDURE str_UI :
+   CREATE tidut.                        
+   ASSIGN                                
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[3]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[6]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[7]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[8]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[9]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[10]]) = "--------"
+   SUBSTRING(tidut.UT,utnr[nrcol[11]]) = "--------".   
+   kant = kant + 1.
+END PROCEDURE.
+
+PROCEDURE valelalla_UI :
+   FIND FIRST stordriftomrtemp WHERE stordriftomrtemp.STDRIFTID = 2 NO-LOCK NO-ERROR.
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = stordriftomrtemp.NAMN
+   driftvar = stordriftomrtemp.STDRIFTID.
+   CREATE tidut.
+   tant = tant + 2. 
+   EMPTY TEMP-TABLE slut_omr NO-ERROR.    
+   FOR EACH spann_temp2 USE-INDEX SPAN:
+      EMPTY TEMP-TABLE summ_temp NO-ERROR.       
+      ASSIGN
+      spannvar = spann_temp2.SPANID         
+      endsum = FALSE.
+      RUN storning_UI.   
+      RUN storning3_UI.
+      RUN bryt_UI.
+   END.
+   RUN str_UI.
+   RUN slutomr_UI.
+   CREATE tidut.      
+   FOR EACH stordriftomrtemp WHERE stordriftomrtemp.STDRIFTID NE 2  USE-INDEX STDRIFTID NO-LOCK:
+      CREATE tidut.         
+      ASSIGN
+      omrrec = RECID(tidut)
+      SUBSTRING(tidut.UT,1) = stordriftomrtemp.NAMN
+      driftvar = stordriftomrtemp.STDRIFTID.
+      EMPTY TEMP-TABLE slut_omr NO-ERROR.       
+      FOR EACH spann_temp2 USE-INDEX SPAN:
+         EMPTY TEMP-TABLE summ_temp NO-ERROR.          
+         ASSIGN
+         spannvar = spann_temp2.SPANID            
+         endsum = TRUE.
+         RUN storning_UI.
+         RUN storning3_UI.            
+      END.
+      RUN slutomr_UI.      
+   END.
+   RUN str_UI.
+   RUN slutallt_UI.
+   RUN str2_UI.
+ END PROCEDURE.
+
+FUNCTION klockan100 RETURNS DECIMAL
+  (INPUT ber60 AS DECIMAL) :
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600. 
+END FUNCTION.
+
+FUNCTION klockan60 RETURNS DECIMAL
+  (INPUT ber100 AS DECIMAL) :
+  RETURN TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) / 100) * 60.
+END FUNCTION.
+
+
+

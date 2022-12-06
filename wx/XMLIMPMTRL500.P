@@ -1,0 +1,219 @@
+
+/*------------------------------------------------------------------------
+    File        : XMLIMPMTRL500.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Mon Dec 07 09:14:51 CET 2015
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+/*EXCEL-XML
+1. DEFINERA EN TEMP-TABLE I PROGRESS. EFTER DOM KOLUMNER DU HAR I EXCEL
+2. DEFINERA ETT PRODATASET.
+3. SKAPA EN XSD FIL AV PRODASET ELLER EN XML FIL
+4. UTVECKLARE KÄLLA XML-MAPPNING LÄGG TILL DIN XSD ELLER XML FIL
+5. KOLUMN MOT RUBRIK OBS LÄGG RUBRIKEN PÅ FÖRSTA RADEN SOM SKA VRA TOM
+6. TRYCK PÅ EXPORT
+
+SKAPA ETT XML SCHEMA 
+*/
+
+
+   
+
+DEFINE VARIABLE utskriv AS LOGICAL NO-UNDO.
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+/*{EGENBVAR.I}*/
+{GLOBVAR2DEL1.I}
+{EXECLIN2.I}
+DEFINE VARIABLE cTargetType     AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cFile           AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lFormatted      AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE cEncoding       AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cSchemaLocation AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lWriteSchema    AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE lMinSchema      AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE lRetOK          AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 1.
+DEFINE VARIABLE cColumn                 AS CHARACTER.
+
+
+
+DEFINE TEMP-TABLE mtr500tt NO-UNDO
+  FIELD ENR AS CHARACTER
+  FIELD BEN AS CHARACTER
+  FIELD ENH AS CHARACTER
+  FIELD LEVKOD AS CHARACTER
+  /*FIELD TTRECID AS RECID*/
+  INDEX ENR LEVKOD ENR.
+
+DEFINE TEMP-TABLE mtr500komptt LIKE mtr500tt.
+  
+DEFINE BUFFER mtrl500buff FOR mtr500tt.
+  
+DEFINE DATASET mtr500ttDS FOR mtr500tt. 
+     
+    
+   
+   EMPTY TEMP-TABLE mtr500tt NO-ERROR.
+   DATASET mtr500ttDS:READ-XML("FILE", "C:\mtrl500\mtrl500.XML", "MERGE", ?,False). 
+   
+  /*FOR EACH mtr500tt:
+      mtr500tt.TTRECID = RECID(mtr500tt).
+   END.*/
+   
+   FIND FIRST mtr500tt  NO-ERROR.
+   FOR EACH mtrl500buff WHERE mtrl500buff.ENR = mtr500tt.ENR AND mtrl500buff.LEVKOD = mtr500tt.LEVKOD AND RECID(mtrl500buff) NE RECID(mtr500tt) NO-LOCK:
+      DELETE mtrl500buff.
+   END.
+   
+   REPEAT:
+      FIND NEXT mtr500tt NO-ERROR.
+      IF NOT AVAILABLE mtr500tt THEN LEAVE.
+      FOR EACH mtrl500buff WHERE mtrl500buff.ENR = mtr500tt.ENR AND mtrl500buff.LEVKOD = mtr500tt.LEVKOD AND RECID(mtrl500buff) NE RECID(mtr500tt) NO-LOCK:
+         DELETE mtrl500buff.
+      END.   
+   END. 
+   
+   
+  
+{AMERICANEUROPEAN.I}
+ RUN startin_UI.
+ FOR EACH mtr500komptt BY mtr500komptt.enr BY mtr500komptt.levkod:
+    FIND FIRST mtr500tt WHERE mtr500tt.ENR = mtr500komptt.ENR AND mtr500tt.LEVKOD = mtr500komptt.LEVKOD  NO-ERROR.
+    IF AVAILABLE mtr500tt THEN DO:
+       DELETE mtr500komptt.        
+    END.   
+END.
+FOR EACH mtr500komptt:
+   CREATE mtr500tt.
+   BUFFER-COPY mtr500komptt TO mtr500tt.
+   DELETE mtr500komptt.
+END.
+/*DEF VAR ANT AS INTEGER.
+ANT = 0.
+FOR EACH mtr500tt WHERE NO-LOCK:
+   ANT = ANT + 1.
+END.
+MESSAGE "INNAN" ANT
+VIEW-AS ALERT-BOX.*/
+
+DATASET  mtr500ttDS:WRITE-XML("FILE", "C:\mtrl500\Nmtrl500.XML",FALSE,"iso8859-1").
+
+/*ANT = 0.
+FOR EACH mtr500tt WHERE NO-LOCK:
+   ANT = ANT + 1.
+END.
+MESSAGE "EFTER" ANT
+VIEW-AS ALERT-BOX.*/
+
+CREATE "Excel.Application" chExcelApplication.
+chExcelApplication:Visible = TRUE NO-ERROR.
+chWorkbook = chExcelApplication:Workbooks:Add() NO-ERROR.
+chWorkSheet = chExcelApplication:Sheets:Item(1) NO-ERROR.
+   
+chWorkSheet:Columns("A"):ColumnWidth = 10 NO-ERROR.
+chWorkSheet:Columns("B"):ColumnWidth = 40 NO-ERROR.
+chWorkSheet:Columns("C"):ColumnWidth = 5 NO-ERROR.
+chWorkSheet:Columns("D"):ColumnWidth = 7 NO-ERROR.
+
+chWorkSheet:Range("A1"):Value = "Enr" NO-ERROR.   
+chWorkSheet:Range("B1"):Value = "Benämning" NO-ERROR.
+chWorkSheet:Range("C1"):Value = "Enhet" NO-ERROR.   
+chWorkSheet:Range("D1"):Value = "Lev" NO-ERROR.   
+chWorkSheet:Range("A:A"):NumberFormat = "@" NO-ERROR.
+chWorkSheet:Range("B:B"):NumberFormat = "@" NO-ERROR.
+chWorkSheet:Range("C:C"):NumberFormat = "@" NO-ERROR.
+chWorkSheet:Range("D:D"):NumberFormat = "@" NO-ERROR.
+
+
+OPEN QUERY satsq FOR EACH mtr500tt NO-LOCK USE-INDEX ENR.
+   GET FIRST satsq NO-LOCK.
+   DO WHILE AVAILABLE(mtr500tt): 
+      /*{EXCELFEL.I}*/
+      iColumn = iColumn + 1.
+      cColumn = STRING(iColumn).      
+      
+      cRange = "A" + cColumn.
+      chWorkSheet:Range(cRange):Value = mtr500tt.ENR NO-ERROR.
+      cRange = "B" + cColumn.
+      chWorkSheet:Range(cRange):Value = mtr500tt.BEN NO-ERROR.
+      cRange = "C" + cColumn.
+      chWorkSheet:Range(cRange):Value = mtr500tt.ENH NO-ERROR.
+      cRange = "D" + cColumn.
+      chWorkSheet:Range(cRange):Value = mtr500tt.LEVKOD NO-ERROR.
+                        
+      GET NEXT satsq NO-LOCK.
+   END.     
+   CLOSE QUERY satsq.        
+   RELEASE OBJECT chExcelApplication NO-ERROR.      
+   RELEASE OBJECT chWorkbook NO-ERROR.
+   RELEASE OBJECT chWorksheet NO-ERROR.
+         
+   
+/*OUTPUT TO C:\mtrl500\mtrlny.txt.
+   FOR EACH mtr500tt BY enr BY levkod:
+      DISPLAY enr levkod.
+   END.*/
+{EUROPEANAMERICAN.I}
+PROCEDURE startin_UI:
+   ASSIGN
+   startc = "A"
+   slutc = "D"
+   iRad = 0. 
+   RUN readexcelstart_UI (INPUT "C:\mtrl500\Komplettering fil\Kabel.xlsx").   
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.            
+      IF allacolumtext[1] NE "" THEN DO:    
+         IF globforetag = "sund" OR globforetag = "SNAT" OR globforetag = "CORBI" OR globforetag = "celpa" THEN DO:
+            IF SUBSTRING(allacolumtext[1],1,1) NE  "E" THEN allacolumtext[1] = "E" + allacolumtext[1].
+         END.
+         ELSE IF globforetag = "umea" OR globforetag = "Celpa" THEN DO:
+            
+         END.
+         ELSE IF SUBSTRING(allacolumtext[1],1,1) = "E" THEN allacolumtext[1] = SUBSTRING(allacolumtext[1],2).                    
+         IF allacolumtext[3] = "EA" THEN allacolumtext[3] = "ST".
+         IF allacolumtext[3] = "PK" THEN allacolumtext[3] = "FP".
+         IF allacolumtext[3] = "MTR" THEN allacolumtext[3] = "M".
+         IF allacolumtext[3] = "PR" THEN allacolumtext[3] = "PAR".
+         IF allacolumtext[3] = "RO" THEN allacolumtext[3] = "RLE".      
+
+         IF allacolumtext[3] = "BG" THEN allacolumtext[3] = "PÅS".      
+         IF allacolumtext[3] = "MKT" THEN allacolumtext[3] = "M2".      
+         IF allacolumtext[3] = "LTR" THEN allacolumtext[3] = "L".      
+         IF allacolumtext[3] = "KGM" THEN allacolumtext[3] = "KG".      
+
+         CREATE mtr500komptt.
+         ASSIGN mtr500komptt.ENR = allacolumtext[1] NO-ERROR.
+         mtr500komptt.BEN = allacolumtext[2] NO-ERROR.
+         mtr500komptt.ENH = allacolumtext[3] NO-ERROR.
+         mtr500komptt.LEVKOD = allacolumtext[4] NO-ERROR.         
+      END.      
+   END.
+   RUN slutreadexcel_UI.     
+END PROCEDURE.
+        
+   
+   /*OUTPUT TO C:\mtrl500\mtrl.txt.
+   FOR EACH mtr500tt BY enr BY levkod:
+      DISPLAY enr levkod.
+   END.*/   
+
+
+
+
+/*PROCEDURE aokonto_UI :
+   FOR EACH sundaokonto:
+      FOR EACH AONRKONTKOD WHERE AONRKONTKOD.AONR = sundaokonto.AONR AND AONRKONTKOD.DELNR = sundaokonto.DELNR EXCLUSIVE-LOCK:
+         AONRKONTKOD.K5 = STRING(sundaokonto.K5).
+         
+      END.
+   END.   
+END PROCEDURE.*/

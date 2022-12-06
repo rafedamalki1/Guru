@@ -1,0 +1,127 @@
+/*NRPLANAPP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+DEFINE INPUT PARAMETER vart AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER omr AS CHARACTER NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETER raknaupp AS LOGICAL NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETER inplannr AS CHARACTER NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETER artalvar AS INTEGER NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETER plannrvar AS INTEGER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+DEFINE VARIABLE nummer AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+
+/*BTN_OK*/
+IF vart = 1  THEN DO:   
+   FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = STRING(inplannr) AND 
+   PLANNRTAB.ARTAL = artalvar USE-INDEX OMRADE NO-LOCK NO-ERROR.
+   IF AVAILABLE PLANNRTAB THEN DO:   
+      IF raknaupp = FALSE THEN DO:
+         RUN fel_UI (INPUT 1).
+         RETURN.
+      END.
+      ELSE DO:
+         RUN fel_UI (INPUT 2).
+         RETURN.
+      END.   
+   END.                    
+   ELSE DO:   
+      IF raknaupp = TRUE THEN DO:  
+         IF inplannr = STRING(plannrvar) THEN DO:    
+            FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = omr EXCLUSIVE-LOCK NO-ERROR.
+            IF LENGTH(OMRADETAB.PLANINT2) = 1 THEN DO:
+               ASSIGN
+               OMRADETAB.SISTPLAN = STRING(plannrvar + 1,"9"). 
+            END.
+            IF LENGTH(OMRADETAB.PLANINT2) = 2 THEN DO:
+               ASSIGN         
+               OMRADETAB.SISTPLAN = STRING(plannrvar + 1,"99").
+            END.
+            IF LENGTH(OMRADETAB.PLANINT2) = 3 THEN DO:
+               ASSIGN            
+               OMRADETAB.SISTPLAN = STRING(plannrvar + 1,"999").
+            END.
+            IF LENGTH(OMRADETAB.PLANINT2) = 4 THEN DO:
+               ASSIGN            
+               OMRADETAB.SISTPLAN = STRING(plannrvar + 1,"9999").
+            END.
+            IF LENGTH(OMRADETAB.PLANINT2) = 5 THEN DO:
+               ASSIGN            
+               OMRADETAB.SISTPLAN = STRING(plannrvar + 1,"99999").
+            END.
+            IF LENGTH(OMRADETAB.PLANINT2) = 6 THEN DO:
+               ASSIGN            
+               OMRADETAB.SISTPLAN = STRING(plannrvar + 1,"999999").
+            END.
+         END.
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = omr USE-INDEX OMR NO-LOCK NO-ERROR.
+      END.   
+   END.
+END.
+
+/*Nummer*/
+IF vart = 2 THEN DO:   
+   raknaupp = FALSE.
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = omr 
+   USE-INDEX OMR NO-LOCK NO-ERROR.
+   IF OMRADETAB.SISTPLAN = "" THEN DO:
+      ASSIGN inplannr = OMRADETAB.PLANINT1
+      plannrvar = INTEGER(OMRADETAB.PLANINT1)
+      raknaupp = TRUE. 
+   END.
+   ELSE IF OMRADETAB.SISTPLAN > OMRADETAB.PLANINT2 THEN DO:        
+      ASSIGN inplannr = "".       
+   END.
+   ELSE DO:        
+      FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = OMRADETAB.SISTPLAN AND 
+      PLANNRTAB.ARTAL = artalvar USE-INDEX PLANNR NO-LOCK NO-ERROR.
+      IF AVAILABLE PLANNRTAB THEN DO:                  
+         nummer = TRUE.
+         DO WHILE nummer = TRUE.
+            plannrvar = INTEGER(OMRADETAB.SISTPLAN) + 1.
+            IF STRING(plannrvar) > OMRADETAB.PLANINT2 THEN DO:
+               ASSIGN
+               musz = TRUE
+               nummer = FALSE        
+               inplannr = "".       
+            END.
+            ELSE DO:
+               FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = STRING(plannrvar) AND 
+               PLANNRTAB.ARTAL = artalvar USE-INDEX PLANNR NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE PLANNRTAB THEN DO:
+                  nummer = FALSE.
+               END.
+            END.
+         END.  
+         IF musz = FALSE THEN DO:
+            ASSIGN 
+            inplannr = STRING(plannrvar)
+            raknaupp = TRUE.
+         END.    
+         musz = FALSE.               
+      END.
+      ELSE DO:
+         ASSIGN inplannr = OMRADETAB.SISTPLAN
+         plannrvar = INTEGER(OMRADETAB.SISTPLAN)
+         raknaupp = TRUE.
+      END.           
+   END.
+   omr = OMRADETAB.OMRADE.
+END.  
+
+PROCEDURE fel_UI:
+   DEFINE INPUT PARAMETER vartvar AS INTEGER NO-UNDO.
+   IF vartvar = 1 THEN DO:
+      CREATE felmeddtemp.
+      felmeddtemp.FELMEDD = "Obs! " + Guru.Konstanter:gpll + " finns redan byt nummer.".      
+   END.
+   IF vartvar = 2 THEN DO:
+      CREATE felmeddtemp.
+      felmeddtemp.FELMEDD = "Obs! " + Guru.Konstanter:gpll + " finns redan. Vill du få ett ledigt nummer klicka på JA, vill du ange ett eget nummer klicka på NEJ.".
+      felmeddtemp.VAL = 1.
+   END.
+END PROCEDURE.
+
+             

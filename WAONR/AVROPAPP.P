@@ -1,0 +1,100 @@
+/*AVROPAPP*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{AVROPTEMP.I}
+{ANVPERS.I}
+{LEVTEMP.I}
+{LEVTEMPORDNINGFUNC.I}
+PROCEDURE ladda.
+   DEFINE OUTPUT PARAMETER TABLE FOR avroptemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR levtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR anvandartemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR personaltemp.
+   EMPTY TEMP-TABLE avroptemp NO-ERROR.    
+   OPEN QUERY aq FOR EACH AVROP NO-LOCK.
+   GET FIRST aq NO-LOCK.
+   DO WHILE AVAILABLE(AVROP):
+      CREATE avroptemp.
+      BUFFER-COPY AVROP TO avroptemp.
+      GET NEXT aq NO-LOCK.
+   END.
+   CLOSE QUERY aq.
+   EMPTY TEMP-TABLE levtemp NO-ERROR.    
+   OPEN QUERY lq FOR EACH LEVERANTOR WHERE  
+   LEVERANTOR.LEVKOD NE "0" AND LEVERANTOR.LEVKOD NE "99" 
+   AND LEVERANTOR.BORTTAG = FALSE USE-INDEX LEV NO-LOCK.
+   GET FIRST lq NO-LOCK.
+   DO WHILE AVAILABLE(LEVERANTOR):
+      CREATE levtemp.
+      BUFFER-COPY LEVERANTOR TO levtemp.
+      {LEVTEMPORDNING.I}
+      GET NEXT lq NO-LOCK.
+   END.
+   CLOSE QUERY lq.
+   EMPTY TEMP-TABLE anvandartemp NO-ERROR. 
+   EMPTY TEMP-TABLE personaltemp NO-ERROR.    
+   OPEN QUERY anvq FOR EACH ANVANDARE NO-LOCK.
+   GET FIRST anvq NO-LOCK.
+   DO WHILE AVAILABLE(ANVANDARE):
+      CREATE anvandartemp.
+      BUFFER-COPY ANVANDARE TO anvandartemp.
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD
+      USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.    
+      IF AVAILABLE PERSONALTAB THEN DO:
+         CREATE personaltemp.
+         BUFFER-COPY PERSONALTAB TO personaltemp.
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+      END.
+      GET NEXT anvq NO-LOCK.
+   END.
+   CLOSE QUERY anvq.
+   
+   {GDPRLOGGCLIENT.I}
+   RETURN.
+END PROCEDURE.
+
+
+PROCEDURE btnok.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR avroptemp.
+   FIND FIRST avroptemp WHERE avroptemp.AONR = aonrvar AND 
+   avroptemp.DELNR = delnrvar NO-LOCK NO-ERROR.
+   IF AVAILABLE avroptemp THEN DO TRANSACTION:
+      FIND FIRST AVROP WHERE AVROP.AONR = aonrvar AND AVROP.DELNR = delnrvar
+      USE-INDEX AONR EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE AVROP THEN DO:
+         ASSIGN
+         AVROP.DATUM    = avroptemp.DATUM    
+         AVROP.KLAR     = avroptemp.KLAR     
+         AVROP.LEVKOD   = avroptemp.LEVKOD   
+         AVROP.BKONTAKT = avroptemp.BKONTAKT 
+         AVROP.BTELE     = avroptemp.BTEL     
+         AVROP.BMOBIL     = avroptemp.BMOB     
+         AVROP.EKONTAKT = avroptemp.EKONTAKT 
+         AVROP.ETELE     = avroptemp.ETELE     
+         AVROP.EMOBIL     = avroptemp.EMOBIL     
+         AVROP.PRIS     = avroptemp.PRIS.     
+      END.
+      ELSE DO:  
+         CREATE AVROP.
+         ASSIGN
+         AVROP.AONR     = aonrvar
+         AVROP.DELNR    = delnrvar
+         AVROP.DATUM    = avroptemp.DATUM    
+         AVROP.KLAR     = avroptemp.KLAR     
+         AVROP.LEVKOD   = avroptemp.LEVKOD   
+         AVROP.BKONTAKT = avroptemp.BKONTAKT 
+         AVROP.BTELE     = avroptemp.BTEL     
+         AVROP.BMOBIL     = avroptemp.BMOB     
+         AVROP.EKONTAKT = avroptemp.EKONTAKT 
+         AVROP.ETELE    = avroptemp.ETELE    
+         AVROP.EMOBIL   = avroptemp.EMOBIL   
+         AVROP.PRIS     = avroptemp.PRIS.    
+      END.      
+   END.
+   RELEASE AVROP NO-ERROR.
+   RETURN.
+END PROCEDURE.

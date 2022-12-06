@@ -1,0 +1,612 @@
+/*FAKTKRAPP.P*/
+&Scoped-define NEW NEW 
+{FAKTPLANTEMP.I} 
+DEFINE TEMP-TABLE utextravfaktplantemp NO-UNDO LIKE faktplantemp 
+    FIELD VKREDIT LIKE FAKTINTAKTKONTKRED.VKREDIT
+    FIELD BELOPP AS DECIMAL
+    FIELD MBELOPP AS DECIMAL.
+DEFINE TEMP-TABLE utextravfaktplantemp2 NO-UNDO LIKE faktplantemp 
+    FIELD VKREDIT LIKE FAKTINTAKTKONTKRED.VKREDIT
+    FIELD BELOPP AS DECIMAL
+    FIELD MBELOPP AS DECIMAL.
+{TIDUTTT.I}
+DEFINE TEMP-TABLE hjfaktkont NO-UNDO
+   FIELD FAKTNR  LIKE    FAKTURERAD.FAKTNR 
+   FIELD VKREDIT LIKE FAKTINTAKTKONTKRED.VKREDIT
+   FIELD VFAKTNR LIKE    FAKTURERAD.VFAKTNR.
+{VISKONTAB.I}
+DEFINE TEMP-TABLE viskonttemp2 NO-UNDO LIKE viskonttemp.
+DEFINE INPUT PARAMETER startdatumvar AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER slutdatumvar  AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR vfaktplantemp.
+DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+DEFINE OUTPUT PARAMETER str  AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER str2 AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER str3 AS CHARACTER NO-UNDO.
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.          
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+
+DEFINE BUFFER faktureradbuff FOR FAKTURERAD.
+DEFINE BUFFER FAKTKREDbuff FOR FAKTKRED.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE breddantal AS INTEGER NO-UNDO.
+DEFINE VARIABLE utnr AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE bredd AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE nrcol AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE debetbelopptotvar AS INTEGER NO-UNDO. 
+DEFINE VARIABLE debetMbelopptotvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE kreditbelopptotvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE kreditMbelopptotvar AS INTEGER NO-UNDO.
+
+FOR EACH vfaktplantemp:
+   OPEN QUERY fq FOR EACH FAKTINTAKTKONT WHERE 
+   FAKTINTAKTKONT.FAKTNR = vfaktplantemp.FAKTNR AND
+   FAKTINTAKTKONT.VFAKTNR NE 0 NO-LOCK,
+   EACH FAKTURERAD WHERE FAKTURERAD.FAKTNR = FAKTINTAKTKONT.FAKTNR AND 
+   FAKTURERAD.VFAKTNR = FAKTINTAKTKONT.VFAKTNR AND
+   FAKTURERAD.DATUM >= startdatumvar AND  FAKTURERAD.DATUM <= slutdatumvar NO-LOCK.
+   /* 
+   FAKTURERAD.BOKDATUM >= startdatumvar AND  FAKTURERAD.BOKDATUM <= slutdatumvar NO-LOCK.
+   */
+   GET FIRST fq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTURERAD):
+      CREATE hjfaktkont.
+      ASSIGN 
+      hjfaktkont.FAKTNR =   vfaktplantemp.FAKTNR
+      hjfaktkont.VFAKTNR =     FAKTURERAD.VFAKTNR.
+      CREATE utextravfaktplantemp.
+      BUFFER-COPY vfaktplantemp TO utextravfaktplantemp. 
+      ASSIGN
+      utextravfaktplantemp.VFAKTNR = FAKTINTAKTKONT.VFAKTNR
+      utextravfaktplantemp.BELOPP = FAKTINTAKTKONT.BELOPP
+      utextravfaktplantemp.MBELOPP = utextravfaktplantemp.BELOPP.  
+      FOR EACH FAKTMOMS WHERE FAKTMOMS.FAKTNR = vfaktplantemp.FAKTNR AND
+      FAKTMOMS.VFAKTNR = FAKTINTAKTKONT.VFAKTNR AND
+      FAKTMOMS.AONR = FAKTINTAKTKONT.AONR AND
+      FAKTMOMS.DELNR = FAKTINTAKTKONT.DELNR
+      NO-LOCK:
+         
+         utextravfaktplantemp.MBELOPP = utextravfaktplantemp.MBELOPP + FAKTMOMS.MOMSBELOPP.  
+      END.
+      GET NEXT fq NO-LOCK.
+   END.     
+END.
+FOR EACH utextravfaktplantemp BREAK BY utextravfaktplantemp.VFAKTNR:
+   ACCUMULATE utextravfaktplantemp.BELOPP (TOTAL BY utextravfaktplantemp.VFAKTNR). 
+   ACCUMULATE utextravfaktplantemp.MBELOPP (TOTAL BY utextravfaktplantemp.VFAKTNR). 
+   IF LAST-OF(utextravfaktplantemp.VFAKTNR) THEN DO:                              
+      CREATE utextravfaktplantemp2.
+      BUFFER-COPY utextravfaktplantemp TO utextravfaktplantemp2.
+      utextravfaktplantemp2.BELOPP = (ACCUM TOTAL BY utextravfaktplantemp.VFAKTNR utextravfaktplantemp.BELOPP).
+      utextravfaktplantemp2.MBELOPP = (ACCUM TOTAL BY utextravfaktplantemp.VFAKTNR utextravfaktplantemp.MBELOPP).      
+   END.
+END.
+RUN huvud_UI.
+DEBUGGER:SET-BREAK().
+EMPTY TEMP-TABLE utextravfaktplantemp2 NO-ERROR. 
+EMPTY TEMP-TABLE utextravfaktplantemp NO-ERROR. 
+FOR EACH vfaktplantemp:
+   OPEN QUERY fkq FOR EACH FAKTINTAKTKONTKRED WHERE 
+   FAKTINTAKTKONTKRED.FAKTNR = vfaktplantemp.FAKTNR AND
+   FAKTINTAKTKONTKRED.VKREDIT NE 0 NO-LOCK,
+   EACH FAKTKRED WHERE FAKTKRED.FAKTNR = FAKTINTAKTKONTKRED.FAKTNR AND 
+   FAKTKRED.VKREDIT = FAKTINTAKTKONTKRED.VKREDIT AND
+   FAKTKRED.DATUM >= startdatumvar AND FAKTKRED.DATUM <= slutdatumvar NO-LOCK.
+   /* 
+   FAKTKRED.BOKDATUM >= startdatumvar AND FAKTKRED.BOKDATUM <= slutdatumvar NO-LOCK.
+   */
+   GET FIRST fkq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTKRED):
+      CREATE hjfaktkont.
+      ASSIGN 
+      hjfaktkont.FAKTNR =   vfaktplantemp.FAKTNR
+      hjfaktkont.VKREDIT =     FAKTKRED.VKREDIT.
+      CREATE utextravfaktplantemp.
+      BUFFER-COPY vfaktplantemp TO utextravfaktplantemp. 
+      ASSIGN
+      utextravfaktplantemp.VKREDIT = FAKTINTAKTKONTKRED.VKREDIT
+      utextravfaktplantemp.BELOPP = FAKTINTAKTKONTKRED.BELOPP
+      utextravfaktplantemp.MBELOPP = utextravfaktplantemp.BELOPP.  
+      FOR EACH FAKTMOMSKRED WHERE FAKTMOMSKRED.FAKTNR = vfaktplantemp.FAKTNR AND
+      FAKTMOMSKRED.VKREDIT = FAKTINTAKTKONTKRED.VKREDIT AND
+      FAKTMOMSKRED.AONR = FAKTINTAKTKONTKRED.AONR AND
+      FAKTMOMSKRED.DELNR = FAKTINTAKTKONTKRED.DELNR
+      NO-LOCK:
+         utextravfaktplantemp.MBELOPP = utextravfaktplantemp.MBELOPP + FAKTMOMSKRED.MOMSBELOPP.  
+      END.
+      GET NEXT fkq NO-LOCK.
+   END.     
+END.
+FOR EACH utextravfaktplantemp BREAK BY utextravfaktplantemp.VKREDIT:
+   ACCUMULATE utextravfaktplantemp.BELOPP (TOTAL BY utextravfaktplantemp.VKREDIT). 
+   ACCUMULATE utextravfaktplantemp.MBELOPP (TOTAL BY utextravfaktplantemp.VKREDIT). 
+   IF LAST-OF(utextravfaktplantemp.VKREDIT) THEN DO:                              
+      CREATE utextravfaktplantemp2.
+      BUFFER-COPY utextravfaktplantemp TO utextravfaktplantemp2.
+      utextravfaktplantemp2.BELOPP = (ACCUM TOTAL BY utextravfaktplantemp.VKREDIT utextravfaktplantemp.BELOPP).
+      utextravfaktplantemp2.MBELOPP = (ACCUM TOTAL BY utextravfaktplantemp.VKREDIT utextravfaktplantemp.MBELOPP).      
+   END.
+END.
+RUN huvudk_UI.
+RUN viskont_UI.
+RUN viskontk_UI.
+PROCEDURE viskont_UI :
+   EMPTY TEMP-TABLE viskonttemp NO-ERROR. 
+   EMPTY TEMP-TABLE viskonttemp2 NO-ERROR. 
+   DEFINE QUERY BRW_K1 FOR FAKTKUNDKONTO,KUNDFODRAN,MOTPART.
+   DEFINE QUERY BRW_K2 FOR FAKTINTAKTKONT,INTAKTTAB,MOTPART.
+   DEFINE QUERY BRW_K4 FOR FAKTMOMS,MOMSTAB.
+   DEFINE VARIABLE dsumma  AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE ksumma  AS DECIMAL NO-UNDO.
+   FOR EACH hjfaktkont WHERE hjfaktkont.VKREDIT = 0:
+      FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = hjfaktkont.FAKTNR AND
+      FAKTURERAD.VFAKTNR = hjfaktkont.VFAKTNR NO-LOCK NO-ERROR.
+      FIND FIRST FAKTREGLER WHERE FAKTREGLER.FAKTNR = hjfaktkont.FAKTNR 
+      USE-INDEX FAKTREGLER NO-LOCK NO-ERROR.    
+      FIND FIRST FAKTURERINGSTYP WHERE 
+      FAKTURERINGSTYP.FAKTTYPID = FAKTURERAD.FAKTTYPID NO-LOCK NO-ERROR.
+      
+      OPEN QUERY BRW_K1 FOR EACH FAKTKUNDKONTO WHERE 
+      FAKTKUNDKONTO.FAKTNR = hjfaktkont.FAKTNR AND 
+      FAKTKUNDKONTO.VFAKTNR = hjfaktkont.VFAKTNR NO-LOCK, 
+      EACH KUNDFODRAN WHERE KUNDFODRAN.KUNDKONTOID = FAKTKUNDKONTO.KUNDKONTOID NO-LOCK, 
+      EACH MOTPART WHERE MOTPART.MOTPARTID = FAKTKUNDKONTO.MOTPARTID NO-LOCK.
+      
+      OPEN QUERY BRW_K2 FOR EACH FAKTINTAKTKONT WHERE 
+      FAKTINTAKTKONT.FAKTNR = hjfaktkont.FAKTNR AND 
+      FAKTINTAKTKONT.VFAKTNR = hjfaktkont.VFAKTNR NO-LOCK, 
+      EACH INTAKTTAB WHERE INTAKTTAB.INTAKTID = FAKTINTAKTKONT.INTAKTID NO-LOCK, 
+      EACH MOTPART WHERE MOTPART.MOTPARTID = FAKTINTAKTKONT.MOTPARTID NO-LOCK.
+      
+      OPEN QUERY BRW_K4 FOR EACH FAKTMOMS WHERE 
+      FAKTMOMS.FAKTNR = hjfaktkont.FAKTNR AND 
+      FAKTMOMS.VFAKTNR = hjfaktkont.VFAKTNR NO-LOCK, 
+      EACH MOMSTAB WHERE MOMSTAB.MOMSID = FAKTMOMS.MOMSID NO-LOCK.  
+
+      {VISKONT.I}    
+      FOR EACH viskonttemp:
+         CREATE viskonttemp2.
+         BUFFER-COPY viskonttemp TO viskonttemp2.
+      END.
+   END.
+   FIND FIRST viskonttemp2 NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE viskonttemp2 THEN DO:
+      RETURN.
+   END.
+   CREATE tidut. 
+   CREATE tidut. 
+   CREATE tidut. 
+   /*
+   CREATE tidut.
+   SUBSTRING(tidut.UT,132) = "$". 
+   */
+   CREATE tidut. 
+   ASSIGN                        
+   SUBSTRING(tidut.UT,1) = "Kontering Debet:". 
+   CREATE tidut.
+   CREATE tidut.
+   ASSIGN                        
+   SUBSTRING(tidut.UT,1) = "KONTO" 
+   SUBSTRING(tidut.UT,8) = "MOTPART" 
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "DEBET"
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "KREDIT".
+   CREATE tidut.
+   ASSIGN                                   
+   SUBSTRING(tidut.UT,1) = "======.=======.======.======.==============.===============.============". 
+   FOR EACH viskonttemp2 WHERE viskonttemp2.AONR = "Summa:":
+      dsumma = dsumma + viskonttemp2.DEBET.
+      ksumma = ksumma + viskonttemp2.KREDIT.
+      DELETE viskonttemp2.
+   END.
+   
+   FOR EACH viskonttemp2 BREAK BY viskonttemp2.KONTO BY viskonttemp2.MOTPART:   
+      ACCUMULATE viskonttemp2.DEBET (TOTAL BY viskonttemp2.KONTO BY viskonttemp2.MOTPART). 
+      ACCUMULATE viskonttemp2.KREDIT (TOTAL BY viskonttemp2.KONTO BY viskonttemp2.MOTPART). 
+      IF LAST-OF(viskonttemp2.MOTPART ) THEN DO:                        
+         CREATE tidut.
+         ASSIGN                        
+         SUBSTRING(tidut.UT,1) = viskonttemp2.KONTO 
+         SUBSTRING(tidut.UT,8) = viskonttemp2.MOTPART  
+                                  /*
+         SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING((ACCUM TOTAL BY viskonttemp2.MOTPART viskonttemp2.DEBET),"->>>>>>>9.99")
+         SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING((ACCUM TOTAL BY viskonttemp2.MOTPART viskonttemp2.KREDIT),"->>>>>>>9.99").
+         
+         */
+         SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING((ACCUM TOTAL BY viskonttemp2.MOTPART viskonttemp2.DEBET),"->>>>>>>9")
+         SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING((ACCUM TOTAL BY viskonttemp2.MOTPART viskonttemp2.KREDIT),"->>>>>>>9").
+      END.
+   END. 
+   CREATE tidut.
+   ASSIGN                                   
+   SUBSTRING(tidut.UT,23) = "Summa:"
+   /*
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(dsumma,"->>>>>>>9.99")
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(ksumma,"->>>>>>>9.99").
+*/
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(dsumma,"->>>>>>>9")
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(ksumma,"->>>>>>>9").
+END PROCEDURE.
+PROCEDURE viskontk_UI :
+   EMPTY TEMP-TABLE viskonttemp NO-ERROR.
+   EMPTY TEMP-TABLE viskonttemp2 NO-ERROR. 
+   DEFINE VARIABLE dsumma  AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE ksumma  AS DECIMAL NO-UNDO.
+   DEFINE QUERY BRW_K1 FOR FAKTKUNDKONTOKRED,KUNDFODRAN,MOTPART.
+   DEFINE QUERY BRW_K2 FOR FAKTINTAKTKONTKRED,INTAKTTAB,MOTPART.
+   DEFINE QUERY BRW_K4 FOR FAKTMOMSKRED,MOMSTAB.
+   FOR EACH hjfaktkont WHERE hjfaktkont.VFAKTNR = 0:
+      FIND FIRST FAKTKRED WHERE FAKTKRED.FAKTNR = hjfaktkont.FAKTNR AND
+      FAKTKRED.VKREDIT = hjfaktkont.VKREDIT NO-LOCK NO-ERROR.
+      FIND FIRST FAKTREGLER WHERE FAKTREGLER.FAKTNR = hjfaktkont.FAKTNR 
+      USE-INDEX FAKTREGLER NO-LOCK NO-ERROR.    
+      FIND FIRST FAKTURERINGSTYP WHERE 
+      FAKTURERINGSTYP.FAKTTYPID = FAKTKRED.FAKTTYPID NO-LOCK NO-ERROR.
+      
+      OPEN QUERY BRW_K1 FOR EACH FAKTKUNDKONTOKRED WHERE 
+      FAKTKUNDKONTOKRED.FAKTNR = hjfaktkont.FAKTNR AND 
+      FAKTKUNDKONTOKRED.VKREDIT = hjfaktkont.VKREDIT NO-LOCK, 
+      EACH KUNDFODRAN WHERE KUNDFODRAN.KUNDKONTOID = FAKTKUNDKONTOKRED.KUNDKONTOID NO-LOCK, 
+      EACH MOTPART WHERE MOTPART.MOTPARTID = FAKTKUNDKONTOKRED.MOTPARTID NO-LOCK.
+         
+      OPEN QUERY BRW_K2 FOR EACH FAKTINTAKTKONTKRED WHERE 
+      FAKTINTAKTKONTKRED.FAKTNR = hjfaktkont.FAKTNR AND 
+      FAKTINTAKTKONTKRED.VKREDIT = hjfaktkont.VKREDIT NO-LOCK, 
+      EACH INTAKTTAB WHERE INTAKTTAB.INTAKTID = FAKTINTAKTKONTKRED.INTAKTID NO-LOCK, 
+      EACH MOTPART WHERE MOTPART.MOTPARTID = FAKTINTAKTKONTKRED.MOTPARTID NO-LOCK.
+
+      OPEN QUERY BRW_K4 FOR EACH FAKTMOMSKRED WHERE 
+      FAKTMOMSKRED.FAKTNR = hjfaktkont.FAKTNR AND 
+      FAKTMOMSKRED.VKREDIT = hjfaktkont.VKREDIT NO-LOCK, 
+      EACH MOMSTAB WHERE MOMSTAB.MOMSID = FAKTMOMSKRED.MOMSID NO-LOCK.   
+
+      {VISKONTK.I}      
+      FOR EACH viskonttemp:
+         CREATE viskonttemp2.
+         BUFFER-COPY viskonttemp TO viskonttemp2.
+      END.
+   END.
+   FIND FIRST viskonttemp2 NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE viskonttemp2 THEN DO:
+      RETURN.
+   END.
+   CREATE tidut. 
+   CREATE tidut. 
+   CREATE tidut. 
+   /*
+   CREATE tidut.
+   SUBSTRING(tidut.UT,132) = "$". 
+   */
+   CREATE tidut. 
+   ASSIGN                        
+   SUBSTRING(tidut.UT,1) = "Kontering Kredit:". 
+   CREATE tidut.
+   CREATE tidut.
+   ASSIGN                        
+   SUBSTRING(tidut.UT,1) = "KONTO" 
+   SUBSTRING(tidut.UT,8) = "MOTPART" 
+   SUBSTRING(tidut.UT,30) = Guru.Konstanter:gdelnrk 
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "DEBET"
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "KREDIT".
+   CREATE tidut.
+   ASSIGN                                   
+   SUBSTRING(tidut.UT,1) = "======.=======.======.======.==============.===============.============".
+   FOR EACH viskonttemp2 WHERE viskonttemp2.AONR = "Summa:":
+      dsumma = dsumma + viskonttemp2.DEBET.
+      ksumma = ksumma + viskonttemp2.KREDIT.
+      DELETE viskonttemp2.
+   END.
+   
+   FOR EACH viskonttemp2 BREAK BY viskonttemp2.KONTO BY viskonttemp2.MOTPART:   
+      ACCUMULATE viskonttemp2.DEBET (TOTAL BY viskonttemp2.KONTO BY viskonttemp2.MOTPART). 
+      ACCUMULATE viskonttemp2.KREDIT (TOTAL BY viskonttemp2.KONTO BY viskonttemp2.MOTPART). 
+      IF LAST-OF(viskonttemp2.MOTPART ) THEN DO:                        
+         CREATE tidut.
+         ASSIGN                        
+         SUBSTRING(tidut.UT,1) = viskonttemp2.KONTO 
+         SUBSTRING(tidut.UT,8) = viskonttemp2.MOTPART  
+           /*                       
+         SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING((ACCUM TOTAL BY viskonttemp2.MOTPART viskonttemp2.DEBET),"->>>>>>>9.99")
+         SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING((ACCUM TOTAL BY viskonttemp2.MOTPART viskonttemp2.KREDIT),"->>>>>>>9.99").
+         */
+         SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING((ACCUM TOTAL BY viskonttemp2.MOTPART viskonttemp2.DEBET),"->>>>>>>9")
+         SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING((ACCUM TOTAL BY viskonttemp2.MOTPART viskonttemp2.KREDIT),"->>>>>>>9").
+      END.
+   END. 
+   CREATE tidut.
+   ASSIGN                                   
+   SUBSTRING(tidut.UT,23) = "Summa:"
+   /*
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(dsumma,"->>>>>>>9.99")
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(ksumma,"->>>>>>>9.99").
+   */
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(dsumma,"->>>>>>>9")
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(ksumma,"->>>>>>>9").
+   CREATE tidut.
+
+END PROCEDURE.
+
+PROCEDURE huvudk_UI :  
+
+   CREATE tidut. 
+   CREATE tidut.
+   CREATE tidut.
+   tidut.UT = "Kredit fakturerat mellan " + STRING(startdatumvar) + " och " + STRING(slutdatumvar). 
+   CREATE tidut.
+   ASSIGN
+   nrcol[1] = 1
+   nrcol[2] = 2
+   nrcol[3] = 3
+   nrcol[4] = 4
+   nrcol[5] = 5
+   nrcol[6] = 6
+   breddantal = 6   /*antal kolumner*/
+   bredd[1] = 6
+   bredd[2] = 25
+   bredd[3] = 10
+   bredd[4] = 15
+   bredd[5] = 12
+   bredd[6] = 12.
+   ASSIGN
+   i = 2.     
+   utnr[nrcol[1]] = 1.
+   DO WHILE i <= breddantal:             
+      utnr[i] = utnr[i - 1] + bredd[i - 1] + 1.            
+      i = i + 1.
+   END.   
+   ASSIGN
+   str = "".  
+   i = 1.
+   DO WHILE i <= utnr[breddantal] + bredd[breddantal] - 1:
+      str = str + "=".     
+      i = i + 1.
+   END.   
+   i = 2.      
+   DO WHILE i <= breddantal:             
+      SUBSTRING(str,(utnr[i] - 1),1) = ".".      
+      i = i + 1.
+   END.          
+   CREATE tidut.  
+   CREATE tidut.   
+   CREATE tidut.             
+   ASSIGN                                                                                                      
+   SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "FAKTP."                                                
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "FAKTURA".
+   str2 = tidut.UT.                 
+   CREATE tidut.      
+   ASSIGN                               
+   SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "NR."         
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "NAMN"                                                   
+   SUBSTRING(tidut.UT,utnr[nrcol[3]]) = "FAKTURANR."                                           
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "KATEGORI"             
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "BELOPP"             
+   SUBSTRING(tidut.UT,utnr[nrcol[6]]) = "INK. MOMS"                
+   str3 = tidut.UT.                
+   CREATE tidut.      
+   tidut.UT = str.
+   RUN summak_UI.  
+   
+   CREATE tidut.      
+   CREATE tidut.    
+   CREATE tidut.
+   ASSIGN 
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "Totalt denna period"
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "BELOPP"             
+   SUBSTRING(tidut.UT,utnr[nrcol[6]]) = "INK. MOMS".
+   CREATE tidut.
+   tidut.UT = str.
+   CREATE tidut.
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(debetbelopptotvar - kreditbelopptotvar,"->>>>>>>>>>9").             
+   SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(debetMbelopptotvar - kreditMbelopptotvar,"->>>>>>>>>>9").
+   
+   
+END PROCEDURE.
+
+PROCEDURE summak_UI:
+   DEFINE VARIABLE umkblopp AS INTEGER NO-UNDO.
+   DEFINE VARIABLE mmkblopp AS INTEGER NO-UNDO.
+   FOR EACH utextravfaktplantemp2 BY utextravfaktplantemp2.VKREDIT:
+      
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,utnr[nrcol[1]]) = STRING(utextravfaktplantemp2.FAKTNR)         
+      SUBSTRING(tidut.UT,utnr[nrcol[2]]) = SUBSTRING(utextravfaktplantemp2.NAMN,1,bredd[2])
+      SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING(utextravfaktplantemp2.VKREDIT)
+      
+      SUBSTRING(tidut.UT,utnr[nrcol[4]]) = utextravfaktplantemp2.FAKTTYP        
+      SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(utextravfaktplantemp2.BELOPP,"->>>>>>>>>>9").
+      
+      SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(utextravfaktplantemp2.MBELOPP,"->>>>>>>>>>9").
+      umkblopp = umkblopp +  INTEGER(STRING(utextravfaktplantemp2.BELOPP,"->>>>>>>>>>9")).
+      mmkblopp = mmkblopp +  INTEGER(STRING(utextravfaktplantemp2.MBELOPP,"->>>>>>>>>>9")).
+   END.
+   CREATE tidut.
+   CREATE tidut.                        
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "SUMMA PER FAKTURAKATEKORI".
+   CREATE tidut.
+   FOR EACH utextravfaktplantemp BREAK BY utextravfaktplantemp.FAKTTYP:
+      ACCUMULATE utextravfaktplantemp.BELOPP (TOTAL BY utextravfaktplantemp.FAKTTYP). 
+      ACCUMULATE utextravfaktplantemp.MBELOPP (TOTAL BY utextravfaktplantemp.FAKTTYP). 
+      IF LAST-OF(utextravfaktplantemp.FAKTTYP) THEN DO:                              
+         CREATE tidut.
+         ASSIGN
+         SUBSTRING(tidut.UT,utnr[nrcol[2]]) = utextravfaktplantemp.FAKTTYP
+         SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "SUMMA :"
+         SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(umkblopp,"->>>>>>>>>>9").
+         SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(mmkblopp,"->>>>>>>>>>9").
+         /*
+         SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING((ACCUM TOTAL BY utextravfaktplantemp.FAKTTYP utextravfaktplantemp.BELOPP),"->>>>>>>>>>9").
+         SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING((ACCUM TOTAL BY utextravfaktplantemp.FAKTTYP utextravfaktplantemp.mBELOPP),"->>>>>>>>>>9").
+         */
+      END.
+   END.
+   
+    FOR EACH utextravfaktplantemp2:
+      ACCUMULATE utextravfaktplantemp2.BELOPP (TOTAL).      
+   END.
+   FOR EACH utextravfaktplantemp2:
+      ACCUMULATE utextravfaktplantemp2.MBELOPP (TOTAL).      
+   END.
+   
+   CREATE tidut.
+   CREATE tidut.                         
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "SUMMERING TOTALT".
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "SUMMA :"   
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(ACCUM TOTAL utextravfaktplantemp2.BELOPP,"->>>>>>>>>>9").
+   SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(ACCUM TOTAL utextravfaktplantemp2.MBELOPP,"->>>>>>>>>>9").
+   kreditbelopptotvar = ACCUM TOTAL utextravfaktplantemp2.BELOPP.
+   kreditMbelopptotvar = ACCUM TOTAL utextravfaktplantemp2.MBELOPP.
+   
+   
+   /*                                      
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING((ACCUM TOTAL utextravfaktplantemp.BELOPP),"->>>>>>>>>>9").
+   */
+END PROCEDURE.
+
+
+PROCEDURE huvud_UI :  
+
+   CREATE tidut. 
+   SUBSTRING(tidut.UT,60) = STRING(TODAY) + " " + STRING(TIME,"HH:MM").
+   CREATE tidut.
+   CREATE tidut.
+   tidut.UT = "Debet fakturerat mellan " + STRING(startdatumvar) + " och " + STRING(slutdatumvar). 
+   CREATE tidut.
+   ASSIGN
+   nrcol[1] = 1
+   nrcol[2] = 2
+   nrcol[3] = 3
+   nrcol[4] = 4
+   nrcol[5] = 5
+   nrcol[6] = 6
+   breddantal = 6   /*antal kolumner*/
+   bredd[1] = 6
+   bredd[2] = 25
+   bredd[3] = 10
+   bredd[4] = 15
+   bredd[5] = 12
+   bredd[6] = 12.
+   ASSIGN
+   i = 2.     
+   utnr[nrcol[1]] = 1.
+   DO WHILE i <= breddantal:             
+      utnr[i] = utnr[i - 1] + bredd[i - 1] + 1.            
+      i = i + 1.
+   END.   
+   ASSIGN
+   str = "".  
+   i = 1.
+   DO WHILE i <= utnr[breddantal] + bredd[breddantal] - 1:
+      str = str + "=".     
+      i = i + 1.
+   END.   
+   i = 2.      
+   DO WHILE i <= breddantal:             
+      SUBSTRING(str,(utnr[i] - 1),1) = ".".      
+      i = i + 1.
+   END.          
+   CREATE tidut.  
+   CREATE tidut.   
+   CREATE tidut.             
+   ASSIGN                                                                                                      
+   SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "FAKTP."                                                
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "FAKTURA".
+   str2 = tidut.UT.                 
+   CREATE tidut.      
+   ASSIGN                               
+   SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "NR."         
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "NAMN"                                                   
+   SUBSTRING(tidut.UT,utnr[nrcol[3]]) = "FAKTURANR."                                           
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "KATEGORI"             
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "BELOPP"             
+   SUBSTRING(tidut.UT,utnr[nrcol[6]]) = "INK. MOMS"             
+   str3 = tidut.UT.                
+   CREATE tidut.      
+   tidut.UT = str.
+   RUN summa_UI.  
+   
+END PROCEDURE.
+
+PROCEDURE summa_UI:
+   DEFINE VARIABLE umblopp AS INTEGER NO-UNDO.
+   DEFINE VARIABLE mmblopp AS INTEGER NO-UNDO.
+   
+   
+   FOR EACH utextravfaktplantemp2 BY utextravfaktplantemp2.VFAKTNR:
+    
+      CREATE tidut.
+      ASSIGN
+      SUBSTRING(tidut.UT,utnr[nrcol[1]]) = STRING(utextravfaktplantemp2.FAKTNR)         
+      SUBSTRING(tidut.UT,utnr[nrcol[2]]) = SUBSTRING(utextravfaktplantemp2.NAMN,1,bredd[2])
+      SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING(utextravfaktplantemp2.VFAKTNR)
+      SUBSTRING(tidut.UT,utnr[nrcol[4]]) = utextravfaktplantemp2.FAKTTYP        
+      SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(utextravfaktplantemp2.BELOPP,"->>>>>>>>>>9")
+      
+      /*
+      SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(utextravfaktplantemp2.MBELOPP,"->>>>>>>>>>9.99").
+      
+      */
+      SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(utextravfaktplantemp2.MBELOPP,"->>>>>>>>>>9").
+      umblopp = umblopp +  INTEGER(STRING(utextravfaktplantemp2.BELOPP,"->>>>>>>>>>9")).
+      mmblopp = mmblopp +  INTEGER(STRING(utextravfaktplantemp2.MBELOPP,"->>>>>>>>>>9")).
+      IF Guru.Konstanter:globforetag = "ELPA" THEN DO:
+         FIND FIRST FAKTKUNDKONTO WHERE FAKTKUNDKONTO.FAKTNR = utextravfaktplantemp2.FAKTNR AND 
+         FAKTKUNDKONTO.VFAKTNR = utextravfaktplantemp2.VFAKTNR NO-LOCK NO-ERROR.
+         IF AVAILABLE FAKTKUNDKONTO THEN DO:
+            SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "               ".
+            SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "Fd " + STRING(FAKTKUNDKONTO.FDATUM).
+         END.    
+      END.        
+   END.
+   CREATE tidut.
+   CREATE tidut.                        
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "SUMMA PER FAKTURAKATEKORI".
+   CREATE tidut.
+   FOR EACH utextravfaktplantemp BREAK BY utextravfaktplantemp.FAKTTYP:
+      ACCUMULATE utextravfaktplantemp.BELOPP (TOTAL BY utextravfaktplantemp.FAKTTYP). 
+      ACCUMULATE utextravfaktplantemp.MBELOPP (TOTAL BY utextravfaktplantemp.FAKTTYP). 
+      IF LAST-OF(utextravfaktplantemp.FAKTTYP) THEN DO:                              
+         CREATE tidut.
+         ASSIGN
+         SUBSTRING(tidut.UT,utnr[nrcol[2]]) = utextravfaktplantemp.FAKTTYP
+         SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "SUMMA :"
+         SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(umblopp,"->>>>>>>>>>9").
+         SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(mmblopp,"->>>>>>>>>>9").
+         /*
+         SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING((ACCUM TOTAL BY utextravfaktplantemp.FAKTTYP utextravfaktplantemp.BELOPP),"->>>>>>>>>>9").
+         SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING((ACCUM TOTAL BY utextravfaktplantemp.FAKTTYP utextravfaktplantemp.MBELOPP),"->>>>>>>>>>9").
+         */
+      END.
+   END.
+   FOR EACH utextravfaktplantemp2:
+      ACCUMULATE utextravfaktplantemp2.BELOPP (TOTAL).      
+   END.
+   FOR EACH utextravfaktplantemp2:
+      ACCUMULATE utextravfaktplantemp2.MBELOPP (TOTAL).      
+   END.
+   /*
+   FOR EACH utextravfaktplantemp:
+      ACCUMULATE utextravfaktplantemp.BELOPP (TOTAL).      
+   END.
+   */
+   CREATE tidut.
+   CREATE tidut.                         
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "SUMMERING TOTALT".
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "SUMMA :"    
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(ACCUM TOTAL utextravfaktplantemp2.BELOPP,"->>>>>>>>>>9").
+   SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(ACCUM TOTAL utextravfaktplantemp2.MBELOPP,"->>>>>>>>>>9").
+   debetbelopptotvar = ACCUM TOTAL utextravfaktplantemp2.BELOPP.
+   debetMbelopptotvar = ACCUM TOTAL utextravfaktplantemp2.MBELOPP.
+    
+   /*                                     
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING((ACCUM TOTAL utextravfaktplantemp.BELOPP),"->>>>>>>>>>9").
+   */
+END PROCEDURE.

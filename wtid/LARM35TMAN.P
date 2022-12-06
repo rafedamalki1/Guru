@@ -1,0 +1,269 @@
+/*LARM35TMAN.P  N */
+{STARTFORAPP.I}
+
+DEFINE TEMP-TABLE eposttemp NO-UNDO
+   FIELD EPOST AS CHARACTER
+   FIELD GEPOST AS CHARACTER
+   FIELD BOLAG AS CHARACTER
+   FIELD MEDD AS CHARACTER
+   INDEX EPOST EPOST.
+DEFINE TEMP-TABLE farkoll NO-UNDO
+   FIELD GPKOD AS CHARACTER
+   FIELD GNAMN AS CHARACTER   
+   FIELD GEPOST  AS CHARACTER.
+      
+DEFINE TEMP-TABLE dagtemp
+   FIELD DATUM LIKE TIDREGITAB.DATUM     
+   FIELD OVERTIDMAN AS DECIMAL
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD    
+   FIELD NAMN AS CHARACTER FORMAT "X(30)"
+   FIELD TIDSGODK  AS CHARACTER
+   FIELD OMRADE AS CHARACTER
+   FIELD RMAN AS CHARACTER
+   FIELD GEOMRADE AS CHARACTER.
+         
+
+DEFINE TEMP-TABLE slutsum           
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD 
+   FIELD NAMN AS CHARACTER
+   FIELD MANAD AS CHARACTER   
+   FIELD OVMAN AS DECIMAL
+   FIELD TIDSGODK  AS CHARACTER   
+   FIELD GEPOST AS CHARACTER
+   FIELD GPKOD AS CHARACTER
+   FIELD GNAMN AS CHARACTER
+   FIELD RMAN AS CHARACTER
+   INDEX PKOD PERSONALKOD
+   INDEX GPKOD GPKOD PERSONALKOD.
+   
+DEFINE TEMP-TABLE pveckfl
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD FORNAMN AS CHARACTER
+   FIELD EFTERNAMN AS CHARACTER   
+   FIELD BFARDIG AS DATE
+   FIELD FARDIG AS DATE
+   FIELD NG AS CHARACTER
+   FIELD EPOST AS CHARACTER
+   FIELD TIDSGODK AS CHARACTER
+   FIELD GEPOST AS CHARACTER
+   FIELD MANADNR AS INTEGER
+   FIELD AR AS INTEGER
+   FIELD MANAD AS CHARACTER
+   FIELD KOLLDATUM AS DATE   
+   INDEX PERSONALKOD IS PRIMARY PERSONALKOD FARDIG
+   INDEX ARMAN PERSONALKOD AR MANAD
+   INDEX GODK TIDSGODK PERSONALKOD AR MANAD.   
+
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE VARIABLE aonrrec AS RECID NO-UNDO.
+DEFINE VARIABLE skick AS LOGICAL NO-UNDO.
+DEFINE VARIABLE efel AS CHARACTER FORMAT "X(30)" NO-UNDO.
+DEFINE VARIABLE servervar AS CHARACTER LABEL "Smtp Server" NO-UNDO.
+DEFINE VARIABLE franvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hjdat AS DATE NO-UNDO.
+DEFINE VARIABLE bolag AS CHARACTER NO-UNDO.
+DEFINE VARIABLE okbol AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kolldatum AS DATE NO-UNDO.
+DEFINE VARIABLE regmnamn AS CHARACTER NO-UNDO.
+DEFINE BUFFER persbuff FOR PERSONALTAB.
+
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+FUNCTION klock60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) * 60 / 100 ).
+
+END FUNCTION.
+
+
+{SMTPDEF3.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT FORETAG.FORETAG).
+IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "MISV" THEN DO:
+   ASSIGN
+   franvar = "NOREPLY"
+   servervar = CHR(49) + CHR(55) + CHR(50) + CHR(46) + CHR(49) + CHR(54) + CHR(46) + CHR(50) + CHR(53) + CHR(52) + CHR(46) + CHR(50) + CHR(50) + CHR(50).
+   /*servervar = "130.1.27.253".
+   servervar = "172.16.79.249".*/
+END.
+ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+   {SMTPFRANELPOOL.I}
+END.
+ELSE DO:
+   ASSIGN
+   franvar = "elpool.ume@elpool.se"
+   servervar = CHR(115) + CHR(109) + CHR(116) + CHR(112) + CHR(46) + CHR(116) + CHR(101) + CHR(108) + CHR(101) + CHR(99) + CHR(111) + CHR(109) + CHR(51) + CHR(46) + CHR(110) + CHR(101) + CHR(116) .
+END.
+
+kolldatum = TODAY.
+IF DAY(TODAY) LE 3 THEN kolldatum = TODAY - DAY(TODAY).
+regdatum = kolldatum.
+ 
+RUN REGVEC.P.    
+ASSIGN
+regar = YEAR(regdatum)
+regmnr = MONTH(regdatum).
+ 
+IF MONTH(regdatum) = 1 THEN regmnamn = "januari".
+IF MONTH(regdatum) = 2 THEN regmnamn = "februari".
+IF MONTH(regdatum) = 3 THEN regmnamn = "mars".
+IF MONTH(regdatum) = 4 THEN regmnamn = "april".
+IF MONTH(regdatum) = 5 THEN regmnamn = "maj".
+IF MONTH(regdatum) = 6 THEN regmnamn = "juni".
+IF MONTH(regdatum) = 7 THEN regmnamn = "juli".
+IF MONTH(regdatum) = 8 THEN regmnamn = "augusti".  
+IF MONTH(regdatum) = 9 THEN regmnamn = "septemper".
+IF MONTH(regdatum) = 10 THEN regmnamn = "oktober".  
+IF MONTH(regdatum) = 11 THEN regmnamn = "november".
+IF MONTH(regdatum) = 12 THEN regmnamn = "december".
+EMPTY TEMP-TABLE dagtemp NO-ERROR.
+EMPTY TEMP-TABLE slutsum NO-ERROR.
+EMPTY TEMP-TABLE farkoll NO-ERROR.
+       
+FOR EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE AND PERSONALTAB.ANSTALLNING NE "Ej tidskrivande personal"  USE-INDEX PERSONALKOD NO-LOCK:   
+   FIND FIRST ANSTFORMTAB WHERE ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+   USE-INDEX ANSTF NO-LOCK NO-ERROR.                            
+   OPEN QUERY toq FOR EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+   AND TIDREGITAB.DATUM GE DATE(01,regmnr,regar) AND  MONTH(TIDREGITAB.DATUM) = MONTH(kolldatum)  AND TIDREGITAB.OKOD1 NE ""  NO-LOCK.
+   GET FIRST toq NO-LOCK.
+   DO WHILE AVAILABLE (TIDREGITAB):
+      CREATE dagtemp.
+      ASSIGN    
+      dagtemp.PERSONALKOD = TIDREGITAB.PERSONALKOD
+      dagtemp.NAMN = SUBSTRING(PERSONALTAB.FORNAMN,1,10) + " " + SUBSTRING(PERSONALTAB.EFTERNAMN,1,20)
+      dagtemp.TIDSGODK = PERSONALTAB.TIDSGODK                  
+      dagtemp.DATUM =  TIDREGITAB.DATUM.            
+      
+      /*ändrad till verklig tid inte inte avrundad tid 20171122 Lena */               
+      dagtemp.OVERTIDMAN = klock100(TIDREGITAB.TOTALT).
+      /*dagtemp.OVERTIDMAN = klock100(TIDREGITAB.OANT1) + klock100(TIDREGITAB.OANT2) + klock100(TIDREGITAB.OANT3).*/                                 
+      GET NEXT toq NO-LOCK.
+   END.
+   
+END.   
+FOR EACH dagtemp BREAK BY dagtemp.PERSONALKOD:               
+   ACCUMULATE dagtemp.OVERTIDMAN (TOTAL  BY dagtemp.PERSONALKOD).        
+   IF LAST-OF(dagtemp.PERSONALKOD) THEN DO:      
+      CREATE slutsum.
+      ASSIGN         
+      slutsum.PERSONALKOD = dagtemp.PERSONALKOD                        
+      slutsum.NAMN = dagtemp.NAMN
+      slutsum.TIDSGODK = dagtemp.TIDSGODK                                       
+      slutsum.OVMAN = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.OVERTIDMAN).                                            
+   END.
+END.     
+
+FOR EACH slutsum  :
+   IF slutsum.OVMAN > 30 THEN DO:   
+      FIND FIRST persbuff WHERE persbuff.PERSONALKOD = slutsum.TIDSGODK NO-LOCK NO-ERROR.
+      IF AVAILABLE persbuff THEN DO:
+         ASSIGN
+         slutsum.GEPOST = SUBSTRING(persbuff.PERSONSOK,20)
+         slutsum.GPKOD = persbuff.PERSONALKOD
+         slutsum.GNAMN =  SUBSTRING(persbuff.FORNAMN,1,10) + " " + SUBSTRING(persbuff.EFTERNAMN,1,20).
+      END.      
+   END.
+   ELSE DELETE slutsum.
+                
+END. 
+                 
+FOR EACH slutsum  NO-LOCK:
+   FIND FIRST farkoll WHERE farkoll.GPKOD = slutsum.GPKOD  NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE farkoll THEN DO:            
+      CREATE farkoll.
+      ASSIGN
+      farkoll.GEPOST = slutsum.GEPOST 
+      farkoll.GPKOD =  slutsum.GPKOD 
+      farkoll.GNAMN =   slutsum.GNAMN.       
+   END.
+END.
+
+EMPTY TEMP-TABLE eposttemp NO-ERROR. 
+FOR EACH farkoll WHERE farkoll.GEPOST NE ""  NO-LOCK,
+EACH slutsum WHERE slutsum.TIDSGODK = farkoll.GPKOD  USE-INDEX GPKOD NO-LOCK.
+   FIND FIRST eposttemp WHERE eposttemp.EPOST = farkoll.GEPOST AND 
+   LENGTH(eposttemp.MEDD,"CHARACTER") < 30000 EXCLUSIVE-LOCK NO-ERROR.
+   IF NOT AVAILABLE eposttemp THEN DO:      
+      CREATE eposttemp.
+      ASSIGN     
+      eposttemp.EPOST = farkoll.GEPOST.        
+      eposttemp.MEDD =  farkoll.GNAMN  +  "  är tidsedelgodkännare för följande personer som har haft mer än 30 timmars övertid " + regmnamn + " "  + STRING(regar) + ":" +  CHR(10)   + CHR(10).                            
+   END.      
+   eposttemp.MEDD = eposttemp.MEDD + slutsum.PERSONALKOD + " " +  slutsum.NAMN + " har denna månad hittills registrerat  "  +  STRING(klock60(slutsum.OVMAN),">99.99") + " övertidstimmar" + CHR(10) + CHR(10).
+   
+   FIND FIRST eposttemp WHERE eposttemp.EPOST = "Katharina.Wikstrom@sundsvallenergi.se" AND LENGTH(eposttemp.MEDD,"CHARACTER") < 30000 EXCLUSIVE-LOCK NO-ERROR.
+   IF NOT AVAILABLE eposttemp THEN DO:      
+      CREATE eposttemp.
+      ASSIGN     
+      eposttemp.EPOST = "Katharina.Wikstrom@sundsvallenergi.se".        
+      eposttemp.MEDD =  "Följande personer har haft mer än 30 timmars övertid " + regmnamn + " "  + STRING(regar) + ":" +  CHR(10)   + CHR(10).                            
+   END.      
+   eposttemp.MEDD = eposttemp.MEDD + slutsum.PERSONALKOD + " " +  slutsum.NAMN + " har denna månad hittills registrerat  "  +  STRING(klock60(slutsum.OVMAN),">99.99") + " övertidstimmar" + CHR(10) + CHR(10).
+   
+   FIND FIRST eposttemp WHERE eposttemp.EPOST = "Jarmo.Klint@sundsvallenergi.se" AND LENGTH(eposttemp.MEDD,"CHARACTER") < 30000 EXCLUSIVE-LOCK NO-ERROR.
+   IF NOT AVAILABLE eposttemp THEN DO:      
+      CREATE eposttemp.
+      ASSIGN     
+      eposttemp.EPOST = "Jarmo.Klint@sundsvallenergi.se".        
+      eposttemp.MEDD =  "Följande personer har haft mer än 30 timmars övertid " + regmnamn + " "  + STRING(regar) + ":" +  CHR(10)   + CHR(10).                            
+   END.      
+   eposttemp.MEDD = eposttemp.MEDD + slutsum.PERSONALKOD + " " +  slutsum.NAMN + " har denna månad hittills registrerat  "  +  STRING(klock60(slutsum.OVMAN),">99.99") + " övertidstimmar" + CHR(10) + CHR(10).          
+END.
+
+RUN emedd_UI.
+
+PROCEDURE emedd_UI.
+   DEFINE VARIABLE ctillvar AS CHARACTER LABEL "Kopia" NO-UNDO.
+   ctillvar = "".
+ 
+   FOR EACH eposttemp:  
+      
+      ASSIGN 
+      mailhub             = servervar     
+      EmailTo             = eposttemp.EPOST 
+      EmailFrom           = franvar
+      EmailCC             = ctillvar
+      Attachmentstyp      = ""
+      LocalFiles          = "".
+               
+      Subject             = "Personer med mer än 30 timmar övertid " + regmnamn + " "  + STRING(regar) .
+      
+      assign    
+      Bodysmtp            = eposttemp.MEDD
+      MIMEHeader          = "type=text/plain/html:charset=iso-8859-1:filetype=ascii"
+      BodyType            = "".
+      IF Guru.Konstanter:globforetag = "sund" THEN EmailFrom = "webguru@sundsvallenergi.se".
+      IF Guru.Konstanter:globforetag = "SNAT" THEN EmailFrom = "@guru.sundsvallelnat.se".
+      IF Guru.Konstanter:globforetag = "MISV" THEN EmailFrom = "webguru@mittsverigevatten.se".
+      RUN smtpmail_UI (INPUT FALSE).
+      IF oSuccessful = TRUE THEN DO TRANSACTION:
+         oSuccessful = FALSE.               
+      END.      
+      ELSE DO:
+         IF Guru.Konstanter:globforetag = "SUND"  THEN DO:
+            OUTPUT TO D:\delad\server\pro10s\EXPORT\lon\ov35timfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.         
+         OUTPUT CLOSE.
+    
+      END.
+   END.     
+END PROCEDURE.  
+
+ 
+   
+

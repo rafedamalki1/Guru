@@ -1,0 +1,220 @@
+/*NYANNAPPJ.P*/
+{EXTRADATA.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+PROCEDURE btnok_UI :
+   DEFINE INPUT PARAMETER andra AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER siff AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER innr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER innamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valford AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vallinje AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER sparnr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER andrakod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   FIND FIRST ANNNAMN NO-LOCK NO-ERROR.
+   IF andra = FALSE THEN DO: 
+      IF siff = 1 THEN DO:
+         FIND FIRST BERFOR WHERE BERFOR.FORNR = innr NO-LOCK NO-ERROR.
+         IF AVAILABLE BERFOR THEN DO:
+            ASSIGN felmedd = "Det finns redan en " + ANNNAMN.TAB1 + " med detta Nr. Ange ett nytt.".
+            RETURN.
+         END.
+         ELSE DO:  
+            DO TRANSACTION:
+               CREATE BERFOR.
+               ASSIGN
+               BERFOR.FORNR = innr
+               BERFOR.NAMN = innamn.
+            END.
+            IF valomr NE "ALLA" THEN RUN extraomr_UI (INPUT valomr).
+            RELEASE BERFOR NO-ERROR.
+            RETURN.            
+         END.
+      END.
+      ELSE IF siff = 2 THEN DO:
+         FIND FIRST BERLINJE WHERE BERLINJE.FORNR = valford AND 
+         BERLINJE.LINNR = innr NO-LOCK NO-ERROR. 
+         IF AVAILABLE BERLINJE THEN DO:
+            ASSIGN felmedd = "Det finns redan en " + ANNNAMN.TAB2 + " med detta Nr kopplat till " + ANNNAMN.TAB1 + " Nr: " + valford + ". Ange ett nytt.".
+            RETURN.
+         END.
+         ELSE DO TRANSACTION:   
+            CREATE BERLINJE.
+            ASSIGN
+            BERLINJE.LINNR = innr
+            BERLINJE.NAMN = innamn
+            BERLINJE.FORNR = valford.           
+         END.
+         RELEASE BERLINJE NO-ERROR.
+         RETURN.         
+      END.
+      ELSE DO:
+         FIND FIRST BERNAT WHERE BERNAT.FORNR = valford AND BERNAT.LINNR = vallinje AND
+         BERNAT.NATNR = innr NO-LOCK NO-ERROR.
+         IF AVAILABLE BERNAT THEN DO:
+            ASSIGN felmedd = "Det finns redan en " + ANNNAMN.TAB3 + " med detta Nr kopplat till " + ANNNAMN.TAB2 + " Nr: " + vallinje + ". Ange ett nytt.".
+            RETURN.
+         END.
+         ELSE DO TRANSACTION:   
+            CREATE BERNAT.
+            ASSIGN
+            BERNAT.NATNR = innr
+            BERNAT.NAMN = innamn
+            BERNAT.FORNR = valford
+            BERNAT.LINNR = vallinje.
+         END.
+         RELEASE BERNAT NO-ERROR.
+         RETURN.                  
+      END.     
+   END.
+   ELSE DO:
+      IF siff = 1 THEN DO:
+         IF innr NE sparnr THEN DO:
+            FIND FIRST BERFOR WHERE BERFOR.FORNR = innr NO-LOCK NO-ERROR.
+            IF AVAILABLE BERFOR THEN DO:
+               ASSIGN felmedd = "Det finns redan en " + ANNNAMN.TAB1 + " med detta Nr. Ange ett nytt.".
+               RETURN.
+            END.
+            ELSE DO TRANSACTION:
+               FIND FIRST BERFOR WHERE BERFOR.FORNR = andrakod EXCLUSIVE-LOCK NO-ERROR.                  
+               ASSIGN
+               BERFOR.FORNR = innr
+               BERFOR.NAMN = innamn. 
+               RUN extromrbort_UI (INPUT sparnr).
+               IF valomr NE "ALLA" THEN RUN extraomr_UI (INPUT valomr).
+               OPEN QUERY linq FOR EACH BERLINJE WHERE BERLINJE.FORNR = sparnr NO-LOCK.
+               GET FIRST linq NO-LOCK.
+               DO WHILE AVAILABLE(BERLINJE):
+                  GET CURRENT linq EXCLUSIVE-LOCK.
+                  OPEN QUERY natq FOR EACH BERNAT WHERE BERNAT.FORNR = BERLINJE.FORNR AND
+                  BERNAT.LINNR = BERLINJE.LINNR NO-LOCK.
+                  GET FIRST natq NO-LOCK.
+                  DO WHILE AVAILABLE(BERNAT):
+                     GET CURRENT natq EXCLUSIVE-LOCK.
+                     ASSIGN
+                     BERNAT.FORNR = innr.
+                     GET NEXT natq NO-LOCK.
+                  END.                         
+                  CLOSE QUERY natq.
+                  ASSIGN
+                  BERLINJE.FORNR = innr.
+                  GET NEXT linq NO-LOCK. 
+               END.
+               CLOSE QUERY linq.     
+               RETURN.
+            END.   
+         END. 
+         ELSE DO TRANSACTION:
+            FIND FIRST BERFOR WHERE BERFOR.FORNR = andrakod EXCLUSIVE-LOCK NO-ERROR.                  
+            ASSIGN              
+            BERFOR.NAMN = innamn. 
+         END.
+         IF valomr NE "ALLA" THEN RUN extraomr_UI (INPUT valomr).
+         RELEASE BERFOR NO-ERROR.         
+         RETURN.         
+      END.  
+      ELSE IF siff = 2 THEN DO:
+         IF innr NE sparnr THEN DO:
+            FIND FIRST BERLINJE WHERE BERLINJE.FORNR = valford AND 
+            BERLINJE.LINNR = innr NO-LOCK NO-ERROR. 
+            IF AVAILABLE BERLINJE THEN DO:
+               ASSIGN felmedd = "Det finns redan en " + ANNNAMN.TAB2 + " med detta Nr kopplat till " + ANNNAMN.TAB1 + " Nr: " + valford + ". Ange ett nytt.".
+               RETURN.
+            END.
+            ELSE DO TRANSACTION:
+               FIND FIRST BERLINJE WHERE BERLINJE.FORNR = valford AND 
+               BERLINJE.LINNR = andrakod EXCLUSIVE-LOCK NO-ERROR.                  
+               ASSIGN
+               BERLINJE.LINNR = innr
+               BERLINJE.NAMN = innamn.                
+               OPEN QUERY natq FOR EACH BERNAT WHERE BERNAT.FORNR = valford AND
+               BERNAT.LINNR = sparnr NO-LOCK.
+               GET FIRST natq NO-LOCK.
+               DO WHILE AVAILABLE(BERNAT):
+                  GET CURRENT natq EXCLUSIVE-LOCK.
+                  ASSIGN
+                  BERNAT.LINNR = innr.
+                  GET NEXT natq NO-LOCK.
+               END.                         
+               CLOSE QUERY natq.   
+               RETURN.
+            END.
+            RELEASE BERLINJE NO-ERROR.
+         END. 
+         ELSE DO TRANSACTION:
+            FIND FIRST BERLINJE WHERE BERLINJE.FORNR = valford AND 
+            BERLINJE.LINNR = andrakod EXCLUSIVE-LOCK NO-ERROR.        
+            ASSIGN              
+            BERLINJE.NAMN = innamn. 
+         END.
+         RELEASE BERLINJE NO-ERROR.
+         RETURN.         
+      END.
+      ELSE DO:
+         IF innr NE sparnr THEN DO:
+            FIND FIRST BERNAT WHERE BERNAT.FORNR = valford AND BERNAT.LINNR = vallinje AND
+            BERNAT.NATNR = innr NO-LOCK NO-ERROR.
+            IF AVAILABLE BERNAT THEN DO:
+               ASSIGN felmedd = "Det finns redan en " + ANNNAMN.TAB3 + " med detta Nr kopplat till " + ANNNAMN.TAB2 + " Nr: " + vallinje + ". Ange ett nytt.".
+               RETURN.
+            END.
+            ELSE DO TRANSACTION:  
+               FIND FIRST BERNAT WHERE BERNAT.FORNR = valford AND 
+               BERNAT.LINNR = vallinje AND BERNAT.NATNR = andrakod EXCLUSIVE-LOCK NO-ERROR.        
+               ASSIGN              
+               BERNAT.NATNR = innr.
+               BERNAT.NAMN = innamn. 
+            END.
+            RELEASE BERNAT NO-ERROR.
+            RETURN.            
+         END. 
+         ELSE DO TRANSACTION:
+            FIND FIRST BERNAT WHERE BERNAT.FORNR = valford AND 
+            BERNAT.LINNR = vallinje AND BERNAT.NATNR = andrakod EXCLUSIVE-LOCK NO-ERROR.        
+            ASSIGN              
+            BERNAT.NAMN = innamn. 
+         END.
+         RELEASE BERNAT NO-ERROR.
+         RETURN.         
+      END.    
+   END.
+   
+END PROCEDURE.
+
+
+PROCEDURE extromrbort_UI :
+   DEFINE INPUT PARAMETER valfor AS CHARACTER NO-UNDO.
+   RUN FINNSTABELL.P (INPUT "EXTRADATA", OUTPUT bloblog).
+   IF bloblog = FALSE THEN RETURN.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "ANLOMR"                   
+   inextradatatemp.HUVUDCH = valfor              
+   inextradatatemp.HUVUDINT =  ?.      
+   RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).        
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.        
+   edataapph = ?.
+END PROCEDURE.
+
+PROCEDURE extraomr_UI :
+   DEFINE INPUT PARAMETER valomr AS CHARACTER NO-UNDO.
+   RUN FINNSTABELL.P (INPUT "EXTRADATA", OUTPUT bloblog).
+   IF bloblog = FALSE THEN RETURN.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.                  
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "ANLOMR"                   
+   inextradatatemp.HUVUDCH = BERFOR.FORNR              
+   inextradatatemp.HUVUDINT = ?
+   inextradatatemp.SOKCHAR[1] = valomr.       
+   RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+   edataapph = ?.
+END PROCEDURE.

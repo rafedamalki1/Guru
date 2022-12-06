@@ -1,0 +1,208 @@
+/*KALKRUTIN.P*/   /*KALKRUTIN*/
+{GATILL.I}
+DEFINE INPUT PARAMETER vadgora AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER kalknrvar AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER kalknralt AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER stnivvar AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER stnivvaralt AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR gatill.
+DEFINE BUFFER kalkaobuff FOR KALKAONR.
+
+IF vadgora = 1 THEN DO:
+   /*SÄTTER HUVUDKALK*/
+   DO TRANSACTION:   
+      FIND FIRST KALKAONR WHERE KALKAONR.KALKNR = kalknrvar
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF kalknralt NE 0 THEN DO:
+         FIND FIRST kalkaobuff WHERE kalkaobuff.KALKNR = kalknralt
+         EXCLUSIVE-LOCK NO-ERROR.      
+         IF AVAILABLE kalkaobuff THEN DO:
+            ASSIGN            
+            kalkaobuff.STATUSNIV = stnivvaralt.        
+         END.         
+      END.
+      KALKAONR.STATUSNIV = stnivvar.      
+   END. 
+END.
+IF vadgora = 2 THEN DO:
+   /*GÅR TILL KALKYL VIA AONR*/
+   OPEN QUERY fq FOR EACH KALKAONR WHERE KALKAONR.AONR = aonrvar AND
+   KALKAONR.DELNR = delnrvar NO-LOCK.
+   GET FIRST fq NO-LOCK.
+   DO WHILE AVAILABLE(KALKAONR):
+      FIND FIRST FASTSPEC WHERE FASTSPEC.KALKNR = KALKAONR.KALKNR 
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE FASTSPEC THEN DO:
+         CREATE gatill.
+         ASSIGN
+         gatill.TYPCHAR = "KAL"
+         gatill.TYP = KALKAONR.TYP
+         gatill.F1 = "Kalkyl typ " + STRING(KALKAONR.TYP) 
+         gatill.F2 = STRING(KALKAONR.KALKNR)         
+         gatill.F3 = FASTSPEC.BENAMNING
+         gatill.STATUSNIV = KALKAONR.STATUSNIV.        
+         IF FASTSPEC.TYP = 5 THEN gatill.F1 = "Kalkyl Sam B/F"  .
+         IF FASTSPEC.TYP = 7 THEN gatill.F1 = "Kalkyl Nätreg N1"  .
+      END.
+      ELSE DO:
+         FIND FIRST KALKSPEC WHERE KALKSPEC.KALKNR = KALKAONR.KALKNR 
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE KALKSPEC THEN DO:
+            CREATE gatill.
+            ASSIGN
+            gatill.TYPCHAR = "KAL"
+            gatill.TYP = KALKAONR.TYP
+            gatill.F1 = "Kalkyl typ fri" 
+            gatill.F2 = STRING(KALKAONR.KALKNR)         
+            gatill.F3 = KALKSPEC.KALKTEXT
+            gatill.STATUSNIV = KALKAONR.STATUSNIV.                    
+         END.
+      END.
+      GET NEXT fq NO-LOCK.
+   END. 
+END.
+
+IF vadgora = 4 THEN DO:
+   /*TARBORT*/
+   DO TRANSACTION:   
+      FIND FIRST KALKAONR WHERE KALKAONR.KALKNR = kalknrvar
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE KALKAONR THEN DELETE KALKAONR.
+   END.
+END.
+IF vadgora = 5 THEN DO:
+   /*GÅR TILL KALKYL VIA PALNNR*/
+   OPEN QUERY fq FOR EACH KALKAONR WHERE KALKAONR.PLANNR = aonrvar AND
+   KALKAONR.ARTAL = delnrvar NO-LOCK.
+   GET FIRST fq NO-LOCK.
+   DO WHILE AVAILABLE(KALKAONR):
+      FIND FIRST FASTSPEC WHERE FASTSPEC.KALKNR = KALKAONR.KALKNR
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE FASTSPEC THEN DO:
+         CREATE gatill.
+         ASSIGN
+         gatill.TYPCHAR = "KAL"
+         gatill.TYP = KALKAONR.TYP
+         gatill.F1 = "Kalkyl typ " + STRING(KALKAONR.TYP) 
+         gatill.F2 = STRING(KALKAONR.KALKNR)         
+         gatill.F3 = FASTSPEC.BENAMNING
+         gatill.STATUSNIV = KALKAONR.STATUSNIV.        
+         IF FASTSPEC.TYP = 5 THEN gatill.F1 = "Kalkyl Sam B/F"  .
+         IF FASTSPEC.TYP = 7 THEN gatill.F1 = "Kalkyl Nätreg N1"  .
+      END.
+      ELSE DO:
+         FIND FIRST KALKSPEC WHERE KALKSPEC.KALKNR = KALKAONR.KALKNR
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE KALKSPEC THEN DO:
+            CREATE gatill.
+            ASSIGN
+            gatill.TYPCHAR = "KAL"
+            gatill.TYP = KALKAONR.TYP
+            gatill.F1 = "Kalkyl typ fri"  
+            gatill.F2 = STRING(KALKAONR.KALKNR)         
+            gatill.F3 = KALKSPEC.KALKTEXT
+            gatill.STATUSNIV = KALKAONR.STATUSNIV.                    
+         END.
+      END.
+      GET NEXT fq NO-LOCK.
+   END. 
+END.
+IF vadgora = 6 THEN DO:
+   /*SKAPAR KALKAONR VID NY KALK*/
+   DO TRANSACTION:   
+      FIND FIRST KALKAONR WHERE KALKAONR.KALKNR = kalknrvar
+      EXCLUSIVE-LOCK NO-ERROR.
+      FIND FIRST KALKSPEC WHERE KALKSPEC.KALKNR = kalknrvar 
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKAONR THEN DO:
+         CREATE KALKAONR.
+         ASSIGN 
+         KALKAONR.AKTIV  = KALKSPEC.AKTIV 
+         KALKAONR.KALKNR = KALKSPEC.KALKNR
+         KALKAONR.OMRADE = KALKSPEC.OMRADE
+         KALKAONR.TYP    = 6  
+         KALKAONR.LASTA = FALSE
+         KALKAONR.AONR      = KALKSPEC.AONR  
+         KALKAONR.DELNR     = KALKSPEC.DELNR 
+         KALKAONR.PLANNR      = KALKSPEC.PLANNR  
+         KALKAONR.ARTAL     = KALKSPEC.ARTAL. 
+         IF KALKAONR.AONR = "" THEN DO:
+            ASSIGN
+            KALKAONR.AONR = ?
+            KALKAONR.DELNR = ?.      
+         END.
+         IF KALKAONR.PLANNR = "" THEN DO:
+            ASSIGN
+            KALKAONR.PLANNR = ?
+            KALKAONR.ARTAL = ?.
+         END.      
+         IF KALKAONR.AONR = ? AND KALKAONR.PLANNR = ? THEN KALKAONR.STATUSNIV = "".
+      END.
+      /*
+      IF KALKAONR.AONR NE ? THEN DO:
+         FIND FIRST kalkaobuff WHERE kalkaobuff.AONR = KALKAONR.AONR AND
+         kalkaobuff.DELNR = KALKAONR.DELNR AND kalkaobuff.STATUSNIV = "UF"
+         EXCLUSIVE-LOCK NO-ERROR.      
+         IF AVAILABLE kalkaobuff THEN DO:
+            IF kalkaobuff.TSTATUSNIV = "UF" THEN KALKAONR.STATUSNIV = "UF".
+            ELSE KALKAONR.STATUSNIV = "HUV".
+            ASSIGN
+            kalkaobuff.STATUSNIV = "ALT".
+         END.
+         ELSE DO:
+            RUN koll_UI.
+         END.        
+      END.
+      ELSE DO:
+         RUN koll_UI.
+      END.
+      */      
+      RUN koll_UI.
+   END. 
+END.
+RELEASE kalkaobuff NO-ERROR.
+RELEASE KALKAONR NO-ERROR.
+PROCEDURE koll_UI:
+   IF KALKAONR.AONR NE ? THEN DO:
+      FIND FIRST kalkaobuff WHERE kalkaobuff.AONR = KALKAONR.AONR AND
+      kalkaobuff.DELNR = KALKAONR.DELNR AND kalkaobuff.STATUSNIV = "UF"
+      AND RECID(kalkaobuff) NE RECID(KALKAONR)
+      NO-LOCK NO-ERROR. 
+   END.
+   ELSE DO:
+      FIND FIRST kalkaobuff WHERE kalkaobuff.PLANNR = KALKAONR.PLANNR AND
+      kalkaobuff.ARTAL = KALKAONR.ARTAL AND kalkaobuff.STATUSNIV = "UF"
+      AND RECID(kalkaobuff) NE RECID(KALKAONR)
+      NO-LOCK NO-ERROR. 
+   END.
+   IF AVAILABLE kalkaobuff THEN DO:
+      IF  kalkaobuff.TYP NE KALKAONR.TYP THEN DO:
+         IF KALKAONR.AONR NE ? THEN DO:
+            FIND FIRST kalkaobuff WHERE kalkaobuff.AONR = KALKAONR.AONR AND
+            kalkaobuff.DELNR = KALKAONR.DELNR AND kalkaobuff.STATUSNIV = "HUV"
+            AND kalkaobuff.TYP = KALKAONR.TYP AND RECID(kalkaobuff) NE RECID(KALKAONR)
+            NO-LOCK NO-ERROR. 
+         END.
+         ELSE DO:
+            FIND FIRST kalkaobuff WHERE kalkaobuff.PLANNR = KALKAONR.PLANNR AND
+            kalkaobuff.ARTAL = KALKAONR.ARTAL AND kalkaobuff.STATUSNIV = "HUV"
+            AND kalkaobuff.TYP = KALKAONR.TYP
+            AND RECID(kalkaobuff) NE RECID(KALKAONR)
+            NO-LOCK NO-ERROR. 
+         END.
+         IF AVAILABLE kalkaobuff THEN DO:
+            KALKAONR.STATUSNIV = "ALT".
+         END.
+         ELSE DO:
+            KALKAONR.STATUSNIV = "HUV".
+         END.
+      END.
+      ELSE KALKAONR.STATUSNIV = "ALT".
+   END.
+   ELSE DO:
+      KALKAONR.STATUSNIV = "UF".
+   END.
+END PROCEDURE.
+

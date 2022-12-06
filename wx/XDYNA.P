@@ -1,0 +1,73 @@
+/*XDYNA.P*/
+&Scoped-define NEW NEW
+DEFINE TEMP-TABLE valdfasttemp LIKE CUSTOMER. 
+DEFINE INPUT PARAMETER nyakalknr AS INTEGER NO-UNDO.
+DEFINE OUTPUT PARAMETER varfinns AS LOGICAL NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR valdfasttemp. 
+varfinns = TRUE.
+DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kommandoorgfalt AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kommandonyfalt AS CHARACTER NO-UNDO.
+DEFINE VARIABLE orginaltab AS CHARACTER NO-UNDO.
+DEFINE VARIABLE jointab AS CHARACTER NO-UNDO.
+DEFINE VARIABLE nytab      AS CHARACTER NO-UNDO.
+
+DEFINE VARIABLE qh AS HANDLE NO-UNDO.
+DEFINE VARIABLE orgtabh AS HANDLE NO-UNDO.
+DEFINE VARIABLE jointabh AS HANDLE NO-UNDO.
+DEFINE VARIABLE orgfalth AS HANDLE NO-UNDO.
+DEFINE VARIABLE nyfalth AS HANDLE NO-UNDO.
+DEFINE VARIABLE nytabh AS HANDLE NO-UNDO.
+DEFINE VARIABLE extratemptabh AS HANDLE NO-UNDO.
+DEFINE VARIABLE extrajointemptabh AS HANDLE NO-UNDO.
+PROCEDURE dynquery_UI:
+   CREATE WIDGET-POOL "dynTemp" NO-ERROR.
+   DEFINE INPUT PARAMETER dynakollvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER dynajoin AS LOGICAL NO-UNDO.
+   CREATE BUFFER orgtabh FOR TABLE orginaltab IN WIDGET-POOL "dynTemp". 
+   IF dynajoin = TRUE THEN DO:
+      CREATE BUFFER jointabh FOR TABLE extrajointemptabh IN WIDGET-POOL "dynTemp".
+   END.
+   CREATE BUFFER nytabh FOR TABLE extratemptabh IN WIDGET-POOL "dynTemp".
+   CREATE QUERY qh IN WIDGET-POOL "dynTemp".
+   IF dynajoin = TRUE THEN DO:
+      qh:SET-BUFFERS(jointabh,orgtabh).
+   END.
+   ELSE qh:SET-BUFFERS(orgtabh).
+   qh:QUERY-PREPARE(kommandoquery).   
+   qh:QUERY-OPEN().
+   qh:GET-FIRST(NO-LOCK).
+   DO WHILE orgtabh:AVAILABLE:   
+      nytabh:BUFFER-CREATE().
+      nytabh:BUFFER-COPY(orgtabh). 
+      IF dynakollvar = TRUE THEN RUN dynstartkoll_UI.
+      qh:GET-NEXT(NO-LOCK).        
+   END.
+   qh:QUERY-CLOSE().
+   DELETE WIDGET-POOL "dynTemp" NO-ERROR.
+END PROCEDURE. 
+PROCEDURE dynakoll_UI:
+   DEFINE OUTPUT PARAMETER dynmusz AS LOGICAL NO-UNDO.
+   nyfalth = nytabh:BUFFER-FIELD(kommandonyfalt).
+   orgfalth = orgtabh:BUFFER-FIELD(kommandoorgfalt).
+   IF nyfalth:BUFFER-VALUE NE orgfalth:BUFFER-VALUE THEN DO:
+      nytabh:BUFFER-DELETE(). 
+      dynmusz = TRUE.      
+   END.
+END PROCEDURE. 
+PROCEDURE and_UI:
+   IF kommandoquery NE " " THEN kommandoquery = kommandoquery + " AND".
+END PROCEDURE.
+
+ASSIGN
+kommandoquery = "CUSTOMER.CUSTNUM = " + STRING(nyakalknr)
+orginaltab = "CUSTOMER"
+nytab      = "valdfasttemp".
+ASSIGN
+kommandoquery = "FOR EACH " + orginaltab + " WHERE " + kommandoquery + " NO-LOCK".
+/*BUGG 9.1c FIX*/
+ASSIGN extratemptabh = TEMP-TABLE valdfasttemp:DEFAULT-BUFFER-HANDLE.
+RUN dynquery_UI (INPUT FALSE,INPUT FALSE).
+FIND FIRST valdfasttemp NO-ERROR.
+
+IF NOT AVAILABLE valdfasttemp THEN varfinns = FALSE.

@@ -1,0 +1,455 @@
+
+/*LEVAPPV.P*/
+
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{DEPATEMP.I}
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{ANVTEMPS.I}
+{MTRLTEMP.I}
+{SPECMTRLTEMP.I}
+{LAGERTRUM.I}
+{INKTEMP.I}
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(86)" NO-UNDO.    
+DEFINE VARIABLE str1 AS CHARACTER FORMAT "X(86)" NO-UNDO.
+DEFINE VARIABLE posvar AS INTEGER NO-UNDO.
+
+{TIDUTTTNEW.I}   
+{EXTRADATA.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+{DYNHMT.I}
+DEFINE VARIABLE best_nr_koll AS INTEGER NO-UNDO.
+DEFINE VARIABLE lev_nr_koll  AS INTEGER NO-UNDO.
+DEFINE VARIABLE invdat AS DATE NO-UNDO. 
+&Scoped-define NEW   
+&Scoped-define SHARED
+{bestnrtab.I}
+{LEVNRTAB.I}
+{aobestnrtab.I}
+{aoLEVNRTAB.I}
+{LAGERPLKOPP.I}
+{AOBESTMTRLDEP.I}
+{UAOTEMP.I}
+DEFINE NEW SHARED TEMP-TABLE off_mtrl NO-UNDO     
+    FIELD TOTALT AS DECIMAL.
+DEFINE TEMP-TABLE pristemp NO-UNDO
+   FIELD PRIS AS DECIMAL
+   FIELD ANTAL AS INTEGER.    
+DEFINE VARIABLE antalvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE antalvar2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE datsok AS DATE NO-UNDO.
+DEFINE VARIABLE totpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE berdatumvar AS DATE NO-UNDO.
+
+
+DEFINE BUFFER LAGERPLATSKOPPBUFF FOR LAGERPLATSKOPP.
+DEFINE BUFFER BESTDEPAOBUFF FOR BESTDEPAO.
+
+ 
+DEFINE TEMP-TABLE utnr NO-UNDO
+    FIELD BESTNR AS INTEGER   
+    FIELD DEPNR AS INTEGER
+    FIELD PROJDEPNR AS INTEGER.
+
+&Scoped-define NEW 
+&Scoped-define SHARED
+{BESTMTRLDEP.I}
+                  
+                                                         
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN globforetag = FORETAG.FORETAG.                                                         
+
+
+   
+PROCEDURE inkbestdepao_UI:   
+   DEFINE INPUT PARAMETER TABLE FOR einkadresstemp.
+   DEFINE INPUT  PARAMETER pdepa AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR eaobest_mtrl.
+   DEFINE OUTPUT PARAMETER uttagfinns AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER trummafinns AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE bnummer AS INTEGER NO-UNDO.   
+   EMPTY TEMP-TABLE eaobest_mtrl NO-ERROR.
+   EMPTY TEMP-TABLE etaobest_mtrl NO-ERROR.
+   EMPTY TEMP-TABLE utnr NO-ERROR.
+   DEBUGGER:SET-BREAK().   
+   uttagfinns = FALSE.
+   trummafinns = FALSE.
+   FIND FIRST einkadresstemp NO-ERROR.
+   IF AVAILABLE einkadresstemp THEN DO:
+      
+      
+      IF  einkadresstemp.INKBESTID > 0 THEN DO:
+         /*depnr = 8 direkt till byggplats utan att lägga på p-plats. Dvs -skapa inte BESTDEPAO */
+         IF einkadresstemp.DEP-NR = 8 THEN.
+         ELSE DO:
+            FOR EACH INKMTRL WHERE INKMTRL.INKBESTID = einkadresstemp.INKBESTID :
+               DO TRANSACTION:
+                  /* för inköpet Ahlsell sätt både DEPNR och PROJdepnr = Guru.GlobalaVariabler:GuruProjdepnr
+                  dvs det spelar ingen roll vilken depåadress man har valt, eller ska vi sätta felmeddelande om inte depå 1 är vald?
+                  20191011 sätt depnr = vald depå i inköpet BESTDEPAO.DEPNR = einkadresstemp.DEP-NR . dvs välj var inköpet hamnar */
+                  CREATE BESTDEPAO.
+                  BUFFER-COPY einkadresstemp TO BESTDEPAO .
+                  IF INKMTRL.DEPNRINK > 0 THEN BESTDEPAO.DEPNR = INKMTRL.DEPNRINK.
+                  ELSE BESTDEPAO.DEPNR = einkadresstemp.DEP-NR.
+                  
+                  
+                  ASSIGN                              
+                  BESTDEPAO.PROJDEPNR = pdepa
+                  BESTDEPAO.BESTALLARE = einkadresstemp.ANVANDARE 
+                  BESTDEPAO.ENR = INKMTRL.ENR
+                  BESTDEPAO.PRIS = INKMTRL.PRISINK
+                  BESTDEPAO.LEVKOD = INKMTRL.LEVKODINK 
+                  BESTDEPAO.ANTAL  = INKMTRL.INKANTAL
+                  BESTDEPAO.ENHET  = INKMTRL.ENHET  
+                  BESTDEPAO.BENAMNING = INKMTRL.BENAMNING 
+                  BESTDEPAO.ENR = INKMTRL.ENR.
+                  
+                  
+                  IF INKMTRL.DEPNRINK > 0 THEN DO:
+                     /*UTTAG OCH TRUMMOR- nolla BESTDEPAO.INKBESTID och sätt BESTDEPAO.BESTNR BESTDEPAO.TRUMMANR */
+                     /*trumma*/
+                     DEBUGGER:SET-BREAK().
+                     FIND FIRST TRUMMADEP  WHERE TRUMMADEP.DEPNR = BESTDEPAO.DEPNR AND TRUMMADEP.ENR = BESTDEPAO.ENR AND TRUMMADEP.TRUMMA = "S" 
+                     AND TRUMMADEP.AOKOPP = FALSE AND TRUMMADEP.LAGMETER > 0 NO-LOCK NO-ERROR.
+                     IF AVAILABLE TRUMMADEP THEN DO:                     
+                        ASSIGN 
+                        BESTDEPAO.TRUMMANR = 999
+                        BESTDEPAO.BESTNR = 0
+                        BESTDEPAO.INKBESTID = 0.
+                        CREATE etaobest_mtrl.
+                        BUFFER-COPY BESTDEPAO TO etaobest_mtrl.
+                        DELETE BESTDEPAO.                      
+                     END.
+                     ELSE DO:
+                        /*20190609 nollar visningsantal i lager om alla trummor uttagna för ett enr*/
+                        FIND FIRST TRUMMADEP  WHERE TRUMMADEP.DEPNR = BESTDEPAO.DEPNR AND TRUMMADEP.ENR = BESTDEPAO.ENR AND TRUMMADEP.TRUMMA = "S" 
+                        AND TRUMMADEP.AOKOPP = TRUE AND TRUMMADEP.LAGMETER > 0 NO-LOCK NO-ERROR.
+                        IF AVAILABLE TRUMMADEP THEN DO:
+                           /*alla trummor uttagna - ge felmeddelande om att göra det manuellt*/                     
+                           ASSIGN 
+                           BESTDEPAO.TRUMMANR = 998
+                           BESTDEPAO.BESTNR = 0
+                           BESTDEPAO.INKBESTID = 0.
+                           CREATE etaobest_mtrl.
+                           BUFFER-COPY BESTDEPAO TO etaobest_mtrl.
+                           DELETE BESTDEPAO.                      
+                        END.
+                           
+                        ELSE DO:
+                           /*Uttag*/   
+                           FIND FIRST utnr  WHERE utnr.PROJDEPNR = BESTDEPAO.PROJDEPNR AND utnr.DEPNR = BESTDEPAO.DEPNR NO-LOCK NO-ERROR.
+                           IF NOT AVAILABLE utnr THEN DO:                    
+                              FIND LAST BERBEST WHERE BERBEST.DEPNR = BESTDEPAO.DEPNR USE-INDEX BEST NO-LOCK NO-ERROR.
+                              IF NOT AVAILABLE BERBEST THEN bnummer = 1.                 
+                              ELSE bnummer = BERBEST.BESTNR + 1.
+                              ASSIGN 
+                              BESTDEPAO.BESTNR = bnummer
+                              BESTDEPAO.INKBESTID = 0
+                              BESTDEPAO.TRUMMANR = 0                        
+                              BESTDEPAO.INKID = 0
+                              /*BESTDEPAO.ORDERNUMMER = ""*/
+                              BESTDEPAO.BESTDATUM = TODAY                           
+                              /* uttag ska mottagas lena 20190514
+                              BESTDEPAO.LEVDATUM = TODAY*/
+                              BESTDEPAO.LEVDATUM = ?
+                              BESTDEPAO.LEVERANSDATUM = TODAY.
+                              
+                              CREATE utnr .
+                              ASSIGN
+                              utnr.BESTNR = BESTDEPAO.BESTNR
+                              utnr.DEPNR = BESTDEPAO.DEPNR
+                              utnr.PROJDEPNR = BESTDEPAO.PROJDEPNR.
+                           END.
+                           ELSE DO:
+                              ASSIGN 
+                              BESTDEPAO.BESTNR = utnr.BESTNR
+                              BESTDEPAO.INKBESTID = 0
+                              BESTDEPAO.TRUMMANR = 0                        
+                              BESTDEPAO.INKID = 0
+                              /*BESTDEPAO.ORDERNUMMER = ""*/
+                              BESTDEPAO.BESTDATUM = TODAY
+                              /* uttag ska mottagas lena 20190514
+                              BESTDEPAO.LEVDATUM = TODAY*/
+                              BESTDEPAO.LEVDATUM = ?                           
+                              BESTDEPAO.LEVERANSDATUM = TODAY.
+                              
+                           END.
+                      
+                           /*uppdatera saldo i depå efter uttag*/   
+                           FIND FIRST MTRLDEP  WHERE MTRLDEP.DEPNR = BESTDEPAO.DEPNR AND
+                           MTRLDEP.ENR = BESTDEPAO.ENR AND MTRLDEP.IBDATUM = ? EXCLUSIVE-LOCK NO-ERROR.            
+                           IF AVAILABLE MTRLDEP THEN DO:               
+                              MTRLDEP.SALDO = MTRLDEP.SALDO - BESTDEPAO.ANTAL.
+                              BESTDEPAO.LEVKOD  = MTRLDEP.LEVKOD.                                
+                           END.                        
+                        END.
+                     END.
+                  END.
+                  IF AVAILABLE BESTDEPAO THEN DO:   
+                     CREATE eaobest_mtrl.
+                     BUFFER-COPY BESTDEPAO TO eaobest_mtrl.
+                  END.      
+               END.   
+            END.   
+         END.
+      END.   
+       
+   END.         
+   EMPTY TEMP-TABLE off_mtrl NO-ERROR.
+   /*om det finns uttag - gör dessa */
+   FIND FIRST utnr WHERE NO-LOCK NO-ERROR.
+   IF AVAILABLE utnr THEN DO:
+      uttagfinns = TRUE.     
+      FOR EACH utnr NO-LOCK:
+         FIND FIRST eaobest_mtrl WHERE eaobest_mtrl.DEPNR = utnr.DEPNR NO-LOCK NO-ERROR.
+         RUN okubest_UI (INPUT eaobest_mtrl.AONRAONR, INPUT eaobest_mtrl.AONRDELNR,INPUT eaobest_mtrl.DEPNR , INPUT "" ,INPUT eaobest_mtrl.BESTNR ,INPUT 0,
+                            INPUT ganv, INPUT TABLE eaobest_mtrl , INPUT TABLE off_mtrl).
+      END.                      
+   END.
+   /*lägg tillbaka trummor- de skall kopplas till lagerplats*/
+   FOR EACH etaobest_mtrl :
+      trummafinns = TRUE.
+      CREATE eaobest_mtrl.
+      BUFFER-COPY etaobest_mtrl TO  eaobest_mtrl.
+   END.  
+   
+END PROCEDURE.
+
+=======
+/*LEVAPPV.P*/
+
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{DEPATEMP.I}
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{ANVTEMPS.I}
+{MTRLTEMP.I}
+{SPECMTRLTEMP.I}
+{LAGERTRUM.I}
+{INKTEMP.I}
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(86)" NO-UNDO.    
+DEFINE VARIABLE str1 AS CHARACTER FORMAT "X(86)" NO-UNDO.
+DEFINE VARIABLE posvar AS INTEGER NO-UNDO.
+
+{TIDUTTTNEW.I}   
+{EXTRADATA.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+{DYNHMT.I}
+DEFINE VARIABLE best_nr_koll AS INTEGER NO-UNDO.
+DEFINE VARIABLE lev_nr_koll  AS INTEGER NO-UNDO.
+DEFINE VARIABLE invdat AS DATE NO-UNDO. 
+&Scoped-define NEW   
+&Scoped-define SHARED
+{bestnrtab.I}
+{LEVNRTAB.I}
+{aobestnrtab.I}
+{aoLEVNRTAB.I}
+{LAGERPLKOPP.I}
+{AOBESTMTRLDEP.I}
+{UAOTEMP.I}
+DEFINE NEW SHARED TEMP-TABLE off_mtrl NO-UNDO     
+    FIELD TOTALT AS DECIMAL.
+DEFINE TEMP-TABLE pristemp NO-UNDO
+   FIELD PRIS AS DECIMAL
+   FIELD ANTAL AS INTEGER.    
+DEFINE VARIABLE antalvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE antalvar2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE datsok AS DATE NO-UNDO.
+DEFINE VARIABLE totpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE berdatumvar AS DATE NO-UNDO.
+
+
+DEFINE BUFFER LAGERPLATSKOPPBUFF FOR LAGERPLATSKOPP.
+DEFINE BUFFER BESTDEPAOBUFF FOR BESTDEPAO.
+
+ 
+DEFINE TEMP-TABLE utnr NO-UNDO
+    FIELD BESTNR AS INTEGER   
+    FIELD DEPNR AS INTEGER
+    FIELD PROJDEPNR AS INTEGER.
+
+&Scoped-define NEW 
+&Scoped-define SHARED
+{BESTMTRLDEP.I}
+                  
+                                                         
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN globforetag = FORETAG.FORETAG.                                                         
+
+
+   
+PROCEDURE inkbestdepao_UI:   
+   DEFINE INPUT PARAMETER TABLE FOR einkadresstemp.
+   DEFINE INPUT  PARAMETER pdepa AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR eaobest_mtrl.
+   DEFINE OUTPUT PARAMETER uttagfinns AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER trummafinns AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE bnummer AS INTEGER NO-UNDO.   
+   EMPTY TEMP-TABLE eaobest_mtrl NO-ERROR.
+   EMPTY TEMP-TABLE etaobest_mtrl NO-ERROR.
+   EMPTY TEMP-TABLE utnr NO-ERROR.
+   DEBUGGER:SET-BREAK().   
+   uttagfinns = FALSE.
+   trummafinns = FALSE.
+   FIND FIRST einkadresstemp NO-ERROR.
+   IF AVAILABLE einkadresstemp THEN DO:
+      
+      
+      IF  einkadresstemp.INKBESTID > 0 THEN DO:
+         /*depnr = 8 direkt till byggplats utan att lägga på p-plats. Dvs -skapa inte BESTDEPAO */
+         IF einkadresstemp.DEP-NR = 8 THEN.
+         ELSE DO:
+            FOR EACH INKMTRL WHERE INKMTRL.INKBESTID = einkadresstemp.INKBESTID :
+               DO TRANSACTION:
+                  /* för inköpet Ahlsell sätt både DEPNR och PROJdepnr = Guru.GlobalaVariabler:GuruProjdepnr
+                  dvs det spelar ingen roll vilken depåadress man har valt, eller ska vi sätta felmeddelande om inte depå 1 är vald?
+                  20191011 sätt depnr = vald depå i inköpet BESTDEPAO.DEPNR = einkadresstemp.DEP-NR . dvs välj var inköpet hamnar */
+                  CREATE BESTDEPAO.
+                  BUFFER-COPY einkadresstemp TO BESTDEPAO .
+                  IF INKMTRL.DEPNRINK > 0 THEN BESTDEPAO.DEPNR = INKMTRL.DEPNRINK.
+                  ELSE BESTDEPAO.DEPNR = einkadresstemp.DEP-NR.
+                  
+                  
+                  ASSIGN                              
+                  BESTDEPAO.PROJDEPNR = pdepa
+                  BESTDEPAO.BESTALLARE = einkadresstemp.ANVANDARE 
+                  BESTDEPAO.ENR = INKMTRL.ENR
+                  BESTDEPAO.PRIS = INKMTRL.PRISINK
+                  BESTDEPAO.LEVKOD = INKMTRL.LEVKODINK 
+                  BESTDEPAO.ANTAL  = INKMTRL.INKANTAL
+                  BESTDEPAO.ENHET  = INKMTRL.ENHET  
+                  BESTDEPAO.BENAMNING = INKMTRL.BENAMNING 
+                  BESTDEPAO.ENR = INKMTRL.ENR.
+                  
+                  
+                  IF INKMTRL.DEPNRINK > 0 THEN DO:
+                     /*UTTAG OCH TRUMMOR- nolla BESTDEPAO.INKBESTID och sätt BESTDEPAO.BESTNR BESTDEPAO.TRUMMANR */
+                     /*trumma*/
+                     DEBUGGER:SET-BREAK().
+                     FIND FIRST TRUMMADEP  WHERE TRUMMADEP.DEPNR = BESTDEPAO.DEPNR AND TRUMMADEP.ENR = BESTDEPAO.ENR AND TRUMMADEP.TRUMMA = "S" 
+                     AND TRUMMADEP.AOKOPP = FALSE AND TRUMMADEP.LAGMETER > 0 NO-LOCK NO-ERROR.
+                     IF AVAILABLE TRUMMADEP THEN DO:                     
+                        ASSIGN 
+                        BESTDEPAO.TRUMMANR = 999
+                        BESTDEPAO.BESTNR = 0
+                        BESTDEPAO.INKBESTID = 0.
+                        CREATE etaobest_mtrl.
+                        BUFFER-COPY BESTDEPAO TO etaobest_mtrl.
+                        DELETE BESTDEPAO.                      
+                     END.
+                     ELSE DO:
+                        /*20190609 nollar visningsantal i lager om alla trummor uttagna för ett enr*/
+                        FIND FIRST TRUMMADEP  WHERE TRUMMADEP.DEPNR = BESTDEPAO.DEPNR AND TRUMMADEP.ENR = BESTDEPAO.ENR AND TRUMMADEP.TRUMMA = "S" 
+                        AND TRUMMADEP.AOKOPP = TRUE AND TRUMMADEP.LAGMETER > 0 NO-LOCK NO-ERROR.
+                        IF AVAILABLE TRUMMADEP THEN DO:
+                           /*alla trummor uttagna - ge felmeddelande om att göra det manuellt*/                     
+                           ASSIGN 
+                           BESTDEPAO.TRUMMANR = 998
+                           BESTDEPAO.BESTNR = 0
+                           BESTDEPAO.INKBESTID = 0.
+                           CREATE etaobest_mtrl.
+                           BUFFER-COPY BESTDEPAO TO etaobest_mtrl.
+                           DELETE BESTDEPAO.                      
+                        END.
+                           
+                        ELSE DO:
+                           /*Uttag*/   
+                           FIND FIRST utnr  WHERE utnr.PROJDEPNR = BESTDEPAO.PROJDEPNR AND utnr.DEPNR = BESTDEPAO.DEPNR NO-LOCK NO-ERROR.
+                           IF NOT AVAILABLE utnr THEN DO:                    
+                              FIND LAST BERBEST WHERE BERBEST.DEPNR = BESTDEPAO.DEPNR USE-INDEX BEST NO-LOCK NO-ERROR.
+                              IF NOT AVAILABLE BERBEST THEN bnummer = 1.                 
+                              ELSE bnummer = BERBEST.BESTNR + 1.
+                              ASSIGN 
+                              BESTDEPAO.BESTNR = bnummer
+                              BESTDEPAO.INKBESTID = 0
+                              BESTDEPAO.TRUMMANR = 0                        
+                              BESTDEPAO.INKID = 0
+                              /*BESTDEPAO.ORDERNUMMER = ""*/
+                              BESTDEPAO.BESTDATUM = TODAY                           
+                              /* uttag ska mottagas lena 20190514
+                              BESTDEPAO.LEVDATUM = TODAY*/
+                              BESTDEPAO.LEVDATUM = ?
+                              BESTDEPAO.LEVERANSDATUM = TODAY.
+                              
+                              CREATE utnr .
+                              ASSIGN
+                              utnr.BESTNR = BESTDEPAO.BESTNR
+                              utnr.DEPNR = BESTDEPAO.DEPNR
+                              utnr.PROJDEPNR = BESTDEPAO.PROJDEPNR.
+                           END.
+                           ELSE DO:
+                              ASSIGN 
+                              BESTDEPAO.BESTNR = utnr.BESTNR
+                              BESTDEPAO.INKBESTID = 0
+                              BESTDEPAO.TRUMMANR = 0                        
+                              BESTDEPAO.INKID = 0
+                              /*BESTDEPAO.ORDERNUMMER = ""*/
+                              BESTDEPAO.BESTDATUM = TODAY
+                              /* uttag ska mottagas lena 20190514
+                              BESTDEPAO.LEVDATUM = TODAY*/
+                              BESTDEPAO.LEVDATUM = ?                           
+                              BESTDEPAO.LEVERANSDATUM = TODAY.
+                              
+                           END.
+                      
+                           /*uppdatera saldo i depå efter uttag*/   
+                           FIND FIRST MTRLDEP  WHERE MTRLDEP.DEPNR = BESTDEPAO.DEPNR AND
+                           MTRLDEP.ENR = BESTDEPAO.ENR AND MTRLDEP.IBDATUM = ? EXCLUSIVE-LOCK NO-ERROR.            
+                           IF AVAILABLE MTRLDEP THEN DO:               
+                              MTRLDEP.SALDO = MTRLDEP.SALDO - BESTDEPAO.ANTAL.
+                              BESTDEPAO.LEVKOD  = MTRLDEP.LEVKOD.                                
+                           END.                        
+                        END.
+                     END.
+                  END.
+                  IF AVAILABLE BESTDEPAO THEN DO:   
+                     CREATE eaobest_mtrl.
+                     BUFFER-COPY BESTDEPAO TO eaobest_mtrl.
+                  END.      
+               END.   
+            END.   
+         END.
+      END.   
+       
+   END.         
+   EMPTY TEMP-TABLE off_mtrl NO-ERROR.
+   /*om det finns uttag - gör dessa */
+   FIND FIRST utnr WHERE NO-LOCK NO-ERROR.
+   IF AVAILABLE utnr THEN DO:
+      uttagfinns = TRUE.     
+      FOR EACH utnr NO-LOCK:
+         FIND FIRST eaobest_mtrl WHERE eaobest_mtrl.DEPNR = utnr.DEPNR NO-LOCK NO-ERROR.
+         RUN okubest_UI (INPUT eaobest_mtrl.AONRAONR, INPUT eaobest_mtrl.AONRDELNR,INPUT eaobest_mtrl.DEPNR , INPUT "" ,INPUT eaobest_mtrl.BESTNR ,INPUT 0,
+                            INPUT ganv, INPUT TABLE eaobest_mtrl , INPUT TABLE off_mtrl).
+      END.                      
+   END.
+   /*lägg tillbaka trummor- de skall kopplas till lagerplats*/
+   FOR EACH etaobest_mtrl :
+      trummafinns = TRUE.
+      CREATE eaobest_mtrl.
+      BUFFER-COPY etaobest_mtrl TO  eaobest_mtrl.
+   END.  
+   
+END PROCEDURE.
+
+>>>>>>> branch 'master' of file:///\\server05\delad\REMOTEGURU\GuruRemote.git

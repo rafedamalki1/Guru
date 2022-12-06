@@ -1,0 +1,122 @@
+/*ONISATSIN.P*/
+/*INLÄSNING AV oni SATSREGISTER*/  
+
+/*Gör om filen till en semikolonavgänsad fil*/    
+
+/*DEFINE TEMP-TABLE insats NO-UNDO
+   FIELD SATSENR AS CHARACTER
+   FIELD SATSBEN1 AS CHARACTER
+   FIELD SATSBEN2 AS CHARACTER
+   FIELD ENR AS CHARACTER
+   FIELD ENRBEN1 AS CHARACTER
+   FIELD ENRBEN2 AS CHARACTER
+   FIELD ENHET AS CHARACTER
+   FIELD ANTAL AS DECIMAL
+   INDEX SATSENR IS PRIMARY SATSENR.*/
+DEFINE TEMP-TABLE insats NO-UNDO   
+   FIELD SATSENR AS CHARACTER  
+   FIELD SATSBEN1 AS CHARACTER
+   FIELD ENR AS CHARACTER     
+   FIELD ENRBEN1 AS CHARACTER   
+   FIELD ENHET AS CHARACTER
+   FIELD ANTAL AS DECIMAL
+   INDEX SATSENR IS PRIMARY SATSENR.   
+
+   
+DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE kommando AS CHARACTER NO-UNDO.
+
+DEFINE INPUT PARAMETER globforetag LIKE FORETAG.FORETAG NO-UNDO.   
+DEFINE INPUT PARAMETER leverant LIKE LEVERANTOR.LEVKOD NO-UNDO.
+ {AMERICANEUROPEAN.I}
+ IF globforetag = "cc" {GLOBVES.I} THEN DO:
+    
+    filnamn = "e:\delad\pro9\guru\onisats.SKV".
+ END. 
+ ELSE IF globforetag = "elpa" THEN DO:
+    filnamn = "f:\elpool\elpnj\VESAB\Onninen\onisats.SKV".
+ END.
+ ELSE IF globforetag = "krin" THEN DO:
+    filnamn = "C:\delad\pro10\guru\Strukturer Elnät 2018-01-24fix.skv".    
+ END. 
+ kommando = filnamn.
+   /*DELETE*/
+   /*OPEN QUERY DQ FOR EACH SATS WHERE SATS.LEVKOD = "16" NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST DQ EXCLUSIVE-LOCK.
+      IF AVAILABLE SATS THEN DELETE SATS.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT DQ EXCLUSIVE-LOCK.
+         IF AVAILABLE SATS THEN DELETE SATS.
+         ELSE LEAVE.
+      END.
+   END.
+   CLOSE QUERY DQ.*/
+   /*INLÄSNING FIL*/
+   SESSION:SET-NUMERIC-FORMAT(" ",","). 
+   INPUT FROM VALUE(kommando) CONVERT TARGET "iso8859-1" SOURCE "iso8859-1" NO-ECHO.
+   REPEAT:
+      CREATE insats.
+      ASSIGN.
+      IMPORT DELIMITER ";" insats   .      
+   END.
+
+   SESSION:SET-NUMERIC-FORMAT(" ",".").
+  
+   FOR EACH insats WHERE insats.SATSENR = "":
+      DELETE insats.
+   END.  
+   
+   /*TA BORT E I E-NUMMRET*/
+   FOR EACH insats :      
+      IF SUBSTRING(TRIM(insats.SATSENR),1,1) = "E" THEN insats.SATSENR = SUBSTRING(TRIM(insats.SATSENR),2).
+      IF SUBSTRING(TRIM(insats.ENR),1,1) = "E" THEN insats.ENR = SUBSTRING(TRIM(insats.ENR),2).
+   END.
+   
+   FOR EACH insats NO-LOCK:                                      
+      FIND FIRST SATS WHERE SATS.KOD = TRIM(insats.SATSENR) AND SATS.LEVKOD = leverant AND
+      SATS.SATS = TRUE NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE SATS THEN DO:
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = leverant AND MTRL.ENR = TRIM(insats.SATSENR)AND 
+         MTRL.KALKNR = 0 USE-INDEX LEV NO-LOCK NO-ERROR.
+         CREATE SATS.
+         ASSIGN      
+         SATS.KOD = TRIM(insats.SATSENR)
+         SATS.LEVKOD = leverant         
+         SATS.ENR = TRIM(insats.SATSENR)                    
+         SATS.SATS = TRUE.              
+         SATS.BENAMNING = TRIM(insats.SATSBEN1).         
+         
+         IF AVAILABLE MTRL THEN DO:
+            ASSIGN
+            SATS.BENAMNING = MTRL.BENAMNING
+            SATS.ENHET = MTRL.ENHET
+            SATS.PRIS = MTRL.NPRIS.
+         END.
+      END.
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = leverant AND MTRL.ENR = TRIM(insats.ENR)
+      AND MTRL.KALKNR = 0 USE-INDEX LEV NO-LOCK NO-ERROR.
+      CREATE SATS.
+      ASSIGN      
+      SATS.KOD = TRIM(insats.SATSENR)
+      SATS.LEVKOD = leverant         
+      SATS.ENR2 = TRIM(insats.ENR)
+      SATS.SATS = FALSE
+      SATS.ANTAL = insats.ANTAL. 
+      SATS.BENAMNING2 = TRIM(insats.ENRBEN1).
+      /*IF TRIM(insats.ENRBEN2) = "." THEN SATS.BENAMNING2 = TRIM(insats.ENRBEN1).
+      ELSE IF TRIM(insats.ENRBEN2) = "" THEN SATS.BENAMNING2 = TRIM(insats.ENRBEN1).
+      ELSE IF TRIM(insats.ENRBEN2) = TRIM(insats.ENRBEN1) THEN SATS.BENAMNING2 = TRIM(insats.ENRBEN1).
+      ELSE SATS.BENAMNING2 = TRIM(insats.ENRBEN1) + " " + TRIM(insats.ENRBEN2).*/
+      IF AVAILABLE MTRL THEN DO:
+         ASSIGN
+         SATS.BENAMNING2 = MTRL.BENAMNING
+         SATS.ENHET2 = MTRL.ENHET
+         SATS.PRIS2 = MTRL.NPRIS.
+      END.                     
+   END.   
+{EUROPEANAMERICAN.I}
+             
+   

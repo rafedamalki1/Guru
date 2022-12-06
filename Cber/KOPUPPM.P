@@ -1,0 +1,694 @@
+/*KOPUPPM.P*/
+{KOPUPPMWID.I}
+DEFINE VARIABLE kombtemph   AS HANDLE NO-UNDO.
+
+DEFINE VARIABLE berupptemph  AS HANDLE NO-UNDO.
+DEFINE VARIABLE labhj1 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE labhj2 AS CHARACTER NO-UNDO.
+framesizeh = framesizeextrah.
+kombtemph  = TEMP-TABLE kombtemp:DEFAULT-BUFFER-HANDLE.    
+berupptemph = TEMP-TABLE berupptemp:DEFAULT-BUFFER-HANDLE.
+ON 'VALUE-CHANGED' OF BRW_KOMB PERSISTENT RUN vbrwkomb_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED' OF BRW_UPP PERSISTENT RUN vbrwupp_UI IN THIS-PROCEDURE.
+ON 'CHOOSE' OF BTN_ANDRA PERSISTENT RUN btnand_UI IN THIS-PROCEDURE.
+ON 'CHOOSE' OF BTN_BORT PERSISTENT RUN btnbort_UI IN THIS-PROCEDURE.
+ON 'CHOOSE' OF BTN_NY PERSISTENT RUN btnny_UI IN THIS-PROCEDURE.
+ON 'CHOOSE' OF FBTN_BKOMB PERSISTENT RUN fbtnbkomb_UI IN THIS-PROCEDURE.
+ON 'CHOOSE' OF FBTN_KOMB PERSISTENT RUN fbtnkomb_UI IN THIS-PROCEDURE.
+ON 'CHOOSE' OF FBTN_SKRIV PERSISTENT RUN fbtnskriv_UI IN THIS-PROCEDURE  (INPUT 1).  
+ON 'CHOOSE' OF FBTN_SKRIVK PERSISTENT RUN fbtnskriv_UI IN THIS-PROCEDURE (INPUT 2). 
+ON 'MOUSE-MENU-CLICK' OF FBTN_SKRIV PERSISTENT RUN mfbtnskriv_UI IN THIS-PROCEDURE.
+ON 'MOUSE-MENU-CLICK' OF FBTN_SKRIVK PERSISTENT RUN mfbtnskriv_UI IN THIS-PROCEDURE.
+ON 'CHOOSE' OF FBTN_UPP PERSISTENT RUN fbtnupp_UI IN THIS-PROCEDURE.
+ON 'CHOOSE' OF FBTN_VISA PERSISTENT RUN fbtnvisa_UI IN THIS-PROCEDURE (INPUT 1).
+ON 'CHOOSE' OF FBTN_VISAK PERSISTENT RUN fbtnvisa_UI IN THIS-PROCEDURE (INPUT 2).
+                                 
+ON 'CHOOSE' OF FBTN_OUPP PERSISTENT RUN fbtnoupp_UI IN THIS-PROCEDURE.
+ON 'CHOOSE' OF BTN_FAVOUPP PERSISTENT RUN fbtnspfav_UI IN THIS-PROCEDURE.
+ON 'MOUSE-SELECT-DBLCLICK' OF BRW_FAVOUPPLAG PERSISTENT RUN dbclickbrwfavoupplag_UI  IN THIS-PROCEDURE.
+/*
+PROCEDURE mkomb_UI :
+   ASSIGN
+   antal_valda = BRW_KOMB:NUM-SELECTED-ROWS.
+   antal_raknare = 1.   
+   DO WHILE antal_raknare LE antal_valda:                                   
+      RUN fselectfoc_UI (INPUT 1). 
+      IF AVAILABLE kombtemp THEN DO:
+         FIND FIRST kon_val WHERE kon_val.NUM = kombtemp.NUM AND
+         kon_val.KSKAP = FALSE USE-INDEX NUM NO-LOCK NO-ERROR.
+         {muswait.i}
+         {AVBGOM2.I}             
+         RUN BERINFOU2.W (INPUT ROWID(kon_val)).     
+         {AVBFRAM2.I}
+         {musarrow.i}
+      END.
+      antal_raknare = antal_raknare + 1.   
+   END.   
+END PROCEDURE.
+*/
+PROCEDURE fbtnvisa_UI :
+   DEFINE INPUT PARAMETER radval AS INTEGER NO-UNDO.
+   {muswait.i}        
+   ASSIGN
+   typval = radval.
+   IF musz = TRUE THEN musz = FALSE.   
+   ASSIGN    
+   skrivut = FALSE.   
+   {AVBGOM2.I}
+   RUN VISAUPPLU.W.
+   {AVBFRAM2.I}   
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE fbtnupp_UI :
+   FIND FIRST berupptemp WHERE berupptemp.AONR = valaonr AND 
+   berupptemp.OMRADE = valomrade USE-INDEX OMR NO-LOCK NO-ERROR.
+   IF AVAILABLE berupptemp THEN DO:  
+      RUN selectfoc_UI (INPUT 3).
+      ASSIGN                                             
+      kon_rowid = berupptemp.BERROW
+      counter = berupptemp.UPPLAG.                     
+      antal_valda = BRW_KOMB:NUM-SELECTED-ROWS NO-ERROR.
+      antal_raknare = 1. 
+      DO WHILE antal_raknare LE antal_valda:                                   
+         RUN fselectfoc_UI (INPUT 1).
+         IF AVAILABLE kombtemp THEN DO:
+            komb_rowid = ROWID(kombtemp).            
+            IF kombtemp.UPPLAG = counter THEN DO:
+               musz = musz. 
+            END.
+            ELSE DO:   
+               FIND FIRST kombtemp WHERE ROWID(kombtemp) = komb_rowid EXCLUSIVE-LOCK NO-ERROR.
+               FIND FIRST kon_id WHERE kon_id.NUM = kombtemp.NUM USE-INDEX NUM NO-LOCK NO-ERROR.
+               IF AVAILABLE kon_id THEN DO:                  
+                  IF kon_id.XKORD NE ? THEN DO:
+                     MESSAGE "Konstruktionen " + kombtemp.F1 + " är kombinerad. Hela kombinationen kommer att kopplas till upplaget."
+                     VIEW-AS ALERT-BOX TITLE "Meddelande".
+                     FOR EACH idbuff WHERE idbuff.XKORD = kon_id.XKORD AND
+                     ROWID(idbuff) NE ROWID(kon_id):
+                        FIND FIRST kombtemp WHERE kombtemp.NUM = idbuff.NUM USE-INDEX NUM
+                        NO-LOCK NO-ERROR.
+                        kombtemp.UPPLAG = counter.
+                        FIND FIRST kon_val WHERE kon_val.NUM = idbuff.NUM AND
+                        kon_val.KSKAP = FALSE EXCLUSIVE-LOCK NO-ERROR.
+                        ASSIGN
+                        kon_val.UPPLAG = counter
+                        kon_val.ANDRAD = "AND".
+                     END.
+                     FIND FIRST kombtemp WHERE ROWID(kombtemp) = komb_rowid 
+                     EXCLUSIVE-LOCK NO-ERROR. 
+                     kombtemp.UPPLAG = counter.
+                     FIND FIRST kon_val WHERE kon_val.NUM = kombtemp.NUM AND
+                     kon_val.KSKAP = FALSE EXCLUSIVE-LOCK NO-ERROR.
+                     ASSIGN
+                     kon_val.UPPLAG = counter
+                     kon_val.ANDRAD = "AND".  
+                  END.
+                  ELSE DO:                     
+                     kombtemp.UPPLAG = counter.
+                     FIND FIRST kon_val WHERE kon_val.NUM = kombtemp.NUM AND
+                     kon_val.KSKAP = FALSE EXCLUSIVE-LOCK NO-ERROR.
+                     ASSIGN
+                     kon_val.UPPLAG = counter
+                     kon_val.ANDRAD = "AND".
+                  END.
+               END.    
+               ELSE DO:
+                  /*kon_id.DELNR*/
+                  kombtemp.UPPLAG = counter.
+                  FIND FIRST kon_val WHERE kon_val.NUM = kombtemp.NUM AND
+                  kon_val.KSKAP = FALSE EXCLUSIVE-LOCK NO-ERROR.
+                  ASSIGN
+                  kon_val.UPPLAG = counter
+                  kon_val.ANDRAD = "AND".
+               END.               
+            END.   
+         END.
+         antal_raknare = antal_raknare + 1.   
+      END.
+      RUN setlastrowid_UI IN brwproc[1] (INPUT komb_rowid).
+      RUN refreshbrw_UI IN brwproc[1].
+      RUN lastselectdyn_UI IN brwproc[1].
+   END. 
+   ELSE DO:
+      MESSAGE "Det finns inget upplag att koppla till!" VIEW-AS ALERT-BOX TITLE "Meddelande".
+   END.     
+END PROCEDURE.
+PROCEDURE fbtnoupp_UI :
+   antal_valda = BRW_KOMB:NUM-SELECTED-ROWS NO-ERROR.
+   antal_raknare = 1. 
+   DO WHILE antal_raknare LE antal_valda:                                   
+      RUN fselectfoc_UI (INPUT 1).
+      komb_rowid = ROWID(kombtemp).
+      IF AVAILABLE kombtemp THEN DO:         
+         IF kombtemp.UPPLAG = ? THEN DO:
+            musz = musz. 
+         END.
+         ELSE DO:   
+            FIND FIRST kombtemp WHERE ROWID(kombtemp) = komb_rowid EXCLUSIVE-LOCK NO-ERROR.
+            FIND FIRST kon_id WHERE kon_id.NUM = kombtemp.NUM USE-INDEX NUM NO-LOCK NO-ERROR.
+            IF AVAILABLE kon_id THEN DO:               
+               IF kon_id.XKORD NE ? THEN DO:
+                  MESSAGE "Konstruktionen " + kombtemp.F1 + " är kombinerad. Hela kombinationen kommer att kopplas bort från upplaget."
+                  VIEW-AS ALERT-BOX TITLE "Meddelande".
+                  FOR EACH idbuff WHERE idbuff.XKORD = kon_id.XKORD AND
+                  ROWID(idbuff) NE ROWID(kon_id):
+                     FIND FIRST kombtemp WHERE kombtemp.NUM = idbuff.NUM USE-INDEX NUM
+                     NO-LOCK NO-ERROR.
+                     kombtemp.UPPLAG = ?.
+                     FIND FIRST kon_val WHERE kon_val.NUM = idbuff.NUM AND
+                     kon_val.KSKAP = FALSE EXCLUSIVE-LOCK NO-ERROR.
+                     ASSIGN
+                     kon_val.UPPLAG = ?
+                     kon_val.ANDRAD = "AND".
+                  END.
+                  FIND FIRST kombtemp WHERE ROWID(kombtemp) = komb_rowid 
+                  EXCLUSIVE-LOCK NO-ERROR. 
+                  kombtemp.UPPLAG = ?.
+                  FIND FIRST kon_val WHERE kon_val.NUM = kombtemp.NUM AND
+                  kon_val.KSKAP = FALSE EXCLUSIVE-LOCK NO-ERROR.
+                  ASSIGN
+                  kon_val.UPPLAG = ?
+                  kon_val.ANDRAD = "AND".  
+               END.
+               ELSE DO:                  
+                  kombtemp.UPPLAG = ?.
+                  FIND FIRST kon_val WHERE kon_val.NUM = kombtemp.NUM AND
+                  kon_val.KSKAP = FALSE EXCLUSIVE-LOCK NO-ERROR.
+                  ASSIGN
+                  kon_val.UPPLAG = ?
+                  kon_val.ANDRAD = "AND".
+               END.
+            END.    
+            ELSE DO:               
+               kombtemp.UPPLAG = ?.
+               FIND FIRST kon_val WHERE kon_val.NUM = kombtemp.NUM AND
+               kon_val.KSKAP = FALSE EXCLUSIVE-LOCK NO-ERROR.
+               ASSIGN
+               kon_val.UPPLAG = ?
+               kon_val.ANDRAD = "AND".
+            END.               
+         END.   
+      END.
+      antal_raknare = antal_raknare + 1.   
+   END.
+   RUN setlastrowid_UI IN brwproc[1] (INPUT komb_rowid).
+   RUN refreshbrw_UI IN brwproc[1].
+   RUN lastselectdyn_UI IN brwproc[1].   
+END PROCEDURE.
+PROCEDURE mfbtnskriv_UI :
+   RUN SIDLANGD.W.
+END PROCEDURE.
+PROCEDURE fbtnskriv_UI :
+   DEFINE INPUT PARAMETER radval AS INTEGER NO-UNDO.
+   RUN SKRIVVAL.W (INPUT FALSE).       
+   IF musz = TRUE THEN musz = FALSE. 
+   ELSE DO:
+      {muswait.i} 
+      ASSIGN
+      typval = radval.                
+      skrivut = TRUE.
+      {AVBGOM2.I}
+      RUN VISAUPPLU.W.
+      {AVBFRAM2.I}
+   END.     
+   {musarrow.i}  
+END PROCEDURE.
+
+PROCEDURE fbtnkomb_UI :
+   antal_valda = BRW_KOMB:NUM-SELECTED-ROWS  NO-ERROR.
+   ASSIGN
+   musz = FALSE
+   antal_raknare = 1. 
+   IF antal_valda < 2 THEN DO:
+      MESSAGE "Markera minst två!" VIEW-AS ALERT-BOX.
+      RETURN.
+   END.
+   DO WHILE antal_raknare LE antal_valda:                                   
+      RUN fselectfoc_UI (INPUT 1).      
+      IF AVAILABLE kombtemp THEN DO:
+         FIND FIRST kon_id WHERE kon_id.NUM = kombtemp.NUM AND kon_id.ENDKOMB = FALSE
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE kon_id THEN musz = TRUE.
+      END.
+      antal_raknare = antal_raknare + 1.   
+   END.                      
+   IF musz = TRUE THEN DO:    
+      antal_raknare = 1.
+      RUN fselectfoc_UI (INPUT 1).      
+      FIND FIRST kon_val WHERE kon_val.NUM = kombtemp.NUM AND
+      kon_val.KSKAP = FALSE USE-INDEX NUM 
+      NO-LOCK NO-ERROR.
+      antal_valda = BRW_KOMB:NUM-SELECTED-ROWS  NO-ERROR.
+      ASSIGN
+      sparupp = kon_val.UPPLAG
+      musz = FALSE 
+      antal_raknare = 1.
+      DO WHILE antal_raknare LE antal_valda:                                   
+         RUN fselectfoc_UI (INPUT 1).      
+         IF AVAILABLE kombtemp THEN DO:
+            FIND FIRST kon_val WHERE kon_val.NUM = kombtemp.NUM AND
+            kon_val.KSKAP = FALSE USE-INDEX NUM 
+            NO-LOCK NO-ERROR.
+            IF kon_val.UPPLAG NE sparupp THEN musz = TRUE.
+         END.
+         antal_raknare = antal_raknare + 1.   
+      END.
+      IF musz = FALSE THEN DO:         
+         FIND LAST kon_id WHERE kon_id.XKORD NE ? USE-INDEX X NO-LOCK NO-ERROR. 
+         IF AVAILABLE kon_id THEN DO: 
+            counter2 = kon_id.XKORD + 1. 
+         END.
+         ELSE DO:      
+            counter2 = counter2 + 1. 
+         END. 
+         antal_valda = BRW_KOMB:NUM-SELECTED-ROWS NO-ERROR.
+         antal_raknare = 1.
+         DO WHILE antal_raknare LE antal_valda:                                   
+            RUN fselectfoc_UI (INPUT 1).
+            IF AVAILABLE kombtemp THEN DO:
+               komb_rowid = ROWID(kombtemp).               
+               FIND FIRST kombtemp WHERE ROWID(kombtemp) = komb_rowid EXCLUSIVE-LOCK NO-ERROR.
+               kombtemp.KOMB = counter2.               
+               FIND FIRST kon_id WHERE kon_id.NUM = kombtemp.NUM EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE kon_id THEN DO:
+                  ASSIGN
+                  kon_id.XKORD = counter2.                  
+               END.
+               ELSE DO:
+                  CREATE kon_id.
+                  ASSIGN                              
+                  kon_id.NUM = kombtemp.NUM 
+                  kon_id.GRUPP = kombtemp.GRUPP
+                  kon_id.FRI2 = ?
+                  kon_id.XKORD = counter2.                  
+                  kon_id.ENDKOMB = TRUE. 
+               END.   
+               FIND FIRST kon_val WHERE kon_val.NUM = kombtemp.NUM AND
+               kon_val.KSKAP = FALSE EXCLUSIVE-LOCK NO-ERROR.
+               ASSIGN            
+               kon_val.ANDRAD = "AND".
+               SUBSTRING(kon_val.EXTRA3,2,1) = "K".
+            END.
+            antal_raknare = antal_raknare + 1.   
+         END.
+         RUN setlastrowid_UI IN brwproc[1] (INPUT komb_rowid).
+         RUN refreshbrw_UI IN brwproc[1].
+         RUN lastselectdyn_UI IN brwproc[1].
+      END.
+      ELSE DO:
+         MESSAGE "De valda konstruktionerna har olika upplag. Kombination ej möjlig."
+         VIEW-AS ALERT-BOX. 
+         musz = FALSE.  
+      END.   
+   END.
+   ELSE DO:
+      MESSAGE "Någon eller alla de valda konstruktionerna är identifierade. Kombination ej möjlig."
+      VIEW-AS ALERT-BOX.
+      musz = FALSE.
+   END.           
+END PROCEDURE.
+PROCEDURE fbtnbkomb_UI :
+   
+   EMPTY TEMP-TABLE kollkomb  NO-ERROR. 
+   antal_valda = BRW_KOMB:NUM-SELECTED-ROWS NO-ERROR.  
+   ASSIGN
+   musz = FALSE
+   antal_raknare = 1.   
+   DO WHILE antal_raknare LE antal_valda:                                   
+      RUN fselectfoc_UI (INPUT 1).      
+      IF AVAILABLE kombtemp THEN DO:
+         IF kombtemp.KOMB NE ? THEN DO:
+            FIND FIRST kollkomb WHERE kollkomb.XKORD = kombtemp.KOMB
+            NO-LOCK NO-ERROR.
+            IF AVAILABLE kollkomb THEN musz = musz.
+            ELSE DO:                        
+               MESSAGE "Vill du ta bort kombination nr: " + STRING(kombtemp.KOMB) 
+               VIEW-AS ALERT-BOX 
+               QUESTION BUTTONS YES-NO TITLE "Ta bort kombination?" UPDATE svar AS LOGICAL.         
+               IF svar THEN DO: 
+                  CREATE kollkomb.                  
+                  ASSIGN
+                  kollkomb.XKORD = kombtemp.KOMB.
+                  FOR EACH kombbuff WHERE kombbuff.KOMB = kombtemp.KOMB:
+                     FIND FIRST kon_id WHERE kon_id.NUM = kombbuff.NUM EXCLUSIVE-LOCK NO-ERROR.
+                     IF AVAILABLE kon_id THEN DO:
+                        IF kon_id.ENDKOMB = TRUE THEN DELETE kon_id.
+                        ELSE DO:
+                           ASSIGN
+                           kon_id.XKORD = ?.                           
+                        END.
+                     END.
+                     FIND FIRST kon_val WHERE kon_val.NUM = kombbuff.NUM AND
+                     kon_val.KSKAP = FALSE EXCLUSIVE-LOCK NO-ERROR.
+                     ASSIGN            
+                     kon_val.ANDRAD = "AND".
+                     kombbuff.KOMB = ?.
+                     SUBSTRING(kon_val.EXTRA3,2,1) = " ".
+                     komb_rowid = ROWID(kombtemp).
+                  END.
+               END.
+            END.
+         END.  
+      END.
+      antal_raknare = antal_raknare + 1.   
+   END.     
+   RUN setlastrowid_UI IN brwproc[1] (INPUT komb_rowid).
+   RUN refreshbrw_UI IN brwproc[1].
+   RUN lastselectdyn_UI IN brwproc[1].
+   
+END PROCEDURE.
+PROCEDURE btnny_UI :
+   {muswait.i} 
+   ASSIGN
+   musz = FALSE
+   ny = TRUE.
+   {AVBGOM2.I}
+   RUN UPPLAGU.W.
+   {AVBFRAM2.I} 
+   IF musz = FALSE THEN DO:
+      RUN refreshbrw_UI IN brwproc[3].
+      FIND FIRST berupptemp WHERE berupptemp.BERROW = kon_rowid NO-LOCK NO-ERROR.
+      IF AVAILABLE berupptemp THEN DO:
+         RUN setlastrowid_UI IN brwproc[3] (INPUT ROWID(berupptemp)).
+         RUN lastselectdyn_UI IN brwproc[3].
+      END.     
+   END.
+   musz = FALSE.
+   ny = FALSE.
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE btnbort_UI :   
+   FIND FIRST berupptemp WHERE berupptemp.AONR = valaonr AND 
+   berupptemp.OMRADE = valomrade USE-INDEX OMR NO-LOCK NO-ERROR.
+   IF AVAILABLE berupptemp THEN DO:
+      RUN selectfoc_UI (INPUT 3).
+      ASSIGN                                           
+      kon_rowid = berupptemp.BERROW.                           
+      MESSAGE "Vill du ta bort upplag nr: " + STRING(berupptemp.UPPLAG) VIEW-AS ALERT-BOX
+      QUESTION BUTTONS YES-NO UPDATE svar AS LOGICAL.         
+      IF svar THEN DO:
+         FIND FIRST kon_val WHERE kon_val.UPPLAG = berupptemp.UPPLAG NO-LOCK NO-ERROR.
+         IF AVAILABLE kon_val THEN DO:
+            MESSAGE "Det finns konstruktioner kopplade till upplaget. Borttag ej möjligt."
+            VIEW-AS ALERT-BOX TITLE "Meddelande".
+         END.
+         ELSE DO:
+            FIND FIRST kopp_lina WHERE kopp_lina.UPPLAG = berupptemp.UPPLAG NO-LOCK NO-ERROR.
+            IF AVAILABLE kopp_lina THEN DO:
+               MESSAGE "Det finns linor/kablar kopplade till upplaget. Borttag ej möjligt."
+               VIEW-AS ALERT-BOX TITLE "Meddelande".
+            END.
+            ELSE DO:
+               RUN bort_UI IN koppuppapph (INPUT kon_rowid).
+               DELETE berupptemp.
+               RUN selnextprevrow_UI IN brwproc[3].
+               RUN setcolsortvar_UI IN brwproc[3] (INPUT "").  
+               RUN refreshbrw_UI IN brwproc[3].
+               RUN lastselectdyn_UI IN brwproc[3].               
+            END.
+         END.
+      END.
+   END.   
+   ELSE DO:
+      MESSAGE "Det finns inga upplag att ta bort." VIEW-AS ALERT-BOX TITLE "MEDDELANDE".
+   END.
+   
+END PROCEDURE.
+PROCEDURE btnand_UI :
+   {muswait.i} 
+      
+   FIND FIRST berupptemp WHERE berupptemp.AONR = valaonr AND 
+   berupptemp.OMRADE = valomrade USE-INDEX OMR NO-LOCK NO-ERROR.
+   IF AVAILABLE berupptemp THEN DO:             
+      RUN selectfoc_UI (INPUT 3).         
+      ASSIGN
+      kon_rowid = berupptemp.BERROW
+      ny = FALSE.
+      {AVBGOM2.I}
+      RUN UPPLAGU.W.
+      {AVBFRAM2.I}
+      IF musz = FALSE THEN DO:
+         RUN openbdynspec_UI IN brwproc[3].      
+         FIND berupptemp WHERE berupptemp.BERROW = kon_rowid NO-ERROR.
+         IF AVAILABLE berupptemp THEN DO:
+            RUN setlastrowid_UI IN brwproc[3] (INPUT ROWID(berupptemp)).
+            RUN lastselectdyn_UI IN brwproc[3].
+         END.
+      END.
+      musz = FALSE.
+   END.
+   ELSE DO:
+      MESSAGE "Det finns inga upplag att ändra." VIEW-AS ALERT-BOX TITLE "MEDDELANDE".
+   END.      
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE vbrwupp_UI :
+   RUN selectfoc_UI (INPUT 3).                            
+END PROCEDURE.
+
+PROCEDURE vbrwkomb_UI :
+   RUN selectfoc_UI (INPUT 1).
+   IF NOT AVAILABLE kombtemp THEN DO:
+      RUN konlabel_UI IN huvprogh 
+      (INPUT "KOPUPP",
+       INPUT "",
+       INPUT "",
+       INPUT "",
+       INPUT "",
+       INPUT "",
+       INPUT "",
+       INPUT "Id",
+       INPUT "Upplag",
+       INPUT "Komb",
+       INPUT "").      
+   END.   
+   ELSE DO:   
+      FIND FIRST bbenamntemp WHERE bbenamntemp.KONSKOD = kombtemp.GRUPP
+      USE-INDEX KOD NO-LOCK NO-ERROR.
+      IF Guru.Konstanter:globforetag = "SNAT"  THEN DO:
+         ASSIGN
+         labhj1 = ""
+         labhj2 = "Objektnr".
+      END.   
+      ELSE DO:
+         ASSIGN
+         labhj1 = bbenamntemp.ID1
+         labhj2 = bbenamntemp.ID2.
+      END.    
+      RUN konlabel_UI IN huvprogh 
+      (INPUT "KOPUPP",
+       INPUT bbenamntemp.B1,
+       INPUT annamntemp.TAB1,
+       INPUT annamntemp.TAB2,
+       INPUT annamntemp.TAB3,
+       INPUT labhj1,
+       INPUT labhj2,
+       INPUT "Id",
+       INPUT "Upplag",
+       INPUT "Komb",
+       INPUT "").      
+   END.        
+END PROCEDURE.
+PROCEDURE allstartbrw_UI :
+   IF NOT VALID-HANDLE(brwproc[1]) THEN RUN DYNBRW.P PERSISTENT SET brwproc[1] (INPUT BRW_KOMB).
+   IF NOT VALID-HANDLE(brwproc[3]) THEN RUN DYNBRW.P PERSISTENT SET brwproc[3] (INPUT BRW_UPP).   
+   IF NOT VALID-HANDLE(brwproc[4]) THEN RUN DYNBRW.P PERSISTENT SET brwproc[4] (INPUT BRW_FAVOUPPLAG).
+   RUN addmenuitem_UI IN brwproc[4] (INPUT BRW_FAVOUPPLAG:HANDLE,INPUT "Ta bort upplag från favoriter",INPUT "tabortfavoupp_UI").
+   RUN setcolindex_UI IN brwproc[1] (INPUT "ORD"). 
+   RUN setcolsortvar_UI IN brwproc[1] (INPUT "").
+   RUN setcolsortvar_UI IN brwproc[3] (INPUT " WHERE AONR = '" + valaonr + "' AND OMRADE = '" + valomrade + "' USE-INDEX OMR").
+   RUN brwsetupstop_UI IN brwproc[1] (INPUT 1).
+   {OMSTARTAVGURUO.I}
+   {OMSTARTAVGURUBER.I}
+   IF NOT VALID-HANDLE(koppuppapph) THEN DO:
+      IF Guru.Konstanter:appcon THEN DO:
+         RUN KOPPUPPAPP.P PERSISTENT SET koppuppapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+      END.
+      ELSE DO:
+         RUN KOPPUPPAPP.P PERSISTENT SET koppuppapph.
+      END.  
+   END.
+END PROCEDURE.
+
+PROCEDURE main_UI :
+   {muswait.i}
+   {ALLSTARTDYN.I}   
+   RUN ladda_UI IN koppuppapph (INPUT valaonr,INPUT valomrade,OUTPUT TABLE berupptemp).
+   RUN laddafavo_UI IN koppuppapph (INPUT Guru.Konstanter:globanv,OUTPUT TABLE favberupptemp).   
+   ASSIGN
+   ny = FALSE
+   counter = 0
+   counter2 = 0.      
+   EMPTY TEMP-TABLE kombtemp NO-ERROR. 
+   FOR EACH kon_val WHERE kon_val.KSKAP = FALSE.      
+      FIND FIRST kon_id WHERE kon_id.NUM = kon_val.NUM USE-INDEX NUM NO-LOCK NO-ERROR.
+      CREATE kombtemp.
+      ASSIGN
+      kombtemp.F1 = kon_val.F1 
+      kombtemp.NUM = kon_val.NUM 
+      kombtemp.ID = kon_val.ID 
+      kombtemp.GRUPP = kon_val.GRUPP      
+      kombtemp.UPPLAG = kon_val.UPPLAG
+      kombtemp.ORD = kon_val.ORD
+      kombtemp.KOMB = ?.
+      IF AVAILABLE kon_id THEN DO:
+         ASSIGN
+         kombtemp.FORNR = kon_id.FORNR   
+         kombtemp.NATNR = kon_id.NATNR
+         kombtemp.LINNR = kon_id.LINNR
+         kombtemp.FRI1 = kon_id.FRI1
+         kombtemp.FRI2 = kon_id.FRI2
+         kombtemp.ID2 = kon_id.FRI3
+         kombtemp.KOMB = kon_id.XKORD.
+      END.
+      IF ROWID(kon_val) = kon_rowid THEN komb_rowid = ROWID(kombtemp).
+   END.     
+   FIND FIRST annamntemp NO-LOCK NO-ERROR.   
+   RUN konlabel_UI IN huvprogh 
+   (INPUT "KOPUPP",
+    INPUT "",
+    INPUT "",
+    INPUT "",
+    INPUT "",
+    INPUT "",
+    INPUT "",
+    INPUT "Id",
+    INPUT "Upplag",
+    INPUT "Komb",
+    INPUT "").           
+   RUN setlastrowid_UI IN brwproc[1] (INPUT komb_rowid).
+   RUN openbdynspec_UI IN brwproc[1].
+   RUN lastselectdyn_UI IN brwproc[1].
+   RUN selectfoc_UI (INPUT 1).            
+   RUN openbdynspec_UI IN brwproc[3].   
+   RUN openbdynspec_UI IN brwproc[4].   
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE pselectfoc_UI :
+   DEFINE INPUT PARAMETER brwvald AS INTEGER NO-UNDO.
+   DEFINE VARIABLE brwrowid AS ROWID NO-UNDO.
+   DEFINE VARIABLE brwrecid AS RECID NO-UNDO.
+   IF NOT VALID-HANDLE(kombtemph) THEN     kombtemph  = TEMP-TABLE kombtemp:DEFAULT-BUFFER-HANDLE.
+   IF NOT VALID-HANDLE(berupptemph) THEN    berupptemph = TEMP-TABLE berupptemp:DEFAULT-BUFFER-HANDLE.
+   RUN pselectrowid_UI IN brwproc[brwvald] (OUTPUT brwrowid).
+   IF brwvald = 1 THEN FIND FIRST kombtemp WHERE ROWID(kombtemp) = brwrowid NO-LOCK NO-ERROR.     
+   IF brwvald = 3 THEN FIND FIRST berupptemp WHERE ROWID(berupptemp) = brwrowid NO-LOCK NO-ERROR.  
+END PROCEDURE.
+PROCEDURE nselectfoc_UI :
+   DEFINE INPUT PARAMETER brwvald AS INTEGER NO-UNDO.
+   DEFINE VARIABLE brwrowid AS ROWID NO-UNDO.
+   DEFINE VARIABLE brwrecid AS RECID NO-UNDO.
+   IF NOT VALID-HANDLE(kombtemph) THEN     kombtemph  = TEMP-TABLE kombtemp:DEFAULT-BUFFER-HANDLE.   
+   IF NOT VALID-HANDLE(berupptemph) THEN    berupptemph = TEMP-TABLE berupptemp:DEFAULT-BUFFER-HANDLE.
+   RUN nselectrowid_UI IN brwproc[brwvald] (OUTPUT brwrowid).
+   IF brwvald = 1 THEN FIND FIRST kombtemp WHERE ROWID(kombtemp) = brwrowid NO-LOCK NO-ERROR.  
+   
+   IF brwvald = 3 THEN FIND FIRST berupptemp WHERE ROWID(berupptemp) = brwrowid NO-LOCK NO-ERROR.  
+END PROCEDURE.
+PROCEDURE selectfoc_UI :
+   DEFINE INPUT PARAMETER brwvald AS INTEGER NO-UNDO.
+   DEFINE VARIABLE brwrowid AS ROWID NO-UNDO. 
+   IF NOT VALID-HANDLE(kombtemph) THEN     kombtemph  = TEMP-TABLE kombtemp:DEFAULT-BUFFER-HANDLE.   
+   IF NOT VALID-HANDLE(berupptemph) THEN    berupptemph = TEMP-TABLE berupptemp:DEFAULT-BUFFER-HANDLE.
+   RUN selectrowid_UI IN brwproc[brwvald] (OUTPUT brwrowid).
+   IF brwvald = 1 THEN FIND FIRST kombtemp WHERE ROWID(kombtemp) = brwrowid NO-LOCK NO-ERROR.     
+   IF brwvald = 3 THEN FIND FIRST berupptemp WHERE ROWID(berupptemp) = brwrowid NO-LOCK NO-ERROR.
+   IF brwvald = 4 THEN FIND FIRST favberupptemp WHERE ROWID(favberupptemp) = brwrowid NO-LOCK NO-ERROR.  
+END PROCEDURE.
+PROCEDURE fselectfoc_UI :
+   DEFINE INPUT PARAMETER brwvald AS INTEGER NO-UNDO.
+   DEFINE VARIABLE brwrowid AS ROWID NO-UNDO.
+   IF NOT VALID-HANDLE(kombtemph) THEN     kombtemph  = TEMP-TABLE kombtemp:DEFAULT-BUFFER-HANDLE.
+   
+   IF NOT VALID-HANDLE(berupptemph) THEN    berupptemph = TEMP-TABLE berupptemp:DEFAULT-BUFFER-HANDLE.
+   RUN fetrowid_UI IN brwproc[brwvald] (INPUT antal_raknare,OUTPUT brwrowid) .
+   IF brwvald = 1 THEN FIND FIRST kombtemp WHERE ROWID(kombtemp) = brwrowid NO-LOCK NO-ERROR.     
+   IF brwvald = 3 THEN FIND FIRST berupptemp WHERE ROWID(berupptemp) = brwrowid NO-LOCK NO-ERROR.     
+END PROCEDURE.
+PROCEDURE dselectfoc_UI :
+   DEFINE INPUT PARAMETER brwvald AS INTEGER NO-UNDO.
+   RUN dselectfoc_UI IN brwproc[brwvald].      
+END PROCEDURE.
+
+PROCEDURE fbtnspfav_UI :   
+   {OMSTARTAVGURUO.I}
+   {OMSTARTAVGURUBER.I}
+   FIND FIRST berupptemp WHERE berupptemp.AONR = valaonr AND 
+   berupptemp.OMRADE = valomrade USE-INDEX OMR NO-LOCK NO-ERROR.
+   IF AVAILABLE berupptemp THEN DO:
+      RUN selectfoc_UI (INPUT 3).
+      EMPTY TEMP-TABLE efavberupptemp NO-ERROR. 
+      CREATE efavberupptemp.
+      ASSIGN 
+      efavberupptemp.AONR = "FAVO" + Guru.Konstanter:globanv
+      efavberupptemp.DELNR = ?
+      efavberupptemp.UPPLAG = berupptemp.UPPLAG 
+      efavberupptemp.ADRESS = berupptemp.ADRESS
+      efavberupptemp.POSTNR = berupptemp.POSTNR
+      efavberupptemp.ORT = berupptemp.ORT
+      efavberupptemp.XKORD = berupptemp.XKORD
+      efavberupptemp.YKORD = berupptemp.YKORD
+      efavberupptemp.XKORDCH = berupptemp.XKORDCH
+      efavberupptemp.YKORDCH = berupptemp.YKORDCH
+      efavberupptemp.ANMARK = berupptemp.ANMARK.
+   END.
+   FIND FIRST favberupptemp WHERE favberupptemp.AONR  = "FAVO" + Guru.Konstanter:globanv AND favberupptemp.ADRESS = efavberupptemp.ADRESS  EXCLUSIVE-LOCK NO-ERROR.
+   IF NOT AVAILABLE favberupptemp THEN DO:
+      CREATE favberupptemp.
+   END.   
+   BUFFER-COPY efavberupptemp TO favberupptemp.   
+   RUN spfav_UI IN koppuppapph (INPUT Guru.Konstanter:globanv, INPUT  TABLE efavberupptemp).
+   RUN openbdynspec_UI IN brwproc[4].   
+END PROCEDURE.
+
+
+PROCEDURE dbclickbrwfavoupplag_UI :   
+   EMPTY TEMP-TABLE efavberupptemp NO-ERROR.      
+   FIND FIRST favberupptemp USE-INDEX OMR NO-LOCK NO-ERROR.
+   IF AVAILABLE favberupptemp THEN DO:      
+      RUN selectfoc_UI (INPUT 4).                   
+      CREATE efavberupptemp.
+      BUFFER-COPY favberupptemp TO efavberupptemp .     
+      ASSIGN 
+      efavberupptemp.AONR = valaonr
+      efavberupptemp.OMRADE = valomrade
+      efavberupptemp.UPPLAG = ?.
+   END.            
+   RUN nyupplag_UI IN koppuppapph (INPUT valaonr, INPUT valomrade, INPUT-OUTPUT TABLE efavberupptemp).
+   FIND FIRST efavberupptemp WHERE NO-LOCK NO-ERROR.
+   CREATE berupptemp.
+   BUFFER-COPY efavberupptemp TO berupptemp.
+   RUN openbdynspec_UI IN brwproc[3].
+   RUN setlastrowid_UI IN brwproc[3] (INPUT ROWID(berupptemp)).
+   RUN lastselectdyn_UI IN brwproc[3].   
+END PROCEDURE.
+
+PROCEDURE tabortfavoupp_UI :
+   IF AVAILABLE favberupptemp THEN DO:
+      EMPTY TEMP-TABLE efavberupptemp NO-ERROR. 
+      MESSAGE "OBS! Vill du ta bort upplaget från favoriter?"
+      VIEW-AS ALERT-BOX
+      QUESTION BUTTONS YES-NO-CANCEL TITLE "Ta bort?" UPDATE svar AS LOGICAL.         
+      IF svar THEN DO:
+         CREATE efavberupptemp.
+         BUFFER-COPY favberupptemp TO efavberupptemp.
+         DELETE favberupptemp.
+         RUN tabortfav_UI IN koppuppapph (INPUT Guru.Konstanter:globanv, INPUT  TABLE efavberupptemp).          
+         RUN selnextprevrow_UI IN brwproc[4].
+         RUN openbdynspec_UI IN brwproc[4].
+         RUN lastselectdyn_UI IN brwproc[4].         
+      END.
+   END.   
+END PROCEDURE.
+
+PROCEDURE borthand_UI :
+   kombtemph:EMPTY-TEMP-TABLE() NO-ERROR.
+   berupptemph:EMPTY-TEMP-TABLE() NO-ERROR.
+   IF VALID-HANDLE(kombtemph) THEN   DELETE OBJECT kombtemph  NO-ERROR.   
+   IF VALID-HANDLE(berupptemph) THEN   DELETE OBJECT berupptemph  NO-ERROR.
+   IF VALID-HANDLE(koppuppapph) THEN DELETE PROCEDURE koppuppapph.  
+   ASSIGN
+   kombtemph = ?   
+   berupptemph = ?.   
+   {BORTBRWPROC.I}      
+END PROCEDURE.

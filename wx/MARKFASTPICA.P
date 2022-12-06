@@ -1,0 +1,64 @@
+DEFINE TEMP-TABLE tempmarkfast NO-UNDO   /*markfasttemp*/
+   FIELD BETECKNING  AS CHARACTER 
+   FIELD MARKNR      AS INTEGER   
+   FIELD PROCENT     AS INTEGER
+
+   FIELD PERSONNUMMER   AS CHARACTER 
+
+   FIELD ANDEL       AS CHARACTER  /*extradata  "MARKFASTANDEL*/
+   FIELD ANDEL1      AS INTEGER   
+   FIELD ANDEL2      AS INTEGER   
+   FIELD PRODEL      AS DECIMAL
+
+   FIELD NMARKNR      AS  INTEGER.  /*NYTT MARKNR*/  
+   
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE marknrvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE tabort AS LOGICAL NO-UNDO.
+DEFINE VARIABLE ponr AS CHARACTER NO-UNDO.
+{EXTRADATA.I}   
+ RUN EXTRADATAHMT.P PERSISTENT SET edataapph.    
+   
+ OPEN QUERY mfq FOR EACH MARKFAST NO-LOCK,
+ EACH MARKAGARE WHERE MARKAGARE.MARKNR = MARKFAST.MARKNR NO-LOCK.
+ GET FIRST mfq NO-LOCK.
+   DO WHILE AVAILABLE(MARKAGARE ):
+      IF MARKAGARE.PERSONNUMMER = "0000000000" THEN.
+      ELSE DO:
+         FIND FIRST FASTVARD WHERE FASTVARD.BETECKNING = MARKFAST.BETECKNING NO-LOCK NO-ERROR.
+         IF AVAILABLE FASTVARD THEN DO:
+            FIND FIRST VARDERING WHERE VARDERING.VARDNR = FASTVARD.VARDNR AND VARDERING.AKTIV = TRUE NO-LOCK NO-ERROR.
+            IF AVAILABLE VARDERING THEN DO:
+               CREATE tempmarkfast.
+               BUFFER-COPY MARKFAST TO tempmarkfast.
+               ASSIGN tempmarkfasT.PERSONNUMMER = MARKAGARE.PERSONNUMMER.
+               EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+               CREATE inextradatatemp.          
+               ASSIGN
+               inextradatatemp.PROGRAM = "MARKFASTANDEL"                   
+               inextradatatemp.HUVUDINT = MARKFAST.MARKNR.                    
+               inextradatatemp.HUVUDCH = MARKFAST.BETECKNING.                    
+               RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+               FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+               IF AVAILABLE extradatatemp THEN DO:      
+                  ASSIGN
+                  tempmarkfast.ANDEL = extradatatemp.SOKCHAR[1]               
+                  tempmarkfast.PRODEL = extradatatemp.SOKDEC[1]
+                  tempmarkfast.ANDEL1 = extradatatemp.SOKINT[1]
+                  tempmarkfast.ANDEL2 = extradatatemp.SOKINT[2].          
+               END.
+            END.   
+         END.          
+      END.
+      GET NEXT mfq NO-LOCK.
+   END.
+   CLOSE QUERY mfq.
+   DEFINE VARIABLE tempmarkfasth AS HANDLE NO-UNDO.
+   tempmarkfasth = TEMP-TABLE tempmarkfast:HANDLE:DEFAULT-BUFFER-HANDLE.
+   tempmarkfasth:WRITE-XML("FILE","C:\PROTEMP11\TEMARK.XML").
+   /*
+   OUTPUT TO C:\MFAST.TXT.
+   FOR EACH TEMPMARKFAST:
+   DISP TEMPMARKFAST.
+   END.
+   */

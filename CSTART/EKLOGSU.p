@@ -1,0 +1,37 @@
+/*EKLOGSU.P*/
+&Scoped-define NEW   
+{GLOBVAR2DEL1.I}
+DEFINE VARIABLE sidnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE raknare AS INTEGER NO-UNDO.
+{TIDUTTTSHARED.I}
+DEFINE FRAME FRAME-TID3
+     tidut.UT AT ROW 1 COL 1 NO-LABEL
+          VIEW-AS FILL-IN 
+          SIZE 141 BY 1
+    WITH DOWN KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1.13 ROW 7
+         SCROLLABLE SIZE 142 BY 16.59.  
+{UTSTAPDF.I}
+{PRINTSTAENDE.I}  
+PUT SKIP (2).   
+PUT PAGE-NUMBER AT 80 SKIP.              /*RAD 3*/
+FOR EACH tidut:  
+   IF SUBSTRING(tidut.UT,1,6) = "BILAGA" THEN DO:
+      PAGE.
+      PUT SKIP (2).
+      PUT PAGE-NUMBER AT 80  SKIP. 
+      PUT tidut.UT AT 6 SKIP .       
+   END.   
+   ELSE DO:      
+      PUT tidut.UT AT 6 SKIP .    
+      IF LINE-COUNTER > PAGE-SIZE THEN DO:
+         PAGE.
+         PUT SKIP (2).
+         PUT PAGE-NUMBER AT 80 SKIP.
+      END.      
+   END.                     
+END.  
+
+OUTPUT CLOSE.
+         

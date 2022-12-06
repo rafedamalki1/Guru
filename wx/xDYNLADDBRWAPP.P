@@ -1,0 +1,1174 @@
+/*XDYNLADDBRWAPP.P*/
+/*{MTRLTEMP.I}*/
+
+
+DEFINE TEMP-TABLE valsoktemp NO-UNDO
+   FIELD SOKVAL AS INTEGER 
+   FIELD SOKCHAR AS CHARACTER EXTENT 10
+   FIELD SOKDATE AS DATE EXTENT 10
+   FIELD SOKINT AS INTEGER EXTENT 10
+   FIELD SOKDECI AS DECIMAL EXTENT 10
+   FIELD SOKLOG AS LOGICAL EXTENT 10.
+
+
+DEFINE VARIABLE tempbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE orgbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE appqueh AS HANDLE NO-UNDO.
+DEFINE VARIABLE appquetemph AS HANDLE NO-UNDO.
+DEFINE VARIABLE valdkommandoquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tempquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE orgtab AS CHARACTER NO-UNDO.
+DEFINE VARIABLE extrafalth2 AS HANDLE NO-UNDO EXTENT 5.
+DEFINE VARIABLE extrafalth3 AS HANDLE NO-UNDO.
+DEFINE VARIABLE extrafalth4 AS HANDLE NO-UNDO.
+DEFINE VARIABLE num AS INTEGER NO-UNDO.
+DEFINE VARIABLE rowidfaltnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tabrowid AS ROWID NO-UNDO.
+DEFINE VARIABLE tabrowstart AS ROWID NO-UNDO.
+DEFINE VARIABLE tabrowslut AS ROWID NO-UNDO.
+DEFINE VARIABLE sokrowstart AS ROWID NO-UNDO.
+DEFINE VARIABLE sokrowslut AS ROWID NO-UNDO.
+DEFINE VARIABLE radant AS INTEGER NO-UNDO.
+DEFINE VARIABLE oversta AS LOGICAL NO-UNDO.
+DEFINE VARIABLE okvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE orgfraga AS CHARACTER NO-UNDO.
+DEFINE VARIABLE faltvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE startpos AS INTEGER NO-UNDO.
+DEFINE VARIABLE nya AS LOGICAL NO-UNDO.
+DEFINE VARIABLE sokquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE descvarcol AS LOGICAL NO-UNDO.
+DEFINE VARIABLE nyaquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE begvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE sokstring AS CHARACTER NO-UNDO.
+DEFINE VARIABLE finns AS INTEGER NO-UNDO.
+DEFINE VARIABLE sparfalt AS CHARACTER NO-UNDO.
+DEFINE VARIABLE wherequery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE totres AS INTEGER NO-UNDO.
+DEFINE VARIABLE traff AS LOGICAL NO-UNDO.
+DEFINE VARIABLE senastvarsok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE extrabufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE temptab AS CHARACTER NO-UNDO.
+DEFINE VARIABLE antal AS INTEGER NO-UNDO.
+DEFINE VARIABLE lenghtvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE num2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE startvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE sokunika AS CHARACTER NO-UNDO EXTENT 5.
+DEFINE TEMP-TABLE rowidtemp NO-UNDO
+   FIELD RF AS ROWID 
+   FIELD HC1 AS CHARACTER
+   FIELD HI1 AS INTEGER
+   FIELD HL1 AS LOGICAL
+   FIELD HC2 AS CHARACTER
+   FIELD HI2 AS INTEGER
+   FIELD HL2 AS LOGICAL
+   INDEX HC1 HC1
+   INDEX HI1 HI1
+   INDEX HC2 HC2
+   INDEX HI2 HI2
+   INDEX HL1 HL1
+   INDEX HL2 HL2.
+DEFINE TEMP-TABLE rowidtempny NO-UNDO LIKE rowidtemp.
+
+EMPTY TEMP-TABLE rowidtemp NO-ERROR. 
+EMPTY TEMP-TABLE rowidtempny NO-ERROR.
+DEFINE INPUT PARAMETER TABLE-HANDLE apptthtemp.
+DELETE WIDGET-POOL "dynpool" NO-ERROR.
+CREATE WIDGET-POOL "dynpool" PERSISTENT.
+      
+ASSIGN
+startpos = 0
+nya = FALSE
+finns = ?
+totres = 0
+sokrowstart = ?
+sokrowslut = ?
+senastvarsok = FALSE
+orgtab = ""
+orgfraga = ""
+rowidfaltnamn = ""
+temptab = ""
+antal = 0.
+RETURN.
+
+
+/**********************************************************************************************/
+/************ Procedure laddatemp_UI *************************************************************/
+/**********************************************************************************************/
+PROCEDURE laddatemp_UI :
+   DEFINE OUTPUT PARAMETER TABLE-HANDLE apptthtemput.
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+   DEFINE INPUT PARAMETER faltvar2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER descvarcol2 AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE i AS INTEGER NO-UNDO.
+   ASSIGN
+   faltvar = faltvar2
+   descvarcol = descvarcol2    /* FALSE = Ascending, TRUE = Descending */
+   sparfalt = faltvar2
+   orgtab = ""
+   orgfraga = ""
+   rowidfaltnamn = ""
+   temptab = ""
+   antal = 0.   
+   tempbufh:EMPTY-TEMP-TABLE  NO-ERROR.
+   FIND FIRST valsoktemp NO-ERROR.
+   IF AVAILABLE valsoktemp THEN DO:
+      ASSIGN
+      orgtab = valsoktemp.SOKCHAR[1]
+      orgfraga = valsoktemp.SOKCHAR[2]
+      temptab = valsoktemp.SOKCHAR[3]
+      rowidfaltnamn = valsoktemp.SOKCHAR[4]
+      radant = valsoktemp.SOKINT[1]
+      totres = radant.
+      REPEAT:
+         i = i + 1.                                          
+         IF i > 5 THEN LEAVE.
+         sokunika[i] = ENTRY(i,valsoktemp.SOKCHAR[5],",") NO-ERROR.
+      END.     
+      finns = INDEX(orgfraga,"WHERE",1).
+      IF finns = 0 THEN DO:
+         orgfraga = " WHERE " + orgfraga.
+      END.
+      tempbufh = apptthtemp:DEFAULT-BUFFER-HANDLE. 
+      IF rowidfaltnamn NE "" THEN extrafalth3 = tempbufh:BUFFER-FIELD(rowidfaltnamn). 
+      CREATE BUFFER orgbufh FOR TABLE orgtab IN WIDGET-POOL "dynpool".
+      CREATE QUERY appquetemph IN WIDGET-POOL "dynpool".
+      /* Kopplar Queryn till temp-tabellens buffer */
+      appquetemph:SET-BUFFERS(tempbufh).
+      IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.  
+      tempquery = "FOR EACH " + tempbufh:TABLE + " NO-LOCK.".
+      appquetemph:QUERY-PREPARE(tempquery).
+      appquetemph:QUERY-OPEN().            
+      num = 0.
+      CREATE QUERY appqueh IN WIDGET-POOL "dynpool".
+      /* Kopplar queryn till den skarpa tabellens buffer */
+      appqueh:SET-BUFFERS(orgbufh).
+      kommandoquery = "FOR EACH " + orgbufh:TABLE + orgfraga + " NO-LOCK ".
+      IF descvarcol THEN DO:
+         valdkommandoquery = "FOR EACH " + orgbufh:TABLE + wherequery + " NO-LOCK BY " + faltvar.
+         appqueh:QUERY-PREPARE(valdkommandoquery).
+         appqueh:QUERY-OPEN().
+         appqueh:GET-LAST(NO-LOCK).
+         IF orgbufh:AVAILABLE THEN tabrowstart = orgbufh:ROWID.
+         DO WHILE appqueh:QUERY-OFF-END = FALSE:
+            /* Kopierar data från skarp- till temptabell*/
+            tempbufh:BUFFER-CREATE().
+            tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+            IF rowidfaltnamn NE "" THEN DO: 
+               extrafalth3:BUFFER-VALUE = orgbufh:ROWID.        
+            END.  
+            ASSIGN
+            num = num + 1
+            oversta = TRUE
+            tabrowid = orgbufh:ROWID.   
+            IF num = radant THEN LEAVE.        
+            appqueh:GET-PREV(NO-LOCK).  
+         END.            
+      END.
+      ELSE DO:
+         valdkommandoquery = kommandoquery.
+         appqueh:QUERY-PREPARE(valdkommandoquery).
+         appqueh:QUERY-OPEN().
+         appqueh:GET-FIRST(NO-LOCK).
+         IF orgbufh:AVAILABLE THEN tabrowstart = orgbufh:ROWID.
+         DO WHILE appqueh:QUERY-OFF-END = FALSE:
+            /* Kopierar data från skarp- till temptabell*/
+            tempbufh:BUFFER-CREATE().
+            tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+            IF rowidfaltnamn NE "" THEN DO: 
+               extrafalth3:BUFFER-VALUE = orgbufh:ROWID.        
+            END.  
+            ASSIGN
+            num = num + 1
+            oversta = FALSE
+            tabrowid = orgbufh:ROWID.   
+            IF num = radant THEN LEAVE.        
+            appqueh:GET-NEXT(NO-LOCK).  
+         END.            
+      END.
+/*       RUN rowtemp_UI. */
+   END.
+   extrafalth3 = ?. 
+   apptthtemput = apptthtemp. 
+   RETURN.
+   
+END PROCEDURE.
+
+/**********************************************************************************************/
+/************ Procedure hmtnasta_UI ***********************************************************/
+/**********************************************************************************************/
+PROCEDURE hmtnasta_UI :
+   DEFINE OUTPUT PARAMETER TABLE-HANDLE apptthtemput.
+   DEFINE INPUT PARAMETER faltvar2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER descvarcol2 AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER numres AS INTEGER NO-UNDO.
+   ASSIGN
+   faltvar = faltvar2
+   descvarcol = descvarcol2 /* FALSE = Ascending, TRUE = Descending */ 
+   totres = numres.
+   IF descvarcol THEN DO:
+      descvarcol = FALSE.
+      RUN hmtforegaendeint_UI (INPUT faltvar,INPUT descvarcol,INPUT totres).
+      apptthtemput = apptthtemp.                            
+      descvarcol = TRUE.
+      RETURN.
+   END.   
+   apptthtemp = tempbufh:TABLE-HANDLE.
+   IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.
+   IF rowidfaltnamn NE "" THEN extrafalth3 = tempbufh:BUFFER-FIELD(rowidfaltnamn). 
+/*    RUN rowtemp_UI. */      
+   tempbufh:EMPTY-TEMP-TABLE  NO-ERROR.
+   /*Om senast var OFF-HOME - gå framåt så många som det finns*/
+   IF oversta = TRUE THEN DO:
+      appqueh:REPOSITION-FORWARD(totres).            
+   END.
+   num = 0.
+   appqueh:GET-NEXT(NO-LOCK). 
+   IF appqueh:QUERY-OFF-END = TRUE THEN DO:
+      okvar = TRUE.
+   END.
+   ELSE DO:
+      DO WHILE appqueh:QUERY-OFF-END = FALSE:
+         /* Kopierar data från skarp- till temptabell*/
+         tempbufh:BUFFER-CREATE().
+         tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+         IF rowidfaltnamn NE "" THEN DO:             
+            extrafalth3:BUFFER-VALUE = orgbufh:ROWID.         
+         END.
+/*          RUN rowtempny_UI. */
+         ASSIGN
+         okvar = TRUE
+         num = num + 1
+         oversta = FALSE
+         tabrowid = orgbufh:ROWID.   
+         IF num = radant THEN LEAVE.        
+         appqueh:GET-NEXT(NO-LOCK).                  
+      END.         
+   END.
+   IF okvar = TRUE THEN DO: 
+/*       RUN tabortdubb_UI. */
+      ASSIGN
+      okvar = FALSE
+      oversta = FALSE. 
+   END.        
+   ASSIGN
+   sparfalt = faltvar2.
+   extrafalth3 = ?.
+   apptthtemput = apptthtemp.
+   RETURN.
+   
+END PROCEDURE.
+
+PROCEDURE hmtnastaint_UI :
+   DEFINE INPUT PARAMETER faltvar2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER descvarcol2 AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER numres AS INTEGER NO-UNDO.     
+   ASSIGN
+   faltvar = faltvar2
+   descvarcol = descvarcol2 /* FALSE = Ascending, TRUE = Descending */ 
+   totres = numres.
+   IF descvarcol THEN DO:
+      descvarcol = FALSE.
+      RUN hmtforegaendeint_UI (INPUT faltvar,INPUT descvarcol,INPUT totres).
+      descvarcol = TRUE.
+      RETURN.
+   END.   
+   apptthtemp = tempbufh:TABLE-HANDLE.
+   IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.
+   IF rowidfaltnamn NE "" THEN extrafalth3 = tempbufh:BUFFER-FIELD(rowidfaltnamn). 
+/*    RUN rowtemp_UI. */     
+   tempbufh:EMPTY-TEMP-TABLE  NO-ERROR.
+        /*Om senast var OFF-HOME - gå framåt så många som det finns*/
+   IF oversta = TRUE THEN DO:
+      appqueh:REPOSITION-FORWARD(totres).            
+   END.
+   num = 0.
+   appqueh:GET-NEXT(NO-LOCK). 
+   IF appqueh:QUERY-OFF-END = TRUE THEN DO:
+      okvar = TRUE.
+   END.
+   ELSE DO: 
+      DO WHILE appqueh:QUERY-OFF-END = FALSE:
+         /* Kopierar data från skarp- till temptabell*/
+         tempbufh:BUFFER-CREATE().
+         tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+         IF rowidfaltnamn NE "" THEN DO:             
+            extrafalth3:BUFFER-VALUE = orgbufh:ROWID.         
+         END.
+/*          RUN rowtempny_UI. */
+         ASSIGN
+         okvar = TRUE
+         num = num + 1
+         oversta = FALSE
+         tabrowid = orgbufh:ROWID.   
+         IF num = radant THEN LEAVE.        
+         appqueh:GET-NEXT(NO-LOCK).                  
+      END.         
+   END. 
+   IF okvar = TRUE THEN DO: 
+/*       RUN tabortdubb_UI. */
+      ASSIGN
+      okvar = FALSE
+      oversta = FALSE. 
+   END.        
+   ASSIGN
+   sparfalt = faltvar2
+   extrafalth3 = ?.
+   RETURN.
+   
+END PROCEDURE.
+
+
+/**********************************************************************************************/
+/************ Procedure hmtforegaende_UI ******************************************************/
+/**********************************************************************************************/
+PROCEDURE hmtforegaende_UI :
+   DEFINE OUTPUT PARAMETER TABLE-HANDLE apptthtemput.
+   DEFINE INPUT PARAMETER faltvar2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER descvarcol2 AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER numres AS INTEGER NO-UNDO.
+   ASSIGN
+   faltvar = faltvar2
+   descvarcol = descvarcol2.    /* FALSE = Ascending, TRUE = Descending */    
+   totres = numres.
+   IF descvarcol THEN DO:
+      descvarcol = FALSE.
+      RUN hmtnastaint_UI (INPUT faltvar,INPUT descvarcol,INPUT totres).
+      apptthtemput = apptthtemp. 
+      descvarcol = TRUE.
+      RETURN.
+   END.
+   apptthtemp = tempbufh:TABLE-HANDLE.
+   IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.
+   IF rowidfaltnamn NE "" THEN extrafalth3 = tempbufh:BUFFER-FIELD(rowidfaltnamn). 
+   /*Markera alla poster i temptabell*/
+/*    RUN rowtemp_UI. */   
+   tempbufh:EMPTY-TEMP-TABLE  NO-ERROR.
+   /*Om senast var OFF-END - gå bakåt så många som det finns*/
+   IF oversta = FALSE THEN DO:
+      appqueh:REPOSITION-BACKWARD(totres).
+      oversta = TRUE.
+   END.
+   num = 0.
+   appqueh:GET-PREV(NO-LOCK).
+   IF appqueh:QUERY-OFF-END = TRUE THEN DO:
+      okvar = TRUE.
+   END.
+   ELSE DO:      
+      DO WHILE appqueh:QUERY-OFF-END = FALSE:
+         /* Kopierar data från skarp- till temp-tabell*/
+         tempbufh:BUFFER-CREATE().
+         tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+         IF rowidfaltnamn NE "" THEN DO:             
+            extrafalth3:BUFFER-VALUE = orgbufh:ROWID.      
+         END.      
+         ASSIGN
+         okvar = TRUE
+         num = num + 1
+         oversta = TRUE
+         tabrowid = orgbufh:ROWID.   
+         IF num = radant THEN LEAVE.        
+         appqueh:GET-PREV(NO-LOCK).                  
+      END.
+/*       RUN rowtempny_UI. */
+   END.
+   IF okvar = TRUE THEN DO: 
+/*       RUN tabortdubb_UI. */
+      ASSIGN
+      okvar = FALSE
+      oversta = TRUE.         
+   END.      
+   ASSIGN
+   sparfalt = faltvar2
+   extrafalth3 = ?.
+   apptthtemput = apptthtemp. 
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE hmtforegaendeint_UI :
+   DEFINE INPUT PARAMETER faltvar2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER descvarcol2 AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER numres AS INTEGER NO-UNDO.
+   ASSIGN
+   faltvar = faltvar2
+   descvarcol = descvarcol2.    /* FALSE = Ascending, TRUE = Descending */    
+   totres = numres.
+   IF descvarcol THEN DO:
+      descvarcol = FALSE.
+      RUN hmtnastaint_UI (INPUT faltvar,INPUT descvarcol,INPUT totres).
+      descvarcol = TRUE.
+      RETURN.
+   END.
+   apptthtemp = tempbufh:TABLE-HANDLE.
+   IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.
+   IF rowidfaltnamn NE "" THEN extrafalth3 = tempbufh:BUFFER-FIELD(rowidfaltnamn). 
+   /*Markera alla poster i temptabell*/
+/*    RUN rowtemp_UI. */
+   tempbufh:EMPTY-TEMP-TABLE  NO-ERROR.
+   /*Om senast var OFF-END - gå bakåt så många som det finns*/
+   IF oversta = FALSE THEN DO:
+      appqueh:REPOSITION-BACKWARD(totres).
+      oversta = TRUE.
+   END.
+   num = 0.
+   appqueh:GET-PREV(NO-LOCK).
+   IF appqueh:QUERY-OFF-END = TRUE THEN DO:
+      okvar = TRUE.
+   END.
+   ELSE DO:   
+      DO WHILE appqueh:QUERY-OFF-END = FALSE:
+         /* Kopierar data från skarp- till temp-tabell*/
+         tempbufh:BUFFER-CREATE().
+         tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+         IF rowidfaltnamn NE "" THEN DO: 
+            extrafalth3:BUFFER-VALUE = orgbufh:ROWID.      
+         END.      
+         ASSIGN
+         okvar = TRUE
+         num = num + 1
+         oversta = TRUE
+         tabrowid = orgbufh:ROWID.   
+         IF num = radant THEN LEAVE.        
+         appqueh:GET-PREV(NO-LOCK).  
+      END.
+/*       RUN rowtempny_UI. */
+   END.
+   IF okvar = TRUE THEN DO: 
+/*       RUN tabortdubb_UI. */
+      ASSIGN
+      okvar = FALSE
+      oversta = TRUE.         
+   END.      
+   ASSIGN
+   sparfalt = faltvar2
+   extrafalth3 = ?.
+   RETURN.
+END PROCEDURE.
+
+/**********************************************************************************************/
+/************ Procedure hmtsista_UI ***********************************************************/
+/**********************************************************************************************/
+PROCEDURE hmtsista_UI :
+   DEFINE OUTPUT PARAMETER TABLE-HANDLE apptthtemput.
+   DEFINE INPUT PARAMETER faltvar2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER descvarcol2 AS LOGICAL NO-UNDO.
+   ASSIGN
+   faltvar = faltvar2
+   descvarcol = descvarcol2    /* FALSE = Ascending, TRUE = Descending */
+   totres = radant.
+   IF descvarcol THEN DO:
+      descvarcol = FALSE.
+      RUN hmtforstaint_UI (INPUT faltvar,INPUT descvarcol).
+      apptthtemput = apptthtemp. 
+      descvarcol = TRUE.
+      RETURN.
+   END.   
+   apptthtemp = tempbufh:TABLE-HANDLE.
+   IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.
+/*    RUN rowtemp_UI. */
+   IF rowidfaltnamn NE "" THEN extrafalth3 = tempbufh:BUFFER-FIELD(rowidfaltnamn). 
+   tempbufh:EMPTY-TEMP-TABLE  NO-ERROR.
+   IF sparfalt NE faltvar THEN DO:
+      IF VALID-HANDLE(appqueh) THEN DO:
+         appqueh:QUERY-CLOSE.
+      END.
+      valdkommandoquery = kommandoquery + " BY " + STRING(faltvar).
+      appqueh:QUERY-PREPARE(valdkommandoquery).
+      appqueh:QUERY-OPEN().         
+   END.
+   IF senastvarsok = TRUE THEN DO:
+      valdkommandoquery = kommandoquery + " BY " + STRING(faltvar).
+      appqueh:QUERY-PREPARE(valdkommandoquery).
+      appqueh:QUERY-OPEN().         
+      senastvarsok = FALSE.
+   END.
+   num = 0.
+   appqueh:GET-LAST(NO-LOCK).
+   IF appqueh:QUERY-OFF-END = FALSE THEN DO:
+      appqueh:REPOSITION-BACKWARD(radant).
+   END.
+   appqueh:GET-NEXT(NO-LOCK).
+   DO WHILE appqueh:QUERY-OFF-END = FALSE:
+      IF num = 0 THEN tabrowslut = orgbufh:ROWID.               
+      /* Kopierar data från skarp- till temp-tabell*/
+      tempbufh:BUFFER-CREATE().
+      tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+      IF rowidfaltnamn NE "" THEN DO: 
+         extrafalth3:BUFFER-VALUE = orgbufh:ROWID.             
+      END.                        
+      ASSIGN
+      okvar = TRUE
+      num = num + 1
+      oversta = FALSE 
+      tabrowid = orgbufh:ROWID.   
+      IF num = radant THEN LEAVE.        
+      appqueh:GET-NEXT(NO-LOCK).  
+   END.
+/*    RUN rowtempny_UI. */
+   IF okvar = TRUE THEN DO:
+/*       RUN tabortdubb_UI. */
+      ASSIGN
+      okvar = FALSE
+      oversta = FALSE.
+   END.      
+   ASSIGN
+   sparfalt = faltvar2
+   extrafalth3 = ?.
+   apptthtemput = apptthtemp. 
+END PROCEDURE.
+
+PROCEDURE hmtsistaint_UI :
+   DEFINE INPUT PARAMETER faltvar2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER descvarcol2 AS LOGICAL NO-UNDO.
+   ASSIGN
+   faltvar = faltvar2
+   descvarcol = descvarcol2    /* FALSE = Ascending, TRUE = Descending */
+   totres = radant.
+   IF descvarcol THEN DO:
+      descvarcol = FALSE.
+      RUN hmtforstaint_UI (INPUT faltvar,INPUT descvarcol).
+      descvarcol = TRUE.
+      RETURN.
+   END.   
+   apptthtemp = tempbufh:TABLE-HANDLE.
+   IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.
+   IF rowidfaltnamn NE "" THEN extrafalth3 = tempbufh:BUFFER-FIELD(rowidfaltnamn). 
+/*    RUN rowtemp_UI. */
+   tempbufh:EMPTY-TEMP-TABLE  NO-ERROR.
+   IF sparfalt NE faltvar THEN DO:
+      IF VALID-HANDLE(appqueh) THEN DO:
+         appqueh:QUERY-CLOSE.
+      END.
+      valdkommandoquery = kommandoquery + " BY " + STRING(faltvar).
+      appqueh:QUERY-PREPARE(valdkommandoquery).
+      appqueh:QUERY-OPEN().         
+   END.
+   IF senastvarsok = TRUE THEN DO:
+      valdkommandoquery = kommandoquery + " BY " + STRING(faltvar).
+      appqueh:QUERY-PREPARE(valdkommandoquery).
+      appqueh:QUERY-OPEN().         
+      senastvarsok = FALSE.
+   END.
+   num = 0.
+   appqueh:GET-LAST(NO-LOCK).
+   IF appqueh:QUERY-OFF-END = FALSE THEN DO:
+      appqueh:REPOSITION-BACKWARD(radant).
+   END.
+   appqueh:GET-NEXT(NO-LOCK).
+   DO WHILE appqueh:QUERY-OFF-END = FALSE:
+      IF num = 0 THEN tabrowslut = orgbufh:ROWID.               
+      /* Kopierar data från skarp- till temp-tabell*/
+      tempbufh:BUFFER-CREATE().
+      tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+      IF rowidfaltnamn NE "" THEN DO: 
+         extrafalth3:BUFFER-VALUE = orgbufh:ROWID.             
+      END.                        
+      ASSIGN
+      okvar = TRUE
+      num = num + 1
+      oversta = FALSE
+      tabrowid = orgbufh:ROWID.   
+      IF num = radant THEN LEAVE.        
+      appqueh:GET-NEXT(NO-LOCK).  
+   END.
+/*    RUN rowtempny_UI. */
+   IF okvar = TRUE THEN DO:
+/*       RUN tabortdubb_UI. */
+      ASSIGN
+      okvar = FALSE
+      oversta = FALSE.
+   END.      
+   ASSIGN
+   sparfalt = faltvar2
+   extrafalth3 = ?.
+END PROCEDURE.
+
+/**********************************************************************************************/
+/************ Procedure hmtforsta_UI **********************************************************/
+/**********************************************************************************************/
+PROCEDURE hmtforsta_UI :
+   DEFINE OUTPUT PARAMETER TABLE-HANDLE apptthtemput.
+   DEFINE INPUT PARAMETER faltvar2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER descvarcol2 AS LOGICAL NO-UNDO.
+   ASSIGN
+   faltvar = faltvar2
+   descvarcol = descvarcol2.    /* FALSE = Ascending, TRUE = Descending */
+   IF descvarcol THEN DO:
+      descvarcol = FALSE.
+      RUN hmtsistaint_UI (INPUT faltvar,INPUT descvarcol).
+      descvarcol = TRUE.
+      RETURN.
+   END.   
+   apptthtemp = tempbufh:TABLE-HANDLE.
+   IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.
+   IF rowidfaltnamn NE "" THEN extrafalth3 = tempbufh:BUFFER-FIELD(rowidfaltnamn). 
+/*    RUN rowtemp_UI. */
+   tempbufh:EMPTY-TEMP-TABLE  NO-ERROR.
+   IF sparfalt NE faltvar THEN DO:
+      IF VALID-HANDLE(appqueh) THEN DO:
+         appqueh:QUERY-CLOSE.
+      END.
+      valdkommandoquery = kommandoquery + " BY " + STRING(faltvar).
+      appqueh:QUERY-PREPARE(valdkommandoquery).
+      appqueh:QUERY-OPEN().         
+   END.
+   IF senastvarsok = TRUE THEN DO:
+      valdkommandoquery = kommandoquery + " BY " + STRING(faltvar).
+      appqueh:QUERY-PREPARE(valdkommandoquery).
+      appqueh:QUERY-OPEN().         
+      senastvarsok = FALSE.
+   END.
+   num = 0.
+   appqueh:GET-FIRST(NO-LOCK).
+   DO WHILE appqueh:QUERY-OFF-END = FALSE:
+   /* Kopierar data från skarp- till temp-tabell*/
+      IF num = 0 THEN tabrowstart = orgbufh:ROWID. 
+      tempbufh:BUFFER-CREATE().
+      tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+      IF rowidfaltnamn NE "" THEN DO: 
+         extrafalth3:BUFFER-VALUE = orgbufh:ROWID.            
+      END.                        
+      ASSIGN
+      okvar = TRUE
+      num = num + 1
+      oversta = FALSE
+      tabrowid = orgbufh:ROWID.   
+      IF num = radant THEN LEAVE.        
+      appqueh:GET-NEXT(NO-LOCK).  
+   END.
+/*    RUN rowtempny_UI. */
+   IF okvar = TRUE THEN DO:
+/*       RUN tabortdubb_UI. */
+      ASSIGN
+      okvar = FALSE
+      oversta = FALSE.
+   END.      
+   ASSIGN
+   sparfalt = faltvar2
+   extrafalth3 = ?.
+   apptthtemput = apptthtemp. 
+END PROCEDURE.
+
+
+PROCEDURE hmtforstaint_UI :
+   DEFINE OUTPUT PARAMETER TABLE-HANDLE apptthtemput.
+   DEFINE INPUT PARAMETER faltvar2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER descvarcol2 AS LOGICAL NO-UNDO.
+   ASSIGN
+   faltvar = faltvar2
+   descvarcol = descvarcol2.    /* FALSE = Ascending, TRUE = Descending */
+   IF descvarcol THEN DO:
+      descvarcol = FALSE.
+      RUN hmtsistaint_UI (INPUT faltvar,INPUT descvarcol).
+      descvarcol = TRUE.
+      RETURN.
+   END.   
+   apptthtemp = tempbufh:TABLE-HANDLE.
+   IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.
+   IF rowidfaltnamn NE "" THEN extrafalth3 = tempbufh:BUFFER-FIELD(rowidfaltnamn). 
+/*    RUN rowtemp_UI. */
+   tempbufh:EMPTY-TEMP-TABLE  NO-ERROR.
+   IF sparfalt NE faltvar THEN DO:
+      IF VALID-HANDLE(appqueh) THEN DO:
+         appqueh:QUERY-CLOSE.
+      END.
+      valdkommandoquery = kommandoquery + " BY " + STRING(faltvar).
+      appqueh:QUERY-PREPARE(valdkommandoquery).
+      appqueh:QUERY-OPEN().         
+   END.
+   IF senastvarsok = TRUE THEN DO:
+      valdkommandoquery = kommandoquery + " BY " + STRING(faltvar).
+      appqueh:QUERY-PREPARE(valdkommandoquery).
+      appqueh:QUERY-OPEN().         
+      senastvarsok = FALSE.
+   END.
+   num = 0.
+   appqueh:GET-FIRST(NO-LOCK).
+   DO WHILE appqueh:QUERY-OFF-END = FALSE:
+   /* Kopierar data från skarp- till temp-tabell*/
+      IF num = 0 THEN tabrowstart = orgbufh:ROWID. 
+      tempbufh:BUFFER-CREATE().
+      tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+      IF rowidfaltnamn NE "" THEN DO: 
+         extrafalth3:BUFFER-VALUE = orgbufh:ROWID.            
+      END.                        
+      ASSIGN
+      okvar = TRUE
+      num = num + 1
+      oversta = FALSE
+      tabrowid = orgbufh:ROWID.   
+      IF num = radant THEN LEAVE.        
+      appqueh:GET-NEXT(NO-LOCK).  
+   END.
+/*    RUN rowtempny_UI. */
+   IF okvar = TRUE THEN DO:
+/*       RUN tabortdubb_UI. */
+      ASSIGN
+      okvar = FALSE
+      oversta = FALSE.
+   END.      
+   ASSIGN
+   sparfalt = faltvar2
+   extrafalth3 = ?.
+   apptthtemput = apptthtemp. 
+END PROCEDURE.
+
+/**********************************************************************************************/
+/************ Procedure anyhmt_UI *************************************************************/
+/**********************************************************************************************/
+PROCEDURE anyhmt_UI :
+   DEFINE OUTPUT PARAMETER TABLE-HANDLE apptthtemput.
+   DEFINE INPUT PARAMETER faltvar2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER descvarcol2 AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER sokstring2 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   ASSIGN
+   sokstring = sokstring2
+   descvarcol = descvarcol2   /* FALSE = Ascending, TRUE = Descending */
+   faltvar = faltvar2
+   begvar = TRUE
+   startpos = 0
+   felmedd = "".
+   apptthtemp = tempbufh:TABLE-HANDLE.
+   IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.
+   IF rowidfaltnamn NE "" THEN extrafalth3 = tempbufh:BUFFER-FIELD(rowidfaltnamn). 
+/*    RUN rowtemp_UI. */
+   num = 0.
+   appqueh:QUERY-PREPARE(valdkommandoquery).
+   appqueh:QUERY-OPEN().
+   appqueh:GET-FIRST(NO-LOCK).
+   IF appqueh:QUERY-OFF-END = TRUE THEN DO:
+      okvar = TRUE.
+   END.
+   ELSE DO:
+      extrafalth4 = orgbufh:BUFFER-FIELD(faltvar).
+      DO WHILE appqueh:QUERY-OFF-END = FALSE:
+         IF okvar = FALSE THEN DO:
+            /*hitta den som sökes*/
+            IF extrafalth4:BUFFER-VALUE BEGINS STRING(sokstring) THEN DO:
+               tempbufh:EMPTY-TEMP-TABLE  NO-ERROR.
+               /* Kopierar data från skarp- till temptabell*/
+               IF num = 0 THEN sokrowstart = orgbufh:ROWID.
+               tempbufh:BUFFER-CREATE().
+               tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+               IF rowidfaltnamn NE "" THEN DO: 
+                  extrafalth3:BUFFER-VALUE = orgbufh:ROWID.            
+               END.
+               ASSIGN
+               okvar = TRUE
+               num = num + 1. 
+            END.
+         END.
+         ELSE DO:
+            tempbufh:BUFFER-CREATE().
+            tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+            IF rowidfaltnamn NE "" THEN DO: 
+               extrafalth3:BUFFER-VALUE = orgbufh:ROWID.            
+            END.          
+            ASSIGN
+            okvar = TRUE
+            num = num + 1.        
+         END.
+         ASSIGN
+         oversta = FALSE
+         tabrowid = orgbufh:ROWID.   
+         IF num = radant THEN LEAVE.        
+         appqueh:GET-NEXT(NO-LOCK).           
+      END.
+   END.
+/*    RUN rowtempny_UI. */
+   IF okvar = TRUE THEN DO:
+/*       RUN tabortdubb_UI. */
+      ASSIGN
+      okvar = FALSE
+      oversta = FALSE.
+   END. 
+   ELSE DO:
+      felmedd = "Det finns inget på sökbegreppet.".
+   END.
+   ASSIGN
+   sparfalt = faltvar2
+   extrafalth3 = ?
+   extrafalth4 = ?.
+   apptthtemput = apptthtemp. 
+END PROCEDURE.
+
+
+/**********************************************************************************************/
+/************ Procedure sokhmt_UI *************************************************************/
+/**********************************************************************************************/
+PROCEDURE sokhmt_UI :
+   DEFINE OUTPUT PARAMETER TABLE-HANDLE apptthtemput.
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+   DEFINE INPUT PARAMETER descvarcol2 AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE slutvar AS INTEGER NO-UNDO.
+   ASSIGN
+   descvarcol = descvarcol2.    /* FALSE = Ascending, TRUE = Descending */
+   FIND FIRST valsoktemp NO-LOCK NO-ERROR.
+   IF AVAILABLE valsoktemp THEN DO:
+      ASSIGN
+      faltvar = valsoktemp.SOKCHAR[1]  /*SOKFALT*/
+      sokstring = valsoktemp.SOKCHAR[2]  /*SOKVÄRDE FRÅN FILL-IN*/
+      felmedd = ""
+      startpos = 0
+      senastvarsok = TRUE
+      sparfalt = faltvar.
+      /*Ta bort WHERE*/
+      startpos = INDEX(orgfraga,"WHERE",1).
+      IF startpos NE 0 THEN DO:
+         IF faltvar NE sparfalt THEN DO:
+            nyaquery = SUBSTRING(orgfraga,startpos + 5,LENGTH(orgfraga)) + " BY " + faltvar.               
+         END.
+         ELSE DO:
+            nyaquery = SUBSTRING(orgfraga,startpos + 5,LENGTH(orgfraga)).
+         END.
+      END.
+      ELSE nyaquery = orgfraga.
+      RUN starwars_UI.
+      IF begvar = ? THEN RETURN.
+      IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.
+      IF rowidfaltnamn NE "" THEN extrafalth3 = tempbufh:BUFFER-FIELD(rowidfaltnamn). 
+      apptthtemp = tempbufh:TABLE-HANDLE.
+/*       RUN rowtemp_UI. */
+      RUN kommandoskap_UI.
+      /*SÖKTA POSTER*/
+      num = 0.
+      appqueh:QUERY-PREPARE(valdkommandoquery).
+      appqueh:QUERY-OPEN().
+      appqueh:GET-FIRST(NO-LOCK).
+      IF appqueh:QUERY-OFF-END = TRUE THEN DO:
+         felmedd = "Det finns inget på sökbegreppet.".
+         okvar = TRUE.
+      END.
+      ELSE DO:
+         tempbufh:EMPTY-TEMP-TABLE  NO-ERROR.
+         DO WHILE appqueh:QUERY-OFF-END = FALSE:
+            IF num = 0 THEN sokrowstart = orgbufh:ROWID.
+            tempbufh:BUFFER-CREATE().
+            tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+            IF rowidfaltnamn NE "" THEN DO: 
+               extrafalth3:BUFFER-VALUE = orgbufh:ROWID.            
+            END.    
+            ASSIGN
+            okvar = TRUE
+            num = num + 1
+            oversta = FALSE
+            tabrowid = orgbufh:ROWID.   
+            IF num = radant THEN LEAVE.        
+            appqueh:GET-NEXT(NO-LOCK).  
+         END.          
+      END.
+   END. 
+/*    RUN rowtempny_UI. */
+   IF okvar = TRUE THEN DO:
+/*       RUN tabortdubb_UI. */
+      ASSIGN
+      okvar = FALSE
+      oversta = FALSE.
+   END.           
+   extrafalth3 = ?.
+   apptthtemput = apptthtemp.
+END PROCEDURE.
+
+/* PROCEDURE sokhmt_UI :                                                                        */
+/*    DEFINE OUTPUT PARAMETER TABLE-HANDLE apptthtemput.                                        */
+/*    DEFINE INPUT PARAMETER TABLE FOR valsoktemp.                                              */
+/*    DEFINE INPUT PARAMETER descvarcol2 AS LOGICAL NO-UNDO.                                    */
+/*    DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.                                     */
+/*    DEFINE VARIABLE slutvar AS INTEGER NO-UNDO.                                               */
+/*    ASSIGN                                                                                    */
+/*    descvarcol = descvarcol2.    /* FALSE = Ascending, TRUE = Descending */                   */
+/*    FIND FIRST valsoktemp NO-LOCK NO-ERROR.                                                   */
+/*    IF AVAILABLE valsoktemp THEN DO:                                                          */
+/*       ASSIGN                                                                                 */
+/*       faltvar = valsoktemp.SOKCHAR[1]  /*SOKFALT*/                                           */
+/*       sokstring = valsoktemp.SOKCHAR[2]  /*SOKVÄRDE FRÅN FILL-IN*/                           */
+/*       felmedd = ""                                                                           */
+/*       startpos = 0                                                                           */
+/*       senastvarsok = TRUE                                                                    */
+/*       sparfalt = faltvar.                                                                    */
+/*       /*Ta bort WHERE*/                                                                      */
+/*       startpos = INDEX(orgfraga,"WHERE",1).                                                  */
+/*       IF startpos NE 0 THEN DO:                                                              */
+/*          IF faltvar NE sparfalt THEN DO:                                                     */
+/*             nyaquery = SUBSTRING(orgfraga,startpos + 5,LENGTH(orgfraga)) + " BY " + faltvar. */
+/*          END.                                                                                */
+/*          ELSE DO:                                                                            */
+/*             nyaquery = SUBSTRING(orgfraga,startpos + 5,LENGTH(orgfraga)).                    */
+/*          END.                                                                                */
+/*       END.                                                                                   */
+/*       ELSE nyaquery = orgfraga.                                                              */
+/*       RUN starwars_UI.                                                                       */
+/*       IF begvar = ? THEN RETURN.                                                             */
+/*       IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.                                         */
+/*       IF rowidfaltnamn NE "" THEN extrafalth3 = tempbufh:BUFFER-FIELD(rowidfaltnamn).        */
+/*       apptthtemp = tempbufh:TABLE-HANDLE.                                                    */
+/*       RUN rowtemp_UI.                                                                        */
+/*       tempbufh:EMPTY-TEMP-TABLE  NO-ERROR.                                                   */
+/*       RUN kommandoskap_UI.                                                                   */
+/*       IF appqueh:IS-OPEN THEN DO:                                                            */
+/*          appqueh:QUERY-CLOSE().                                                              */
+/*       END.                                                                                   */
+/*       /*SÖKTA POSTER*/                                                                       */
+/*       num = 0.                                                                               */
+/*       appqueh:QUERY-PREPARE(valdkommandoquery).                                              */
+/*       appqueh:QUERY-OPEN().                                                                  */
+/*       appqueh:GET-FIRST(NO-LOCK).                                                            */
+/*       DO WHILE appqueh:QUERY-OFF-END = FALSE:                                                */
+/*          IF num = 0 THEN sokrowstart = orgbufh:ROWID.                                        */
+/*          tempbufh:BUFFER-CREATE().                                                           */
+/*          tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.                                             */
+/*          IF rowidfaltnamn NE "" THEN DO:                                                     */
+/*             extrafalth3:BUFFER-VALUE = orgbufh:ROWID.                                        */
+/*          END.                                                                                */
+/*          ASSIGN                                                                              */
+/*          okvar = TRUE                                                                        */
+/*          num = num + 1                                                                       */
+/*          sokrowslut = orgbufh:ROWID.                                                         */
+/*          appqueh:GET-NEXT(NO-LOCK).                                                          */
+/*       END.                                                                                   */
+/*    END.                                                                                      */
+/*    IF LENGTH(sokstring) > 24 THEN DO:                                                        */
+/*       lenghtvar = LENGTH(sokstring) - 14.                                                    */
+/*    END.                                                                                      */
+/*    ELSE IF LENGTH(sokstring) > 18 AND LENGTH(sokstring) <= 24 THEN DO:                       */
+/*       lenghtvar = LENGTH(sokstring) - 12.                                                    */
+/*    END.                                                                                      */
+/*    ELSE IF LENGTH(sokstring) > 12 AND LENGTH(sokstring) <= 18 THEN DO:                       */
+/*       lenghtvar = LENGTH(sokstring) - 9.                                                     */
+/*    END.                                                                                      */
+/*    ELSE IF LENGTH(sokstring) > 10 AND LENGTH(sokstring) <= 12  THEN DO:                      */
+/*       lenghtvar = LENGTH(sokstring) - 6.                                                     */
+/*    END.                                                                                      */
+/*    ELSE IF LENGTH(sokstring) > 8 AND LENGTH(sokstring) <= 10  THEN DO:                       */
+/*       lenghtvar = LENGTH(sokstring) - 5.                                                     */
+/*    END.                                                                                      */
+/*    ELSE IF LENGTH(sokstring) > 6 AND LENGTH(sokstring) <= 8 THEN DO:                         */
+/*       lenghtvar = LENGTH(sokstring) - 4.                                                     */
+/*    END.                                                                                      */
+/*    ELSE IF LENGTH(sokstring) > 4 AND LENGTH(sokstring) <= 6 THEN DO:                         */
+/*       lenghtvar = LENGTH(sokstring) - 3.                                                     */
+/*    END.                                                                                      */
+/*    ELSE IF LENGTH(sokstring) > 2 AND LENGTH(sokstring) <= 4 THEN DO:                         */
+/*       lenghtvar = LENGTH(sokstring) - 2.                                                     */
+/*    END.                                                                                      */
+/*    ELSE IF LENGTH(sokstring) > 1 AND LENGTH(sokstring) <= 2 THEN DO:                         */
+/*       lenghtvar = LENGTH(sokstring) - 1.                                                     */
+/*    END.                                                                                      */
+/*    ELSE DO:                                                                                  */
+/*       lenghtvar = LENGTH(sokstring).                                                         */
+/*    END.                                                                                      */
+/*    IF begvar = TRUE THEN sokstring = SUBSTRING(sokstring,1,lenghtvar).                       */
+/*    ELSE sokstring = SUBSTRING(sokstring,1,lenghtvar) + "*".                                  */
+/*    RUN kommandoskap_UI.                                                                      */
+/*    /*Hämta poster innan sokt*/                                                               */
+/*    IF radant - (num / 2) < 0 THEN slutvar = 1.                                               */
+/*    ELSE slutvar = radant - (num / 2).                                                        */
+/*    ASSIGN                                                                                    */
+/*    num2 = 0                                                                                  */
+/*    startvar = FALSE.                                                                         */
+/*    appqueh:QUERY-PREPARE(valdkommandoquery).                                                 */
+/*    appqueh:QUERY-OPEN().                                                                     */
+/*    appqueh:GET-LAST(NO-LOCK).                                                                */
+/*    DO WHILE appqueh:QUERY-OFF-END = FALSE AND num2 < slutvar:                                */
+/*       IF startvar = FALSE THEN DO:                                                           */
+/*          IF orgbufh:ROWID NE sokrowstart THEN DO:                                            */
+/*             startvar = FALSE.                                                                */
+/*          END.                                                                                */
+/*          ELSE DO:                                                                            */
+/*             appqueh:GET-PREV(NO-LOCK).                                                       */
+/*             startvar = TRUE.                                                                 */
+/*          END.                                                                                */
+/*       END.                                                                                   */
+/*       IF startvar = TRUE THEN DO:                                                            */
+/*          tempbufh:BUFFER-CREATE().                                                           */
+/*          tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.                                             */
+/*          IF rowidfaltnamn NE "" THEN DO:                                                     */
+/*             extrafalth3:BUFFER-VALUE = orgbufh:ROWID.                                        */
+/*          END.                                                                                */
+/*          ASSIGN                                                                              */
+/*          sokrowstart = orgbufh:ROWID                                                         */
+/*          okvar = TRUE                                                                        */
+/*          num2 = num2 + 1.                                                                    */
+/*       END.                                                                                   */
+/*       appqueh:GET-PREV(NO-LOCK).                                                             */
+/*    END.                                                                                      */
+/*    /*Hämta poster efter sokt*/                                                               */
+/*    ASSIGN                                                                                    */
+/*    num2 = 0                                                                                  */
+/*    startvar = FALSE.                                                                         */
+/*    appqueh:GET-FIRST(NO-LOCK).                                                               */
+/*    DO WHILE appqueh:QUERY-OFF-END = FALSE AND num2 < slutvar:                                */
+/*       IF startvar = FALSE THEN DO:                                                           */
+/*          IF orgbufh:ROWID NE sokrowslut THEN DO:                                             */
+/*             startvar = FALSE.                                                                */
+/*          END.                                                                                */
+/*          ELSE DO:                                                                            */
+/*             appqueh:GET-NEXT(NO-LOCK).                                                       */
+/*             startvar = TRUE.                                                                 */
+/*          END.                                                                                */
+/*       END.                                                                                   */
+/*       IF startvar = TRUE THEN DO:                                                            */
+/*          tempbufh:BUFFER-CREATE().                                                           */
+/*          tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.                                             */
+/*          IF rowidfaltnamn NE "" THEN DO:                                                     */
+/*             extrafalth3:BUFFER-VALUE = orgbufh:ROWID.                                        */
+/*          END.                                                                                */
+/*          ASSIGN                                                                              */
+/*          sokrowslut = orgbufh:ROWID                                                          */
+/*          okvar = TRUE.                                                                       */
+/*          num2 = num2 + 1.                                                                    */
+/*       END.                                                                                   */
+/*       appqueh:GET-NEXT(NO-LOCK).                                                             */
+/*    END.                                                                                      */
+/*    apptthtemp = tempbufh:TABLE-HANDLE.                                                       */
+/*    RUN rowtempny_UI.                                                                         */
+/*    IF okvar = TRUE THEN DO:                                                                  */
+/*       RUN tabortdubb_UI.                                                                     */
+/*       ASSIGN                                                                                 */
+/*       okvar = FALSE                                                                          */
+/*       oversta = FALSE.                                                                       */
+/*    END.                                                                                      */
+/*    extrafalth3 = ?.                                                                          */
+/* /*    DELETE OBJECT extrafalth3 NO-ERROR. */                                                 */
+/*    /*DELETE OBJECT appquetemph NO-ERROR. */                                                  */
+/*    apptthtemput = apptthtemp.                                                                */
+/* END PROCEDURE.                                                                               */
+
+
+/*Procedure för att sortera om browsern för tryckt column, tar för lång tid*/
+PROCEDURE laddasort_UI :
+   DEFINE OUTPUT PARAMETER TABLE-HANDLE apptthtemput.
+   DEFINE INPUT PARAMETER faltvar2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER descvarcol2 AS LOGICAL NO-UNDO.
+   ASSIGN
+   descvarcol = descvarcol2   /* FALSE = Ascending, TRUE = Descending */
+   faltvar = faltvar2
+   begvar = TRUE
+   startpos = 0.   
+   tempbufh = apptthtemp:DEFAULT-BUFFER-HANDLE. 
+   /*apptthtemp = tempbufh:TABLE-HANDLE.*/
+   IF tempbufh:DBNAME NE "PROGRESST" THEN RETURN.
+   IF rowidfaltnamn NE "" THEN extrafalth3 = tempbufh:BUFFER-FIELD(rowidfaltnamn). 
+/*    RUN rowtemp_UI. */
+   /*Lägg till WHERE*/
+   startpos = INDEX(orgfraga,"WHERE",1).
+   IF startpos = 0 THEN DO:
+      wherequery = " WHERE " + orgfraga.
+   END.
+   ELSE wherequery = orgfraga.
+   ASSIGN
+   num = 0
+   valdkommandoquery = "FOR EACH " + orgbufh:TABLE + wherequery + " NO-LOCK BY " + faltvar.
+   appqueh:QUERY-PREPARE(valdkommandoquery).
+   appqueh:QUERY-OPEN().
+   appqueh:GET-FIRST(NO-LOCK).
+   DO WHILE appqueh:QUERY-OFF-END = FALSE:
+      IF num = 0 THEN sokrowstart = orgbufh:ROWID. 
+      tempbufh:BUFFER-CREATE().
+      tempbufh:BUFFER-COPY(orgbufh) NO-ERROR.
+      IF rowidfaltnamn NE "" THEN DO: 
+         extrafalth3:BUFFER-VALUE = orgbufh:ROWID.            
+      END.    
+      ASSIGN
+      okvar = TRUE
+      num = num + 1
+      oversta = FALSE
+      tabrowid = orgbufh:ROWID.   
+      IF num = radant THEN LEAVE.        
+      appqueh:GET-NEXT(NO-LOCK).  
+   END.
+/*    RUN rowtempny_UI. */
+   IF okvar = TRUE THEN DO:
+/*       RUN tabortdubb_UI. */
+      ASSIGN
+      okvar = FALSE
+      oversta = FALSE.      
+   END.
+   ASSIGN
+   sparfalt = faltvar2
+   extrafalth3 = ?.
+   apptthtemput = apptthtemp. 
+END PROCEDURE.
+
+PROCEDURE starwars_UI:
+   IF INDEX(sokstring,"*",1) = 0 THEN DO:
+      begvar = TRUE.
+      RETURN.
+   END.
+   IF SUBSTRING(sokstring,1,1) = "*" THEN DO:
+      begvar = FALSE.
+      RETURN.      
+   END.  
+   
+END PROCEDURE.
+
+PROCEDURE anyfind_UI :
+   DEFINE VARIABLE extrafalth5 AS HANDLE NO-UNDO.
+   extrafalth5 = orgbufh:BUFFER-FIELD(faltvar).
+   IF begvar = FALSE THEN DO:
+      IF extrafalth5:BUFFER-VALUE MATCHES STRING(sokstring) THEN traff = TRUE.
+      ELSE traff = FALSE.
+   END.
+   ELSE DO:
+      IF extrafalth5:BUFFER-VALUE BEGINS STRING(sokstring) THEN traff = TRUE.
+      ELSE traff = FALSE.
+   END.
+   extrafalth5 = ?.
+END PROCEDURE.
+
+PROCEDURE kommandoskap_UI :
+   DEFINE VARIABLE extrafalth5 AS HANDLE NO-UNDO.
+   extrafalth5 = tempbufh:BUFFER-FIELD(faltvar).
+   IF begvar = FALSE THEN DO:
+      IF extrafalth5:DATA-TYPE = "CHARACTER" THEN DO:
+         valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES '" + sokstring + "' AND " + nyaquery.
+      END.
+      ELSE IF extrafalth5:DATA-TYPE = "INTEGER" THEN DO: 
+         valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES " + STRING(sokstring) + " AND " + nyaquery.
+      END.
+      ELSE IF extrafalth5:DATA-TYPE = "LOGICAL" THEN DO: 
+         valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES " + STRING(sokstring) + " AND " + nyaquery.
+      END.          
+      ELSE IF extrafalth5:DATA-TYPE = "DECIMAL" THEN DO: 
+         valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " MATCHES " + STRING(sokstring) + " AND " + nyaquery.
+      END.          
+   END.
+   ELSE DO:
+      IF extrafalth5:DATA-TYPE = "CHARACTER" THEN DO:
+         valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " BEGINS '" + sokstring + "' AND " +  nyaquery.
+      END.
+      ELSE IF extrafalth5:DATA-TYPE = "INTEGER" THEN DO: 
+         valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " BEGINS " + STRING(sokstring) + " AND " + nyaquery.
+      END.
+      ELSE IF extrafalth5:DATA-TYPE = "LOGICAL" THEN DO: 
+         valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " BEGINS " + STRING(sokstring) + " AND " + nyaquery.
+      END.       
+      ELSE IF extrafalth5:DATA-TYPE = "DECIMAL" THEN DO: 
+         valdkommandoquery = " FOR EACH " + orgbufh:TABLE + " WHERE " + faltvar + " BEGINS " + STRING(sokstring) + " AND " + nyaquery.
+      END.       
+   END.
+   extrafalth5 = ?.
+END PROCEDURE.
+
+PROCEDURE disconnectdb_UI.
+   IF VALID-HANDLE(appqueh) THEN DO:
+      appqueh:QUERY-CLOSE.
+      DELETE OBJECT appqueh NO-ERROR.      
+      DELETE OBJECT apptthtemp NO-ERROR.      
+      DELETE OBJECT extrafalth3 NO-ERROR. 
+      DELETE OBJECT appquetemph NO-ERROR.     
+      DELETE OBJECT orgbufh NO-ERROR.
+      DELETE WIDGET-POOL "dynpool". 
+      extrafalth3 = ?.
+   END.
+   DELETE WIDGET-POOL NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE unika_UI:
+   IF sokunika[1] NE "" THEN extrafalth2[1] = tempbufh:BUFFER-FIELD(sokunika[1]).         
+   IF sokunika[2] NE "" THEN extrafalth2[2] = tempbufh:BUFFER-FIELD(sokunika[2]).           
+END PROCEDURE.
+

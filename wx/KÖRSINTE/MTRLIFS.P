@@ -1,0 +1,402 @@
+
+/*------------------------------------------------------------------------
+    File        : MTRLIFS.P
+    Purpose     : 
+
+    Syntax      :KÖRS EJ
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Thu Dec 19 10:45:43 CET 2019
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+/* ***************************  Definitions  ************************** */
+
+DEFINE TEMP-TABLE Articles  NO-UNDO
+   FIELD RID AS RECID   XML-NODE-TYPE  "HIDDEN"
+   INDEX RID RID.
+DEFINE TEMP-TABLE Article NO-UNDO     
+   FIELD RID AS RECID   XML-NODE-TYPE  "HIDDEN"
+   FIELD StatusA AS CHARACTER XML-NODE-NAME "Status"
+   FIELD GlobalID AS CHARACTER
+   FIELD ArticleNo AS CHARACTER
+   FIELD ArticleName AS CHARACTER
+   FIELD UnitPrice AS DECIMAL
+   FIELD UnitCode AS CHARACTER
+   INDEX RID RID.
+DEFINE TEMP-TABLE MessageIN  NO-UNDO XML-NODE-NAME "Message"
+   FIELD RID AS RECID   XML-NODE-TYPE  "HIDDEN" 
+   FIELD MessageType AS CHARACTER
+   FIELD ActionType AS CHARACTER
+   INDEX RID RID.
+DEFINE TEMP-TABLE Supplier NO-UNDO      
+   FIELD RID AS RECID   XML-NODE-TYPE  "HIDDEN"
+   FIELD ID AS CHARACTER
+   FIELD NAMELEV  AS CHARACTER XML-NODE-NAME "Name"
+   INDEX RID RID.
+     
+
+DEFINE TEMP-TABLE ArticleMTR NO-UNDO     
+   FIELD RID AS RECID   XML-NODE-TYPE  "HIDDEN"
+   FIELD StatusA AS CHARACTER XML-NODE-NAME "Status"
+   FIELD GlobalID AS CHARACTER     /*E-nummer*/
+   FIELD ArticleNo AS CHARACTER    /*utan e E-nummer*/
+   FIELD ArticleName AS CHARACTER  /*benamning*/
+   FIELD UnitPrice AS DECIMAL
+   FIELD UnitCode AS CHARACTER   /*Enhet*/
+   FIELD LASTIN AS DATETIME
+   FIELD LEVKOD AS CHARACTER
+   INDEX DTI LEVKOD GlobalID LASTIN  . 
+DEFINE BUFFER mtrlbuff FOR MTRL.
+DEFINE VARIABLE antalmtrlin AS INTEGER NO-UNDO.
+DEFINE VARIABLE antlmtrlbh AS INTEGER NO-UNDO.
+DEFINE VARIABLE antlmtrlbort AS INTEGER NO-UNDO.
+DEFINE VARIABLE MtrIFSDSh AS HANDLE NO-UNDO.
+DEFINE DATASET MtrIFSDs FOR Articles,Article,MessageIN,Supplier
+ PARENT-ID-RELATION Relation1 FOR Articles, Article PARENT-ID-FIELD RID
+ PARENT-ID-RELATION Relation1 FOR Article, MessageIN PARENT-ID-FIELD RID
+ PARENT-ID-RELATION Relation1 FOR Article, Supplier PARENT-ID-FIELD RID.
+
+DEFINE VARIABLE v-datetime    AS DATETIME   NO-UNDO.
+DEFINE VARIABLE datvar AS DATE NO-UNDO.
+DEFINE VARIABLE tidvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cFilein AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cFileinKopia AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dirlist AS CHARACTER NO-UNDO.
+DEFINE VARIABLE attrlist AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lReturn AS LOGICAL NO-UNDO.
+DEFINE VARIABLE senastlvkod AS CHARACTER NO-UNDO.
+
+
+
+DEFINE TEMP-TABLE filerin NO-UNDO
+   FIELD FILIN AS CHARACTER
+   FIELD NAMNI AS INT64 
+   INDEX FILIN NAMNI FILIN.
+
+
+FUNCTION Sortnamn RETURNS INT64
+   (INPUT SortnamN AS CHARACTER):
+   DEFINE VARIABLE filnamn64 AS INT64 NO-UNDO.
+   filnamn64 = INDEX(Sortnamn,"_").
+   filnamn64 = INDEX(Sortnamn,"_",filnamn64 + 1).
+   filnamn64 = INDEX(Sortnamn,"_",filnamn64 + 1).
+   /*
+   filnamn64 = INDEX(Sortnamn,"_",filnamn64 + 1).
+ */
+   SortnamN = SUBSTRING(SortnamN,filnamn64 + 5).
+   
+   filnamn64 = INT64(SUBSTRING(SortnamN,1, LENGTH(SortnamN) - 4)).
+   
+   RETURN filnamn64.     
+END FUNCTION.    
+
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{EXTRADATA.I}
+RUN EXTRADATAHMT.P PERSISTENT SET edataapph. 
+RUN MtrlIfs_UI.
+PROCEDURE MtrlIfs_UI :
+   IF Guru.Konstanter:AppSpringSet[1] = "ONENOUTBI" THEN DO:
+      cFilein = "D:\Elpool\DELAD\PRO9S\IMPORT\TEST\Articles\".
+      cFileinKopia = "D:\Elpool\DELAD\PRO9S\IMPORTKOPIA\TEST\Articles\".
+   END.   
+   ELSE DO:
+      cFilein = "D:\Elpool\DELAD\PRO9S\IMPORT\PROD\Articles\".
+      cFileinKopia = "D:\Elpool\DELAD\PRO9S\IMPORTKOPIA\PROD\Articles\".
+   END.  
+   MtrIFSDSh = DATASET MtrIFSDS:HANDLE.
+   RUN Import_UI.
+   
+   RUN TillNattKorning_UI.
+END PROCEDURE.
+PROCEDURE Import_UI :
+   INPUT FROM OS-DIR(cFilein) NO-ECHO.
+   REPEAT:
+      SET filnamn VIEW-AS EDITOR INNER-CHARS 50 INNER-LINES 3 dirlist VIEW-AS EDITOR INNER-CHARS 50 INNER-LINES 3 attrlist.
+      IF filnamn BEGINS "Article_" THEN DO:
+         CREATE filerin.   
+         ASSIGN 
+         filerin.NAMNI = Sortnamn(filnamn)
+         filerin.FILIN = filnamn.   
+      END.
+      
+   END.
+   INPUT CLOSE.
+   
+   FOR EACH filerin:
+      RUN readxml_UI (INPUT-OUTPUT MtrIFSDSh,INPUT "FILE",INPUT cFilein + filerin.FILIN,INPUT "EMPTY",INPUT ?,INPUT NO,OUTPUT lReturn).
+      
+     
+      FOR EACH Articles WHERE NO-LOCK:
+     
+         FOR EACH Article WHERE Article.RID = RECID(Articles) NO-LOCK:
+            antalmtrlin = antalmtrlin + 1.
+            IF Article.GlobalID = "" THEN .
+            ELSE DO:
+               CREATE ArticleMTR.
+               BUFFER-COPY Article TO ArticleMTR. 
+               ArticleMTR.LASTIN = NOW.
+               IF SUBSTRING(ArticleMTR.GlobalID,1,1) = "E" THEN ArticleMTR.GlobalID = SUBSTRING(ArticleMTR.GlobalID,2).
+               FIND FIRST Supplier  WHERE Supplier.RID = RECID(Article)  NO-LOCK NO-ERROR.
+               IF AVAILABLE Supplier THEN ArticleMTR.LEVKOD = Supplier.ID.
+            END.
+         END.
+      END.  
+      EMPTY TEMP-TABLE Articles NO-ERROR.
+      EMPTY TEMP-TABLE Article NO-ERROR.
+      EMPTY TEMP-TABLE MessageIN NO-ERROR.  
+      EMPTY TEMP-TABLE Supplier NO-ERROR. 
+      IF Guru.Konstanter:AppSpringSet[1] = "ONENO" OR Guru.Konstanter:AppSpringSet[1] = "ONENOUTBI"  THEN  OS-COPY VALUE(cFilein + filerin.FILIN) VALUE(cFileinKopia + filerin.FILIN).
+      OS-DELETE VALUE(cFilein + filerin.FILIN).  
+      DELETE filerin.
+      
+   END.
+END PROCEDURE.      
+
+   
+PROCEDURE TillNattKorning_UI :
+   DEFINE VARIABLE levfk AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE enrin AS CHARACTER NO-UNDO.
+   FOR EACH ArticleMTR WHERE NO-LOCK USE-INDEX DTI:
+      IF ArticleMTR.StatusA = "Active" OR ArticleMTR.StatusA = "" THEN DO:
+         IF ArticleMTR.LEVKOD  NE ""  THEN DO:                 
+            IF levfk NE ArticleMTR.LEVKOD THEN DO:
+               RELEASE LEVERANTOR NO-ERROR. 
+               FIND FIRST LEVERANTOR  WHERE LEVERANTOR.LEVKOD = ArticleMTR.LEVKOD NO-LOCK NO-ERROR.
+            END.
+            levfk = ArticleMTR.LEVKOD.   
+            IF AVAILABLE LEVERANTOR THEN DO:
+               EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+               EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+                CREATE inextradatatemp.          
+               ASSIGN
+               inextradatatemp.PROGRAM = "INLKAT"                   
+               inextradatatemp.HUVUDCH = ArticleMTR.LEVKOD. 
+               RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+               FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE extradatatemp THEN DO:
+                  CREATE extradatatemp.
+                  ASSIGN
+                  extradatatemp.PROGRAM = "INLKAT"                   
+                  extradatatemp.HUVUDCH = ArticleMTR.LEVKOD
+                  extradatatemp.SOKLOG[1] = FALSE.
+               END.
+               ASSIGN 
+               extradatatemp.SOKDATE[1] = TODAY 
+               extradatatemp.SOKCHAR[1] = STRING(TIME,"hh:mm"). 
+               RUN extraspar_UI IN edataapph (INPUT TABLE extradatatemp). 
+               EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+               EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+               
+               /*
+               CREATE inextradatatemp.          
+               ASSIGN
+               inextradatatemp.PROGRAM = "INLKAT"                   
+               inextradatatemp.HUVUDCH = ArticleMTR.LEVKOD.                                              
+               
+               ASSIGN
+               extradatatemp.SOKDATE[1] = TODAY 
+               extradatatemp.SOKCHAR[1] = STRING(TIME,"hh:mm") 
+               extradatatemp.SOKCHAR[2] =  "Natt"
+               extradatatemp.SOKLOG[1] =  TRUE.
+               RUN extraspar_UI IN edataapph (INPUT TABLE extradatatemp). 
+               EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+               EMPTY TEMP-TABLE extradatatemp NO-ERROR.   
+               */   
+               RUN skapaenr_UI.
+            END.
+            ELSE DO:
+               OUTPUT TO VALUE(cFileinKopia + "MTRLFEL.TXT") APPEND.
+               PUT UNFORMATTED "LEVERANTÖR FINNS EJ " ArticleMTR.LEVKOD " " ArticleMTR.GlobalID " " TODAY SKIP.
+               OUTPUT CLOSE.   
+            END.   
+         END.      
+      END.   
+      ELSE RUN tabort_UI.
+   END.
+END PROCEDURE.
+
+
+PROCEDURE skapaenr_UI:      
+    DO TRANSACTION: 
+      FIND FIRST mtrlbuff WHERE mtrlbuff.ENR =  ArticleMTR.GlobalID AND
+      mtrlbuff.LEVKOD = ArticleMTR.LEVKOD AND mtrlbuff.KALKNR = 0 USE-INDEX LEV
+      EXCLUSIVE-LOCK NO-ERROR NO-WAIT. 
+      IF LOCKED(mtrlbuff) = TRUE THEN RETURN. 
+      IF AVAILABLE mtrlbuff THEN DO:    
+         antlmtrlbh = antlmtrlbh + 1.        
+         ASSIGN 
+         mtrlbuff.BENAMNING = ArticleMTR.ArticleName
+         mtrlbuff.ENHET = ArticleMTR.UnitCode       
+         mtrlbuff.BPRIS = ArticleMTR.UnitPrice
+         mtrlbuff.NPRIS = ArticleMTR.UnitPrice.
+         mtrlbuff.INDATETIME = NOW.
+         mtrlbuff.INANVPROG = THIS-PROCEDURE:NAME   + " " + Guru.Konstanter:globanv.
+      END.
+      ELSE DO:  
+         antlmtrlbh = antlmtrlbh + 1.                             
+         CREATE MTRL.
+         ASSIGN      
+         MTRL.LEVKOD = ArticleMTR.LEVKOD 
+         MTRL.ENR = ArticleMTR.GlobalID
+         MTRL.BENAMNING = ArticleMTR.ArticleName
+         MTRL.ENHET = ArticleMTR.UnitCode            
+         MTRL.BPRIS = ArticleMTR.UnitPrice 
+         MTRL.NPRIS = ArticleMTR.UnitPrice .
+         {MTRLCREATE.I} 
+      END.   
+   END.
+   RELEASE mtrlbuff NO-ERROR.          
+   RELEASE MTRL NO-ERROR.
+END PROCEDURE.   
+
+PROCEDURE tabort_UI:
+   DO TRANSACTION:
+      antlmtrlbort = antlmtrlbort + 1. 
+      FIND FIRST mtrlbuff WHERE mtrlbuff.ENR =  ArticleMTR.GlobalID AND
+      mtrlbuff.LEVKOD = ArticleMTR.LEVKOD AND mtrlbuff.KALKNR = 0 USE-INDEX LEV
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE mtrlbuff THEN DELETE mtrlbuff.
+   END.   
+END PROCEDURE.
+
+
+PROCEDURE readxml_UI :
+
+   DEFINE INPUT-OUTPUT PARAMETER hPDS AS HANDLE NO-UNDO.
+   DEFINE INPUT  PARAMETER cSourceType AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER cFile AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER cReadMode AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER cSchemaLocation AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER lOverrideDefaultMapping AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER lReturn AS LOGICAL NO-UNDO.
+   
+   lReturn = hPDS:READ-XML (cSourceType, cFile, cReadMode,cSchemaLocation, lOverrideDefaultMapping).
+END PROCEDURE. 
+PROCEDURE writexmlomini_UI :            
+   DEFINE INPUT  PARAMETER hPDS AS HANDLE NO-UNDO.
+   DEFINE INPUT  PARAMETER cTargetType AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER cFile AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER cEncoding AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER cSchemaLocation AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER lFormatted AS LOGICAL NO-UNDO.
+   DEFINE INPUT  PARAMETER lWriteSchema AS LOGICAL NO-UNDO.
+   DEFINE INPUT  PARAMETER lMinSchema AS LOGICAL NO-UNDO.
+   DEFINE INPUT  PARAMETER lWriteBeforeImage AS LOGICAL NO-UNDO.
+   DEFINE INPUT  PARAMETER omit-initial AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE lReturn AS LOGICAL NO-UNDO.
+   lReturn = hPDS:WRITE-XML(cTargetType, cFile, lFormatted,cEncoding,cSchemaLocation,lWriteSchema,lMinSchema,lWriteBeforeImage, omit-initial).      
+/*
+ ASSIGN 
+cTargetType    =  "FILE"
+cFile           = "d:\elpool\delad\pro9s\ExportIFS\GuruOrdermtrlxsd"
+lFormatted      = TRUE
+cEncoding       = "iso8859-1"
+lWriteSchema = FALSE 
+lMinSchema = false. 
+lReturn = hPDS:WRITE-XMLSCHEMA(cTargetType, cFile, lFormatted,  cEncoding, lMinSchema).
+  */ 
+ END PROCEDURE.   
+/* ********************  Preprocessor Definitions  ******************** */
+PROCEDURE Export_UI :
+   v-datetime = NOW.
+   Helpers.Functions:GetDateTime(INPUT v-datetime, OUTPUT datvar, OUTPUT tidvar).
+   filnamn = "_" + STRING(datvar,"99999999") + REPLACE(STRING(tidvar,"HH:MM:SS"),":",""). 
+   
+   cFilein = cFilein + "Article_1" + filnamn + ".xml".
+   
+   FOR EACH MTRL WHERE MTRL.LEVKOD = "1" NO-LOCK:
+    
+      
+      CREATE Articles.
+      Articles.RID = RECID(Articles).
+      
+      CREATE Article.
+      ASSIGN 
+      Article.RID = RECID(Articles)
+      Article.StatusA = "Active" 
+      Article.GlobalID = MTRL.Enr
+      Article.ArticleNo = MTRL.Enr
+      Article.ArticleName = MTRL.Benamning
+      Article.UnitPrice = MTRL.NPRIS
+      Article.UnitCode = MTRL.Enhet.
+      
+      
+      CREATE MessageIN.
+      ASSIGN 
+      MessageIN.RID = RECID(Article)
+      MessageIN.MessageType = "PurchaseArticle". 
+      
+      FIND FIRST LEVERANTOR  WHERE LEVERANTOR.LEVKOD = MTRL.LEVKOD NO-LOCK NO-ERROR.
+      CREATE Supplier.
+      ASSIGN 
+      Supplier.RID = RECID(Article)
+      Supplier.ID = MTRL.LEVKOD.
+   END.
+   RUN writexmlomini_UI (INPUT MtrIFSDSh,INPUT "FILE",INPUT cFilein,INPUT "",INPUT "",INPUT YES,INPUT NO,INPUT NO, INPUT NO, INPUT YES).
+END PROCEDURE.
+
+/* ***************************  Main Block  *************************** */
+
+
+/*
+<Assignments>
+<Assignment>
+<Message>
+<MessageType>ProjectActivity</MessageType>
+<ActionType/>
+</Message>
+<ID>12345.0001</ID>
+<Responsible>
+<ID>ANNAND</ID>
+<Name>Anna Andersson</Name>
+</Responsible>
+<Item>
+<ID>001</A>
+<SequenceID>100002530</SequenceID>
+<Name>Projekt bla bla bla - Aktivitet bla bla bla bla</Name>
+<Status>Active</Status>
+Document name Version Page
+GURU, INTEGRATIONER 1.0 5 (12)
+Author Date
+JESSICA PERSSON 2019-12-18
+<Reference>ABC1234567890</Reference>
+<Responsible>
+<ID>BENBEN</ID>
+<Name>Bengt Bengtsson</Name>
+</Responsible>
+</Item>
+</Assignment>
+</Assignments>
+Exempel arbetsuppgift:
+<Assignments>
+<Assignment>
+<Message>
+<MessageType>WorkTask</MessageType>
+<ActionType/>
+</Message>
+<ID>0012345678</ID>
+<Responsible>
+<ID>ANNAND</ID>
+<Name>Anna Andersson</Name>
+</Responsible>
+<Item>
+<ID>12345678</ID>
+<SequenceID>12345678</SequenceID>
+<Name>Arbetsorder bla bla - Uppgift bla bla bla bla</Name>
+<Status>Active</Status>
+<Reference>ABC1234567890</Reference>
+<Responsible>
+<ID\>
+<Name\>
+</Responsible>
+
+
+
+</Item>
+</Assignment>
+</Assignments>
+*/

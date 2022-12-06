@@ -1,0 +1,705 @@
+/*INKDIVHAMTAPP.P*/
+{STARTFORAPP.I}              
+{LEVERANT.I}
+{DIRDEF.I}
+{INKMTRLDEP.I}
+
+DEFINE VARIABLE radprojladd AS CHARACTER NO-UNDO EXTENT 10.
+   {PROJPACK.I}  
+/*urval ao*/
+PROCEDURE hamtalev_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR templeverant.
+   DEFINE OUTPUT PARAMETER hlevkod AS CHARACTER NO-UNDO.
+
+   FOR EACH LEVERANTOR WHERE LEVERANTOR.BORTTAG = FALSE NO-LOCK:
+      CREATE templeverant.
+      BUFFER-COPY LEVERANTOR TO templeverant.
+   END.   
+   FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+   IF AVAILABLE HUVUDLEV THEN DO:  
+      hlevkod = HUVUDLEV.LEVKOD.      
+   END.
+
+END PROCEDURE.
+/* Hämtar Projekt som har beställningar mellan angivna datum (och lite andra kriterier) */
+PROCEDURE hamtaAO_UI:
+   DEFINE INPUT PARAMETER startdat AS DATE NO-UNDO. /* mellan..*/
+   DEFINE INPUT PARAMETER slutdat AS DATE NO-UNDO.  /* ..och */
+   DEFINE INPUT PARAMETER omrvar AS CHARACTER NO-UNDO. /* = Alla är alla områden, EN eller ALLA*/
+   DEFINE INPUT PARAMETER utfvar AS CHARACTER NO-UNDO. /* = Alla är alla utfärdare, EN eller ALLA*/
+   DEFINE INPUT  PARAMETER priok AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER aartk AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ftyp AS CHARACTER NO-UNDO. /* = Alla är alla utfärdare, EN eller ALLA*/
+   DEFINE INPUT  PARAMETER k1 AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER k2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER k3 AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER k4 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR uvaldaao.
+   
+      
+   DEFINE VARIABLE adda AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE utkonto AS CHARACTER NO-UNDO.
+   
+   EMPTY TEMP-TABLE uvaldaao.
+   /* Hämta beställningar gjorda mellan...och */
+   /*RUN hamtaBS_UI (INPUT startdat,INPUT slutdat,OUTPUT TABLE tempbeststatall).*/
+   RUN hamtaBS_UI (INPUT startdat,INPUT slutdat).
+   FOR EACH tempbeststatall NO-LOCK: 
+      /* Utfärdare-koll */
+      IF utfvar = "Alla" THEN DO:
+         FIND FIRST BEREDNING WHERE BEREDNING.BERNR = tempbeststatall.BERNR AND  
+         BEREDNING.OMRADE = tempbeststatall.OMRADE NO-LOCK NO-ERROR. /*BEREDNING.DELNR = delnrvar */
+      END.
+      ELSE DO:
+         FIND FIRST BEREDNING WHERE BEREDNING.ANVANDARE = utfvar AND 
+         BEREDNING.BERNR = tempbeststatall.BERNR AND  BEREDNING.OMRADE = tempbeststatall.OMRADE NO-LOCK NO-ERROR. /*BEREDNING.DELNR = delnrvar */
+      END.        
+      /* Område-koll */
+      IF omrvar = "Alla" THEN DO:            
+         adda = TRUE.    
+      END.
+      ELSE DO:
+         IF tempbeststatall.OMRADE = omrvar THEN DO:                
+            adda = TRUE.
+         END.
+         ELSE adda = FALSE.
+      END.
+      IF AVAILABLE BEREDNING AND adda = TRUE THEN DO:
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = BEREDNING.AONR AND AONRTAB.DELNR = BEREDNING.DELNR NO-LOCK NO-ERROR.
+            
+         IF AVAILABLE AONRTAB THEN DO:
+            FIND FIRST uvaldaao WHERE uvaldaao.AONR = AONRTAB.AONR AND uvaldaao.DELNR = AONRTAB.DELNR NO-LOCK NO-ERROR.
+                
+            IF NOT AVAILABLE uvaldaao THEN DO:                    
+               CREATE uvaldaao.
+               BUFFER-COPY AONRTAB TO uvaldaao.
+            END.
+         END.    
+      END.     
+
+   END.
+   IF priok NE 0 THEN DO:      
+      FOR EACH uvaldaao WHERE uvaldaao.PKOD NE priok :
+         DELETE uvaldaao.
+      END.   
+   END.
+   IF aartk NE 0 THEN DO:      
+      FOR EACH uvaldaao WHERE uvaldaao.ARBARTKOD NE aartk :
+         DELETE uvaldaao.
+      END.   
+   END.   
+   
+   
+   IF k1 NE "" THEN DO:
+      FOR EACH uvaldaao:
+         IF INDEX(k1,"*") = 1 THEN.
+         ELSE DO:             
+            IF INDEX(k1,"*") = 0 THEN DO:
+               FIND FIRST AONRKONTKOD WHERE AONRKONTKOD.AONR =  uvaldaao.AONR AND
+               AONRKONTKOD.DELNR =  uvaldaao.DELNR AND AONRKONTKOD.K1 = k1 NO-LOCK NO-ERROR.
+            END.
+            ELSE DO:
+               utkonto = SUBSTRING(k1,1,INDEX(k1,"*") - 1).
+               FIND FIRST AONRKONTKOD WHERE AONRKONTKOD.AONR =  uvaldaao.AONR AND
+               AONRKONTKOD.DELNR =  uvaldaao.DELNR AND AONRKONTKOD.K1 BEGINS utkonto
+               NO-LOCK NO-ERROR.
+            END.            
+            IF NOT AVAILABLE AONRKONTKOD THEN DO:
+               DELETE uvaldaao. 
+            END.
+         END.
+      END.   
+   END.              
+   IF k2 NE "" THEN DO:
+      FOR EACH uvaldaao:
+         IF INDEX(k2,"*") = 1 THEN utkonto = utkonto.
+         ELSE DO:                   
+            IF INDEX(k2,"*") = 0 THEN DO:
+               FIND FIRST AONRKONTKOD WHERE AONRKONTKOD.AONR =  uvaldaao.AONR AND
+               AONRKONTKOD.DELNR =  uvaldaao.DELNR AND AONRKONTKOD.K2 = k2      NO-LOCK NO-ERROR.
+            END.
+            ELSE DO:
+               utkonto = SUBSTRING(k2,1,INDEX(k2,"*") - 1).
+               FIND FIRST AONRKONTKOD WHERE AONRKONTKOD.AONR =  uvaldaao.AONR AND
+               AONRKONTKOD.DELNR =  uvaldaao.DELNR AND AONRKONTKOD.K2 BEGINS utkonto   NO-LOCK NO-ERROR.
+            END.                  
+            IF NOT AVAILABLE AONRKONTKOD THEN DO:
+               DELETE uvaldaao. 
+            END.
+         END.
+      END.   
+   END.              
+   IF k3 NE "" THEN DO:
+      FOR EACH uvaldaao:
+         IF INDEX(k3,"*") = 1 THEN utkonto = utkonto.
+         ELSE DO:                   
+            IF INDEX(k3,"*") = 0 THEN DO:
+               FIND FIRST AONRKONTKOD WHERE AONRKONTKOD.AONR =  uvaldaao.AONR AND
+               AONRKONTKOD.DELNR =  uvaldaao.DELNR AND AONRKONTKOD.K3 = k3
+               NO-LOCK NO-ERROR.
+            END.
+            ELSE DO:
+               utkonto = SUBSTRING(k3,1,INDEX(k3,"*") - 1).
+               FIND FIRST AONRKONTKOD WHERE AONRKONTKOD.AONR =  uvaldaao.AONR AND
+               AONRKONTKOD.DELNR =  uvaldaao.DELNR AND AONRKONTKOD.K3 BEGINS utkonto
+               NO-LOCK NO-ERROR.
+            END.                  
+            IF NOT AVAILABLE AONRKONTKOD THEN DO:
+               DELETE uvaldaao. 
+            END.
+         END.
+      END.   
+   END.               
+   IF k4 NE "" THEN DO:
+      FOR EACH uvaldaao:
+         IF INDEX(k4,"*") = 1 THEN utkonto = utkonto.
+         ELSE DO:                   
+            IF INDEX(k4,"*") = 0 THEN DO:
+               FIND FIRST AONRKONTKOD WHERE AONRKONTKOD.AONR =  uvaldaao.AONR AND
+               AONRKONTKOD.DELNR =  uvaldaao.DELNR AND AONRKONTKOD.K4 = k4
+               NO-LOCK NO-ERROR.
+            END.
+            ELSE DO:
+               utkonto = SUBSTRING(k4,1,INDEX(k4,"*") - 1).
+               FIND FIRST AONRKONTKOD WHERE AONRKONTKOD.AONR =  uvaldaao.AONR AND
+               AONRKONTKOD.DELNR =  uvaldaao.DELNR AND AONRKONTKOD.K4 BEGINS utkonto
+               NO-LOCK NO-ERROR.
+            END.                  
+            IF NOT AVAILABLE AONRKONTKOD THEN DO:
+               DELETE uvaldaao. 
+            END.
+         END.
+      END.
+   END.   
+           
+END PROCEDURE.
+
+/* Alla beststatar mellan angivna datum */
+PROCEDURE hamtaBS_UI:
+   DEFINE INPUT PARAMETER startdat AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER slutdat AS DATE NO-UNDO.
+   /*DEFINE OUTPUT PARAMETER TABLE FOR tempbeststatall.*/
+   EMPTY TEMP-TABLE tempbeststatall.
+   FOR EACH BESTSTAT WHERE BESTSTAT.DATUM >= startdat AND BESTSTAT.DATUM <= slutdat NO-LOCK:
+      CREATE tempbeststatall.
+      BUFFER-COPY BESTSTAT TO tempbeststatall.
+      ASSIGN
+      tempbeststatall.BESTDATUM = BESTSTAT.DATUM.
+   END.
+   FOR EACH INKADRESS WHERE INKADRESS.BESTDATUM >= startdat AND INKADRESS.BESTDATUM <= slutdat USE-INDEX AONR  NO-LOCK:
+      RUN inkbeststatall_UI.                  
+   END.   
+   
+END PROCEDURE.
+
+/* minskar urvalsresultat av projekt till en vald utfärdare (först körs aohmtallt.p sen kör man in uvaldaao hit tillsammans med utfärdare) 
+   ANVÄNDS EJ (till för det "vanliga" sättet att hämta/visa urval) */
+PROCEDURE kollaber_UI :
+   DEFINE INPUT PARAMETER utf AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR uvaldaao.
+   
+   FOR EACH uvaldaao NO-LOCK:
+      FIND FIRST BEREDNING WHERE BEREDNING.AONR = uvaldaao.AONR AND BEREDNING.DELNR = uvaldaao.DELNR AND 
+      BEREDNING.OMRADE = uvaldaao.OMRADE AND BEREDNING.ANVANDARE = utf NO-LOCK NO-ERROR.   
+      IF NOT AVAILABLE BEREDNING THEN DO:
+         DELETE uvaldaao.
+      END.
+   END.
+END PROCEDURE.
+
+
+/*slut urvalurval ao*/
+
+
+
+
+PROCEDURE inkbeststatall_UI :
+   CREATE tempbeststatall.
+   ASSIGN
+   tempbeststatall.OMRADE = INKADRESS.OMRADE
+   tempbeststatall.LEVKOD = INKADRESS.LEVKODINK 
+   tempbeststatall.BESTDATUM = INKADRESS.BESTDATUM
+   tempbeststatall.BESTALLD = INKADRESS.SKICKATSTATUS    
+   tempbeststatall.BERNR = INKADRESS.BERNR
+   tempbeststatall.ANVANDARE = INKADRESS.ANVANDARE  
+   tempbeststatall.BESTNR = INKADRESS.INKID  
+   tempbeststatall.BESTTID = INKADRESS.BESTTID
+   tempbeststatall.BERDATUM = INKADRESS.BESTDATUM
+   
+   tempbeststatall.LEVKODINK = INKADRESS.LEVKODINK
+   tempbeststatall.KOMMENTAR = INKADRESS.KOMMENTAR
+   tempbeststatall.KUNDNR = INKADRESS.KUNDNR
+   tempbeststatall.LEVDATUM = INKADRESS.LEVERANSDATUM.
+  
+END PROCEDURE.
+
+PROCEDURE inkbeststat_UI :
+   CREATE tempbeststat.
+   ASSIGN
+       
+   tempbeststat.OMRADE = INKADRESS.OMRADE
+   tempbeststat.LEVKOD = INKADRESS.LEVKODINK 
+   tempbeststat.BESTDATUM = INKADRESS.BESTDATUM
+   tempbeststat.BESTALLD = INKADRESS.SKICKATSTATUS    
+   tempbeststat.BERNR = INKADRESS.BERNR
+   tempbeststat.ANVANDARE = INKADRESS.ANVANDARE  
+   tempbeststat.BESTNR = INKADRESS.INKID  
+   tempbeststat.BESTTID = INKADRESS.BESTTID
+   tempbeststat.BERDATUM = INKADRESS.BESTDATUM
+   tempbeststat.INKBESTID = INKADRESS.INKBESTID
+   
+   
+   
+   tempbeststat.AONR = INKADRESS.AONRAONR
+   tempbeststat.DELNR = INKADRESS.AONRDELNR
+   tempbeststat.ORDERNUMMER = INKADRESS.ORDERNUMMER
+   tempbeststat.KLOCKAN = INKADRESS.KLOCKAN
+   tempbeststat.ANVANDARE = INKADRESS.ANVANDARE
+   tempbeststat.LEVKODINK = INKADRESS.LEVKODINK
+   tempbeststat.LEVNAMN = INKADRESS.LEVNAMN
+   tempbeststat.SKICKATSTATUS = INKADRESS.SKICKATSTATUS
+   tempbeststat.KOMMENTAR = INKADRESS.KOMMENTAR
+   tempbeststat.KUNDNR = INKADRESS.KUNDNR
+   tempbeststat.LEVDATUM = INKADRESS.LEVERANSDATUM.
+   
+   IF INKADRESS.IEXTRAINT[1] = 1 AND INKADRESS.IEXTRAINT[2] = 1 THEN tempbeststat.PACKNING = radprojladd[4].
+   ELSE IF INKADRESS.IEXTRAINT[1] = 1 THEN tempbeststat.PACKNING = radprojladd[1].
+   ELSE IF INKADRESS.IEXTRAINT[1] = 2 THEN tempbeststat.PACKNING = radprojladd[2].
+   
+END PROCEDURE.
+
+/*start sammanställning*/
+/* Bermtrl för EN beredning */
+PROCEDURE hamtabermtrl_UI :
+   DEFINE INPUT PARAMETER TOGGLE-LEV AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER levnamnvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER omradevar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN-STARTDAT AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN-STOPPDAT AS DATE NO-UNDO. 
+   DEFINE OUTPUT PARAMETER TABLE FOR tempbermtrlS.
+   DEFINE OUTPUT PARAMETER TABLE FOR tempbeststat.
+   DEFINE VARIABLE bernrvar  AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE levkodvar AS CHARACTER NO-UNDO.
+   /*DEFINE VARIABLE omrber AS CHARACTER NO-UNDO. /*temp */*/
+
+   EMPTY TEMP-TABLE tempbermtrl.
+   EMPTY TEMP-TABLE tempbermtrls.
+   EMPTY TEMP-TABLE tempbeststat.
+   FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVNAMN = levnamnvar NO-LOCK NO-ERROR.
+   IF AVAILABLE LEVERANTOR THEN DO:
+      levkodvar = LEVERANTOR.LEVKOD.
+   END.   
+   FIND FIRST BEREDNING WHERE BEREDNING.AONR = aonrvar AND BEREDNING.DELNR = delnrvar NO-LOCK NO-ERROR.
+   IF AVAILABLE BEREDNING THEN DO:
+      bernrvar = STRING(BEREDNING.BERNR).       
+      omradevar = BEREDNING.OMRADE.
+   END.
+   
+   EMPTY TEMP-TABLE tempbermtrl.
+   EMPTY TEMP-TABLE tempbeststat.   
+   RUN hamtabeststat_UI (INPUT bernrvar, INPUT omradevar, INPUT TOGGLE-LEV, INPUT levkodvar, INPUT FILL-IN-STARTDAT, INPUT FILL-IN-STOPPDAT,input aonrvar, INPUT delnrvar).                 
+   /*ALLA LEV*/
+   IF TOGGLE-LEV = TRUE THEN DO:
+      FOR EACH tempbeststat NO-LOCK:                                                                         
+         FOR EACH BERMTRL WHERE BERMTRL.AONR = bernrvar AND BERMTRL.OMRADE = omradevar AND 
+         BERMTRL.INKOP = TRUE AND BERMTRL.KLAR = TRUE AND BERMTRL.DATUM = tempbeststat.BERDATUM AND BERMTRL.ANTAL > 0 AND 
+         BERMTRL.DELNR = tempbeststat.BESTTID AND BERMTRL.LEVKOD = tempbeststat.LEVKOD NO-LOCK:         
+            CREATE tempbermtrl.
+            BUFFER-COPY BERMTRL TO tempbermtrl.
+            tempbermtrl.SUMPRIS =  tempbermtrl.ANTAL * tempbermtrl.PRIS.
+            FIND FIRST LEVTRP WHERE LEVTRP.LEVKOD = tempbeststat.LEVKOD AND STRING(LEVTRP.BERNR) = bernrvar
+            AND LEVTRP.OMRADE = omradevar AND LEVTRP.L2 NE "" NO-LOCK NO-ERROR.
+            IF AVAILABLE LEVTRP THEN DO:
+               ASSIGN
+               tempbermtrl.POSTNR   = LEVTRP.L2
+               tempbermtrl.LEVDATUM     = LEVTRP.DATUM.
+            END.  
+             
+         END.      
+         FOR EACH BERLINKAB WHERE BERLINKAB.AONR = bernrvar AND BERLINKAB.OMRADE = omradevar AND 
+         BERLINKAB.DELNR NE ? AND BERLINKAB.DATUM = tempbeststat.BERDATUM AND BERLINKAB.TOTMETER > 0 NO-LOCK:
+            CREATE tempbermtrl.
+            ASSIGN
+            tempbermtrl.ENR       = BERLINKAB.ENR
+            tempbermtrl.AONR      = BERLINKAB.AONR
+            tempbermtrl.DELNR     = BERLINKAB.DELNR
+            tempbermtrl.OMRADE    = BERLINKAB.OMRADE
+            tempbermtrl.INKOP     = TRUE
+            tempbermtrl.LEVKOD    = BERLINKAB.LEVKOD
+            tempbermtrl.BENAMNING = BERLINKAB.BENAMNING
+            tempbermtrl.ANTAL     = BERLINKAB.TOTMETER
+            tempbermtrl.PRIS      = BERLINKAB.PRIS
+            tempbermtrl.DATUM     = BERLINKAB.DATUM
+            tempbermtrl.ENHET     = "M".                
+            tempbermtrl.SUMPRIS =  tempbermtrl.ANTAL * tempbermtrl.PRIS.
+         END.
+         IF tempbeststat.INKBESTID > 0 THEN DO:
+            FOR EACH INKADRESS WHERE INKADRESS.INKBESTID = tempbeststat.INKBESTID NO-LOCK,
+            EACH INKMTRL WHERE INKMTRL.INKBESTID = INKADRESS.INKBESTID NO-LOCK:         
+               CREATE tempbermtrl.
+               ASSIGN
+               tempbermtrl.ENR       = INKMTRL.ENR
+               tempbermtrl.AONR      = INKMTRL.AONRAONR
+               tempbermtrl.DELNR     = INKMTRL.AONRDELNR
+               tempbermtrl.INKBESTID = INKMTRL.INKBESTID
+               tempbermtrl.OMRADE    = INKMTRL.OMRADE
+               tempbermtrl.INKOP     = TRUE
+               tempbermtrl.LEVKOD    = INKMTRL.LEVKODINK
+               tempbermtrl.BENAMNING = INKMTRL.BENAMNING
+               tempbermtrl.ANTAL     = INKMTRL.INKANTAL
+               tempbermtrl.PRIS      = INKMTRL.PRISINK
+               tempbermtrl.DATUM     = tempbeststat.BESTDATUM
+               tempbermtrl.ENHET     = INKMTRL.ENHET
+               tempbermtrl.PROJLED   = INKADRESS.IKONTAKT
+               tempbermtrl.POSTNR   = INKADRESS.LEVPNR
+               tempbermtrl.LEVDATUM     = INKADRESS.LEVERANSDATUM  
+               tempbermtrl.SUMPRIS =  tempbermtrl.ANTAL * tempbermtrl.PRIS.
+               IF INKADRESS.IEXTRAINT[1] = 1 AND INKADRESS.IEXTRAINT[2] = 1 THEN tempbermtrl.PACKNING = "Upplagspackning".
+               ELSE IF INKADRESS.IEXTRAINT[1] = 1 THEN tempbermtrl.PACKNING = "Projektpackning".
+               ELSE IF INKADRESS.IEXTRAINT[1] = 2 THEN tempbermtrl.PACKNING = "Snabbleverans".   
+               
+               FIND FIRST PERSONALTAB  WHERE PERSONALTAB.PERSONALKOD = tempbermtrl.PROJLED  NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALTAB THEN DO:
+                  tempbermtrl.PLPADRESS = PERSONALTAB.POSTADRESS.
+               END.  
+            END.
+         END.     
+      END.
+    
+   END.
+   /* ANGIVEN LEV */
+   ELSE IF TOGGLE-LEV = FALSE THEN DO:
+      FOR EACH tempbeststat NO-LOCK:
+         FOR EACH BERMTRL WHERE BERMTRL.LEVKOD = levkodvar AND BERMTRL.AONR = bernrvar AND 
+         BERMTRL.OMRADE = omradevar AND BERMTRL.INKOP = TRUE AND BERMTRL.KLAR = TRUE AND 
+         BERMTRL.DATUM = tempbeststat.BERDATUM AND BERMTRL.ANTAL > 0 NO-LOCK:
+            CREATE tempbermtrl.
+            BUFFER-COPY BERMTRL TO tempbermtrl.
+            tempbermtrl.SUMPRIS =  tempbermtrl.ANTAL * tempbermtrl.PRIS.
+            FIND FIRST LEVTRP WHERE LEVTRP.LEVKOD = tempbeststat.LEVKOD AND STRING(LEVTRP.BERNR) = bernrvar
+            AND LEVTRP.OMRADE = omradevar  AND LEVTRP.L2 NE "" NO-LOCK NO-ERROR.
+            IF AVAILABLE LEVTRP THEN DO:
+               ASSIGN
+               tempbermtrl.POSTNR   = LEVTRP.L2
+               tempbermtrl.LEVDATUM     = LEVTRP.DATUM.
+            END.          
+         END.                       
+         FOR EACH BERLINKAB WHERE BERLINKAB.LEVKOD = levkodvar AND BERLINKAB.AONR = bernrvar AND 
+         BERLINKAB.DELNR = delnrvar AND BERLINKAB.OMRADE = omradevar AND BERLINKAB.DELNR NE ? AND 
+         BERLINKAB.DATUM = tempbeststat.BERDATUM AND BERLINKAB.TOTMETER > 0 NO-LOCK:
+            CREATE tempbermtrl.
+            ASSIGN
+            tempbermtrl.ENR       = BERLINKAB.ENR
+            tempbermtrl.AONR      = BERLINKAB.AONR
+            tempbermtrl.DELNR     = BERLINKAB.DELNR
+            tempbermtrl.OMRADE    = BERLINKAB.OMRADE
+            tempbermtrl.INKOP     = TRUE
+            tempbermtrl.LEVKOD    = BERLINKAB.LEVKOD
+            tempbermtrl.BENAMNING = BERLINKAB.BENAMNING
+            tempbermtrl.ANTAL     = BERLINKAB.TOTMETER
+            tempbermtrl.PRIS      = BERLINKAB.PRIS
+            tempbermtrl.DATUM     = BERLINKAB.DATUM
+            tempbermtrl.ENHET     = "M"
+            tempbermtrl.SUMPRIS =  tempbermtrl.ANTAL * tempbermtrl.PRIS.            
+         END.   
+         IF tempbeststat.LEVKOD = levkodvar AND tempbeststat.INKBESTID > 0 THEN DO:
+            /*BORDE ALLTID SKE.*/
+            /*från INKMTRL.PRIS till INKMTRL.PRISINK 20141124 Lena*/
+            FOR EACH INKADRESS WHERE INKADRESS.INKBESTID = tempbeststat.INKBESTID NO-LOCK,
+            EACH INKMTRL WHERE INKMTRL.INKBESTID = INKADRESS.INKBESTID NO-LOCK:
+               CREATE tempbermtrl.
+               ASSIGN
+               tempbermtrl.ENR       = INKMTRL.ENR
+               tempbermtrl.AONR      = INKMTRL.AONRAONR
+               tempbermtrl.DELNR     = INKMTRL.AONRDELNR               
+               tempbermtrl.OMRADE    = INKMTRL.OMRADE
+               tempbermtrl.INKOP     = TRUE
+               tempbermtrl.LEVKOD    = INKMTRL.LEVKODINK
+               tempbermtrl.BENAMNING = INKMTRL.BENAMNING
+               tempbermtrl.ANTAL     = INKMTRL.INKANTAL
+               tempbermtrl.PRIS      = INKMTRL.PRISINK
+               tempbermtrl.DATUM     = tempbeststat.BESTDATUM
+               tempbermtrl.ENHET     = INKMTRL.ENHET
+               tempbermtrl.INKBESTID  = INKMTRL.INKBESTID
+               tempbermtrl.PROJLED = INKADRESS.IKONTAKT   
+               tempbermtrl.POSTNR   = INKADRESS.LEVPNR
+               tempbermtrl.LEVDATUM     = INKADRESS.LEVERANSDATUM
+               tempbermtrl.SUMPRIS =  tempbermtrl.ANTAL * tempbermtrl.PRIS. 
+               
+               FIND FIRST PERSONALTAB  WHERE PERSONALTAB.PERSONALKOD = tempbermtrl.PROJLED  NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALTAB THEN DO:
+                  tempbermtrl.PLPADRESS = PERSONALTAB.POSTADRESS.
+               END.
+            END.
+         END.   
+      END.                  
+   END.  
+   
+   /*LENA 20120229*/
+   FOR EACH tempbermtrl NO-LOCK BREAK BY tempbermtrl.AONR BY tempbermtrl.DELNR BY tempbermtrl.DATUM BY tempbermtrl.ENR :
+      ACCUMULATE tempbermtrl.ANTAL (TOTAL BY tempbermtrl.AONR BY tempbermtrl.DELNR BY tempbermtrl.DATUM BY tempbermtrl.ENR ).
+      ACCUMULATE tempbermtrl.SUMPRIS (TOTAL BY tempbermtrl.AONR BY tempbermtrl.DELNR BY tempbermtrl.DATUM BY tempbermtrl.ENR ).        
+      IF LAST-OF(tempbermtrl.ENR) THEN DO:
+         CREATE tempbermtrls.      
+         BUFFER-COPY tempbermtrl TO tempbermtrls.  
+         ASSIGN
+         tempbermtrls.ANTAL = (ACCUM TOTAL BY tempbermtrl.ENR tempbermtrl.ANTAL ).
+         tempbermtrls.SUMPRIS = (ACCUM TOTAL BY tempbermtrl.ENR tempbermtrl.SUMPRIS ).
+      END.
+   END.
+   DEBUGGER:SET-BREAK().
+   FOR EACH tempbermtrls NO-LOCK BREAK BY tempbermtrls.AONR BY tempbermtrls.DELNR BY tempbermtrls.INKBESTID:
+      ACCUMULATE tempbermtrls.ANTAL (TOTAL BY tempbermtrls.AONR BY tempbermtrls.DELNR BY tempbermtrls.INKBESTID ).
+      ACCUMULATE tempbermtrls.SUMPRIS (TOTAL BY tempbermtrls.AONR BY tempbermtrls.DELNR BY tempbermtrls.INKBESTID).        
+      IF LAST-OF(tempbermtrls.INKBESTID) THEN DO:
+         CREATE tempbermtrlink.      
+         BUFFER-COPY tempbermtrls TO tempbermtrlink.  
+         ASSIGN         
+         tempbermtrlink.SUMPRIS = (ACCUM TOTAL BY tempbermtrls.INKBESTID tempbermtrls.SUMPRIS ).
+      END.
+   END.      
+   FOR EACH tempbeststat:
+      FIND FIRST tempbermtrlink WHERE tempbermtrlink.INKBESTID = tempbeststat.INKBESTID NO-LOCK NO-ERROR.
+      IF AVAILABLE tempbermtrlink THEN DO:
+         tempbeststat.TOTALTPRIS = tempbermtrlink.SUMPRIS.
+      END.
+   END.   
+END PROCEDURE.
+
+/*Hämtar bEststat för EN beredning */        
+PROCEDURE hamtabeststat_UI :   
+   DEFINE INPUT PARAMETER bernrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omradevar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TOGGLE-LEV AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER levkodvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER startdat AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER slutdat AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   /*DEFINE OUTPUT PARAMETER TABLE FOR tempbeststat.*/
+   
+   /* hämta beststatar som är gjorda inom intervall */    
+   /*ALLA LEV*/
+   IF TOGGLE-LEV = TRUE THEN DO:
+      FOR EACH BESTSTAT WHERE BESTSTAT.DATUM >= startdat AND BESTSTAT.DATUM <= slutdat AND 
+      BESTSTAT.BERNR = INTEGER(bernrvar) AND BESTSTAT.OMRADE = omradevar NO-LOCK: 
+         FIND FIRST tempbeststat WHERE tempbeststat.BERNR = INTEGER(bernrvar) AND tempbeststat.OMRADE = omradevar AND 
+         tempbeststat.BESTNR = BESTSTAT.BESTNR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE tempbeststat THEN DO:      
+            CREATE tempbeststat.
+            BUFFER-COPY BESTSTAT TO tempbeststat.            
+            ASSIGN             
+            tempbeststat.AONR = aonrvar
+            tempbeststat.DELNR = delnrvar            
+            tempbeststat.KLOCKAN = STRING(BESTSTAT.TID)
+            tempbeststat.BESTDATUM = BESTSTAT.DATUM
+            tempbeststat.ANVANDARE = BESTSTAT.ANVANDARE
+            tempbeststat.SKICKATSTATUS = BESTSTAT.BESTALLD
+            tempbeststat.LEVKODINK = BESTSTAT.LEVKOD.
+            FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = BESTSTAT.LEVKOD NO-LOCK NO-ERROR.
+            tempbeststat.LEVNAMN = LEVERANTOR.LEVNAMN.                                     
+         END. 
+         ELSE DO:
+            IF tempbeststat.BESTDATUM < BESTSTAT.DATUM THEN tempbeststat.BESTDATUM = BESTSTAT.DATUM.                    
+         END.         
+      END.
+      FOR EACH INKADRESS WHERE INKADRESS.BESTDATUM >= startdat AND INKADRESS.BESTDATUM <= slutdat AND 
+      INKADRESS.BERNR = INTEGER(bernrvar) AND INKADRESS.OMRADE = omradevar NO-LOCK:       
+         RUN inkbeststat_UI.                                
+      END.   
+   END.
+   /*ANGIVEN LEV*/
+   ELSE DO:
+      FOR EACH BESTSTAT WHERE BESTSTAT.DATUM >= startdat AND BESTSTAT.DATUM <= slutdat AND 
+      BESTSTAT.LEVKOD = levkodvar AND 
+      BESTSTAT.BERNR = INTEGER(bernrvar) AND BESTSTAT.OMRADE = omradevar NO-LOCK:           
+         CREATE tempbeststat.
+         BUFFER-COPY BESTSTAT TO tempbeststat.        
+         ASSIGN             
+         tempbeststat.AONR = aonrvar
+         tempbeststat.DELNR = delnrvar            
+         tempbeststat.KLOCKAN = STRING(BESTSTAT.TID)
+         tempbeststat.BESTDATUM = BESTSTAT.DATUM
+         tempbeststat.ANVANDARE = BESTSTAT.ANVANDARE
+         tempbeststat.SKICKATSTATUS = BESTSTAT.BESTALLD
+         tempbeststat.LEVKODINK = BESTSTAT.LEVKOD.
+         FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = BESTSTAT.LEVKOD NO-LOCK NO-ERROR.
+         tempbeststat.LEVNAMN = LEVERANTOR.LEVNAMN.   
+      END.    
+      FOR EACH INKADRESS WHERE INKADRESS.BESTDATUM >= startdat AND INKADRESS.BESTDATUM <= slutdat AND 
+      INKADRESS.LEVKODINK = levkodvar AND
+      INKADRESS.BERNR = INTEGER(bernrvar) AND INKADRESS.OMRADE = omradevar NO-LOCK:
+         RUN inkbeststat_UI.                                     
+      END.   
+   END.    
+   /*samma som tempbeststatall.BESTTID = INKADRESS.BESTTID*/
+   FOR EACH tempbeststat WHERE tempbeststat.INKBESTID = 0 NO-LOCK: 
+      FIND FIRST LEVTRP WHERE LEVTRP.BERNR = tempbeststat.BERNR AND 
+      LEVTRP.OMRADE = tempbeststat.OMRADE AND LEVTRP.BESTNR = tempbeststat.BESTNR AND 
+      LEVTRP.LEVKOD = tempbeststat.LEVKOD NO-LOCK NO-ERROR. 
+          
+      /*MESSAGE LEVTRP.BESTNR "<-lev||tempbeststat->" tempbeststat.BESTNR VIEW-AS ALERT-BOX.*/
+      IF AVAILABLE LEVTRP THEN DO:
+         /*MESSAGE TRIM(SUBSTRING(LEVTRP.LEVERANS,20,15)) VIEW-AS ALERT-BOX.*/
+         tempbeststat.BESTTID = INTEGER(TRIM(SUBSTRING(LEVTRP.LEVERANS,20,15))).
+         tempbeststat.ORDERNUMMER = LEVTRP.BERBESTNR.
+         tempbeststat.KOMMENTAR = LEVTRP.KOM.
+         tempbeststat.KUNDNR = LEVTRP.KUNDNR.
+         tempbeststat.LEVDATUM = LEVTRP.DATUM.
+      END.              
+   END.  
+
+END PROCEDURE.
+
+
+/* Sätta rätt AONR och Projinköpare */
+PROCEDURE aoproj_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tempbermtrl.
+   
+   FOR EACH tempbermtrl WHERE tempbermtrl.INKBESTID = 0:
+      /* Först hämta Kontaktperson Inköp */      
+      FIND FIRST LEVTRP WHERE LEVTRP.BERNR = INTEGER(tempbermtrl.AONR) AND 
+      LEVTRP.OMRADE = tempbermtrl.OMRADE AND TRIM(SUBSTRING(LEVTRP.LEVERANS,1,15)) = STRING(INTEGER(tempbermtrl.DATUM)) AND 
+      TRIM(SUBSTRING(LEVTRP.LEVERANS,20,15)) = STRING(tempbermtrl.DELNR) NO-LOCK NO-ERROR.      
+      IF AVAILABLE LEVTRP THEN DO:
+         tempbermtrl.PROJLED = SUBSTRING(LEVTRP.KIKONTAKT,1,50).
+         
+         /*tempbermtrl.DATUM = LEVTRP.DATUM. BESTSTAT.*/
+         /*tempbermtrl.DELNR ÄR KLOCKSLAG I SEKUNDER*/    
+         FIND FIRST tempbeststatall WHERE tempbeststatall.BERNR = LEVTRP.BERNR AND tempbeststatall.OMRADE = LEVTRP.OMRADE AND 
+         tempbeststatall.BESTNR = LEVTRP.BESTNR NO-LOCK NO-ERROR.
+         IF AVAILABLE tempbeststatall THEN DO:
+            tempbermtrl.DATUM = tempbeststatall.BESTDATUM.
+         END.                 
+      END.          
+      /* .. Sedan sätta AONR istället för BERNR då det är AONR som ska visas */                              
+      FIND FIRST BEREDNING WHERE BEREDNING.BERNR = INTEGER(tempbermtrl.AONR) AND 
+      BEREDNING.OMRADE = tempbermtrl.OMRADE NO-LOCK NO-ERROR.
+      IF AVAILABLE BEREDNING THEN DO:
+         ASSIGN
+         tempbermtrl.AONR = BEREDNING.AONR
+         tempbermtrl.DELNR = BEREDNING.DELNR.
+      END.
+   END. 
+      
+   
+END PROCEDURE.      
+
+
+PROCEDURE prisa_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tempbermtrl.
+
+   FOR EACH tempbermtrl NO-LOCK:
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = tempbermtrl.LEVKOD AND MTRL.ENR = tempbermtrl.ENR AND 
+      MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         tempbermtrl.PRIS = MTRL.NPRIS.
+      END.
+      ELSE DO:
+         tempbermtrl.PRIS = 0.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE hamtadep_UI:
+   DEFINE INPUT PARAMETER startdat AS DATE NO-UNDO. /* mellan..*/
+   DEFINE INPUT PARAMETER slutdat AS DATE NO-UNDO.  /* ..och */
+   DEFINE OUTPUT PARAMETER TABLE FOR tempbermtrl .
+   /*DEFINE INPUT PARAMETER omrvar AS CHARACTER NO-UNDO. /* = Alla är alla områden, EN eller ALLA*/
+   DEFINE INPUT PARAMETER utfvar AS CHARACTER NO-UNDO. /* = Alla är alla utfärdare, EN eller ALLA*/
+   DEFINE OUTPUT PARAMETER TABLE FOR uvaldaao.*/
+   DEFINE VARIABLE adda AS LOGICAL NO-UNDO.
+   EMPTY TEMP-TABLE tempbermtrl NO-ERROR. 
+   /* Hämta beställningar gjorda mellan...och */
+   RUN hamtaBS_UI (INPUT startdat,INPUT slutdat).
+   FOR EACH tempbeststatall WHERE tempbeststatall.BESTNR > 0 AND tempbeststatall.BERNR = 0  NO-LOCK:       
+      FOR EACH BESTDEP WHERE BESTDEP.DEPNR = tempbeststatall.DEP-NR AND BESTDEP.BESTNR = tempbeststatall.BESTNR /*AND BESTDEP.LEVDATUM NE ? AND
+      BESTDEP.BERED = FALSE AND BESTDEP.LEVNAMN = ""*/ NO-LOCK:
+         CREATE tempbermtrl.
+         ASSIGN
+         tempbermtrl.ENR       = BESTDEP.ENR
+         tempbermtrl.DEPNR      = BESTDEP.DEPNR
+         tempbermtrl.BESTNR     = BESTDEP.BESTNR         
+         tempbermtrl.INKOP     = TRUE
+         tempbermtrl.LEVKOD    = BESTDEP.LEVKOD
+         tempbermtrl.BENAMNING = BESTDEP.BENAMNING
+         tempbermtrl.ANTAL     = BESTDEP.ANTAL
+         tempbermtrl.PRIS      = BESTDEP.PRIS
+         tempbermtrl.DATUM     = BESTDEP.LEVDATUM
+         tempbermtrl.ENHET     = BESTDEP.ENHET.
+         tempbermtrl.DATUM = tempbeststatall.BESTDATUM.
+         tempbermtrl.SUMPRIS =  tempbermtrl.ANTAL * tempbermtrl.PRIS.               
+         FIND FIRST LEVTRP WHERE LEVTRP.BERNR = 0 AND LEVTRP.BESTNR = tempbermtrl.BESTNR AND LEVTRP.Dep-Nr = tempbermtrl.DEPNR     NO-LOCK NO-ERROR.      
+         IF AVAILABLE LEVTRP THEN DO:
+            tempbermtrl.PROJLED = SUBSTRING(LEVTRP.KIKONTAKT,1,50).                          
+            tempbermtrl.POSTNR   = LEVTRP.L2.       
+                 
+         END.                      
+      END.      
+   END.    
+END PROCEDURE.
+
+PROCEDURE kollinkaonr_UI:
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER  NO-UNDO.
+   DEFINE INPUT PARAMETER valdelnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER antink AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR inkmtrldep.
+   DEFINE OUTPUT PARAMETER TABLE FOR einkmtrldep.
+   DEFINE VARIABLE deplev AS CHARACTER NO-UNDO. 
+   EMPTY TEMP-TABLE inkmtrldep NO-ERROR.
+   EMPTY TEMP-TABLE einkmtrldep NO-ERROR. 
+   DEFINE VARIABLE hjinknr AS INTEGER NO-UNDO.
+   antink = 0. 
+   hjinknr = 0.
+   deplev = "".
+   IF Guru.Konstanter:globforetag = "BODE" THEN deplev = "6".
+   IF Guru.Konstanter:globforetag = "KRAF" THEN deplev = "6".
+   IF Guru.Konstanter:globforetag = "lule" THEN deplev = "41".
+   /*SNATVISNING*/
+   IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+       deplev = "0".
+      /*snatdepå*/
+         /*FIND FIRST AONRTAB WHERE AONRTAB.AONR = valaonr AND AONRTAB.DELNR = valdelnr NO-LOCK NO-ERROR.
+         IF AVAILABLE AONRTAB THEN DO:
+            FIND FIRST OMRADETAB  WHERE OMRADETAB.OMRADE = AONRTAB.OMRADE NO-LOCK NO-ERROR.            
+            FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+            FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+            IF AVAILABLE JURPERS THEN DO:
+               IF JURPERS.JUDID = "ELNÄT"  THEN deplev = "20".
+               IF JURPERS.JUDID = "ServaNet"  THEN deplev = "21".
+            END.
+         END.*/
+     END.                      
+      
+   /*kalmar depåändring ABC nu de måste ha bestämt sig för spegling abc nu*/
+   IF Guru.Konstanter:globforetag = "GKAL" THEN deplev = "10".
+   IF deplev NE "" THEN DO:  
+      FIND LAST INKMTRL WHERE INKMTRL.INKBESTID > 0 AND  INKMTRL.AONRAONR = valaonr AND INKMTRL.AONRDELNR = valdelnr AND INKMTRL.LEVKODINK = deplev  USE-INDEX INKID NO-LOCK NO-ERROR.
+      IF AVAILABLE INKMTRL THEN DO:
+         CREATE einkmtrldep.
+         ASSIGN
+         einkmtrldep.INKID =  INKMTRL.INKID
+         einkmtrldep.INKBESTID =  INKMTRL.INKBESTID
+         einkmtrldep.LEVKODINK =  INKMTRL.LEVKODINK.      
+      END.      
+      FOR EACH INKMTRL WHERE INKMTRL.AONRAONR = valaonr AND INKMTRL.AONRDELNR = valdelnr AND INKMTRL.LEVKODINK = deplev  USE-INDEX INKID NO-LOCK:         
+         FIND FIRST inkmtrldep WHERE inkmtrldep.INKID =  INKMTRL.INKID AND inkmtrldep.INKBESTID =  INKMTRL.INKBESTID AND  inkmtrldep.ENR = INKMTRL.ENR  NO-ERROR.
+         IF NOT AVAILABLE inkmtrldep THEN DO:
+            CREATE inkmtrldep.
+            ASSIGN
+            inkmtrldep.INKID =  INKMTRL.INKID
+            inkmtrldep.INKBESTID =  INKMTRL.INKBESTID
+            inkmtrldep.LEVKODINK =  INKMTRL.LEVKODINK
+            inkmtrldep.ENR =  INKMTRL.ENR.
+         END.      
+         inkmtrldep.INKANTAL = inkmtrldep.INKANTAL +  INKMTRL.INKANTAL.
+         IF INKMTRL.INKID NE hjinknr THEN DO:
+            antink = antink + 1.
+            hjinknr = INKMTRL.INKID.
+         END.   
+      END.
+   END.       
+   
+END PROCEDURE.

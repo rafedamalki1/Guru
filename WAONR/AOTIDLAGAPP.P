@@ -1,0 +1,121 @@
+/*AOTIDLAGAPP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+{REGVAR.I}
+
+{AONRDEF.I}
+{AVTAONRTEMP.I}
+{OMRTEMPW.I}
+
+PROCEDURE laddatid.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR aotidslagtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidslagtemp.
+   /*Hämta tidslagen för aonr:et*/
+   EMPTY TEMP-TABLE aotidslagtemp NO-ERROR.    
+   OPEN QUERY atq FOR EACH AONRTIDLAGE WHERE AONRTIDLAGE.AONR = aonrvar AND
+   AONRTIDLAGE.DELNR = delnrvar NO-LOCK, 
+   EACH TIDSLAGEN WHERE TIDSLAGEN.IDTIDLAG = AONRTIDLAGE.IDTIDLAG NO-LOCK.
+   GET FIRST atq NO-LOCK.
+   DO WHILE AVAILABLE(AONRTIDLAGE):
+      CREATE aotidslagtemp.
+      ASSIGN 
+      aotidslagtemp.AONR       = AONRTIDLAGE.AONR
+      aotidslagtemp.DELNR      = AONRTIDLAGE.DELNR
+      aotidslagtemp.DAT1     = AONRTIDLAGE.DATUM1
+      aotidslagtemp.DAT2     = AONRTIDLAGE.DATUM2
+      aotidslagtemp.IDTLAG   = AONRTIDLAGE.IDTIDLAG
+      aotidslagtemp.ANVANDARE1 = AONRTIDLAGE.ANVANDARE1
+      aotidslagtemp.ANVANDARE2 = AONRTIDLAGE.ANVANDARE2
+      aotidslagtemp.AONRTIDLREC  = RECID(AONRTIDLAGE).
+      BUFFER-COPY TIDSLAGEN TO aotidslagtemp.
+      GET NEXT atq NO-LOCK.
+   END.
+   CLOSE QUERY atq.
+   EMPTY TEMP-TABLE tidslagtemp NO-ERROR.    
+   OPEN QUERY tq FOR EACH TIDSLAGEN WHERE TIDSLAGEN.AUTOMATISKT = FALSE NO-LOCK.
+   GET FIRST tq NO-LOCK.
+   DO WHILE AVAILABLE(TIDSLAGEN):
+      CREATE tidslagtemp.
+      BUFFER-COPY TIDSLAGEN TO tidslagtemp.
+      GET NEXT tq NO-LOCK.
+   END.
+   CLOSE QUERY tq.      
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE ny.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER anv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER tidsID AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR aotidslagtemp.
+
+   FIND FIRST TIDSLAGEN WHERE TIDSLAGEN.IDTIDLAG = tidsID NO-LOCK NO-ERROR.
+   IF AVAILABLE TIDSLAGEN THEN DO:
+      DO TRANSACTION:
+         CREATE AONRTIDLAGE.      
+         ASSIGN
+         AONRTIDLAGE.ANVANDARE1 = ""
+         AONRTIDLAGE.ANVANDARE2 = ""
+         AONRTIDLAGE.AONR = aonrvar
+         AONRTIDLAGE.DELNR = delnrvar
+         AONRTIDLAGE.IDTIDLAG = tidsID 
+         AONRTIDLAGE.DATUM1 = ?
+         AONRTIDLAGE.DATUM2 = ?
+         AONRTIDLAGE.ANVANDARE1 = anv.
+         IF Guru.Konstanter:globforetag = "cELPA" OR Guru.Konstanter:globforetag = "GKAL" THEN DO:
+            ASSIGN
+            AONRTIDLAGE.DATUM1 = TODAY.           
+         END.
+         IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+            IF AONRTIDLAGE.IDTIDLAG BEGINS "Färdigställande" THEN DO:
+               ASSIGN
+               AONRTIDLAGE.DATUM1 = TODAY.
+            END.              
+         END.  
+         CREATE aotidslagtemp.      
+         ASSIGN
+         aotidslagtemp.ANVANDARE1 = ""
+         aotidslagtemp.ANVANDARE2 = ""
+         aotidslagtemp.AONR = aonrvar
+         aotidslagtemp.DELNR = delnrvar
+         aotidslagtemp.IDTLAG = tidsID 
+         aotidslagtemp.DAT1 = ?
+         aotidslagtemp.DAT2 = ?
+         aotidslagtemp.ANVANDARE1 = anv 
+         aotidslagtemp.AONRTIDLREC = RECID(AONRTIDLAGE).
+         
+         BUFFER-COPY TIDSLAGEN TO aotidslagtemp.
+         IF Guru.Konstanter:globforetag = "cELPA" OR Guru.Konstanter:globforetag = "GKAL" THEN DO:
+            ASSIGN
+            aotidslagtemp.DAT1 = TODAY.           
+         END.
+         IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+            IF aotidslagtemp.IDTIDLAG BEGINS "Färdigställande" THEN DO:
+               ASSIGN
+               aotidslagtemp.DAT1 = TODAY.
+            END.              
+         END.
+      END.
+      RELEASE AONRTIDLAGE NO-ERROR.
+   END.
+END PROCEDURE.
+      
+PROCEDURE bort.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER brec AS RECID NO-UNDO.
+   DO TRANSACTION:
+      FIND AONRTIDLAGE WHERE RECID(AONRTIDLAGE) = brec EXCLUSIVE-LOCK NO-ERROR.
+      FIND FIRST AOTIDLKOPP WHERE AOTIDLKOPP.AONR = AONRTIDLAGE.AONR AND
+      AOTIDLKOPP.DELNR = AONRTIDLAGE.DELNR AND AOTIDLKOPP.IDTIDLAG = AONRTIDLAGE.IDTIDLAG
+      USE-INDEX AONR EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE AOTIDLKOPP THEN DELETE AOTIDLKOPP.
+      DELETE AONRTIDLAGE.
+   END.
+END PROCEDURE.
+   

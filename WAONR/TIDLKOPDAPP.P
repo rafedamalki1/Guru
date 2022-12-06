@@ -1,0 +1,432 @@
+/*TIDLKOPDAPP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+{REGVAR.I}
+
+{AONRDEF.I}
+{AVTAONRTEMP.I}
+{OMRTEMPW.I}
+
+DEFINE VARIABLE melvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE langd AS INTEGER NO-UNDO.
+DEFINE VARIABLE pos1 AS INTEGER NO-UNDO.
+
+{BESTSTATTEMP.I}
+{NAMNDB.I}
+PROCEDURE beststatus_UI :
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR bestatlevtemp.
+   EMPTY TEMP-TABLE bestatlevtemp NO-ERROR.
+   FOR EACH BEREDNING WHERE BEREDNING.AONR = aonrvar AND 
+   BEREDNING.DELNR = delnrvar USE-INDEX AONR NO-LOCK.
+      FOR EACH BESTSTAT WHERE BESTSTAT.BERNR = BEREDNING.BERNR AND
+      BESTSTAT.OMRADE = BEREDNING.OMRADE   NO-LOCK,
+      EACH LEVERANTOR WHERE LEVERANTOR.LEVKOD = BESTSTAT.LEVKOD NO-LOCK. 
+         CREATE bestatlevtemp.
+         BUFFER-COPY BESTSTAT TO bestatlevtemp.
+         BUFFER-COPY LEVERANTOR TO bestatlevtemp.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE avthmt.   
+   DEFINE OUTPUT PARAMETER TABLE FOR avtaltemp.
+   /*Hämta bef. avtal*/
+   EMPTY TEMP-TABLE avtaltemp NO-ERROR.    
+   OPEN QUERY aq FOR EACH AVTAL NO-LOCK.    
+   GET FIRST aq NO-LOCK.
+   DO WHILE AVAILABLE(AVTAL):
+      CREATE avtaltemp.
+      BUFFER-COPY AVTAL TO avtaltemp.
+      GET NEXT aq NO-LOCK.
+   END.
+   CLOSE QUERY aq.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE aotidskapu.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER id AS CHARACTER NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.AONR = aonrvar AND  
+      AONRTIDLAGE.DELNR = delnrvar AND AONRTIDLAGE.IDTIDLAG = id NO-LOCK NO-ERROR. 
+      IF AVAILABLE AONRTIDLAGE THEN DO:
+         CREATE AOTIDLKOPP.
+         ASSIGN
+         AOTIDLKOPP.AONR = AONRTIDLAGE.AONR
+         AOTIDLKOPP.DELNR = AONRTIDLAGE.DELNR
+         AOTIDLKOPP.IDTIDLAG = AONRTIDLAGE.IDTIDLAG.                  
+      END.
+   END.
+   RELEASE AOTIDLKOPP NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE btnoku.
+   DEFINE INPUT PARAMETER valet AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER aoavtal AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER id AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER mappvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER edmedd AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER fil AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   DO TRANSACTION:
+      FIND FIRST AOTIDLKOPP WHERE AOTIDLKOPP.AONR = aonrvar AND  
+      AOTIDLKOPP.DELNR = delnrvar AND AOTIDLKOPP.IDTIDLAG = id EXCLUSIVE-LOCK NO-ERROR. 
+      IF NOT AVAILABLE AOTIDLKOPP THEN DO:
+         CREATE AOTIDLKOPP.
+         ASSIGN
+         AOTIDLKOPP.AONR = aonrvar
+         AOTIDLKOPP.DELNR = delnrvar
+         AOTIDLKOPP.IDTIDLAG = id.                  
+      END.   
+      IF valet = 2 THEN DO:
+         IF fil = "" AND edmedd = "" THEN DO:
+            IF AVAILABLE AOTIDLKOPP THEN DELETE AOTIDLKOPP.
+         END.   
+      END.
+      IF valet = 1 THEN DO:
+         IF aoavtal = "Eget dokument" THEN DO:
+            IF fil = "" THEN DO:
+               CREATE felmeddtemp.
+               ASSIGN 
+               felmeddtemp.FELMEDD = "Ni måste välja ett dokument."
+               felmeddtemp.VAL = 1.
+               RETURN.         
+            END.      
+         END.
+         IF fil NE "" THEN DO:
+            IF fil BEGINS mappvar THEN DO:
+               FIND CURRENT AOTIDLKOPP EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE AOTIDLKOPP THEN DO:
+                  ASSIGN
+                  AOTIDLKOPP.FILNAMN = fil
+                  mappvar = ?.
+               END.
+            END.
+            ELSE DO:
+               CREATE felmeddtemp.
+               ASSIGN 
+               felmeddtemp.FELMEDD = "Vill du kopiera filen till projektmappen?"
+               felmeddtemp.VAL = 2.               
+               RETURN.           
+            END.           
+         END.
+         ELSE DO:
+            RUN avtalu (INPUT AOTIDLKOPP.AONR,INPUT AOTIDLKOPP.DELNR,INPUT AOTIDLKOPP.IDTIDLAG,
+                        INPUT gforetag,INPUT aoavtal,
+                        INPUT-OUTPUT mappvar,INPUT-OUTPUT fil).            
+            FIND CURRENT AOTIDLKOPP EXCLUSIVE-LOCK NO-ERROR.
+            ASSIGN
+            AOTIDLKOPP.FILNAMN = mappvar.      
+         END.         
+      END.
+      ELSE DO:
+         FIND CURRENT AOTIDLKOPP EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE AOTIDLKOPP THEN DO:
+            ASSIGN
+            AOTIDLKOPP.ANMARK = edmedd.      
+         END.         
+      END.
+   END.
+   RELEASE AOTIDLKOPP NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE svaru.
+   DEFINE INPUT PARAMETER answer AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER id AS CHARACTER NO-UNDO.   
+   DEFINE INPUT-OUTPUT PARAMETER mappvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER fil AS CHARACTER NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST AOTIDLKOPP WHERE AOTIDLKOPP.AONR = aonrvar AND  
+      AOTIDLKOPP.DELNR = delnrvar AND AOTIDLKOPP.IDTIDLAG = id EXCLUSIVE-LOCK NO-ERROR. 
+      IF AVAILABLE AOTIDLKOPP THEN DO:
+         IF answer THEN DO:
+            ASSIGN
+            AOTIDLKOPP.FILNAMN = mappvar
+            fil = AOTIDLKOPP.FILNAMN
+            mappvar = ?.
+         END.
+         ELSE DO:
+            ASSIGN
+            AOTIDLKOPP.FILNAMN = fil
+            mappvar = ?.
+         END.
+      END.
+   END.
+   RELEASE AOTIDLKOPP NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE avtalu.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER id AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER aoavtal AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER mappvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER fil AS CHARACTER NO-UNDO.
+   
+   ASSIGN Guru.Konstanter:globforetag = gforetag. 
+   FIND FIRST AVTAL WHERE AVTAL.AVTAL = aoavtal NO-LOCK NO-ERROR.     
+   IF Guru.Konstanter:globforetag = "ELPA" THEN DO:
+      mappvar = "\\server05\d\dokument\DOKUMENT\" + aonrvar + STRING(delnrvar) + "\" + AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.
+      /*mappvar = "\\server05\d\4. Investering\" + aonrvar + STRING(delnrvar) + "\" + AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.   */      
+   END.
+   ELSE IF namndb() = "LULE" THEN DO:
+      /*Dokumentsökväg bytt 20151209 Lena*/
+      /*mappvar = "N:\Planering\Projekt_GURU\" + aonrvar + STRING(delnrvar) + "\" + AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.
+      
+      mappvar = "N:\4. Investering\Planering\Projekt\Projekt_GURU\" + aonrvar + STRING(delnrvar) + "\" + AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.
+      */  
+      /*
+      mappvar = "\\dppower\dpdoc\Elnat\Projekt\" + aonrvar + STRING(delnrvar) + "\" + AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.
+      */
+      mappvar = "\\cosy.local.luleaenergi.se\dpdoc\Elnat\Projekt\" + aonrvar + STRING(delnrvar) + "\" + AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.
+                    
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "LULE" AND namndb() = "UTBI" THEN DO:
+      mappvar = "N:\Planering\Projekt_GURU\UTBILDNING\" + aonrvar + STRING(delnrvar) + "\" + AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.         
+   END.
+   ELSE IF namndb() = "GKAL" THEN DO:
+      mappvar = "d:\GURU\DOKUMENT\" + aonrvar + STRING(delnrvar) + "\" + AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.                 
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "GKAL" AND namndb() = "UTBI" THEN DO:
+      mappvar = "d:\GURU\DOKUMENT\UTBI\" + aonrvar + STRING(delnrvar) + "\" + AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.         
+   END.
+   ELSE IF namndb() = "GRANNORD" THEN DO:      
+      mappvar = "\\SRV00486\APPL\GURU\DOKUMENT\GRAN\" + aonrvar + STRING(delnrvar) + "\" +  AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.                  
+   END.
+   ELSE IF namndb() = "GRANES" THEN DO:      
+      mappvar = "\\SRV00486\APPL\GURU\DOKUMENT\GRAN\" + aonrvar + STRING(delnrvar) + "\" +  AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.            
+   END.
+   ELSE IF (Guru.Konstanter:globforetag = "GRAN" AND namndb() = "UTBI") THEN DO:
+      mappvar = "\\SRV00486\APPL\GURU\DOKUMENT\GRANUTBI\" + aonrvar + STRING(delnrvar) + "\" +  AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.         
+   END.
+   ELSE IF namndb() = "GRANIT" THEN DO:
+      mappvar = "\\SRV00486\APPL\GURU\DOKUMENT\GRANIT\" + aonrvar + STRING(delnrvar) + "\" +  AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.         
+   END.
+   ELSE IF namndb() = "GRANADM9" THEN DO:
+      mappvar = "\\SRV00486\APPL\GURU\DOKUMENT\GRANADM\" + aonrvar + STRING(delnrvar) + "\" +  AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.         
+   END.
+   ELSE IF namndb() = "GRANSOL" THEN DO:
+      mappvar = "\\SRV00486\APPL\GURU\DOKUMENT\GRANSOL\" + aonrvar + STRING(delnrvar) + "\" +  AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.         
+   END.   
+   ELSE IF Guru.Konstanter:globforetag = "TRAS" THEN DO:
+      mappvar = "C:\PRO9\GURU\DOKUMENT\" + aonrvar + STRING(delnrvar) + "\" + AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.         
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "PINN" THEN DO:
+      mappvar = SESSION:TEMP-DIR + aonrvar + STRING(delnrvar) + "\" + AVTAL.AVTAL + " " + aonrvar + STRING(delnrvar) + id.         
+   END.
+   fil = AVTAL.FILNAMN.
+   IF SUBSTRING(AVTAL.FILNAMN,LENGTH(AVTAL.FILNAMN) - 2,3) = "dot" THEN DO:             
+      mappvar = mappvar + ".doc".                     
+   END.
+   ELSE IF SUBSTRING(AVTAL.FILNAMN,LENGTH(AVTAL.FILNAMN) - 2,3) = "xlt" THEN DO:        
+      mappvar = mappvar + ".xls".                  
+   END.
+   ELSE DO:
+      IF INDEX(AVTAL.FILNAMN,".") > 0 THEN DO: 
+         mappvar = mappvar + SUBSTRING(AVTAL.FILNAMN,INDEX(AVTAL.FILNAMN,".")).
+      END.
+      ELSE mappvar = mappvar.
+                           
+   END.
+   
+END PROCEDURE.
+
+/*KAN TAS BORT NÄR ALLA har fått ny version 2006-05-24*/                                         
+
+PROCEDURE aotidskap.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER id AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER tidrec AS RECID NO-UNDO.
+   DEFINE OUTPUT PARAMETER brec AS RECID NO-UNDO.
+   DO TRANSACTION:
+      FIND AONRTIDLAGE WHERE RECID(AONRTIDLAGE) = tidrec NO-LOCK NO-ERROR. 
+      IF AVAILABLE AONRTIDLAGE THEN DO:
+         CREATE AOTIDLKOPP.
+         ASSIGN
+         AOTIDLKOPP.AONR = AONRTIDLAGE.AONR
+         AOTIDLKOPP.DELNR = AONRTIDLAGE.DELNR
+         AOTIDLKOPP.IDTIDLAG = AONRTIDLAGE.IDTIDLAG         
+         brec = RECID(AOTIDLKOPP).
+      END.
+   END.
+   RELEASE AOTIDLKOPP NO-ERROR.
+END PROCEDURE.
+       
+
+/*KAN TAS BORT NÄR ALLA har fått ny version 2006-05-24*/                                         
+PROCEDURE btnok.
+   DEFINE INPUT PARAMETER valet AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER brec AS RECID NO-UNDO.
+   DEFINE INPUT PARAMETER aoavtal AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER mappvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER edmedd AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER fil AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   FIND FIRST AOTIDLKOPP WHERE RECID(AOTIDLKOPP) = brec NO-LOCK NO-ERROR.
+   IF AVAILABLE AOTIDLKOPP THEN DO TRANSACTION:
+      IF valet = 2 THEN DO:
+         IF fil = "" AND edmedd = "" THEN DO:
+            FIND FIRST AOTIDLKOPP WHERE RECID(AOTIDLKOPP) = brec EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE AOTIDLKOPP THEN DELETE AOTIDLKOPP.
+         END.   
+      END.
+      IF valet = 1 THEN DO:
+         IF aoavtal = "Eget dokument" THEN DO:
+            IF fil = "" THEN DO:
+               CREATE felmeddtemp.
+               ASSIGN 
+               felmeddtemp.FELMEDD = "Ni måste välja ett dokument."
+               felmeddtemp.VAL = 1.
+               RETURN.         
+            END.      
+         END.
+         IF fil NE "" THEN DO:
+            IF fil BEGINS mappvar THEN DO:
+               FIND CURRENT AOTIDLKOPP EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE AOTIDLKOPP THEN DO:
+                  ASSIGN
+                  AOTIDLKOPP.FILNAMN = fil
+                  mappvar = ?.
+               END.
+            END.
+            ELSE DO:
+               CREATE felmeddtemp.
+               ASSIGN 
+               felmeddtemp.FELMEDD = "Vill du kopiera filen till projektmappen?"
+               felmeddtemp.VAL = 2.               
+               RETURN.           
+            END.           
+         END.
+         ELSE DO:
+            RUN avtal (INPUT brec,INPUT AOTIDLKOPP.AONR,INPUT AOTIDLKOPP.DELNR,
+                       INPUT gforetag,INPUT-OUTPUT mappvar,INPUT-OUTPUT fil,INPUT aoavtal).            
+         END.         
+      END.
+      ELSE DO:
+         FIND CURRENT AOTIDLKOPP EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE AOTIDLKOPP THEN DO:
+            ASSIGN
+            AOTIDLKOPP.ANMARK = edmedd.      
+         END.         
+      END.
+   END.
+   RELEASE AOTIDLKOPP NO-ERROR.
+END PROCEDURE.
+/*KAN TAS BORT NÄR ALLA har fått ny version 2006-05-24*/                                         
+PROCEDURE svar.
+   DEFINE INPUT PARAMETER answer AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER brec AS RECID NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER mappvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER fil AS CHARACTER NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST AOTIDLKOPP WHERE RECID(AOTIDLKOPP) = brec EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE AOTIDLKOPP THEN DO:
+         IF answer THEN DO:
+            /*
+            ASSIGN
+            langd = LENGTH(fil)
+            pos1 = 1
+            melvar = INDEX(fil,"\",pos1).
+            IF melvar NE 0 THEN DO:
+               DO WHILE melvar < langd:                                     
+                  ASSIGN
+                  pos1 = melvar + 1
+                  melvar = INDEX(fil,"\",pos1).
+                  IF melvar = 0 THEN melvar = 100000.
+               END.                    
+            END.               
+            mappvar = mappvar + SUBSTRING(fil,pos1,LENGTH(fil) - 1).
+            OS-COPY VALUE(fil) VALUE(mappvar).
+            */
+            ASSIGN
+            AOTIDLKOPP.FILNAMN = mappvar
+            fil = AOTIDLKOPP.FILNAMN
+            mappvar = ?.
+         END.
+         ELSE DO:
+            ASSIGN
+            AOTIDLKOPP.FILNAMN = fil
+            mappvar = ?.
+         END.
+      END.
+   END.
+   RELEASE AOTIDLKOPP NO-ERROR.
+END PROCEDURE.
+/*KAN TAS BORT NÄR ALLA har fått ny version 2006-05-24*/                                         
+PROCEDURE avtal.
+   DEFINE INPUT PARAMETER brec AS RECID NO-UNDO.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER mappvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER fil AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER aoavtal AS CHARACTER NO-UNDO.
+   ASSIGN Guru.Konstanter:globforetag = gforetag. 
+   FIND FIRST AVTAL WHERE AVTAL.AVTAL = aoavtal NO-LOCK NO-ERROR.     
+   FIND FIRST AOTIDLKOPP WHERE RECID(AOTIDLKOPP) = brec EXCLUSIVE-LOCK NO-ERROR.
+   IF Guru.Konstanter:globforetag = "ELPA" THEN DO:
+      mappvar = "\\server05\d\dokument\DOKUMENT\" + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + "\" + AVTAL.AVTAL + " " + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + STRING(brec).         
+   END.
+   ELSE IF namndb() = "LULE" THEN DO:
+      mappvar = "N:\Planering\Projekt_GURU\" + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + "\" + AVTAL.AVTAL + " " + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + STRING(brec).               
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "LULE" AND namndb() = "UTBI" THEN DO:
+      mappvar = "N:\Planering\Projekt_GURU\UTBILDNING\" + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + "\" + AVTAL.AVTAL + " " + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + STRING(brec).         
+   END.
+   ELSE IF namndb() = "GKAL" THEN DO:
+      mappvar = "d:\GURU\DOKUMENT\" + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + "\" + AVTAL.AVTAL + " " + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + STRING(brec).                 
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "GKAL" AND namndb() = "UTBI" THEN DO:
+      mappvar = "d:\GURU\DOKUMENT\UTBI\" + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + "\" + AVTAL.AVTAL + " " + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + STRING(brec).         
+   END.
+   ELSE IF namndb() = "GRANNORD" THEN DO:      
+      mappvar = "\\SRV00486\APPL\GURU\DOKUMENT\GRAN\" + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + "\" +  AVTAL.AVTAL + " " + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + STRING(brec).                  
+   END.
+   ELSE IF namndb() = "GRANES" THEN DO:      
+      mappvar = "\\SRV00486\APPL\GURU\DOKUMENT\GRAN\" + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + "\" +  AVTAL.AVTAL + " " + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + STRING(brec).            
+   END.
+   ELSE IF (Guru.Konstanter:globforetag = "GRAN" AND namndb() = "UTBI") THEN DO:
+      mappvar = "\\SRV00486\APPL\GURU\DOKUMENT\GRANUTBI\" + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + "\" +  AVTAL.AVTAL + " " + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + STRING(brec).         
+   END.
+   ELSE IF namndb() = "GRANIT" THEN DO:
+      mappvar = "\\SRV00486\APPL\GURU\DOKUMENT\GRANIT\" + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + "\" +  AVTAL.AVTAL + " " + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + STRING(brec).         
+   END.
+   ELSE IF namndb() = "GRANADM9" THEN DO:
+      mappvar = "\\SRV00486\APPL\GURU\DOKUMENT\GRANADM\" + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + "\" +  AVTAL.AVTAL + " " + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + STRING(brec).         
+   END.
+   ELSE IF namndb() = "GRANSOL" THEN DO:
+      mappvar = "\\SRV00486\APPL\GURU\DOKUMENT\GRANSOL\" + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + "\" +  AVTAL.AVTAL + " " + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + STRING(brec).         
+   END.   
+   ELSE IF Guru.Konstanter:globforetag = "TRAS" THEN DO:
+      mappvar = "C:\PRO9\GURU\DOKUMENT\" + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + "\" + AVTAL.AVTAL + " " + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + STRING(brec).         
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "PINN" THEN DO:
+      mappvar = SESSION:TEMP-DIR + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + "\" + AVTAL.AVTAL + " " + AOTIDLKOPP.AONR + STRING(AOTIDLKOPP.DELNR) + STRING(brec).         
+   END.
+   fil = AVTAL.FILNAMN.
+   IF SUBSTRING(AVTAL.FILNAMN,LENGTH(AVTAL.FILNAMN) - 2,3) = "dot" THEN DO:             
+      mappvar = mappvar + ".doc".                     
+   END.
+   ELSE IF SUBSTRING(AVTAL.FILNAMN,LENGTH(AVTAL.FILNAMN) - 2,3) = "xlt" THEN DO:        
+      mappvar = mappvar + ".xls".                  
+   END.
+   ELSE DO:
+      mappvar = mappvar + SUBSTRING(AVTAL.FILNAMN,LENGTH(AVTAL.FILNAMN) - 3,4).                     
+   END.
+   ASSIGN
+   AOTIDLKOPP.FILNAMN = mappvar.      
+END PROCEDURE.

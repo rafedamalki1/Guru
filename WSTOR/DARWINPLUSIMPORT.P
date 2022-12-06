@@ -1,0 +1,181 @@
+
+/*------------------------------------------------------------------------
+    File        : DARWINPLUSIMPORT.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Tue Aug 22 08:57:47 CEST 2017
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+{DarwinPlusExportImport.I}
+DEFINE INPUT PARAMETER TABLE FOR ForetagData.
+DEFINE INPUT PARAMETER TABLE FOR DistriktData.
+DEFINE INPUT PARAMETER TABLE FOR KundData.
+DEFINE INPUT PARAMETER TABLE FOR LedningData.
+DEFINE INPUT PARAMETER TABLE FOR StorningData.
+DEFINE INPUT PARAMETER TABLE FOR StorFelMtrlData.
+
+CREATE WIDGET-POOL "DynTableST" NO-ERROR.
+DEFINE VARIABLE foretagaDarwinh AS HANDLE NO-UNDO.
+DEFINE VARIABLE distriktDarwinh AS HANDLE NO-UNDO.
+DEFINE VARIABLE kundDarwinh AS HANDLE NO-UNDO.
+DEFINE VARIABLE ledningDarwinh AS HANDLE NO-UNDO.
+DEFINE VARIABLE storDarwinh AS HANDLE NO-UNDO.
+DEFINE VARIABLE stoFelrmtrlDarwinh AS HANDLE NO-UNDO.
+DEFINE VARIABLE spanh AS HANDLE NO-UNDO.
+CREATE BUFFER foretagaDarwinh FOR TABLE "ForetagDarwin" IN WIDGET-POOL "DynTableST".
+CREATE BUFFER distriktDarwinh FOR TABLE "DistriktDarwin" IN WIDGET-POOL "DynTableST".
+CREATE BUFFER kundDarwinh FOR TABLE "KundDarwin" IN WIDGET-POOL "DynTableST".
+CREATE BUFFER ledningDarwinh FOR TABLE "LedningDarwin" IN WIDGET-POOL "DynTableST".
+CREATE BUFFER storDarwinh FOR TABLE "StorningDarwin" IN WIDGET-POOL "DynTableST".
+CREATE BUFFER stoFelrmtrlDarwinh FOR TABLE "StorningFelMtrlDarwin" IN WIDGET-POOL "DynTableST".
+CREATE BUFFER spanh FOR TABLE "DARPLU.SPANNINGSNIV" IN WIDGET-POOL "DynTableST".
+DEFINE VARIABLE sokvar AS CHARACTER NO-UNDO.
+FOR EACH ForetagData:
+   DO TRANSACTION:
+      sokvar = "ForetagDarwin.IdentifikationsnrForetag = " + STRING(ForetagData.IdentifikationsnrForetag).  
+      foretagaDarwinh:FIND-FIRST("WHERE " + sokvar ,EXCLUSIVE-LOCK) NO-ERROR.
+      IF foretagaDarwinh:AVAILABLE THEN.
+      ELSE DO:
+         foretagaDarwinh:BUFFER-CREATE().
+      END.
+      foretagaDarwinh:BUFFER-COPY(BUFFER ForetagData:HANDLE).         
+   END.
+   foretagaDarwinh:BUFFER-RELEASE NO-ERROR. 
+END.
+
+FOR EACH DistriktData:
+   DO TRANSACTION:
+      sokvar = "DistriktDarwin.DistriktsId = " + STRING(DistriktData.DistriktsId) + " AND DistriktDarwin.Artal = " + STRING(DistriktData.Artal) .  
+      distriktDarwinh:FIND-FIRST("WHERE " + sokvar ,EXCLUSIVE-LOCK) NO-ERROR.
+      IF distriktDarwinh:AVAILABLE THEN.
+      ELSE DO:
+         distriktDarwinh:BUFFER-CREATE().
+      END.
+      distriktDarwinh:BUFFER-COPY(BUFFER DistriktData:HANDLE).         
+   END.
+   distriktDarwinh:BUFFER-RELEASE NO-ERROR.
+END. 
+FOR EACH KundData:
+   DO TRANSACTION:
+      sokvar = "KundDarwin.DistriktsId = " + STRING(KundData.DistriktsId) + " AND KundDarwin.Artal = " + STRING(KundData.Artal) + " AND KundDarwin.SpanNivId = " + STRING(KundData.SpanNivId) .  
+      kundDarwinh:FIND-FIRST("WHERE " + sokvar ,EXCLUSIVE-LOCK) NO-ERROR.
+      IF kundDarwinh:AVAILABLE THEN DO:
+         /*220 KV*/
+         IF KundData.SpanNivId = 10 THEN DO:
+            kundDarwinh:BUFFER-FIELD("AntalKunderTotalt"):BUFFER-VALUE = kundDarwinh:BUFFER-FIELD("AntalKunderTotalt"):BUFFER-VALUE + KundData.AntalKunderTotalt.
+         END.   
+         ELSE kundDarwinh:BUFFER-COPY(BUFFER KundData:HANDLE).
+      END.
+      ELSE DO:
+         kundDarwinh:BUFFER-CREATE().
+         kundDarwinh:BUFFER-COPY(BUFFER KundData:HANDLE).
+      END.
+                
+   END. 
+   kundDarwinh:BUFFER-RELEASE NO-ERROR.    
+END.    
+
+FOR EACH LedningData:
+   DO TRANSACTION:
+      sokvar = "LedningDarwin.DistriktsId = " + STRING(LedningData.DistriktsId) + " AND LedningDarwin.Artal = " + STRING(LedningData.Artal) + " AND LedningDarwin.SpanNivId = " + STRING(LedningData.SpanNivId) .  
+      ledningDarwinh:FIND-FIRST("WHERE " + sokvar ,EXCLUSIVE-LOCK) NO-ERROR.
+      IF ledningDarwinh:AVAILABLE THEN DO:
+         /*220 KV*/
+         IF LedningData.SpanNivId = 10 THEN DO:
+            ledningDarwinh:BUFFER-FIELD("AntalTotalt"):BUFFER-VALUE = ledningDarwinh:BUFFER-FIELD("AntalTotalt"):BUFFER-VALUE + LedningData.AntalTotalt.
+
+         END.   
+         ELSE ledningDarwinh:BUFFER-COPY(BUFFER LedningData:HANDLE).
+      END.   
+      ELSE DO:
+         ledningDarwinh:BUFFER-CREATE().
+         ledningDarwinh:BUFFER-COPY(BUFFER LedningData:HANDLE).
+
+      END.
+                
+   END.
+   ledningDarwinh:BUFFER-RELEASE NO-ERROR.
+END.
+FOR EACH StorningData:
+   DO TRANSACTION:
+      sokvar = "StorningDarwin.DistriktsId = " + STRING(StorningData.DistriktsId) + " AND StorningDarwin.StorId = " + STRING(StorningData.StorId).  
+      storDarwinh:FIND-FIRST("WHERE " + sokvar ,EXCLUSIVE-LOCK) NO-ERROR.
+      IF storDarwinh:AVAILABLE THEN.
+      ELSE DO:
+         storDarwinh:BUFFER-CREATE().
+      END.
+      storDarwinh:BUFFER-COPY(BUFFER StorningData:HANDLE).
+      IF StorningData.FelspanNamn = "" THEN.
+      ELSE DO: 
+         spanh:FIND-FIRST("WHERE ARTAL = " + STRING(StorningData.ARTAL) + " AND FelspanNamn = " + QUOTER(StorningData.FelspanNamn) ,NO-LOCK) NO-ERROR.
+         IF spanh:AVAILABLE THEN.
+         ELSE DO:
+            spanh:BUFFER-CREATE().
+            spanh:BUFFER-FIELD("FelspanId"):BUFFER-VALUE = StorningData.FelspanId. 
+            spanh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE =  StorningData.ARTAL.
+            spanh:BUFFER-FIELD("FelspanNamn"):BUFFER-VALUE =  StorningData.FelspanNamn.
+         END.
+      END.   
+      IF StorningData.FranspanNamn = "" THEN.
+      ELSE DO:
+         spanh:FIND-FIRST("WHERE ARTAL = " + STRING(StorningData.ARTAL) + " AND FranspanNamn = " + QUOTER(StorningData.FranspanNamn) ,NO-LOCK) NO-ERROR.
+         IF spanh:AVAILABLE THEN.
+         ELSE DO:
+            spanh:BUFFER-CREATE().
+            spanh:BUFFER-FIELD("FranspanId"):BUFFER-VALUE = StorningData.FranspanId. 
+            spanh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE =  StorningData.ARTAL.
+            spanh:BUFFER-FIELD("FranspanNamn"):BUFFER-VALUE =  StorningData.FranspanNamn.
+         END.      
+      END.   
+   END.
+   spanh:BUFFER-RELEASE NO-ERROR.
+   storDarwinh:BUFFER-RELEASE NO-ERROR.
+END.
+FOR EACH StorFelMtrlData:
+   DO TRANSACTION:
+      sokvar = "StorningFelMtrlDarwin.DistriktsId = " + STRING(StorFelMtrlData.DistriktsId) + " AND StorningFelMtrlDarwin.StorId = " + STRING(StorFelMtrlData.StorId).  
+      stoFelrmtrlDarwinh:FIND-FIRST("WHERE " + sokvar ,EXCLUSIVE-LOCK) NO-ERROR.
+      IF stoFelrmtrlDarwinh:AVAILABLE THEN.
+      ELSE DO:
+         stoFelrmtrlDarwinh:BUFFER-CREATE().
+      END.
+      stoFelrmtrlDarwinh:BUFFER-COPY(BUFFER StorFelMtrlData:HANDLE). 
+   END.
+   stoFelrmtrlDarwinh:BUFFER-RELEASE NO-ERROR.
+END.
+DELETE WIDGET-POOL "DynTableST" NO-ERROR.
+foretagaDarwinh = ?.
+distriktDarwinh = ?.
+kundDarwinh = ?.
+ledningDarwinh = ?.
+storDarwinh = ?.
+stoFelrmtrlDarwinh = ?.
+ 
+ 
+ /*
+ FOR EACH ForetagDarwin:
+   DELETE ForetagDarwin.
+END.
+FOR EACH DistriktDarwin:
+  DELETE DistriktDarwin.
+END. 
+FOR EACH KundDarwin:
+   DELETE KundDarwin.
+END.    
+FOR EACH LedningDarwin:
+  DELETE LedningDarwin.
+END.
+FOR EACH StorningDarwin:
+   DELETE StorningDarwin.
+END.
+FOR EACH StorningFelMtrlDarwin:
+   DELETE StorningFelMtrlDarwin.
+END.
+*/ 
+      

@@ -1,0 +1,126 @@
+/*SPRAKAPP.p*/
+
+{SPRAKTEMP.i}
+
+DEFINE VARIABLE hDataSet AS HANDLE NO-UNDO.
+DEFINE VARIABLE temptabHandle AS HANDLE NO-UNDO.
+RUN TEMPTABELLERAPP.P PERSISTENT SET temptabHandle (INPUT TRUE). 
+
+{dsSprak.i}
+{SparaProDatasSet.i SprakDS}
+DEFINE QUERY SprakQuery FOR SPRAK .
+DEFINE DATA-SOURCE SprakSrc FOR QUERY SprakQuery SPRAK KEYS (ID). 
+DEFINE DATA-SOURCE SprakStrangSrc FOR SPRAK_STRANG KEYS (SPRAKID, ID).
+
+hDataSet = DATASET SprakDS:HANDLE.   
+hDataSet:SET-CALLBACK-PROCEDURE ("AFTER-FILL", "postDataSetFillSprakDS", THIS-PROCEDURE).
+
+
+
+
+PROCEDURE attachSprakDS :
+   hDataSet:GET-BUFFER-HANDLE("spraktemp"):ATTACH-DATA-SOURCE(DATA-SOURCE SprakSrc:HANDLE).
+   hDataSet:GET-BUFFER-HANDLE("sprakstrangtemp"):ATTACH-DATA-SOURCE(DATA-SOURCE SprakStrangSrc:HANDLE).
+   
+END PROCEDURE.
+
+PROCEDURE FetchEverything:
+   DEFINE OUTPUT PARAMETER DATASET FOR SprakDS.
+   DATASET SprakDS:EMPTY-DATASET().
+   QUERY SprakQuery:QUERY-PREPARE("FOR EACH SPRAK NO-LOCK").
+   RUN attachSprakDS.
+   DATASET SprakDS:FILL().
+   detachDataSetSprakDS(hDataSet).
+
+END PROCEDURE.
+PROCEDURE NewString:
+   DEFINE INPUT PARAMETER sprakid AS INTEGER.
+   DEFINE INPUT PARAMETER benamning AS CHARACTER.
+   DEFINE INPUT PARAMETER sokchar AS CHARACTER.
+   DEFINE OUTPUT PARAMETER TABLE FOR esprakstrangtemp.
+   EMPTY TEMP-TABLE esprakstrangtemp NO-ERROR. 
+   DEFINE VARIABLE stringid AS INTEGER NO-UNDO.
+   DEFINE VARIABLE sokid AS INTEGER NO-UNDO.
+   
+   RUN LastStrangId( OUTPUT stringid).
+   RUN LastStrangSokId(INPUT sprakid, OUTPUT sokid).
+   
+   DO TRANSACTION:
+      CREATE esprakstrangtemp.
+      ASSIGN
+      esprakstrangtemp.ID        = stringid
+      esprakstrangtemp.SPRAKID   = sprakid
+      esprakstrangtemp.SOKID     = sokid
+      esprakstrangtemp.BENAMNING = benamning
+      esprakstrangtemp.SOKCHAR   = sokchar
+      esprakstrangtemp.TTROWID   = ROWID(esprakstrangtemp).
+      esprakstrangtemp.TTRECID   = RECID(esprakstrangtemp).
+   END.
+   
+   RELEASE SPRAK_STRANG NO-ERROR.
+   RELEASE sprakstrangtemp NO-ERROR.
+END.
+PROCEDURE GuruvarSet:
+   DEFINE INPUT PARAMETER TABLE FOR esprakstrangtemp.
+   FIND FIRST esprakstrangtemp WHERE NO-LOCK NO-ERROR.
+   
+   RUN GuruvarSet_UI IN temptabHandle(INPUT esprakstrangtemp.SOKCHAR, INPUT esprakstrangtemp.BENAMNING). 
+END PROCEDURE.
+
+PROCEDURE NewSprak:
+   DEFINE INPUT PARAMETER ben AS CHARACTER.
+   DEFINE INPUT PARAMETER cons AS LOGICAL.
+   DEFINE OUTPUT PARAMETER idd AS INTEGER NO-UNDO.
+   
+   /*
+   DEFINE OUTPUT PARAMETER TABLE FOR espraktemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR esprakstrangtemp.
+   */
+   
+   DEFINE VARIABLE asokchar AS CHARACTER EXTENT 41 NO-UNDO.
+   DEFINE VARIABLE aben     AS CHARACTER EXTENT 41 NO-UNDO.
+   DEFINE VARIABLE ch AS INTEGER NO-UNDO. 
+   DEFINE VARIABLE counter AS INTEGER INITIAL 1 NO-UNDO.
+
+   EMPTY TEMP-TABLE espraktemp.
+   EMPTY TEMP-TABLE esprakstrangtemp.
+
+   RUN LastSprakId(OUTPUT idd).
+   DO TRANSACTION:
+      CREATE SPRAK.
+      ASSIGN
+      SPRAK.ID = idd
+      SPRAK.BENAMNING = ben.
+   END.
+   FIND FIRST SPRAK WHERE SPRAK.ID = idd NO-LOCK NO-ERROR.   
+   IF cons EQ TRUE THEN DO:
+      RUN longkort_UI IN temptabHandle (INPUT idd, INPUT 0,INPUT "", INPUT TRUE).
+      
+   END.   
+ END PROCEDURE .
+
+
+PROCEDURE LastSprakId:
+   DEFINE OUTPUT PARAMETER idd AS INTEGER.   
+   FIND LAST SPRAK USE-INDEX SPRAKID NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE SPRAK THEN idd = 0.
+   ELSE idd = SPRAK.ID + 1. 
+ 
+END PROCEDURE.
+
+PROCEDURE LastStrangId:
+   DEFINE OUTPUT PARAMETER idd AS INTEGER.
+   FIND LAST SPRAK_STRANG USE-INDEX ID NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE SPRAK_STRANG THEN idd = 0.
+   ELSE idd = SPRAK_STRANG.ID + 1.
+  
+END PROCEDURE.
+
+PROCEDURE LastStrangSokId:
+   DEFINE INPUT PARAMETER sprakid AS INTEGER.
+   DEFINE OUTPUT PARAMETER idd AS INTEGER.
+   FIND LAST SPRAK_STRANG WHERE SPRAK_STRANG.SPRAKID = sprakid USE-INDEX SOKID NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE SPRAK_STRANG THEN idd = 0.
+   ELSE idd = SPRAK_STRANG.SOKID + 1.
+   
+END PROCEDURE.

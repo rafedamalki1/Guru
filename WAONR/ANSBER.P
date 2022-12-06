@@ -1,0 +1,148 @@
+/* ANSBER.P*/
+
+
+&Scoped-define NEW NEW
+{ANSPROJBER.I}
+{EXTRADATA.I}
+DEFINE OUTPUT PARAMETER TABLE FOR ansvaraotemp. 
+DEFINE OUTPUT PARAMETER TABLE FOR beredartemp.
+DEFINE OUTPUT PARAMETER TABLE FOR projtemp.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE ejpro AS LOGICAL NO-UNDO.
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN EXTRADATAHMT.P PERSISTENT SET edataapph.                  
+CREATE inextradatatemp.          
+ASSIGN
+inextradatatemp.PROGRAM = "AOPROJ"                   
+inextradatatemp.HUVUDCH  = ?            
+inextradatatemp.HUVUDINT =  ?.
+RUN finnsextra2_UI IN edataapph (INPUT TABLE inextradatatemp,OUTPUT TABLE extradatatemp,OUTPUT musz).        
+IF musz = FALSE THEN DO:   
+   OPEN QUERY aoq FOR EACH AONRTAB WHERE AONRTAB.AONRAVDATUM = 01/01/91 NO-LOCK.
+   GET FIRST aoq NO-LOCK.
+   DO WHILE AVAILABLE(AONRTAB):
+      IF AONRTAB.STARTDAG = "mån" OR AONRTAB.STARTDAG = "tis" OR 
+         AONRTAB.STARTDAG = "ons" OR AONRTAB.STARTDAG = "tor" OR 
+         AONRTAB.STARTDAG = "fre" OR AONRTAB.STARTDAG = "lör" OR 
+         AONRTAB.STARTDAG = "sön" THEN .
+      ELSE DO:
+         FIND FIRST projtemp WHERE projtemp.PERSONALKOD = AONRTAB.STARTDAG
+         NO-ERROR.
+         IF NOT AVAILABLE projtemp THEN DO:
+            CREATE projtemp.
+            ASSIGN 
+            projtemp.PERSONALKOD = AONRTAB.STARTDAG.
+         END.
+      END.
+      GET NEXT aoq NO-LOCK.
+   END.
+END.
+ELSE DO:
+   ASSIGN
+   musz = FALSE
+   ejpro = TRUE.
+   IF Guru.Konstanter:globforetag = "cGRAN" OR Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "cELPA" OR Guru.Konstanter:globforetag = "GKAL" THEN DO:
+      FOR EACH extradatatemp WHERE extradatatemp.PROGRAM = "AOPROJ", 
+      EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = extradatatemp.HUVUDCH AND PERSONALTAB.AKTIV = TRUE NO-LOCK.    
+         RUN skapproj_UI.
+      END.
+   END.
+   ELSE DO:   
+      FOR EACH extradatatemp WHERE extradatatemp.PROGRAM = "AOPROJ", 
+      EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = extradatatemp.HUVUDCH NO-LOCK.    
+         RUN skapproj_UI.
+      END.   
+   END.
+END.
+/*BEREDOANSV.I*/
+IF Guru.Konstanter:globforetag = "cGRAN" OR Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "cELPA" OR Guru.Konstanter:globforetag = "GKAL" THEN DO:
+   OPEN QUERY BRW_ARBAN FOR EACH ANSVAONR NO-LOCK, 
+   EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANSVAONR.PERSONALKOD AND 
+   PERSONALTAB.AKTIV = TRUE NO-LOCK.
+   OPEN QUERY BRW_BERED FOR EACH BEREDAONR NO-LOCK, 
+   EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = BEREDAONR.PERSONALKOD AND 
+   PERSONALTAB.AKTIV = TRUE NO-LOCK.
+   IF ejpro = FALSE THEN DO:
+      OPEN QUERY BRW_PROJ FOR EACH projtemp, 
+      EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = projtemp.PERSONALKOD AND PERSONALTAB.AKTIV = TRUE NO-LOCK.    
+   END.
+END.
+ELSE DO:   
+   OPEN QUERY BRW_ARBAN FOR EACH ANSVAONR NO-LOCK, 
+   EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANSVAONR.PERSONALKOD 
+   NO-LOCK.
+   OPEN QUERY BRW_BERED FOR EACH BEREDAONR NO-LOCK, 
+   EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = BEREDAONR.PERSONALKOD  
+   NO-LOCK.
+   IF ejpro = FALSE THEN DO:
+      OPEN QUERY BRW_PROJ FOR EACH projtemp, 
+      EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = projtemp.PERSONALKOD NO-LOCK.    
+   END.
+END.
+
+GET FIRST BRW_ARBAN NO-LOCK.
+DO WHILE AVAILABLE(ANSVAONR):
+   CREATE ansvaraotemp.
+   ASSIGN 
+   ansvaraotemp.NAMN = PERSONALTAB.EFTERNAMN + " " + PERSONALTAB.FORNAMN 
+   ansvaraotemp.EFTERNAMN = PERSONALTAB.EFTERNAMN 
+   ansvaraotemp.FORNAMN = PERSONALTAB.FORNAMN      
+   ansvaraotemp.PERSONALKOD  = ANSVAONR.PERSONALKOD
+   ansvaraotemp.EPOST        = SUBSTRING(PERSONALTAB.PERSONSOK,20)
+   ansvaraotemp.TELEFON      = PERSONALTAB.TELEFON.
+   ansvaraotemp.OMRADE       = PERSONALTAB.OMRADE.
+   Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+                 
+   GET NEXT BRW_ARBAN NO-LOCK.
+END.
+IF ejpro = FALSE THEN DO:
+   GET FIRST BRW_PROJ.
+   DO WHILE AVAILABLE(projtemp):
+      ASSIGN 
+      projtemp.NAMN = PERSONALTAB.EFTERNAMN + " " + PERSONALTAB.FORNAMN 
+      projtemp.EFTERNAMN = PERSONALTAB.EFTERNAMN 
+      projtemp.FORNAMN = PERSONALTAB.FORNAMN    
+      projtemp.EPOST        = SUBSTRING(PERSONALTAB.PERSONSOK,20)
+      projtemp.TELEFON      = PERSONALTAB.TELEFON.  
+      projtemp.OMRADE       = PERSONALTAB.OMRADE.
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+      GET NEXT BRW_PROJ NO-LOCK.
+   END.
+   FOR EACH projtemp WHERE projtemp.NAMN = "":
+      DELETE projtemp.
+   END.
+END.
+GET FIRST BRW_BERED NO-LOCK.
+DO WHILE AVAILABLE(BEREDAONR):
+   CREATE beredartemp.
+   ASSIGN 
+   beredartemp.NAMN = PERSONALTAB.EFTERNAMN + " " + PERSONALTAB.FORNAMN 
+   beredartemp.EFTERNAMN = PERSONALTAB.EFTERNAMN 
+   beredartemp.FORNAMN = PERSONALTAB.FORNAMN      
+   beredartemp.PERSONALKOD  = BEREDAONR.PERSONALKOD
+   beredartemp.EPOST        = SUBSTRING(PERSONALTAB.PERSONSOK,20)
+   beredartemp.TELEFON      = PERSONALTAB.TELEFON.
+   beredartemp.OMRADE       = PERSONALTAB.OMRADE.
+   Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+   GET NEXT BRW_BERED NO-LOCK.
+END.
+{GDPRLOGGCLIENT.I}
+IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+edataapph = ?.
+
+PROCEDURE skapproj_UI:
+   IF PERSONALTAB.EFTERNAMN + " " + PERSONALTAB.FORNAMN = "" THEN RETURN.
+   CREATE projtemp.
+   ASSIGN 
+   projtemp.PERSONALKOD = PERSONALTAB.PERSONALKOD
+   projtemp.NAMN = PERSONALTAB.EFTERNAMN + " " + PERSONALTAB.FORNAMN 
+   projtemp.EFTERNAMN = PERSONALTAB.EFTERNAMN 
+   projtemp.FORNAMN = PERSONALTAB.FORNAMN
+   projtemp.EPOST        = SUBSTRING(PERSONALTAB.PERSONSOK,20)
+   projtemp.TELEFON      = PERSONALTAB.TELEFON.   
+   projtemp.OMRADE       = PERSONALTAB.OMRADE.
+   Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.   
+END PROCEDURE.
+

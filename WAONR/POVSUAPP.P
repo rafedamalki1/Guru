@@ -1,0 +1,689 @@
+/*POVSUAPP.P*/
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+
+DEFINE TEMP-TABLE intakttemp NO-UNDO
+   FIELD AONR         LIKE KOSTREG.AONR
+   FIELD DELNR        LIKE KOSTREG.DELNR   
+   FIELD BOKKONTO     LIKE KOSTREG.BOKKONTO
+   FIELD INTINTAKT    AS DECIMAL
+   FIELD EXTERNINTAKT AS DECIMAL
+   FIELD RESULTAT     AS DECIMAL
+   INDEX AONR IS PRIMARY AONR DELNR BOKKONTO.
+DEFINE TEMP-TABLE inkomsttemp NO-UNDO
+   FIELD AONR         LIKE KOSTREG.AONR
+   FIELD DELNR        LIKE KOSTREG.DELNR   
+   FIELD BOKKONTO     LIKE KOSTREG.BOKKONTO
+   FIELD INKOMST    AS DECIMAL   
+   INDEX AONR IS PRIMARY AONR DELNR BOKKONTO.
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+&Scoped-define NEW NEW
+{FAKTTYPDEF.I}
+&Scoped-define NEW 
+{FAKTTYPSKAP.I}
+FUNCTION klockan100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+
+FUNCTION klockan60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ):
+  RETURN TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) / 100) * 60 . 
+
+END FUNCTION.
+DEFINE VARIABLE superhandle AS HANDLE.
+DEFINE VARIABLE vartvar AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE kalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE intkalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE exkalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE summakostvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE hjalpvar AS DECIMAL NO-UNDO. 
+DEFINE QUERY fq FOR FAKTINTAKTKONT,FAKTURERAD.
+DEFINE QUERY fkq FOR FAKTINTAKTKONTKRED,FAKTKRED.
+DEFINE QUERY kq FOR KOSTREG.
+DEFINE QUERY sq FOR SUMTID.
+DEFINE QUERY stq FOR SUMTIDDAG.
+DEFINE QUERY tq FOR TIDREGITAB.
+{DIRDEF.I}
+{PHMT.I}
+{KALKTEMP.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+IF FORETAG.FORETAG = "GRIT" THEN DO:
+   RUN GRITIN.P PERSISTENT SET superhandle (INPUT 1).
+   THIS-PROCEDURE:ADD-SUPER-PROCEDURE (superhandle).
+END.
+{TIDUTTT.I}
+
+DEFINE TEMP-TABLE kalksumsum   
+   FIELD TYP AS INTEGER
+   FIELD MASKGBELOPP AS DECIMAL
+   FIELD MONTBELOPP  AS DECIMAL
+   FIELD MONTTIMMAR  AS DECIMAL
+   FIELD BERBELOPP   AS DECIMAL
+   FIELD AONR LIKE KOSTREG.AONR 
+   FIELD DELNR LIKE KOSTREG.DELNR         
+   FIELD BOKKONTO LIKE KOSTREG.BOKKONTO   
+   FIELD FAKTNR LIKE KOSTREG.FAKTNR    
+   FIELD REGDATUM LIKE KOSTREG.REGDATUM    
+   FIELD BENAMNING LIKE KOSTREG.BENAMNING
+   FIELD BELOPP LIKE KOSTREG.MTRL   
+   FIELD MBELOPP LIKE KOSTREG.MTRL   
+   FIELD TBELOPP LIKE KOSTREG.MTRL   
+   FIELD MTRL LIKE KOSTREG.MTRL   
+   FIELD OVRKR LIKE KOSTREG.MTRL 
+   FIELD INKOMST LIKE KOSTREG.MTRL 
+   FIELD TIMMAR LIKE KOSTREG.MTRL 
+   FIELD BTIMMAR LIKE KOSTREG.MTRL
+   FIELD OTIMMAR LIKE KOSTREG.MTRL
+   FIELD OBELOPP LIKE KOSTREG.MTRL
+   FIELD LONKOST LIKE KOSTREG.MTRL
+   INDEX BOK IS PRIMARY BOKKONTO REGDATUM
+   INDEX AONR AONR DELNR.
+
+
+DEFINE TEMP-TABLE dagtemp
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD
+   FIELD NAMN AS CHARACTER 
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR 
+   FIELD ORT LIKE AONRTAB.ORT
+   FIELD AVNAMN AS CHARACTER
+   FIELD PERSMASK LIKE SUMTIDDAG.PERSMASK
+   FIELD BELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"           
+   FIELD TIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"         
+   FIELD NTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"         
+   FIELD OATIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "OTIMMAR"
+   FIELD ABELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"           
+   FIELD BTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "OTIMMAR" 
+   FIELD NBTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"
+   FIELD OBTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "OTIMMAR"
+   FIELD BBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"           
+   FIELD OTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "OTIMMAR"  
+   FIELD NOTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"
+   FIELD OOTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "OTIMMAR"
+   FIELD OBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"           
+   FIELD BEFATTNING AS CHARACTER           
+   FIELD LONKOST AS DECIMAL
+   FIELD OMRADE AS CHARACTER
+   FIELD GEOMRADE AS CHARACTER
+   FIELD DATUM AS DATE
+   FIELD JAN AS DECIMAL
+   FIELD FEB AS DECIMAL
+   FIELD MAR AS DECIMAL
+   FIELD APR AS DECIMAL
+   FIELD MAJ AS DECIMAL
+   FIELD JUN AS DECIMAL
+   FIELD JUL AS DECIMAL
+   FIELD AUG AS DECIMAL
+   FIELD SEP AS DECIMAL
+   FIELD OKT AS DECIMAL
+   FIELD NOV AS DECIMAL
+   FIELD DEC AS DECIMAL   
+   
+   INDEX AONR IS PRIMARY AONR DELNR. 
+/*
+DEFINE TEMP-TABLE restid                  
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR 
+   FIELD TIMMAR AS DECIMAL LABEL "RTIMMAR"                
+   INDEX AONR IS PRIMARY AONR DELNR.  
+   */
+DEFINE TEMP-TABLE slutsum           
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD 
+   FIELD NAMN AS CHARACTER 
+   FIELD PRIS LIKE TIDREGITAB.PRIS     
+   FIELD PRISTYP LIKE TIDREGITAB.PRISTYP 
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR 
+   FIELD OMRADE LIKE AONRTAB.ORT
+   FIELD AVNAMN AS CHARACTER
+   FIELD TIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD NTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD OATIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD OTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "OTIMMAR"
+   FIELD NOTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD OOTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"
+   FIELD BTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "OTIMMAR"
+   FIELD NBTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD OBTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"
+   FIELD BELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"           
+   FIELD ABELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"           
+   FIELD BBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"           
+   FIELD OBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "Ö-KOSTNAD"  
+   FIELD MBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "Ö-KOSTNAD"  
+   FIELD IBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "Ö-KOSTNAD"  
+   FIELD FBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "Ö-KOSTNAD"  
+   FIELD OANTAL LIKE EKRAPPRESULT.EANTAL  LABEL "Ö-ANTAL"         
+   FIELD TBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "T-KOSTNAD"
+   FIELD TANTAL LIKE EKRAPPRESULT.EANTAL  LABEL "T-ANTAL"       
+   FIELD LONKOST LIKE EKRAPPRESULT.EBELOPP LABEL "L-KOSTNAD"    
+   FIELD MTRL LIKE KOSTREG.MTRL    
+   FIELD OVRKR LIKE KOSTREG.OVRKR    
+   FIELD INKOMST LIKE KOSTREG.INKOMST   
+   FIELD NY AS LOGICAL INITIAL FALSE  
+   FIELD DATUM AS DATE
+   FIELD JAN AS DECIMAL
+   FIELD FEB AS DECIMAL
+   FIELD MAR AS DECIMAL
+   FIELD APR AS DECIMAL
+   FIELD MAJ AS DECIMAL
+   FIELD JUN AS DECIMAL
+   FIELD JUL AS DECIMAL
+   FIELD AUG AS DECIMAL
+   FIELD SEP AS DECIMAL
+   FIELD OKT AS DECIMAL
+   FIELD NOV AS DECIMAL
+   FIELD DEC AS DECIMAL   
+   INDEX PERSONALKOD IS PRIMARY AVNAMN OMRADE PERSONALKOD  ASCENDING.    
+DEFINE TEMP-TABLE sumsum           
+   FIELD PERSONALKOD LIKE TIDREGITAB.PERSONALKOD 
+   FIELD MASKGBELOPP AS DECIMAL
+   FIELD MONTTIMMAR  AS DECIMAL
+   FIELD PRIS LIKE TIDREGITAB.PRIS     
+   FIELD PRISTYP LIKE TIDREGITAB.PRISTYP 
+   FIELD AONR LIKE TIDREGITAB.AONR
+   FIELD DELNR LIKE TIDREGITAB.DELNR 
+   FIELD TIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD NTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD OATIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"   
+   FIELD ABELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"
+   FIELD NBTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD OBTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"   
+   FIELD BBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"
+   FIELD OTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "OTIMMAR"   
+   FIELD NOTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"      
+   FIELD OOTIMMAR LIKE EKRAPPRESULT.EANTAL LABEL "TIMMAR"   
+   FIELD OBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"
+   FIELD MBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"   
+   FIELD BELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "ARBKOSTNAD"
+   FIELD SKOSTNAD LIKE EKRAPPRESULT.EBELOPP LABEL "SUMMA KOSTNADER"
+   FIELD BTIMMAR LIKE EKRAPPRESULT.EBELOPP LABEL "Ö-KOSTNAD"
+   FIELD GRAVARE LIKE KOSTREG.MASKKOST  
+   FIELD MASKOVRIG LIKE KOSTREG.MASKKOST
+   FIELD FORDON LIKE KOSTREG.MASKKOST  
+   FIELD OANTAL LIKE EKRAPPRESULT.EANTAL  LABEL "Ö-ANTAL"         
+   FIELD TBELOPP LIKE EKRAPPRESULT.EBELOPP LABEL "T-KOSTNAD"
+   FIELD TANTAL LIKE EKRAPPRESULT.EANTAL  LABEL "T-ANTAL"       
+   FIELD LONKOST LIKE EKRAPPRESULT.EBELOPP LABEL "L-KOSTNAD"    
+   FIELD MTRL LIKE KOSTREG.MTRL    
+   FIELD OVRKR LIKE KOSTREG.OVRKR    
+   FIELD INKOMST LIKE KOSTREG.INKOMST
+   FIELD MBLOPP AS DECIMAL
+   FIELD TINKOMST AS DECIMAL
+   FIELD RESTIM AS DECIMAL
+   FIELD JAN AS DECIMAL
+   FIELD FEB AS DECIMAL
+   FIELD MAR AS DECIMAL
+   FIELD APR AS DECIMAL
+   FIELD MAJ AS DECIMAL
+   FIELD JUN AS DECIMAL
+   FIELD JUL AS DECIMAL
+   FIELD AUG AS DECIMAL
+   FIELD SEP AS DECIMAL
+   FIELD OKT AS DECIMAL
+   FIELD NOV AS DECIMAL
+   FIELD DEC AS DECIMAL   
+   INDEX PERSONALKOD IS PRIMARY PERSONALKOD ASCENDING.    
+   
+DEFINE INPUT PARAMETER TABLE FOR uppvaltemp.
+DEFINE INPUT PARAMETER TABLE FOR valperstemp.
+DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+/*DEFINE OUTPUT PARAMETER str2 AS CHARACTER FORMAT "X(92)" NO-UNDO.
+DEFINE OUTPUT PARAMETER str3 AS CHARACTER FORMAT "X(92)" NO-UNDO.*/
+DEFINE NEW SHARED VARIABLE fastrec AS RECID NO-UNDO.
+DEFINE VARIABLE offert AS LOGICAL NO-UNDO.
+DEFINE VARIABLE xtypmtrl AS INTEGER NO-UNDO.
+DEFINE VARIABLE monpris LIKE EBRPRIS.MONT NO-UNDO.
+DEFINE VARIABLE berpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE kalkvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE breddantal AS INTEGER NO-UNDO.
+DEFINE VARIABLE utnr AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE bredd AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE nrcol AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE ingakostver AS LOGICAL NO-UNDO.
+DEFINE VARIABLE stim AS DECIMAL NO-UNDO.   
+DEFINE VARIABLE o50 AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE o75 AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE o100 AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE stimk AS DECIMAL NO-UNDO.   
+DEFINE VARIABLE o50k AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE o75k AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE o100k AS DECIMAL NO-UNDO.
+
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(256)" NO-UNDO.
+DEFINE VARIABLE pekod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE aokod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE delkod AS INTEGER NO-UNDO.
+
+/*BEREDNING*/
+{LISTDEF.I} 
+DEFINE NEW SHARED TEMP-TABLE mtrl_temp2   
+   {MTRLTEMP2TT.I}
+/*SLUT BEREDNING*/
+
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR. 
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+EMPTY TEMP-TABLE dagtemp NO-ERROR. 
+EMPTY TEMP-TABLE slutsum NO-ERROR. 
+EMPTY TEMP-TABLE sumsum NO-ERROR. 
+EMPTY TEMP-TABLE tidut NO-ERROR. 
+FIND FIRST uppvaltemp NO-ERROR.
+
+OPEN QUERY aq FOR EACH valperstemp NO-LOCK. 
+GET FIRST aq NO-LOCK.
+GET NEXT aq  NO-LOCK.
+IF AVAILABLE valperstemp THEN ingakostver = TRUE.
+ELSE ingakostver = FALSE.
+IF uppvaltemp.DELNRKOLL = FALSE THEN ingakostver = TRUE.
+GET FIRST aq NO-LOCK.
+DO WHILE AVAILABLE(valperstemp):      
+   {SUPEOPEN.I}   
+   GET NEXT aq NO-LOCK.
+END.      
+RUN summa_UI.
+RUN huvud_UI.
+
+{GDPRLOGGCLIENT.I}
+PROCEDURE huvud_UI :  
+   CREATE tidut. 
+   SUBSTRING(tidut.UT,60) = STRING(TODAY) + " " + STRING(TIME,"HH:MM").
+   CREATE tidut.
+   CREATE tidut.
+   tidut.UT = uppvaltemp.VALDLISTA. 
+   IF uppvaltemp.VISPERAR = TRUE THEN DO: 
+      SUBSTRING(tidut.UT,64) = "ÅR " + STRING(YEAR(uppvaltemp.STARTDATUM),"9999").
+   END.                        
+   ELSE IF uppvaltemp.VISPERAR = FALSE THEN DO:
+      SUBSTRING(tidut.UT,64) = "PERIOD " +  STRING(uppvaltemp.STARTDATUM) + 
+      " - " + STRING(uppvaltemp.SLUTDATUM).     
+   END.
+   ELSE DO:
+      SUBSTRING(tidut.UT,64) = "VISNING AV ALLT".
+   END.
+   /*CREATE tidut.
+   {KUURV.I}*/
+   CREATE tidut.
+   
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,3) = "DITT URVAL".
+   CREATE tidut.
+   
+   IF uppvaltemp.OMRADE = "ALLA" THEN DO:
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:gomrk)
+      SUBSTRING(tidut.UT,12)= ": " + CAPS(uppvaltemp.OMRADE).
+      IF uppvaltemp.AVDNR = "ALLA" THEN DO:
+         ASSIGN
+         SUBSTRING(tidut.UT,1) = "Avdelning"
+         SUBSTRING(tidut.UT,12)= ": Alla".
+      END.   
+      ELSE DO:
+         FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = integer(uppvaltemp.AVDNR) NO-LOCK NO-ERROR.
+         ASSIGN
+         SUBSTRING(tidut.UT,1) = "Avdelning"
+         SUBSTRING(tidut.UT,12)= ": " + AVDELNING.AVDELNINGNAMN.
+      END.
+   END.   
+   ELSE DO:
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:gomrk)
+      SUBSTRING(tidut.UT,12)= ": " + CAPS(uppvaltemp.OMRNAMN).
+      CREATE tidut.
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = uppvaltemp.OMRADE NO-LOCK NO-ERROR.   
+      FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = "Avdelning"
+      SUBSTRING(tidut.UT,12)= ": " + AVDELNING.AVDELNINGNAMN.
+   END.
+
+   
+
+   ASSIGN   
+   nrcol[28] = 1    
+   nrcol[1] = 2
+   nrcol[15] = 3
+   
+   nrcol[2] = 4
+   nrcol[3] = 5
+   nrcol[4] = 6
+   nrcol[5] = 7
+   nrcol[6] = 8
+   nrcol[7] = 9
+   nrcol[8] = 10
+   nrcol[9] = 11
+   nrcol[10] = 12
+   nrcol[11] = 13
+   nrcol[12] = 14
+   nrcol[13] = 15
+   nrcol[14] = 16
+   
+
+   breddantal = 16   /*antal kolumner*/
+   bredd[1] = 30
+   bredd[2] = 6
+   bredd[3] = 20
+   
+   bredd[4] = 6
+   bredd[5] = 6
+   bredd[6] = 6
+   bredd[7] = 6
+   bredd[8] = 6
+   bredd[9] = 6
+   bredd[10] = 6
+   bredd[11] = 6
+   bredd[12] = 6
+   bredd[13] = 6
+   bredd[14] = 6
+   bredd[15] = 6.
+   bredd[16] = 12.
+
+
+
+   
+   ASSIGN
+   i = 2.     
+   utnr[nrcol[28]] = 1.
+   
+   DO WHILE i <= breddantal:             
+      utnr[i] = utnr[i - 1] + bredd[i - 1] + 1.            
+      i = i + 1.
+   END.   
+   ASSIGN
+   str = "".  
+   i = 1.
+   DO WHILE i <= utnr[breddantal] + bredd[breddantal] - 1:
+      str = str + "=".     
+      i = i + 1.
+   END.   
+   i = 2.      
+   DO WHILE i <= breddantal:             
+      SUBSTRING(str,(utnr[i] - 1),1) = ".".      
+      i = i + 1.
+   END.          
+   CREATE tidut.  
+   CREATE tidut.   
+   CREATE tidut.             
+   FIND FIRST KBENAMNING NO-LOCK NO-ERROR.
+      
+   CREATE tidut.      
+   ASSIGN                                  
+   SUBSTRING(tidut.UT,utnr[nrcol[28]]) = "Enhet/Sign"   
+   SUBSTRING(tidut.UT,utnr[nrcol[1]]) = Guru.Konstanter:gomrk
+   SUBSTRING(tidut.UT,utnr[nrcol[15]]) = "Avdelning"     
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "Jan"     
+   SUBSTRING(tidut.UT,utnr[nrcol[3]]) = "Feb"     
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "Mar"     
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "Apr"     
+   SUBSTRING(tidut.UT,utnr[nrcol[6]]) = "Maj"     
+   SUBSTRING(tidut.UT,utnr[nrcol[7]]) = "Jun"     
+   SUBSTRING(tidut.UT,utnr[nrcol[8]]) = "Jul"     
+   SUBSTRING(tidut.UT,utnr[nrcol[9]]) = "Aug"     
+   SUBSTRING(tidut.UT,utnr[nrcol[10]]) = "Sep"     
+   SUBSTRING(tidut.UT,utnr[nrcol[11]]) = "Okt"     
+   SUBSTRING(tidut.UT,utnr[nrcol[12]]) = "Nov"     
+   SUBSTRING(tidut.UT,utnr[nrcol[13]]) = "Dec".     
+   SUBSTRING(tidut.UT,utnr[nrcol[14]]) = "Summa".                
+   
+   CREATE tidut.      
+   tidut.UT = str.
+   CREATE sumsum.
+   ASSIGN sumsum.PERSONALKOD = "UF".
+   ASSIGN
+   pekod = ""
+   aokod = ""
+   delkod = 0.
+   DEFINE VARIABLE tt AS CHARACTER NO-UNDO.
+   FOR EACH slutsum USE-INDEX PERSONALKOD: 
+         tt =  STRING( slutsum.MAR,">>>>>9.99").       
+      CREATE tidut.                                       
+      ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[28]]) = slutsum.PERSONALKOD + " " + SUBSTRING(slutsum.NAMN,1,30).
+      ASSIGN
+      SUBSTRING(tidut.UT,utnr[nrcol[1]]) = slutsum.OMRADE
+      SUBSTRING(tidut.UT,utnr[nrcol[15]]) = slutsum.AVNAMN
+      SUBSTRING(tidut.UT,utnr[nrcol[2]]) = STRING( slutsum.JAN,">>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING( slutsum.FEB,">>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING( slutsum.MAR,">>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING( slutsum.APR,">>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING( slutsum.MAJ,">>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[7]]) = STRING( slutsum.JUN,">>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[8]]) = STRING( slutsum.JUL,">>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[9]]) = STRING( slutsum.AUG,">>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[10]]) = STRING( slutsum.SEP,">>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[11]]) = STRING( slutsum.OKT,">>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[12]]) = STRING( slutsum.NOV,">>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[13]]) = STRING( slutsum.DEC,">>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[14]]) = STRING( slutsum.OATIMMAR,">>>9.99").   
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + slutsum.PERSONALKOD.                                                            
+   END. 
+   CREATE tidut.                                       
+   FIND FIRST sumsum.          
+      CREATE tidut.                                      
+      ASSIGN
+      SUBSTRING(tidut.UT,utnr[nrcol[28]]) = "Totalsumma" 
+      /*SUBSTRING(tidut.UT,utnr[nrcol[1]]) = slutsum.ORT*/
+      SUBSTRING(tidut.UT,utnr[nrcol[2]]) = STRING( sumsum.JAN,">>>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING( sumsum.FEB,">>>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING( sumsum.MAR,">>>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING( sumsum.APR,">>>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING( sumsum.MAJ,">>>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[7]]) = STRING( sumsum.JUN,">>>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[8]]) = STRING( sumsum.JUL,">>>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[9]]) = STRING( sumsum.AUG,">>>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[10]]) = STRING( sumsum.SEP,">>>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[11]]) = STRING( sumsum.OKT,">>>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[12]]) = STRING( sumsum.NOV,">>>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[13]]) = STRING( sumsum.DEC,">>>>9.99")
+      SUBSTRING(tidut.UT,utnr[nrcol[14]]) = STRING( sumsum.OATIMMAR,">>>>>9.99").
+                                                                  
+END PROCEDURE.
+
+
+PROCEDURE skapadag_UI :   
+   /*GET FIRST sq NO-LOCK.
+   DO WHILE AVAILABLE(SUMTID):     
+      IF SUMTID.PRISTYP = "FRÅNVARO." THEN musz = musz.
+      ELSE DO:      
+         IF Guru.Konstanter:globforetag = "GKAL" AND SUMTID.PERSMASK = FALSE THEN DO:
+            /*Kalmar vill ha med tiskrivning maskiner -ej kostnadsregistreringar*/         
+            CREATE dagtemp.
+            ASSIGN       
+            dagtemp.PERSONALKOD = SUMTID.PERSONALKOD
+            dagtemp.NAMN = SUBSTRING(SUMTID.FORNAMN,1,1) + "." + 
+            SUBSTRING(SUMTID.EFTERNAMN,1,30)
+            dagtemp.AONR = SUMTID.AONR
+            dagtemp.DELNR = SUMTID.DELNR 
+            dagtemp.ORT = SUMTID.ORT
+            dagtemp.PERSMASK = SUMTID.PERSMASK
+            dagtemp.BELOPP = SUMTID.BELOPP + SUMTID.OBELOPP
+            dagtemp.TIMMAR = SUMTID.TIMMAR + SUMTID.OTIMMAR.
+            dagtemp.NTIMMAR = SUMTID.TIMMAR. 
+            dagtemp.OATIMMAR = SUMTID.OTIMMAR. 
+            dagtemp.ABELOPP = dagtemp.BELOPP.
+            dagtemp.BEFATTNING = SUBSTRING(SUMTID.BEFATTNING,1,20).
+            dagtemp.LONKOST = SUMTID.LONKOST.
+                     
+         END.
+         ELSE IF SUMTID.PERSMASK = FALSE THEN musz = musz.
+         ELSE IF SUMTID.PRISTYP = "RESTID..." THEN DO: 
+            
+         END.
+         ELSE DO:
+            CREATE dagtemp.
+            ASSIGN         
+            dagtemp.PERSONALKOD = SUMTID.PERSONALKOD
+            dagtemp.NAMN = SUBSTRING(SUMTID.FORNAMN,1,1) + "." + 
+            SUBSTRING(SUMTID.EFTERNAMN,1,30)
+            dagtemp.AONR = SUMTID.AONR
+            dagtemp.DELNR = SUMTID.DELNR 
+            dagtemp.ORT = SUMTID.ORT
+            dagtemp.PERSMASK = SUMTID.PERSMASK
+            dagtemp.BELOPP = SUMTID.BELOPP + SUMTID.OBELOPP
+            dagtemp.TIMMAR = SUMTID.TIMMAR + SUMTID.OTIMMAR.
+            dagtemp.NTIMMAR = SUMTID.TIMMAR. 
+            dagtemp.OATIMMAR = SUMTID.OTIMMAR. 
+            dagtemp.ABELOPP = dagtemp.BELOPP.
+            dagtemp.LONKOST = SUMTID.LONKOST.            
+         END.                             
+      END.
+      GET NEXT sq NO-LOCK.      
+   END.*/
+   
+      
+END PROCEDURE.
+
+PROCEDURE skapadagdag_UI :
+   GET FIRST stq NO-LOCK.
+   DO WHILE AVAILABLE(SUMTIDDAG):  
+      IF SUMTIDDAG.PRISTYP = "FRÅNVARO." THEN musz = musz.
+      ELSE DO:      
+         IF SUMTIDDAG.PERSMASK = FALSE THEN musz = musz.
+         ELSE IF SUMTIDDAG.PRISTYP = "RESTID..." THEN musz = musz.               
+         ELSE DO:
+            
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = SUMTIDDAG.PERSONALKOD NO-LOCK NO-ERROR.
+            FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+            FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+            CREATE dagtemp.
+            ASSIGN         
+            dagtemp.PERSONALKOD = SUMTIDDAG.PERSONALKOD
+            dagtemp.NAMN = SUBSTRING(SUMTIDDAG.FORNAMN,1,1) + "." + 
+            SUBSTRING(SUMTIDDAG.EFTERNAMN,1,30)
+            dagtemp.AONR = SUMTIDDAG.AONR
+            dagtemp.DELNR = SUMTIDDAG.DELNR 
+            dagtemp.OMRADE = PERSONALTAB.OMRADE
+            dagtemp.AVNAMN = AVDELNING.AVDELNINGNAMN
+            /*dagtemp.PERSMASK = SUMTIDDAG.PERSMASK
+            dagtemp.BELOPP = SUMTIDDAG.BELOPP + SUMTIDDAG.OBELOPP
+            dagtemp.TIMMAR = SUMTIDDAG.TIMMAR + SUMTIDDAG.OTIMMAR.
+            dagtemp.NTIMMAR = SUMTIDDAG.TIMMAR. */
+            dagtemp.OATIMMAR = SUMTIDDAG.OTIMMAR.    
+            /*dagtemp.ABELOPP = dagtemp.BELOPP.
+            dagtemp.LONKOST = SUMTIDDAG.LONKOST.        */
+            dagtemp.DATUM = SUMTIDDAG.DATUM.            
+            IF MONTH(dagtemp.DATUM) = 1 THEN dagtemp.JAN = dagtemp.OATIMMAR.
+            IF MONTH(dagtemp.DATUM) = 2 THEN dagtemp.FEB = dagtemp.OATIMMAR.
+            IF MONTH(dagtemp.DATUM) = 3 THEN dagtemp.MAR = dagtemp.OATIMMAR.
+            IF MONTH(dagtemp.DATUM) = 4 THEN dagtemp.APR = dagtemp.OATIMMAR.
+            IF MONTH(dagtemp.DATUM) = 5 THEN dagtemp.MAJ = dagtemp.OATIMMAR.
+            IF MONTH(dagtemp.DATUM) = 6 THEN dagtemp.JUN = dagtemp.OATIMMAR.
+            IF MONTH(dagtemp.DATUM) = 7 THEN dagtemp.JUL = dagtemp.OATIMMAR.
+            IF MONTH(dagtemp.DATUM) = 8 THEN dagtemp.AUG = dagtemp.OATIMMAR.
+            IF MONTH(dagtemp.DATUM) = 9 THEN dagtemp.SEP = dagtemp.OATIMMAR.
+            IF MONTH(dagtemp.DATUM) = 10 THEN dagtemp.OKT = dagtemp.OATIMMAR.
+            IF MONTH(dagtemp.DATUM) = 11 THEN dagtemp.NOV = dagtemp.OATIMMAR.
+            IF MONTH(dagtemp.DATUM) = 12 THEN dagtemp.DEC = dagtemp.OATIMMAR.
+            
+         END.
+      END.
+      GET NEXT stq NO-LOCK.      
+   END.
+
+END PROCEDURE.
+PROCEDURE summa_UI.
+   /*PERSONER*/
+   FOR EACH dagtemp NO-LOCK 
+   BREAK BY dagtemp.PERSONALKOD BY dagtemp.AVNAMN BY dagtemp.OMRADE : 
+      ACCUMULATE dagtemp.JAN (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.AVNAMN BY dagtemp.OMRADE). 
+      ACCUMULATE dagtemp.FEB (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.AVNAMN BY dagtemp.OMRADE). 
+      ACCUMULATE dagtemp.MAR (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.AVNAMN BY dagtemp.OMRADE). 
+      ACCUMULATE dagtemp.APR (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.AVNAMN BY dagtemp.OMRADE ). 
+      ACCUMULATE dagtemp.MAJ (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.AVNAMN BY dagtemp.OMRADE). 
+      ACCUMULATE dagtemp.JUN (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.AVNAMN BY dagtemp.OMRADE). 
+      ACCUMULATE dagtemp.JUL (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.AVNAMN BY dagtemp.OMRADE). 
+      ACCUMULATE dagtemp.AUG (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.AVNAMN BY dagtemp.OMRADE). 
+      ACCUMULATE dagtemp.SEP (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.AVNAMN BY dagtemp.OMRADE). 
+      ACCUMULATE dagtemp.OKT (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.AVNAMN BY dagtemp.OMRADE). 
+      ACCUMULATE dagtemp.NOV (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.AVNAMN BY dagtemp.OMRADE). 
+      ACCUMULATE dagtemp.DEC (TOTAL BY dagtemp.PERSONALKOD BY dagtemp.AVNAMN BY dagtemp.OMRADE).     
+      ACCUMULATE dagtemp.OATIMMAR (TOTAL BY dagtemp.PERSONALKOD). 
+      /*ACCUMULATE dagtemp.BELOPP (TOTAL BY dagtemp.PERSONALKOD ). 
+      ACCUMULATE dagtemp.TIMMAR (TOTAL BY dagtemp.PERSONALKOD ). 
+      ACCUMULATE dagtemp.NTIMMAR (TOTAL BY dagtemp.PERSONALKOD). 
+      ACCUMULATE dagtemp.OATIMMAR (TOTAL BY dagtemp.PERSONALKOD). 
+      ACCUMULATE dagtemp.ABELOPP (TOTAL BY dagtemp.PERSONALKOD ). 
+      ACCUMULATE dagtemp.OTIMMAR (TOTAL BY dagtemp.PERSONALKOD ). 
+      ACCUMULATE dagtemp.NOTIMMAR (TOTAL BY dagtemp.PERSONALKOD). 
+      ACCUMULATE dagtemp.OOTIMMAR (TOTAL BY dagtemp.PERSONALKOD). 
+      ACCUMULATE dagtemp.OBELOPP (TOTAL BY dagtemp.PERSONALKOD ).             */
+      IF LAST-OF(dagtemp.OMRADE) THEN DO:
+         CREATE slutsum.
+         ASSIGN 
+         slutsum.PERSONALKOD = dagtemp.PERSONALKOD
+         slutsum.NAMN = dagtemp.NAMN         
+         slutsum.OMRADE = dagtemp.OMRADE          
+         slutsum.AVNAMN = dagtemp.AVNAMN          
+         slutsum.JAN = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.JAN) 
+         slutsum.FEB = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.FEB)
+         slutsum.MAR = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.MAR)
+         slutsum.APR = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.APR)
+         slutsum.MAJ = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.MAJ)
+         slutsum.JUN = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.JUN)
+         slutsum.JUL = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.JUL)
+         slutsum.AUG = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.AUG)
+         slutsum.SEP = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.SEP)
+         slutsum.OKT = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.OKT)
+         slutsum.NOV = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.NOV)
+         slutsum.DEC = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.DEC).
+         slutsum.OATIMMAR = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.OATIMMAR). 
+
+        /* slutsum.BELOPP = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.BELOPP)                      
+         slutsum.TIMMAR = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.TIMMAR) 
+         slutsum.NTIMMAR = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.NTIMMAR) 
+         slutsum.OATIMMAR = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.OATIMMAR) 
+         slutsum.ABELOPP = (ACCUM TOTAL BY dagtemp.PERSONALKOD dagtemp.ABELOPP).  */                    
+         
+         
+      END.     
+   END.
+   
+   
+   FOR EACH slutsum : 
+      ACCUMULATE slutsum.JAN (TOTAL  ). 
+      ACCUMULATE slutsum.FEB (TOTAL ). 
+      ACCUMULATE slutsum.MAR (TOTAL ). 
+      ACCUMULATE slutsum.APR (TOTAL ). 
+      ACCUMULATE slutsum.MAJ (TOTAL ). 
+      ACCUMULATE slutsum.JUN (TOTAL ). 
+      ACCUMULATE slutsum.JUL (TOTAL ). 
+      ACCUMULATE slutsum.AUG (TOTAL ). 
+      ACCUMULATE slutsum.SEP (TOTAL ). 
+      ACCUMULATE slutsum.OKT (TOTAL ). 
+      ACCUMULATE slutsum.NOV (TOTAL ). 
+      ACCUMULATE slutsum.DEC (TOTAL ).     
+      ACCUMULATE slutsum.OATIMMAR (TOTAL ).       
+      
+             
+   END.
+   CREATE sumsum.
+   ASSIGN 
+   /*slutsum.ORT = dagtemp.ORT          */
+   sumsum.JAN = (ACCUM TOTAL slutsum.JAN) 
+   sumsum.FEB = (ACCUM TOTAL  slutsum.FEB)
+   sumsum.MAR = (ACCUM TOTAL slutsum.MAR)
+   sumsum.APR = (ACCUM TOTAL slutsum.APR)
+   sumsum.MAJ = (ACCUM TOTAL  slutsum.MAJ)
+   sumsum.JUN = (ACCUM TOTAL  slutsum.JUN)
+   sumsum.JUL = (ACCUM TOTAL  slutsum.JUL)
+   sumsum.AUG = (ACCUM TOTAL  slutsum.AUG)
+   sumsum.SEP = (ACCUM TOTAL  slutsum.SEP)
+   sumsum.OKT = (ACCUM TOTAL  slutsum.OKT)
+   sumsum.NOV = (ACCUM TOTAL  slutsum.NOV)
+   sumsum.DEC = (ACCUM TOTAL  slutsum.DEC).
+   sumsum.OATIMMAR = (ACCUM TOTAL  slutsum.OATIMMAR). 
+         
+     
+   
+END PROCEDURE.
+
+   
+

@@ -1,0 +1,269 @@
+/*SPECSOL3UTBYT.P*/
+DEFINE TEMP-TABLE mtrl_temp 
+   {MTRLTEMPTT.I}
+DEFINE INPUT PARAMETER levvar AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER ersatte AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER lkod AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR mtrl_temp.
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   FOR EACH mtrl_temp:
+      DELETE mtrl_temp.
+   END.
+   IF lkod = ? THEN DO:   
+      OPEN QUERY mq FOR EACH MTRLBER NO-LOCK.
+   END.
+   ELSE DO:
+      OPEN QUERY mq FOR EACH MTRLBER WHERE MTRLBER.LEVKOD = lkod NO-LOCK.
+   END.
+   GET FIRST mq NO-LOCK.
+   DO WHILE AVAILABLE(MTRLBER):
+      IF levvar = FALSE THEN
+      FIND FIRST mtrl_temp WHERE mtrl_temp.ENR = MTRLBER.ENR USE-INDEX ENR NO-LOCK NO-ERROR.
+      ELSE
+      FIND FIRST mtrl_temp WHERE mtrl_temp.ENR = MTRLBER.ENR AND mtrl_temp.LEVKOD = MTRLBER.LEVKOD 
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE mtrl_temp THEN DO:
+         CREATE mtrl_temp.
+         ASSIGN
+         mtrl_temp.ENR = MTRLBER.ENR
+         mtrl_temp.BENAMNING = MTRLBER.BENAMNING
+         mtrl_temp.ENHET = MTRLBER.ENHET
+         mtrl_temp.PRIS = MTRLBER.PRIS
+         mtrl_temp.LEVKOD = MTRLBER.LEVKOD.         
+         IF levvar = TRUE THEN DO:
+            FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = mtrl_temp.LEVKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE LEVERANTOR THEN mtrl_temp.FORNR = LEVERANTOR.LEVNAMN.
+         END.
+      END.   
+      GET NEXT mq NO-LOCK.
+   END.
+   IF lkod NE ? THEN DO:      
+      IF ersatte = TRUE THEN DO:      
+         FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+         IF AVAILABLE HUVUDLEV AND HUVUDLEV.LEVKOD NE lkod THEN DO:
+            FOR EACH MTRLBER WHERE MTRLBER.LEVKOD = HUVUDLEV.LEVKOD NO-LOCK:
+               FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = 0 AND UTBYTESLISTA.ORGLEVKOD = HUVUDLEV.LEVKOD AND  UTBYTESLISTA.ORGENR = MTRLBER.ENR AND
+               UTBYTESLISTA.BYTTILLLEVKOD = lkod  NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE UTBYTESLISTA THEN DO:
+                  FIND FIRST MTRL WHERE MTRL.LEVKOD = lkod AND MTRL.ENR = MTRLBER.ENR AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                  IF AVAILABLE MTRL THEN DO:
+                     FIND FIRST mtrl_temp WHERE mtrl_temp.ENR = MTRLBER.ENR AND mtrl_temp.LEVKOD = lkod 
+                     NO-LOCK NO-ERROR.
+                     IF NOT AVAILABLE mtrl_temp THEN DO:
+                        CREATE mtrl_temp.
+                        ASSIGN
+                        mtrl_temp.ENR = MTRLBER.ENR
+                        mtrl_temp.BENAMNING = MTRL.BENAMNING
+                        mtrl_temp.ENHET = MTRL.ENHET                  
+                        mtrl_temp.LEVKOD = lkod
+                        mtrl_temp.PRIS = MTRL.NPRIS
+                        mtrl_temp.LINNR = "SAMMA ENR".                                          
+                        IF levvar = TRUE THEN DO:
+                           FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = mtrl_temp.LEVKOD NO-LOCK NO-ERROR.
+                           IF AVAILABLE LEVERANTOR THEN mtrl_temp.FORNR = LEVERANTOR.LEVNAMN.
+                        END.
+                     END.
+                  END.
+               END.
+               ELSE DO:                                    
+                  FIND FIRST mtrl_temp WHERE mtrl_temp.ENR = UTBYTESLISTA.BYTTILLENR AND mtrl_temp.LEVKOD = UTBYTESLISTA.BYTTILLLEVKOD 
+                  NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE mtrl_temp THEN DO:
+                     CREATE mtrl_temp.
+                     ASSIGN
+                     mtrl_temp.ENR = UTBYTESLISTA.BYTTILLENR
+                     mtrl_temp.BENAMNING = MTRLBER.BENAMNING
+                     mtrl_temp.ENHET = MTRLBER.ENHET                  
+                     mtrl_temp.LEVKOD = UTBYTESLISTA.BYTTILLLEVKOD
+                     mtrl_temp.LINNR = "ERSATT".                     
+                     FIND FIRST MTRL WHERE MTRL.LEVKOD = UTBYTESLISTA.BYTTILLLEVKOD AND MTRL.ENR = UTBYTESLISTA.BYTTILLENR AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                     IF AVAILABLE MTRL THEN DO:
+                        ASSIGN                     
+                        mtrl_temp.BENAMNING = MTRL.BENAMNING
+                        mtrl_temp.ENHET = MTRL.ENHET
+                        mtrl_temp.PRIS = MTRL.NPRIS.
+                        
+                     END.
+                     IF levvar = TRUE THEN DO:
+                        FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = mtrl_temp.LEVKOD NO-LOCK NO-ERROR.
+                        IF AVAILABLE LEVERANTOR THEN mtrl_temp.FORNR = LEVERANTOR.LEVNAMN.
+                     END.
+                  END.   
+               END.
+            END.
+         END.
+         
+      END.
+   END.
+   IF lkod = ? THEN DO:   
+      OPEN QUERY kq FOR EACH BERSKAP WHERE BERSKAP.ENR NE "" NO-LOCK.
+   END.
+   ELSE DO:
+      OPEN QUERY kq FOR EACH BERSKAP WHERE BERSKAP.LEVKOD = lkod AND BERSKAP.ENR NE "" NO-LOCK.
+   END.
+   GET FIRST kq NO-LOCK.
+   DO WHILE AVAILABLE(BERSKAP):
+      IF levvar = FALSE THEN
+      FIND FIRST mtrl_temp WHERE mtrl_temp.ENR = BERSKAP.ENR USE-INDEX ENR NO-LOCK NO-ERROR.
+      ELSE
+      FIND FIRST mtrl_temp WHERE mtrl_temp.ENR = BERSKAP.ENR AND mtrl_temp.LEVKOD = BERSKAP.LEVKOD 
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE mtrl_temp THEN DO:
+         CREATE mtrl_temp.
+         ASSIGN
+         mtrl_temp.ENR = BERSKAP.ENR
+         mtrl_temp.BENAMNING = BERSKAP.BENAMNING
+         mtrl_temp.ENHET = BERSKAP.ENHET
+         mtrl_temp.PRIS = BERSKAP.PRIS
+         mtrl_temp.LEVKOD = BERSKAP.LEVKOD.
+         IF levvar = TRUE THEN DO:
+            FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = mtrl_temp.LEVKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE LEVERANTOR THEN mtrl_temp.FORNR = LEVERANTOR.LEVNAMN.
+         END.
+      END.
+      GET NEXT kq NO-LOCK.
+   END.
+   IF lkod NE ? THEN DO:      
+      IF ersatte = TRUE THEN DO:      
+         FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+         IF AVAILABLE HUVUDLEV AND HUVUDLEV.LEVKOD NE lkod THEN DO:
+            FOR EACH BERSKAP WHERE BERSKAP.LEVKOD = HUVUDLEV.LEVKOD NO-LOCK:
+               FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = 0 AND UTBYTESLISTA.ORGLEVKOD = HUVUDLEV.LEVKOD AND  UTBYTESLISTA.ORGENR = BERSKAP.ENR AND
+               UTBYTESLISTA.BYTTILLLEVKOD = lkod  NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE UTBYTESLISTA THEN DO:
+                  FIND FIRST MTRL WHERE MTRL.LEVKOD = lkod AND MTRL.ENR = BERSKAP.ENR AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                  IF AVAILABLE MTRL THEN DO:
+                     FIND FIRST mtrl_temp WHERE mtrl_temp.ENR = BERSKAP.ENR AND mtrl_temp.LEVKOD = lkod 
+                     NO-LOCK NO-ERROR.
+                     IF NOT AVAILABLE mtrl_temp THEN DO:
+                        CREATE mtrl_temp.
+                        ASSIGN
+                        mtrl_temp.ENR = BERSKAP.ENR
+                        mtrl_temp.BENAMNING = MTRL.BENAMNING
+                        mtrl_temp.ENHET = MTRL.ENHET                  
+                        mtrl_temp.LEVKOD = lkod
+                        mtrl_temp.PRIS = MTRL.NPRIS
+                        mtrl_temp.LINNR = "SAMMA ENR".                                          
+                        IF levvar = TRUE THEN DO:
+                           FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = mtrl_temp.LEVKOD NO-LOCK NO-ERROR.
+                           IF AVAILABLE LEVERANTOR THEN mtrl_temp.FORNR = LEVERANTOR.LEVNAMN.
+                        END.
+                     END.
+                  END.
+               END.
+               ELSE DO:                                    
+                  FIND FIRST mtrl_temp WHERE mtrl_temp.ENR = UTBYTESLISTA.BYTTILLENR AND mtrl_temp.LEVKOD = UTBYTESLISTA.BYTTILLLEVKOD 
+                  NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE mtrl_temp THEN DO:
+                     CREATE mtrl_temp.
+                     ASSIGN
+                     mtrl_temp.ENR = UTBYTESLISTA.BYTTILLENR
+                     mtrl_temp.BENAMNING = BERSKAP.BENAMNING
+                     mtrl_temp.ENHET = BERSKAP.ENHET                  
+                     mtrl_temp.LEVKOD = UTBYTESLISTA.BYTTILLLEVKOD
+                     mtrl_temp.LINNR = "ERSATT".                     
+                     FIND FIRST MTRL WHERE MTRL.LEVKOD = UTBYTESLISTA.BYTTILLLEVKOD AND MTRL.ENR = UTBYTESLISTA.BYTTILLENR AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                     IF AVAILABLE MTRL THEN DO:
+                        ASSIGN                     
+                        mtrl_temp.BENAMNING = MTRL.BENAMNING
+                        mtrl_temp.ENHET = MTRL.ENHET
+                        mtrl_temp.PRIS = MTRL.NPRIS.
+                        
+                     END.
+                     IF levvar = TRUE THEN DO:
+                        FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = mtrl_temp.LEVKOD NO-LOCK NO-ERROR.
+                        IF AVAILABLE LEVERANTOR THEN mtrl_temp.FORNR = LEVERANTOR.LEVNAMN.
+                     END.
+                  END.   
+               END.
+            END.
+         END.
+         
+      END.
+   END.
+   IF lkod = ? THEN DO:   
+      OPEN QUERY kq2 FOR EACH BERSTOLP NO-LOCK.
+   END.
+   ELSE DO:
+      OPEN QUERY kq2 FOR EACH BERSTOLP WHERE BERSTOLP.LEVKOD = lkod NO-LOCK.
+   END.
+   GET FIRST kq2 NO-LOCK.
+   DO WHILE AVAILABLE(BERSTOLP):
+      IF levvar = FALSE THEN
+      FIND FIRST mtrl_temp WHERE mtrl_temp.ENR = BERSTOLP.ENR USE-INDEX ENR NO-LOCK NO-ERROR.
+      ELSE
+      FIND FIRST mtrl_temp WHERE mtrl_temp.ENR = BERSTOLP.ENR AND mtrl_temp.LEVKOD = BERSTOLP.LEVKOD 
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE mtrl_temp THEN DO:
+         CREATE mtrl_temp.
+         ASSIGN
+         mtrl_temp.ENR = BERSTOLP.ENR
+         mtrl_temp.BENAMNING = BERSTOLP.BENAMNING
+         mtrl_temp.ENHET = BERSTOLP.ENHET
+         mtrl_temp.PRIS = BERSTOLP.PRIS
+         mtrl_temp.LEVKOD = BERSTOLP.LEVKOD.
+         IF levvar = TRUE THEN DO:
+            FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = mtrl_temp.LEVKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE LEVERANTOR THEN mtrl_temp.FORNR = LEVERANTOR.LEVNAMN.
+         END.
+      END.
+      GET NEXT kq2 NO-LOCK.
+   END.
+   IF lkod NE ? THEN DO:      
+      IF ersatte = TRUE THEN DO:      
+         FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+         IF AVAILABLE HUVUDLEV AND HUVUDLEV.LEVKOD NE lkod THEN DO:
+            FOR EACH BERSTOLP WHERE BERSTOLP.LEVKOD = HUVUDLEV.LEVKOD NO-LOCK:
+               FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = 0 AND UTBYTESLISTA.ORGLEVKOD = HUVUDLEV.LEVKOD AND  UTBYTESLISTA.ORGENR = BERSTOLP.ENR AND
+               UTBYTESLISTA.BYTTILLLEVKOD = lkod  NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE UTBYTESLISTA THEN DO:
+                  FIND FIRST MTRL WHERE MTRL.LEVKOD = lkod AND MTRL.ENR = BERSTOLP.ENR AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                  IF AVAILABLE MTRL THEN DO:
+                     FIND FIRST mtrl_temp WHERE mtrl_temp.ENR = BERSTOLP.ENR AND mtrl_temp.LEVKOD = lkod 
+                     NO-LOCK NO-ERROR.
+                     IF NOT AVAILABLE mtrl_temp THEN DO:
+                        CREATE mtrl_temp.
+                        ASSIGN
+                        mtrl_temp.ENR = BERSTOLP.ENR
+                        mtrl_temp.BENAMNING = MTRL.BENAMNING
+                        mtrl_temp.ENHET = MTRL.ENHET                  
+                        mtrl_temp.LEVKOD = lkod
+                        mtrl_temp.PRIS = MTRL.NPRIS
+                        mtrl_temp.LINNR = "SAMMA ENR".                                          
+                        IF levvar = TRUE THEN DO:
+                           FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = mtrl_temp.LEVKOD NO-LOCK NO-ERROR.
+                           IF AVAILABLE LEVERANTOR THEN mtrl_temp.FORNR = LEVERANTOR.LEVNAMN.
+                        END.
+                     END.
+                  END.
+               END.
+               ELSE DO:                                    
+                  FIND FIRST mtrl_temp WHERE mtrl_temp.ENR = UTBYTESLISTA.BYTTILLENR AND mtrl_temp.LEVKOD = UTBYTESLISTA.BYTTILLLEVKOD 
+                  NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE mtrl_temp THEN DO:
+                     CREATE mtrl_temp.
+                     ASSIGN
+                     mtrl_temp.ENR = UTBYTESLISTA.BYTTILLENR
+                     mtrl_temp.BENAMNING = BERSTOLP.BENAMNING
+                     mtrl_temp.ENHET = BERSTOLP.ENHET                  
+                     mtrl_temp.LEVKOD = UTBYTESLISTA.BYTTILLLEVKOD
+                     mtrl_temp.LINNR = "ERSATT".                     
+                     FIND FIRST MTRL WHERE MTRL.LEVKOD = UTBYTESLISTA.BYTTILLLEVKOD AND MTRL.ENR = UTBYTESLISTA.BYTTILLENR AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+                     IF AVAILABLE MTRL THEN DO:
+                        ASSIGN                     
+                        mtrl_temp.BENAMNING = MTRL.BENAMNING
+                        mtrl_temp.ENHET = MTRL.ENHET
+                        mtrl_temp.PRIS = MTRL.NPRIS.
+                        
+                     END.
+                     IF levvar = TRUE THEN DO:
+                        FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = mtrl_temp.LEVKOD NO-LOCK NO-ERROR.
+                        IF AVAILABLE LEVERANTOR THEN mtrl_temp.FORNR = LEVERANTOR.LEVNAMN.
+                     END.
+                  END.   
+               END.
+            END.
+         END.
+         
+      END.
+   END.

@@ -1,0 +1,118 @@
+   DO TRANSACTION:  
+      OPEN QUERY berqb FOR EACH BEREDNING NO-LOCK.
+      GET FIRST berqb EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(BEREDNING):
+         DELETE BEREDNING.      
+         GET NEXT berqb EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY berqb. 
+   END.
+   MESSAGE 1.
+   DO TRANSACTION:  
+      OPEN QUERY berqmtrl FOR EACH BERMTRL NO-LOCK.
+      GET FIRST berqmtrl EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(BERMTRL):
+         DELETE BERMTRL.      
+         GET NEXT berqmtrl EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY berqmtrl. 
+   END. 
+   MESSAGE 2.
+   DO TRANSACTION:  
+      OPEN QUERY berqlin FOR EACH BERLINKAB  NO-LOCK.
+      GET FIRST berqlin EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(BERLINKAB):       
+         DELETE BERLINKAB.
+         GET NEXT berqlin EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY berqlin. 
+   END.  
+   MESSAGE 3.
+   DO TRANSACTION:  
+      OPEN QUERY berqskydd FOR EACH KSKYDD NO-LOCK.
+      GET FIRST berqskydd EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(KSKYDD):       
+         DELETE KSKYDD.
+         GET NEXT berqskydd EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY berqskydd. 
+   END.
+   MESSAGE 4.
+   DO TRANSACTION:     
+      OPEN QUERY berq FOR EACH BERVAL NO-LOCK.
+      GET FIRST berq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(BERVAL):
+         DELETE BERVAL.       
+         GET NEXT berq EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY berq.
+   END.
+   MESSAGE 5.
+   DO TRANSACTION:    
+      OPEN QUERY friq FOR EACH FRIKORT NO-LOCK. 
+      GET FIRST friq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(FRIKORT):
+         DELETE FRIKORT.       
+         GET NEXT friq EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY friq.
+   END.
+   MESSAGE 6.
+   DO TRANSACTION:
+      OPEN QUERY berqid FOR EACH BERID NO-LOCK.         
+      GET FIRST berqid EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(BERID):       
+         DELETE BERID.
+         GET NEXT berqid EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY berqid. 
+   END. 
+   MESSAGE 7.
+   DO TRANSACTION:    
+      OPEN QUERY berqschakt FOR EACH BERSCHAKT EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(BERSCHAKT): 
+         DELETE BERSCHAKT.
+         GET NEXT berqschakt EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY berqschakt.
+   END.     
+   MESSAGE 8. 
+   DO TRANSACTION:    
+      OPEN QUERY berqpunkt FOR EACH BERPUNKT NO-LOCK.     
+      GET FIRST berqpunkt EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(BERPUNKT): 
+         DELETE BERPUNKT. 
+         GET NEXT berqpunkt EXCLUSIVE-LOCK.
+      END.   
+      CLOSE QUERY berqpunkt.
+   END.
+   MESSAGE 9.
+   DO TRANSACTION:  
+      OPEN QUERY berqkab FOR EACH SCHAKTKAB NO-LOCK. 
+      GET FIRST berqkab EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(SCHAKTKAB): 
+         DELETE SCHAKTKAB.  
+         GET NEXT berqkab EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY berqkab.
+   END.
+   MESSAGE 10.
+   DO TRANSACTION:
+      OPEN QUERY uppq FOR EACH BERUPP NO-LOCK. 
+      GET FIRST uppq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(BERUPP): 
+         DELETE BERUPP.  
+         GET NEXT uppq EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY uppq.
+   END.
+   MESSAGE 11.
+   DO TRANSACTION:
+      OPEN QUERY ordq FOR EACH BERORD NO-LOCK. 
+      GET FIRST ordq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(BERORD): 
+         DELETE BERORD.  
+         GET NEXT ordq EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY ordq.
+   END.

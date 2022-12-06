@@ -1,0 +1,187 @@
+/*INFRAWEBINAPP.P
+
+jmf INFRAWEBIN.P samma men utan appserver.
+*/
+/*C:\delad\pro10\GURU\prox\infratek.wsm*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+
+{GLOBVAR2DEL1.I}
+
+{REGVAR.I}
+{VALDBDEF.I}
+{VALDBALL.I}
+DEFINE NEW SHARED VARIABLE orgpropath AS CHARACTER NO-UNDO.
+DEFINE VARIABLE conappvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE gforetag AS CHARACTER NO-UNDO.
+
+DEFINE VARIABLE okconn AS LOGICAL NO-UNDO.
+DEFINE VARIABLE subpwebh AS HANDLE NO-UNDO.
+DEFINE VARIABLE utfil AS CHARACTER NO-UNDO.
+
+DEFINE TEMP-TABLE tempnamn NO-UNDO
+   FIELD ORGTH AS HANDLE
+   FIELD TORGTH AS HANDLE
+   FIELD NODTAB AS CHARACTER.
+{INFRAIFSTEMP.I} 
+
+DEFINE INPUT PARAMETER app_server_info AS CHARACTER.
+DEFINE INPUT PARAMETER messagetype AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER infillong AS LONGCHAR NO-UNDO.
+DEFINE OUTPUT PARAMETER dbconn AS LOGICAL NO-UNDO.
+DEFINE OUTPUT PARAMETER felrapp AS CHARACTER NO-UNDO.
+{AMERICANEUROPEAN.I}
+utfil = SESSION:TEMP-DIRECTORY + app_server_info.
+OS-CREATE-DIR VALUE(utfil) NO-ERROR.
+utfil = utfil + "\" + "ifsin" + messagetype + ".txt".
+OUTPUT TO VALUE(utfil) APPEND.
+PUT SKIP.
+PUT TODAY " " STRING(TIME,"HH:MM:SS") "start file" app_server_info SKIP.
+OUTPUT CLOSE.
+COPY-LOB infillong TO FILE utfil APPEND. 
+
+
+RUN databascon.
+IF Guru.Konstanter:appcon = FALSE THEN DO:
+   felrapp = "Ingen databas ansluten.".
+   OUTPUT TO VALUE(utfil) APPEND.
+   PUT UNFORMATTED felrapp SKIP.
+   OUTPUT CLOSE.
+   utfil = SESSION:TEMP-DIRECTORY + app_server_info.
+   utfil = utfil + "\" + "ingendatabas" + messagetype + ".txt".
+   COPY-LOB infillong TO FILE utfil APPEND.
+   RETURN.
+END.   
+DEFINE VARIABLE dynxml AS HANDLE NO-UNDO.   
+{UTXKMLKOLL.I}
+
+DEFINE VARIABLE cDoc AS HANDLE NO-UNDO. /*test*/
+DEFINE VARIABLE testlong AS LONGCHAR NO-UNDO. /*test*/
+DEFINE VARIABLE resultvar AS CHARACTER NO-UNDO.
+
+RUN VALUE(vxmlpro) PERSISTENT SET dynxml (INPUT FALSE).
+
+/*RUN VALUE(messagetype) NO-ERROR.*/
+
+DO ON ERROR UNDO, LEAVE:
+   testlong = infillong.   
+   testlong = REPLACE(testlong, CHR(10),"").
+   testlong = REPLACE(testlong, CHR(11),"").
+   testlong = REPLACE(testlong, CHR(13),""). 
+   RUN bytchr_UI (INPUT "&lt;","<").
+   RUN bytchr_UI (INPUT "&gt;",">").
+   RUN bytchr_UI (INPUT "&quot;",'"').
+   /*    
+   COPY-LOB testlong TO FILE utfil APPEND.
+   */  
+   CREATE X-DOCUMENT cDoc. 
+   cDoc:LOAD("LONGCHAR", testlong, FALSE).  
+   infillong = testlong.   
+   IF messagetype = "projin" OR messagetype = "sendwork" OR messagetype = "sendresponse" THEN DO:
+      RUN VALUE(messagetype).
+   END.   
+   ELSE felrapp = "Procedur " + messagetype + " existerar ej".
+         
+   CATCH oneError AS Progress.Lang.SysError:
+      /*felrapp = STRING(oneError).*/
+      felrapp = "Felaktig input till " + messagetype + "".
+   END CATCH.  
+   
+END.
+RUN dbdiscon. 
+IF VALID-HANDLE(dynxml) THEN DELETE PROCEDURE dynxml.
+
+OUTPUT TO VALUE(utfil) APPEND.
+PUT UNFORMATTED felrapp SKIP.
+PUT TODAY " " STRING(TIME,"HH:MM:SS") "slut file" SKIP.
+OUTPUT CLOSE.
+{EUROPEANAMERICAN.I}
+RETURN.
+
+PROCEDURE bytchr_UI :
+   DEFINE INPUT  PARAMETER invar AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER utvar AS CHARACTER NO-UNDO.
+   testlong = REPLACE(testlong, invar,utvar).
+END PROCEDURE.
+/*om aonr eller projekt Send_Status_Message.xml*/
+PROCEDURE projin:  
+   CREATE tempnamn.
+   tempnamn.ORGTH = BUFFER WORK_ORDER:HANDLE.
+   tempnamn.TORGTH = TEMP-TABLE WORK_ORDER:HANDLE.
+   tempnamn.NODTAB = "WORK_ORDER".
+      
+   RUN xmlinnibodystartvar_UI IN dynxml (INPUT TABLE tempnamn,INPUT infillong).
+   RUN xmlslut_UI IN dynxml.             
+   FIND FIRST WORK_ORDER NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE WORK_ORDER THEN DO:
+      felrapp = "Ingen giltig data till projin.".
+      RETURN. 
+   END.
+   
+   RUN IFSWEBSINFRA.P PERSISTENT SET subpwebh ON Guru.Konstanter:apphand TRANSACTION DISTINCT.
+   IF VALID-HANDLE(subpwebh) THEN DO:     
+      RUN aonrin_UI IN  subpwebh (INPUT TABLE WORK_ORDER, OUTPUT resultvar). /*output felmed*/
+      felrapp = resultvar.
+      IF VALID-HANDLE(subpwebh) THEN DELETE PROCEDURE subpwebh.
+   END.       
+END PROCEDURE.
+
+/*order ok elller inte Send_Work_Order_Created.xml eller Send_Work_Order_Failed.xml*/
+PROCEDURE sendwork:  
+   CREATE tempnamn. /* flera? */
+   tempnamn.ORGTH = BUFFER RECEIVED_ORDER:HANDLE.
+   tempnamn.TORGTH = TEMP-TABLE RECEIVED_ORDER:HANDLE.
+   tempnamn.NODTAB = "RECEIVED_ORDER".
+   RUN xmlinnibodystartvar_UI IN dynxml (INPUT TABLE tempnamn,INPUT infillong).
+   RUN xmlslut_UI IN dynxml.
+   FIND FIRST RECEIVED_ORDER NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE RECEIVED_ORDER THEN DO:
+      felrapp = "Ingen giltig data till sendwork.".
+      RETURN. 
+   END.                
+   RUN IFSWEBSINFRA.P PERSISTENT SET subpwebh ON Guru.Konstanter:apphand TRANSACTION DISTINCT.
+   IF VALID-HANDLE(subpwebh) THEN DO:     
+      RUN sendwork_UI IN  subpwebh (INPUT TABLE RECEIVED_ORDER, OUTPUT resultvar). /*output felmed*/
+      felrapp = resultvar.
+      IF VALID-HANDLE(subpwebh) THEN DELETE PROCEDURE subpwebh.
+   END.     
+END PROCEDURE.
+/*rätt ordernr Send_Create_Messsage_Response.xml*/
+/* Ahlsell ordernr till vår Guru-Order */
+PROCEDURE sendresponse:       
+   CREATE tempnamn.
+   tempnamn.ORGTH = BUFFER CREATED_PURCHASE_ORDER:HANDLE.
+   tempnamn.TORGTH = TEMP-TABLE CREATED_PURCHASE_ORDER:HANDLE.
+   tempnamn.NODTAB = "CREATED_PURCHASE_ORDER".
+   RUN xmlinnibodystartvar_UI IN dynxml (INPUT TABLE tempnamn,INPUT infillong).
+   RUN xmlslut_UI IN dynxml.             
+   FIND FIRST CREATED_PURCHASE_ORDER NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE CREATED_PURCHASE_ORDER THEN DO:
+      felrapp = "Ingen giltig data till sendresponse.".
+      RETURN. 
+   END.     
+   RUN IFSWEBSINFRA.P PERSISTENT SET subpwebh ON Guru.Konstanter:apphand TRANSACTION DISTINCT.
+   IF VALID-HANDLE(subpwebh) THEN DO:     
+      RUN sendresponse_UI IN  subpwebh (INPUT TABLE CREATED_PURCHASE_ORDER, OUTPUT resultvar). /*output felmed*/
+      felrapp = resultvar.
+      IF VALID-HANDLE(subpwebh) THEN DELETE PROCEDURE subpwebh.
+   END.     
+END PROCEDURE.
+
+PROCEDURE dbdiscon:
+   IF LDBNAME(1) NE ? THEN DISCONNECT VALUE(LDBNAME(1)) NO-ERROR.
+   IF Guru.Konstanter:appcon THEN Guru.Konstanter:appcon = Guru.Konstanter:apphand:DISCONNECT().
+   IF Guru.Konstanter:apphand NE ? THEN DELETE OBJECT Guru.Konstanter:apphand NO-ERROR.
+   Guru.Konstanter:apphand = ?.
+   Guru.Konstanter:appcon = FALSE.
+END PROCEDURE.
+
+PROCEDURE databascon:
+  FIND FIRST valdbtemp WHERE valdbtemp.GFORETAG = app_server_info NO-LOCK NO-ERROR.
+  CREATE SERVER Guru.Konstanter:apphand.
+  ASSIGN
+  gforetag = valdbtemp.GFORETAG
+  conappvar = valdbtemp.APPCON.
+  Guru.Konstanter:appcon = Guru.Konstanter:apphand:CONNECT(conappvar,{APPCON1.i},{APPCON2.i},gforetag) NO-ERROR.      
+END PROCEDURE.
+

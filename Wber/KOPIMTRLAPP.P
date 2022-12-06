@@ -1,0 +1,155 @@
+/*KOPIMTRLAPP.P*/
+{STARTFORAPP.I}
+{BEREDNINGTEMP.I}
+{MTTEMP.I}
+
+DEFINE TEMP-TABLE list_mtrl2 
+   {LISTMTRLTT.I}
+DEFINE TEMP-TABLE elist_mtrl2 NO-UNDO LIKE list_mtrl2.
+
+
+PROCEDURE berhmt_UI :
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER kalkrow AS ROWID NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR beredningtemp.
+   FIND FIRST BEREDNING WHERE BEREDNING.BERNR = INTEGER(valaonr) AND
+   BEREDNING.OMRADE = valomrade USE-INDEX BERNR NO-LOCK NO-ERROR.
+   IF AVAILABLE BEREDNING THEN DO:
+      CREATE beredningtemp.
+      BUFFER-COPY BEREDNING TO beredningtemp.
+      kalkrow = ROWID(BEREDNING).
+   END.
+   RETURN.
+END PROCEDURE.
+/*KOPIERA MTRL I BEREDNING FRÅN EXCEL*/
+/*Anders Olsson Elpool i Umeå AB  1 okt 2020 15:47:38 
+KÖRS EJ FN NU 
+
+PROCEDURE hmtskap_UI :
+   DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR elist_mtrl2.
+   EMPTY TEMP-TABLE elist_mtrl2 NO-ERROR. 
+   FIND FIRST MTRL WHERE MTRL.ENR = enrvar AND MTRL.LEVKOD = vald_lev 
+   AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      CREATE elist_mtrl2.
+      BUFFER-COPY MTRL TO elist_mtrl2.
+      elist_mtrl2.PRIS = MTRL.NPRIS.                     
+   END.
+   /*inlagd  ersättningslista samma leverantör 2012-04-04 Lena*/
+   FIND FIRST BETPLAN WHERE BETPLAN.NAMN = vald_lev AND BETPLAN.ANVANDARE = enrvar AND
+   BETPLAN.BESTID = vald_lev NO-LOCK NO-ERROR.
+   IF AVAILABLE BETPLAN THEN DO:               
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = vald_lev AND MTRL.ENR = BETPLAN.OMRADE AND
+      MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         IF NOT AVAILABLE elist_mtrl2 THEN DO:
+            /*enr borttaget original, men man vill ha kvar översättningen för import från excel*/
+            CREATE elist_mtrl2.
+         END.    
+         ASSIGN
+         elist_mtrl2.ENR = MTRL.ENR
+         elist_mtrl2.BENAMNING = MTRL.BENAMNING
+         elist_mtrl2.ENHET = MTRL.ENHET
+         elist_mtrl2.PRIS = MTRL.NPRIS
+         elist_mtrl2.LEVKOD = MTRL.LEVKOD.               
+      END.                 
+   END. 
+
+END PROCEDURE.
+*/
+PROCEDURE hmtskapuovers_UI :
+   DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR elist_mtrl2.
+   EMPTY TEMP-TABLE elist_mtrl2 NO-ERROR. 
+   
+   FIND FIRST MTRL WHERE MTRL.ENR = enrvar AND MTRL.LEVKOD = vald_lev 
+   AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      CREATE elist_mtrl2.
+      BUFFER-COPY MTRL TO elist_mtrl2.
+      elist_mtrl2.PRIS = MTRL.NPRIS.                     
+   END.
+    
+
+END PROCEDURE.
+
+PROCEDURE hmtskapexcel_UI :
+   DEFINE INPUT PARAMETER TABLE FOR emttemp.
+   /*DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER antvar AS integer NO-UNDO.*/
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kongrkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER konstvalvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER hjkvalkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER brw AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER impfel AS CHARACTER NO-UNDO.
+   
+   impfel = "".
+   FIND FIRST emttemp WHERE NO-LOCK NO-ERROR.
+   FIND FIRST MTRL WHERE MTRL.ENR = emttemp.ENR AND MTRL.LEVKOD = vald_lev 
+   AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+        
+      
+      CREATE MTRLBER.
+      BUFFER-COPY MTRL TO MTRLBER.
+      ASSIGN
+      MTRLBER.KTYPKOD = konstvalvar
+      MTRLBER.ENR = MTRL.ENR
+      MTRLBER.ANTAL = emttemp.ANTAL
+      MTRLBER.BENAMNING = MTRL.BENAMNING
+      MTRLBER.ENHET = MTRL.ENHET
+      MTRLBER.PRIS = MTRL.NPRIS      
+      MTRLBER.LEVKOD = MTRL.LEVKOD      
+      MTRLBER.F1 = ""
+      MTRLBER.F2 = ""
+      MTRLBER.F3 = ""
+      MTRLBER.F4 = ""
+      MTRLBER.F5 = "".
+      IF brw = 2 THEN  MTRLBER.F1 = hjkvalkod.
+      IF brw = 3 THEN  MTRLBER.F2 = hjkvalkod.
+      IF brw = 4 THEN  MTRLBER.F3 = hjkvalkod.
+      IF brw = 5 THEN  MTRLBER.F4 = hjkvalkod.
+      IF brw = 6 THEN  MTRLBER.F5 = hjkvalkod.
+                         
+   END.
+   ELSE DO:
+      impfel = "Finns ej".
+   END.   
+    
+
+END PROCEDURE.
+
+
+PROCEDURE kollev_UI :
+   DEFINE INPUT PARAMETER vlev AS CHARACTER NO-UNDO.   
+   DEFINE OUTPUT PARAMETER lnamn AS CHARACTER NO-UNDO.         
+   lnamn = "".
+   FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = vlev NO-LOCK NO-ERROR.
+   IF AVAILABLE LEVERANTOR THEN lnamn = LEVERANTOR.LEVNAMN.
+END PROCEDURE.
+
+/*
+PROCEDURE nettomark_UI :
+   DEFINE INPUT PARAMETER TABLE FOR list_mtrl.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR kmtrltemp.
+   /*NETTO*/   
+   FOR EACH list_mtrl NO-LOCK:            
+      FIND FIRST kmtrltemp WHERE kmtrltemp.LEVKOD = list_mtrl.LEVKOD AND kmtrltemp.ENR = list_mtrl.ENR AND kmtrltemp.KALKNR = 0
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE kmtrltemp THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = list_mtrl.LEVKOD AND MTRL.ENR = list_mtrl.ENR AND MTRL.KALKNR = 0
+         AND MTRL.KUND = TRUE   NO-LOCK NO-ERROR.
+         IF AVAILABLE  MTRL THEN DO:            
+            
+            CREATE kmtrltemp.
+            BUFFER-COPY MTRL TO kmtrltemp.            
+         END.
+      END.
+   END.   
+END PROCEDURE.
+*/

@@ -1,0 +1,42 @@
+      /*xesfel*/
+      DEFINE VARIABLE vknummer AS CHARACTER FORMAT "X(4)" NO-UNDO.
+      DEFINE NEW SHARED VARIABLE regdatum AS DATE NO-UNDO.
+      regdatum = TODAY.
+      
+      
+      vknummer = "w" + STRING(today,"99999999").
+      DO: 
+
+      OPEN QUERY vsatt FOR EACH TIDREGITAB WHERE TIDREGITAB.DATUM <= 01/01/31 AND
+      TIDREGITAB.VECKOKORD = " "  NO-LOCK.
+
+      DO TRANSACTION:
+         GET FIRST vsatt EXCLUSIVE-LOCK.
+         IF AVAILABLE TIDREGITAB THEN DO:
+            
+            IF TIDREGITAB.GODKAND = "F" THEN regdatum = regdatum.
+            ELSE IF TIDREGITAB.GODKAND = " " THEN regdatum = regdatum.
+            ELSE ASSIGN TIDREGITAB.VECKOKORD = vknummer.
+         END.
+      END.
+      VKO:
+      REPEAT TRANSACTION:
+         GET NEXT vsatt EXCLUSIVE-LOCK.
+         IF AVAILABLE TIDREGITAB THEN DO:
+            
+            IF TIDREGITAB.GODKAND = "F" THEN regdatum = regdatum.
+            ELSE IF TIDREGITAB.GODKAND = " " THEN NEXT VKO.
+            ELSE ASSIGN TIDREGITAB.VECKOKORD = vknummer.
+         END. 
+         ELSE LEAVE VKO. 
+      END.             
+   END.          
+   CLOSE QUERY vsatt.   
+   FIND LAST TIDREGITAB WHERE TIDREGITAB.VECKOKORD NE "" 
+   USE-INDEX KOLL NO-LOCK NO-ERROR.
+   IF AVAILABLE TIDREGITAB THEN DO TRANSACTION:
+      FIND FIRST VECKONATT WHERE SUBSTRING(VECKONATT.DAG_AR,1,3) = "DAG" 
+      USE-INDEX NATT EXCLUSIVE-LOCK NO-ERROR.
+      SUBSTRING(VECKONATT.DAG_AR,8,4) = " " + STRING(TIDREGITAB.VECKONUMMER,"999").      
+   END.
+   RELEASE VECKONATT.

@@ -1,0 +1,7 @@
+/*IDLABEL.I*/ 
+      ASSIGN
+      kon_id2.LINNR:LABEL IN BROWSE BRW_TILL = SUBSTRING(annamntemp.TAB2,1,14) 
+      kon_id2.NATNR:LABEL IN BROWSE BRW_TILL = SUBSTRING(annamntemp.TAB3,1,14)  
+      kon_id2.FRI1:LABEL IN BROWSE BRW_TILL = SUBSTRING(bbenamntemp.ID1,1,8)
+      kon_id2.FRI2:LABEL IN BROWSE BRW_TILL = SUBSTRING(bbenamntemp.ID2,1,8).
+   

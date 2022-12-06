@@ -1,0 +1,2721 @@
+&ANALYZE-SUSPEND _VERSION-NUMBER UIB_v8r12 GUI
+&ANALYZE-RESUME
+/* Connected Databases 
+          temp-db          PROGRESS
+*/
+&Scoped-define WINDOW-NAME C-Win
+
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CUSTOM _DEFINITIONS C-Win 
+/*------------------------------------------------------------------------
+
+  File: 
+
+  Description: 
+
+  Input Parameters:
+      <none>
+
+  Output Parameters:
+      <none>
+
+  Author: 
+
+  Created: 
+
+------------------------------------------------------------------------*/
+/*          This .W file was created with the Progress UIB.             */
+/*----------------------------------------------------------------------*/
+
+/* Create an unnamed pool to store all the widgets created 
+     by this procedure. This is a good default which assures
+     that this procedure's triggers and internal procedures 
+     will execute in this procedure's storage, and that proper
+     cleanup will occur on deletion of the procedure. */
+
+CREATE WIDGET-POOL.
+
+/* ***************************  Definitions  ************************** */
+
+/* Parameters Definitions ---                                           */
+DEFINE VAR markpkod AS CHARACTER NO-UNDO.
+/* Local Variable Definitions ---                                       */
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{ALLDEF.I}
+{SOKDEF.I}
+{TIDALLT.I}
+{PHMT.I}
+{GLOBVAR2DEL1.I}                                                 
+           
+            
+            
+                                                             
+
+{REGVAR.I}
+{TIDPERS.I}
+/*{EGENBEN.I}*/
+
+&Scoped-define SHARED SHARED
+{DIRDEF.I}
+{FLEXTAB.I}
+&Scoped-define NEW NEW
+
+{PERBEF.I}
+DEFINE NEW SHARED VARIABLE placerarec AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE brwbdatum AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE brwavdatum AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE varaonr AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE vardelnr AS INTEGER NO-UNDO. 
+DEFINE NEW SHARED VARIABLE vartrakt AS INTEGER NO-UNDO. 
+DEFINE NEW SHARED VARIABLE varpris AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE varslut AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE varpristyp  AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE varfabef AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE varutryck AS LOGICAL NO-UNDO.   
+DEFINE NEW SHARED VARIABLE vartotalt AS DECIMAL NO-UNDO.
+
+DEFINE NEW SHARED VARIABLEhoppsekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLE aonrsekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLEbulasekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLE beresekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLEfaktsekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLE kalksekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLE kalk2sekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLE mtrlsekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLEpersekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLEplansekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLEregsekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLE tadmsekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLE tidasekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLEtidbsekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLE tidosekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLE tidrsekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLEtidsekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLE tidssekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLE tidtsekvar AS LOGICAL EXTENT 50 NO-UNDO.
+DEFINE NEW SHARED VARIABLE vaxla AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE aonrlogvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE bulalogvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE berelogvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE faktlogvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE kalklogvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE kalk2logvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE mtrllogvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE perlogvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE planlogvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE reglogvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE tadmlogvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE tidalogvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE tidblogvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE tidologvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE tidrlogvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE tidlogvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE tidslogvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE tidtlogvar AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE andvisdatum AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE bustart3 AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE klocka AS DECIMAL NO-UNDO. 
+DEFINE NEW SHARED VARIABLE tidtabrec AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE persrec2 AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE vart AS CHARACTER FORMAT "X(3)" NO-UNDO.
+DEFINE NEW SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE aonrrec AS RECID NO-UNDO.
+DEFINE VARIABLE xhop AS CHARACTER NO-UNDO.
+DEFINE VARIABLE wh AS WIDGET-HANDLE NO-UNDO.
+DEFINE VARIABLE stansrec AS RECID NO-UNDO.
+DEFINE VARIABLE kollraknare AS LOGICAL NO-UNDO.
+DEFINE VARIABLE forsta AS LOGICAL NO-UNDO.
+DEFINE VARIABLE tidtabrecspar AS RECID NO-UNDO.
+DEFINE VARIABLE aosok AS CHARACTER FORMAT "X(8)" NO-UNDO.   
+DEFINE VARIABLE status-ok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE my1hand AS WIDGET-HANDLE NO-UNDO.
+DEFINE VARIABLE antal_valda AS INTEGER NO-UNDO.
+DEFINE VARIABLE antal_raknare AS INTEGER NO-UNDO.
+DEFINE VARIABLE overant AS INTEGER NO-UNDO.
+DEFINE VARIABLE otim AS INTEGER NO-UNDO.
+DEFINE VARIABLE otim2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE regdagspar AS CHARACTER FORMAT "X(3)" NO-UNDO.        
+DEFINE VARIABLE regdatumspar AS DATE NO-UNDO.
+DEFINE VARIABLE ortssok AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kontrollstart AS DECIMAL NO-UNDO.
+DEFINE VARIABLE regbtn AS LOGICAL NO-UNDO.
+DEFINE VARIABLE lop1 AS INTEGER NO-UNDO.
+DEFINE VARIABLE seku AS INTEGER FORMAT "-9999999" NO-UNDO.
+DEFINE VARIABLE halvkvart AS INTEGER NO-UNDO.
+DEFINE VARIABLE pkod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE datkoll AS DATE NO-UNDO.
+DEFINE VARIABLE energiavt AS LOGICAL NO-UNDO.
+DEFINE VARIABLE sok1 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sok2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE sok3 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sok4 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sok5 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE raknare AS INTEGER NO-UNDO.
+DEFINE VARIABLE varbef AS CHARACTER NO-UNDO.
+DEFINE TEMP-TABLE markpers    
+   FIELD EFTERNAMN AS CHARACTER
+   FIELD FORNAMN AS CHARACTER
+   FIELD PERSONALKOD AS CHARACTER
+   INDEX PERSONALKOD IS PRIMARY PERSONALKOD ASCENDING. 
+DEFINE TEMP-TABLE vomrtemp
+   FIELD OMRADE AS CHARACTER
+   FIELD NAMN AS CHARACTER
+   INDEX OMR IS PRIMARY OMRADE
+   INDEX OMRNAMN NAMN.
+
+DEFINE TEMP-TABLE nytidtemp NO-UNDO
+   FIELD AONR AS CHARACTER FORMAT "X(6)"
+   FIELD DATUM AS INTEGER FORMAT ">9" 
+   FIELD DELNR AS INTEGER FORMAT ">99" 
+   FIELD NODF AS LOGICAL 
+   FIELD OVERTIDUTTAG AS CHARACTER FORMAT "X(4)" 
+   FIELD PRIS AS DECIMAL  
+   FIELD PRISTYP AS CHARACTER
+   FIELD SLUT AS DECIMAL
+   FIELD START AS DECIMAL
+   FIELD TRAKTAMENTE AS INTEGER 
+   FIELD UTRYCK AS LOGICAL
+   FIELD TIDREC AS RECID
+   FIELD ANDRA AS LOGICAL
+   INDEX DATUM IS PRIMARY DATUM START SLUT
+   INDEX ANDRA ANDRA DATUM START SLUT.
+
+DEFINE TEMP-TABLE restemp NO-UNDO  
+   FIELD DATUM AS INTEGER FORMAT ">9" 
+   FIELD SLUT AS DECIMAL 
+   FIELD START AS DECIMAL
+   INDEX DATUM IS PRIMARY DATUM START SLUT.
+
+DEFINE TEMP-TABLE stanstid NO-UNDO
+   FIELD ANVANDARE         AS CHARACTER FORMAT "X(12)"
+   FIELD AONR              AS CHARACTER FORMAT "X(6)"
+   FIELD BEFATTNING        AS CHARACTER FORMAT "X(20)"
+   FIELD VIBEFATTNING      AS CHARACTER FORMAT "X(20)"
+   FIELD BERANTAL          AS DECIMAL FORMAT "-99.99" 
+   FIELD BERBEORD          AS LOGICAL FORMAT "Ja/Nej"
+   FIELD BEREDSKAP         AS CHARACTER FORMAT "X(4)"
+   FIELD BEREDSKAPSLUT     AS DECIMAL FORMAT "99.99"
+   FIELD BEREDSKAPSTART    AS DECIMAL FORMAT "-99.99"
+   FIELD BILFORARE         AS LOGICAL FORMAT "Ja/Nej" 
+   FIELD DAG               AS CHARACTER FORMAT "X(3)"
+   FIELD DATUM             AS DATE 
+   FIELD DELNR             AS INTEGER FORMAT ">99" 
+   FIELD ENFLERDAGS        AS CHARACTER                           
+   FIELD GODKAND           AS CHARACTER FORMAT "X(4)"             
+   FIELD LAGANTAL          AS DECIMAL FORMAT "99.99"              
+   FIELD LAGBAS            AS LOGICAL FORMAT "Ja/Nej"             
+   FIELD LONAUTO           AS LOGICAL FORMAT "Auto/Manuell"       
+   FIELD LONTILLAGG        AS CHARACTER FORMAT "X(4)"             
+   FIELD LONTILLANTAL      AS DECIMAL FORMAT ">>>9.<<<"           
+   FIELD NODF              AS LOGICAL FORMAT "Ja/Nej"             
+   FIELD OANT1             AS DECIMAL FORMAT "99.99"              
+   FIELD OANT2             AS DECIMAL FORMAT "99.99"              
+   FIELD OANT3             AS DECIMAL FORMAT "99.99" 
+   FIELD OKOD1             AS CHARACTER FORMAT "X(4)"
+   FIELD OKOD2             AS CHARACTER FORMAT "X(4)"
+   FIELD OKOD3             AS CHARACTER FORMAT "X(4)"
+   FIELD OSL1              AS DECIMAL FORMAT "99.99" 
+   FIELD OSL2              AS DECIMAL FORMAT "99.99" 
+   FIELD OSL3              AS DECIMAL FORMAT "99.99" 
+   FIELD OST1              AS DECIMAL FORMAT "99.99" 
+   FIELD OST2              AS DECIMAL FORMAT "99.99" 
+   FIELD OST3              AS DECIMAL FORMAT "99.99" 
+   FIELD OVERANTAL         AS DECIMAL FORMAT "-99.99"
+   FIELD OVERAUTO          AS LOGICAL FORMAT "Auto/Manuell"
+   FIELD OVERTIDTILL       AS CHARACTER FORMAT "X(4)"
+   FIELD OVERTIDUTTAG      AS CHARACTER FORMAT "X(1)"
+   FIELD PERSONALKOD       AS CHARACTER FORMAT "X(5)"
+   FIELD PRIS              AS DECIMAL FORMAT ">>>>>>>>>9.99"
+   FIELD PRISTYP           AS CHARACTER FORMAT "X(9)" 
+   FIELD PROGRAM           AS CHARACTER FORMAT "X(8)"
+   FIELD RECTIDVIS         AS RECID  
+   FIELD RESMAL            AS CHARACTER FORMAT "X(40)"
+   FIELD SLUT              AS DECIMAL FORMAT "99.99"
+   FIELD START             AS DECIMAL FORMAT "99.99"
+   FIELD SLUTM             AS DECIMAL FORMAT "99.99"
+   FIELD STARTM            AS DECIMAL FORMAT "99.99"
+   FIELD TIDLOG            AS LOGICAL FORMAT "TID/TILL"
+   FIELD TOTALT            AS DECIMAL FORMAT "99.99"
+   FIELD TRAKTAMENTE       AS INTEGER FORMAT "99" 
+   FIELD TRAKTANTAL        AS DECIMAL FORMAT "-99.99"
+   FIELD TRAKTAUTO         AS LOGICAL FORMAT "Auto/Manuell"
+   FIELD TRAKTKOD          AS CHARACTER FORMAT "X(4)"
+   FIELD TRAKTTOT          AS DECIMAL FORMAT "99.99"
+   FIELD UTRYCKNING        AS LOGICAL FORMAT "Ja/Nej"
+   FIELD VECKOVILA         AS LOGICAL FORMAT "Ja/Nej"
+   FIELD VECKOKORD         AS CHARACTER FORMAT "X(4)"
+   FIELD VECKONUMMER       AS INTEGER FORMAT "999"
+   FIELD FELTXT            AS CHARACTER
+   FIELD FELNR             AS INTEGER
+   FIELD ORDNING           AS INTEGER
+   INDEX TID IS PRIMARY ORDNING PERSONALKOD DATUM START SLUT AONR DELNR.
+
+DEFINE BUFFER nytidtempbuff FOR nytidtemp.
+
+DEFINE NEW SHARED VARIABLE RAD_TIDSVAL AS INTEGER 
+     VIEW-AS RADIO-SET VERTICAL
+     RADIO-BUTTONS 
+          "Alla tidsedlar för perioden", 1,
+"Godkända", 2,
+"Ej godkända", 3
+     SIZE 31.5 BY 2
+     BGCOLOR 8  NO-UNDO.
+     
+DEFINE NEW SHARED VARIABLE TOGGLE-MONTH AS LOGICAL INITIAL ? 
+     LABEL "Två tidsedlar vid månadasskifte":L 
+     VIEW-AS TOGGLE-BOX
+     SIZE 34.5 BY 1 NO-UNDO.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-PREPROCESSOR-BLOCK 
+
+/* ********************  Preprocessor Definitions  ******************** */
+
+&Scoped-define PROCEDURE-TYPE Window
+&Scoped-define DB-AWARE no
+
+/* Name of first Frame and/or Browse and/or first Query                 */
+&Scoped-define FRAME-NAME DEFAULT-FRAME
+&Scoped-define BROWSE-NAME BRW_STANS
+
+/* Internal Tables (found by Frame, Query & Browse Queries)             */
+&Scoped-define INTERNAL-TABLES stanstid
+
+/* Definitions for BROWSE BRW_STANS                                     */
+&Scoped-define FIELDS-IN-QUERY-BRW_STANS stanstid.PERSONALKOD ~
+stanstid.DATUM stanstid.AONR stanstid.DELNR stanstid.TRAKTAMENTE ~
+stanstid.START stanstid.SLUT stanstid.OVERTIDUTTAG stanstid.UTRYCKNING ~
+stanstid.VECKOVILA stanstid.LONTILLAGG stanstid.LONTILLANTAL ~
+stanstid.VIBEFATTNING 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_STANS stanstid.PERSONALKOD ~
+stanstid.DATUM stanstid.AONR stanstid.DELNR stanstid.TRAKTAMENTE ~
+stanstid.START stanstid.SLUT stanstid.OVERTIDUTTAG stanstid.UTRYCKNING ~
+stanstid.VECKOVILA stanstid.LONTILLAGG stanstid.LONTILLANTAL 
+&Scoped-define ENABLED-TABLES-IN-QUERY-BRW_STANS stanstid
+&Scoped-define FIRST-ENABLED-TABLE-IN-QUERY-BRW_STANS stanstid
+&Scoped-define QUERY-STRING-BRW_STANS FOR EACH stanstid NO-LOCK
+&Scoped-define OPEN-QUERY-BRW_STANS OPEN QUERY BRW_STANS FOR EACH stanstid NO-LOCK.
+&Scoped-define TABLES-IN-QUERY-BRW_STANS stanstid
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_STANS stanstid
+
+
+/* Definitions for FRAME DEFAULT-FRAME                                  */
+&Scoped-define OPEN-BROWSERS-IN-QUERY-DEFAULT-FRAME ~
+    ~{&OPEN-QUERY-BRW_STANS}
+
+/* Standard List Definitions                                            */
+&Scoped-Define ENABLED-OBJECTS BRW_STANS BTN_NVE BTN_NVE-2 ~
+FILL-IN_PERSONALPERIOD FILL-IN_AONR FILL-IN_DELNR FILL-IN-STARTDAT ~
+FILL-IN-STOPPDAT BTN_FVE BTN_FVE-2 BTN_REG BTN_PREG BTN_AVB RECT-32 RECT-36 
+&Scoped-Define DISPLAYED-FIELDS stanstid.FELTXT 
+&Scoped-define DISPLAYED-TABLES stanstid
+&Scoped-define FIRST-DISPLAYED-TABLE stanstid
+&Scoped-Define DISPLAYED-OBJECTS FILL-IN_PERSONALKOD FILL-IN_FORNAMN ~
+FILL-IN_EFTERNAMN FILL-IN_PERSONALPERIOD FILL-IN_AONR FILL-IN_DELNR ~
+FILL-IN-STARTDAT FILL-IN-STOPPDAT 
+
+/* Custom List Definitions                                              */
+/* List-1,List-2,List-3,List-4,List-5,List-6                            */
+
+/* _UIB-PREPROCESSOR-BLOCK-END */
+&ANALYZE-RESUME
+
+
+
+/* ***********************  Control Definitions  ********************** */
+
+/* Define the widget handle for the window                              */
+DEFINE VAR C-Win AS WIDGET-HANDLE NO-UNDO.
+
+/* Definitions of the field level widgets                               */
+DEFINE BUTTON BTN_AVB AUTO-END-KEY  NO-CONVERT-3D-COLORS
+     LABEL "Avbryt":L 
+     SIZE 12 BY 1.5.
+
+DEFINE BUTTON BTN_BERED 
+     LABEL "Beredskap":L 
+     SIZE 12 BY 1.5.
+
+DEFINE BUTTON BTN_FVE 
+     LABEL "-" 
+     SIZE 2.5 BY .77.
+
+DEFINE BUTTON BTN_FVE-2 
+     LABEL "-" 
+     SIZE 2.5 BY .77.
+
+DEFINE BUTTON BTN_GOD 
+     LABEL "Godkänn" 
+     SIZE 12 BY 1.5.
+
+DEFINE BUTTON BTN_KONTROLL 
+     LABEL "Kontroll" 
+     SIZE 12 BY 1.5.
+
+DEFINE BUTTON BTN_NVE 
+     LABEL "+" 
+     SIZE 2.5 BY .77.
+
+DEFINE BUTTON BTN_NVE-2 
+     LABEL "+" 
+     SIZE 2.5 BY .77.
+
+DEFINE BUTTON BTN_PREG 
+     LABEL "Period":L 
+     SIZE 12 BY 1.5.
+
+DEFINE BUTTON BTN_REG 
+     LABEL "Registrera":L 
+     SIZE 12 BY 1.5.
+
+DEFINE BUTTON BTN_RES 
+     LABEL "Endags restid":L 
+     SIZE 12 BY 1.5
+     FONT 7.
+
+DEFINE BUTTON BTN_TJRESA 
+     LABEL "Tjresa":L 
+     SIZE 12 BY 1.5.
+
+DEFINE BUTTON BTN_VISA 
+     LABEL "Visa tids.":L 
+     SIZE 12 BY 1.5.
+
+DEFINE VARIABLE CMB_BEF AS CHARACTER FORMAT "X(256)":U 
+     LABEL "Avvikande befattning" 
+     VIEW-AS COMBO-BOX INNER-LINES 5
+     DROP-DOWN-LIST
+     SIZE 25 BY 1 NO-UNDO.
+
+DEFINE VARIABLE CMB_PRISTYP AS CHARACTER FORMAT "X(9)":U 
+     LABEL "Debitering" 
+     VIEW-AS COMBO-BOX INNER-LINES 5
+     DROP-DOWN-LIST
+     SIZE 14 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-AR AS INTEGER FORMAT "9999":U INITIAL 0 
+     VIEW-AS FILL-IN 
+     SIZE 5.5 BY .86 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-MANAD AS CHARACTER FORMAT "X(15)":U INITIAL "0" 
+     VIEW-AS FILL-IN 
+     SIZE 15 BY .86 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-PRIS AS DECIMAL FORMAT "->>,>>9.99":U INITIAL ? 
+     LABEL "Pris" 
+     VIEW-AS FILL-IN 
+     SIZE 11 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-PRISTYP AS CHARACTER FORMAT "X(9)":U INITIAL ? 
+     LABEL "Debitering" 
+     VIEW-AS FILL-IN 
+     SIZE 11 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-REGIS AS CHARACTER FORMAT "X(17)":U 
+     VIEW-AS FILL-IN 
+     SIZE 18 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-STARTDAT AS DATE FORMAT "99/99/99":U 
+     LABEL "Från" 
+     VIEW-AS FILL-IN 
+     SIZE 9 BY .91 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-STOPPDAT AS DATE FORMAT "99/99/99":U 
+     LABEL "Till" 
+     VIEW-AS FILL-IN 
+     SIZE 9 BY .91 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-VALFA AS CHARACTER FORMAT "X(256)":U INITIAL "Välj fakt.bef.                            Vald fakt.bef." 
+     VIEW-AS FILL-IN 
+     SIZE 31.5 BY .77
+     FONT 11 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN_AONR AS CHARACTER FORMAT "X(6)" 
+     LABEL "Aonr" 
+     VIEW-AS FILL-IN 
+     SIZE 7 BY 1.
+
+DEFINE VARIABLE FILL-IN_DELNR AS INTEGER FORMAT ">99" INITIAL 0 
+     LABEL "Delnr" 
+     VIEW-AS FILL-IN 
+     SIZE 4 BY 1.
+
+DEFINE VARIABLE FILL-IN_EFTERNAMN AS CHARACTER FORMAT "x(25)" 
+     LABEL "Efternamn" 
+     VIEW-AS FILL-IN 
+     SIZE 26 BY 1.
+
+DEFINE VARIABLE FILL-IN_EFTERNAMN-2 AS CHARACTER FORMAT "X(13)" 
+     VIEW-AS FILL-IN 
+     SIZE 13.5 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN_FORNAMN AS CHARACTER FORMAT "x(15)" 
+     LABEL "Förnamn" 
+     VIEW-AS FILL-IN 
+     SIZE 16 BY 1.
+
+DEFINE VARIABLE FILL-IN_NAMN AS CHARACTER FORMAT "X(16)" 
+     VIEW-AS FILL-IN 
+     SIZE 17 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN_PERSONALKOD AS CHARACTER FORMAT "x(5)" 
+     LABEL "Enhet/Sign" 
+     VIEW-AS FILL-IN 
+     SIZE 6 BY 1.
+
+DEFINE VARIABLE FILL-IN_PERSONALPERIOD AS CHARACTER FORMAT "x(5)" 
+     LABEL "Enhet/Sign" 
+     VIEW-AS FILL-IN 
+     SIZE 6 BY 1.
+
+DEFINE VARIABLE FILL-IN_VECKONUMMER AS INTEGER FORMAT "->,>>>,>>9" INITIAL 0 
+     LABEL "Vecka" 
+     VIEW-AS FILL-IN 
+     SIZE 4 BY 1 NO-UNDO.
+
+DEFINE VARIABLE FILL-IN_VIBEFATTNING AS CHARACTER FORMAT "x(15)" 
+     LABEL "Avvikande fakturabefattning" 
+     VIEW-AS FILL-IN 
+     SIZE 16 BY 1.
+
+DEFINE {&NEW} SHARED VARIABLE RAD_ALLVAL AS INTEGER 
+     VIEW-AS RADIO-SET HORIZONTAL
+     RADIO-BUTTONS 
+          "Ansvarig tidredovisare", 1,
+"Godkänner tidsedel", 6,
+"Område", 2,
+"Alla", 3,
+"Enhet/Sign", 4,
+"Markerade", 5
+     SIZE 85.5 BY 1.18
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE RECTANGLE RECT-32
+     EDGE-PIXELS 4 GRAPHIC-EDGE  NO-FILL 
+     SIZE 98.88 BY 24.09
+     BGCOLOR 8 .
+
+DEFINE RECTANGLE RECT-36
+     EDGE-PIXELS 4 GRAPHIC-EDGE  NO-FILL 
+     SIZE 72 BY 4.18
+     BGCOLOR 8 .
+
+/* Query definitions                                                    */
+&ANALYZE-SUSPEND
+DEFINE QUERY BRW_STANS FOR 
+      stanstid SCROLLING.
+&ANALYZE-RESUME
+
+/* Browse definitions                                                   */
+DEFINE BROWSE BRW_STANS
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_STANS C-Win _STRUCTURED
+  QUERY BRW_STANS NO-LOCK DISPLAY
+      stanstid.PERSONALKOD COLUMN-LABEL "Enhet/!Sign" FORMAT "x(5)":U
+      stanstid.DATUM COLUMN-LABEL "Datum" FORMAT "99/99/99":U
+      stanstid.AONR COLUMN-LABEL "Aonr" FORMAT "X(6)":U
+      stanstid.DELNR COLUMN-LABEL "Del!nr" FORMAT ">99":U
+      stanstid.TRAKTAMENTE COLUMN-LABEL "Tra.!zon" FORMAT "99":U
+      stanstid.START COLUMN-LABEL "Start!tid" FORMAT "9999":U
+      stanstid.SLUT COLUMN-LABEL "Slut!tid" FORMAT "9999":U
+      stanstid.OVERTIDUTTAG COLUMN-LABEL "Ö-tid!uttag" FORMAT "x(1)":U
+      stanstid.UTRYCKNING COLUMN-LABEL "Ut-!ryck." FORMAT "Ja/Nej":U
+      stanstid.VECKOVILA COLUMN-LABEL "Vecko-!vila" FORMAT "Ja/Nej":U
+      stanstid.LONTILLAGG COLUMN-LABEL "Lart" FORMAT "x(4)":U
+      stanstid.LONTILLANTAL COLUMN-LABEL "Antal" FORMAT ">>>>>>9.<<":U
+      stanstid.VIBEFATTNING COLUMN-LABEL "Avvikande!befattning" FORMAT "x(15)":U
+  ENABLE
+      stanstid.PERSONALKOD
+      stanstid.DATUM
+      stanstid.AONR
+      stanstid.DELNR
+      stanstid.TRAKTAMENTE
+      stanstid.START
+      stanstid.SLUT
+      stanstid.OVERTIDUTTAG
+      stanstid.UTRYCKNING
+      stanstid.VECKOVILA
+      stanstid.LONTILLAGG
+      stanstid.LONTILLANTAL
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH NO-COLUMN-SCROLLING SIZE 97.25 BY 10.68.
+
+
+/* ************************  Frame Definitions  *********************** */
+
+DEFINE FRAME DEFAULT-FRAME
+     FILL-IN_PERSONALKOD AT ROW 2.77 COL 16.13 COLON-ALIGNED
+     FILL-IN_FORNAMN AT ROW 2.77 COL 33.38 COLON-ALIGNED
+     FILL-IN_EFTERNAMN AT ROW 2.77 COL 65.38 COLON-ALIGNED
+     FILL-IN-AR AT ROW 4 COL 2.25 COLON-ALIGNED NO-LABEL
+     FILL-IN-MANAD AT ROW 4 COL 11.5 COLON-ALIGNED NO-LABEL
+     CMB_BEF AT ROW 4 COL 56.25 COLON-ALIGNED
+     stanstid.FELTXT AT ROW 5.32 COL 56.25 COLON-ALIGNED
+          LABEL "Feltext" FORMAT "X(68)"
+          VIEW-AS FILL-IN 
+          SIZE 37.75 BY .91
+          FGCOLOR 12 FONT 11
+     BRW_STANS AT ROW 6.41 COL 1
+     FILL-IN-REGIS AT ROW 6.59 COL 3.75 COLON-ALIGNED NO-LABEL
+     FILL-IN_NAMN AT ROW 6.59 COL 23.25 COLON-ALIGNED HELP
+          "ANGE ORAGNISTIONENSBENÄMNING" NO-LABEL
+     FILL-IN_EFTERNAMN-2 AT ROW 6.59 COL 44.75 COLON-ALIGNED NO-LABEL
+     FILL-IN_VECKONUMMER AT ROW 9.64 COL 32.88 COLON-ALIGNED
+     RAD_ALLVAL AT ROW 13.05 COL 4.5 NO-LABEL
+     FILL-IN-VALFA AT ROW 17.18 COL 60.13 COLON-ALIGNED NO-LABEL
+     BTN_NVE AT ROW 18.27 COL 72.5
+     BTN_NVE-2 AT ROW 18.27 COL 91.5
+     FILL-IN_PERSONALPERIOD AT ROW 18.59 COL 22.88 COLON-ALIGNED AUTO-RETURN 
+     FILL-IN_AONR AT ROW 18.59 COL 35.13 COLON-ALIGNED AUTO-RETURN 
+     FILL-IN_DELNR AT ROW 18.59 COL 49.63 COLON-ALIGNED AUTO-RETURN 
+     FILL-IN-STARTDAT AT ROW 18.64 COL 60.5 COLON-ALIGNED AUTO-RETURN 
+     FILL-IN-STOPPDAT AT ROW 18.64 COL 79.5 COLON-ALIGNED AUTO-RETURN 
+     BTN_FVE AT ROW 19.09 COL 72.5
+     BTN_FVE-2 AT ROW 19.09 COL 91.5
+     FILL-IN_VIBEFATTNING AT ROW 20.36 COL 76 COLON-ALIGNED HELP
+          "BEFATTNINGSKOD"
+     BTN_REG AT ROW 20.68 COL 14.5
+     BTN_PREG AT ROW 20.68 COL 28.5
+     BTN_KONTROLL AT ROW 20.68 COL 42.5
+     BTN_GOD AT ROW 20.68 COL 56.5
+     BTN_AVB AT ROW 20.68 COL 70.5
+     CMB_PRISTYP AT ROW 21.77 COL 83 COLON-ALIGNED
+     FILL-IN-PRISTYP AT ROW 22.27 COL 84 COLON-ALIGNED
+     BTN_TJRESA AT ROW 22.45 COL 14.63
+     BTN_BERED AT ROW 22.45 COL 28.5
+     BTN_RES AT ROW 22.45 COL 42.5
+     BTN_VISA AT ROW 22.45 COL 56.5
+     FILL-IN-PRIS AT ROW 22.82 COL 86 COLON-ALIGNED
+     RECT-32 AT ROW 1 COL 1
+     RECT-36 AT ROW 20.32 COL 12.5
+     "Person som tidskrivs:" VIEW-AS TEXT
+          SIZE 45.75 BY 1.09 AT ROW 1.64 COL 16.88
+          FONT 17
+     "Period registrering:" VIEW-AS TEXT
+          SIZE 20.63 BY .86 AT ROW 17.59 COL 5.38
+    WITH 1 DOWN NO-BOX OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 1
+         SIZE 98.88 BY 24.14.
+
+
+/* *********************** Procedure Settings ************************ */
+
+&ANALYZE-SUSPEND _PROCEDURE-SETTINGS
+/* Settings for THIS-PROCEDURE
+   Type: Window
+   Allow: Basic,Browse,DB-Fields,Window,Query
+   Temp-Tables and Buffers:
+      TABLE: ? T "?" NO-UNDO temp-db stanstid
+   END-TABLES.
+ */
+&ANALYZE-RESUME _END-PROCEDURE-SETTINGS
+
+/* *************************  Create Window  ************************** */
+
+&ANALYZE-SUSPEND _CREATE-WINDOW
+IF SESSION:DISPLAY-TYPE = "GUI":U THEN
+  CREATE WINDOW C-Win ASSIGN
+         HIDDEN             = YES
+         TITLE              = "Stansning av tiduppgifter"
+         HEIGHT             = 24.14
+         WIDTH              = 99.75
+         MAX-HEIGHT         = 24.59
+         MAX-WIDTH          = 99.75
+         VIRTUAL-HEIGHT     = 24.59
+         VIRTUAL-WIDTH      = 99.75
+         RESIZE             = yes
+         SCROLL-BARS        = no
+         STATUS-AREA        = no
+         BGCOLOR            = ?
+         FGCOLOR            = ?
+         KEEP-FRAME-Z-ORDER = yes
+         THREE-D            = yes
+         MESSAGE-AREA       = no
+         SENSITIVE          = yes.
+ELSE {&WINDOW-NAME} = CURRENT-WINDOW.
+/* END WINDOW DEFINITION                                                */
+&ANALYZE-RESUME
+
+
+
+/* ***********  Runtime Attributes and AppBuilder Settings  *********** */
+
+&ANALYZE-SUSPEND _RUN-TIME-ATTRIBUTES
+/* SETTINGS FOR WINDOW C-Win
+  NOT-VISIBLE,,RUN-PERSISTENT                                           */
+/* SETTINGS FOR FRAME DEFAULT-FRAME
+                                                                        */
+/* BROWSE-TAB BRW_STANS FELTXT DEFAULT-FRAME */
+/* SETTINGS FOR BUTTON BTN_BERED IN FRAME DEFAULT-FRAME
+   NO-ENABLE                                                            */
+ASSIGN 
+       BTN_BERED:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+ASSIGN 
+       BTN_FVE:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+ASSIGN 
+       BTN_FVE-2:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR BUTTON BTN_GOD IN FRAME DEFAULT-FRAME
+   NO-ENABLE                                                            */
+ASSIGN 
+       BTN_GOD:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR BUTTON BTN_KONTROLL IN FRAME DEFAULT-FRAME
+   NO-ENABLE                                                            */
+ASSIGN 
+       BTN_KONTROLL:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+ASSIGN 
+       BTN_NVE:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+ASSIGN 
+       BTN_NVE-2:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR BUTTON BTN_RES IN FRAME DEFAULT-FRAME
+   NO-ENABLE                                                            */
+ASSIGN 
+       BTN_RES:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR BUTTON BTN_TJRESA IN FRAME DEFAULT-FRAME
+   NO-ENABLE                                                            */
+ASSIGN 
+       BTN_TJRESA:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR BUTTON BTN_VISA IN FRAME DEFAULT-FRAME
+   NO-ENABLE                                                            */
+ASSIGN 
+       BTN_VISA:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR COMBO-BOX CMB_BEF IN FRAME DEFAULT-FRAME
+   NO-DISPLAY NO-ENABLE                                                 */
+ASSIGN 
+       CMB_BEF:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR COMBO-BOX CMB_PRISTYP IN FRAME DEFAULT-FRAME
+   NO-DISPLAY NO-ENABLE                                                 */
+ASSIGN 
+       CMB_PRISTYP:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR FILL-IN stanstid.FELTXT IN FRAME DEFAULT-FRAME
+   NO-ENABLE EXP-LABEL EXP-FORMAT                                       */
+/* SETTINGS FOR FILL-IN FILL-IN-AR IN FRAME DEFAULT-FRAME
+   NO-DISPLAY NO-ENABLE                                                 */
+ASSIGN 
+       FILL-IN-AR:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-MANAD IN FRAME DEFAULT-FRAME
+   NO-DISPLAY NO-ENABLE                                                 */
+ASSIGN 
+       FILL-IN-MANAD:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-PRIS IN FRAME DEFAULT-FRAME
+   NO-DISPLAY NO-ENABLE                                                 */
+ASSIGN 
+       FILL-IN-PRIS:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-PRISTYP IN FRAME DEFAULT-FRAME
+   NO-DISPLAY NO-ENABLE                                                 */
+ASSIGN 
+       FILL-IN-PRISTYP:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-REGIS IN FRAME DEFAULT-FRAME
+   NO-DISPLAY NO-ENABLE                                                 */
+ASSIGN 
+       FILL-IN-REGIS:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN-VALFA IN FRAME DEFAULT-FRAME
+   NO-DISPLAY NO-ENABLE                                                 */
+ASSIGN 
+       FILL-IN-VALFA:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN_EFTERNAMN IN FRAME DEFAULT-FRAME
+   NO-ENABLE                                                            */
+/* SETTINGS FOR FILL-IN FILL-IN_EFTERNAMN-2 IN FRAME DEFAULT-FRAME
+   NO-DISPLAY NO-ENABLE                                                 */
+ASSIGN 
+       FILL-IN_EFTERNAMN-2:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN_FORNAMN IN FRAME DEFAULT-FRAME
+   NO-ENABLE                                                            */
+/* SETTINGS FOR FILL-IN FILL-IN_NAMN IN FRAME DEFAULT-FRAME
+   NO-DISPLAY NO-ENABLE                                                 */
+ASSIGN 
+       FILL-IN_NAMN:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN_PERSONALKOD IN FRAME DEFAULT-FRAME
+   NO-ENABLE                                                            */
+/* SETTINGS FOR FILL-IN FILL-IN_VECKONUMMER IN FRAME DEFAULT-FRAME
+   NO-DISPLAY NO-ENABLE                                                 */
+ASSIGN 
+       FILL-IN_VECKONUMMER:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR FILL-IN FILL-IN_VIBEFATTNING IN FRAME DEFAULT-FRAME
+   NO-DISPLAY NO-ENABLE                                                 */
+ASSIGN 
+       FILL-IN_VIBEFATTNING:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+/* SETTINGS FOR RADIO-SET RAD_ALLVAL IN FRAME DEFAULT-FRAME
+   NO-DISPLAY SHARED NO-ENABLE                                          */
+ASSIGN 
+       RAD_ALLVAL:HIDDEN IN FRAME DEFAULT-FRAME           = TRUE.
+
+IF SESSION:DISPLAY-TYPE = "GUI":U AND VALID-HANDLE(C-Win)
+THEN C-Win:HIDDEN = yes.
+
+/* _RUN-TIME-ATTRIBUTES-END */
+&ANALYZE-RESUME
+
+
+/* Setting information for Queries and Browse Widgets fields            */
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_STANS
+/* Query rebuild information for BROWSE BRW_STANS
+     _TblList          = "Temp-Tables.stanstid"
+     _Options          = "NO-LOCK"
+     _FldNameList[1]   > Temp-Tables.stanstid.PERSONALKOD
+"stanstid.PERSONALKOD" "Enhet/!Sign" ? "character" ? ? ? ? ? ? yes ? no no ? yes no no "U" "" ""
+     _FldNameList[2]   > Temp-Tables.stanstid.DATUM
+"stanstid.DATUM" "Datum" ? "date" ? ? ? ? ? ? yes ? no no ? yes no no "U" "" ""
+     _FldNameList[3]   > Temp-Tables.stanstid.AONR
+"stanstid.AONR" "Aonr" ? "character" ? ? ? ? ? ? yes ? no no ? yes no no "U" "" ""
+     _FldNameList[4]   > Temp-Tables.stanstid.DELNR
+"stanstid.DELNR" "Del!nr" ">99" "integer" ? ? ? ? ? ? yes ? no no ? yes no no "U" "" ""
+     _FldNameList[5]   > Temp-Tables.stanstid.TRAKTAMENTE
+"stanstid.TRAKTAMENTE" "Tra.!zon" ? "integer" ? ? ? ? ? ? yes "" no no ? yes no no "U" "" ""
+     _FldNameList[6]   > Temp-Tables.stanstid.START
+"stanstid.START" "Start!tid" "9999" "decimal" ? ? ? ? ? ? yes ? no no ? yes no no "U" "" ""
+     _FldNameList[7]   > Temp-Tables.stanstid.SLUT
+"stanstid.SLUT" "Slut!tid" "9999" "decimal" ? ? ? ? ? ? yes ? no no ? yes no no "U" "" ""
+     _FldNameList[8]   > Temp-Tables.stanstid.OVERTIDUTTAG
+"stanstid.OVERTIDUTTAG" "Ö-tid!uttag" ? "character" ? ? ? ? ? ? yes "" no no ? yes no no "U" "" ""
+     _FldNameList[9]   > Temp-Tables.stanstid.UTRYCKNING
+"stanstid.UTRYCKNING" "Ut-!ryck." "Ja/Nej" "logical" ? ? ? ? ? ? yes "" no no ? yes no no "U" "" ""
+     _FldNameList[10]   > Temp-Tables.stanstid.VECKOVILA
+"stanstid.VECKOVILA" "Vecko-!vila" "Ja/Nej" "logical" ? ? ? ? ? ? yes ? no no ? yes no no "U" "" ""
+     _FldNameList[11]   > Temp-Tables.stanstid.LONTILLAGG
+"stanstid.LONTILLAGG" "Lart" ? "character" ? ? ? ? ? ? yes ? no no ? yes no no "U" "" ""
+     _FldNameList[12]   > Temp-Tables.stanstid.LONTILLANTAL
+"stanstid.LONTILLANTAL" "Antal" ">>>>>>9.<<" "decimal" ? ? ? ? ? ? yes ? no no ? yes no no "U" "" ""
+     _FldNameList[13]   > Temp-Tables.stanstid.VIBEFATTNING
+"stanstid.VIBEFATTNING" "Avvikande!befattning" ? "character" ? ? ? ? ? ? no "" no no ? yes no no "U" "" ""
+     _Query            is OPENED
+*/  /* BROWSE BRW_STANS */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _QUERY-BLOCK FRAME DEFAULT-FRAME
+/* Query rebuild information for FRAME DEFAULT-FRAME
+     _Options          = "SHARE-LOCK KEEP-EMPTY"
+     _Query            is NOT OPENED
+*/  /* FRAME DEFAULT-FRAME */
+&ANALYZE-RESUME
+
+ 
+
+
+
+/* ************************  Control Triggers  ************************ */
+
+&Scoped-define SELF-NAME C-Win
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL C-Win C-Win
+ON END-ERROR OF C-Win /* Stansning av tiduppgifter */
+OR ENDKEY OF {&WINDOW-NAME} ANYWHERE DO:
+  /* This case occurs when the user presses the "Esc" key.
+     In a persistently run window, just ignore this.  If we did not, the
+     application would exit. */
+  IF THIS-PROCEDURE:PERSISTENT THEN RETURN NO-APPLY.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL C-Win C-Win
+ON WINDOW-CLOSE OF C-Win /* Stansning av tiduppgifter */
+DO:
+  /* This event will close the window and terminate the procedure.  */
+  APPLY "CLOSE":U TO THIS-PROCEDURE.
+  RETURN NO-APPLY.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define BROWSE-NAME BRW_STANS
+&Scoped-define SELF-NAME BRW_STANS
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_STANS C-Win
+ON VALUE-CHANGED OF BRW_STANS IN FRAME DEFAULT-FRAME
+DO:
+   DISPLAY stanstid.FELTXT WITH FRAME {&FRAME-NAME}.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME stanstid.PERSONALKOD
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.PERSONALKOD BRW_STANS _BROWSE-COLUMN C-Win
+ON ANY-KEY OF stanstid.PERSONALKOD IN BROWSE BRW_STANS /* Enhet/!Sign */
+DO:
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:            
+      APPLY "ENTRY" TO stanstid.DATUM IN BROWSE BRW_STANS.      
+      RETURN NO-APPLY.      
+   END.   
+   IF LENGTH(INPUT stanstid.PERSONALKOD) >= 5 THEN DO:
+   END.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.PERSONALKOD BRW_STANS _BROWSE-COLUMN C-Win
+ON ENTRY OF stanstid.PERSONALKOD IN BROWSE BRW_STANS /* Enhet/!Sign */
+DO:
+   RUN visa_UI.  
+   IF stanstid.FELNR NE 1 THEN DO:      
+      IF stanstid.FELNR NE 0 THEN DO:
+         RUN felnr_UI. 
+         stanstid.FELNR = 0.    
+         IF musz = TRUE THEN DO:
+            musz = FALSE.
+            RETURN NO-APPLY.        
+         END.   
+        
+       /*  APPLY "LEAVE" TO stanstid.PERSONALKOD IN BROWSE BRW_STANS.*/
+      END.
+   END.      
+   RUN perskoll_UI. 
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.PERSONALKOD BRW_STANS _BROWSE-COLUMN C-Win
+ON LEAVE OF stanstid.PERSONALKOD IN BROWSE BRW_STANS /* Enhet/!Sign */
+DO:
+   stanstid.PERSONALKOD = INPUT BROWSE BRW_STANS stanstid.PERSONALKOD.
+   DISPLAY stanstid.PERSONALKOD WITH BROWSE BRW_STANS.
+   RUN perskoll_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME stanstid.DATUM
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.DATUM BRW_STANS _BROWSE-COLUMN C-Win
+ON ANY-KEY OF stanstid.DATUM IN BROWSE BRW_STANS /* Datum */
+DO:
+   /*wh = brw_stans:current-column in frame {&FRAME-NAME}.*/
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:            
+      APPLY "ENTRY" TO stanstid.AONR IN BROWSE BRW_STANS.      
+      RETURN NO-APPLY.      
+   END.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.DATUM BRW_STANS _BROWSE-COLUMN C-Win
+ON ENTRY OF stanstid.DATUM IN BROWSE BRW_STANS /* Datum */
+DO:
+   RUN visa_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.DATUM BRW_STANS _BROWSE-COLUMN C-Win
+ON LEAVE OF stanstid.DATUM IN BROWSE BRW_STANS /* Datum */
+DO:
+   stanstid.DATUM = INPUT BROWSE BRW_STANS stanstid.DATUM.
+   DISPLAY stanstid.DATUM WITH BROWSE BRW_STANS.
+   IF stanstid.DATUM = ? THEN DO:
+      MESSAGE  "Datum måste fyllas i" VIEW-AS ALERT-BOX.
+      APPLY "ENTRY" TO stanstid.DATUM IN BROWSE BRW_STANS.      
+      RETURN NO-APPLY.      
+   END.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME stanstid.AONR
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.AONR BRW_STANS _BROWSE-COLUMN C-Win
+ON ANY-KEY OF stanstid.AONR IN BROWSE BRW_STANS /* Aonr */
+DO:
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:            
+      APPLY "ENTRY" TO stanstid.DELNR IN BROWSE BRW_STANS.      
+      RETURN NO-APPLY.      
+   END.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.AONR BRW_STANS _BROWSE-COLUMN C-Win
+ON ENTRY OF stanstid.AONR IN BROWSE BRW_STANS /* Aonr */
+DO:
+   RUN visa_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.AONR BRW_STANS _BROWSE-COLUMN C-Win
+ON LEAVE OF stanstid.AONR IN BROWSE BRW_STANS /* Aonr */
+DO:
+   stanstid.AONR = INPUT BROWSE BRW_STANS stanstid.AONR.
+   DISPLAY stanstid.AONR WITH BROWSE BRW_STANS.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME stanstid.DELNR
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.DELNR BRW_STANS _BROWSE-COLUMN C-Win
+ON ANY-KEY OF stanstid.DELNR IN BROWSE BRW_STANS /* Del!nr */
+DO:
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:            
+      APPLY "ENTRY" TO stanstid.TRAKTAMENTE IN BROWSE BRW_STANS.      
+      RETURN NO-APPLY.      
+   END.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.DELNR BRW_STANS _BROWSE-COLUMN C-Win
+ON ENTRY OF stanstid.DELNR IN BROWSE BRW_STANS /* Del!nr */
+DO:
+   RUN visa_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.DELNR BRW_STANS _BROWSE-COLUMN C-Win
+ON LEAVE OF stanstid.DELNR IN BROWSE BRW_STANS /* Del!nr */
+DO:
+   stanstid.DELNR = INPUT BROWSE BRW_STANS stanstid.DELNR.
+   DISPLAY stanstid.DELNR WITH BROWSE BRW_STANS.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME stanstid.TRAKTAMENTE
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.TRAKTAMENTE BRW_STANS _BROWSE-COLUMN C-Win
+ON ANY-KEY OF stanstid.TRAKTAMENTE IN BROWSE BRW_STANS /* Tra.!zon */
+DO:
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:            
+      APPLY "ENTRY" TO stanstid.START IN BROWSE BRW_STANS.      
+      RETURN NO-APPLY.      
+   END.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.TRAKTAMENTE BRW_STANS _BROWSE-COLUMN C-Win
+ON ENTRY OF stanstid.TRAKTAMENTE IN BROWSE BRW_STANS /* Tra.!zon */
+DO:
+   RUN visa_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.TRAKTAMENTE BRW_STANS _BROWSE-COLUMN C-Win
+ON LEAVE OF stanstid.TRAKTAMENTE IN BROWSE BRW_STANS /* Tra.!zon */
+DO:
+   stanstid.TRAKTAMENTE = INPUT BROWSE BRW_STANS stanstid.TRAKTAMENTE.
+   DISPLAY stanstid.TRAKTAMENTE WITH BROWSE BRW_STANS.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME stanstid.START
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.START BRW_STANS _BROWSE-COLUMN C-Win
+ON ANY-KEY OF stanstid.START IN BROWSE BRW_STANS /* Start!tid */
+DO:
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:            
+      APPLY "ENTRY" TO stanstid.SLUT IN BROWSE BRW_STANS.      
+      RETURN NO-APPLY.      
+   END.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.START BRW_STANS _BROWSE-COLUMN C-Win
+ON ENTRY OF stanstid.START IN BROWSE BRW_STANS /* Start!tid */
+DO:
+   RUN visa_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.START BRW_STANS _BROWSE-COLUMN C-Win
+ON LEAVE OF stanstid.START IN BROWSE BRW_STANS /* Start!tid */
+DO:
+   stanstid.START = INPUT BROWSE BRW_STANS stanstid.START.
+   DISPLAY stanstid.START WITH BROWSE BRW_STANS.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME stanstid.SLUT
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.SLUT BRW_STANS _BROWSE-COLUMN C-Win
+ON ANY-KEY OF stanstid.SLUT IN BROWSE BRW_STANS /* Slut!tid */
+DO:
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:            
+      APPLY "ENTRY" TO stanstid.OVERTIDUTTAG IN BROWSE BRW_STANS.      
+      RETURN NO-APPLY.      
+   END.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.SLUT BRW_STANS _BROWSE-COLUMN C-Win
+ON ENTRY OF stanstid.SLUT IN BROWSE BRW_STANS /* Slut!tid */
+DO:
+   RUN visa_UI.
+   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.SLUT BRW_STANS _BROWSE-COLUMN C-Win
+ON LEAVE OF stanstid.SLUT IN BROWSE BRW_STANS /* Slut!tid */
+DO:
+   stanstid.SLUT = INPUT BROWSE BRW_STANS stanstid.SLUT.
+   DISPLAY stanstid.SLUT WITH BROWSE BRW_STANS.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME stanstid.OVERTIDUTTAG
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.OVERTIDUTTAG BRW_STANS _BROWSE-COLUMN C-Win
+ON ANY-KEY OF stanstid.OVERTIDUTTAG IN BROWSE BRW_STANS /* Ö-tid!uttag */
+DO:
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:            
+      APPLY "ENTRY" TO stanstid.UTRYCKNING IN BROWSE BRW_STANS.      
+      RETURN NO-APPLY.      
+   END.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.OVERTIDUTTAG BRW_STANS _BROWSE-COLUMN C-Win
+ON ENTRY OF stanstid.OVERTIDUTTAG IN BROWSE BRW_STANS /* Ö-tid!uttag */
+DO:
+   RUN visa_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.OVERTIDUTTAG BRW_STANS _BROWSE-COLUMN C-Win
+ON LEAVE OF stanstid.OVERTIDUTTAG IN BROWSE BRW_STANS /* Ö-tid!uttag */
+DO:
+   stanstid.OVERTIDUTTAG = INPUT BROWSE BRW_STANS stanstid.OVERTIDUTTAG.
+   DISPLAY stanstid.OVERTIDUTTAG WITH BROWSE BRW_STANS.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME stanstid.UTRYCKNING
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.UTRYCKNING BRW_STANS _BROWSE-COLUMN C-Win
+ON ANY-KEY OF stanstid.UTRYCKNING IN BROWSE BRW_STANS /* Ut-!ryck. */
+DO:
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:            
+      APPLY "ENTRY" TO stanstid.VECKOVILA IN BROWSE BRW_STANS.      
+      RETURN NO-APPLY.      
+   END.
+
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.UTRYCKNING BRW_STANS _BROWSE-COLUMN C-Win
+ON ENTRY OF stanstid.UTRYCKNING IN BROWSE BRW_STANS /* Ut-!ryck. */
+DO:
+   RUN visa_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.UTRYCKNING BRW_STANS _BROWSE-COLUMN C-Win
+ON LEAVE OF stanstid.UTRYCKNING IN BROWSE BRW_STANS /* Ut-!ryck. */
+DO:
+   stanstid.UTRYCKNING = INPUT BROWSE BRW_STANS stanstid.UTRYCKNING.
+   DISPLAY stanstid.UTRYCKNING WITH BROWSE BRW_STANS.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME stanstid.VECKOVILA
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.VECKOVILA BRW_STANS _BROWSE-COLUMN C-Win
+ON ANY-KEY OF stanstid.VECKOVILA IN BROWSE BRW_STANS /* Vecko-!vila */
+DO:
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:            
+      APPLY "ENTRY" TO stanstid.LONTILLAGG IN BROWSE BRW_STANS.      
+      RETURN NO-APPLY.      
+   END.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.VECKOVILA BRW_STANS _BROWSE-COLUMN C-Win
+ON ENTRY OF stanstid.VECKOVILA IN BROWSE BRW_STANS /* Vecko-!vila */
+DO:
+   RUN visa_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.VECKOVILA BRW_STANS _BROWSE-COLUMN C-Win
+ON LEAVE OF stanstid.VECKOVILA IN BROWSE BRW_STANS /* Vecko-!vila */
+DO:
+   stanstid.VECKOVILA = INPUT BROWSE BRW_STANS stanstid.VECKOVILA.
+   DISPLAY stanstid.VECKOVILA WITH BROWSE BRW_STANS.
+
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME stanstid.LONTILLAGG
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.LONTILLAGG BRW_STANS _BROWSE-COLUMN C-Win
+ON ANY-KEY OF stanstid.LONTILLAGG IN BROWSE BRW_STANS /* Lart */
+DO:
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:            
+      APPLY "ENTRY" TO stanstid.LONTILLANTAL IN BROWSE BRW_STANS.      
+      RETURN NO-APPLY.      
+   END.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.LONTILLAGG BRW_STANS _BROWSE-COLUMN C-Win
+ON ENTRY OF stanstid.LONTILLAGG IN BROWSE BRW_STANS /* Lart */
+DO:
+   RUN visa_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.LONTILLAGG BRW_STANS _BROWSE-COLUMN C-Win
+ON LEAVE OF stanstid.LONTILLAGG IN BROWSE BRW_STANS /* Lart */
+DO:
+   stanstid.LONTILLAGG = INPUT BROWSE BRW_STANS stanstid.LONTILLAGG.
+   DISPLAY stanstid.LONTILLAGG WITH BROWSE BRW_STANS. 
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME stanstid.LONTILLANTAL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.LONTILLANTAL BRW_STANS _BROWSE-COLUMN C-Win
+ON ANY-KEY OF stanstid.LONTILLANTAL IN BROWSE BRW_STANS /* Antal */
+DO:
+   forsta = FALSE.
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:   
+      IF stanstid.FELTXT = "" THEN DO:            
+         APPLY "LEAVE" TO stanstid.LONTILLANTAL IN BROWSE BRW_STANS.         
+         forsta = TRUE.
+         APPLY "ENTRY" TO stanstid.PERSONALKOD IN BROWSE BRW_STANS.
+         RETURN NO-APPLY.
+      END.
+      ELSE DO:
+         GET NEXT BRW_STANS NO-LOCK.
+         IF NOT AVAILABLE stanstid THEN GET FIRST BRW_STANS NO-LOCK.
+         IF AVAILABLE stanstid THEN DO: 
+            stansrec = RECID(stanstid).
+            RUN repoao_UI (INPUT stansrec).
+            APPLY "ENTRY" TO stanstid.PERSONALKOD IN BROWSE BRW_STANS.
+            RETURN NO-APPLY.
+         END.   
+      END.   
+   END.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.LONTILLANTAL BRW_STANS _BROWSE-COLUMN C-Win
+ON ENDKEY OF stanstid.LONTILLANTAL IN BROWSE BRW_STANS /* Antal */
+DO:
+   APPLY "ENTRY" TO stanstid.PERSONALKOD IN BROWSE BRW_STANS.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.LONTILLANTAL BRW_STANS _BROWSE-COLUMN C-Win
+ON ENTRY OF stanstid.LONTILLANTAL IN BROWSE BRW_STANS /* Antal */
+DO:
+   RUN visa_UI.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL stanstid.LONTILLANTAL BRW_STANS _BROWSE-COLUMN C-Win
+ON LEAVE OF stanstid.LONTILLANTAL IN BROWSE BRW_STANS /* Antal */
+DO:  
+   IF forsta = TRUE THEN forsta = FALSE.
+   ELSE DO:      
+      stanstid.LONTILLANTAL = INPUT BROWSE BRW_STANS stanstid.LONTILLANTAL.
+      DISPLAY stanstid.LONTILLANTAL WITH BROWSE BRW_STANS.   
+      IF stanstid.FELTXT = "" THEN DO:
+         IF stanstid.PERSONALKOD = "" AND kollraknare = FALSE THEN DO:
+            DELETE stanstid.
+            FIND FIRST stanstid NO-ERROR.
+            IF NOT AVAILABLE stanstid THEN DO:
+               kollraknare = TRUE.
+               RUN ngnkey_UI.
+               APPLY "ENDKEY" TO stanstid.LONTILLANTAL IN BROWSE BRW_STANS.
+            END.
+            ELSE status-ok = BRW_STANS:REFRESH() IN FRAME {&FRAME-NAME}.
+         END.
+         ELSE IF stanstid.PERSONALKOD NE "" THEN DO: 
+            kollraknare = FALSE.
+            RUN ngnkey_UI.   
+            APPLY "ENDKEY" TO stanstid.LONTILLANTAL IN BROWSE BRW_STANS.
+         END.  
+         ELSE DO:
+            APPLY "ENDKEY" TO stanstid.LONTILLANTAL IN BROWSE BRW_STANS.
+         END.
+      END.  
+      ELSE IF stanstid.PERSONALKOD = "" THEN DO:
+         DELETE stanstid.
+         FIND FIRST stanstid NO-ERROR.
+         IF NOT AVAILABLE stanstid THEN DO:
+            kollraknare = TRUE.
+            RUN ngnkey_UI.
+            APPLY "ENDKEY" TO stanstid.LONTILLANTAL IN BROWSE BRW_STANS.
+         END.
+         ELSE status-ok = BRW_STANS:REFRESH() IN FRAME {&FRAME-NAME}.
+      END.
+   END.   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_AVB
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_AVB C-Win
+ON CHOOSE OF BTN_AVB IN FRAME DEFAULT-FRAME /* Avbryt */
+DO:
+   
+   RETURN.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_BERED
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_BERED C-Win
+ON CHOOSE OF BTN_BERED IN FRAME DEFAULT-FRAME /* Beredskap */
+DO:
+   {muswait.i}   
+   IF NOT AVAILABLE stanstid THEN DO:
+      MESSAGE "Person måste vara ifylld" VIEW-AS ALERT-BOX.
+      APPLY "ENTRY" TO stanstid.PERSONALKOD IN BROWSE BRW_STANS.
+      RETURN.
+   END. 
+   ELSE DO:
+      IF stanstid.DATUM NE ? THEN regdatum = stanstid.DATUM. 
+      ELSE regdatum = TODAY.
+      FOR EACH tidpers:
+         DELETE tidpers.
+      END.
+      {SOKSTART.I}
+      ASSIGN
+      soktemp.SOKVAL = 13
+      soktemp.SOKCHAR[1] = stanstid.PERSONALKOD
+      soktemp.SOKLOG[1] = TRUE.
+      {SOKANROP.I}      
+      IF soktemp.SOKCHAR[1] = "FINNS EJ" THEN DO:
+         MESSAGE "Enhet/Sign är felaktit ifylld" VIEW-AS ALERT-BOX.
+         APPLY "ENTRY" TO stanstid.PERSONALKOD IN BROWSE BRW_STANS.
+         RETURN.
+      END.
+      ELSE DO:         
+         pkod = stanstid.PERSONALKOD.
+         RUN skapapers_UI (INPUT FALSE).
+         FIND FIRST tidpers WHERE tidpers.PERSONALKOD = pkod NO-ERROR.
+         IF NOT AVAILABLE tidpers THEN DO:
+            MESSAGE "Du är ej behörig att skriva tid på denna person!"
+            VIEW-AS ALERT-BOX.
+            RETURN.
+         END.
+      END.   
+   END.  
+   bdatum = DATE(MONTH(regdatum),01,YEAR(regdatum)).
+   regdatum = bdatum.
+   IF MONTH(regdatum) = 12 THEN avdatum = DATE(12,31,YEAR(regdatum)).
+   ELSE avdatum = DATE(MONTH(regdatum) + 1,01,YEAR(regdatum)) - 1.
+   
+   FIND FIRST tidpers NO-LOCK NO-ERROR.
+   {AVBGOM.I}
+   IF AVAILABLE tidpers THEN RUN BERREG.W (INPUT 1,INPUT tidpers.PERSONALKOD).
+   {AVBFRAM.I}
+   FOR EACH tidpers:
+      DELETE tidpers.
+   END.
+   {musarrow.i}  
+   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_FVE
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_FVE C-Win
+ON CHOOSE OF BTN_FVE IN FRAME DEFAULT-FRAME /* - */
+DO: 
+   ASSIGN
+   FILL-IN-STARTDAT = INPUT FILL-IN-STARTDAT.   
+   FILL-IN-STARTDAT = FILL-IN-STARTDAT - 1.      
+   DISPLAY FILL-IN-STARTDAT WITH FRAME {&FRAME-NAME}.     
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_FVE-2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_FVE-2 C-Win
+ON CHOOSE OF BTN_FVE-2 IN FRAME DEFAULT-FRAME /* - */
+DO: 
+   ASSIGN
+   FILL-IN-STOPPDAT = INPUT FILL-IN-STOPPDAT.   
+   FILL-IN-STOPPDAT = FILL-IN-STOPPDAT - 1.      
+   DISPLAY FILL-IN-STOPPDAT WITH FRAME {&FRAME-NAME}.     
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_GOD
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_GOD C-Win
+ON CHOOSE OF BTN_GOD IN FRAME DEFAULT-FRAME /* Godkänn */
+DO:
+   {muswait.i}
+   status-ok = BRW_STANS:SELECT-FOCUSED-ROW() NO-ERROR.
+   RUN godk_UI.
+   {musarrow.i}   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_KONTROLL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_KONTROLL C-Win
+ON CHOOSE OF BTN_KONTROLL IN FRAME DEFAULT-FRAME /* Kontroll */
+DO:
+   {muswait.i}   
+   status-ok = BRW_STANS:SELECT-FOCUSED-ROW() NO-ERROR.
+   IF AVAILABLE stanstid THEN DO:
+      IF stanstid.DATUM NE ? THEN regdatum = stanstid.DATUM. 
+   END.  
+   bdatum = DATE(MONTH(regdatum),01,YEAR(regdatum)).
+   regdatum = bdatum.
+   IF MONTH(regdatum) = 12 THEN avdatum = DATE(12,31,YEAR(regdatum)).
+   ELSE avdatum = DATE(MONTH(regdatum) + 1,01,YEAR(regdatum)) - 1.
+   FOR EACH tidpers:
+      DELETE tidpers.
+   END.
+   pkod = "".
+   FOR EACH tidpers:
+      DELETE tidpers.
+   END.
+   FOR EACH stanstid:
+      IF pkod NE stanstid.PERSONALKOD THEN DO:         
+         IF stanstid.PERSONALKOD NE "" THEN DO:
+            pkod = stanstid.PERSONALKOD.
+            {SOKSTART.I}
+            ASSIGN
+            soktemp.SOKVAL = 13
+            soktemp.SOKCHAR[1] = stanstid.PERSONALKOD
+            soktemp.SOKLOG[1] = TRUE.
+            {SOKANROP.I}      
+            IF soktemp.SOKCHAR[1] = "FINNS EJ" THEN musz = musz.
+            ELSE DO: 
+               RUN skapapers_UI (INPUT TRUE).
+               FIND FIRST tidpers WHERE tidpers.PERSONALKOD = pkod NO-ERROR.
+               IF NOT AVAILABLE tidpers THEN DO:
+                  MESSAGE "Du är ej behörig att skriva tid på denna person! " pkod
+                  VIEW-AS ALERT-BOX.
+                  RETURN.
+               END.
+            END.
+         END.
+      END.
+   END.     
+   FIND FIRST tidpers NO-LOCK NO-ERROR.
+   {AVBGOM.I}
+   IF AVAILABLE tidpers THEN RUN KTRLTID.W.
+   {AVBFRAM.I}
+   FOR EACH tidpers:
+      DELETE tidpers.
+   END.
+   {musarrow.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_NVE
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_NVE C-Win
+ON CHOOSE OF BTN_NVE IN FRAME DEFAULT-FRAME /* + */
+DO:   
+   ASSIGN
+   FILL-IN-STARTDAT = INPUT FILL-IN-STARTDAT.   
+   FILL-IN-STARTDAT = FILL-IN-STARTDAT + 1.        
+   DISPLAY FILL-IN-STARTDAT WITH FRAME {&FRAME-NAME}.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_NVE-2
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_NVE-2 C-Win
+ON CHOOSE OF BTN_NVE-2 IN FRAME DEFAULT-FRAME /* + */
+DO:   
+   ASSIGN
+   FILL-IN-STOPPDAT = INPUT FILL-IN-STOPPDAT.   
+   FILL-IN-STOPPDAT = FILL-IN-STOPPDAT + 1.        
+   DISPLAY FILL-IN-STOPPDAT WITH FRAME {&FRAME-NAME}.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_PREG
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_PREG C-Win
+ON CHOOSE OF BTN_PREG IN FRAME DEFAULT-FRAME /* Period */
+DO:
+   {muswait.i} 
+   RUN period_UI.
+   {musarrow.i}    
+   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_PREG C-Win
+ON GO OF BTN_PREG IN FRAME DEFAULT-FRAME /* Period */
+DO:
+   RETURN.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_PREG C-Win
+ON LEAVE OF BTN_PREG IN FRAME DEFAULT-FRAME /* Period */
+DO:
+   musz = musz.    
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_REG
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_REG C-Win
+ON CHOOSE OF BTN_REG IN FRAME DEFAULT-FRAME /* Registrera */
+DO:
+   {muswait.i} 
+   RUN regstart_UI.
+   {musarrow.i}    
+   APPLY "ENTRY" TO stanstid.PERSONALKOD IN BROWSE BRW_STANS.
+
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_REG C-Win
+ON GO OF BTN_REG IN FRAME DEFAULT-FRAME /* Registrera */
+DO:
+   RETURN.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_REG C-Win
+ON LEAVE OF BTN_REG IN FRAME DEFAULT-FRAME /* Registrera */
+DO:
+   musz = musz.    
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_RES
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_RES C-Win
+ON CHOOSE OF BTN_RES IN FRAME DEFAULT-FRAME /* Endags restid */
+DO:
+   status-ok = BRW_STANS:SELECT-FOCUSED-ROW() NO-ERROR.
+   IF NOT AVAILABLE stanstid THEN DO:
+      MESSAGE "Person måste vara ifylld" VIEW-AS ALERT-BOX.
+      APPLY "ENTRY" TO stanstid.PERSONALKOD IN BROWSE BRW_STANS.
+      RETURN NO-APPLY.
+   END.   
+   IF AVAILABLE stanstid THEN DO:
+      IF stanstid.DATUM NE ? THEN regdatum = stanstid.DATUM. 
+      ELSE regdatum = today.
+      {SOKSTART.I}
+      ASSIGN
+      soktemp.SOKVAL = 13
+      soktemp.SOKCHAR[1] = stanstid.PERSONALKOD
+      soktemp.SOKLOG[1] = TRUE.
+      {SOKANROP.I}      
+      IF soktemp.SOKCHAR[1] = "FINNS EJ" THEN DO:
+         MESSAGE "Enhet/Sign är felaktit ifylld" VIEW-AS ALERT-BOX.
+         APPLY "ENTRY" TO stanstid.PERSONALKOD IN BROWSE BRW_STANS.
+         RETURN NO-APPLY.
+      END.                                    
+      ASSIGN
+      varslut = stanstid.SLUT / 100
+      varbef = soktemp.SOKCHAR[4].
+   END.
+   RUN anst_UI (INPUT soktemp.SOKCHAR[2]).
+   RUN REGDAG.P.
+   RUN REGVEC.P.
+   IF MONTH(regdatum) = 12 THEN avdatum = DATE(12,31,YEAR(regdatum)).
+   ELSE avdatum = DATE(MONTH(regdatum) + 1,01,YEAR(regdatum)) - 1.
+   FOR EACH tidpers:
+      DELETE tidpers.
+   END.
+   {AVBGOM.I}
+   vart = "NYA".
+   RUN valdny_UI (INPUT TRUE).
+   RUN nytid_UI.
+   energiavt = FALSE.
+   IF Guru.Konstanter:globforetag = "ETA" OR Guru.Konstanter:globforetag = "ESAN" THEN DO:
+      IF (ansttemp.KOD = "KE" OR ansttemp.KOD = "TE" OR ansttemp.KOD = "KH" OR 
+      ansttemp.KOD = "TH" OR ansttemp.KOD = "T4" ) THEN ASSIGN energiavt = TRUE.
+   END.   
+   ELSE IF Guru.Konstanter:globforetag = "SUND" THEN ASSIGN energiavt = TRUE.
+   ELSE IF Guru.Konstanter:globforetag = "GKAL" THEN ASSIGN energiavt = TRUE.
+   {SOKSTART.I}
+    ASSIGN
+   soktemp.SOKVAL = 1
+   soktemp.SOKINT[1] = varforetypval[4]
+   soktemp.SOKCHAR[2] = stanstid.PERSONALKOD
+   soktemp.SOKCHAR[3] = "RESTID..."
+   soktemp.SOKCHAR[4] = varbef 
+   soktemp.SOKDATE[1] = extratidallt.DATUM.
+   {SOKANROP.I}
+   ASSIGN
+   extratidallt.PRIS = soktemp.SOKDECI[1].             
+   IF energiavt = TRUE THEN ASSIGN extratidallt.TRAKTAMENTE = 00.         
+   ELSE extratidallt.TRAKTAMENTE = 01.
+   IF extratidallt.DATUM = ? THEN extratidallt.DATUM = TODAY.
+   ASSIGN 
+   extratidallt.ENFLERDAGS = "Endag"
+   extratidallt.PRISTYP = "RESTID...".
+   {AVBGOM.I}
+   RUN RESANDAW.W (INPUT extratidallt.PERSONALKOD,INPUT TABLE extratidallt).
+   {AVBFRAM.I}                   
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_TJRESA
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_TJRESA C-Win
+ON CHOOSE OF BTN_TJRESA IN FRAME DEFAULT-FRAME /* Tjresa */
+DO:
+   {muswait.i}   
+   IF NOT AVAILABLE stanstid THEN DO:
+      MESSAGE "Person måste vara ifylld" VIEW-AS ALERT-BOX.
+      APPLY "ENTRY" TO stanstid.PERSONALKOD IN BROWSE BRW_STANS.
+      RETURN.
+   END. 
+   ELSE DO:
+      IF stanstid.DATUM NE ? THEN regdatum = stanstid.DATUM. 
+      ELSE regdatum = TODAY.
+      FOR EACH tidpers:
+         DELETE tidpers.
+      END.
+      {SOKSTART.I}
+      ASSIGN
+      soktemp.SOKVAL = 13
+      soktemp.SOKCHAR[1] = stanstid.PERSONALKOD
+      soktemp.SOKLOG[1] = TRUE.
+      {SOKANROP.I}      
+      IF soktemp.SOKCHAR[1] = "FINNS EJ" THEN DO:
+         MESSAGE "Enhet/Sign är felaktit ifylld" VIEW-AS ALERT-BOX.
+         APPLY "ENTRY" TO stanstid.PERSONALKOD IN BROWSE BRW_STANS.
+         RETURN.
+      END.         
+      ELSE DO:
+         pkod = stanstid.PERSONALKOD.
+         RUN skapapers_UI (INPUT FALSE).
+         FIND FIRST tidpers WHERE tidpers.PERSONALKOD = pkod NO-ERROR.
+         IF NOT AVAILABLE tidpers THEN DO:
+            MESSAGE "Du är ej behörig att skriva tid på denna person! " pkod 
+            VIEW-AS ALERT-BOX.
+            RETURN.
+         END.
+      END.   
+   END.  
+   bdatum = DATE(MONTH(regdatum),01,YEAR(regdatum)).
+   regdatum = bdatum.
+   IF MONTH(regdatum) = 12 THEN avdatum = DATE(12,31,YEAR(regdatum)).
+   ELSE avdatum = DATE(MONTH(regdatum) + 1,01,YEAR(regdatum)) - 1.
+      
+   FIND FIRST tidpers NO-LOCK NO-ERROR.
+   {AVBGOM.I}
+   IF AVAILABLE tidallt THEN DO:
+      RUN RESREGN.W 
+      (INPUT tidallt.DATUM, INPUT tidallt.AONR, INPUT tidallt.DELNR, 
+       INPUT TRUE, INPUT 2,INPUT pkod).
+   END.
+   ELSE DO:
+      RUN RESREGN.W 
+      (INPUT regdatum, INPUT "", INPUT 0, INPUT TRUE, INPUT 2,INPUT pkod).
+   END.      
+   APPLY "VALUE-CHANGED" TO BRW_STANS IN FRAME {&FRAME-NAME}.
+   /*FÖNSTERPROBLEM*/
+   APPLY "ENTRY" TO BRW_STANS IN FRAME {&FRAME-NAME}.
+   {AVBFRAM.I}
+   FOR EACH tidpers:
+      DELETE tidpers.
+   END.
+   {musarrow.i}
+      
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_VISA
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_VISA C-Win
+ON CHOOSE OF BTN_VISA IN FRAME DEFAULT-FRAME /* Visa tids. */
+DO:
+    {muswait.i}   
+   IF NOT AVAILABLE stanstid THEN DO:
+      MESSAGE "Person måste vara ifylld" VIEW-AS ALERT-BOX.
+      APPLY "ENTRY" TO stanstid.PERSONALKOD IN BROWSE BRW_STANS.
+      RETURN.
+   END. 
+   IF AVAILABLE stanstid THEN DO:
+      IF stanstid.DATUM NE ? THEN regdatum = stanstid.DATUM. 
+      ELSE regdatum = TODAY.
+      FOR EACH tidpers:
+         DELETE tidpers.
+      END.
+      {SOKSTART.I}
+      ASSIGN
+      soktemp.SOKVAL = 13
+      soktemp.SOKCHAR[1] = stanstid.PERSONALKOD
+      soktemp.SOKLOG[1] = TRUE.
+      {SOKANROP.I}      
+      IF soktemp.SOKCHAR[1] = "FINNS EJ" THEN DO:
+         MESSAGE "Enhet/Sign är felaktit ifylld" VIEW-AS ALERT-BOX.
+         APPLY "ENTRY" TO stanstid.PERSONALKOD IN BROWSE BRW_STANS.
+         RETURN.
+      END.         
+      ELSE DO:
+         pkod = stanstid.PERSONALKOD.
+         RUN skapapers_UI (INPUT FALSE).
+         FIND FIRST tidpers WHERE tidpers.PERSONALKOD = pkod NO-ERROR.
+         IF NOT AVAILABLE tidpers THEN DO:
+            MESSAGE "Du är ej behörig att skriva tid på denna person!" pkod 
+            VIEW-AS ALERT-BOX.
+            RETURN.
+         END.
+      END. 
+   END.  
+   bdatum = DATE(MONTH(regdatum),01,YEAR(regdatum)).
+   regdatum = bdatum.
+   IF MONTH(regdatum) = 12 THEN avdatum = DATE(12,31,YEAR(regdatum)).
+   ELSE avdatum = DATE(MONTH(regdatum) + 1,01,YEAR(regdatum)) - 1.
+   ASSIGN   
+   brwbdatum = bdatum      
+   brwavdatum = avdatum
+   regdatum = bdatum.
+   
+   FIND FIRST tidpers NO-LOCK NO-ERROR.
+   {AVBGOM.I}
+   IF AVAILABLE tidpers THEN DO:
+      ASSIGN    
+      vaxla = TRUE.
+      RAD_TIDSVAL = 1.   
+      persrec = tidpers.TIDPERSREC.
+      RUN TIDSEDL.W.
+   END.   
+   {AVBFRAM.I}
+   FOR EACH tidpers:
+      DELETE tidpers.
+   END.
+   {musarrow.i}
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_VISA C-Win
+ON GO OF BTN_VISA IN FRAME DEFAULT-FRAME /* Visa tids. */
+DO:
+   RETURN.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME CMB_BEF
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL CMB_BEF C-Win
+ON VALUE-CHANGED OF CMB_BEF IN FRAME DEFAULT-FRAME /* Avvikande befattning */
+DO:
+   CMB_BEF = INPUT CMB_BEF.   
+   CMB_BEF = INPUT CMB_BEF.      
+   IF CMB_BEF = "Återställ bef" THEN DO: 
+      {SOKSTART.I}
+      ASSIGN
+      soktemp.SOKVAL = 13
+      soktemp.SOKCHAR[1] = stanstid.PERSONALKOD
+      soktemp.SOKLOG[1] = TRUE.
+      {SOKANROP.I}      
+      IF soktemp.SOKCHAR[1] = "FINNS EJ" THEN musz = musz.
+      ELSE DO:
+         FIND FIRST befvaltemp WHERE befvaltemp.BEFATTNING = soktemp.SOKCHAR[4]
+         USE-INDEX BEF NO-LOCK NO-ERROR.  
+         ASSIGN
+         stanstid.BEFATTNING = befvaltemp.BEFATTNING
+         stanstid.VIBEFATTNING = befvaltemp.VIBEFATTNING.
+      END.
+   END.
+   ELSE DO:
+      IF CMB_BEF = "Återställ bef" THEN DO:
+         stanstid.VIBEFATTNING = "" .
+      END.
+      ELSE DO:
+         FIND FIRST befvaltemp WHERE befvaltemp.VIBEFATTNING = CMB_BEF
+         USE-INDEX BEF NO-LOCK NO-ERROR.  
+         ASSIGN
+         stanstid.BEFATTNING = befvaltemp.BEFATTNING
+         stanstid.VIBEFATTNING = befvaltemp.VIBEFATTNING.
+      END.
+   END.
+   DISPLAY stanstid.VIBEFATTNING WITH BROWSE BRW_STANS.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FILL-IN-STARTDAT
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-STARTDAT C-Win
+ON LEAVE OF FILL-IN-STARTDAT IN FRAME DEFAULT-FRAME /* Från */
+DO:
+  FILL-IN-STARTDAT = INPUT FILL-IN-STARTDAT.
+  brwbdatum = FILL-IN-STARTDAT.
+  bdatum = FILL-IN-STARTDAT.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-STARTDAT C-Win
+ON MOUSE-MENU-CLICK OF FILL-IN-STARTDAT IN FRAME DEFAULT-FRAME /* Från */
+DO:
+   ASSIGN
+   FILL-IN-STARTDAT = INPUT FILL-IN-STARTDAT
+   regdatum = INPUT FILL-IN-STARTDAT.
+   RUN AlmanBtn.w.
+   FILL-IN-STARTDAT = regdatum.
+   DISPLAY FILL-IN-STARTDAT WITH FRAME {&FRAME-NAME}.
+   brwbdatum = FILL-IN-STARTDAT.
+   bdatum = FILL-IN-STARTDAT.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME FILL-IN-STOPPDAT
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-STOPPDAT C-Win
+ON LEAVE OF FILL-IN-STOPPDAT IN FRAME DEFAULT-FRAME /* Till */
+DO:
+   ASSIGN
+   FILL-IN-STOPPDAT = INPUT FILL-IN-STOPPDAT
+   brwavdatum = FILL-IN-STOPPDAT
+   avdatum = FILL-IN-STOPPDAT.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL FILL-IN-STOPPDAT C-Win
+ON MOUSE-MENU-CLICK OF FILL-IN-STOPPDAT IN FRAME DEFAULT-FRAME /* Till */
+DO: 
+   ASSIGN
+   FILL-IN-STOPPDAT = INPUT FILL-IN-STOPPDAT
+   regdatum = INPUT FILL-IN-STOPPDAT.
+   RUN AlmanBtn.w.
+   FILL-IN-STOPPDAT = regdatum.
+   DISPLAY FILL-IN-STOPPDAT WITH FRAME {&FRAME-NAME}.
+   brwavdatum = FILL-IN-STOPPDAT.
+   avdatum = FILL-IN-STOPPDAT.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&UNDEFINE SELF-NAME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CUSTOM _MAIN-BLOCK C-Win 
+
+
+/* ***************************  Main Block  *************************** */
+
+/* Set CURRENT-WINDOW: this will parent dialog-boxes and frames.        */
+ASSIGN CURRENT-WINDOW                = {&WINDOW-NAME} 
+       THIS-PROCEDURE:CURRENT-WINDOW = {&WINDOW-NAME}.
+
+/* The CLOSE event can be used from inside or outside the procedure to  */
+/* terminate it.                                                        */
+ON CLOSE OF THIS-PROCEDURE 
+   RUN disable_UI.
+
+/* Best default for GUI applications is...                              */
+PAUSE 0 BEFORE-HIDE.
+
+/* Now enable the interface and wait for the exit condition.            */
+/* (NOTE: handle ERROR and END-KEY so cleanup code will always fire.    */
+MAIN-BLOCK:
+DO ON ERROR   UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK
+   ON END-KEY UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK:
+   {muswait.i}
+   varforetypval[8] = 8.
+   FILL-IN-VALFA:HIDDEN IN FRAME {&FRAME-NAME} = TRUE.
+   CREATE stanstid.
+   status-ok = RAD_ALLVAL:DELETE("Ansvarig tidredovisare").
+   status-ok = RAD_ALLVAL:DELETE("Godkänner tidsedel").
+   status-ok = RAD_ALLVAL:DELETE("Område").
+   status-ok = RAD_ALLVAL:DELETE("Alla").
+   status-ok = RAD_ALLVAL:DELETE("Enhet/Sign").
+   status-ok = RAD_ALLVAL:DELETE("Markerade").
+   RAD_ALLVAL:ADD-LAST("Ansvarig tidredovisare",1).
+   RAD_ALLVAL:ADD-LAST("Godkänner tidsedel",2).
+   RAD_ALLVAL:ADD-LAST(Guru.Konstanter:gomrk,3).
+   RAD_ALLVAL:ADD-LAST("Alla",4).
+   RAD_ALLVAL:ADD-LAST("Enhet/Sign",5).
+   RAD_ALLVAL:ADD-LAST("Markerade",6).
+   ASSIGN   
+   stanstid.AONR:LABEL IN BROWSE BRW_STANS = Guru.Konstanter:gaok
+   FILL-IN_AONR:LABEL = Guru.Konstanter:gaok   
+   FILL-IN-STARTDAT = TODAY
+   FILL-IN-STOPPDAT = TODAY
+   kollraknare = TRUE
+   stanstid.ORDNING = 99
+   stanstid.UTRYCKNING = FALSE
+   stanstid.VECKOVILA = FALSE
+  /* stanstid.DATUM = ?*/
+   stanstid.OVERTIDUTTAG = "Ö"
+   stanstid.START = 0000
+   stanstid.SLUT = 0000.
+   IF Guru.Konstanter:globforetag = "ETA" OR Guru.Konstanter:globforetag = "CELPA" THEN stanstid.DATUM = ?.
+   IF Guru.Konstanter:globforetag = "ESAN" OR Guru.Konstanter:globforetag = "ELPA" THEN  musz = musz.
+   ELSE stanstid.VIBEFATTNING:LABEL IN BROWSE BRW_STANS = "".   
+   SESSION:DATA-ENTRY-RETURN = TRUE.   
+   RUN nextguru_UI.         
+   &Scoped-define FORMATNAMN stanstid.AONR
+   &Scoped-define BROWSE-NAME BRW_STANS
+   {AOFORMAT1.I}
+   &Scoped-define FORMATNAMN FILL-IN_AONR   
+   {AOFORMAT3.I}
+   
+   RUN enable_UI.   
+   IF Guru.Konstanter:appcon THEN DO:                           
+      RUN PERBEFPRIS2.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+      (INPUT "",INPUT ?,OUTPUT TABLE perspristemp,OUTPUT TABLE befvaltemp).   
+   END.
+   ELSE DO:
+      RUN PERBEFPRIS2.P 
+      (INPUT "",INPUT ?,OUTPUT TABLE perspristemp,OUTPUT TABLE befvaltemp).   
+   END. 
+   {AVVBEFW.I}
+   CMB_BEF:SCREEN-VALUE = "Återställ bef".
+   CMB_BEF = INPUT CMB_BEF.
+   
+   ASSIGN
+   FILL-IN-AR = regar
+   FILL-IN-MANAD = regmannamn.
+   ASSIGN
+   FILL-IN_VIBEFATTNING:HIDDEN IN FRAME {&FRAME-NAME} = TRUE.
+   
+   {musarrow.i}
+   {&WINDOW-NAME}:HIDDEN = FALSE.
+{&WINDOW-NAME}:MOVE-TO-TOP ().
+      
+   APPLY "ENTRY" TO BRW_STANS.
+   IF NOT THIS-PROCEDURE:PERSISTENT THEN
+   WAIT-FOR CLOSE OF THIS-PROCEDURE.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+/* **********************  Internal Procedures  *********************** */
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE anst_UI C-Win 
+PROCEDURE anst_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   DEFINE INPUT PARAMETER anstvar AS CHARACTER NO-UNDO. 
+   FIND FIRST ansttemp WHERE ansttemp.ANSTALLNING = anstvar
+   USE-INDEX ANSTF NO-LOCK NO-ERROR.       
+   FIND FIRST utryckningtemp WHERE utryckningtemp.KOD = ansttemp.KOD
+   USE-INDEX UT NO-LOCK NO-ERROR.             
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE disable_UI C-Win  _DEFAULT-DISABLE
+PROCEDURE disable_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     DISABLE the User Interface
+  Parameters:  <none>
+  Notes:       Here we clean-up the user-interface by deleting
+               dynamic widgets we have created and/or hide 
+               frames.  This procedure is usually called when
+               we are ready to "clean-up" after running.
+------------------------------------------------------------------------------*/
+  /* Delete the WINDOW we created */
+  IF SESSION:DISPLAY-TYPE = "GUI":U AND VALID-HANDLE(C-Win)
+  THEN DELETE WIDGET C-Win.
+  IF THIS-PROCEDURE:PERSISTENT THEN DELETE PROCEDURE THIS-PROCEDURE.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE enable_UI C-Win  _DEFAULT-ENABLE
+PROCEDURE enable_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     ENABLE the User Interface
+  Parameters:  <none>
+  Notes:       Here we display/view/enable the widgets in the
+               user-interface.  In addition, OPEN all queries
+               associated with each FRAME and BROWSE.
+               These statements here are based on the "Other 
+               Settings" section of the widget Property Sheets.
+------------------------------------------------------------------------------*/
+  DISPLAY FILL-IN_PERSONALKOD FILL-IN_FORNAMN FILL-IN_EFTERNAMN 
+          FILL-IN_PERSONALPERIOD FILL-IN_AONR FILL-IN_DELNR FILL-IN-STARTDAT 
+          FILL-IN-STOPPDAT 
+      WITH FRAME DEFAULT-FRAME IN WINDOW C-Win.
+  IF AVAILABLE stanstid THEN 
+    DISPLAY stanstid.FELTXT 
+      WITH FRAME DEFAULT-FRAME IN WINDOW C-Win.
+  ENABLE BRW_STANS BTN_NVE BTN_NVE-2 FILL-IN_PERSONALPERIOD FILL-IN_AONR 
+         FILL-IN_DELNR FILL-IN-STARTDAT FILL-IN-STOPPDAT BTN_FVE BTN_FVE-2 
+         BTN_REG BTN_PREG BTN_AVB RECT-32 RECT-36 
+      WITH FRAME DEFAULT-FRAME IN WINDOW C-Win.
+  {&OPEN-BROWSERS-IN-QUERY-DEFAULT-FRAME}
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE felnr_UI C-Win 
+PROCEDURE felnr_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/   
+   APPLY "VALUE-CHANGED" TO BRW_STANS IN FRAME {&FRAME-NAME}.
+   IF stanstid.FELNR NE 0 THEN musz = TRUE.
+   IF stanstid.FELNR = 1 THEN DO:
+      APPLY "ENTRY" TO stanstid.PERSONALKOD IN BROWSE BRW_STANS.
+      RETURN.
+   END.   
+   ELSE IF stanstid.FELNR = 2 THEN DO:
+      APPLY "ENTRY" TO stanstid.DATUM IN BROWSE BRW_STANS.
+      RETURN.
+   END.
+   ELSE IF stanstid.FELNR = 3 THEN DO:
+      APPLY "ENTRY" TO stanstid.OVERTIDUTTAG IN BROWSE BRW_STANS.
+      RETURN.
+   END.
+   ELSE IF stanstid.FELNR = 4 THEN DO:
+      APPLY "ENTRY" TO stanstid.TRAKTAMENTE IN BROWSE BRW_STANS.
+      RETURN.
+   END.
+   ELSE IF stanstid.FELNR = 5 THEN DO:
+      APPLY "ENTRY" TO stanstid.AONR IN BROWSE BRW_STANS.      
+      RETURN.
+   END.
+   ELSE IF stanstid.FELNR = 6 THEN DO:
+      APPLY "ENTRY" TO stanstid.LONTILLAGG IN BROWSE BRW_STANS.
+      RETURN.
+   END.
+   ELSE IF stanstid.FELNR = 7 THEN DO:
+      APPLY "ENTRY" TO stanstid.LONTILLANTAL IN BROWSE BRW_STANS.
+      RETURN.
+   END.
+   ELSE IF stanstid.FELNR = 8 THEN DO:
+      APPLY "ENTRY" TO stanstid.START IN BROWSE BRW_STANS.
+      RETURN.
+   END.
+   ELSE IF stanstid.FELNR = 9 THEN DO:
+      APPLY "ENTRY" TO stanstid.SLUT IN BROWSE BRW_STANS.
+      RETURN.
+   END.  
+   ELSE IF stanstid.FELNR = 10 THEN DO:
+      APPLY "ENTRY" TO stanstid.VECKOVILA IN BROWSE BRW_STANS.
+      RETURN.
+   END.   
+  
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE godk_UI C-Win 
+PROCEDURE godk_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   sok1 = "".
+   IF Guru.Konstanter:appcon THEN DO: 
+      RUN FLEXTIDH.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+      (INPUT 15,INPUT-OUTPUT sok1,INPUT-OUTPUT sok2,INPUT-OUTPUT sok3,
+      INPUT-OUTPUT sok4,INPUT-OUTPUT sok5).            
+   END.
+   ELSE DO:
+      RUN FLEXTIDH.P 
+      (INPUT 15,INPUT-OUTPUT sok1,INPUT-OUTPUT sok2,INPUT-OUTPUT sok3,
+      INPUT-OUTPUT sok4,INPUT-OUTPUT sok5).            
+   END.
+   IF sok1 = "KOR"  THEN DO:
+      MESSAGE "Det går inte att ändra godkända tidsedlar nu." Skip
+      "för det pågår en ekonomi- och lönesammanställning."
+      VIEW-AS ALERT-BOX.        
+      status-mus2 = SESSION:SET-WAIT-STATE("").
+      RETURN.      
+   END.  
+   IF AVAILABLE stanstid THEN DO:
+      IF stanstid.DATUM NE ? THEN regdatum = stanstid.DATUM. 
+      regar = YEAR(stanstid.DATUM).
+   END. 
+   ELSE DO:
+      ASSIGN regdatum = TODAY - 7
+      regar = YEAR(regdatum).
+   END.   
+   regmnr = MONTH(regdatum).
+   RUN MANNAMN.P. 
+   bdatum = DATE(MONTH(regdatum),01,YEAR(regdatum)).
+   regdatum = bdatum.
+   IF MONTH(regdatum) = 12 THEN avdatum = DATE(12,31,YEAR(regdatum)).
+   ELSE avdatum = DATE(MONTH(regdatum) + 1,01,YEAR(regdatum)) - 1.
+   FOR EACH tidpers:
+      DELETE tidpers.
+   END.
+   pkod = "".
+   FOR EACH stanstid:
+      IF pkod NE stanstid.PERSONALKOD THEN DO:         
+         IF stanstid.PERSONALKOD NE "" THEN DO:
+            pkod = stanstid.PERSONALKOD.
+            {SOKSTART.I}
+            ASSIGN
+            soktemp.SOKVAL = 13
+            soktemp.SOKCHAR[1] = stanstid.PERSONALKOD
+            soktemp.SOKLOG[1] = TRUE.
+            {SOKANROP.I}      
+            IF soktemp.SOKCHAR[1] = "FINNS EJ" THEN musz = musz.
+            ELSE DO:
+               RUN skapapers_UI (INPUT TRUE).
+               FIND FIRST tidpers WHERE tidpers.PERSONALKOD = pkod NO-ERROR.
+               IF NOT AVAILABLE tidpers THEN DO:
+                  MESSAGE "Du är ej behörig att skriva tid på denna person! " pkod 
+                  VIEW-AS ALERT-BOX.
+                  RETURN.
+               END.
+            END.
+         END.
+      END.
+   END.     
+   FIND FIRST tidpers NO-LOCK NO-ERROR.
+   IF AVAILABLE tidpers THEN DO: 
+       ASSIGN RAD_ALLVAL = 5.
+      {AVBGOM.I} 
+      RUN GODKAN.W.      
+      RUN GODKANG.W.
+      {AVBFRAM.I}
+   END.
+   FOR EACH tidpers:
+      DELETE tidpers.
+   END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE nextguru_UI C-Win 
+PROCEDURE nextguru_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   xhop = "TADM".      
+   /*
+   RUN SEKALLA.P (INPUT "TADM").
+   IF Guru.Konstanter:tadmsekvar[1] = TRUE THEN ENABLE BTN_KONTROLL WITH FRAME {&FRAME-NAME}.
+   IF Guru.Konstanter:tadmsekvar[3] = TRUE THEN ENABLE BTN_GOD WITH FRAME {&FRAME-NAME}.
+   RUN SEKALLA.P (INPUT "TIDT").
+   IF Guru.Konstanter:tidtsekvar[1] = TRUE THEN ENABLE BTN_TJRESA BTN_RES WITH FRAME {&FRAME-NAME}. 
+   RUN SEKALLA.P (INPUT "TIDB").
+   IF Guru.Konstanter:tidbsekvar[1] = TRUE THEN ENABLE BTN_BERED WITH FRAME {&FRAME-NAME}. 
+   xhop = "TIDS".      
+   RUN SEKALLA.P (INPUT "TIDS").
+   IF Guru.Konstanter:tidssekvar[2] = TRUE THEN ENABLE BTN_VISA WITH FRAME {&FRAME-NAME}. 
+   */
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE ngnkey_UI C-Win 
+PROCEDURE ngnkey_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   DEFINE VARIABLE nypkod AS CHARACTER  NO-UNDO.
+   DEFINE VARIABLE nyoverut AS CHARACTER NO-UNDO.
+   {TRYCKS.I}   
+   IF KEYFUNCTION(LASTKEY) = ("TAB") OR KEYFUNCTION(LASTKEY) = ("RETURN")  OR regbtn = TRUE THEN DO:      
+      ASSIGN
+      regdatum = stanstid.DATUM
+      nypkod = stanstid.PERSONALKOD
+      nyoverut = stanstid.OVERTIDUTTAG.
+      CREATE stanstid.   
+      ASSIGN      
+      stanstid.ORDNING = 99
+      stanstid.DATUM = regdatum
+      stanstid.UTRYCKNING = FALSE
+      stanstid.VECKOVILA = FALSE
+      stanstid.OVERTIDUTTAG = nyoverut
+      stanstid.START = 0000
+      stanstid.SLUT = 0000.     
+      stansrec = RECID(stanstid).
+      IF Guru.Konstanter:globforetag = "ESAN" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+         ASSIGN   
+         stanstid.PERSONALKOD = nypkod.
+      END.
+      IF Guru.Konstanter:globforetag = "ETA"  THEN DO:
+         ASSIGN
+         stanstid.DATUM = ?
+         stanstid.PERSONALKOD = nypkod
+   /*      stanstid.OVERTIDUTTAG = nyoverut*/.
+      END.
+      OPEN QUERY BRW_STANS FOR EACH stanstid USE-INDEX TID NO-LOCK.            
+      RUN repoao_UI (INPUT stansrec).      
+   END.         
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE nytid_UI C-Win 
+PROCEDURE nytid_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/  
+   RUN REGDAG.P.
+   RUN REGVEC.P.
+   regar = YEAR(regdatum).
+   vart = "NYA".      
+   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE period_UI C-Win 
+PROCEDURE period_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   ASSIGN
+   FILL-IN_AONR = INPUT FRAME {&FRAME-NAME} FILL-IN_AONR
+   FILL-IN_DELNR = INPUT FRAME {&FRAME-NAME} FILL-IN_DELNR
+   FILL-IN_PERSONALPERIOD = INPUT FRAME {&FRAME-NAME} FILL-IN_PERSONALPERIOD
+   FILL-IN-STARTDAT = INPUT FRAME {&FRAME-NAME} FILL-IN-STARTDAT
+   FILL-IN-STOPPDAT = INPUT FRAME {&FRAME-NAME} FILL-IN-STOPPDAT.
+   pkod = FILL-IN_PERSONALPERIOD.
+   RUN skapapers_UI (INPUT FALSE).
+   FIND FIRST tidpers WHERE tidpers.PERSONALKOD = pkod NO-ERROR.
+   IF NOT AVAILABLE tidpers THEN DO:
+      MESSAGE "Du är ej behörig att skriva tid på denna person! " pkod 
+      VIEW-AS ALERT-BOX.
+      RETURN.
+   END.
+
+   {SOKSTART.I}
+   ASSIGN
+   soktemp.SOKVAL = 13
+   soktemp.SOKCHAR[1] = FILL-IN_PERSONALPERIOD
+   soktemp.SOKLOG[1] = TRUE.
+   {SOKANROP.I}      
+   IF soktemp.SOKCHAR[1] = "FINNS EJ" THEN DO:
+      MESSAGE "Enhet/Sign är felaktit ifylld" VIEW-AS ALERT-BOX.
+      APPLY "ENTRY" TO stanstid.PERSONALKOD IN BROWSE BRW_STANS.
+      RETURN.
+   END.
+   RUN anst_UI (INPUT soktemp.SOKCHAR[2]).
+   FIND FIRST utsokaonr WHERE utsokaonr.AONR = FILL-IN_AONR AND 
+   utsokaonr.DELNR = FILL-IN_DELNR USE-INDEX AONR NO-LOCK NO-ERROR.  
+   IF NOT AVAILABLE utsokaonr THEN DO:
+      MESSAGE Guru.Konstanter:gaol FILL-IN_AONR STRING(FILL-IN_DELNR,Guru.Konstanter:varforetypchar[1]) "finns inte." VIEW-AS ALERT-BOX.      
+      status-mus2 = SESSION:SET-WAIT-STATE("").
+      RETURN.      
+   END.
+   ELSE DO:
+      IF Guru.Konstanter:appcon THEN DO:                           
+         RUN AOVALK.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+         (INPUT FILL-IN-STARTDAT,INPUT ?,INPUT FILL-IN_PERSONALPERIOD,
+          INPUT utsokaonr.AONR,INPUT utsokaonr.DELNR,
+          OUTPUT TABLE felmeddtemp).            
+      END.
+      ELSE DO:
+         RUN AOVALK.P 
+         (INPUT FILL-IN-STARTDAT,INPUT ?,INPUT FILL-IN_PERSONALPERIOD,
+          INPUT utsokaonr.AONR,INPUT utsokaonr.DELNR,
+          OUTPUT TABLE felmeddtemp).
+      END.  
+      FIND FIRST felmeddtemp NO-LOCK NO-ERROR.
+      IF AVAILABLE felmeddtemp THEN DO:
+         MESSAGE felmeddtemp.FELMEDD VIEW-AS ALERT-BOX.
+         DELETE felmeddtemp.
+         RETURN NO-APPLY.      
+      END.
+      IF utsokaonr.AONRAVDATUM = 01/01/1991 OR
+      utsokaonr.AONRAVDATUM >= regdatum THEN FILL-IN_DELNR = FILL-IN_DELNR.
+      ELSE DO:
+         MESSAGE Guru.Konstanter:gaol FILL-IN_AONR STRING(FILL-IN_DELNR,Guru.Konstanter:varforetypchar[1]) "är redan avslutat." VIEW-AS ALERT-BOX.         
+         status-mus2 = SESSION:SET-WAIT-STATE("").
+         RETURN.
+      END.
+   END.
+   ASSIGN
+   persrec = tidpers.TIDPERSREC.
+   regdatum = FILL-IN-STARTDAT.
+   REPEAT:
+      RUN REGVEC.P.
+      {SLUTARBW.I}
+      IF regslut NE regstart THEN DO:
+         CREATE stanstid.
+         ASSIGN   
+         stanstid.AONR = FILL-IN_AONR
+         stanstid.DELNR = FILL-IN_DELNR
+         stanstid.PERSONALKOD = FILL-IN_PERSONALPERIOD   
+         stanstid.ORDNING = 0
+         stanstid.UTRYCKNING = FALSE
+         stanstid.VECKOVILA = FALSE
+         stanstid.DATUM = regdatum
+         stanstid.OVERTIDUTTAG = soktemp.SOKCHAR[3]
+         stanstid.START = regstart * 100
+         stanstid.SLUT = regslut * 100. 
+         IF CMB_BEF = "Återställ bef" THEN DO: 
+            FIND FIRST befvaltemp WHERE befvaltemp.BEFATTNING = soktemp.SOKCHAR[4]
+            USE-INDEX BEF NO-LOCK NO-ERROR.  
+         END.
+         ELSE DO:
+            FIND FIRST befvaltemp WHERE befvaltemp.VIBEFATTNING = CMB_BEF
+            USE-INDEX BEF NO-LOCK NO-ERROR.  
+         END.
+         ASSIGN
+         stanstid.BEFATTNING = befvaltemp.BEFATTNING
+         stanstid.VIBEFATTNING = befvaltemp.VIBEFATTNING.
+         FIND FIRST flexavttemp WHERE flexavttemp.PERSONALKOD = stanstid.PERSONALKOD USE-INDEX
+         PERSONALKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE flexavttemp AND flexavttemp.FLEXTID = TRUE AND stanstid.OVERTIDUTTAG = "I" THEN 
+         stanstid.OVERTIDUTTAG = "F".        
+      END.
+      regdatum = regdatum + 1.
+      IF regdatum > FILL-IN-STOPPDAT THEN LEAVE. 
+   END.   
+   OPEN QUERY BRW_STANS FOR EACH stanstid USE-INDEX TID NO-LOCK.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE perskoll_UI C-Win 
+PROCEDURE perskoll_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   
+   IF stanstid.PERSONALKOD = FILL-IN_PERSONALKOD THEN RETURN.   
+   ASSIGN
+   FILL-IN_EFTERNAMN = ""
+   FILL-IN_FORNAMN = ""
+   FILL-IN_PERSONALKOD = "".
+   IF stanstid.PERSONALKOD = "" THEN DO:
+      DISPLAY FILL-IN_EFTERNAMN FILL-IN_FORNAMN FILL-IN_PERSONALKOD WITH FRAME {&FRAME-NAME}.
+      RETURN.
+   END.   
+   {SOKSTART.I}
+   ASSIGN
+   soktemp.SOKVAL = 13
+   soktemp.SOKCHAR[1] = stanstid.PERSONALKOD
+   soktemp.SOKLOG[1] = TRUE.
+   {SOKANROP.I}      
+   IF soktemp.SOKCHAR[1] = "FINNS EJ" THEN musz = musz.
+   ELSE DO:   
+      IF INDEX(soktemp.SOKCHAR[5],"&") > 1 THEN DO:
+         ASSIGN         
+         FILL-IN_FORNAMN = SUBSTRING(soktemp.SOKCHAR[5],1,INDEX(soktemp.SOKCHAR[5],"&") - 1). 
+      END.
+      IF INDEX(soktemp.SOKCHAR[5],"&") > 1 THEN DO:
+         FILL-IN_EFTERNAMN = SUBSTRING(soktemp.SOKCHAR[5],INDEX(soktemp.SOKCHAR[5],"&") + 1).
+      END.
+      ASSIGN
+      FILL-IN_PERSONALKOD = stanstid.PERSONALKOD
+      stanstid.OVERTIDUTTAG = soktemp.SOKCHAR[3].
+      FIND FIRST flexavttemp WHERE flexavttemp.PERSONALKOD = stanstid.PERSONALKOD 
+      USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE flexavttemp AND flexavttemp.FLEXTID = TRUE AND stanstid.OVERTIDUTTAG = "I" THEN 
+      stanstid.OVERTIDUTTAG = "F".
+      IF CMB_BEF = "Återställ bef" THEN DO: 
+         FIND FIRST befvaltemp WHERE befvaltemp.BEFATTNING = soktemp.SOKCHAR[4]
+         USE-INDEX BEF NO-LOCK NO-ERROR.  
+      END.
+      ELSE DO:
+         FIND FIRST befvaltemp WHERE befvaltemp.VIBEFATTNING = CMB_BEF
+         USE-INDEX BEF NO-LOCK NO-ERROR.  
+      END.
+      ASSIGN
+      stanstid.BEFATTNING = befvaltemp.BEFATTNING
+      stanstid.VIBEFATTNING = befvaltemp.VIBEFATTNING.
+      RUN visa_UI. 
+   END.
+   DISPLAY FILL-IN_EFTERNAMN FILL-IN_FORNAMN FILL-IN_PERSONALKOD WITH FRAME {&FRAME-NAME}.    
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE regstart_UI C-Win 
+PROCEDURE regstart_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/   
+   OPEN QUERY BRW_STANS FOR EACH stanstid WHERE stanstid.PERSONALKOD = "" USE-INDEX TID NO-LOCK.     
+   GET FIRST BRW_STANS.    
+   DO WHILE AVAILABLE(stanstid):                 
+      DELETE stanstid.                 
+      GET NEXT BRW_STANS.
+   END.
+   OPEN QUERY BRW_STANS FOR EACH stanstid WHERE stanstid.DATUM = ? USE-INDEX TID NO-LOCK.     
+   GET FIRST BRW_STANS.    
+   DO WHILE AVAILABLE(stanstid):                 
+      DELETE stanstid.                 
+      GET NEXT BRW_STANS.
+   END.
+
+   FIND FIRST stanstid NO-ERROR.
+   IF AVAILABLE stanstid THEN DO:
+      IF Guru.Konstanter:appcon THEN DO:                           
+         RUN STANSAPP.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+         (INPUT Guru.Konstanter:globforetag,INPUT Guru.Konstanter:globanv,INPUT globniv,OUTPUT markpkod,INPUT-OUTPUT TABLE stanstid).
+      END.
+      ELSE DO:
+         RUN STANSAPP.P 
+         (INPUT Guru.Konstanter:globforetag,INPUT Guru.Konstanter:globanv,INPUT globniv,OUTPUT markpkod,INPUT-OUTPUT TABLE stanstid).
+      END.
+   END.
+   {SOKSTART.I}
+   soktemp.SOKINT[1] = 1.
+   REPEAT:
+      IF soktemp.SOKINT[1] NE 1 THEN LEAVE.
+      ASSIGN
+      soktemp.SOKVAL = 14
+      soktemp.SOKINT[2] = 5.
+      soktemp.SOKCHAR[1] = Guru.Konstanter:globanv.
+      {SOKANROP.I}  
+      raknare = 1.
+      REPEAT:
+         IF raknare > soktemp.SOKINT[2] THEN LEAVE.
+         IF soktemp.SOKCHAR[raknare] NE "" THEN MESSAGE soktemp.SOKCHAR[raknare] VIEW-AS ALERT-BOX.
+         soktemp.SOKCHAR[raknare] = "".
+         raknare = raknare + 1.
+      END.
+   END.
+   OPEN QUERY BRW_STANS FOR EACH stanstid USE-INDEX TID NO-LOCK.     
+   GET FIRST BRW_STANS.
+   IF NOT AVAILABLE stanstid THEN DO:      
+      CREATE stanstid.
+      ASSIGN
+      stanstid.ORDNING = 99
+      stanstid.UTRYCKNING = FALSE
+      stanstid.VECKOVILA = FALSE
+      stanstid.OVERTIDUTTAG = "Ö"
+      stanstid.START = 0000
+      stanstid.SLUT = 0000.
+      OPEN QUERY BRW_STANS FOR EACH stanstid USE-INDEX TID NO-LOCK.  
+      GET FIRST BRW_STANS. 
+   END.   
+   ELSE status-ok = BRW_STANS:REFRESH() IN FRAME {&FRAME-NAME}.
+   RUN repoao_UI (INPUT RECID(stanstid)).
+   IF AVAILABLE stanstid THEN DO:
+      IF stanstid.FELTXT NE "" THEN DO:         
+         RUN felnr_UI.                  
+      END.
+   END.
+   
+                         
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE repoao_UI C-Win 
+PROCEDURE repoao_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   DEFINE INPUT PARAMETER browrec AS RECID NO-UNDO.
+   BRW_STANS:SET-REPOSITIONED-ROW(35,"ALWAYS") IN FRAME {&FRAME-NAME}.                        
+   REPOSITION BRW_STANS TO RECID browrec.
+   status-ok = BRW_STANS:SELECT-FOCUSED-ROW() NO-ERROR.                 
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE skapapers_UI C-Win 
+PROCEDURE skapapers_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   DEFINE INPUT PARAMETER flervar AS LOGICAL NO-UNDO.
+   IF flervar THEN DO:
+      IF Guru.Konstanter:appcon THEN DO:                           
+         RUN TIDMVALP.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+         (INPUT pkod,INPUT FALSE,INPUT Guru.Konstanter:globanv,INPUT globniv,
+          INPUT RAD_ALLVAL,INPUT TABLE markpers,INPUT TABLE vomrtemp,
+          OUTPUT TABLE tidpers APPEND).
+      END.
+      ELSE DO:
+         RUN TIDMVALP.P 
+         (INPUT pkod,INPUT FALSE,INPUT Guru.Konstanter:globanv,INPUT globniv,
+          INPUT RAD_ALLVAL,INPUT TABLE markpers,INPUT TABLE vomrtemp,
+          OUTPUT TABLE tidpers APPEND).                  
+      END.     
+   END.
+   ELSE DO:
+      IF Guru.Konstanter:appcon THEN DO:                           
+         RUN TIDMVALP.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+         (INPUT pkod,INPUT FALSE,INPUT Guru.Konstanter:globanv,INPUT globniv,
+          INPUT RAD_ALLVAL,INPUT TABLE markpers,INPUT TABLE vomrtemp,
+          OUTPUT TABLE tidpers).
+      END.
+      ELSE DO:
+         RUN TIDMVALP.P 
+         (INPUT pkod,INPUT FALSE,INPUT Guru.Konstanter:globanv,INPUT globniv,
+          INPUT RAD_ALLVAL,INPUT TABLE markpers,INPUT TABLE vomrtemp,
+          OUTPUT TABLE tidpers).                  
+      END.     
+   END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE valdny_UI C-Win 
+PROCEDURE valdny_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+   DEFINE INPUT PARAMETER tabort AS LOGICAL NO-UNDO.
+   antal_valda = 0. 
+   IF tabort = TRUE THEN DO:
+      FOR EACH extratidallt:
+         DELETE extratidallt.
+      END.
+   END.
+   CREATE extratidallt.
+   
+   IF AVAILABLE stanstid THEN DO:
+      ASSIGN
+      varpristyp = "RESTID..."
+      varaonr = stanstid.AONR
+      vardelnr = stanstid.DELNR
+      regdatum = stanstid.DATUM
+      varslut = stanstid.SLUT.
+      IF regdatum = ? THEN regdatum = TODAY.
+      RUN REGDAG.P.
+      ASSIGN
+      extratidallt.DAG = regdagnamn
+      extratidallt.DATUM = regdatum.      
+      FIND FIRST utsokaonr WHERE utsokaonr.AONR = stanstid.AONR AND 
+      utsokaonr.DELNR = stanstid.DELNR NO-LOCK NO-ERROR.
+      IF AVAILABLE utsokaonr THEN DO:
+         ASSIGN
+         varpristyp = utsokaonr.PRISTYP
+         varutryck = utsokaonr.UTRYCKNING.
+      END.           
+      IF tillochmeddatum NE ? THEN DO:
+         IF tillochmeddatum >= regdatum THEN DO:
+            regdatum = tillochmeddatum + 1.      
+         END.         
+      END.         
+      BUFFER-COPY stanstid TO extratidallt.      
+      ASSIGN
+      extratidallt.VECKOKORD = ""
+      extratidallt.GODKAND = "".
+   END.  
+   ELSE DO:
+      regdagnamn = "MÅN".     
+      varpristyp = "RESTID...".
+      ASSIGN
+      extratidallt.PRISTYP = varpristyp
+      extratidallt.DAG = regdagnamn
+      extratidallt.DATUM = regdatum.      
+   END.
+   IF vart = "NYA" THEN DO:
+      extratidallt.RECTIDVIS = ?.
+   END.
+   extratidallt.TIDLOG = TRUE.     
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE visa_UI C-Win 
+PROCEDURE visa_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+   DISPLAY
+   stanstid.AONR stanstid.DATUM stanstid.DELNR stanstid.LONTILLAGG stanstid.LONTILLANTAL 
+   stanstid.OVERTIDUTTAG stanstid.PERSONALKOD stanstid.SLUT stanstid.START stanstid.TRAKTAMENTE 
+   stanstid.UTRYCKNING stanstid.VECKOVILA stanstid.VIBEFATTNING
+   WITH BROWSE BRW_STANS.
+   IF stanstid.PERSONALKOD NE "" THEN stanstid.ORDNING = 0.   
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+

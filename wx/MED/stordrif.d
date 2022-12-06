@@ -1,0 +1,18 @@
+1 "ÖVERLIGGANDE NÄT" "66"
+2 "EGET NÄT" "69"
+3 "SAMKÖRANDE" "71"
+4 "KUNDANLÄGGNING HSP" "72"
+5 "KUNDANLÄGGNING LSP" "73"
+6 "OKÄND" "239"
+.
+PSC
+filename=STORDRIFTOMR
+records=0000000000006
+ldbname=sven
+timestamp=2014/10/21-10:49:19
+numformat=44,46
+dateformat=ymd-1950
+map=NO-MAP
+cpstream=1252
+.
+0000000145

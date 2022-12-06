@@ -1,0 +1,17 @@
+
+DEFINE VARIABLE filename AS CHARACTER NO-UNDO.
+DEFINE VARIABLE OKpressed AS LOGICAL INITIAL TRUE.
+
+Main:
+REPEAT:
+    SYSTEM-DIALOG GET-FILE filename
+	TITLE "Choose File to Delete"
+	MUST-EXIST
+	USE-FILENAME
+	UPDATE OKpressed.
+      
+    IF OKpressed = FALSE THEN
+	LEAVE Main.
+    ELSE      
+	OS-DELETE VALUE(filename).	      
+END.

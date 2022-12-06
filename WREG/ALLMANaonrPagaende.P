@@ -1,0 +1,122 @@
+/*
+               KSV Editor
+    Copyright: (C) 2000-2001 Serguey Klimoff (bulkl0DD)
+     Filename: ALLMANaonrPagaende.P
+      Comment: <comment>
+   Parameters
+         Uses:
+      Used by:
+         
+      Created: 2011.05.19 15:16 ELPAO   
+     Modified: 2011.05.19 18:14 ELPAO    
+     Modified: 
+*/
+
+
+
+DEFINE VARIABLE styrtab AS CHARACTER NO-UNDO.  /*tabell som inne håller gamla och nya värden*/
+DEFINE VARIABLE updateorgtab AS LOGICAL NO-UNDO. /*om även styrtabellen ska uppdateras*/
+
+
+styrtab = "AONRTAB".
+updateorgtab = TRUE.
+DEFINE VARIABLE styrkommando AS CHARACTER NO-UNDO.
+DEFINE VARIABLE orgtabh AS HANDLE NO-UNDO.
+DEFINE VARIABLE orgtabqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE gfalth1 AS HANDLE NO-UNDO.
+DEFINE VARIABLE gfalth2 AS HANDLE NO-UNDO.
+DEFINE VARIABLE gfalth3 AS HANDLE NO-UNDO.
+DEFINE VARIABLE gfalth6 AS HANDLE NO-UNDO.
+DEFINE VARIABLE gfalt1 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE gfalt2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE gfalt3 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE gfalt6 AS CHARACTER NO-UNDO.
+styrkommando = "FOR EACH " + styrtab.
+CREATE BUFFER orgtabh FOR TABLE styrtab NO-ERROR.
+gfalt1 = "AONR".
+gfalt2 = "DELNR".
+gfalt6 = "AONRAVDATUM".
+gfalth1 = orgtabh:BUFFER-FIELD(gfalt1).
+gfalth2 = orgtabh:BUFFER-FIELD(gfalt2).
+
+gfalth6 = orgtabh:BUFFER-FIELD(gfalt6).   
+DEFINE VARIABLE queryvar AS CHARACTER NO-UNDO.
+queryvar =  "FOR EACH " + orgtabh:TABLE + " WHERE AONRAVDATUM = " + QUOTER(DATE(12/27/2021)).
+Guru.Konstanter:CreateCustomQuery(orgtabh,queryvar).
+Guru.GlobalaVariabler:CustomQueryDyn:GET-FIRST().
+DO WHILE Guru.GlobalaVariabler:CustomQueryDyn:QUERY-OFF-END = FALSE:
+   RUN AvPa_UI.
+   Guru.GlobalaVariabler:CustomQueryDyn:GET-NEXT().   
+END.         
+
+    
+/*gör beredning och kalkyl aktiva för avslutade aonr samt gör aonr pågende*/    
+PROCEDURE AvPa_UI :
+   DEFINE VARIABLE onoff AS LOGICAL NO-UNDO.
+   
+   IF orgtabh:BUFFER-FIELD("AONRAVDATUM"):BUFFER-VALUE = 01/01/91 THEN DO:
+      onoff = FALSE.
+      DO TRANSACTION:
+         Guru.GlobalaVariabler:CustomQueryDyn:GET-CURRENT(EXCLUSIVE-LOCK).
+         orgtabh:BUFFER-FIELD("AONRAVDATUM"):BUFFER-VALUE = TODAY.
+      END.
+      Guru.GlobalaVariabler:CustomQueryDyn:GET-CURRENT().   
+   END.     
+   ELSE DO:
+       DO TRANSACTION:
+         Guru.GlobalaVariabler:CustomQueryDyn:GET-CURRENT(EXCLUSIVE-LOCK).
+         onoff = TRUE.
+         orgtabh:BUFFER-FIELD("AONRAVDATUM"):BUFFER-VALUE = 01/01/91.
+      END.
+      Guru.GlobalaVariabler:CustomQueryDyn:GET-CURRENT().     
+   END.
+   OPEN QUERY kalkaoq FOR EACH KALKAONR WHERE KALKAONR.AONR = orgtabh:BUFFER-FIELD("AONR"):BUFFER-VALUE  AND
+   KALKAONR.DELNR = orgtabh:BUFFER-FIELD("DELNR"):BUFFER-VALUE  USE-INDEX AONR NO-LOCK.
+   GET FIRST kalkaoq NO-LOCK.
+   DO WHILE AVAILABLE(KALKAONR):
+      DO TRANSACTION:
+         GET CURRENT kalkaoq EXCLUSIVE-LOCK.
+         KALKAONR.AKTIV = onoff.
+      END.
+      GET NEXT kalkaoq NO-LOCK.   
+   END.
+   CLOSE QUERY kalkaoq.
+   OPEN QUERY kalkaoq FOR EACH KALKAONR WHERE KALKAONR.AONR = orgtabh:BUFFER-FIELD("AONR"):BUFFER-VALUE AND
+   KALKAONR.DELNR = orgtabh:BUFFER-FIELD("DELNR"):BUFFER-VALUE USE-INDEX AONR NO-LOCK. 
+   GET FIRST kalkaoq NO-LOCK.
+   DO WHILE AVAILABLE(KALKAONR):
+      DO TRANSACTION:
+         FIND FIRST KALKHUV WHERE KALKHUV.KALKNR = KALKAONR.KALKNR EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE KALKHUV THEN DO:
+            KALKHUV.AKTIV = onoff.
+         END.   
+      END.
+      RELEASE KALKHUV NO-ERROR.
+      GET NEXT kalkaoq NO-LOCK.
+   END.
+         
+      
+   DO TRANSACTION:
+      FIND FIRST BEREDNING WHERE BEREDNING.AONR = orgtabh:BUFFER-FIELD("AONR"):BUFFER-VALUE AND
+      BEREDNING.DELNR = orgtabh:BUFFER-FIELD("DELNR"):BUFFER-VALUE USE-INDEX AONR
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BEREDNING THEN DO: 
+         BEREDNING.AKTIV = onoff.  
+      END.
+      FIND FIRST AOVARD WHERE AOVARD.AONR = orgtabh:BUFFER-FIELD("AONR"):BUFFER-VALUE AND AOVARD.DELNR = orgtabh:BUFFER-FIELD("DELNR"):BUFFER-VALUE
+      USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF AVAILABLE AOVARD THEN DO:
+         IF AOVARD.VARDNR = ? THEN.
+         ELSE DO:
+            FIND FIRST VARDERING WHERE VARDERING.VARDNR = AOVARD.VARDNR USE-INDEX VARDNR
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE VARDERING THEN DO:
+               ASSIGN VARDERING.AKTIV = onoff.
+            END.
+         END.
+      END.            
+   END.
+   RELEASE BEREDNING NO-ERROR.
+   RELEASE VARDERING NO-ERROR.
+         
+END PROCEDURE.

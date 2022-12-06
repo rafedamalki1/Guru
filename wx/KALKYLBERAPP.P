@@ -1,0 +1,3032 @@
+
+/*------------------------------------------------------------------------
+    File        : KALKYLBERAPP.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : elpao
+    Created     : Tue Sep 27 12:34:27 CEST 2011
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+/* ***************************  Definitions  ************************** */
+{KALKYLKAT.I}
+DEFINE TEMP-TABLE numsubhj NO-UNDO
+   FIELD TTRECID AS RECID
+   FIELD NUMSUBID AS INTEGER.  
+
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{GLOBVAR2DEL1.I}
+   
+{MTRLTEMPc.I}
+
+DEFINE BUFFER KALKYLKATALOGSUBbuff FOR KALKYLKATALOGSUB.   
+DEFINE BUFFER KALKYLPRISERbuff FOR KALKYLPRISER.
+DEFINE BUFFER KALKNUMbuff FOR KALKNUM.
+DEFINE BUFFER KALKNUMSUBbuff FOR KALKNUMSUB.
+DEFINE VARIABLE kpostid AS ROWID NO-UNDO.
+
+{KALKYLPRISFAKTPRODATA.i}
+{SparaProDatasSet.i PrisFaktDS}
+
+DEFINE QUERY PrisFaktQuery FOR KALKHUV.
+DEFINE DATA-SOURCE PFhuvSrc FOR QUERY PrisFaktQuery KALKHUV KEYS (KALKNR,OMRADE).   /*keys unika nycklar*/
+DEFINE DATA-SOURCE PFFaktSrc FOR KALKFAKTORER KEYS (KALKNR,OMRADE,KPID).
+DEFINE DATA-SOURCE PFEgnaSrc FOR KALKEGNAPRISER KEYS (KALKNR,OMRADE,KPID).
+
+DEFINE VARIABLE hFEDataSet   AS HANDLE     NO-UNDO.         /*handl till dataset*/
+hFEDataSet = DATASET PrisFaktDS:HANDLE.      /*koppla handel till dataset*/
+hFEDataSet:SET-CALLBACK-PROCEDURE ("AFTER-FILL", "postDataSetFillPrisFaktDS", THIS-PROCEDURE). 
+PROCEDURE attachPrisFaktDS: /*kopplar ihop temptabell med skarptababell.      */
+   hFEDataSet:GET-BUFFER-HANDLE("kalkhuvtt"):ATTACH-DATA-SOURCE(DATA-SOURCE PFhuvSrc:HANDLE).
+   hFEDataSet:GET-BUFFER-HANDLE("kalkfaktorertt"):ATTACH-DATA-SOURCE(DATA-SOURCE PFFaktSrc:HANDLE).
+   hFEDataSet:GET-BUFFER-HANDLE("kalkegnaprisertt"):ATTACH-DATA-SOURCE(DATA-SOURCE PFEgnaSrc:HANDLE).   
+END PROCEDURE.
+PROCEDURE LaddaPrisFaktDS:
+   DEFINE INPUT PARAMETER KalkNr AS INTEGER.
+   DEFINE INPUT PARAMETER KalkOmr AS CHARACTER.  
+   DEFINE OUTPUT PARAMETER DATASET FOR PrisFaktDS.
+   DEFINE VARIABLE queryprep AS CHARACTER NO-UNDO.
+   DATASET PrisFaktDS:EMPTY-DATASET().
+   queryprep = "FOR EACH KALKHUV WHERE KALKHUV.KALKNR = " + STRING(KalkNr) + 
+   " AND KALKHUV.OMRADE = " + "'" + KalkOmr + "'" + "  NO-LOCK". 
+   QUERY PrisFaktQuery:QUERY-PREPARE(queryprep).
+   RUN attachPrisFaktDS.
+   DATASET PrisFaktDS:FILL().
+   detachDataSetPrisFaktDS(hFEDataSet).
+   
+END PROCEDURE.
+/*
+{defvaluesnettt.i}   
+{KALKYLPRODATABORT.I}
+{SparaProDatasSet.i KalkylBortDS}
+ /*def av datasetets query*/
+DEFINE QUERY KalkylQuery FOR KALKHUV.
+
+DEFINE QUERY KalkylDefaultsQuery FOR GURUDEFAULTS.
+
+DEFINE DATA-SOURCE KalkhuvSrc FOR QUERY KalkylQuery KALKHUV KEYS (KALKNR,OMRADE).   /*keys unika nycklar*/
+DEFINE DATA-SOURCE DefaultSrc FOR QUERY KalkylDefaultsQuery GURUDEFAULTS KEYS (PROGRAM,HUVUDINT,HUVUDCHAR,TOOLKEY).
+DEFINE DATA-SOURCE NumSrc FOR KALKNUM KEYS (KALKNR,OMRADE,NUM).
+DEFINE DATA-SOURCE NumSubSrc FOR KALKNUMSUB KEYS (KALKNR,OMRADE,NUM,NUMSUBID).
+DEFINE DATA-SOURCE AonrSrc FOR KALKAONR KEYS (KALKNR,OMRADE).
+DEFINE DATA-SOURCE FaktSrc FOR KALKFAKTORER KEYS (KALKNR,OMRADE,KPID).
+DEFINE DATA-SOURCE EgnaSrc FOR KALKEGNAPRISER KEYS (KALKNR,OMRADE,KPID).
+DEFINE DATA-SOURCE MtrlSrc FOR KALKMTRL KEYS (KALKNR,OMRADE).
+
+DEFINE VARIABLE hKalkylDataSet   AS HANDLE     NO-UNDO.         /*handl till dataset*/
+hKalkylDataSet = DATASET KalkylBortDS:HANDLE.      /*koppla handel till dataset*/
+hKalkylDataSet:SET-CALLBACK-PROCEDURE ("AFTER-FILL", "postDataSetFillKalkylBortDS", THIS-PROCEDURE). 
+PROCEDURE attachKalkylBortDS: /*kopplar ihop temptabell med skarptababell.      */
+   hKalkylDataSet:GET-BUFFER-HANDLE("kalkhuvtt"):ATTACH-DATA-SOURCE(DATA-SOURCE KalkhuvSrc:HANDLE).
+   hKalkylDataSet:GET-BUFFER-HANDLE("GuruDefaultsTT"):ATTACH-DATA-SOURCE(DATA-SOURCE DefaultSrc:HANDLE).
+   hKalkylDataSet:GET-BUFFER-HANDLE("kalknumtt"):ATTACH-DATA-SOURCE(DATA-SOURCE NumSrc:HANDLE).
+   hKalkylDataSet:GET-BUFFER-HANDLE("kalknumsubtt"):ATTACH-DATA-SOURCE(DATA-SOURCE NumsubSrc:HANDLE).
+   hKalkylDataSet:GET-BUFFER-HANDLE("kalkaonrTT"):ATTACH-DATA-SOURCE(DATA-SOURCE AonrSrc:HANDLE).
+   hKalkylDataSet:GET-BUFFER-HANDLE("kalkfaktorertt"):ATTACH-DATA-SOURCE(DATA-SOURCE FaktSrc:HANDLE).
+   hKalkylDataSet:GET-BUFFER-HANDLE("kalkegnaprisertt"):ATTACH-DATA-SOURCE(DATA-SOURCE EgnaSrc:HANDLE).
+   hKalkylDataSet:GET-BUFFER-HANDLE("kalktmtrlTT"):ATTACH-DATA-SOURCE(DATA-SOURCE MtrlSrc:HANDLE).
+   
+END PROCEDURE.
+PROCEDURE LaddaKalkylBort:
+   DEFINE INPUT  PARAMETER cprog AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER KalkNr AS INTEGER.
+   DEFINE INPUT PARAMETER KalkOmr AS CHARACTER.  
+   DEFINE OUTPUT PARAMETER DATASET FOR KalkylBortDS.
+   DEFINE VARIABLE queryprep AS CHARACTER NO-UNDO.
+   DATASET KalkylBortDS:EMPTY-DATASET().
+   
+   queryprep = "FOR EACH GURUDEFAULTS WHERE GURUDEFAULTS.PROGRAM = '" + cprog + "' AND GURUDEFAULTS.HUVUDINT = " + STRING(KalkNr) + 
+   " AND GURUDEFAULTS.HUVUDCHAR = " + "'" + KalkOmr + "'" + "  NO-LOCK". 
+   QUERY KalkylDefaultsQuery:QUERY-PREPARE(queryprep).
+   
+   queryprep = "FOR EACH KALKHUV WHERE KALKHUV.KALKNR = " + STRING(KalkNr) + 
+   " AND KALKHUV.OMRADE = " + "'" + KalkOmr + "'" + "  NO-LOCK". 
+   QUERY KalkylQuery:QUERY-PREPARE(queryprep).
+   /*
+   QUERY KalkylDefaultsQuery:QUERY-PREPARE(queryprep).
+   */
+   RUN attachKalkylBortDS.
+   DATASET KalkylBortDS:FILL().
+   detachDataSetKalkylbortDS(hKalkylDataSet).
+   
+END PROCEDURE.
+
+*/
+
+/*FAKTORER                               
+VISA FÄLT FÖR SAMTLIGA     KALKTYPTAB                          
+VISA FÄLT FÖR SAMTLIGA EGNA KODER      KALKYLPTYPER                           
+                                 
+                                                                 
+EA=MONTÖR+(MASKINKOST/RÖRLIGKOSTNAD)
+
+ASSIGN
+LOP1.FAST = TRUE
+LOP1.UTRUSTKOST = INTEGER((LOP1.EA - ((LOP1.F2 / 100) + (LOP1.MASKINKOST / rorlig))) * rorlig)
+LOP1.OVRIGT = LOP1.OVRIGT - LOP1.UTRUSTKOST.
+                                 
+*/
+
+
+
+
+/*anders
+
+{defvaluesnettt.i}
+DEFINE VARIABLE hDataSet AS HANDLE NO-UNDO.
+DEFINE DATASET DefaultDS FOR GuruDefaultsTT.
+
+{SparaProDatasSet.i DefaultDS}
+DEFINE QUERY DefaultQuery FOR GURUDEFAULTS .
+
+DEFINE DATA-SOURCE DefaultSrc FOR QUERY DefaultQuery GURUDEFAULTS KEYS (PROGRAM,HUVUDINT,HUVUDCHAR,TOOLKEY).
+
+hDataSet = DATASET DefaultDS:HANDLE.   
+hDataSet:SET-CALLBACK-PROCEDURE ("AFTER-FILL", "postDataSetFillDefaultDS", THIS-PROCEDURE).
+
+ 
+
+
+PROCEDURE attachDefaultDS :
+   
+   hDataSet:GET-BUFFER-HANDLE("GuruDefaultsTT"):ATTACH-DATA-SOURCE(DATA-SOURCE DefaultSrc:HANDLE).
+END PROCEDURE.
+/*anders flyttad till temptabeller app*/
+
+PROCEDURE FetchDefaultValues:
+   DEFINE OUTPUT PARAMETER DATASET FOR DefaultDS.
+   DEFINE INPUT PARAMETER KalkNr AS INTEGER.
+   DEFINE INPUT PARAMETER KalkOmr AS CHARACTER.
+   DEFINE VARIABLE queryprep AS CHARACTER NO-UNDO.
+   DATASET DefaultDS:EMPTY-DATASET().
+     queryprep = "FOR EACH GURUDEFAULTS WHERE GURUDEFAULTS.PROGRAM = 'KALKYL' AND GURUDEFAULTS.HUVUDINT = " + STRING(KalkNr) + 
+   " AND GURUDEFAULTS.HUVUDCHAR = " + "'" + KalkOmr + "'" + "  NO-LOCK". 
+   QUERY DefaultQuery:QUERY-PREPARE(queryprep).
+   RUN attachDefaultDS.
+   DATASET DefaultDS:FILL().
+   detachDataSetDefaultDS(hDataSet).
+   
+
+
+
+END PROCEDURE.
+
+
+PROCEDURE FetchActualDefaults:
+   DEFINE OUTPUT PARAMETER TABLE FOR GuruDefaultValuesTT.
+   EMPTY TEMP-TABLE GuruDefaultValuesTT.
+   FOR EACH GURUDEFAULTS WHERE GURUDEFAULTS.TOOLKEY MATCHES "*-default" AND GURUDEFAULTS.PROGRAM = "KALKYL"  NO-LOCK:
+      CREATE GuruDefaultValuesTT.
+      BUFFER-COPY GURUDEFAULTS TO GuruDefaultValuesTT.
+   END.
+END PROCEDURE.
+
+PROCEDURE CreateActualDefault:
+   DEFINE INPUT PARAMETER Program AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER Toolkey AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER ToolValue AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER ToolGroup AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER ToolType AS CHARACTER NO-UNDO.
+   
+   FIND FIRST GURUDEFAULTS WHERE GURUDEFAULTS.PROGRAM = Program AND GURUDEFAULTS.TOOLKEY = STRING(Toolkey + "-default")  AND GURUDEFAULTS.TOOLGROUP = ToolGroup AND GURUDEFAULTS.TOOLTYPE = Tooltype NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE GURUDEFAULTS THEN DO TRANSACTION:
+      CREATE GURUDEFAULTS.
+      ASSIGN
+      GURUDEFAULTS.PROGRAM = Program
+      GURUDEFAULTS.TOOLKEY = STRING(Toolkey + "-default")
+      GURUDEFAULTS.TOOLVALUE = ToolValue
+      GURUDEFAULTS.VALIDTOOLVALUE = ToolValue
+      GURUDEFAULTS.TOOLGROUP = Toolgroup
+      GURUDEFAULTS.TOOLTYPE = Tooltype.
+      
+   END. 
+   
+END PROCEDURE.
+
+*/
+
+
+
+
+
+/*OBS! globforetag = "GRAN" OCH ÅRTAL*/
+DEFINE VARIABLE ebrar AS INTEGER NO-UNDO.
+DEFINE VARIABLE skjar AS INTEGER NO-UNDO.
+FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+globforetag = FORETAG.FORETAG.
+
+RUN STYRFORE.P (INPUT globforetag).
+/*tar fram rätt nummer*/
+
+PROCEDURE omradekoll_UI:
+   DEFINE INPUT PARAMETER omradevar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER tempvar AS INTEGER NO-UNDO.
+   DEFINE VARIABLE felkoll AS LOGICAL NO-UNDO.
+   DO TRANSACTION:
+      IF varforetypchar[3] NE "" THEN DO:
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = varforetypchar[3] EXCLUSIVE-LOCK NO-ERROR.
+      END.
+      ELSE DO:
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = omradevar EXCLUSIVE-LOCK NO-ERROR.
+      END.
+      IF NOT AVAILABLE OMRADETAB THEN FIND FIRST OMRADETAB USE-INDEX OMR NO-LOCK NO-ERROR.
+      IF OMRADETAB.KALKYLINT2 < OMRADETAB.KALKYLSIST OR OMRADETAB.KALKYLINT1 = OMRADETAB.KALKYLINT2 THEN DO:
+         tempvar = ?.     
+         RETURN.
+      END.
+      ELSE tempvar = OMRADETAB.KALKYLSIST. 
+      RUN kalksista_UI (INPUT-OUTPUT tempvar).
+   END.   
+   RELEASE OMRADETAB NO-ERROR.
+END PROCEDURE.
+PROCEDURE kalksista_UI :  
+   DEFINE INPUT-OUTPUT PARAMETER tempvar AS INTEGER NO-UNDO.
+   DEFINE BUFFER FASTKALKSISTA FOR FASTSPEC.
+   DEFINE BUFFER KALKKALKSISTA FOR KALKSPEC.
+   DEFINE BUFFER KALKHUVSISTA FOR KALKHUV.
+   DEFINE VARIABLE felkoll AS LOGICAL NO-UNDO.
+   REPEAT:
+      FIND FIRST FASTKALKSISTA WHERE FASTKALKSISTA.KALKNR = tempvar NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE FASTKALKSISTA THEN DO:
+         FIND FIRST KALKKALKSISTA WHERE KALKKALKSISTA.KALKNR = tempvar NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE KALKKALKSISTA THEN DO:
+            FIND FIRST KALKHUVSISTA WHERE KALKHUVSISTA.KALKNR = tempvar NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE KALKHUVSISTA THEN LEAVE.
+         END.
+      END.
+      tempvar = tempvar + 1.
+      IF tempvar > OMRADETAB.KALKYLINT2 THEN DO:
+         felkoll = TRUE.
+         LEAVE.
+      END.    
+   END.              
+   DO TRANSACTION:
+      FIND CURRENT OMRADETAB EXCLUSIVE-LOCK.
+      OMRADETAB.KALKYLSIST = tempvar.
+      IF felkoll = TRUE THEN tempvar = ?.  
+   END.   
+END PROCEDURE.
+/*startproc hämtar katalogernamn och nykalkyl*/
+PROCEDURE startny_UI :
+   DEFINE INPUT  PARAMETER omrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER sekanv AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkhuvtt.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkylkatalogtt.
+
+   DEFINE VARIABLE kynr AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE kalkhuvtt NO-ERROR.
+   EMPTY TEMP-TABLE kalkylkatalogtt NO-ERROR. 
+   FIND FIRST KALKYLKATALOG NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKYLKATALOG THEN DO:
+      
+      RETURN.
+   END.
+   FOR EACH KALKYLKATALOG WHERE KALKYLKATALOG.AVSLUTAD  = FALSE NO-LOCK:
+      CREATE kalkylkatalogtt.
+      BUFFER-COPY KALKYLKATALOG TO kalkylkatalogtt.
+   END.
+   FOR EACH kalkylkatalogtt WHERE kalkylkatalogtt.SEKRETESS = TRUE NO-LOCK:
+      FIND FIRST KALKYLKATALOGANV WHERE KALKYLKATALOGANV.KLOGID = kalkylkatalogtt.KLOGID AND KALKYLKATALOGANV.ANVANDARE = sekanv NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKYLKATALOGANV THEN DO:
+         DELETE kalkylkatalogtt.
+      END.
+   END.
+   FIND LAST KALKYLKATALOG NO-LOCK NO-ERROR.
+   CREATE kalkhuvtt.
+   ASSIGN 
+   kalkhuvtt.OMRADE = omrvar
+   kalkhuvtt.KLOGID = KALKYLKATALOG.KLOGID
+   kalkhuvtt.TYPKALK = 2 
+   kalkhuvtt.EGETMTRL = FALSE  
+   kalkhuvtt.EGNAPRISER = FALSE
+   kalkhuvtt.FAKTORER = FALSE.
+   kalkhuvtt.TTRECID = RECID(kalkhuvtt).
+END PROCEDURE.
+
+PROCEDURE sparakalkhuv_UI :
+   DEFINE OUTPUT PARAMETER felvar AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR kalkhuvtt.
+   DEFINE VARIABLE nyvar AS LOGICAL NO-UNDO.
+   FIND FIRST kalkhuvtt WHERE NO-LOCK NO-ERROR.
+   IF kalkhuvtt.KALKNR = 0 THEN DO:
+      RUN omradekoll_UI (INPUT kalkhuvtt.OMRADE, OUTPUT kalkhuvtt.KALKNR).
+      nyvar = TRUE.
+   END.   
+   ELSE nyvar = FALSE.
+   IF kalkhuvtt.KALKNR = ? THEN DO:
+      kalkhuvtt.KALKNR = 0.
+      ASSIGN 
+      felvar = TRUE
+      felmedd =  "Det går inte att lägga upp kalkyler på detta " + LC(Guru.Konstanter:gomrk) + 
+            ". Nummerserie saknas eller är fylld.".      
+      RETURN.
+   END.    
+   IF kalkhuvtt.BENAMNING = "" THEN DO:
+      ASSIGN 
+      felvar = TRUE
+      felmedd =  "Benämningen får inte vara blank!".      
+      RETURN.
+   END.    
+   IF kalkhuvtt.KALKANV = "" THEN DO:
+      ASSIGN 
+      felvar = TRUE
+      felmedd =  "Kalkylansavarig kan inte vara blank!".
+      RETURN.
+   END. 
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = kalkhuvtt.KALKANV USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE PERSONALTAB THEN DO:
+      ASSIGN 
+      felvar = TRUE
+      felmedd = "Ingen ansvarig med enhet " + kalkhuvtt.KALKANV  + " finns i registret!".
+      RETURN.
+   END.  
+   DO TRANSACTION:
+      IF nyvar = TRUE THEN DO:
+         CREATE KALKHUV.
+      END.
+      ELSE DO:
+         FIND FIRST KALKHUV WHERE KALKHUV.KALKNR = kalkhuvtt.KALKNR AND KALKHUV.OMRADE = kalkhuvtt.OMRADE EXCLUSIVE-LOCK NO-ERROR.
+      END.   
+      BUFFER-COPY kalkhuvtt TO KALKHUV.
+   END.
+   FIND CURRENT KALKHUV NO-LOCK  NO-ERROR.
+   FIND FIRST KALKAONR WHERE KALKAONR.KALKNR = kalkhuvtt.KALKNR AND KALKAONR.OMRADE = kalkhuvtt.OMRADE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKAONR THEN DO TRANSACTION:
+      CREATE KALKAONR.
+      ASSIGN
+      KALKAONR.KALKNR = kalkhuvtt.KALKNR
+      KALKAONR.OMRADE = kalkhuvtt.OMRADE
+      KALKAONR.TYP = kalkhuvtt.TYP
+      KALKAONR.AONR = ?
+      KALKAONR.DELNR = ?
+      KALKAONR.PLANNR = ?
+      KALKAONR.ARTAL = ?.
+   END.   
+   RELEASE KALKAONR NO-ERROR.   
+END PROCEDURE.
+/*plamnr och aonr*/
+PROCEDURE kalkaonr_UI :
+   DEFINE INPUT PARAMETER knr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER omr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER koppladtill AS CHARACTER NO-UNDO.
+   FIND FIRST KALKAONR WHERE KALKAONR.KALKNR = knr AND KALKAONR.OMRADE = omr NO-LOCK NO-ERROR.
+   IF AVAILABLE KALKAONR THEN DO TRANSACTION:
+      IF KALKAONR.AONR NE ? THEN DO:
+         koppladtill = "Kopplad till " + Guru.Konstanter:gaok + STRING(KALKAONR.AONR) + " " + STRING(KALKAONR.DELNR,Guru.Konstanter:varforetypchar[1]).
+      END.
+      ELSE IF KALKAONR.PLANNR NE ? THEN DO:
+         koppladtill = "Kopplad till " + Guru.Konstanter:gplk + KALKAONR.PLANNR + " " + STRING(KALKAONR.ARTAL).
+      END.   
+            
+   END.   
+END PROCEDURE.
+
+/* hämta kalkylpriser*/
+PROCEDURE kphmt : 
+   /* vilken katalog den ska hämta poster på */
+   DEFINE INPUT PARAMETER knr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER omr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER katalog AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkylprisertt.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkvisningtt.
+   /*
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkfaktorertt.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkegnaprisertt.
+   EMPTY TEMP-TABLE kalkfaktorertt NO-ERROR.
+   EMPTY TEMP-TABLE kalkegnaprisertt NO-ERROR.
+   */
+   EMPTY TEMP-TABLE kalkvisningtt NO-ERROR. 
+   EMPTY TEMP-TABLE kalkylprisertt NO-ERROR.
+   
+   
+   FIND FIRST KALKYLKATALOG WHERE KALKYLKATALOG.KLOGID = katalog NO-LOCK NO-ERROR. 
+   FOR EACH KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOG.HKLOGSUBID NO-LOCK:
+      CREATE kalkylprisertt.
+      BUFFER-COPY KALKYLPRISER TO kalkylprisertt.
+      kalkylprisertt.TTRECID = RECID(kalkylprisertt).
+      
+      FOR EACH KALKVISNING WHERE KALKVISNING.KVID = KALKYLPRISER.KVID NO-LOCK:
+         FIND FIRST kalkvisningtt WHERE kalkvisningtt.KVID = KALKYLPRISER.KVID NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE kalkvisningtt THEN DO:
+            CREATE kalkvisningtt.
+            BUFFER-COPY KALKVISNING TO kalkvisningtt.
+            kalkvisningtt.TTRECID = RECID(kalkvisningtt).
+         END.   
+      END.      
+   END.
+   
+   
+   FIND FIRST KALKFAKTORER WHERE KALKFAKTORER.KALKNR = knr AND KALKFAKTORER.OMRADE = omr NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKFAKTORER THEN DO TRANSACTION:
+      FOR EACH kalkylprisertt WHERE kalkylprisertt.KLOGSUBID = KALKYLKATALOG.HKLOGSUBID NO-LOCK:
+         CREATE KALKFAKTORER.
+         BUFFER-COPY kalkylprisertt TO KALKFAKTORER.
+         ASSIGN
+         KALKFAKTORER.KALKNR = knr
+         KALKFAKTORER.OMRADE = omr
+         KALKFAKTORER.FAKTOR = 1.0.
+      END.           
+   END.
+   FIND FIRST KALKEGNAPRISER WHERE KALKEGNAPRISER.KALKNR = knr AND KALKEGNAPRISER.OMRADE = omr NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKEGNAPRISER THEN DO TRANSACTION:
+      FOR EACH kalkylprisertt WHERE kalkylprisertt.KLOGSUBID = KALKYLKATALOG.HKLOGSUBID NO-LOCK:
+         CREATE KALKEGNAPRISER.
+         BUFFER-COPY kalkylprisertt TO KALKEGNAPRISER.
+         ASSIGN
+         KALKEGNAPRISER.KALKNR = knr
+         KALKEGNAPRISER.OMRADE = omr.           
+      END.
+   END.
+   
+END PROCEDURE.
+
+/* hämta subnummarna (valda kalkylpriser i egna koder) */
+PROCEDURE snhmt : 
+   DEFINE OUTPUT PARAMETER TABLE FOR kalknumsubtt.
+   DEFINE INPUT PARAMETER kalknr AS INTEGER.
+   DEFINE INPUT PARAMETER omr AS CHARACTER.
+   EMPTY TEMP-TABLE kalknumsubtt NO-ERROR.
+   FOR EACH KALKNUM WHERE KALKNUM.KALKNR = kalknr AND KALKNUM.OMRADE = omr NO-LOCK,
+   EACH KALKNUMSUB WHERE KALKNUMSUB.KALKNR = kalknr AND KALKNUMSUB.OMRADE = omr AND KALKNUMSUB.NUM = KALKNUM.NUM NO-LOCK:
+      CREATE kalknumsubtt.
+      BUFFER-COPY KALKNUMSUB TO kalknumsubtt.
+      kalknumsubtt.TTRECID = RECID(kalknumsubtt).
+      RUN kalkynumsubbenamn_UI.
+   END.
+END PROCEDURE.
+PROCEDURE kalkynumsubbenamn_UI :
+      
+   IF kalknumsubtt.NUMSUBID = 0 THEN DO:
+      IF AVAILABLE KALKYLLOPSUB THEN DO:
+         FIND FIRST KALKYLPRISER  WHERE KALKYLPRISER.KPID = kalknumsubtt.KPID AND
+         KALKYLPRISER.KLOGSUBID = KALKYLLOPSUB.KLOGSUBID NO-LOCK NO-ERROR.
+      END.
+      ELSE IF AVAILABLE KALKNUM THEN DO:
+         FIND FIRST KALKYLPRISER  WHERE KALKYLPRISER.KPID = kalknumsubtt.KPID AND
+         KALKYLPRISER.KLOGSUBID = KALKNUM.KLOGSUBID NO-LOCK NO-ERROR.
+      END.    
+      IF AVAILABLE KALKYLPRISER THEN DO:
+         ASSIGN 
+         kalknumsubtt.PRIS = KALKYLPRISER.PRIS
+         kalknumsubtt.EGENPRISUPP = KALKYLPRISER.EGENPRISUPP 
+         kalknumsubtt.EGENKODUPP = KALKYLPRISER.EGENKODUPP  
+         kalknumsubtt.BENAMNING = KALKYLPRISER.BENAMNING.
+      END.  
+      ASSIGN         
+      kalknumsubtt.FRIBENAMNING = kalknumsubtt.BENAMNING         
+      kalknumsubtt.FRIKOSTNAD = kalknumsubtt.KOSTNAD
+      kalknumsubtt.FRIPRIS = kalknumsubtt.PRIS
+      kalknumsubtt.FRITIMMAR = kalknumsubtt.TIMMAR.
+  END.           
+END PROCEDURE.
+
+/* Hämta numsubbar för 1 frikod !*/
+
+PROCEDURE frikodhmt:
+   DEFINE INPUT PARAMETER kalknr AS INTEGER.
+   DEFINE INPUT PARAMETER omr AS CHARACTER.
+   DEFINE INPUT  PARAMETER num AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE kalknumsubtt NO-ERROR.
+   FOR EACH KALKNUM WHERE KALKNUM.KALKNR = kalknr AND KALKNUM.OMRADE = omr AND KALKNUM.NUM = num NO-LOCK,
+   EACH KALKNUMSUB WHERE KALKNUMSUB.KALKNR = kalknr AND KALKNUMSUB.OMRADE = omr AND KALKNUMSUB.NUM = KALKNUM.NUM EXCLUSIVE-LOCK:
+      ASSIGN 
+      KALKNUMSUB.FRIBENAMNING = KALKNUMSUB.BENAMNING         
+      KALKNUMSUB.FRIKOSTNAD   = KALKNUMSUB.KOSTNAD
+      KALKNUMSUB.FRIPRIS      = KALKNUMSUB.PRIS
+      KALKNUMSUB.FRITIMMAR    = KALKNUMSUB.TIMMAR.
+      CREATE kalknumsubtt.
+      BUFFER-COPY KALKNUMSUB TO kalknumsubtt.
+      kalknumsubtt.TTRECID = RECID(kalknumsubtt).         
+   END.
+   
+END PROCEDURE.
+
+/*  hämta frikalknumsubbar! */
+
+PROCEDURE frikhmt:
+   
+   DEFINE INPUT PARAMETER kalknr AS INTEGER.
+   DEFINE INPUT PARAMETER omr AS CHARACTER.
+   DEFINE INPUT  PARAMETER hela AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalknumsubtt.
+   EMPTY TEMP-TABLE kalknumsubtt NO-ERROR.
+   IF hela = TRUE THEN DO:
+      FOR EACH KALKNUM WHERE KALKNUM.KALKNR = kalknr AND KALKNUM.OMRADE = omr NO-LOCK,
+      EACH KALKNUMSUB WHERE KALKNUMSUB.KALKNR = kalknr AND KALKNUMSUB.OMRADE = omr AND KALKNUMSUB.NUM = KALKNUM.NUM EXCLUSIVE-LOCK:
+         ASSIGN 
+         KALKNUMSUB.FRIBENAMNING = KALKNUMSUB.BENAMNING         
+         KALKNUMSUB.FRIKOSTNAD = KALKNUMSUB.KOSTNAD
+         KALKNUMSUB.FRIPRIS = KALKNUMSUB.PRIS
+         KALKNUMSUB.FRITIMMAR = KALKNUMSUB.TIMMAR.
+         CREATE kalknumsubtt.
+         BUFFER-COPY KALKNUMSUB TO kalknumsubtt.
+         kalknumsubtt.TTRECID = RECID(kalknumsubtt).         
+      END.
+   END.
+   ELSE DO:
+      FOR EACH KALKNUM WHERE KALKNUM.KALKNR = kalknr AND KALKNUM.OMRADE = omr AND KALKNUM.ARBKOD = "EGEN" NO-LOCK,
+      EACH KALKNUMSUB WHERE KALKNUMSUB.KALKNR = kalknr AND KALKNUMSUB.OMRADE = omr AND KALKNUMSUB.NUM = KALKNUM.NUM EXCLUSIVE-LOCK:
+         ASSIGN 
+         KALKNUMSUB.FRIBENAMNING = KALKNUMSUB.BENAMNING         
+         KALKNUMSUB.FRIKOSTNAD = KALKNUMSUB.KOSTNAD
+         KALKNUMSUB.FRIPRIS = KALKNUMSUB.PRIS
+         KALKNUMSUB.FRITIMMAR = KALKNUMSUB.TIMMAR.
+         CREATE kalknumsubtt.
+         BUFFER-COPY KALKNUMSUB TO kalknumsubtt.
+         kalknumsubtt.TTRECID = RECID(kalknumsubtt). 
+      END. 
+   END.     
+   
+END PROCEDURE.
+
+/*startproc hämtar kataloger och kalkyl*/
+PROCEDURE kathmt_UI :
+   DEFINE INPUT-OUTPUT  PARAMETER kynr AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER omrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER sekanv AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmed AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkylarbkodertt.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkylloppostertt.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkhuvtt.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalknumtt.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkylkatalogtt.
+   DEFINE OUTPUT PARAMETER TABLE FOR markfiltertt.
+   /*DEFINE OUTPUT PARAMETER DATASET FOR KalkyldefaultDS.CCC*/
+   EMPTY TEMP-TABLE kalkylkatalogtt NO-ERROR. 
+   EMPTY TEMP-TABLE kalkylarbkodertt NO-ERROR.
+   EMPTY TEMP-TABLE kalkylloppostertt NO-ERROR.
+   EMPTY TEMP-TABLE kalkhuvtt NO-ERROR.
+   EMPTY TEMP-TABLE kalknumtt NO-ERROR.
+   EMPTY TEMP-TABLE markfiltertt NO-ERROR. 
+   FIND LAST KALKYLKATALOG NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKYLKATALOG THEN DO:
+      felmed = "Fel upplägg!".
+      RETURN.
+      
+   END.
+   FIND FIRST KALKHUV WHERE KALKHUV.KALKNR = kynr AND KALKHUV.OMRADE = omrvar  NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKHUV THEN DO:
+      felmed = "Kalkyl finns inte!".
+      RETURN.
+   END.
+   FIND FIRST KALKYLKATALOG WHERE KALKYLKATALOG.KLOGID = KALKHUV.KLOGID NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKYLKATALOG THEN FIND LAST KALKYLKATALOG NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKYLKATALOG THEN DO:
+      felmed = "Fel upplägg!".
+      RETURN.
+   END.
+   IF KALKYLKATALOG.SEKRETESS = TRUE THEN DO:
+      FIND FIRST KALKYLKATALOGANV WHERE KALKYLKATALOGANV.KLOGID = KALKYLKATALOG.KLOGID AND KALKYLKATALOGANV.ANVANDARE = sekanv NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKYLKATALOGANV THEN DO:
+         felmed = "Du är inte behörig att se denna kalkyl!".
+         RETURN.
+      END.
+   END.   
+   CREATE kalkylkatalogtt.
+   BUFFER-COPY KALKYLKATALOG TO kalkylkatalogtt.
+   kalkylkatalogtt.TTRECID = RECID(kalkylkatalogtt).
+   FOR EACH kalkylkatalogtt WHERE kalkylkatalogtt.SEKRETESS = TRUE NO-LOCK:
+      FIND FIRST KALKYLKATALOGANV WHERE KALKYLKATALOGANV.KLOGID = kalkylkatalogtt.KLOGID AND KALKYLKATALOGANV.ANVANDARE = sekanv NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKYLKATALOGANV THEN DO:
+         DELETE kalkylkatalogtt.
+      END.
+   END.
+   CREATE kalkhuvtt.
+   BUFFER-COPY KALKHUV TO kalkhuvtt.
+   kalkhuvtt.TTRECID = RECID(kalkhuvtt).
+   
+   FOR EACH KALKYLKATALOG WHERE KALKYLKATALOG.KLOGID = KALKHUV.KLOGID NO-LOCK, 
+   EACH KALKYLKATALOGSUB WHERE KALKYLKATALOGSUB.KLOGID = KALKYLKATALOG.KLOGID AND KALKYLKATALOGSUB.AVSLUTAD  = FALSE NO-LOCK,
+   EACH KALKYLARBKODER WHERE KALKYLARBKODER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID NO-LOCK:
+      IF KALKYLARBKODER.MARKNING NE "" THEN DO:
+         FIND FIRST markfiltertt WHERE markfiltertt.TYP = KALKYLARBKODER.TYPKALK AND markfiltertt.MARKNING = KALKYLARBKODER.MARKNING NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE markfiltertt THEN DO:
+            CREATE markfiltertt.
+            markfiltertt.TYP = KALKYLARBKODER.TYPKALK.
+            markfiltertt.MARKNING = KALKYLARBKODER.MARKNING.
+         END.
+      END.
+
+      CREATE kalkylarbkodertt.
+      BUFFER-COPY KALKYLARBKODER TO kalkylarbkodertt.
+      kalkylarbkodertt.TTRECID = RECID(kalkylarbkodertt).
+      
+   END.    
+   FOR EACH kalkylarbkodertt,
+   EACH KALKYLLOPPOSTER WHERE KALKYLLOPPOSTER.KLOGSUBID = kalkylarbkodertt.KLOGSUBID AND KALKYLLOPPOSTER.ARBKOD = kalkylarbkodertt.ARBKOD NO-LOCK:
+      CREATE kalkylloppostertt.
+      BUFFER-COPY KALKYLLOPPOSTER TO kalkylloppostertt.
+      kalkylloppostertt.TTRECID = RECID(kalkylloppostertt).
+   END.   
+   FOR EACH kalkhuvtt,
+   EACH KALKNUM WHERE KALKNUM.OMRADE = kalkhuvtt.OMRADE AND KALKNUM.KALKNR = kalkhuvtt.KALKNR NO-LOCK:
+      CREATE kalknumtt.
+      BUFFER-COPY KALKNUM TO kalknumtt.
+      kalknumtt.TTRECID = RECID(kalknumtt).
+   END.      
+   /*CCC
+   DATASET KalkyldefaultDS:EMPTY-DATASET().
+   DEFINE VARIABLE querhj AS CHARACTER NO-UNDO.
+   querhj = "FOR EACH KALKYLDEFAULT where  KALKYLDEFAULT.KALKNR = " + STRING(kynr) + " AND KALKYLDEFAULT.OMRADE = " + "'" + omrvar + "'".
+   QUERY KalkyldefaultQuery:QUERY-PREPARE(querhj).
+   DATASET KalkyldefaultDS:FILL().
+   */  
+   
+END PROCEDURE.   
+/*borttag av kalkpost*/
+PROCEDURE bortnumclient_UI :
+   DEFINE INPUT PARAMETER TABLE FOR ekalknumtt.
+   RUN bortnum_UI. 
+END PROCEDURE.
+
+PROCEDURE bortnum_UI :
+   FIND FIRST ekalknumtt WHERE NO-LOCK NO-ERROR.
+   FOR EACH KALKNUMSUB WHERE KALKNUMSUB.OMRADE = ekalknumtt.OMRADE AND KALKNUMSUB.KALKNR = ekalknumtt.KALKNR AND 
+   KALKNUMSUB.NUM = ekalknumtt.NUM EXCLUSIVE-LOCK: 
+      DELETE KALKNUMSUB. 
+   END.
+   FOR EACH KALKNUM WHERE KALKNUM.OMRADE = ekalknumtt.OMRADE AND KALKNUM.KALKNR = ekalknumtt.KALKNR AND 
+      KALKNUM.NUM = ekalknumtt.NUM EXCLUSIVE-LOCK: 
+      DELETE KALKNUM. 
+   END.
+   EMPTY TEMP-TABLE ekalknumtt NO-ERROR. 
+END PROCEDURE.
+
+
+/*skapar ny egen kod*/ 
+PROCEDURE skapaegenkod_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR ekalknumtt.
+
+   FIND FIRST ekalknumtt NO-ERROR.
+
+   /* Hitta senaste löpnummer */
+   FIND LAST KALKNUM WHERE KALKNUM.KALKNR = ekalknumtt.KALKNR AND
+      KALKNUM.OMRADE = ekalknumtt.OMRADE AND KALKNUM.ARBKOD = "EGEN"
+      USE-INDEX ARBKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE KALKNUM THEN ekalknumtt.LOPNR = KALKNUM.LOPNR + 1.
+   ELSE DO:
+      IF globforetag = "ELPA" OR globforetag = "GRAN" THEN ekalknumtt.LOPNR = 10.
+      ELSE ekalknumtt.LOPNR = 1.
+   END.
+   
+   /* Hitta senaste num*/
+   RUN sistanum_UI (OUTPUT ekalknumtt.NUM).
+   
+   /* Släng in i kalknum*/
+   CREATE KALKNUM.
+   BUFFER-COPY ekalknumtt TO KALKNUM.
+   
+      
+END PROCEDURE.
+
+
+/*sparar  och skapar kalkylnum*/ 
+PROCEDURE sparanum_UI :
+   DEFINE INPUT PARAMETER TABLE FOR kalknumtt.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR kalknumsubtt.
+   DEFINE INPUT  PARAMETER subidvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER totvar AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER totfri AS DECIMAL NO-UNDO.
+   
+   DO TRANSACTION:
+      FIND FIRST kalknumtt  WHERE NO-LOCK NO-ERROR.
+      
+      FIND FIRST KALKNUM WHERE KALKNUM.KALKNR = kalknumtt.KALKNR AND KALKNUM.OMRADE = kalknumtt.OMRADE AND 
+      KALKNUM.NUM = kalknumtt.NUM EXCLUSIVE-LOCK NO-ERROR.
+      /*befintlig post*/
+      IF AVAILABLE KALKNUM THEN DO:
+         /*borde aldring inträffa*/
+         BUFFER-COPY kalknumtt TO KALKNUM.
+         RUN sparanumsub_UI (OUTPUT totvar,OUTPUT totfri).
+         BUFFER-COPY kalknumtt TO KALKNUM.
+      END.  
+      ELSE DO: 
+         /*skapar ny post*/
+         CREATE KALKNUM.
+         BUFFER-COPY kalknumtt TO KALKNUM.
+         FOR EACH KALKYLLOPSUB WHERE KALKYLLOPSUB.KLOGSUBID = subidvar AND KALKYLLOPSUB.ARBKOD = kalknumtt.ARBKOD AND 
+         KALKYLLOPSUB.LOPNR = kalknumtt.LOPNR NO-LOCK: 
+            CREATE kalknumsubtt.  
+            BUFFER-COPY KALKYLLOPSUB TO kalknumsubtt.      
+            ASSIGN 
+            kalknumsubtt.KALKNR = kalknumtt.KALKNR
+            kalknumsubtt.OMRADE = kalknumtt.OMRADE
+            kalknumsubtt.NUM = kalknumtt.NUM.              
+            RUN kalkynumsubbenamn_UI. 
+         END.
+         
+         RUN raknaenkod_UI (INPUT FALSE).
+         /*spara subbar*/
+         FOR EACH kalknumsubtt:
+            CREATE KALKNUMSUB.
+            BUFFER-COPY kalknumsubtt TO KALKNUMSUB.
+            RUN sistanumsubid_UI (OUTPUT KALKNUMSUB.NUMSUBID).             
+            kalknumsubtt.NUMSUBID = KALKNUMSUB.NUMSUBID.
+         END.
+         totfri = kalknumtt.FRITOTKOST.
+         totvar = kalknumtt.TOTKOST.
+         BUFFER-COPY kalknumtt TO KALKNUM.
+      END.   
+   END.
+   RELEASE KALKNUM NO-ERROR.
+   RELEASE KALKNUMSUB NO-ERROR.   
+   EMPTY TEMP-TABLE kalknumtt NO-ERROR. 
+  
+END PROCEDURE.
+/*sparar  och skapar kalkylnum egen*/
+PROCEDURE sparanumegen_UI :
+   DEFINE INPUT PARAMETER TABLE FOR kalknumtt.
+   DEFINE INPUT PARAMETER TABLE FOR kalknumsubtt.
+   DEFINE OUTPUT PARAMETER totvar AS DECIMAL NO-UNDO.   
+   DEFINE OUTPUT PARAMETER totfri AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR numsubhj.
+   EMPTY TEMP-TABLE numsubhj NO-ERROR. 
+   DO TRANSACTION:
+      FIND FIRST kalknumtt  WHERE NO-LOCK NO-ERROR.
+      FIND FIRST KALKNUM WHERE KALKNUM.KALKNR = kalknumtt.KALKNR AND KALKNUM.OMRADE = kalknumtt.OMRADE AND 
+      KALKNUM.NUM = kalknumtt.NUM EXCLUSIVE-LOCK NO-ERROR.
+      /*befintlig post*/
+      IF AVAILABLE KALKNUM THEN DO:
+         /*BORDE ALDRIG INTRÄFFA*/
+         BUFFER-COPY kalknumtt TO KALKNUM.
+         RUN sparanumsub_UI (OUTPUT totvar,OUTPUT totfri).        
+      END.  
+      ELSE DO: 
+         /*skapar ny post*/
+         CREATE KALKNUM.
+         BUFFER-COPY kalknumtt TO KALKNUM.
+         RUN sparanumsub_UI (OUTPUT totvar,OUTPUT totfri).                 
+      END.   
+   END.
+   RELEASE KALKNUM NO-ERROR.
+   RELEASE KALKNUMSUB NO-ERROR.   
+   EMPTY TEMP-TABLE kalknumtt NO-ERROR. 
+   EMPTY TEMP-TABLE kalknumsubtt NO-ERROR. 
+END PROCEDURE.
+/*updaterar kalkylnum även egen*/
+PROCEDURE UpdateKod:
+   DEFINE INPUT PARAMETER TABLE FOR kalknumtt.
+   DEFINE OUTPUT PARAMETER tot AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER totfri AS DECIMAL NO-UNDO.
+   FIND FIRST kalknumtt NO-LOCK NO-ERROR.
+   kalknumtt.TOTKOST = 0.
+   kalknumtt.FRITOTKOST = 0.
+   DO TRANSACTION:
+     
+      FIND FIRST KALKNUM WHERE KALKNUM.KALKNR = kalknumtt.KALKNR AND KALKNUM.OMRADE = kalknumtt.OMRADE AND KALKNUM.NUM = kalknumtt.NUM EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE (KALKNUM) THEN DO:
+        /*borde aldring inträffa */
+         CREATE KALKNUM.
+      END.     
+      BUFFER-COPY kalknumtt TO KALKNUM.
+      EMPTY TEMP-TABLE kalknumsubtt NO-ERROR. 
+      /*skapar subtt av befintliga poster.*/
+      FOR EACH KALKNUMSUB WHERE KALKNUMSUB.KALKNR = kalknumtt.KALKNR AND KALKNUMSUB.OMRADE = kalknumtt.OMRADE AND KALKNUMSUB.NUM = kalknumtt.NUM NO-LOCK: 
+         CREATE kalknumsubtt.  
+         BUFFER-COPY KALKNUMSUB TO kalknumsubtt.                                     
+      END.
+      RUN raknaenkod_UI (FALSE).
+      totfri = kalknumtt.FRITOTKOST.
+      tot = kalknumtt.TOTKOST.
+      BUFFER-COPY kalknumtt TO KALKNUM.
+   END.
+   EMPTY TEMP-TABLE kalknumtt NO-ERROR. 
+   EMPTY TEMP-TABLE kalknumsubtt NO-ERROR. 
+   RELEASE KALKNUM NO-ERROR.    
+END PROCEDURE.
+/*updaterar kalkylnumsub även egen*/
+PROCEDURE UpdateKodSub:
+   DEFINE INPUT PARAMETER TABLE FOR kalknumtt.
+   DEFINE INPUT PARAMETER TABLE FOR kalknumsubtt.    
+   DEFINE OUTPUT PARAMETER tot AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER totfri AS DECIMAL NO-UNDO.
+   
+   FIND FIRST kalknumsubtt NO-LOCK NO-ERROR.
+   FIND FIRST kalknumtt NO-LOCK NO-ERROR.
+   kalknumtt.TOTKOST = 0.
+   kalknumtt.FRITOTKOST = 0.
+   DO TRANSACTION:
+      
+      FIND FIRST KALKNUM WHERE KALKNUM.KALKNR = kalknumtt.KALKNR AND KALKNUM.OMRADE = kalknumtt.OMRADE AND KALKNUM.NUM = kalknumtt.NUM EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE (KALKNUM) THEN DO:
+        /*borde aldring inträffa */
+         CREATE KALKNUM.
+      END.     
+      BUFFER-COPY kalknumtt TO KALKNUM.
+      FIND FIRST KALKNUMSUB WHERE KALKNUMSUB.KALKNR = kalknumsubtt.KALKNR AND KALKNUMSUB.OMRADE = kalknumsubtt.OMRADE AND KALKNUMSUB.NUM = kalknumsubtt.NUM AND KALKNUMSUB.NUMSUBID = kalknumsubtt.NUMSUBID EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE (KALKNUMSUB) THEN DO:
+         /*borde aldring inträffa */
+              
+      END.     
+      BUFFER-COPY kalknumsubtt TO KALKNUMSUB.
+      EMPTY TEMP-TABLE kalknumsubtt NO-ERROR. 
+      /*skapar subtt av befintliga poster.*/
+      FOR EACH KALKNUMSUB WHERE KALKNUMSUB.KALKNR = kalknumtt.KALKNR AND KALKNUMSUB.OMRADE = kalknumtt.OMRADE AND KALKNUMSUB.NUM = kalknumtt.NUM NO-LOCK: 
+         CREATE kalknumsubtt.  
+         BUFFER-COPY KALKNUMSUB TO kalknumsubtt.                                     
+      END.
+      RUN raknaenkod_UI (false).
+      totfri = kalknumtt.FRITOTKOST.
+      tot = kalknumtt.TOTKOST.
+      BUFFER-COPY kalknumtt TO KALKNUM.
+   END.
+   EMPTY TEMP-TABLE kalknumtt NO-ERROR. 
+   EMPTY TEMP-TABLE kalknumsubtt NO-ERROR. 
+   RELEASE KALKNUM NO-ERROR. 
+   RELEASE KALKNUMSUB NO-ERROR .
+  
+END PROCEDURE.
+
+
+
+/*sparar egnakoder OCH ANDRA subbarpost*/ 
+PROCEDURE sparanumsub_UI :
+   DEFINE OUTPUT PARAMETER totvar AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER totfri AS DECIMAL NO-UNDO.
+   DO TRANSACTION:
+      kalknumtt.FRITOTKOST = 0.
+      kalknumtt.TOTKOST = 0.
+      FOR EACH kalknumsubtt:
+         FIND FIRST KALKNUMSUB WHERE KALKNUMSUB.KALKNR = KALKNUM.KALKNR AND KALKNUMSUB.OMRADE = KALKNUM.OMRADE AND 
+         KALKNUMSUB.NUM = KALKNUM.NUM  AND KALKNUMSUB.NUMSUBID = kalknumsubtt.NUMSUBID
+         USE-INDEX NUM EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE KALKNUMSUB THEN DO:
+            CREATE KALKNUMSUB.
+            BUFFER-COPY kalknumsubtt TO KALKNUMSUB.
+            RUN kalkynumsubbenamn_UI.
+            RUN sistanumsubid_UI (OUTPUT KALKNUMSUB.NUMSUBID).
+            
+            CREATE numsubhj.
+            ASSIGN
+            numsubhj.TTRECID = kalknumsubtt.TTRECID
+            numsubhj.NUMSUBID = KALKNUMSUB.NUMSUBID
+            kalknumsubtt.NUMSUBID = KALKNUMSUB.NUMSUBID.
+            
+         END.       
+         ELSE BUFFER-COPY kalknumsubtt TO KALKNUMSUB.
+      END.
+      
+      FOR EACH KALKNUMSUB WHERE KALKNUMSUB.KALKNR = KALKNUM.KALKNR AND KALKNUMSUB.OMRADE = KALKNUM.OMRADE AND 
+      KALKNUMSUB.NUM = KALKNUM.NUM EXCLUSIVE-LOCK:
+         FIND FIRST kalknumsubtt WHERE kalknumsubtt.NUMSUBID = KALKNUMSUB.NUMSUBID NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE kalknumsubtt THEN DO:
+            DELETE KALKNUMSUB. 
+            
+         END.
+      END.    
+      EMPTY TEMP-TABLE kalknumsubtt NO-ERROR. 
+      /*skapar subtt av befintliga poster.*/
+      FOR EACH KALKNUMSUB WHERE KALKNUMSUB.KALKNR = kalknumtt.KALKNR AND KALKNUMSUB.OMRADE = kalknumtt.OMRADE AND KALKNUMSUB.NUM = kalknumtt.NUM NO-LOCK: 
+         CREATE kalknumsubtt.  
+         BUFFER-COPY KALKNUMSUB TO kalknumsubtt.                                     
+      END.
+      RUN raknaenkod_UI (INPUT FALSE).
+      totvar = kalknumtt.TOTKOST.
+      totfri = kalknumtt.FRITOTKOST.
+      BUFFER-COPY kalknumtt TO KALKNUM.
+   END.   
+   RELEASE KALKNUM NO-ERROR.
+   RELEASE KALKNUMSUB NO-ERROR. 
+   
+   EMPTY TEMP-TABLE kalknumtt NO-ERROR. 
+   
+END PROCEDURE.
+
+
+PROCEDURE kalktmtrlTT_UI:
+   
+   DEFINE INPUT PARAMETER valkalknr AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER omrvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalktmtrlTT.
+   EMPTY TEMP-TABLE kalktmtrlTT NO-ERROR. 
+   FOR EACH KALKMTRL WHERE KALKMTRL.KALKNR = valkalknr AND
+      KALKMTRL.OMRADE = omrvar NO-LOCK:
+      CREATE kalktmtrlTT.
+      BUFFER-COPY kalktmtrlTT TO KALKMTRL.
+       
+                               
+   END.     
+END PROCEDURE.
+
+
+/*borttag av kalknumsubpost*/
+PROCEDURE bortnumsubclient_UI :
+   DEFINE INPUT PARAMETER TABLE FOR kalknumsubtt.
+   DEFINE OUTPUT PARAMETER totvar AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER totfri AS DECIMAL NO-UNDO.
+   RUN bortnumsub_UI (OUTPUT totvar, OUTPUT totfri).
+   
+END PROCEDURE.
+PROCEDURE bortnumsub_UI :
+   DEFINE OUTPUT PARAMETER totvar AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER totfri AS DECIMAL NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST kalknumsubtt WHERE NO-LOCK NO-ERROR.
+      FIND FIRST KALKNUM WHERE KALKNUM.KALKNR = kalknumsubtt.KALKNR AND KALKNUM.OMRADE = kalknumsubtt.OMRADE AND KALKNUM.NUM = kalknumsubtt.NUM EXCLUSIVE-LOCK NO-ERROR.
+      FOR EACH KALKNUMSUB WHERE KALKNUMSUB.OMRADE = kalknumsubtt.OMRADE AND KALKNUMSUB.KALKNR = kalknumsubtt.KALKNR AND 
+      KALKNUMSUB.NUM = kalknumsubtt.NUM AND KALKNUMSUB.KPID = kalknumsubtt.KPID  EXCLUSIVE-LOCK: 
+         DELETE KALKNUMSUB. 
+      END.
+      CREATE kalknumtt.
+      BUFFER-COPY KALKNUM TO kalknumtt.
+      kalknumtt.TTRECID = RECID(kalknumtt).
+      EMPTY TEMP-TABLE kalknumsubtt NO-ERROR. 
+      FOR EACH KALKNUMSUB WHERE KALKNUMSUB.KALKNR = kalknumtt.KALKNR AND KALKNUMSUB.OMRADE = kalknumtt.OMRADE AND KALKNUMSUB.NUM = kalknumtt.NUM NO-LOCK: 
+         CREATE kalknumsubtt.  
+         BUFFER-COPY KALKNUMSUB TO kalknumsubtt.                  
+      END.
+      kalknumtt.TOTKOST = 0.
+      kalknumtt.FRITOTKOST = 0.
+      RUN raknaenkod_UI (INPUT FALSE).
+      totvar = kalknumtt.TOTKOST.
+      totfri = kalknumtt.FRITOTKOST.
+      BUFFER-COPY kalknumtt TO KALKNUM.
+   END.
+   RELEASE KALKNUM NO-ERROR.
+   RELEASE KALKNUMSUB NO-ERROR. 
+   EMPTY TEMP-TABLE kalknumtt NO-ERROR. 
+   EMPTY TEMP-TABLE kalknumsubtt NO-ERROR. 
+END PROCEDURE.
+
+
+/*hittar första lediga nummer*/
+PROCEDURE sistanum_UI :
+   DEFINE OUTPUT PARAMETER hjraknare AS INTEGER NO-UNDO.
+
+   FIND LAST KALKNUMbuff WHERE KALKNUMbuff.KALKNR = KALKHUV.KALKNR AND KALKNUMbuff.OMRADE = KALKHUV.OMRADE USE-INDEX NUM NO-LOCK NO-ERROR.
+   IF AVAILABLE KALKNUMbuff THEN 
+   DO:
+      hjraknare = KALKNUMbuff.NUM + 1.   
+   END.  
+   ELSE hjraknare = hjraknare + 1.
+END PROCEDURE. 
+PROCEDURE sistanumsubid_UI :
+   DEFINE OUTPUT PARAMETER hjraknare AS INTEGER NO-UNDO.
+
+   FIND LAST KALKNUMSUBbuff WHERE KALKNUMSUBbuff.KALKNR = KALKNUM.KALKNR AND KALKNUMSUBbuff.OMRADE = KALKNUM.OMRADE AND KALKNUMSUBbuff.NUM = KALKNUM.NUM 
+   USE-INDEX NUM NO-LOCK NO-ERROR.
+   IF AVAILABLE KALKNUMSUBbuff THEN DO:
+      hjraknare = KALKNUMSUBbuff.NUMSUBID + 1.   
+   END.  
+   ELSE hjraknare = hjraknare + 1.
+END PROCEDURE. 
+PROCEDURE raknaallkoder_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkantal.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkkostnad.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkrubrikTT.
+   EMPTY TEMP-TABLE kalkrubrikTT NO-ERROR.
+   EMPTY TEMP-TABLE kalknumsubtt NO-ERROR.
+   EMPTY TEMP-TABLE kalkantal NO-ERROR. 
+   EMPTY TEMP-TABLE kalkkostnad NO-ERROR.
+   
+   FOR EACH KALKNUM WHERE KALKNUM.KALKNR = KALKHUV.KALKNR AND KALKNUM.OMRADE = KALKHUV.OMRADE NO-LOCK,
+   EACH KALKNUMSUB WHERE KALKNUMSUB.KALKNR = KALKHUV.KALKNR AND KALKNUMSUB.OMRADE = KALKHUV.OMRADE AND KALKNUMSUB.NUM = KALKNUM.NUM NO-LOCK:
+      CREATE kalknumsubtt.
+      BUFFER-COPY KALKNUMSUB TO kalknumsubtt.
+      kalknumsubtt.TTRECID = RECID(kalknumsubtt).
+      RUN kalkynumsubbenamn_UI.
+      
+   END.    
+   
+   RUN raknaenkod_UI (INPUT TRUE).
+   FOR EACH kalkantal WHERE kalkantal.KVID = 0 NO-LOCK:
+      DELETE kalkantal.
+   END.
+   FOR EACH kalkkostnad WHERE kalkkostnad.KVID = 0 NO-LOCK:
+      DELETE kalkkostnad.
+   END.
+   FOR EACH kalkantal BREAK BY kalkantal.TIMTYP:
+      ACCUMULATE kalkantal.SUMMA (TOTAL BY kalkantal.TIMTYP). 
+      IF LAST-OF(kalkantal.TIMTYP) THEN DO:
+         IF (ACCUM TOTAL BY kalkantal.TIMTYP kalkantal.SUMMA) = 0 THEN DO:
+            FOR EACH kalkantalbuf  WHERE kalkantalbuf.TIMTYP = kalkantal.TIMTYP NO-LOCK:
+               DELETE kalkantalbuf.
+            END.
+         END.        
+      END.
+   END.
+   FOR EACH kalkkostnad BREAK BY kalkkostnad.KOSTTYP:
+      ACCUMULATE kalkkostnad.TOTKOST (TOTAL BY kalkkostnad.KOSTTYP). 
+      IF LAST-OF(kalkkostnad.KOSTTYP) THEN DO:
+         IF (ACCUM TOTAL BY kalkkostnad.KOSTTYP kalkkostnad.TOTKOST) = 0 THEN DO:
+            FOR EACH kalkkostnadbuf  WHERE kalkkostnadbuf.KOSTTYP = kalkkostnad.KOSTTYP NO-LOCK:
+               DELETE kalkkostnadbuf.
+            END.
+         END.        
+      END.
+   END.
+   RUN kalkrubrik_UI.
+   
+   output TO c:\c.txt.
+   FOR EACH kalkantal WHERE NO-LOCK:
+      DISPLAY kalkantal.ARBKOD kalkantal.LOPNR kalkantal.timtyp kalkantal.SUMMA.
+   END.
+   FOR EACH kalkkostnad WHERE NO-LOCK:
+      DISPLAY kalkkostnad.ARBKOD kalkkostnad.LOPNR kalkkostnad.KOSTTYP kalkkostnad.TOTKOST kalkkostnad.EAMANGD.
+   END.
+   FOR EACH kalkrubrikTT WHERE NO-LOCK:
+      DISPLAY kalkrubrikTT.
+   END.  
+   OUTPUT CLOSE.
+   
+   
+   EMPTY TEMP-TABLE kalknumsubtt NO-ERROR. 
+END PROCEDURE.
+PROCEDURE kalkrubrik_UI:
+   
+   
+   FOR EACH kalkvisningtt WHERE NO-LOCK:
+      FIND FIRST kalkrubrikTT WHERE kalkrubrikTT.BENAMNING = kalkvisningtt.KOSTTYP AND kalkrubrikTT.KOSTTIMM = TRUE NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE kalkrubrikTT THEN DO:
+         FIND FIRST kalkkostnad WHERE kalkkostnad.KOSTTYP = kalkvisningtt.KOSTTYP  NO-LOCK NO-ERROR.
+         IF AVAILABLE kalkkostnad THEN DO:
+            IF kalkvisningtt.KOSTTYP NE "" THEN DO:
+               CREATE kalkrubrikTT.
+               ASSIGN  
+               kalkrubrikTT.BENAMNING = kalkvisningtt.KOSTTYP
+               kalkrubrikTT.KVID = kalkvisningtt.KVID
+               kalkrubrikTT.KOSTTIMM = TRUE 
+               kalkrubrikTT.ORDNING = kalkvisningtt.ORDNINGKOSTNAD.
+            END.
+         END.      
+      END.         
+      FIND FIRST kalkrubrikTT WHERE kalkrubrikTT.BENAMNING = kalkvisningtt.TIMTYP AND kalkrubrikTT.KOSTTIMM = FALSE NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE kalkrubrikTT THEN DO:
+         FIND FIRST kalkantal WHERE kalkantal.TIMTYP = kalkvisningtt.TIMTYP  NO-LOCK NO-ERROR.
+         IF AVAILABLE kalkantal THEN DO:
+            IF kalkvisningtt.TIMTYP NE "" THEN DO:
+               CREATE kalkrubrikTT.
+               ASSIGN  
+               kalkrubrikTT.BENAMNING = kalkvisningtt.TIMTYP
+               kalkrubrikTT.KVID = kalkvisningtt.KVID
+               kalkrubrikTT.KOSTTIMM = FALSE  
+               kalkrubrikTT.ORDNING = kalkvisningtt.ORDNINGKOSTNAD.
+            END.
+         END.      
+      END.
+      IF kalkvisningtt.EABER = TRUE THEN DO:
+         FIND FIRST kalkrubrikTT WHERE kalkrubrikTT.BENAMNING = "EA" AND kalkrubrikTT.KOSTTIMM = TRUE NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE kalkrubrikTT THEN DO:         
+            CREATE kalkrubrikTT.
+            ASSIGN  
+            kalkrubrikTT.BENAMNING = "EA"
+            kalkrubrikTT.KVID = 0
+            kalkrubrikTT.KOSTTIMM = TRUE  
+            kalkrubrikTT.ORDNING = 0.
+         END.   
+      END.     
+   END. 
+
+  
+END PROCEDURE.
+/*beräknar kostnad för en kod ELLER ALLA KODER*/ 
+PROCEDURE raknaenkod_UI :
+   DEFINE INPUT  PARAMETER allakoder AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE totkostvar AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE fritotkostvar AS DECIMAL NO-UNDO.
+   EMPTY TEMP-TABLE kalkantal NO-ERROR. 
+   EMPTY TEMP-TABLE kalkkostnad NO-ERROR. 
+   /*SAMBYGG EGNA PRISER FAKTORER */
+   
+   IF allakoder = FALSE THEN DO:
+      OPEN QUERY ksq FOR EACH kalknumsubtt WHERE kalknumsubtt.KALKNR = kalknumtt.KALKNR AND kalknumsubtt.OMRADE = KALKHUV.OMRADE AND 
+      kalknumsubtt.NUM = kalknumtt.NUM NO-LOCK.
+      GET FIRST ksq NO-LOCK.
+     
+   END.
+   ELSE DO:
+      OPEN QUERY ksq FOR EACH kalknumsubtt WHERE kalknumsubtt.KALKNR = KALKHUV.KALKNR AND kalknumsubtt.OMRADE = KALKHUV.OMRADE NO-LOCK.
+      GET FIRST ksq NO-LOCK.
+   END.    
+   DO WHILE AVAILABLE(kalknumsubtt):
+      
+      IF allakoder = TRUE THEN DO:
+         FIND FIRST KALKNUM WHERE KALKNUM.KALKNR = KALKHUV.KALKNR AND KALKNUM.OMRADE = KALKHUV.OMRADE AND KALKNUM.NUM = kalknumsubtt.NUM NO-LOCK NO-ERROR.
+         FIND FIRST kalknumtt WHERE kalknumtt.KALKNR = KALKHUV.KALKNR AND kalknumtt.OMRADE = KALKHUV.OMRADE AND kalknumtt.NUM = kalknumsubtt.NUM NO-ERROR.
+         IF NOT AVAILABLE kalknumtt THEN DO:
+            CREATE kalknumtt.
+            BUFFER-COPY KALKNUM TO kalknumtt.
+            kalknumtt.TTRECID = RECID(kalknumtt).
+         END.         
+      END.
+      CREATE kalkantal.
+      BUFFER-COPY kalknumtt TO kalkantal.
+      CREATE kalkkostnad.
+      BUFFER-COPY kalknumtt TO kalkkostnad.
+      kalkkostnad.TOTKOST = 0.
+      FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = kalknumtt.KLOGSUBID AND 
+      KALKYLPRISER.KPID = kalknumsubtt.KPID NO-LOCK NO-ERROR.
+      FIND FIRST KALKVISNING WHERE KALKVISNING.KVID = KALKYLPRISER.KVID NO-LOCK NO-ERROR.
+      /*)
+      EMPTY TEMP-TABLE kalkEA NO-ERROR.
+      CREATE kalkEA.
+      */        
+      IF AVAILABLE KALKVISNING THEN DO:   
+         
+         ASSIGN 
+         kalkkostnad.KOSTTYP = KALKVISNING.KOSTTYP
+         kalkkostnad.KPID = KALKYLPRISER.KPID
+         kalkkostnad.KVID = KALKYLPRISER.KVID.
+          
+         kalkkostnad.TOTKOST = kalkkostnad.TOTKOST + (kalknumsubtt.TIMMAR * kalknumtt.ANTAL * KALKYLPRISER.PRIS)
+         + kalknumtt.ANTAL * kalknumsubtt.KOSTNAD.
+         kalkkostnad.FRITOTKOST = kalkkostnad.FRITOTKOST + (kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL * kalknumsubtt.FRIPRIS)
+         + kalknumtt.ANTAL * kalknumsubtt.FRIKOSTNAD.
+         
+         totkostvar = totkostvar + kalkkostnad.TOTKOST.
+         fritotkostvar = fritotkostvar + kalkkostnad.FRITOTKOST.
+         ASSIGN 
+         kalkantal.TIMTYP = KALKVISNING.TIMTYP
+         kalkantal.KPID = KALKYLPRISER.KPID
+         kalkantal.KVID = KALKYLPRISER.KVID.
+          
+         kalkantal.SUMMA = kalkantal.SUMMA + kalknumsubtt.TIMMAR * kalknumtt.ANTAL.
+         kalkantal.FRISUMMA = kalkantal.FRISUMMA + kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL.
+                         
+      END.
+      FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = kalknumtt.KLOGSUBID AND KALKYLPRISER.KVID = 0 AND KALKYLPRISER.SOKBENAMNING = "RÖRLIGKOSTNAD EA"  NO-LOCK NO-ERROR.
+      IF AVAILABLE KALKYLPRISER THEN DO:
+         
+         IF kalkantal.KVID = 2 THEN DO:
+            kalkkostnad.EAMANGD = kalkantal.SUMMA.
+         END.
+         IF kalkantal.KVID = 3 THEN DO:
+            kalkkostnad.EAMANGD = kalkkostnad.TOTKOST / KALKYLPRISER.PRIS.
+         END.
+                            
+      END.
+      ELSE DO:
+         ASSIGN
+         kalkkostnad.EAMANGD  = 0
+         kalkkostnad.FRIEAMANGD = 0.        
+      END.
+      
+      GET NEXT ksq NO-LOCK.
+   END.            
+   IF allakoder = FALSE THEN DO:
+      ASSIGN
+      kalknumtt.FRITOTKOST = fritotkostvar
+      kalknumtt.TOTKOST = totkostvar.   
+      EMPTY TEMP-TABLE kalkantal NO-ERROR.
+      EMPTY TEMP-TABLE kalkkostnad NO-ERROR.       
+   END.    
+END PROCEDURE.   
+
+
+/* KONVERTERING-KATALOGER   ---------------------------------------------------*/
+/* konverterar från lop1,2,3 till nya kataloger*/
+PROCEDURE katskaphuvskap_UI:
+   
+   /*
+   for each FREKVENSKATALOG:
+delete    FREKVENSKATALOG .
+end.
+   
+   for each KALKYLKATALOG:
+delete    KALKYLKATALOG .
+end.
+for each KALKYLKATALOGSUB:
+delete   KALKYLKATALOGSUB .
+end.
+
+for each KALKVISNING:
+delete    KALKVISNING.
+end.
+
+for each KALKYLPRISER:
+delete   KALKYLPRISER .
+end.
+
+for each KALKYLARBKODER :
+delete   KALKYLARBKODER .
+end.
+
+for each KALKYLLOPPOSTER:
+delete   KALKYLLOPPOSTER .
+end.
+
+for each KALKYLLOPSUB:
+delete   KALKYLLOPSUB .
+end.
+   */
+   DEFINE VARIABLE deckatfix AS INTEGER NO-UNDO.
+   DEFINE VARIABLE minskaartal AS INTEGER NO-UNDO.
+   DEFINE VARIABLE klogvar AS INTEGER NO-UNDO.
+   FIND FIRST KALKYLKATALOG NO-LOCK NO-ERROR.
+   IF AVAILABLE KALKYLKATALOG THEN RETURN.
+   IF globforetag = "GRAN" THEN minskaartal = 2.
+   ELSE minskaartal = 1.            
+   FOR EACH EBRPRIS NO-LOCK:
+      klogvar = klogvar + 1.
+      
+      DO TRANSACTION :
+         CREATE KALKYLKATALOG.
+         ASSIGN
+         KALKYLKATALOG.KLOGID = klogvar
+         KALKYLKATALOG.BENAMNING = "EBR " + STRING(EBRPRIS.ARTAL - minskaartal) + " SKJ/SKL " + STRING(EBRPRIS.ARTAL - minskaartal)
+         KALKYLKATALOG.INDATUM = TODAY
+         KALKYLKATALOG.VISARTAL  = EBRPRIS.ARTAL - minskaartal.
+      
+         RUN katskapsub_UI (INPUT "EBR " + STRING(EBRPRIS.ARTAL - minskaartal)).
+         KALKYLKATALOG.HKLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID.
+         RUN katfrekvens_UI (INPUT EBRPRIS.ARTAL).          
+         RUN katskapsub_UI (INPUT "SKJ/SKL " + STRING(EBRPRIS.ARTAL - minskaartal)).
+         RUN kvisskap_UI (INPUT 1,INPUT "BEREDARE",INPUT  "ARBETADETIMMAR",INPUT FALSE). 
+         RUN kvisskap_UI (INPUT 2,INPUT "MONTÖR",INPUT  "ARBETADETIMMAR",INPUT TRUE).
+         RUN kvisskap_UI (INPUT 3,INPUT "MASKIN",INPUT  "MASKIN",INPUT TRUE).
+         RUN kvisskap_UI (INPUT 4,INPUT "",INPUT  "ÖVRIGT",INPUT FALSE).
+         RUN kvisskap_UI (INPUT 5,INPUT "",INPUT  "MATERIEL",INPUT FALSE).
+         RUN kvisskap_UI (INPUT 6,INPUT "UTRUSTNING",INPUT  "UTRUSTNING",INPUT FALSE).   
+         FIND FIRST SEBRPRIS WHERE SEBRPRIS.ARTAL = EBRPRIS.ARTAL NO-LOCK NO-ERROR.
+         FIND FIRST EXTRADATA WHERE EXTRADATA.PROGRAM = "EBRNYPRIS" AND EXTRADATA.HUVUDINT = EBRPRIS.ARTAL NO-LOCK NO-ERROR.
+         FIND FIRST KALKBEF WHERE KALKBEF.KALKNR = 0 AND KALKBEF.KATAR = EBRPRIS.ARTAL NO-LOCK NO-ERROR.
+      END.
+
+      FOR EACH KALKYLKATALOGSUB WHERE KALKYLKATALOGSUB.KLOGID = KALKYLKATALOG.KLOGID NO-LOCK:
+         IF AVAILABLE SEBRPRIS THEN 
+         RUN kalkylpristab_UI (INPUT 0, INPUT "SAMBYGGNADSPRIS",INPUT "SAMBYGGNADSPRIS",INPUT SEBRPRIS.MONT,INPUT FALSE,INPUT FALSE).
+         RUN kalkylpristab_UI (INPUT 0, INPUT "RÖRLIGKOSTNAD EA",INPUT "RÖRLIGKOSTNAD EA",INPUT EBRPRIS.RORLIG,INPUT FALSE,INPUT FALSE).
+         RUN kalkylpristab_UI (INPUT 4, INPUT "ÖVRIGKOSTNAD",INPUT "ÖVRIGKOSTNAD",INPUT 0,INPUT FALSE,INPUT TRUE).
+         RUN kalkylpristab_UI (INPUT 4, INPUT "ENTREP",INPUT "ENTREPNÖR",INPUT 0,INPUT FALSE,INPUT TRUE).
+         RUN kalkylpristab_UI (INPUT 5, INPUT "MATERIEL",INPUT "MATERIEL",INPUT 0,INPUT FALSE,INPUT TRUE).
+         
+         RUN kalkylpristab_UI (INPUT 6, INPUT "UTRUSTNING",INPUT "UTRUSTNING",INPUT 0,INPUT FALSE,INPUT TRUE). /*???*/
+         RUN kalkylpristab_UI (INPUT 1, INPUT "BEREDARE",INPUT "BEREDARE",INPUT EBRPRIS.MONT,INPUT TRUE,INPUT TRUE). 
+         IF AVAILABLE EXTRADATA THEN DO:
+            RUN kalkylpristab_UI (INPUT 1, INPUT "BEREDARE REGION",INPUT "BEREDARE REGION",INPUT EXTRADATA.SOKDEC[6],INPUT TRUE,INPUT TRUE).
+         END.
+         ELSE DO:
+            RUN kalkylpristab_UI (INPUT 1, INPUT "BEREDARE REGION",INPUT "BEREDARE REGION",INPUT EBRPRIS.MONT,INPUT TRUE,INPUT TRUE).
+         END.      
+         RUN kalkylpristab_UI (INPUT 2, INPUT "MONTÖR",INPUT "MONTÖR",INPUT EBRPRIS.MONT,INPUT TRUE,INPUT TRUE).
+         RUN kalkylpristab_UI (INPUT 3, INPUT "MASKIN1",INPUT "LEDNB.MASK",INPUT EBRPRIS.MASK1,INPUT TRUE,INPUT TRUE).
+         RUN kalkylpristab_UI (INPUT 3, INPUT "MASKIN2",INPUT "KAB SCH MASK",INPUT EBRPRIS.MASK2,INPUT TRUE,INPUT TRUE).
+         IF AVAILABLE EXTRADATA THEN DO:
+            RUN kalkylpristab_UI (INPUT 3, INPUT "MASKIN3",INPUT "RUNT.OM.MASK",INPUT EXTRADATA.SOKDEC[4],INPUT TRUE,INPUT TRUE).
+         END.
+         ELSE DO:
+            RUN kalkylpristab_UI (INPUT 3, INPUT "MASKIN3",INPUT "RUNT.OM.MASK",INPUT 0,INPUT TRUE,INPUT TRUE).
+         END.   
+         RUN kalkylpristab_UI (INPUT 3, INPUT "MASKIN4",INPUT "LASTBIL",INPUT KALKBEF.PRIS5,INPUT TRUE,INPUT TRUE).
+         RUN kalkylpristab_UI (INPUT 3, INPUT "MASKIN5",INPUT "KRANBIL",INPUT KALKBEF.PRIS6,INPUT TRUE,INPUT TRUE).                
+      END.
+      
+      FOR EACH P1 WHERE P1.KATAR = EBRPRIS.ARTAL NO-LOCK:
+         DO TRANSACTION:
+            RUN arbkodskapEBR_UI (INPUT EBRPRIS.ARTAL, INPUT EBRPRIS.ARTAL, INPUT 1,INPUT P1.ARBKOD,INPUT P1.BENAMNING).      
+         END.
+      END.       
+      FOR EACH P2 WHERE P2.KATAR = EBRPRIS.ARTAL NO-LOCK:
+         DO TRANSACTION:
+            RUN arbkodskapEBR_UI (INPUT EBRPRIS.ARTAL, INPUT EBRPRIS.ARTAL, INPUT 2,INPUT P2.ARBKOD,INPUT P2.BENAMNING).       
+         END.
+      END.
+      FOR EACH P3 WHERE P3.KATAR = EBRPRIS.ARTAL NO-LOCK:
+         DO TRANSACTION:
+            RUN arbkodskapEBR_UI (INPUT EBRPRIS.ARTAL, INPUT EBRPRIS.ARTAL, INPUT 3,INPUT P3.ARBKOD,INPUT P3.BENAMNING).       
+         END.
+      END.
+      
+      FOR EACH P5 WHERE P5.KATAR = EBRPRIS.ARTAL NO-LOCK:
+         DO TRANSACTION:
+            RUN arbkodskapEBR_UI (INPUT EBRPRIS.ARTAL, INPUT EBRPRIS.ARTAL, INPUT 3,INPUT P5.ARBKOD,INPUT P5.BENAMNING).       
+         END.
+      END.
+      
+      FOR EACH LOP1 WHERE LOP1.KATAR = EBRPRIS.ARTAL NO-LOCK:
+         FIND FIRST KALKYLKATALOGSUB WHERE KALKYLKATALOGSUB.KLOGID = KALKYLKATALOG.KLOGID AND 
+         KALKYLKATALOGSUB.BENAMNING = "EBR " + STRING(EBRPRIS.ARTAL - minskaartal)
+         NO-LOCK NO-ERROR.
+         FIND FIRST KALKYLLOPPOSTER WHERE KALKYLLOPPOSTER.KLOGSUBID =  KALKYLKATALOGSUB.KLOGSUBI AND
+         KALKYLLOPPOSTER.ARBKOD = LOP1.ARBKOD AND KALKYLLOPPOSTER.LOPNR = LOP1.LOPNR       
+         NO-LOCK NO-ERROR.                         
+         IF NOT AVAILABLE KALKYLLOPPOSTER THEN DO:
+            FIND FIRST KALKYLARBKODER WHERE KALKYLARBKODER.KLOGSUBID =  KALKYLKATALOGSUB.KLOGSUBI AND
+            KALKYLARBKODER.ARBKOD = LOP1.ARBKOD        
+            NO-LOCK NO-ERROR. 
+            DO TRANSACTION:
+               CREATE KALKYLLOPPOSTER.
+               ASSIGN 
+               KALKYLLOPPOSTER.MARKNING = KALKYLARBKODER.MARKNING
+               KALKYLLOPPOSTER.TYPKALK = 1
+               KALKYLLOPPOSTER.KLOGSUBID =  KALKYLKATALOGSUB.KLOGSUBI
+               KALKYLLOPPOSTER.ARBKOD = LOP1.ARBKOD 
+               KALKYLLOPPOSTER.LOPNR = LOP1.LOPNR
+               KALKYLLOPPOSTER.BENAMNING = SUBSTRING(LOP1.BENAMNING,1,49)
+               KALKYLLOPPOSTER.KOMMENTAR = SUBSTRING(LOP1.BENAMNING,60)
+               KALKYLLOPPOSTER.ENHET = LOP1.ENHET
+               KALKYLLOPPOSTER.EAMANGD = LOP1.EA.     
+            END.
+            deckatfix = 1. 
+            IF KALKYLKATALOGSUB.BENAMNING = "EBR " + STRING(EBRPRIS.ARTAL - minskaartal) THEN DO: 
+               IF LOP1.F9 = 0 THEN deckatfix = 1.  
+               ELSE deckatfix = 100.  
+            END.
+            
+            IF LENGTH(TRIM(SUBSTRING(LOP1.ARBKOD,2))) < 3 THEN DO:
+               FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+               KALKYLPRISER.SOKBENAMNING = "BEREDARE REGION" NO-LOCK NO-ERROR.
+            END.    
+            ELSE DO:
+               FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+               KALKYLPRISER.SOKBENAMNING = "BEREDARE" NO-LOCK NO-ERROR.
+            END.              
+            /*beredare*/
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP1.F1 / deckatfix, INPUT 0).
+            END.            
+            /*montör*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MONTÖR" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP1.F2 / deckatfix, INPUT 0).
+            END.   
+             /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN1" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP1.F3 / deckatfix, INPUT 0).         
+            END.
+             /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN2" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP1.F4 / deckatfix, INPUT 0).
+            END.   
+             /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN4" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP1.F5 / deckatfix, INPUT 0).
+            END.   
+                /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN5" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP1.F6 / deckatfix, INPUT 0).
+            END.  
+            /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN3" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP1.F7 / deckatfix, INPUT 0).               
+            END.
+            /*MATERIEL*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MATERIEL" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT 0, INPUT LOP1.MATERIEL).
+            END.            
+            /*UTRUSTNING*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "UTRUSTNING" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               
+               RUN katlopsub_UI (INPUT LOP1.UTRUST / deckatfix, INPUT LOP1.UTRUSTKOST).
+            END.   
+            /*ÖVRIGKOSTNAD*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "ÖVRIGKOSTNAD" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT 0, INPUT LOP1.OVRIGT).
+            END.   
+            /*SAMBYGGNADSPRIS  ?????*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "SAMBYGGNADSPRIS" NO-LOCK NO-ERROR.
+            IF AVAILABLE KALKYLPRISER THEN DO TRANSACTION:
+               RUN katlopsub_UI (INPUT 0, INPUT KALKYLPRISER.PRIS).
+            END.   
+            
+            /*RÖRLIGKOSTNAD EA  ?????*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "RÖRLIGKOSTNAD EA" NO-LOCK NO-ERROR.
+            IF AVAILABLE KALKYLPRISER THEN DO TRANSACTION:
+               RUN katlopsub_UI (INPUT 0, INPUT KALKYLPRISER.PRIS).
+            END.            
+         END.                  
+      END.             
+      
+      FOR EACH LOP2 WHERE LOP2.KATAR = EBRPRIS.ARTAL NO-LOCK:
+         IF LOP2.ARBKOD = "SKJ" OR LOP2.ARBKOD = "SKL" THEN DO:
+            FIND FIRST KALKYLKATALOGSUB WHERE KALKYLKATALOGSUB.KLOGID = KALKYLKATALOG.KLOGID AND 
+            KALKYLKATALOGSUB.BENAMNING = "SKJ/SKL " + STRING(EBRPRIS.ARTAL - minskaartal)
+            NO-LOCK NO-ERROR.
+         END.
+         ELSE DO:
+            FIND FIRST KALKYLKATALOGSUB WHERE KALKYLKATALOGSUB.KLOGID = KALKYLKATALOG.KLOGID AND 
+            KALKYLKATALOGSUB.BENAMNING = "EBR " + STRING(EBRPRIS.ARTAL - minskaartal)
+            NO-LOCK NO-ERROR.
+         END.   
+         
+        
+         FIND FIRST KALKYLLOPPOSTER WHERE KALKYLLOPPOSTER.KLOGSUBID =  KALKYLKATALOGSUB.KLOGSUBI AND
+         KALKYLLOPPOSTER.ARBKOD = LOP2.ARBKOD AND KALKYLLOPPOSTER.LOPNR = LOP2.LOPNR       
+         NO-LOCK NO-ERROR.   
+         IF NOT AVAILABLE KALKYLLOPPOSTER THEN DO:
+            FIND FIRST KALKYLARBKODER WHERE KALKYLARBKODER.KLOGSUBID =  KALKYLKATALOGSUB.KLOGSUBI AND
+            KALKYLARBKODER.ARBKOD = LOP2.ARBKOD        
+            NO-LOCK NO-ERROR.         
+            DO TRANSACTION:
+               CREATE KALKYLLOPPOSTER.
+               ASSIGN 
+               KALKYLLOPPOSTER.MARKNING = KALKYLARBKODER.MARKNING
+               KALKYLLOPPOSTER.TYPKALK = 2
+               KALKYLLOPPOSTER.KLOGSUBID =  KALKYLKATALOGSUB.KLOGSUBID
+               KALKYLLOPPOSTER.ARBKOD = LOP2.ARBKOD 
+               KALKYLLOPPOSTER.LOPNR = LOP2.LOPNR
+               KALKYLLOPPOSTER.BENAMNING = SUBSTRING(LOP2.BENAMNING,1,49)
+               KALKYLLOPPOSTER.KOMMENTAR = SUBSTRING(LOP2.BENAMNING,60)
+               KALKYLLOPPOSTER.ENHET = LOP2.ENHET
+               KALKYLLOPPOSTER.EAMANGD = LOP2.EA.     
+            END.
+            deckatfix = 1. 
+            IF KALKYLKATALOGSUB.BENAMNING = "EBR " + STRING(EBRPRIS.ARTAL - minskaartal) THEN DO:
+               IF LOP2.F9 = 0 THEN deckatfix = 1.  
+               ELSE deckatfix = 100.
+            END.     
+            IF LENGTH(TRIM(LOP2.ARBKOD)) < 3 THEN DO:
+               FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+               KALKYLPRISER.SOKBENAMNING = "BEREDARE REGION" NO-LOCK NO-ERROR.
+            END.    
+            ELSE DO:
+               FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+               KALKYLPRISER.SOKBENAMNING = "BEREDARE" NO-LOCK NO-ERROR.
+            END.              
+            /*beredare*/
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP2.F1 / deckatfix, INPUT 0).         
+            END.
+            /*montör*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MONTÖR" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP2.F2 / deckatfix, INPUT 0).
+            END.   
+             /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN1" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP2.F3 / deckatfix, INPUT 0).
+            END.            
+             /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN2" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP2.F4 / deckatfix, INPUT 0).
+            END.   
+             /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN4" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP2.F5 / deckatfix, INPUT 0).
+            END.   
+                /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN5" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP2.F6 / deckatfix, INPUT 0).
+            END.   
+            /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN3" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP2.F7 / deckatfix, INPUT 0).
+            END.                  
+            /*MATERIEL*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MATERIEL" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT 0, INPUT LOP2.MATERIEL).
+            END.            
+            /*UTRUSTNING*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "UTRUSTNING" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP2.UTRUST / deckatfix, INPUT LOP2.UTRUSTKOST).
+            END.   
+            /*ÖVRIGKOSTNAD*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "ÖVRIGKOSTNAD" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT 0, INPUT LOP2.OVRIGT).
+            END.   
+            /*SAMBYGGNADSPRIS  ?????*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "SAMBYGGNADSPRIS" NO-LOCK NO-ERROR.
+            IF AVAILABLE KALKYLPRISER THEN DO TRANSACTION:
+               RUN katlopsub_UI (INPUT 0, INPUT KALKYLPRISER.PRIS).
+            END.   
+            
+            /*RÖRLIGKOSTNAD EA  ?????*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "RÖRLIGKOSTNAD EA" NO-LOCK NO-ERROR.
+            IF AVAILABLE KALKYLPRISER THEN DO TRANSACTION:
+               RUN katlopsub_UI (INPUT 0, INPUT KALKYLPRISER.PRIS).
+            END.            
+         END.                  
+      END.
+      FOR EACH LOP3 WHERE LOP3.KATAR = EBRPRIS.ARTAL NO-LOCK:
+         
+         FIND FIRST KALKYLLOPPOSTER WHERE KALKYLLOPPOSTER.KLOGSUBID =  KALKYLKATALOGSUB.KLOGSUBI AND
+         KALKYLLOPPOSTER.ARBKOD = LOP3.ARBKOD AND KALKYLLOPPOSTER.LOPNR = LOP3.LOPNR       
+         NO-LOCK NO-ERROR.   
+         IF NOT AVAILABLE KALKYLLOPPOSTER THEN DO:
+            FIND FIRST KALKYLARBKODER WHERE KALKYLARBKODER.KLOGSUBID =  KALKYLKATALOGSUB.KLOGSUBI AND
+            KALKYLARBKODER.ARBKOD = LOP3.ARBKOD        
+            NO-LOCK NO-ERROR.                 
+            DO TRANSACTION:
+               CREATE KALKYLLOPPOSTER.
+               ASSIGN 
+               KALKYLLOPPOSTER.MARKNING = KALKYLARBKODER.MARKNING
+               KALKYLLOPPOSTER.TYPKALK = 3
+               KALKYLLOPPOSTER.KLOGSUBID =  KALKYLKATALOGSUB.KLOGSUBID
+               KALKYLLOPPOSTER.ARBKOD = LOP3.ARBKOD 
+               KALKYLLOPPOSTER.LOPNR = LOP3.LOPNR
+               KALKYLLOPPOSTER.BENAMNING = SUBSTRING(LOP3.BENAMNING,1,49)
+               KALKYLLOPPOSTER.KOMMENTAR = SUBSTRING(LOP3.BENAMNING,60)
+               KALKYLLOPPOSTER.ENHET = LOP3.ENHET
+               KALKYLLOPPOSTER.EAMANGD = LOP3.EA.     
+            END.
+            deckatfix = 1. 
+            IF KALKYLKATALOGSUB.BENAMNING = "EBR " + STRING(EBRPRIS.ARTAL - minskaartal) THEN DO:
+               IF LOP3.F9 = 0 THEN deckatfix = 1.  
+               ELSE deckatfix = 100.
+            END.      
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "BEREDARE" NO-LOCK NO-ERROR.
+                         
+            /*beredare*/
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP3.F1 / deckatfix, INPUT 0).         
+            END.
+            /*montör*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MONTÖR" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP3.F2 / deckatfix, INPUT 0).
+            END. 
+             /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN1" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP3.F3 / deckatfix, INPUT 0).
+            END.            
+             /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN2" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP3.F4 / deckatfix, INPUT 0).
+            END. 
+             /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN4" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP3.F5 / deckatfix, INPUT 0).
+            END.
+                /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN5" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP3.F6 / deckatfix, INPUT 0).
+            END.
+            /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN3" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP3.F7 / deckatfix, INPUT 0).               
+            END.
+            /*MATERIEL*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MATERIEL" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT 0, INPUT LOP3.MATERIEL).         
+            END.
+            /*UTRUSTNING*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "UTRUSTNING" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP3.UTRUST / deckatfix, INPUT LOP3.UTRUSTKOST).
+            END.
+            /*ÖVRIGKOSTNAD*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "ÖVRIGKOSTNAD" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT 0, INPUT LOP3.OVRIGT).
+            END.
+            /*SAMBYGGNADSPRIS  ?????*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "SAMBYGGNADSPRIS" NO-LOCK NO-ERROR.
+            IF AVAILABLE KALKYLPRISER THEN  DO TRANSACTION:
+               RUN katlopsub_UI (INPUT 0, INPUT KALKYLPRISER.PRIS).
+            END.
+            /*RÖRLIGKOSTNAD EA  ?????*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "RÖRLIGKOSTNAD EA" NO-LOCK NO-ERROR.
+            IF AVAILABLE KALKYLPRISER THEN DO TRANSACTION:
+               RUN katlopsub_UI (INPUT 0, INPUT KALKYLPRISER.PRIS).
+            END.            
+         END.                  
+      END.
+      FOR EACH LOP5 WHERE LOP5.KATAR = EBRPRIS.ARTAL NO-LOCK:
+         
+         FIND FIRST KALKYLLOPPOSTER WHERE KALKYLLOPPOSTER.KLOGSUBID =  KALKYLKATALOGSUB.KLOGSUBI AND
+         KALKYLLOPPOSTER.ARBKOD = LOP5.ARBKOD AND KALKYLLOPPOSTER.LOPNR = LOP5.LOPNR       
+         NO-LOCK NO-ERROR.   
+         IF NOT AVAILABLE KALKYLLOPPOSTER THEN DO:
+            FIND FIRST KALKYLARBKODER WHERE KALKYLARBKODER.KLOGSUBID =  KALKYLKATALOGSUB.KLOGSUBI AND
+            KALKYLARBKODER.ARBKOD = LOP5.ARBKOD        
+            NO-LOCK NO-ERROR.         
+            DO TRANSACTION:
+               CREATE KALKYLLOPPOSTER.
+               ASSIGN 
+               KALKYLLOPPOSTER.MARKNING = KALKYLARBKODER.MARKNING
+               KALKYLLOPPOSTER.TYPKALK = 5
+               KALKYLLOPPOSTER.KLOGSUBID =  KALKYLKATALOGSUB.KLOGSUBID
+               KALKYLLOPPOSTER.ARBKOD = LOP5.ARBKOD 
+               KALKYLLOPPOSTER.LOPNR = LOP5.LOPNR
+               KALKYLLOPPOSTER.BENAMNING = SUBSTRING(LOP5.BENAMNING,1,49)
+               KALKYLLOPPOSTER.KOMMENTAR = SUBSTRING(LOP5.BENAMNING,60)
+               KALKYLLOPPOSTER.ENHET = LOP5.ENHET
+               KALKYLLOPPOSTER.EAMANGD = LOP5.EA.     
+            END.
+            deckatfix = 1. 
+            IF KALKYLKATALOGSUB.BENAMNING = "EBR " + STRING(EBRPRIS.ARTAL - minskaartal) THEN DO:
+               IF LOP5.F9 = 0 THEN deckatfix = 1.  
+               ELSE deckatfix = 100.
+            END.       
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "BEREDARE" NO-LOCK NO-ERROR.
+                         
+            /*beredare*/
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP5.F1 / deckatfix, INPUT 0).         
+            END.
+            /*montör*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MONTÖR" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP5.F2 / deckatfix, INPUT 0).
+            END. 
+             /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN1" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP5.F3 / deckatfix, INPUT 0).         
+            END. 
+             /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN2" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP5.F4 / deckatfix, INPUT 0).
+            END. 
+             /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN4" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP5.F5 / deckatfix, INPUT 0).
+            END.
+                /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN5" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP5.F6 / deckatfix, INPUT 0).
+            END.
+            /*MASKIN*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MASKIN3" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP5.F7 / deckatfix, INPUT 0).               
+            END.
+            /*MATERIEL*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "MATERIEL" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT 0, INPUT LOP5.MATERIEL).         
+            END.
+            /*UTRUSTNING*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "UTRUSTNING" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT LOP5.UTRUST / deckatfix, INPUT LOP5.UTRUSTKOST).
+            END.
+            /*ÖVRIGKOSTNAD*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "ÖVRIGKOSTNAD" NO-LOCK NO-ERROR.
+            DO TRANSACTION:
+               RUN katlopsub_UI (INPUT 0, INPUT LOP5.OVRIGT).
+            END.   
+            /*SAMBYGGNADSPRIS  ?????*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "SAMBYGGNADSPRIS" NO-LOCK NO-ERROR.
+            IF AVAILABLE KALKYLPRISER THEN DO TRANSACTION:
+               RUN katlopsub_UI (INPUT 0, INPUT KALKYLPRISER.PRIS).
+            END.
+            /*RÖRLIGKOSTNAD EA  ?????*/
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "RÖRLIGKOSTNAD EA" NO-LOCK NO-ERROR.
+            IF AVAILABLE KALKYLPRISER THEN DO TRANSACTION:
+               RUN katlopsub_UI (INPUT 0, INPUT KALKYLPRISER.PRIS).
+            END.            
+         END.                  
+      END.
+      
+   END.
+END PROCEDURE.
+/*skapar frekvenstabeller*/
+PROCEDURE katfrekvens_UI:
+   DEFINE INPUT  PARAMETER katvar AS INTEGER NO-UNDO.
+   FOR EACH FREKVENS WHERE FREKVENS.KATAR = katvar NO-LOCK:
+      CREATE FREKVENSKATALOG.
+      BUFFER-COPY FREKVENS TO FREKVENSKATALOG.
+      FREKVENSKATALOG.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID.
+   END.  
+END PROCEDURE.
+/*SKAPAR SUBKATALOG*/
+PROCEDURE katskapsub_UI :
+   DEFINE INPUT  PARAMETER katnamnvar AS CHARACTER NO-UNDO.
+   CREATE KALKYLKATALOGSUB.
+   FIND FIRST KALKYLKATALOGSUBbuff WHERE KALKYLKATALOGSUBbuff.BENAMNING = katnamnvar NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKYLKATALOGSUBbuff THEN DO:
+      RUN sistasubid_UI (OUTPUT KALKYLKATALOGSUB.KLOGSUBID).
+   END.
+   ELSE DO:
+      KALKYLKATALOGSUB.KLOGSUBID = KALKYLKATALOGSUBbuff.KLOGSUBID.
+   END.
+   ASSIGN
+   KALKYLKATALOGSUB.KLOGID = KALKYLKATALOG.KLOGID
+   KALKYLKATALOGSUB.BENAMNING = katnamnvar
+   KALKYLKATALOGSUB.INDATUM = TODAY.
+
+END PROCEDURE.
+
+/*SISTA SUBKATALOGEN*/                 
+PROCEDURE sistasubid_UI :
+   DEFINE OUTPUT PARAMETER hjraknare AS INTEGER NO-UNDO.
+   FIND LAST KALKYLKATALOGSUBbuff USE-INDEX KLOGSUBID NO-LOCK NO-ERROR.
+   IF AVAILABLE KALKYLKATALOGSUBbuff THEN DO:
+      hjraknare = KALKYLKATALOGSUBbuff.KLOGSUBID + 1.
+   END.
+   ELSE hjraknare = hjraknare + 1.
+END PROCEDURE.
+
+/*PRISER PER SUBKATALOG*/
+PROCEDURE kalkylpristab_UI :
+   DEFINE INPUT  PARAMETER vid AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER sokbvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER bvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER prisvar AS DECIMAL NO-UNDO.
+   DEFINE INPUT  PARAMETER egetp AS LOGICAL NO-UNDO.
+   DEFINE INPUT  PARAMETER egenk AS LOGICAL NO-UNDO.
+   DO TRANSACTION:
+      CREATE KALKYLPRISER.
+      RUN sistaprisid_UI (OUTPUT KALKYLPRISER.KPID).
+      ASSIGN
+      
+      KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID
+      KALKYLPRISER.KVID = vid
+      KALKYLPRISER.SOKBENAMNING = sokbvar
+      KALKYLPRISER.BENAMNING = bvar
+      KALKYLPRISER.PRIS = prisvar
+      KALKYLPRISER.EGENPRISUPP = egetp
+      KALKYLPRISER.EGENKODUPP  = egenk.
+   END.
+END PROCEDURE. 
+
+/*SISTA NUMMRET*/
+PROCEDURE sistaprisid_UI :
+   DEFINE OUTPUT PARAMETER hjraknare AS INTEGER NO-UNDO.
+   FIND LAST KALKYLPRISERbuff USE-INDEX KPID NO-LOCK NO-ERROR.
+   IF AVAILABLE KALKYLPRISERbuff THEN DO:
+      hjraknare = KALKYLPRISERbuff.KPID + 1.
+   END.
+   ELSE hjraknare = hjraknare + 1.
+END PROCEDURE.  
+
+/*MED VID VISNING*/
+PROCEDURE kvisskap_UI :
+   DEFINE INPUT  PARAMETER vid AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER timtypvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER kostypvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER eavar AS LOGICAL NO-UNDO.
+   FIND FIRST KALKVISNING WHERE KALKVISNING.KVID = vid NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKVISNING THEN DO:
+      CREATE KALKVISNING.
+      ASSIGN
+      KALKVISNING.KVID = vid 
+      KALKVISNING.TIMTYP = timtypvar
+      KALKVISNING.KOSTTYP = kostypvar
+      KALKVISNING.EABER = eavar. 
+   END.
+END PROCEDURE.
+
+/*SKAPA ARBETSKODER*/
+
+PROCEDURE arbkodskap_UI :
+   DEFINE INPUT  PARAMETER vartyp AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER arbvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER benvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER markvar AS CHARACTER NO-UNDO.
+   FIND FIRST KALKYLARBKODER WHERE KALKYLARBKODER.KLOGSUBID =  KALKYLKATALOGSUB.KLOGSUBI AND
+   KALKYLARBKODER.ARBKOD = arbvar       
+   NO-LOCK NO-ERROR.   
+   IF NOT AVAILABLE KALKYLARBKODER THEN DO: 
+      CREATE KALKYLARBKODER.
+      ASSIGN 
+      KALKYLARBKODER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID
+      KALKYLARBKODER.TYPKALK = vartyp
+      KALKYLARBKODER.ARBKOD = arbvar 
+      KALKYLARBKODER.BENAMNING = benvar
+      KALKYLARBKODER.MARKNING = markvar.        
+   END.  
+END PROCEDURE.
+
+PROCEDURE arbkodskapEBR_UI :
+   DEFINE INPUT  PARAMETER katarvar AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER katarvar2 AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER vartyp AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER arbvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER benvar AS CHARACTER NO-UNDO.
+   IF arbvar = "SKJ" OR arbvar = "SKL" THEN DO:
+      FIND FIRST KALKYLKATALOGSUB WHERE KALKYLKATALOGSUB.KLOGID = KALKYLKATALOG.KLOGID AND 
+      KALKYLKATALOGSUB.BENAMNING = "SKJ/SKL " + STRING(katarvar2 - 1)
+      NO-LOCK NO-ERROR.
+   END.
+   ELSE DO:
+      FIND FIRST KALKYLKATALOGSUB WHERE KALKYLKATALOGSUB.KLOGID = KALKYLKATALOG.KLOGID AND 
+      KALKYLKATALOGSUB.BENAMNING = "EBR " + STRING(katarvar - 1)
+      NO-LOCK NO-ERROR.
+   END.  
+   FIND FIRST KALKYLARBKODER WHERE KALKYLARBKODER.KLOGSUBID =  KALKYLKATALOGSUB.KLOGSUBI AND
+   KALKYLARBKODER.ARBKOD = arbvar       
+   NO-LOCK NO-ERROR.   
+   IF NOT AVAILABLE KALKYLARBKODER THEN DO: 
+      CREATE KALKYLARBKODER.
+      ASSIGN 
+      KALKYLARBKODER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID
+      KALKYLARBKODER.TYPKALK = vartyp
+      KALKYLARBKODER.ARBKOD = arbvar 
+      KALKYLARBKODER.BENAMNING = benvar.
+      IF KALKYLARBKODER.TYPKALK = 1 THEN DO:
+         IF SUBSTRING(KALKYLARBKODER.ARBKOD,2,1) = " " THEN DO:
+            IF INTEGER(SUBSTRING(KALKYLARBKODER.ARBKOD,2,2)) < 99 THEN DO:
+               KALKYLARBKODER.REGION = TRUE.
+               KALKYLARBKODER.MARKNING = "REGION".
+            END.   
+         END.
+         ELSE IF varforetypval[41] = 1 THEN DO:
+            IF SUBSTRING(KALKYLARBKODER.ARBKOD,1,1) = "G" THEN KALKYLARBKODER.MARKNING = "".
+            ELSE DO:
+               KALKYLARBKODER.MARKNING = "Nät".
+               KALKYLARBKODER.TYPKALK = 7.
+            END.   
+         END.
+      END.
+      IF KALKYLARBKODER.TYPKALK = 2 THEN DO:
+         IF SUBSTRING(KALKYLARBKODER.ARBKOD,1,1) = " " THEN DO:
+            IF INTEGER(KALKYLARBKODER.ARBKOD) < 99 THEN DO:
+               KALKYLARBKODER.REGION = TRUE.
+               KALKYLARBKODER.MARKNING = "REGION".
+            END.   
+         END.
+         IF SUBSTRING(KALKYLARBKODER.ARBKOD,1,1) = "O" THEN DO:
+            KALKYLARBKODER.OPTO = TRUE. 
+            KALKYLARBKODER.MARKNING = "OPTO".
+         END.           
+      END.  
+      IF KALKYLARBKODER.TYPKALK = 3 THEN DO:
+         IF SUBSTRING(KALKYLARBKODER.ARBKOD,1,1) <= "9" THEN DO:
+            IF INTEGER(KALKYLARBKODER.ARBKOD) < 800 THEN DO:
+               KALKYLARBKODER.REGION = TRUE.
+               KALKYLARBKODER.MARKNING = "REGION".
+            END.   
+         END.
+         IF SUBSTRING(KALKYLARBKODER.ARBKOD,1,1) = "R" THEN DO:
+            KALKYLARBKODER.REGION = TRUE.
+            KALKYLARBKODER.MARKNING = "REGION".         
+         END.  
+      END.   
+   END.  
+END PROCEDURE.
+
+/*LÖPNUMMER*/
+PROCEDURE katlopsub_UI :
+   DEFINE INPUT  PARAMETER timvar AS DECIMAL NO-UNDO.
+   DEFINE INPUT  PARAMETER kostvar AS DECIMAL NO-UNDO.
+   IF AVAILABLE KALKYLPRISER THEN DO:
+      CREATE KALKYLLOPSUB.
+      ASSIGN
+      KALKYLLOPSUB.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID
+      KALKYLLOPSUB.ARBKOD = KALKYLLOPPOSTER.ARBKOD
+      KALKYLLOPSUB.LOPNR = KALKYLLOPPOSTER.LOPNR
+      KALKYLLOPSUB.KPID = KALKYLPRISER.KPID  
+      KALKYLLOPSUB.TIMMAR = timvar
+      KALKYLLOPSUB.KOSTNAD =  kostvar.
+   END.      
+END PROCEDURE.
+
+PROCEDURE kalkylopposter_UI :                 
+   DEFINE INPUT PARAMETER inben AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER inkom AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER inenhet AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER inea AS DECIMAL NO-UNDO.
+   DEFINE INPUT PARAMETER insubm AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE lopnrvar AS INTEGER NO-UNDO.
+   FIND LAST KALKYLLOPPOSTER WHERE KALKYLLOPPOSTER.KLOGSUBID =  KALKYLKATALOGSUB.KLOGSUBID AND
+   KALKYLLOPPOSTER.ARBKOD = KALKYLARBKODER.ARBKOD USE-INDEX ARBKOD NO-LOCK NO-ERROR.  
+   IF NOT AVAILABLE KALKYLLOPPOSTER THEN lopnrvar = 1.
+   ELSE lopnrvar = KALKYLLOPPOSTER.LOPNR + 1.
+   
+   CREATE KALKYLLOPPOSTER.
+   ASSIGN 
+   KALKYLLOPPOSTER.TYPKALK = KALKYLARBKODER.TYPKALK
+   KALKYLLOPPOSTER.KLOGSUBID =  KALKYLKATALOGSUB.KLOGSUBI
+   KALKYLLOPPOSTER.ARBKOD = KALKYLARBKODER.ARBKOD 
+   KALKYLLOPPOSTER.LOPNR = lopnrvar
+   KALKYLLOPPOSTER.BENAMNING = inben
+   KALKYLLOPPOSTER.KOMMENTAR = inkom
+   KALKYLLOPPOSTER.ENHET = inenhet
+   KALKYLLOPPOSTER.EAMANGD = inea
+   KALKYLLOPPOSTER.MARKNING = KALKYLARBKODER.MARKNING
+   KALKYLLOPPOSTER.MARKSUB = insubm.
+END PROCEDURE.
+
+PROCEDURE NYkatskapSPEC_UI:
+   
+   DEFINE VARIABLE deckatfix AS INTEGER NO-UNDO.
+   DEFINE VARIABLE minskaartal AS INTEGER NO-UNDO.
+   DEFINE VARIABLE klogvar AS INTEGER NO-UNDO.
+   FIND LAST KALKYLKATALOG NO-LOCK NO-ERROR.
+   klogvar = KALKYLKATALOG.KLOGID + 1.
+   DO TRANSACTION :
+      CREATE KALKYLKATALOG.
+      ASSIGN
+      KALKYLKATALOG.KLOGID = klogvar
+      KALKYLKATALOG.BENAMNING = "Stamnät 2012"
+      KALKYLKATALOG.INDATUM = TODAY
+      KALKYLKATALOG.VISARTAL  = 2012.     
+      RUN katskapsub_UI (INPUT "Stamnät 2012").
+      KALKYLKATALOG.HKLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID. 
+   END.
+   FIND LAST KALKVISNING NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKVISNING THEN minskaartal.
+   ELSE minskaartal = KALKVISNING.KVID + 1.
+   DO TRANSACTION:
+      RUN kvisskap_UI (INPUT minskaartal,INPUT "Project steering",INPUT  "Project steering",INPUT FALSE). 
+      FIND LAST KALKVISNING NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKVISNING THEN minskaartal.
+      ELSE minskaartal = KALKVISNING.KVID + 1.
+      RUN kvisskap_UI (INPUT minskaartal,INPUT "Construction mgmt",INPUT  "Construction mgmt",INPUT FALSE). 
+      FIND LAST KALKVISNING NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKVISNING THEN minskaartal.
+      ELSE minskaartal = KALKVISNING.KVID + 1.
+      RUN kvisskap_UI (INPUT minskaartal,INPUT "Design, electrical",INPUT  "Design, electrical",INPUT FALSE). 
+      FIND LAST KALKVISNING NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKVISNING THEN minskaartal.
+      ELSE minskaartal = KALKVISNING.KVID + 1.
+      RUN kvisskap_UI (INPUT minskaartal,INPUT "Design, remote control",INPUT  "Design, remote control",INPUT FALSE). 
+      FIND LAST KALKVISNING NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKVISNING THEN minskaartal.
+      ELSE minskaartal = KALKVISNING.KVID + 1.
+      RUN kvisskap_UI (INPUT minskaartal,INPUT "Assistent",INPUT  "Assistent",INPUT FALSE). 
+      FIND LAST KALKVISNING NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKVISNING THEN minskaartal.
+      ELSE minskaartal = KALKVISNING.KVID + 1.
+      RUN kvisskap_UI (INPUT minskaartal,INPUT "Supervisor",INPUT  "Supervisor",INPUT FALSE). 
+      FIND LAST KALKVISNING NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKVISNING THEN minskaartal.
+      ELSE minskaartal = KALKVISNING.KVID + 1.
+      RUN kvisskap_UI (INPUT minskaartal,INPUT "Commissioning, at site",INPUT  "Commissioning, at site",INPUT FALSE). 
+      FIND LAST KALKVISNING NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKVISNING THEN minskaartal.
+      ELSE minskaartal = KALKVISNING.KVID + 1.
+      RUN kvisskap_UI (INPUT minskaartal,INPUT "Commissioning, at workshop",INPUT  "Commissioning, at workshop",INPUT FALSE). 
+      FIND LAST KALKVISNING NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKVISNING THEN minskaartal.
+      ELSE minskaartal = KALKVISNING.KVID + 1.
+      RUN kvisskap_UI (INPUT minskaartal,INPUT "Installation, at site",INPUT  "Installation, at site",INPUT FALSE). 
+      FIND LAST KALKVISNING NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKVISNING THEN minskaartal.
+      ELSE minskaartal = KALKVISNING.KVID + 1.
+      RUN kvisskap_UI (INPUT minskaartal,INPUT "Installation, at workshop",INPUT  "Installation, at workshop",INPUT FALSE). 
+      FIND LAST KALKVISNING NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKVISNING THEN minskaartal.
+      ELSE minskaartal = KALKVISNING.KVID + 1.
+      RUN kvisskap_UI (INPUT minskaartal,INPUT "RESTID",INPUT  "RESTID",INPUT FALSE). 
+   END.
+     
+   FOR EACH KALKYLKATALOGSUB WHERE KALKYLKATALOGSUB.KLOGID = KALKYLKATALOG.KLOGID NO-LOCK:
+      FIND FIRST KALKVISNING WHERE KALKVISNING.KOSTTYP = "ÖVRIGT" NO-LOCK NO-ERROR.
+      RUN kalkylpristab_UI (INPUT KALKVISNING.KVID, INPUT KALKVISNING.KOSTTYP,INPUT "ÖVRIGKOSTNAD",INPUT 0,INPUT FALSE,INPUT TRUE).
+      FIND FIRST KALKVISNING WHERE KALKVISNING.KOSTTYP = "MATERIEL" NO-LOCK NO-ERROR.
+      RUN kalkylpristab_UI (INPUT KALKVISNING.KVID, INPUT KALKVISNING.KOSTTYP,INPUT "MATERIEL",INPUT 0,INPUT FALSE,INPUT TRUE).
+      FIND FIRST KALKVISNING WHERE KALKVISNING.KOSTTYP = "RESTID" NO-LOCK NO-ERROR.
+      RUN kalkylpristab_UI (INPUT KALKVISNING.KVID, INPUT KALKVISNING.KOSTTYP,INPUT "RESTID",INPUT 0,INPUT TRUE,INPUT TRUE).
+
+      FIND FIRST KALKVISNING WHERE KALKVISNING.KOSTTYP = "Project steering" NO-LOCK NO-ERROR.
+      RUN kalkylpristab_UI (INPUT KALKVISNING.KVID, INPUT KALKVISNING.KOSTTYP,INPUT KALKVISNING.KOSTTYP,INPUT 67.05,INPUT TRUE,INPUT TRUE).
+      FIND FIRST KALKVISNING WHERE KALKVISNING.KOSTTYP = "Construction mgmt" NO-LOCK NO-ERROR.
+      RUN kalkylpristab_UI (INPUT KALKVISNING.KVID, INPUT KALKVISNING.KOSTTYP,INPUT KALKVISNING.KOSTTYP,INPUT 67.05,INPUT TRUE,INPUT TRUE).
+      FIND FIRST KALKVISNING WHERE KALKVISNING.KOSTTYP = "Design, electrical" NO-LOCK NO-ERROR.
+      RUN kalkylpristab_UI (INPUT KALKVISNING.KVID, INPUT KALKVISNING.KOSTTYP,INPUT KALKVISNING.KOSTTYP,INPUT 57.86,INPUT TRUE,INPUT TRUE).
+      FIND FIRST KALKVISNING WHERE KALKVISNING.KOSTTYP = "Design, remote control" NO-LOCK NO-ERROR.
+      RUN kalkylpristab_UI (INPUT KALKVISNING.KVID, INPUT KALKVISNING.KOSTTYP,INPUT KALKVISNING.KOSTTYP,INPUT 74.62,INPUT TRUE,INPUT TRUE).
+      FIND FIRST KALKVISNING WHERE KALKVISNING.KOSTTYP = "Assistent" NO-LOCK NO-ERROR.
+      RUN kalkylpristab_UI (INPUT KALKVISNING.KVID, INPUT KALKVISNING.KOSTTYP,INPUT KALKVISNING.KOSTTYP,INPUT 48.51,INPUT TRUE,INPUT TRUE).
+      FIND FIRST KALKVISNING WHERE KALKVISNING.KOSTTYP = "Supervisor" NO-LOCK NO-ERROR.
+      RUN kalkylpristab_UI (INPUT KALKVISNING.KVID, INPUT KALKVISNING.KOSTTYP,INPUT KALKVISNING.KOSTTYP,INPUT 57.86,INPUT TRUE,INPUT TRUE).
+      FIND FIRST KALKVISNING WHERE KALKVISNING.KOSTTYP = "Installation, at site" NO-LOCK NO-ERROR.
+      RUN kalkylpristab_UI (INPUT KALKVISNING.KVID, INPUT KALKVISNING.KOSTTYP,INPUT KALKVISNING.KOSTTYP,INPUT 45.78,INPUT TRUE,INPUT TRUE).
+      FIND FIRST KALKVISNING WHERE KALKVISNING.KOSTTYP = "Installation, at workshop" NO-LOCK NO-ERROR.
+      RUN kalkylpristab_UI (INPUT KALKVISNING.KVID, INPUT KALKVISNING.KOSTTYP,INPUT KALKVISNING.KOSTTYP,INPUT 47.15,INPUT TRUE,INPUT TRUE).
+      FIND FIRST KALKVISNING WHERE KALKVISNING.KOSTTYP = "Commissioning, at site" NO-LOCK NO-ERROR.
+      RUN kalkylpristab_UI (INPUT KALKVISNING.KVID, INPUT KALKVISNING.KOSTTYP,INPUT KALKVISNING.KOSTTYP,INPUT 78.41,INPUT TRUE,INPUT TRUE).
+      FIND FIRST KALKVISNING WHERE KALKVISNING.KOSTTYP = "Commissioning, at workshop" NO-LOCK NO-ERROR.
+      RUN kalkylpristab_UI (INPUT KALKVISNING.KVID, INPUT KALKVISNING.KOSTTYP,INPUT KALKVISNING.KOSTTYP,INPUT 78.41,INPUT TRUE,INPUT TRUE).
+      RUN arbkodskap_UI (INPUT 2,INPUT "PL",INPUT "Project steering",INPUT "WORK").
+      RUN arbkodskap_UI (INPUT 2,INPUT "CM",INPUT "Construction mgmt",INPUT "WORK").
+      RUN arbkodskap_UI (INPUT 2,INPUT "DE",INPUT "Design, electrical",INPUT "WORK").
+      RUN arbkodskap_UI (INPUT 2,INPUT "DR",INPUT "Design, remote control",INPUT "WORK").
+      RUN arbkodskap_UI (INPUT 2,INPUT "AS",INPUT "Assistent",INPUT "WORK").
+      RUN arbkodskap_UI (INPUT 2,INPUT "SU",INPUT "Supervisor",INPUT "WORK").
+      RUN arbkodskap_UI (INPUT 2,INPUT "IS",INPUT "Installation, at site",INPUT "WORK").
+      RUN arbkodskap_UI (INPUT 2,INPUT "IW",INPUT "Installation, at workshop",INPUT "WORK").
+      RUN arbkodskap_UI (INPUT 2,INPUT "CS",INPUT "Commissioning, at site",INPUT "WORK").
+      RUN arbkodskap_UI (INPUT 2,INPUT "CW",INPUT "Commissioning, at workshop",INPUT "WORK").
+      
+      FOR EACH KALKYLARBKODER WHERE KALKYLARBKODER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID NO-LOCK:
+         IF KALKYLARBKODER.ARBKOD = "PL" THEN DO:            
+            RUN kalkylopposter_UI (INPUT "Project steering","",INPUT "h",INPUT 0,INPUT "WORK").                 
+            RUN kalkylopposter_UI (INPUT "Project steering Accom","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Project steering Travel","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Project steering Travel","",INPUT "km/w",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Project steering Daily allow. 1-5/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Project steering Daily allow. 1-7/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Project steering Food allow","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Project steering Other","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Project steering km allow.","",INPUT "km",INPUT 0,INPUT "Travel").                     
+         END.
+         IF KALKYLARBKODER.ARBKOD = "CM" THEN DO:
+            RUN kalkylopposter_UI (INPUT "Construction mgmt","",INPUT "h",INPUT 0,INPUT "WORK").                 
+            RUN kalkylopposter_UI (INPUT "Construction mgmt Accom","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Construction mgmt Travel","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Construction mgmt Travel","",INPUT "km/w",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Construction mgmt Daily allow. 1-5/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Construction mgmt Daily allow. 1-7/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Construction mgmt Food allow","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Construction mgmt Other","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Construction mgmt km allow.","",INPUT "km",INPUT 0,INPUT "Travel").                    
+         END.
+         IF KALKYLARBKODER.ARBKOD = "DE" THEN DO:
+            RUN kalkylopposter_UI (INPUT "Design, electrical","",INPUT "h",INPUT 0,INPUT "WORK").                 
+            RUN kalkylopposter_UI (INPUT "Design, electrical Accom","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Design, electrical Travel","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Design, electrical Travel","",INPUT "km/w",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Design, electrical Daily allow. 1-5/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Design, electrical Daily allow. 1-7/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Design, electrical Food allow","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Design, electrical Other","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Design, electrical km allow.","",INPUT "km",INPUT 0,INPUT "Travel").                   
+         END.
+         IF KALKYLARBKODER.ARBKOD = "DR" THEN DO:
+            RUN kalkylopposter_UI (INPUT "Design, remote control","",INPUT "h",INPUT 0,INPUT "WORK").                 
+            RUN kalkylopposter_UI (INPUT "Design, remote control Accom","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Design, remote control Travel","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Design, remote control Travel","",INPUT "km/w",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Design, remote control Daily allow. 1-5/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Design, remote control Daily allow. 1-7/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Design, remote control Food allow","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Design, remote control Other","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Design, remote control km allow.","",INPUT "km",INPUT 0,INPUT "Travel").              
+         END.
+         IF KALKYLARBKODER.ARBKOD = "AS" THEN DO: 
+            RUN kalkylopposter_UI (INPUT "Assistent","",INPUT "h",INPUT 0,INPUT "WORK").                 
+            RUN kalkylopposter_UI (INPUT "Assistent Accom","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Assistent Travel","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Assistent Travel","",INPUT "km/w",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Assistent Daily allow. 1-5/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Assistent Daily allow. 1-7/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Assistent Food allow","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Assistent Other","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Assistent km allow.","",INPUT "km",INPUT 0,INPUT "Travel").                     
+         END.
+         IF KALKYLARBKODER.ARBKOD = "SU" THEN DO:
+            RUN kalkylopposter_UI (INPUT "Supervisor","",INPUT "h",INPUT 0,INPUT "WORK").                 
+            RUN kalkylopposter_UI (INPUT "Supervisor Accom","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Supervisor Travel","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Supervisor Travel","",INPUT "km/w",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Supervisor Daily allow. 1-5/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Supervisor Daily allow. 1-7/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Supervisor Food allow","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Supervisor Other","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Supervisor km allow.","",INPUT "km",INPUT 0,INPUT "Travel").                     
+         END.
+         IF KALKYLARBKODER.ARBKOD = "IS" THEN DO:
+            RUN kalkylopposter_UI (INPUT "Installation, at site","",INPUT "h",INPUT 0,INPUT "WORK").                 
+            RUN kalkylopposter_UI (INPUT "Installation, at site Accom","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Installation, at site Travel","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Installation, at site Travel","",INPUT "km/w",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Installation, at site Daily allow. 1-5/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Installation, at site Daily allow. 1-7/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Installation, at site Food allow","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Installation, at site Other","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Installation, at site km allow.","",INPUT "km",INPUT 0,INPUT "Travel").                     
+         END.
+         IF KALKYLARBKODER.ARBKOD = "IW" THEN DO:
+            RUN kalkylopposter_UI (INPUT "Installation, at workshop","",INPUT "h",INPUT 0,INPUT "WORK").                 
+            RUN kalkylopposter_UI (INPUT "Installation, at workshop Accom","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Installation, at workshop Travel","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Installation, at workshop Travel","",INPUT "km/w",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Installation, at workshop Daily allow. 1-5/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Installation, at workshop Daily allow. 1-7/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Installation, at workshop Food allow","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Installation, at workshop Other","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Installation, at workshop km allow.","",INPUT "km",INPUT 0,INPUT "Travel").                     
+         END.
+         IF KALKYLARBKODER.ARBKOD = "CS" THEN DO:
+            RUN kalkylopposter_UI (INPUT "Commissioning, at site","",INPUT "h",INPUT 0,INPUT "WORK").                 
+            RUN kalkylopposter_UI (INPUT "Commissioning, at site Accom","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Commissioning, at site Travel","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Commissioning, at site Travel","",INPUT "km/w",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Commissioning, at site Daily allow. 1-5/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Commissioning, at site Daily allow. 1-7/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Commissioning, at site Food allow","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Commissioning, at site Other","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Commissioning, at site km allow.","",INPUT "km",INPUT 0,INPUT "Travel").                     
+         END.
+         IF KALKYLARBKODER.ARBKOD = "CW" THEN DO:
+            RUN kalkylopposter_UI (INPUT "Commissioning, at workshop","",INPUT "h",INPUT 0,INPUT "WORK").                 
+            RUN kalkylopposter_UI (INPUT "Commissioning, at workshop Accom","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Commissioning, at workshop Travel","",INPUT "vecka",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Commissioning, at workshop Travel","",INPUT "km/w",INPUT 0,INPUT "Travel").                 
+            RUN kalkylopposter_UI (INPUT "Commissioning, at workshop Daily allow. 1-5/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Commissioning, at workshop Daily allow. 1-7/v","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Commissioning, at workshop Food allow","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Commissioning, at workshop Other","",INPUT "vecka",INPUT 0,INPUT "Travel").                     
+            RUN kalkylopposter_UI (INPUT "Commissioning, at workshop km allow.","",INPUT "km",INPUT 0,INPUT "Travel").                     
+         END.
+        
+      END.
+      FOR EACH KALKYLARBKODER WHERE  KALKYLARBKODER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID NO-LOCK,
+      EACH KALKYLLOPPOSTER WHERE KALKYLLOPPOSTER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND KALKYLLOPPOSTER.ARBKOD = KALKYLARBKODER.ARBKOD NO-LOCK:
+         FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+         KALKYLPRISER.SOKBENAMNING = KALKYLARBKODER.BENAMNING NO-LOCK NO-ERROR.
+         IF KALKYLLOPPOSTER.LOPNR = 1 THEN DO TRANSACTION:
+            IF KALKYLLOPPOSTER.ARBKOD = "PL" THEN RUN katlopsub_UI (INPUT 0,INPUT 67.05).
+            IF KALKYLLOPPOSTER.ARBKOD = "CM" THEN RUN katlopsub_UI (INPUT 0,INPUT 67.05).
+            IF KALKYLLOPPOSTER.ARBKOD = "DE" THEN RUN katlopsub_UI (INPUT 0,INPUT 57.86).
+            IF KALKYLLOPPOSTER.ARBKOD = "DR" THEN RUN katlopsub_UI (INPUT 0,INPUT 74.62).
+            IF KALKYLLOPPOSTER.ARBKOD = "AS" THEN RUN katlopsub_UI (INPUT 0,INPUT 48.51).
+            IF KALKYLLOPPOSTER.ARBKOD = "SU" THEN RUN katlopsub_UI (INPUT 0,INPUT 13.75).
+            IF KALKYLLOPPOSTER.ARBKOD = "IS" THEN RUN katlopsub_UI (INPUT 0,INPUT 45.78).
+            IF KALKYLLOPPOSTER.ARBKOD = "IW" THEN RUN katlopsub_UI (INPUT 0,INPUT 47.15).
+            IF KALKYLLOPPOSTER.ARBKOD = "CS" THEN RUN katlopsub_UI (INPUT 0,INPUT 78.41).
+            IF KALKYLLOPPOSTER.ARBKOD = "CW" THEN RUN katlopsub_UI (INPUT 0,INPUT 78.41).
+            FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLPRISER.SOKBENAMNING = "ÖVRIGT" NO-LOCK NO-ERROR.
+            IF KALKYLLOPPOSTER.ARBKOD = "PL" THEN RUN katlopsub_UI (INPUT 0,INPUT 8.75).
+            IF KALKYLLOPPOSTER.ARBKOD = "CM" THEN RUN katlopsub_UI (INPUT 0,INPUT 10).
+            IF KALKYLLOPPOSTER.ARBKOD = "DE" THEN RUN katlopsub_UI (INPUT 0,INPUT 1.25).
+            IF KALKYLLOPPOSTER.ARBKOD = "DR" THEN RUN katlopsub_UI (INPUT 0,INPUT 5).
+            IF KALKYLLOPPOSTER.ARBKOD = "AS" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+            IF KALKYLLOPPOSTER.ARBKOD = "SU" THEN RUN katlopsub_UI (INPUT 0,INPUT 13.75).
+            IF KALKYLLOPPOSTER.ARBKOD = "IS" THEN RUN katlopsub_UI (INPUT 0,INPUT 9.25).
+            IF KALKYLLOPPOSTER.ARBKOD = "IW" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+            IF KALKYLLOPPOSTER.ARBKOD = "CS" THEN RUN katlopsub_UI (INPUT 0,INPUT 18.13).
+            IF KALKYLLOPPOSTER.ARBKOD = "CW" THEN RUN katlopsub_UI (INPUT 0,INPUT 4.38).
+         END.
+         IF KALKYLLOPPOSTER.LOPNR = 2 THEN DO:
+            IF KALKYLLOPPOSTER.ARBKOD = "PL" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+            IF KALKYLLOPPOSTER.ARBKOD = "CM" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+            IF KALKYLLOPPOSTER.ARBKOD = "DE" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+            IF KALKYLLOPPOSTER.ARBKOD = "DR" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+            IF KALKYLLOPPOSTER.ARBKOD = "AS" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+            IF KALKYLLOPPOSTER.ARBKOD = "SU" THEN RUN katlopsub_UI (INPUT 0,INPUT 150).
+            IF KALKYLLOPPOSTER.ARBKOD = "IS" THEN RUN katlopsub_UI (INPUT 0,INPUT 75).
+            IF KALKYLLOPPOSTER.ARBKOD = "IW" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+            IF KALKYLLOPPOSTER.ARBKOD = "CS" THEN RUN katlopsub_UI (INPUT 0,INPUT 400).
+            IF KALKYLLOPPOSTER.ARBKOD = "CW" THEN RUN katlopsub_UI (INPUT 0,INPUT 100).
+         END.
+         IF KALKYLLOPPOSTER.LOPNR = 3 THEN DO:
+            IF KALKYLLOPPOSTER.ARBKOD = "PL" THEN RUN katlopsub_UI (INPUT 0,INPUT 200).
+            IF KALKYLLOPPOSTER.ARBKOD = "CM" THEN RUN katlopsub_UI (INPUT 0,INPUT 200).
+            IF KALKYLLOPPOSTER.ARBKOD = "DE" THEN RUN katlopsub_UI (INPUT 0,INPUT 30).
+            IF KALKYLLOPPOSTER.ARBKOD = "DR" THEN RUN katlopsub_UI (INPUT 0,INPUT 200).
+            IF KALKYLLOPPOSTER.ARBKOD = "AS" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+            IF KALKYLLOPPOSTER.ARBKOD = "SU" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+            IF KALKYLLOPPOSTER.ARBKOD = "IS" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+            IF KALKYLLOPPOSTER.ARBKOD = "IW" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+            IF KALKYLLOPPOSTER.ARBKOD = "CS" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+            IF KALKYLLOPPOSTER.ARBKOD = "CW" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+         END.
+         IF KALKYLLOPPOSTER.LOPNR = 4 THEN DO:
+            IF KALKYLLOPPOSTER.ARBKOD = "PL" THEN RUN katlopsub_UI (INPUT 0,INPUT 300).
+            IF KALKYLLOPPOSTER.ARBKOD = "CM" THEN RUN katlopsub_UI (INPUT 0,INPUT 400).
+            IF KALKYLLOPPOSTER.ARBKOD = "DE" THEN RUN katlopsub_UI (INPUT 0,INPUT 40).
+            IF KALKYLLOPPOSTER.ARBKOD = "DR" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+            IF KALKYLLOPPOSTER.ARBKOD = "AS" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+            IF KALKYLLOPPOSTER.ARBKOD = "SU" THEN RUN katlopsub_UI (INPUT 0,INPUT 450).
+            IF KALKYLLOPPOSTER.ARBKOD = "IS" THEN RUN katlopsub_UI (INPUT 0,INPUT 100).
+            IF KALKYLLOPPOSTER.ARBKOD = "IW" THEN RUN katlopsub_UI (INPUT 0,INPUT 0).
+            IF KALKYLLOPPOSTER.ARBKOD = "CS" THEN RUN katlopsub_UI (INPUT 0,INPUT 300).
+            IF KALKYLLOPPOSTER.ARBKOD = "CW" THEN RUN katlopsub_UI (INPUT 0,INPUT 150).
+         END.
+         IF KALKYLLOPPOSTER.LOPNR = 5 THEN DO:
+            IF KALKYLLOPPOSTER.ARBKOD = "PL" THEN RUN katlopsub_UI (INPUT 0,INPUT 35).
+            IF KALKYLLOPPOSTER.ARBKOD = "CM" THEN RUN katlopsub_UI (INPUT 0,INPUT 35).
+            IF KALKYLLOPPOSTER.ARBKOD = "DE" THEN RUN katlopsub_UI (INPUT 0,INPUT 35).
+            IF KALKYLLOPPOSTER.ARBKOD = "DR" THEN RUN katlopsub_UI (INPUT 0,INPUT 35).
+            IF KALKYLLOPPOSTER.ARBKOD = "AS" THEN RUN katlopsub_UI (INPUT 0,INPUT 35).
+            IF KALKYLLOPPOSTER.ARBKOD = "SU" THEN RUN katlopsub_UI (INPUT 0,INPUT 35).
+            IF KALKYLLOPPOSTER.ARBKOD = "IS" THEN RUN katlopsub_UI (INPUT 0,INPUT 35).
+            IF KALKYLLOPPOSTER.ARBKOD = "IW" THEN RUN katlopsub_UI (INPUT 0,INPUT 35).
+            IF KALKYLLOPPOSTER.ARBKOD = "CS" THEN RUN katlopsub_UI (INPUT 0,INPUT 35).
+            IF KALKYLLOPPOSTER.ARBKOD = "CW" THEN RUN katlopsub_UI (INPUT 0,INPUT 35).
+         END.
+         IF KALKYLLOPPOSTER.LOPNR = 6 THEN DO:
+            IF KALKYLLOPPOSTER.ARBKOD = "PL" THEN RUN katlopsub_UI (INPUT 0,INPUT 49).
+            IF KALKYLLOPPOSTER.ARBKOD = "CM" THEN RUN katlopsub_UI (INPUT 0,INPUT 49).
+            IF KALKYLLOPPOSTER.ARBKOD = "DE" THEN RUN katlopsub_UI (INPUT 0,INPUT 49).
+            IF KALKYLLOPPOSTER.ARBKOD = "DR" THEN RUN katlopsub_UI (INPUT 0,INPUT 49).
+            IF KALKYLLOPPOSTER.ARBKOD = "AS" THEN RUN katlopsub_UI (INPUT 0,INPUT 49).
+            IF KALKYLLOPPOSTER.ARBKOD = "SU" THEN RUN katlopsub_UI (INPUT 0,INPUT 49).
+            IF KALKYLLOPPOSTER.ARBKOD = "IS" THEN RUN katlopsub_UI (INPUT 0,INPUT 49).
+            IF KALKYLLOPPOSTER.ARBKOD = "IW" THEN RUN katlopsub_UI (INPUT 0,INPUT 49).
+            IF KALKYLLOPPOSTER.ARBKOD = "CS" THEN RUN katlopsub_UI (INPUT 0,INPUT 49).
+            IF KALKYLLOPPOSTER.ARBKOD = "CW" THEN RUN katlopsub_UI (INPUT 0,INPUT 49).
+         END.
+         IF KALKYLLOPPOSTER.LOPNR = 7 THEN DO:
+            IF KALKYLLOPPOSTER.ARBKOD = "PL" THEN RUN katlopsub_UI (INPUT 0,INPUT 8).
+            IF KALKYLLOPPOSTER.ARBKOD = "CM" THEN RUN katlopsub_UI (INPUT 0,INPUT 8).
+            IF KALKYLLOPPOSTER.ARBKOD = "DE" THEN RUN katlopsub_UI (INPUT 0,INPUT 8).
+            IF KALKYLLOPPOSTER.ARBKOD = "DR" THEN RUN katlopsub_UI (INPUT 0,INPUT 8).
+            IF KALKYLLOPPOSTER.ARBKOD = "AS" THEN RUN katlopsub_UI (INPUT 0,INPUT 8).
+            IF KALKYLLOPPOSTER.ARBKOD = "SU" THEN RUN katlopsub_UI (INPUT 0,INPUT 8).
+            IF KALKYLLOPPOSTER.ARBKOD = "IS" THEN RUN katlopsub_UI (INPUT 0,INPUT 8).
+            IF KALKYLLOPPOSTER.ARBKOD = "IW" THEN RUN katlopsub_UI (INPUT 0,INPUT 8).
+            IF KALKYLLOPPOSTER.ARBKOD = "CS" THEN RUN katlopsub_UI (INPUT 0,INPUT 8).
+            IF KALKYLLOPPOSTER.ARBKOD = "CW" THEN RUN katlopsub_UI (INPUT 0,INPUT 8).
+         END.
+         IF KALKYLLOPPOSTER.LOPNR = 8 THEN DO:
+            IF KALKYLLOPPOSTER.ARBKOD = "PL" THEN RUN katlopsub_UI (INPUT 0,INPUT 6.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "CM" THEN RUN katlopsub_UI (INPUT 0,INPUT 6.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "DE" THEN RUN katlopsub_UI (INPUT 0,INPUT 6.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "DR" THEN RUN katlopsub_UI (INPUT 0,INPUT 6.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "AS" THEN RUN katlopsub_UI (INPUT 0,INPUT 6.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "SU" THEN RUN katlopsub_UI (INPUT 0,INPUT 6.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "IS" THEN RUN katlopsub_UI (INPUT 0,INPUT 6.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "IW" THEN RUN katlopsub_UI (INPUT 0,INPUT 6.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "CS" THEN RUN katlopsub_UI (INPUT 0,INPUT 6.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "CW" THEN RUN katlopsub_UI (INPUT 0,INPUT 6.5).
+         END.
+         IF KALKYLLOPPOSTER.LOPNR = 9 THEN DO:
+            IF KALKYLLOPPOSTER.ARBKOD = "PL" THEN RUN katlopsub_UI (INPUT 0,INPUT 0.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "CM" THEN RUN katlopsub_UI (INPUT 0,INPUT 0.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "DE" THEN RUN katlopsub_UI (INPUT 0,INPUT 0.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "DR" THEN RUN katlopsub_UI (INPUT 0,INPUT 0.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "AS" THEN RUN katlopsub_UI (INPUT 0,INPUT 0.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "SU" THEN RUN katlopsub_UI (INPUT 0,INPUT 0.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "IS" THEN RUN katlopsub_UI (INPUT 0,INPUT 0.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "IW" THEN RUN katlopsub_UI (INPUT 0,INPUT 0.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "CS" THEN RUN katlopsub_UI (INPUT 0,INPUT 0.5).
+            IF KALKYLLOPPOSTER.ARBKOD = "CW" THEN RUN katlopsub_UI (INPUT 0,INPUT 0.5).
+         END.
+      END.           
+   END. 
+END PROCEDURE.
+
+
+/* KONVERTERING-KATALOGER   ---------------------------------------------------*/
+/*KONVERTERA KALKYLEN ------------------------------------------------*/
+ 
+PROCEDURE startkalkkonv_UI :
+   /*for each KALKHUV  :
+delete  KALKHUV .
+end.
+for each  KALKFAKTORER :
+delete  KALKFAKTORER .
+end.
+
+for each  KALKEGNAPRISER :
+delete KALKEGNAPRISER  .
+end.
+
+for each  KALKNUM :
+delete  KALKNUM .
+end.
+
+for each  KALKNUMSUB :
+delete  KALKNUMSUB .
+end.
+for each  KALKMTRL :
+delete  KALKMTRL .
+end.
+   */
+   DEFINE VARIABLE minskaartal AS INTEGER NO-UNDO.
+   FIND FIRST KALKYLKATALOG NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKYLKATALOG THEN DO:
+      RETURN.
+   END.
+   FIND FIRST KALKHUV WHERE NO-LOCK NO-ERROR.
+   IF AVAILABLE KALKHUV THEN RETURN. 
+   FOR EACH FASTSPEC WHERE /*FASTSPEC.KALKNR = 100116 AND FASTSPEC.OMRADE = "0910"'*/:
+      EMPTY TEMP-TABLE kalkkostnad NO-ERROR.
+      EMPTY TEMP-TABLE kalkantal NO-ERROR.  
+      
+      /*OBS! globforetag = "GRAN" OCH ÅRTAL*/
+      IF globforetag = "GRAN" THEN minskaartal = 2.
+      ELSE minskaartal = 1.   
+      FIND FIRST KALKYLKATALOG WHERE KALKYLKATALOG.VISARTAL = FASTSPEC.KATAR - minskaartal NO-LOCK NO-ERROR. 
+      IF NOT AVAILABLE KALKYLKATALOG THEN DO:
+         MESSAGE FASTSPEC.KALKNR FASTSPEC.KATAR
+         VIEW-AS ALERT-BOX.
+         NEXT.
+      END.
+      RUN createkalk_UI (INPUT FASTSPEC.KALKNR,INPUT KALKYLKATALOG.KLOGID,INPUT FASTSPEC.TYP,
+                         INPUT FASTSPEC.EGETMTRL,INPUT FASTSPEC.EGETPRIS,INPUT FASTSPEC.FAKTOR).
+               
+   END. 
+END PROCEDURE.  
+PROCEDURE createkalk_UI :
+   DEFINE INPUT  PARAMETER kynr AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER katnr AS INTEGER NO-UNDO.
+  /*
+   DEFINE INPUT  PARAMETER omr AS CHARACTER NO-UNDO.
+   */
+   DEFINE INPUT  PARAMETER tnr AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER emvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT  PARAMETER epvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT  PARAMETER favar AS LOGICAL NO-UNDO.
+   DO TRANSACTION:
+      CREATE KALKHUV.   
+      BUFFER-COPY FASTSPEC TO KALKHUV.
+      ASSIGN 
+       
+      KALKHUV.KALKNR = kynr
+      /*
+      KALKNUM.OMRADE = omr
+      */
+      KALKHUV.KLOGID = katnr
+      KALKHUV.TYPKALK = tnr 
+      /*
+      KALKHUV.EGETMTRL = emvar 
+      KALKHUV.EGNAPRISER = epvar
+      KALKHUV.FAKTORER = favar
+      */ 
+      KALKHUV.ANMARKNING = FASTSPEC.STARTDAG.
+      FIND FIRST KALKUPP WHERE KALKUPP.KALKNR = KALKHUV.KALKNR NO-LOCK NO-ERROR.
+      IF AVAILABLE KALKUPP THEN DO:
+         KALKHUV.UTYP = KALKUPP.TYP.
+      END.   
+      ELSE KALKHUV.UTYP = 1.
+   END.
+   DEFINE VARIABLE imtrl AS INTEGER NO-UNDO.
+   imtrl = 0.
+   FOR EACH MTRL WHERE MTRL.KALKNR = FASTSPEC.KALKNR AND /*MTRL.OMRADE = FASTSPEC.OMRADE AND*/
+   MTRL.OFFERT = FALSE AND MTRL.KUND = FALSE 
+   NO-LOCK:
+      imtrl = imtrl + 1.
+      CREATE KALKMTRL.
+      ASSIGN
+      KALKMTRL.MID = imtrl
+      KALKMTRL.MATRIS   = 1
+      KALKMTRL.OMRADE    = FASTSPEC.OMRADE
+      KALKMTRL.KALKNR    = MTRL.KALKNR
+      KALKMTRL.ENR       = MTRL.ENR   
+      KALKMTRL.BENAMNING = MTRL.Benamning
+      KALKMTRL.KUND      = MTRL.KUND
+      KALKMTRL.ENHET     = MTRL.ENHET
+      KALKMTRL.NPRIS     = MTRL.NPRIS
+      KALKMTRL.BPRIS     = MTRL.BPRIS
+      KALKMTRL.KPRIS     = MTRL.KPRIS
+      KALKMTRL.LEVKOD    = MTRL.LEVKOD 
+      KALKMTRL.BERLEV    = MTRL.BERLEV         
+      KALKMTRL.BERKVANT  = MTRL.BERKVANT.
+   END.       
+   FOR EACH FAKTOR WHERE FAKTOR.KALKNR = FASTSPEC.KALKNR AND FAKTOR.OMRADE = FASTSPEC.OMRADE NO-LOCK:
+    
+      FOR EACH KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOG.HKLOGSUBID AND KALKYLPRISER.EGENKODUPP = TRUE NO-LOCK:
+         CREATE KALKFAKTORER.  
+         ASSIGN
+         KALKFAKTORER.BENAMNING = KALKYLPRISER.BENAMNING
+         KALKFAKTORER.KALKNR = KALKHUV.KALKNR
+         KALKFAKTORER.OMRADE = KALKHUV.OMRADE
+         KALKFAKTORER.KPID = KALKYLPRISER.KPID.
+         IF FAKTOR.FAKTOT = 1 THEN DO:
+            IF KALKYLPRISER.SOKBENAMNING = "BEREDARE" THEN KALKFAKTORER.FAKTOR = FAKTOR.FAK1.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MONTÖR" THEN KALKFAKTORER.FAKTOR = FAKTOR.FAK2.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN1" THEN KALKFAKTORER.FAKTOR = FAKTOR.FAK3.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN2" THEN KALKFAKTORER.FAKTOR = FAKTOR.FAK4.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN3" THEN KALKFAKTORER.FAKTOR = FAKTOR.FAK7.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN4" THEN KALKFAKTORER.FAKTOR = FAKTOR.FAK5.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN5" THEN KALKFAKTORER.FAKTOR = FAKTOR.FAK6.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MATERIEL" THEN KALKFAKTORER.FAKTOR = FAKTOR.FAKMTRL.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "ÖVRIGKOSTNAD" THEN KALKFAKTORER.FAKTOR = FAKTOR.FAKOVRIGT.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "ENTREP" THEN KALKFAKTORER.FAKTOR = FAKTOR.FAKENT.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "UTRUSTNING" THEN KALKFAKTORER.FAKTOR =  FAKTOR.FAKUTRUST.
+            /*FAKTOR.FAKMASKINKOST FAKTOR.FAKUTRUSTKOST ????*/
+         END.
+         ELSE DO:
+            KALKFAKTORER.FAKTOR = FAKTOR.FAKTOT.
+         END.      
+      END.   
+   END.
+   
+
+   FOR EACH KALKBEF WHERE KALKBEF.KALKNR = FASTSPEC.KALKNR AND KALKBEF.OMRADE = FASTSPEC.OMRADE AND KALKBEF.ARBKOD = "" NO-LOCK:    
+      FOR EACH KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOG.HKLOGSUBID AND KALKYLPRISER.EGENPRISUPP = TRUE NO-LOCK:
+         CREATE KALKEGNAPRISER.  
+         BUFFER-COPY KALKYLPRISER TO KALKEGNAPRISER. 
+         ASSIGN
+         KALKEGNAPRISER.KALKNR = KALKHUV.KALKNR
+         KALKEGNAPRISER.OMRADE = KALKHUV.OMRADE.       
+         IF KALKYLPRISER.SOKBENAMNING = "BEREDARE" THEN KALKEGNAPRISER.PRIS = KALKBEF.PRIS1.
+         ELSE IF KALKYLPRISER.SOKBENAMNING = "MONTÖR" THEN KALKEGNAPRISER.PRIS = KALKBEF.PRIS2.
+         ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN1" THEN KALKEGNAPRISER.PRIS = KALKBEF.PRIS3.
+         ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN2" THEN KALKEGNAPRISER.PRIS = KALKBEF.PRIS4.
+         ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN3" THEN KALKEGNAPRISER.PRIS = KALKBEF.PRIS7.
+         ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN4" THEN KALKEGNAPRISER.PRIS = KALKBEF.PRIS5.
+         ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN5" THEN KALKEGNAPRISER.PRIS = KALKBEF.PRIS6.           
+         /*UTRUSTNING FAKTOR.FAKMASKINKOST FAKTOR.FAKUTRUSTKOST ????*/           
+      END.   
+   END.
+   
+   FOR EACH FASTKALK WHERE FASTKALK.KALKNR = FASTSPEC.KALKNR AND FASTKALK.OMRADE = FASTSPEC.OMRADE NO-LOCK: 
+      EMPTY TEMP-TABLE kalknumsubtt NO-ERROR.   
+      CREATE KALKNUM.
+      BUFFER-COPY FASTKALK TO KALKNUM.
+      KALKNUM.BENAMNING = "".
+      ASSIGN
+      KALKNUM.BENAMNING = SUBSTRING(FASTKALK.BENAMNING,1,40)
+      KALKNUM.ANMARK = SUBSTRING(FASTKALK.BENAMNING,50)           
+      KALKNUM.KALKNR = KALKHUV.KALKNR
+      KALKNUM.OMRADE = KALKHUV.OMRADE
+      KALKNUM.MATRIS = FASTKALK.F10   
+      KALKNUM.TYPKALK = FASTKALK.TYP.
+      IF KALKNUM.MATRIS = 0 THEN KALKNUM.MATRIS = 1.
+      IF KALKNUM.TYPKALK = 1 THEN DO:
+         FIND FIRST LOP1 WHERE LOP1.KATAR = FASTSPEC.KATAR AND LOP1.ARBKOD = KALKNUM.ARBKOD AND LOP1.LOPNR = KALKNUM.LOPNR NO-LOCK NO-ERROR.
+         IF AVAILABLE LOP1 THEN DO:
+            KALKNUM.KOMMENTAR = SUBSTRING(LOP1.BENAMNING,60). 
+         END.             
+      END.
+      ELSE IF KALKNUM.TYPKALK = 2 THEN DO:
+         FIND FIRST LOP2 WHERE LOP2.KATAR = FASTSPEC.KATAR AND LOP2.ARBKOD = KALKNUM.ARBKOD AND LOP2.LOPNR = KALKNUM.LOPNR NO-LOCK NO-ERROR.
+         IF AVAILABLE LOP2 THEN DO:
+            KALKNUM.KOMMENTAR = SUBSTRING(LOP2.BENAMNING,60). 
+         END.             
+      END.   
+      ELSE IF KALKNUM.TYPKALK = 3 THEN DO:
+         FIND FIRST LOP3 WHERE LOP3.KATAR = FASTSPEC.KATAR AND LOP3.ARBKOD = KALKNUM.ARBKOD AND LOP3.LOPNR = KALKNUM.LOPNR NO-LOCK NO-ERROR.
+         IF AVAILABLE LOP3 THEN DO:
+            KALKNUM.KOMMENTAR = SUBSTRING(LOP3.BENAMNING,60). 
+         END.             
+      END.
+      ELSE IF KALKNUM.TYPKALK = 5 THEN DO:
+         FIND FIRST LOP5 WHERE LOP5.KATAR = FASTSPEC.KATAR AND LOP5.ARBKOD = KALKNUM.ARBKOD AND LOP5.LOPNR = KALKNUM.LOPNR NO-LOCK NO-ERROR.
+         IF AVAILABLE LOP5 THEN DO:
+            KALKNUM.KOMMENTAR = SUBSTRING(LOP5.BENAMNING,60). 
+         END.             
+      END.
+      RUN sistanum_UI (OUTPUT KALKNUM.NUM).
+      RUN kontrollkod_UI.
+          
+      IF FASTKALK.ARBKOD = "EGEN" THEN DO:           
+         FIND FIRST KALKBEF WHERE KALKBEF.KALKNR = FASTSPEC.KALKNR AND KALKBEF.OMRADE = FASTSPEC.OMRADE AND KALKBEF.ARBKOD = "EGEN" AND 
+         KALKBEF.LOPNR = FASTKALK.LOPNR NO-LOCK NO-ERROR.
+         IF AVAILABLE KALKBEF THEN DO:    
+            FOR EACH KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOG.HKLOGSUBID AND KALKYLPRISER.EGENKODUPP = TRUE NO-LOCK:
+               CREATE KALKNUMSUB.               
+               BUFFER-COPY KALKYLPRISER TO KALKNUMSUB.
+               ASSIGN 
+               KALKNUMSUB.KALKNR = KALKNUM.KALKNR
+               KALKNUMSUB.OMRADE = KALKHUV.OMRADE
+               KALKNUMSUB.NUM = KALKNUM.NUM.
+               RUN sistanumsubid_UI (OUTPUT KALKNUMSUB.NUMSUBID).
+               IF KALKYLPRISER.SOKBENAMNING = "BEREDARE" THEN DO:
+                  ASSIGN
+                  KALKNUMSUB.TIMMAR = FASTKALK.F1
+                  KALKNUMSUB.PRIS = KALKBEF.PRIS1.
+               END.   
+               ELSE IF KALKYLPRISER.SOKBENAMNING = "MONTÖR" THEN DO:
+                  ASSIGN
+                  KALKNUMSUB.TIMMAR = FASTKALK.F2
+                  KALKNUMSUB.PRIS = KALKBEF.PRIS2.
+               END.   
+               ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN1" THEN DO:
+                  ASSIGN
+                  KALKNUMSUB.TIMMAR = FASTKALK.F3
+                  KALKNUMSUB.PRIS = KALKBEF.PRIS3.
+               END.   
+               ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN2" THEN DO:
+                  ASSIGN
+                  KALKNUMSUB.TIMMAR = FASTKALK.F4
+                  KALKNUMSUB.PRIS = KALKBEF.PRIS4.
+               END.    
+               ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN3" THEN DO:
+                  ASSIGN
+                  KALKNUMSUB.TIMMAR = FASTKALK.F7
+                  KALKNUMSUB.PRIS = KALKBEF.PRIS7.
+               END.   
+               ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN4" THEN DO:
+                  ASSIGN
+                  KALKNUMSUB.TIMMAR = FASTKALK.F5
+                  KALKNUMSUB.PRIS = KALKBEF.PRIS5.
+               END.   
+               ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN5" THEN DO:
+                  ASSIGN
+                  KALKNUMSUB.TIMMAR = FASTKALK.F6
+                  KALKNUMSUB.PRIS = KALKBEF.PRIS7.
+               END.   
+               ELSE IF KALKYLPRISER.SOKBENAMNING = "MATERIEL" THEN DO: 
+                  ASSIGN
+                  KALKNUMSUB.KOSTNAD  = FASTKALK.MATERIEL.                  
+               END.   
+               ELSE IF KALKYLPRISER.SOKBENAMNING = "ÖVRIGKOSTNAD" THEN DO:
+                  ASSIGN
+                  KALKNUMSUB.KOSTNAD = FASTKALK.OVRIGT.             
+               END. 
+               ELSE IF KALKYLPRISER.SOKBENAMNING = "ENTREP" THEN DO:
+                  ASSIGN
+                  KALKNUMSUB.KOSTNAD = FASTKALK.ENTRP.               
+               END. 
+               ELSE IF KALKYLPRISER.SOKBENAMNING = "UTRUSTNING" THEN DO:
+                   ASSIGN
+                   KALKNUMSUB.KOSTNAD = FASTKALK.UTRUSTKOST.   
+                   /*FASTKALK.UTRUST ???*/            
+               END.
+               
+               IF KALKNUMSUB.KOSTNAD = 0 AND KALKNUMSUB.TIMMAR = 0 AND KALKNUMSUB.PRIS = 0 THEN DO:
+                  DELETE KALKNUMSUB.
+               END.   
+               ELSE DO:
+                  /*
+                  CREATE kalknumsubtt.  
+                  BUFFER-COPY KALKNUMSUB TO kalknumsubtt. 
+                  */
+               END.  
+            END.                  
+         END.
+      END.
+      ELSE DO:   
+         FOR EACH KALKYLKATALOGSUB WHERE KALKYLKATALOGSUB.KLOGID = KALKHUV.KLOGID NO-LOCK:
+            FIND FIRST KALKYLLOPPOSTER WHERE KALKYLLOPPOSTER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND
+            KALKYLLOPPOSTER.ARBKOD = KALKNUM.ARBKOD AND KALKYLLOPPOSTER.LOPNR = KALKNUM.LOPNR NO-LOCK NO-ERROR.
+            IF AVAILABLE KALKYLLOPPOSTER THEN DO:
+               kpostid = ROWID(KALKYLLOPPOSTER) .
+            END.   
+         END.
+         /*KALKYLARBKODER.KLOGSUBID = FÅS AVAILABLEDEN VALDA KODEN*/ 
+         FIND FIRST KALKYLLOPPOSTER WHERE ROWID(KALKYLLOPPOSTER) = kpostid NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE KALKYLLOPPOSTER THEN DO:
+            MESSAGE KALKHUV.KLOGID KALKNUM.ARBKOD KALKNUM.LOPNR
+            VIEW-AS ALERT-BOX.
+            QUIT.
+         END.
+         BUFFER-COPY KALKYLLOPPOSTER TO KALKNUM.
+         FOR EACH KALKYLLOPSUB WHERE KALKYLLOPSUB.KLOGSUBID = KALKYLLOPPOSTER.KLOGSUBID AND 
+         KALKYLLOPSUB.ARBKOD = KALKNUM.ARBKOD AND KALKYLLOPSUB.LOPNR = KALKNUM.LOPNR NO-LOCK: 
+            CREATE KALKNUMSUB.            
+            BUFFER-COPY KALKYLLOPSUB TO KALKNUMSUB.      
+            ASSIGN 
+            KALKNUMSUB.KALKNR = KALKNUM.KALKNR
+            KALKNUMSUB.OMRADE = KALKHUV.OMRADE
+            KALKNUMSUB.NUM = KALKNUM.NUM.
+            RUN sistanumsubid_UI (OUTPUT KALKNUMSUB.NUMSUBID).
+            /* 
+            CREATE kalknumsubtt.  
+            BUFFER-COPY KALKNUMSUB TO kalknumsubtt.
+            */   
+         END.
+      END. 
+      RUN frikodhmt (INPUT KALKNUM.KALKNR, INPUT KALKNUM.OMRADE,INPUT KALKNUM.NUM).
+      EMPTY TEMP-TABLE kalknumtt NO-ERROR.
+      CREATE kalknumtt.
+      BUFFER-COPY KALKNUM TO kalknumtt.
+      kalknumtt.TTRECID = RECID(kalknumtt).          
+      RUN raknaenkod_UI (INPUT FALSE).
+      FOR EACH kalknumsubtt:
+         FIND FIRST KALKNUMSUB WHERE KALKNUMSUB.KALKNR = kalknumsubtt.KALKNR AND
+         KALKNUMSUB.OMRADE = kalknumsubtt.OMRADE AND
+         KALKNUMSUB.NUM = kalknumsubtt.NUM AND
+         KALKNUMSUB.KPID = kalknumsubtt.KPID 
+         EXCLUSIVE-LOCK NO-ERROR.
+         BUFFER-COPY kalknumsubtt TO KALKNUMSUB.
+      END.
+      BUFFER-COPY kalknumtt TO KALKNUM.
+      
+      EMPTY TEMP-TABLE kalknumtt NO-ERROR. 
+      EMPTY TEMP-TABLE kalknumsubtt NO-ERROR.                    
+      
+   END.           
+   
+   
+END PROCEDURE.  
+/* rätt subnummer*/
+PROCEDURE kontrollkod_UI :
+   IF KALKNUM.ARBKOD = "EGEN" THEN DO:
+      FIND FIRST KALKYLKATALOGSUB WHERE KALKYLKATALOGSUB.KLOGSUBID = KALKYLKATALOG.HKLOGSUBID NO-LOCK NO-ERROR.
+      IF AVAILABLE KALKYLKATALOGSUB THEN DO:
+         KALKNUM.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID.
+      END.
+   END.
+   ELSE DO:   
+      FOR EACH KALKYLKATALOGSUB WHERE KALKYLKATALOGSUB.KLOGID = KALKHUV.KLOGID NO-LOCK,
+      EACH KALKYLLOPPOSTER WHERE KALKYLLOPPOSTER.KLOGSUBID = KALKYLKATALOGSUB.KLOGSUBID AND KALKYLLOPPOSTER.ARBKOD = KALKNUM.ARBKOD AND 
+      KALKYLLOPPOSTER.LOPNR = KALKNUM.LOPNR NO-LOCK:
+         KALKNUM.KLOGSUBID = KALKYLLOPPOSTER.KLOGSUBID.
+         /*ska bara finnas en post*/ 
+      END.   
+      
+   END.
+END PROCEDURE.
+
+{EFASTTEMP.I}
+DEFINE TEMP-TABLE tidutrubrik
+   FIELD UT AS CHARACTER FORMAT "X(132)"
+   FIELD ORDNING AS INTEGER
+   FIELD SUMMARAD AS LOGICAL
+   INDEX ORDNING ORDNING.
+
+PROCEDURE hmtafri_UI :
+  
+   DEFINE VARIABLE kalkfil AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE minskaartal AS INTEGER NO-UNDO.
+   FIND FIRST KALKYLKATALOG NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE KALKYLKATALOG THEN DO:
+      RETURN.
+   END.
+   FIND FIRST KALKHUV WHERE KALKHUV.TYPKALK = 6 NO-LOCK NO-ERROR.
+   IF AVAILABLE KALKHUV THEN RETURN. 
+   FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "FRIKALK2" NO-LOCK:
+      EMPTY TEMP-TABLE kalkkostnad NO-ERROR.
+      EMPTY TEMP-TABLE kalkantal NO-ERROR.
+      EMPTY TEMP-TABLE efastkalktemp NO-ERROR. 
+      EMPTY TEMP-TABLE tidutrubrik NO-ERROR. 
+      /*OBS! globforetag = "GRAN" OCH ÅRTAL*/
+      IF globforetag = "GRAN" THEN minskaartal = 2.
+      ELSE minskaartal = 1.  
+      FIND LAST KALKYLKATALOG WHERE KALKYLKATALOG.BENAMNING BEGINS "EBR" USE-INDEX VISARTAL NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KALKYLKATALOG THEN DO:
+         FIND LAST KALKYLKATALOG WHERE USE-INDEX VISARTAL NO-LOCK NO-ERROR.
+      END. 
+      FIND LAST KALKYLKATALOG WHERE NO-LOCK NO-ERROR.           
+      FIND LAST KALKBEF WHERE KALKBEF.KALKNR = 0 NO-LOCK NO-ERROR.
+      kalkfil = SESSION:TEMP-DIR + STRING(EXTRADATA.HUVUDINT) + ".txt".
+      OUTPUT TO VALUE(kalkfil).
+      FOR EACH KALKYL WHERE KALKYL.RECKALKYL = EXTRADATA.HUVUDINT AND KALKYL.TYP = "".
+         PUT UNFORMATTED KALKYL.BEFATTNING KALKYL.OMRADE SKIP.
+      END.
+      OUTPUT CLOSE.
+      INPUT FROM VALUE(kalkfil) NO-ECHO.
+      REPEAT:
+         CREATE efastkalktemp.
+         ASSIGN.
+         IMPORT DELIMITER "£" efastkalktemp NO-ERROR.                  
+      END.
+      INPUT CLOSE.
+      FOR EACH efastkalktemp WHERE efastkalktemp.ARBKOD = "":
+         DELETE efastkalktemp.
+      END.
+      OUTPUT TO VALUE(kalkfil).
+      FOR EACH KALKYL WHERE KALKYL.RECKALKYL = EXTRADATA.HUVUDINT AND KALKYL.TYP NE "".
+         PUT UNFORMATTED KALKYL.TYP SKIP.   
+      END.
+      OUTPUT CLOSE.
+      INPUT FROM VALUE(kalkfil) NO-ECHO.
+      REPEAT:
+         CREATE tidutrubrik.
+         ASSIGN.
+         IMPORT DELIMITER "£" tidutrubrik   NO-ERROR.                  
+      END.
+      INPUT CLOSE.
+      FOR EACH tidutrubrik WHERE tidutrubrik.ORDNING = 0:
+         DELETE tidutrubrik.
+      END.
+      
+      FIND FIRST KALKSPEC WHERE KALKSPEC.KALKNR = EXTRADATA.HUVUDINT NO-LOCK NO-ERROR.
+      DO TRANSACTION:
+         CREATE KALKHUV.  
+         ASSIGN
+         KALKHUV.KALKNR = KALKSPEC.KALKNR                    
+         KALKHUV.OMRADE = KALKSPEC.OMRADE                        
+         KALKHUV.BENAMNING = KALKSPEC.KALKTEXT                 
+         KALKHUV.KLOGID  = KALKYLKATALOG.KLOGID                    
+         KALKHUV.TYPKALK  = 6                   
+         /*
+         KALKHUV.EGETMTRL  = FALSE                  
+         KALKHUV.EGNAPRISER = FALSE                 
+         KALKHUV.FAKTORER   = FALSE                 
+         */
+         KALKHUV.ANMARKNING  = KALKSPEC.STARTDAG                
+         KALKHUV.BESTID = KALKSPEC.BESTID                      
+         KALKHUV.KALKANV = KALKSPEC.KALKANV                    
+         KALKHUV.ANVANDARE = KALKSPEC.ANVANDARE                  
+         KALKHUV.AKTIV = KALKSPEC.AKTIV
+         KALKHUV.UTYP  = 1.                            
+      END.
+      FIND FIRST efastkalktemp WHERE efastkalktemp.FAKTOR = TRUE NO-LOCK NO-ERROR.
+      IF AVAILABLE efastkalktemp THEN DO:
+         FOR EACH KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOG.HKLOGSUBID AND KALKYLPRISER.EGENKODUPP = TRUE NO-LOCK:
+            CREATE KALKFAKTORER.  
+            ASSIGN
+            KALKFAKTORER.BENAMNING = KALKYLPRISER.BENAMNING
+            KALKFAKTORER.KALKNR = KALKHUV.KALKNR
+            KALKFAKTORER.OMRADE = KALKHUV.OMRADE
+            KALKFAKTORER.KPID = KALKYLPRISER.KPID.
+            IF KALKYLPRISER.SOKBENAMNING = "BEREDARE" THEN KALKFAKTORER.FAKTOR = 1.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MONTÖR" THEN KALKFAKTORER.FAKTOR = efastkalktemp.ARBFAKTOR.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN1" THEN KALKFAKTORER.FAKTOR = efastkalktemp.MASKFAKTOR.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN2" THEN KALKFAKTORER.FAKTOR = 1.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN3" THEN KALKFAKTORER.FAKTOR = 1.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN4" THEN KALKFAKTORER.FAKTOR = 1.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN5" THEN KALKFAKTORER.FAKTOR = 1.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MATERIEL" THEN KALKFAKTORER.FAKTOR = efastkalktemp.MTRLFAKTOR.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "ÖVRIGKOSTNAD" THEN KALKFAKTORER.FAKTOR = efastkalktemp.OVRFAKTOR.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "UTRUSTNING" THEN KALKFAKTORER.FAKTOR =  efastkalktemp.UTRFAKTOR.              
+         END.
+      END.
+      FIND LAST KALKBEF WHERE KALKBEF.KALKNR = 0 NO-LOCK NO-ERROR.
+      IF AVAILABLE KALKBEF THEN DO:    
+         FOR EACH KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOG.HKLOGSUBID AND KALKYLPRISER.EGENPRISUPP = TRUE NO-LOCK:
+            CREATE KALKEGNAPRISER.  
+            BUFFER-COPY KALKYLPRISER TO KALKEGNAPRISER. 
+            ASSIGN
+            KALKEGNAPRISER.KALKNR = KALKHUV.KALKNR
+            KALKEGNAPRISER.OMRADE = KALKHUV.OMRADE.       
+            IF KALKYLPRISER.SOKBENAMNING = "BEREDARE" THEN KALKEGNAPRISER.PRIS = KALKBEF.PRIS1.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MONTÖR" THEN KALKEGNAPRISER.PRIS = KALKBEF.PRIS2.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN1" THEN KALKEGNAPRISER.PRIS = KALKBEF.PRIS3.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN2" THEN KALKEGNAPRISER.PRIS = KALKBEF.PRIS4.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN3" THEN KALKEGNAPRISER.PRIS = KALKBEF.PRIS7.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN4" THEN KALKEGNAPRISER.PRIS = KALKBEF.PRIS5.
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN5" THEN KALKEGNAPRISER.PRIS = KALKBEF.PRIS6.           
+            /*UTRUSTNING FAKTOR.FAKMASKINKOST FAKTOR.FAKUTRUSTKOST ????*/           
+         END.   
+      END.
+      ccc
+      FOR EACH efastkalktemp NO-LOCK: 
+         EMPTY TEMP-TABLE kalknumsubtt NO-ERROR.   
+         CREATE KALKNUM.
+         BUFFER-COPY efastkalktemp TO KALKNUM.
+         KALKNUM.BENAMNING = "".
+         ASSIGN
+         KALKNUM.BENAMNING = SUBSTRING(efastkalktemp.BENAMNING,1,40)
+         KALKNUM.ANMARK = SUBSTRING(efastkalktemp.BENAMNING,50)
+         KALKNUM.KLOGSUBID = KALKYLKATALOG.HKLOGSUBID           
+         KALKNUM.KALKNR = KALKHUV.KALKNR
+         KALKNUM.OMRADE = KALKHUV.OMRADE
+         KALKNUM.MATRIS = efastkalktemp.F10   
+         KALKNUM.TYPKALK = 6.
+         IF KALKNUM.MATRIS = 0 THEN KALKNUM.MATRIS = 1.
+         RUN sistanum_UI (OUTPUT KALKNUM.NUM).
+             
+         FOR EACH KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = KALKYLKATALOG.HKLOGSUBID AND KALKYLPRISER.EGENKODUPP = TRUE NO-LOCK:
+            CREATE KALKNUMSUB.            
+            BUFFER-COPY KALKYLPRISER TO KALKNUMSUB. 
+            ASSIGN 
+            KALKNUMSUB.KALKNR = KALKNUM.KALKNR
+            KALKNUMSUB.OMRADE = KALKHUV.OMRADE
+            KALKNUMSUB.NUM = KALKNUM.NUM.
+            RUN sistanumsubid_UI (OUTPUT KALKNUMSUB.NUMSUBID).
+            IF KALKYLPRISER.SOKBENAMNING = "BEREDARE" THEN DO:
+             ccc
+               ASSIGN
+               KALKNUMSUB.TIMMAR = efastkalktemp.F1
+               KALKNUMSUB.PRIS = efastkalktemp.ARBETE /(efastkalktemp.F1 + efastkalktemp.F2).
+            END.   
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MONTÖR" THEN DO:
+               ASSIGN
+               KALKNUMSUB.TIMMAR = efastkalktemp.F2
+               KALKNUMSUB.PRIS = efastkalktemp.ARBETE /(efastkalktemp.F1 + efastkalktemp.F2).
+            END.   
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MASKIN1" THEN DO:
+               ASSIGN
+               KALKNUMSUB.TIMMAR = efastkalktemp.MASKINTIMMAR
+               KALKNUMSUB.PRIS = efastkalktemp.MASKINKOST /(efastkalktemp.MASKINTIMMAR).
+            END.  
+               
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "MATERIEL" THEN DO: 
+               ASSIGN
+               KALKNUMSUB.KOSTNAD  = efastkalktemp.MATERIEL.                  
+            END.   
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "ÖVRIGKOSTNAD" THEN DO:
+               ASSIGN
+               KALKNUMSUB.KOSTNAD = efastkalktemp.OVRIGT.             
+            END. 
+            ELSE IF KALKYLPRISER.SOKBENAMNING = "UTRUSTNING" THEN DO:
+               ASSIGN
+               KALKNUMSUB.TIMMAR = efastkalktemp.UTRUST
+               KALKNUMSUB.PRIS = efastkalktemp.UTRUSTKOST /(efastkalktemp.UTRUST).
+                /*
+                ASSIGN
+                KALKNUMSUB.KOSTNAD = efastkalktemp.UTRUSTKOST   
+                KALKNUMSUB.PRIS = efastkalktemp.UTRUST / efastkalktemp.UTRUSTKOST.
+                */            
+            END.
+            IF KALKNUMSUB.KOSTNAD = 0 AND KALKNUMSUB.TIMMAR = 0 AND KALKNUMSUB.PRIS = 0 THEN DO:
+               DELETE KALKNUMSUB.
+            END.   
+            ELSE DO:
+               /*
+               CREATE kalknumsubtt.  
+               BUFFER-COPY KALKNUMSUB TO kalknumsubtt.
+               */ 
+            END.  
+         END.                  
+      END.
+      RUN frikodhmt (INPUT KALKNUM.KALKNR, INPUT KALKNUM.OMRADE,INPUT KALKNUM.NUM). 
+      EMPTY TEMP-TABLE kalknumtt NO-ERROR.
+      CREATE kalknumtt.
+      BUFFER-COPY KALKNUM TO kalknumtt.
+      kalknumtt.TTRECID = RECID(kalknumtt).          
+      RUN raknaenkod_UI (INPUT FALSE).
+      FOR EACH kalknumsubtt:
+         FIND FIRST KALKNUMSUB WHERE KALKNUMSUB.KALKNR = kalknumsubtt.KALKNR AND
+         KALKNUMSUB.OMRADE = kalknumsubtt.OMRADE AND
+         KALKNUMSUB.NUM = kalknumsubtt.NUM AND
+         KALKNUMSUB.KPID = kalknumsubtt.KPID 
+         EXCLUSIVE-LOCK NO-ERROR.
+         BUFFER-COPY kalknumsubtt TO KALKNUMSUB.
+      END.
+      BUFFER-COPY kalknumtt TO KALKNUM.
+      
+      EMPTY TEMP-TABLE kalknumtt NO-ERROR. 
+      EMPTY TEMP-TABLE kalknumsubtt NO-ERROR.        
+   END.         
+END PROCEDURE.
+
+/*KONVERTERA KALKYLEN ------------------------------------------------*/
+
+/*IF kalknumtt.ARBKOD = "EGEN" THEN DO:
+         FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = kalknumtt.KLOGSUBID AND 
+         KALKYLPRISER.KPID = kalknumsubtt.KPID NO-LOCK NO-ERROR.
+         FIND FIRST KALKVISNING WHERE KALKVISNING.KVID = KALKYLPRISER.KVID NO-LOCK NO-ERROR.
+         IF AVAILABLE KALKVISNING THEN DO:
+            IF KALKVISNING.TIMTYP = "BEREDARE" THEN DO:
+               kalksumma.BTIMMAR = kalksumma.BTIMMAR + kalkberin(1,kalknumsubtt.TIMMAR * kalknumtt.ANTAL).
+               kalksumma.FRIBTIMMAR = kalksumma.FRIBTIMMAR + kalkberin(1,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL).
+            END.                  
+            ELSE IF KALKVISNING.TIMTYP = "MONTÖR" THEN DO:
+                kalksumma.MTIMMAR = kalksumma.MTIMMAR + kalkberin(1,kalknumsubtt.TIMMAR * kalknumtt.ANTAL).
+                kalksumma.FRIMTIMMAR = kalksumma.FRIMTIMMAR + kalkberin(1,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL).
+            END.    
+            ELSE IF KALKVISNING.TIMTYP = "MASKIN" THEN DO:
+               kalksumma.MASKTIMMAR = kalksumma.MASKTIMMAR + kalkberin(1,kalknumsubtt.TIMMAR * kalknumtt.ANTAL).
+               kalksumma.FRIMASKTIMMAR = kalksumma.FRIMASKTIMMAR + kalkberin(1,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL).
+            END.   
+            ELSE IF KALKVISNING.TIMTYP = "UTRUSTNING" THEN DO:
+               kalksumma.UTIMMAR = kalksumma.UTIMMAR + kalkberin(1,kalknumsubtt.TIMMAR * kalknumtt.ANTAL).
+               kalksumma.FRIUTIMMAR = kalksumma.FRIUTIMMAR + kalkberin(1,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL).
+            END.   
+            IF KALKVISNING.KOSTTYP = "ARBETADETIMMAR" THEN DO:
+               kalksumma.AKOST = kalksumma.AKOST + kalkberin(2,kalknumsubtt.TIMMAR * kalknumtt.ANTAL * kalknumsubtt.PRIS)
+               + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.KOSTNAD). 
+               kalksumma.FRIAKOST = kalksumma.FRIAKOST + kalkberin(2,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL * kalknumsubtt.FRIPRIS)
+               + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.FRIKOSTNAD).              
+            END.   
+            ELSE IF KALKVISNING.KOSTTYP = "MASKIN" THEN DO:
+               kalksumma.MASKKOST = kalksumma.MASKKOST + kalkberin(2,kalknumsubtt.TIMMAR * kalknumtt.ANTAL * kalknumsubtt.PRIS)
+               + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.KOSTNAD).
+               kalksumma.FRIMASKKOST = kalksumma.FRIMASKKOST + kalkberin(2,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL * kalknumsubtt.FRIPRIS)
+               + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.FRIKOSTNAD).              
+            END. 
+            ELSE IF KALKVISNING.KOSTTYP = "UTRUSTNING" THEN DO:
+                kalksumma.UKOST = kalksumma.UKOST +  kalkberin(2,kalknumsubtt.TIMMAR * kalknumtt.ANTAL * kalknumsubtt.PRIS)
+                + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.KOSTNAD).
+                kalksumma.FRIUKOST = kalksumma.FRIUKOST +  kalkberin(2,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL * kalknumsubtt.FRIPRIS)
+                + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.FRIKOSTNAD).                
+            END. 
+            ELSE IF KALKVISNING.KOSTTYP = "MATERIEL" THEN DO:
+                kalksumma.MTRLKOST = kalksumma.MTRLKOST +  kalkberin(2,kalknumsubtt.TIMMAR * kalknumtt.ANTAL * kalknumsubtt.PRIS) +
+                + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.KOSTNAD).
+                kalksumma.FRIMTRLKOST = kalksumma.FRIMTRLKOST + kalkberin(2,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL * kalknumsubtt.FRIPRIS) 
+                + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.FRIKOSTNAD).
+                
+            END. 
+            ELSE IF KALKVISNING.KOSTTYP = "ÖVRIGT" THEN DO:
+                kalksumma.OVRIGTKOST = kalksumma.OVRIGTKOST + kalkberin(2,kalknumsubtt.TIMMAR * kalknumtt.ANTAL * kalknumsubtt.PRIS)
+                + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.KOSTNAD).                             
+                kalksumma.FRIOVRIGTKOST = kalksumma.FRIOVRIGTKOST + kalkberin(2,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL * kalknumsubtt.FRIPRIS)
+                + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.FRIKOSTNAD).
+                
+            END.    
+                
+            kalksumma.TOTKOST = kalksumma.TOTKOST + kalkberin(2,kalknumsubtt.TIMMAR * kalknumtt.ANTAL * kalknumsubtt.PRIS)
+             + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.KOSTNAD).  
+            kalksumma.FRITOTKOST = kalksumma.FRITOTKOST + kalkberin(2,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL * kalknumsubtt.FRIPRIS)
+            + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.FRIKOSTNAD). 
+                           
+         END. 
+      END.
+      ELSE DO:
+         FIND FIRST KALKYLPRISER WHERE KALKYLPRISER.KLOGSUBID = kalknumtt.KLOGSUBID AND KALKYLPRISER.KPID = kalknumsubtt.KPID NO-LOCK NO-ERROR.
+         FIND FIRST KALKVISNING WHERE KALKVISNING.KVID = KALKYLPRISER.KVID NO-LOCK NO-ERROR.
+         IF AVAILABLE KALKVISNING THEN DO:
+            IF KALKVISNING.TIMTYP = "BEREDARE" THEN DO:
+               kalksumma.BTIMMAR = kalksumma.BTIMMAR + kalkberin(1,kalknumsubtt.TIMMAR * kalknumtt.ANTAL).
+               kalksumma.FRIBTIMMAR = kalksumma.FRIBTIMMAR + kalkberin(1,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL).
+            END.
+            ELSE IF KALKVISNING.TIMTYP = "MONTÖR" THEN DO:
+                kalksumma.MTIMMAR = kalksumma.MTIMMAR + kalkberin(1,kalknumsubtt.TIMMAR * kalknumtt.ANTAL).
+                kalksumma.FRIMTIMMAR = kalksumma.FRIMTIMMAR + kalkberin(1,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL).
+            END.  
+            ELSE IF KALKVISNING.TIMTYP = "MASKIN" THEN DO:
+               kalksumma.MASKTIMMAR = kalksumma.MASKTIMMAR + kalkberin(1,kalknumsubtt.TIMMAR * kalknumtt.ANTAL).
+               kalksumma.FRIMASKTIMMAR = kalksumma.FRIMASKTIMMAR + kalkberin(1,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL).
+            END.
+            ELSE IF KALKVISNING.TIMTYP = "UTRUSTNING" THEN DO:
+               kalksumma.UTIMMAR = kalksumma.UTIMMAR + kalkberin(1,kalknumsubtt.TIMMAR * kalknumtt.ANTAL).
+               kalksumma.FRIUTIMMAR = kalksumma.FRIUTIMMAR + kalkberin(1,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL).
+            END.               
+            IF KALKVISNING.KOSTTYP = "ARBETADETIMMAR" THEN DO:
+               kalksumma.AKOST = kalksumma.AKOST + kalkberin(2,kalknumsubtt.TIMMAR * kalknumtt.ANTAL * KALKYLPRISER.PRIS)
+               + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.KOSTNAD).
+               kalksumma.FRIAKOST = kalksumma.FRIAKOST + kalkberin(2,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL * kalknumsubtt.FRIPRIS)
+               + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.FRIKOSTNAD).            
+            END.   
+            ELSE IF KALKVISNING.KOSTTYP = "MASKIN" THEN DO:
+               kalksumma.MASKKOST = kalksumma.MASKKOST + kalkberin(2,kalknumsubtt.TIMMAR * kalknumtt.ANTAL * KALKYLPRISER.PRIS)
+               + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.KOSTNAD).
+               kalksumma.FRIMASKKOST = kalksumma.FRIMASKKOST + kalkberin(2,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL * kalknumsubtt.FRIPRIS)
+               + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.FRIKOSTNAD).
+            END. 
+            ELSE IF KALKVISNING.KOSTTYP = "UTRUSTNING" THEN DO:
+                kalksumma.UKOST = kalksumma.UKOST + kalkberin(2,kalknumsubtt.TIMMAR * kalknumtt.ANTAL * KALKYLPRISER.PRIS)
+                + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.KOSTNAD).
+                kalksumma.FRIUKOST = kalksumma.FRIUKOST + kalkberin(2,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL * kalknumsubtt.FRIPRIS)
+               + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.FRIKOSTNAD).
+                
+            END. 
+            ELSE IF KALKVISNING.KOSTTYP = "MATERIEL" THEN DO:
+                kalksumma.MTRLKOST = kalksumma.MTRLKOST + kalkberin(2,kalknumsubtt.TIMMAR * kalknumtt.ANTAL * KALKYLPRISER.PRIS)
+                + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.KOSTNAD).
+                kalksumma.FRIMTRLKOST = kalksumma.FRIMTRLKOST + kalkberin(2,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL * kalknumsubtt.FRIPRIS)
+               + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.FRIKOSTNAD).                
+            END. 
+            ELSE IF KALKVISNING.KOSTTYP = "ÖVRIGT" THEN DO:
+                kalksumma.OVRIGTKOST = kalksumma.OVRIGTKOST + kalkberin(2,kalknumsubtt.TIMMAR * kalknumtt.ANTAL * KALKYLPRISER.PRIS)
+                + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.KOSTNAD).
+                kalksumma.FRIOVRIGTKOST = kalksumma.FRIOVRIGTKOST + kalkberin(2,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL * kalknumsubtt.FRIPRIS)
+               + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.FRIKOSTNAD).              
+            END.    
+            kalksumma.TOTKOST = kalksumma.TOTKOST + kalkberin(2,kalknumsubtt.TIMMAR * kalknumtt.ANTAL * KALKYLPRISER.PRIS)
+            + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.KOSTNAD).
+            kalksumma.FRITOTKOST = kalksumma.FRITOTKOST + kalkberin(2,kalknumsubtt.FRITIMMAR * kalknumtt.ANTAL * kalknumsubtt.FRIPRIS) 
+            + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.FRIKOSTNAD).
+            
+            ASSIGN 
+            kalkkostnad.KPID = KALKYLPRISER.KPID
+            kalkkostnad.KVID = KALKYLPRISER.KVID 
+            kalkkostnad.SUMMA = kalkkostnad.SUMMA + kalkberin(2,kalknumsubtt.TIMMAR * kalknumtt.ANTAL * KALKYLPRISER.PRIS)
+            + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.KOSTNAD).
+            kalkkostnad.FRISUMMA = kalkkostnad.FRISUMMA + kalkberin(2,kalknumsubtt.TIMMAR * kalknumtt.ANTAL * KALKYLPRISER.PRIS)
+            + kalkberin(2,kalknumtt.ANTAL * kalknumsubtt.KOSTNAD).
+            ASSIGN 
+            kalkantal.KPID = KALKYLPRISER.KPID
+            kalkantal.KVID = KALKYLPRISER.KVID 
+            kalkantal.SUMMA = kalkantal.SUMMA + kalkberin(1,kalknumsubtt.TIMMAR * kalknumtt.ANTAL).
+            kalkantal.FRISUMMA = kalkkostnad.FRISUMMA + kalkberin(1,kalknumsubtt.TIMMAR * kalknumtt.ANTAL).                
+         END.                           
+      END.
+FUNCTION kalkberin RETURNS DECIMAL
+  ( INPUT vad AS INTEGER,INPUT kalktimkost AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+  RELEASE KALKFAKTORER NO-ERROR.
+  IF vad = 1 THEN.
+  ELSE DO:
+     IF KALKNUM.ARBKOD = "EGEN" THEN.
+     ELSE IF KALKHUV.EGNAPRISER = TRUE THEN DO:               
+        FIND FIRST KALKEGNAPRISER  WHERE KALKEGNAPRISER.KALKNR = KALKHUV.KALKNR AND KALKEGNAPRISER.OMRADE = KALKHUV.OMRADE AND 
+        KALKEGNAPRISER.KPID = KALKYLPRISER.KPID NO-LOCK NO-ERROR.
+        IF AVAILABLE KALKEGNAPRISER THEN DO:
+           IF KALKYLPRISER.EGENPRISUPP = TRUE THEN DO:
+              IF KALKYLPRISER.PRIS = 0 THEN.
+              ELSE kalktimkost = KALKEGNAPRISER.PRIS * (kalktimkost / KALKYLPRISER.PRIS).
+           END.
+                
+        END.   
+     END.   
+  END.
+  IF KALKHUV.FAKTORER = TRUE THEN DO:
+     FIND FIRST KALKFAKTORER  WHERE KALKFAKTORER.KALKNR = KALKHUV.KALKNR AND KALKFAKTORER.OMRADE = KALKHUV.OMRADE AND 
+     KALKFAKTORER.KPID = KALKYLPRISER.KPID NO-LOCK NO-ERROR.
+     IF AVAILABLE KALKFAKTORER THEN DO:
+        RETURN  kalktimkost * KALKFAKTORER.FAKTOR .
+     END.      
+  END.   
+  IF NOT AVAILABLE KALKFAKTORER THEN DO:
+     RETURN  kalktimkost.
+  END.
+  
+
+END FUNCTION.      
+      */

@@ -1,0 +1,117 @@
+/*NYAVTALAPP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{AONRDEF.I}
+{AVTAONRTEMP.I}
+{OMRTEMPW.I}
+
+DEFINE VARIABLE avtalnum AS INTEGER NO-UNDO.
+DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.
+
+PROCEDURE skapeget :
+   DEFINE OUTPUT PARAMETER TABLE FOR avtaltemp.
+   EMPTY TEMP-TABLE avtaltemp NO-ERROR.   
+   DO TRANSACTION:
+      CREATE AVTAL.
+      ASSIGN
+      AVTAL.ORDNING = 1
+      AVTAL.LANK = TRUE
+      AVTAL.FILNAMN = ""
+      AVTAL.AVTALID = 1
+      AVTAL.AVTAL   = "Eget dokument"
+      AVTAL.ANMARK  = "".
+      CREATE avtaltemp.
+      BUFFER-COPY AVTAL TO avtaltemp.
+   END.
+   RELEASE AVTAL NO-ERROR.
+END PROCEDURE.
+PROCEDURE avthmt.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR avtaltemp.
+   /*Hämta bef. avtal*/
+   EMPTY TEMP-TABLE avtaltemp NO-ERROR.    
+   OPEN QUERY aq FOR EACH AVTAL NO-LOCK.    
+   GET FIRST aq NO-LOCK.
+   DO WHILE AVAILABLE(AVTAL):
+      CREATE avtaltemp.
+      BUFFER-COPY AVTAL TO avtaltemp.
+      GET NEXT aq NO-LOCK.
+   END.
+   CLOSE QUERY aq.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE skapavtal.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER avtalidvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER avtalnum AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER lnkvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR avtalaonrtemp.
+   DO TRANSACTION:
+      CREATE AVTAONR.
+      ASSIGN
+      AVTAONR.AONR = aonrvar
+      AVTAONR.DELNR = delnrvar
+      AVTAONR.AVTALID = avtalidvar
+      AVTAONR.ORDNING = avtalnum
+      AVTAONR.LANK = lnkvar. 
+   END.
+   RELEASE AVTAONR NO-ERROR.
+   OPEN QUERY avtq FOR EACH AVTAONR WHERE AVTAONR.AONR = aonrvar
+   AND AVTAONR.DELNR = delnrvar AND AVTAONR.AVTALID = avtalidvar AND 
+   AVTAONR.ORDNING = avtalnum NO-LOCK,
+   EACH AVTAL WHERE AVTAL.AVTALID = AVTAONR.AVTALID NO-LOCK.    
+   GET FIRST avtq NO-LOCK.
+   DO WHILE AVAILABLE(AVTAONR):
+      CREATE avtalaonrtemp.
+      ASSIGN
+      avtalaonrtemp.AONR      = AVTAONR.AONR    
+      avtalaonrtemp.DELNR     = AVTAONR.DELNR
+      avtalaonrtemp.ORDN      = AVTAONR.ORDNING 
+      avtalaonrtemp.FIL       = AVTAONR.FILNAMN  
+      avtalaonrtemp.ANM       = AVTAONR.ANMARK 
+      avtalaonrtemp.AVTID     = AVTAONR.AVTALID 
+      avtalaonrtemp.BEN       = AVTAONR.BENAMNING
+      avtalaonrtemp.KLR       = AVTAONR.KLAR 
+      avtalaonrtemp.LNK       = AVTAONR.LANK 
+      avtalaonrtemp.AOAVTALREC   = RECID(AVTAONR).
+      BUFFER-COPY AVTAL TO avtalaonrtemp.
+      GET NEXT avtq NO-LOCK.        
+   END.
+   CLOSE QUERY avtq. 
+END PROCEDURE.
+
+PROCEDURE btnok.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER avtalidvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER avtalnum AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER avtalvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER edmedd AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER filnamnvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR avtalaonrtemp.
+   DO TRANSACTION:
+      FIND FIRST AVTAONR WHERE AVTAONR.AONR = aonrvar AND 
+      AVTAONR.DELNR = delnrvar AND AVTAONR.AVTALID = avtalidvar AND
+      AVTAONR.ORDNING = avtalnum EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE AVTAONR THEN DO:
+         ASSIGN
+         AVTAONR.FILNAMN = filnamnvar
+         AVTAONR.BENAMNING = avtalvar
+         AVTAONR.ANMARK = edmedd.
+         FIND FIRST avtalaonrtemp WHERE avtalaonrtemp.AONR = AVTAONR.AONR AND 
+         avtalaonrtemp.DELNR = AVTAONR.DELNR AND avtalaonrtemp.AVTID = AVTAONR.AVTALID AND
+         avtalaonrtemp.ORDN = AVTAONR.ORDNING NO-LOCK NO-ERROR.
+         IF AVAILABLE avtalaonrtemp THEN DO:
+            ASSIGN
+            avtalaonrtemp.BEN = AVTAONR.BENAMNING
+            avtalaonrtemp.ANM = AVTAONR.ANMARK.
+         END.
+      END.
+   END.
+   RELEASE AVTAONR NO-ERROR.
+END PROCEDURE.

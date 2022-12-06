@@ -1,0 +1,23 @@
+/*xbytbefsu2013.p steg3*/
+
+FOR EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE NO-LOCK : 
+   FIND FIRST PERSONALPRIS WHERE 
+   PERSONALPRIS.PERSONALKOD = personaltab.PERSONALKOD AND
+   PERSONALPRIS.BEFATTNING =  personaltab.befattning AND 
+   PERSONALPRIS.STARTDATUM = 03/01/2013 NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALPRIS THEN DO:
+      DO TRANSACTION:       
+         FOR EACH TIDREGITAB WHERE TIDREGITAB.personalkod = personaltab.personalkod AND TIDREGITAB.DATUM GE 03/01/13  
+         AND TIDREGITAB.veckokord = "" AND TIDREGITAB.TIDLOG = TRUE AND tidregitab.overtidtill = personaltab.befattning EXCLUSIVE-LOCK:
+            IF TIDREGITAB.PRISTYP = "FRÅNVARO." THEN.
+            ELSE IF TIDREGITAB.PRISTYP = "EJ.KOSTN." THEN.
+            ELSE IF TIDREGITAB.PRISTYP = "RESTID..." THEN.
+            ELSE IF tidregitab.pris NE PERSONALPRIS.pris THEN DO:         
+               ASSIGN tidregitab.pris = PERSONALPRIS.pris.
+            END.
+         END.
+      END.
+   END.
+
+  
+END.

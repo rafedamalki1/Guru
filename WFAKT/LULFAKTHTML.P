@@ -1,0 +1,1103 @@
+/*LULFAKTHTML.P*/
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+&Scoped-define NEW NEW                          
+{FAKTTEMP.I}
+{FAKTTYPDEF.I}
+&Scoped-define NEW 
+{FAKTTYPSKAP.I}
+
+{ANMARKD.I}
+DEFINE TEMP-TABLE uttemp NO-UNDO  
+   FIELD AONR LIKE AONRTAB.AONR
+   FIELD DELNR LIKE AONRTAB.DELNR
+   FIELD ORDNING AS INTEGER
+   FIELD C1   AS CHARACTER
+   FIELD C2   AS DECIMAL
+   FIELD C3   AS DECIMAL
+   FIELD C4   AS DECIMAL
+   INDEX AONR IS PRIMARY ORDNING AONR DELNR.
+
+DEFINE TEMP-TABLE sumkont
+   FIELD AONR LIKE AONRKONTKOD.AONR 
+   FIELD DELNR LIKE AONRKONTKOD.DELNR
+   FIELD K1 LIKE AONRKONTKOD.K1 
+   FIELD K2 LIKE AONRKONTKOD.K2 
+   FIELD K3 LIKE AONRKONTKOD.K3 
+   FIELD K4 LIKE AONRKONTKOD.K4 
+   FIELD K5 LIKE AONRKONTKOD.K5 
+   FIELD BELOPP AS DECIMAL
+   INDEX AONR IS PRIMARY AONR DELNR K1 K2.
+{VISKONTAB.I}
+
+{FAKTBILAG.I}   
+DEFINE TEMP-TABLE vilkaaonr
+   FIELD AONR LIKE FAKTAONR.AONR
+   FIELD DELNR LIKE FAKTAONR.DELNR
+   INDEX AONR AONR DELNR.
+{TIDUTTTNEW.I}
+
+DEFINE TEMP-TABLE tidutanm
+   FIELD UT AS CHARACTER FORMAT "X(132)".
+DEFINE BUFFER faktureradbuff FOR FAKTURERAD.
+
+
+DEFINE INPUT PARAMETER infaktnr LIKE FAKTPLAN.FAKTNR NO-UNDO.
+DEFINE INPUT PARAMETER vfknr LIKE FAKTURERAD.VFAKTNR NO-UNDO.
+DEFINE INPUT PARAMETER kreditfakt AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER direkt AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER slutfaktvar AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER cssfilp AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER cssfils AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER sidmax  AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR fakbilag.
+DEFINE INPUT PARAMETER TABLE FOR sumtidtemp.
+DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+DEFINE VARIABLE skarpnr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE summvar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE krullpv AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE krullph AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE varfakturd AS DATE NO-UNDO.
+DEFINE VARIABLE varforfalld AS DATE NO-UNDO.
+DEFINE VARIABLE vartyp AS INTEGER NO-UNDO.
+DEFINE VARIABLE hjraknare AS INTEGER NO-UNDO.
+DEFINE VARIABLE momsumma AS DECIMAL NO-UNDO.
+DEFINE VARIABLE hbelopp AS DECIMAL NO-UNDO.
+DEFINE VARIABLE dbelopp AS DECIMAL NO-UNDO.
+
+DEFINE VARIABLE aktuellsidlangd AS INTEGER NO-UNDO.
+EMPTY TEMP-TABLE tidut NO-ERROR. 
+krullpv = "~{".
+krullph = "}".
+
+IF kreditfakt = FALSE THEN RUN debet_UI.
+/*
+ELSE RUN kredit_UI.
+PROCEDURE kredit_UI:
+   FIND FAKTPLAN WHERE FAKTPLAN.FAKTNR = infaktnr NO-LOCK NO-ERROR.
+   FIND FAKTKRED WHERE FAKTKRED.FAKTNR = infaktnr AND FAKTKRED.FDELNR = kreditnrvar NO-LOCK NO-ERROR.      
+   vfknr = FAKTKRED.VKREDIT.
+END PROCEDURE.
+*/
+PROCEDURE debet_UI:
+   FIND FAKTPLAN WHERE FAKTPLAN.FAKTNR = infaktnr NO-LOCK NO-ERROR.
+   IF direkt = TRUE THEN DO:
+      IF vfknr = 0 THEN DO:
+         FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = FAKTPLAN.FAKTNR AND 
+         FAKTURERAD.FDELNR = FAKTPLAN.FDELNR NO-LOCK NO-ERROR.
+      END.
+      ELSE DO:
+         FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = FAKTPLAN.FAKTNR AND 
+         FAKTURERAD.VFAKTNR = vfknr NO-LOCK NO-ERROR.
+      END.
+   END.
+   ELSE DO:
+      IF vfknr NE 0 THEN FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = FAKTPLAN.FAKTNR AND
+      FAKTURERAD.VFAKTNR = vfknr NO-LOCK NO-ERROR.
+      ELSE FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = FAKTPLAN.FAKTNR AND
+      FAKTURERAD.FDELNR = FAKTPLAN.FDELNR NO-LOCK NO-ERROR. 
+      RUN tidhamt_UI.
+   END.
+   FIND FIRST faktyptemp WHERE faktyptemp.FAKTTYP = FAKTPLAN.FAKTTYP NO-ERROR.
+   vartyp = faktyptemp.TYP.
+   IF vfknr NE 0 THEN DO:
+      OPEN QUERY BRW_K1 FOR EACH FAKTKUNDKONTO WHERE 
+      FAKTKUNDKONTO.FAKTNR = FAKTPLAN.FAKTNR AND 
+      FAKTKUNDKONTO.VFAKTNR = FAKTURERAD.VFAKTNR NO-LOCK, 
+      EACH KUNDFODRAN WHERE KUNDFODRAN.KUNDKONTOID = FAKTKUNDKONTO.KUNDKONTOID NO-LOCK, 
+      EACH MOTPART WHERE MOTPART.MOTPARTID = FAKTKUNDKONTO.MOTPARTID NO-LOCK.
+   END.
+   ELSE DO:
+      OPEN QUERY BRW_K1 FOR EACH FAKTKUNDKONTO WHERE 
+      FAKTKUNDKONTO.FAKTNR = FAKTPLAN.FAKTNR AND 
+      FAKTKUNDKONTO.FDELNR = FAKTURERAD.FDELNR NO-LOCK, 
+      EACH KUNDFODRAN WHERE KUNDFODRAN.KUNDKONTOID = FAKTKUNDKONTO.KUNDKONTOID NO-LOCK, 
+      EACH MOTPART WHERE MOTPART.MOTPARTID = FAKTKUNDKONTO.MOTPARTID NO-LOCK.
+   END.
+   IF vfknr NE 0 THEN DO:
+      OPEN QUERY BRW_K2 FOR EACH FAKTINTAKTKONT WHERE 
+      FAKTINTAKTKONT.FAKTNR = FAKTPLAN.FAKTNR AND 
+      FAKTINTAKTKONT.VFAKTNR = FAKTURERAD.VFAKTNR NO-LOCK, 
+      EACH INTAKTTAB WHERE INTAKTTAB.INTAKTID = FAKTINTAKTKONT.INTAKTID NO-LOCK, 
+      EACH MOTPART WHERE MOTPART.MOTPARTID = FAKTINTAKTKONT.MOTPARTID NO-LOCK.
+   END.
+   ELSE DO:
+      OPEN QUERY BRW_K2 FOR EACH FAKTINTAKTKONT WHERE 
+      FAKTINTAKTKONT.FAKTNR = FAKTPLAN.FAKTNR AND 
+      FAKTINTAKTKONT.FDELNR = FAKTURERAD.FDELNR NO-LOCK, 
+      EACH INTAKTTAB WHERE INTAKTTAB.INTAKTID = FAKTINTAKTKONT.INTAKTID NO-LOCK, 
+      EACH MOTPART WHERE MOTPART.MOTPARTID = FAKTINTAKTKONT.MOTPARTID NO-LOCK.
+   END.
+   IF vfknr NE 0 THEN DO:
+      OPEN QUERY BRW_K4 FOR EACH FAKTMOMS WHERE 
+      FAKTMOMS.FAKTNR = FAKTPLAN.FAKTNR AND 
+      FAKTMOMS.VFAKTNR = FAKTURERAD.VFAKTNR NO-LOCK, 
+      EACH MOMSTAB WHERE MOMSTAB.MOMSID = FAKTMOMS.MOMSID NO-LOCK.       
+   END.
+   ELSE DO:
+      OPEN QUERY BRW_K4 FOR EACH FAKTMOMS WHERE 
+      FAKTMOMS.FAKTNR = FAKTPLAN.FAKTNR AND 
+      FAKTMOMS.FDELNR = FAKTURERAD.FDELNR NO-LOCK, 
+      EACH MOMSTAB WHERE MOMSTAB.MOMSID = FAKTMOMS.MOMSID NO-LOCK.       
+   END.
+   FIND FIRST BESTTAB WHERE BESTTAB.BESTID = FAKTPLAN.BESTID NO-LOCK NO-ERROR. 
+   FIND FIRST FAKTNAMN WHERE FAKTNAMN.FAKTURNR = FAKTURERAD.FAKTNR AND 
+   FAKTNAMN.FDELNR = FAKTURERAD.FDELNR NO-LOCK NO-ERROR.
+   FIND FIRST FAKTNAMN WHERE FAKTNAMN.FAKTURNR = FAKTURERAD.FAKTNR AND 
+   FAKTNAMN.FDELNR = FAKTURERAD.FDELNR NO-LOCK NO-ERROR.
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = FAKTPLAN.OMRADE NO-LOCK NO-ERROR.
+   FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.     
+   IF NOT AVAILABLE AVDELNING THEN DO:
+      FIND FIRST AVDELNING NO-LOCK NO-ERROR.
+   END.
+   RUN fakturor_UI.
+   RUN htmstart_UI (INPUT "",INPUT cssfilp,INPUT cssfils).
+END PROCEDURE.
+PROCEDURE htmstart_UI:
+   DEFINE INPUT PARAMETER titlevar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER mallvarp AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER mallvars AS CHARACTER NO-UNDO.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">'.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<html>'.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<head>'.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<title>' + titlevar + '</title>'.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">'.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<link rel="stylesheet" type="text/css" href="' + mallvarp + '" media="print">'.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<link rel="stylesheet" type="text/css" href="' + mallvars + '" media="screen">'.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '</head>'.
+   RUN kund_UI.
+   RUN bodystart_UI.  
+   RUN htmslut_UI.    
+END PROCEDURE.
+PROCEDURE bodystart_UI:   
+   DEFINE VARIABLE hjalpvar AS CHARACTER NO-UNDO.
+   RUN startsida_UI (INPUT "main").
+   RUN rubrik_UI.
+   /*faktura text*/
+   RUN fakttext_UI.
+   
+   /*poster i fakturan*/
+   RUN fdata_UI.
+   /*slutposter i fakturan*/
+   RUN slutrader_UI.
+   RUN slutsida_UI.
+   RUN slutmain_UI.
+   RUN startbilaga_UI.
+   
+   REPEAT:
+      FIND FIRST uttemp NO-LOCK NO-ERROR.
+      IF AVAILABLE uttemp THEN DO:
+         RUN startsida_UI (INPUT "page").
+         RUN rubrik_UI.
+         RUN fdata_UI.
+         RUN slutsida_UI.
+         RUN slutmain_UI.  /*page*/
+      END.
+      ELSE LEAVE.
+   END.
+   
+END PROCEDURE.
+PROCEDURE fakttext_UI:
+   IF AVAILABLE FAKTURERAD THEN DO:
+      ASSIGN
+      retvar = 1
+      ednum = 1
+      ednum3 = LENGTH(FAKTURERAD.FAKTXT)
+      retvar = INDEX(FAKTURERAD.FAKTXT,CHR(10),ednum)
+      edtecken = 50
+      edtext = FAKTURERAD.FAKTXT
+      tidtext = "".  
+      {ANMARK2.I}                            
+   END.
+END PROCEDURE.
+
+PROCEDURE startsida_UI:
+   DEFINE INPUT PARAMETER sidmain AS CHARACTER NO-UNDO.
+   IF sidmain = "main" THEN DO:
+      CREATE tidut.
+      ASSIGN
+      tidut.UT = '<body>'.  
+   END.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT sidmain). 
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "blueline1"). 
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "faktura"). 
+   RUN data_UI (INPUT "FAKTURA").
+   RUN slutdiv_UI.
+   CREATE tidut.           
+   RUN startdiv_UI (INPUT "fakuranum"). 
+   RUN data_UI (INPUT "Faktura nummer").
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "faktnum"). 
+   IF vfknr = 0 THEN RUN data_UI (INPUT 'Arbetskopia ' + skarpnr). 
+   ELSE RUN data_UI (INPUT skarpnr).
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "fakturamot"). 
+   RUN data_UI (INPUT "Fakturamottagare").
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "faktmot"). 
+   RUN data_UI (INPUT FAKTNAMN.BESTNAMN).
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "faktmotadr"). 
+   RUN data_UI (INPUT FAKTNAMN.FAKADRESS).
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "faktmotnum"). 
+   RUN data_UI (INPUT STRING(FAKTNAMN.FAKPNR,"999 99") + ' ' + FAKTNAMN.FAKORT).
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "fakturadat"). 
+   RUN data_UI (INPUT "Fakturadatum").
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "faktdat"). 
+   RUN data_UI (INPUT STRING(varfakturd,"99-99-99")).
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "logo"). 
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "forfalldat"). 
+   RUN data_UI (INPUT "Förfallodatum").
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "fdat"). 
+   RUN data_UI (INPUT STRING(varforfalld,"99-99-99")).
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "vhandlagare"). 
+   RUN data_UI (INPUT "Vår handläggare").
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "vhand"). 
+   RUN data_UI (INPUT FAKTNAMN.VARREF).
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "ehandlagare"). 
+   RUN data_UI (INPUT "Er handläggare").
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "ehand"). 
+   RUN data_UI (INPUT FAKTNAMN.KONTAKT).
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "line1"). 
+   RUN linje_UI.
+   RUN slutdiv_UI.
+END PROCEDURE.
+PROCEDURE slutrader_UI:
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "line2"). 
+   RUN linje_UI.
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "rubriksumma"). 
+   RUN data_UI (INPUT '<table width="522">').
+   RUN tabradstart_UI.
+   RUN data_UI (INPUT '<td align="left" width="29%">Summa kronor exkl moms</td>').
+   RUN data_UI (INPUT '<td align="right" width="16%">Summa moms</td>').
+   RUN data_UI (INPUT '<td align="right" width="17%">Öresutjämning</td>').
+   RUN data_UI (INPUT '<td align="right" width="38%">Summa kronor totalt</td>').
+   RUN tabradslut_UI.
+   RUN data_UI (INPUT '</table>').
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "summa"). 
+   RUN data_UI (INPUT '<table width="522">').
+   momsumma = 0.
+   FOR EACH FAKTMOMS WHERE FAKTMOMS.FAKTNR = FAKTPLAN.FAKTNR AND 
+   FAKTMOMS.FDELNR = FAKTURERAD.FDELNR NO-LOCK BREAK BY FAKTMOMS.MOMSID: 
+      ACCUMULATE FAKTMOMS.BELOPP (TOTAL BY FAKTMOMS.MOMSID).
+      ACCUMULATE FAKTMOMS.MOMSBELOPP (TOTAL BY FAKTMOMS.MOMSID).
+      IF LAST-OF(FAKTMOMS.MOMSID) THEN DO:                        
+         IF (ACCUM TOTAL BY FAKTMOMS.MOMSID FAKTMOMS.MOMSBELOPP) NE 0 THEN DO:
+            CREATE tidut.
+            momsumma = momsumma + ACCUM TOTAL BY FAKTMOMS.MOMSID FAKTMOMS.MOMSBELOPP.
+         END.
+      END.                                      
+   END.  
+   RUN tabradstart_UI.
+   RUN data_UI (INPUT '<td align="left" width="29%">').
+   IF FAKTURERAD.TOTPRIS >= 0 THEN RUN data_UI (INPUT TRIM(REPLACE(STRING(FAKTURERAD.TOTPRIS,">>>>>>>>>>>>>>>>9.99"),","," "))).
+   ELSE RUN data_UI (INPUT TRIM(REPLACE(STRING(FAKTURERAD.TOTPRIS,"->>>>>>>>>>>>>>>9.99"),","," "))).
+   RUN data_UI (INPUT '</td>').
+   RUN data_UI (INPUT '<td align="right" width="16%">').
+   RUN data_UI (INPUT STRING(momsumma)).
+   RUN data_UI (INPUT '</td>').
+   RUN data_UI (INPUT '<td align="right" width="17%">').
+   IF FAKTURERAD.ORESUTJ >= 0 THEN RUN data_UI (INPUT TRIM(REPLACE(STRING(FAKTURERAD.ORESUTJ,">>>>>>>>>>>>>>>>9.99"),","," "))).
+   ELSE RUN data_UI (INPUT TRIM(REPLACE(STRING(FAKTURERAD.ORESUTJ,"->>>>>>>>>>>>>>>9.99"),","," "))).
+   RUN data_UI (INPUT '</td>').
+   RUN data_UI (INPUT '<td align="right" width="38%">').
+   IF FAKTURERAD.TOTPRIS + momsumma + FAKTURERAD.ORESUTJ >= 0 THEN RUN data_UI (INPUT TRIM(REPLACE(STRING(FAKTURERAD.TOTPRIS + momsumma + FAKTURERAD.ORESUTJ,">>>>>>>>>>>>>>>>9"),","," "))).
+   ELSE RUN data_UI (INPUT TRIM(REPLACE(STRING(FAKTURERAD.TOTPRIS + momsumma + FAKTURERAD.ORESUTJ,"->>>>>>>>>>>>>>>9"),","," "))).
+   RUN data_UI (INPUT '</td>').
+   RUN tabradslut_UI.
+   CREATE tidut.
+   RUN data_UI (INPUT '</table>').
+   RUN slutdiv_UI.
+END PROCEDURE.
+PROCEDURE slutmain_UI:
+   CREATE tidut.
+   RUN slutdiv_UI.  /*main*/
+END PROCEDURE.
+PROCEDURE rubrik_UI:
+  /*rubrik i fakturan*/
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "rubrik"). 
+   RUN data_UI (INPUT '<table width="478">').
+   RUN tabradstart_UI.
+   RUN data_UI (INPUT '<td width="44%">Beskrivning</td>').
+   RUN data_UI (INPUT '<td align="right" width="14%">Kvantitet</td>').
+   RUN data_UI (INPUT ' <td align="right" width="23%">à-pris</td>').
+   RUN data_UI (INPUT '<td align="right" width="19%">Belopp</td>').
+   RUN tabradslut_UI.
+   RUN data_UI (INPUT '</table>').
+   RUN slutdiv_UI.
+END PROCEDURE.
+PROCEDURE slutsida_UI:
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "line3"). 
+   RUN linje_UI.
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "info"). 
+   RUN data_UI (INPUT 'Betalning skall vara oss tillhanda senaste på förfallodagen. Dröjsmålsränta utgår enligt räntelagen om ej annat avtalats.').
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "line3"). 
+   RUN linje_UI.
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "blueline2"). 
+   RUN slutdiv_UI.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "adressinfo"). 
+   RUN data_UI (INPUT '<font color="#006ACE" face="Times New Roman, Times, serif">LULEå ENERGI ELNÄT AB</font>').
+   RUN radbryt_UI.
+   RUN radbryt_UI.
+   RUN data_UI (INPUT '<font color="#000000" face="Times New Roman, Times, serif" size="2">Box 50100, 973 23 Luleå').
+   RUN radbryt_UI.
+   RUN data_UI (INPUT 'Besöksadress:').
+   RUN radbryt_UI.
+   RUN data_UI (INPUT 'Skeppbrogatan 32').
+   RUN radbryt_UI.
+   RUN data_UI (INPUT 'Telefon 0920-26 44 00').
+   RUN radbryt_UI.
+   RUN data_UI (INPUT 'Bankgiro: 5024-6891').
+   RUN radbryt_UI.
+   RUN data_UI (INPUT 'Postgiro: 640 66 79-8').
+   RUN radbryt_UI.
+   RUN data_UI (INPUT 'Org nr: 556527-7539').
+   RUN radbryt_UI.
+   RUN data_UI (INPUT 'F-skattebevis finns.').
+   RUN radbryt_UI.
+   RUN data_UI (INPUT 'Styrelsen har sitt').
+   RUN radbryt_UI.
+   RUN data_UI (INPUT 'säte i Luleå.</font>').
+   RUN slutdiv_UI.  
+END PROCEDURE.
+PROCEDURE fdata_UI:
+   DEFINE VARIABLE d1 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE d2 AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE d3 AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE d4 AS DECIMAL NO-UNDO.
+   aktuellsidlangd = 0.
+   CREATE tidut.
+   RUN startdiv_UI (INPUT "data"). 
+   CREATE tidut.
+   RUN data_UI (INPUT '<table width="478">').
+   RUN tabradstart_UI.   /*h-rad*/
+   RUN data_UI (INPUT '<td width="476">').  /*h-td*/                
+   REPEAT:
+      RUN hmtdata_UI (OUTPUT d1,OUTPUT d2,OUTPUT d3,OUTPUT d4).
+      IF d1 = "XXXXX" THEN LEAVE.
+      aktuellsidlangd = aktuellsidlangd + 1.
+      IF aktuellsidlangd > sidmax THEN LEAVE.
+      CREATE tidut.
+      RUN data_UI (INPUT '<table width="476" height="22">'). 
+      RUN tabradstart_UI.      
+      CREATE tidut.
+      RUN data_UI (INPUT '<td width="44%" height="16">').
+      RUN startdiv_UI (INPUT "cellfont").     
+      RUN data_UI (INPUT d1).
+      RUN slutdiv_UI.
+      RUN data_UI (INPUT '</td>').
+      CREATE tidut.
+      RUN data_UI (INPUT '<td align="right" width="14%">').
+      RUN startdiv_UI (INPUT "cellfont").     
+      IF d2 = 0 THEN RUN data_UI (INPUT "").
+      ELSE RUN data_UI (INPUT TRIM(REPLACE(STRING(d2,">>>>>>>>>>>>>>>>9.99"),","," "))).
+      RUN slutdiv_UI.
+      RUN data_UI (INPUT '</td>').
+      CREATE tidut.
+      RUN data_UI (INPUT '<td align="right" width="23%">').
+      RUN startdiv_UI (INPUT "cellfont").     
+      IF d3 = 0 THEN RUN data_UI (INPUT "").
+      ELSE RUN data_UI (INPUT TRIM(REPLACE(STRING(d3,">>>>>>>>>>>>>>>>9.99"),","," "))).
+      RUN slutdiv_UI.
+      RUN data_UI (INPUT '</td>').
+      CREATE tidut.
+      RUN data_UI (INPUT '<td align="right" width="19%">').
+      RUN startdiv_UI (INPUT "cellfont").     
+      IF d4 = 0 THEN RUN data_UI (INPUT "").
+      ELSE DO:
+         RUN data_UI (INPUT TRIM(REPLACE(STRING(d4,">>>>>>>>>>>>>>>>9.99"),","," "))).
+      END.
+      RUN slutdiv_UI.
+      RUN data_UI (INPUT '</td>').
+      RUN tabradslut_UI.
+      RUN data_UI (INPUT '</table>'). 
+   END.      
+   CREATE tidut.
+   RUN data_UI (INPUT '</td>'). /*h-td*/
+   RUN tabradslut_UI. /*h-rad*/ 
+   RUN data_UI (INPUT '</table>'). 
+   RUN slutdiv_UI.  /*DATA*/
+END PROCEDURE.
+               
+PROCEDURE radbryt_UI:
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<BR>'.
+END PROCEDURE.
+
+PROCEDURE linje_UI:
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<HR>'.   
+END PROCEDURE.
+PROCEDURE tabradstart_UI:
+   CREATE tidut.            
+   tidut.UT = '<tr>'.
+END PROCEDURE.
+PROCEDURE tabradslut_UI:
+   CREATE tidut.            
+   tidut.UT = '</tr>'.
+END PROCEDURE.
+PROCEDURE htmslut_UI:
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '</body></html>'.
+END PROCEDURE.
+PROCEDURE data_UI:
+   DEFINE INPUT PARAMETER datavar AS CHARACTER NO-UNDO.
+   tidut.UT = tidut.UT + datavar.
+END PROCEDURE.
+PROCEDURE startdiv_UI:     
+   DEFINE INPUT PARAMETER divclass AS CHARACTER NO-UNDO.
+   tidut.UT = tidut.UT + '<div class="' + divclass + '">'.
+END PROCEDURE.
+PROCEDURE slutdiv_UI:
+   tidut.UT = tidut.UT + '</div>'.
+END PROCEDURE.
+PROCEDURE kund_UI:     
+   FIND FIRST FAKTREGLER WHERE FAKTREGLER.FAKTNR = FAKTPLAN.FAKTNR 
+   NO-LOCK NO-ERROR.
+   IF FAKTURERAD.VFAKTNR = 0 THEN DO:
+      ASSIGN
+      varfakturd = DATE(INTEGER(SUBSTRING(STRING(FAKTURERAD.FDELNR,"999999"),3,2)),
+                        INTEGER(SUBSTRING(STRING(FAKTURERAD.FDELNR,"999999"),5,2)),
+                        INTEGER("20" + SUBSTRING(STRING(FAKTURERAD.FDELNR,"999999"),1,2))).          
+      varforfalld = TODAY + FAKTREGLER.FDAGAR.
+      REPEAT:
+         IF WEEKDAY(varforfalld) = 1 THEN varforfalld = varforfalld + 1.
+         IF WEEKDAY(varforfalld) = 7 THEN varforfalld = varforfalld + 2.
+         FIND FIRST OVERAVTAB WHERE OVERAVTAB.DATUM = varforfalld NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE OVERAVTAB THEN DO:
+            LEAVE.
+         END.
+         ELSE IF OVERAVTAB.EQDAG = 1 THEN varforfalld = varforfalld + 1.
+         ELSE IF OVERAVTAB.EQDAG = 7 THEN varforfalld = varforfalld + 1.
+      END.               
+   END.
+   ELSE DO:      
+      FIND FIRST FAKTKUNDKONTO WHERE FAKTKUNDKONTO.FAKTNR = FAKTPLAN.FAKTNR AND        
+      FAKTKUNDKONTO.VFAKTNR = vfknr NO-LOCK NO-ERROR.
+      IF AVAILABLE FAKTKUNDKONTO THEN DO:
+         ASSIGN
+         varfakturd = FAKTKUNDKONTO.FAKTDATUM
+         varforfalld = FAKTKUNDKONTO.FDATUM.            
+      END.
+   END.
+   
+   IF FAKTURERAD.VFAKTNR = 0 THEN DO:   
+      CREATE tidut.
+      skarpnr = STRING(FAKTPLAN.FAKTNR) + ' ' + STRING(FAKTURERAD.FDELNR) + BESTTAB.VIBESTID.
+   END.
+   ELSE DO:
+      FIND FIRST FAKTSKARP WHERE FAKTSKARP.OMRADE = FAKTPLAN.OMRADE 
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE FAKTSKARP THEN DO:
+         FIND FIRST FAKTSKARP NO-LOCK NO-ERROR. 
+      END.
+      skarpnr =  STRING(YEAR(FAKTURERAD.BOKDATUM)) + FAKTSKARP.ARKIVSTALLE + STRING(FAKTURERAD.VFAKTNR).      
+   END.  
+END PROCEDURE.
+PROCEDURE startbilaga_UI:
+   FIND FIRST fakbilag NO-ERROR.   
+   IF AVAILABLE fakbilag THEN DO:
+      RUN bilaga_UI.      
+   END.
+END PROCEDURE.
+
+
+PROCEDURE hmtdata_UI:
+   DEFINE OUTPUT PARAMETER u1 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER u2 AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER u3 AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER u4 AS DECIMAL NO-UNDO.
+   FIND FIRST uttemp NO-ERROR.
+   IF NOT AVAILABLE uttemp THEN DO:
+      u1 = "XXXXX".
+      RETURN.
+   END.
+   ASSIGN
+   u1 = uttemp.C1
+   u2 = uttemp.C2
+   u3 = uttemp.C3
+   u4 = uttemp.C4.
+   DELETE uttemp.
+END PROCEDURE.
+PROCEDURE vilkaao_UI:
+   FIND FIRST FAKTINTAKTKONT WHERE FAKTINTAKTKONT.FAKTNR = FAKTPLAN.FAKTNR AND               
+   FAKTINTAKTKONT.FDELNR = FAKTURERAD.FDELNR NO-LOCK NO-ERROR. 
+   IF NOT AVAILABLE FAKTINTAKTKONT THEN DO:
+      OPEN QUERY faktvaonrbq FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR NO-LOCK.      
+      GET FIRST faktvaonrbq NO-LOCK.                   
+      DO WHILE AVAILABLE(FAKTAONR):
+         CREATE uttemp.
+         ASSIGN 
+         uttemp.ORDNING = 1
+         uttemp.AONR = FAKTAONR.AONR
+         uttemp.DELNR = FAKTAONR.DELNR
+         uttemp.C1 = FAKTAONR.AONR + " " + STRING(FAKTAONR.DELNR,Guru.Konstanter:varforetypchar[1]).
+         GET NEXT faktvaonrbq NO-LOCK.
+      END.
+   END.
+   ELSE DO:
+      OPEN QUERY finq FOR EACH FAKTINTAKTKONT WHERE 
+      FAKTINTAKTKONT.FAKTNR = FAKTPLAN.FAKTNR AND               
+      FAKTINTAKTKONT.FDELNR = FAKTURERAD.FDELNR NO-LOCK.                                        
+      GET FIRST finq NO-LOCK.
+      DO WHILE AVAILABLE(FAKTINTAKTKONT):
+         CREATE uttemp.
+         ASSIGN 
+         uttemp.ORDNING = 1
+         uttemp.AONR = FAKTINTAKTKONT.AONR
+         uttemp.DELNR = FAKTINTAKTKONT.DELNR
+         uttemp.C1 = FAKTINTAKTKONT.AONR + " " + STRING(FAKTINTAKTKONT.DELNR,Guru.Konstanter:varforetypchar[1]).
+         GET NEXT finq NO-LOCK.
+      END.
+   END.
+   OPEN QUERY faktaonrbq FOR EACH vilkaaonr NO-LOCK,
+   EACH FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR AND  
+   FAKTAONR.AONR = vilkaaonr.AONR AND FAKTAONR.DELNR = vilkaaonr.DELNR NO-LOCK,
+   EACH AONRTAB WHERE AONRTAB.AONR = FAKTAONR.AONR AND AONRTAB.DELNR = FAKTAONR.DELNR NO-LOCK.       
+   GET FIRST faktaonrbq NO-LOCK.                   
+   DO WHILE AVAILABLE(FAKTAONR):
+      ASSIGN
+      dbelopp = 0.       
+      
+      FOR EACH FAKTINTAKTKONT WHERE FAKTINTAKTKONT.FAKTNR = FAKTPLAN.FAKTNR AND               
+      FAKTINTAKTKONT.AONR = FAKTAONR.AONR AND
+      FAKTINTAKTKONT.DELNR = FAKTAONR.DELNR AND 
+      FAKTINTAKTKONT.VFAKTNR = FAKTURERAD.VFAKTNR NO-LOCK BREAK BY FAKTINTAKTKONT.DELNR: 
+         ACCUMULATE FAKTINTAKTKONT.BELOPP (TOTAL BY FAKTINTAKTKONT.DELNR).         
+         IF LAST-OF(FAKTINTAKTKONT.DELNR) THEN DO:                        
+            FIND FIRST uttemp WHERE uttemp.AONR = FAKTAONR.AONR AND uttemp.DELNR = FAKTAONR.DELNR
+            NO-LOCK NO-ERROR.
+            uttemp.C4 = uttemp.C4 + (ACCUM TOTAL BY FAKTINTAKTKONT.DELNR FAKTINTAKTKONT.BELOPP).            
+         END.          
+      END.                                                                    
+      GET NEXT faktaonrbq NO-LOCK.   
+   END.
+END PROCEDURE.
+
+PROCEDURE fakturor_UI:
+   IF vartyp = 5 OR vartyp = 52 THEN DO:     
+      RUN vilkaao_UI.                 
+   END.      
+   IF (slutfaktvar = FALSE AND vartyp = 3) OR vartyp = 1 OR vartyp = 2 THEN DO:
+      OPEN QUERY faktstartq FOR EACH FAKTSTART WHERE FAKTSTART.FAKTNR = FAKTURERAD.FAKTNR AND
+      FAKTSTART.VFAKTNR = FAKTURERAD.VFAKTNR AND FAKTSTART.FAKTURERAD = TRUE NO-LOCK.
+      GET FIRST faktstartq NO-LOCK.
+      IF AVAILABLE FAKTSTART THEN DO:
+         DO WHILE AVAILABLE(FAKTSTART):
+            IF FAKTSTART.START = "START" THEN DO:
+               CREATE uttemp.
+               ASSIGN
+               uttemp.ORDNING = 0
+               uttemp.C1 = 'Vid arbetets start'
+               uttemp.C4 = FAKTSTART.BELOPP.             
+            END.
+            ELSE IF FAKTSTART.START = "SLUT" THEN DO:
+               CREATE uttemp.
+               ASSIGN 
+               uttemp.ORDNING = 0
+               uttemp.C1 = 'Vid arbetets slut'
+               uttemp.C4 = FAKTSTART.BELOPP.               
+            END.
+            ELSE IF FAKTSTART.START = "" THEN DO:
+               CREATE uttemp.
+               ASSIGN 
+               uttemp.ORDNING = 0
+               uttemp.C1 = FAKTSTART.FRITEXT
+               uttemp.C4 = FAKTSTART.BELOPP.                              
+               IF uttemp.C1 = "" THEN uttemp.C1 = "Enligt plan".
+            END.
+            GET NEXT faktstartq NO-LOCK.
+         END.         
+      END.
+      RUN fbelopp_UI.
+   END.
+   ELSE DO: 
+      RUN fbelopp_UI.
+                                                    
+   END.
+END PROCEDURE.
+PROCEDURE fbelopp_UI:
+   IF FAKTURERAD.BELOPP NE 0 THEN DO:      
+      CREATE uttemp.
+      ASSIGN 
+      uttemp.ORDNING = 0
+      uttemp.C1 = 'Arbetskostnad'
+      uttemp.C4 = FAKTURERAD.BELOPP.                                      
+   END.  
+   IF FAKTURERAD.OBELOPP NE 0 THEN DO:      
+      CREATE uttemp.
+      ASSIGN 
+      uttemp.ORDNING = 0
+      uttemp.C1 = 'Övertidskostnad'
+      uttemp.C4 = FAKTURERAD.OBELOPP.                                               
+   END.
+   IF FAKTURERAD.TBELOPP NE 0 THEN DO:               
+      CREATE uttemp.
+      ASSIGN 
+      uttemp.ORDNING = 0
+      uttemp.C1 = 'Traktamenteskostnad'
+      uttemp.C4 = FAKTURERAD.TBELOPP.                                                        
+   END.
+   IF FAKTURERAD.LONKOST NE 0 THEN DO:      
+      CREATE uttemp.
+      ASSIGN 
+      uttemp.ORDNING = 0
+      uttemp.C1 = 'Lönetilläggskostnad'
+      uttemp.C4 = FAKTURERAD.LONKOST.                                                                 
+   END. 
+   IF FAKTURERAD.RESKOSTDEC NE 0 THEN DO:
+      CREATE uttemp.
+      ASSIGN 
+      uttemp.ORDNING = 0
+      uttemp.C1 = 'Resersättning'
+      uttemp.C4 = FAKTURERAD.RESKOSTDEC.                                                                          
+   END.
+   IF FAKTURERAD.MTRLKOST NE 0 THEN DO:      
+      CREATE uttemp.
+      ASSIGN 
+      uttemp.ORDNING = 0
+      uttemp.C1 = 'Materielkostnad'
+      uttemp.C4 = FAKTURERAD.MTRLKOST.          
+   END.  
+   IF FAKTURERAD.OVRKOST NE 0 THEN DO:      
+      CREATE uttemp.
+      ASSIGN 
+      uttemp.ORDNING = 0
+      uttemp.C1 = 'Övrigakostnader'
+      uttemp.C4 = FAKTURERAD.OVRKOST.                   
+   END.
+   IF FAKTURERAD.KOSTBELOPP NE 0 THEN DO:      
+      CREATE uttemp.
+      ASSIGN 
+      uttemp.ORDNING = 0
+      uttemp.C1 = 'Externa fakturor'
+      uttemp.C4 = FAKTURERAD.KOSTBELOPP.                            
+   END.
+END PROCEDURE.
+PROCEDURE bodyslut_UI:
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<table width="100%" border="0" cellspacing="0" cellpadding="0">'.
+   RUN tabradstart_UI.   
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<td><hr color="#000000"></td>'.
+   RUN tabradslut_UI.                
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '</table>'.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '<table width="100%" border="0" cellspacing="0" cellpadding="0">'.   
+   RUN tabradstart_UI.
+   RUN falttabbredd_UI (INPUT FALSE,INPUT 'Denna faktura',INPUT 50,INPUT 0).
+   RUN falttabbredd_UI (INPUT FALSE,INPUT '',INPUT 25,INPUT 1).
+   RUN falttabbredd_UI (INPUT TRUE,INPUT STRING(FAKTURERAD.TOTPRIS,"->>>>>>>>9.99"),INPUT 25,INPUT 0).
+   RUN tabradslut_UI.        
+   IF slutfaktvar = TRUE THEN DO:                
+      IF vartyp = 3 THEN DO:
+         RUN tabradstart_UI.
+         RUN falttabbredd_UI (INPUT FALSE,INPUT 'Avgår tidigare prel.fakt.',INPUT 50,INPUT 0).
+         RUN falttabbredd_UI (INPUT FALSE,INPUT '',INPUT 25,INPUT 1).
+         RUN falttabbredd_UI (INPUT TRUE,INPUT STRING(FAKTURERAD.AVGAR,"->>>>>>>>9.99"),INPUT 25,INPUT 0).
+         RUN tabradslut_UI.                 
+      END.            
+   END.
+   momsumma = 0.
+   FOR EACH FAKTMOMS WHERE FAKTMOMS.FAKTNR = FAKTPLAN.FAKTNR AND 
+   FAKTMOMS.FDELNR = FAKTURERAD.FDELNR NO-LOCK BREAK BY FAKTMOMS.MOMSID: 
+      ACCUMULATE FAKTMOMS.BELOPP (TOTAL BY FAKTMOMS.MOMSID).
+      ACCUMULATE FAKTMOMS.MOMSBELOPP (TOTAL BY FAKTMOMS.MOMSID).
+      IF LAST-OF(FAKTMOMS.MOMSID) THEN DO:                        
+         IF (ACCUM TOTAL BY FAKTMOMS.MOMSID FAKTMOMS.MOMSBELOPP) NE 0 THEN DO:
+            RUN tabradstart_UI.
+            RUN falttabbredd_UI (INPUT FALSE,INPUT 'Moms ' + STRING(FAKTMOMS.MOMSEXTERNT,">>9.99") + ' % på',INPUT 50,INPUT 0).
+            RUN falttabbredd_UI (INPUT TRUE,INPUT STRING((ACCUM TOTAL BY FAKTMOMS.MOMSID FAKTMOMS.BELOPP),"->>>>>>>>9.99"),INPUT 25,INPUT 0).
+            RUN falttabbredd_UI (INPUT TRUE,INPUT STRING((ACCUM TOTAL BY FAKTMOMS.MOMSID FAKTMOMS.MOMSBELOPP),"->>>>>>>>9.99"),INPUT 25,INPUT 0).             
+            RUN tabradslut_UI.                             
+         END.
+      END.                                      
+   END.  
+   IF momsumma NE 0 THEN DO:
+      IF FAKTURERAD.ORESUTJ NE 0 THEN DO:
+         RUN tabradstart_UI.
+         RUN falttabbredd_UI (INPUT FALSE,INPUT 'Öresutjämning',INPUT 50,INPUT 0).
+         RUN falttabbredd_UI (INPUT FALSE,INPUT '',INPUT 25,INPUT 1).
+         RUN falttabbredd_UI (INPUT TRUE,INPUT STRING(FAKTURERAD.ORESUTJ,"->>>>>>>>9.99"),INPUT 25,INPUT 0).
+         RUN tabradslut_UI.                                      
+      END.
+      RUN tabradstart_UI.
+      RUN falttabbredd_UI (INPUT FALSE,INPUT 'Summa moms',INPUT 50,INPUT 0).
+      RUN falttabbredd_UI (INPUT FALSE,INPUT '',INPUT 25,INPUT 1).
+      RUN falttabbredd_UI (INPUT TRUE,INPUT STRING(momsumma + FAKTURERAD.ORESUTJ,"->>>>>>>>9.99"),INPUT 25,INPUT 0).
+      RUN tabradslut_UI.                                            
+   END.
+   ELSE DO:
+      FIND FIRST FAKTURERINGSTYP WHERE FAKTURERINGSTYP.FAKTTYPID = FAKTURERAD.FAKTTYPID NO-LOCK NO-ERROR.
+      IF FAKTURERINGSTYP.OBLMOMS = FALSE THEN DO:
+         RUN tabradstart_UI.
+         RUN falttabbredd_UI (INPUT FALSE,INPUT 'Mervärdeskatt utages på slutfakturan',INPUT 50,INPUT 0).
+         RUN falttabbredd_UI (INPUT FALSE,INPUT '',INPUT 25,INPUT 1).
+         RUN falttabbredd_UI (INPUT TRUE,INPUT STRING(momsumma + FAKTURERAD.ORESUTJ,"->>>>>>>>9.99"),INPUT 25,INPUT 0).
+         RUN tabradslut_UI.                                                    
+      END.
+   END.
+   RUN tabradstart_UI.
+   RUN falttabbredd_UI (INPUT FALSE,INPUT 'Att betala SEK',INPUT 50,INPUT 0).
+   RUN falttabbredd_UI (INPUT FALSE,INPUT '',INPUT 25,INPUT 1).    
+   IF slutfaktvar = TRUE THEN DO:                
+      IF vartyp = 3 THEN DO:
+         RUN falttabbredd_UI (INPUT TRUE,INPUT STRING(FAKTURERAD.TOTPRIS + momsumma + FAKTURERAD.ORESUTJ - FAKTURERAD.AVGAR,"->>>>>>>>9.99"),INPUT 25,INPUT 0).         
+      END.
+      ELSE RUN falttabbredd_UI (INPUT TRUE,INPUT STRING(FAKTURERAD.TOTPRIS + momsumma + FAKTURERAD.ORESUTJ,"->>>>>>>>9.99"),INPUT 25,INPUT 0).               
+   END.
+   ELSE RUN falttabbredd_UI (INPUT TRUE,INPUT STRING(FAKTURERAD.TOTPRIS + momsumma + FAKTURERAD.ORESUTJ,"->>>>>>>>9.99"),INPUT 25,INPUT 0).                                                 
+   RUN tabradslut_UI.                                                    
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = '</table>'.
+END PROCEDURE.
+
+PROCEDURE tidhamt_UI :
+   OPEN QUERY faktidq FOR EACH FAKTTID WHERE FAKTTID.FAKTNR = FAKTURERAD.FAKTNR AND                  
+   FAKTTID.FDELNR = FAKTURERAD.FDELNR NO-LOCK.
+   GET FIRST faktidq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTTID):
+      CREATE sumtidtemp.      
+      ASSIGN                                                  
+      sumtidtemp.PERSONALKOD = FAKTTID.PERSONALKOD
+      sumtidtemp.NAMN = FAKTTID.NAMN 
+      sumtidtemp.AONR = FAKTTID.AONR
+      sumtidtemp.DELNR = FAKTTID.DELNR
+      sumtidtemp.TIMMAR = FAKTTID.TIMMAR
+      sumtidtemp.BELOPP = FAKTTID.BELOPP        
+      sumtidtemp.OBELOPP = FAKTTID.OBELOPP 
+      sumtidtemp.TBELOPP = FAKTTID.TBELOPP             
+      sumtidtemp.OTIMMAR = FAKTTID.OTIMMAR 
+      sumtidtemp.LONKOST = FAKTTID.LONKOST                  
+      sumtidtemp.BEFATTNING = FAKTTID.BEFATTNING      
+      sumtidtemp.PERSMASK = FAKTTID.PERSMASK
+      sumtidtemp.TRAKTKOD = FAKTTID.TRAKTKOD
+      sumtidtemp.TRAKTANTAL = FAKTTID.TRAKTANTAL  
+      sumtidtemp.LONTILLAGG = FAKTTID.LONTILLAGG      
+      sumtidtemp.LONTILLANTAL = FAKTTID.LONTILLANTAL 
+      sumtidtemp.PRISA = FAKTTID.PRISA 
+      sumtidtemp.ENDAGS = FAKTTID.ENDAGS       
+      sumtidtemp.MED = FAKTTID.MED      
+      sumtidtemp.PRISTYP = FAKTTID.PRISTYP
+      sumtidtemp.RESTIM = FAKTTID.DECRESTID
+      sumtidtemp.RESKOSTDEC = FAKTTID.RESKOSTDEC
+      sumtidtemp.OTEXTID = FAKTTID.OTEXTID
+      sumtidtemp.DATUM = FAKTTID.DATUM
+      sumtidtemp.START = FAKTTID.START 
+      sumtidtemp.SLUT = FAKTTID.SLUT
+      sumtidtemp.GSTART = FAKTTID.GSTART 
+      sumtidtemp.GSLUT = FAKTTID.GSLUT
+      sumtidtemp.LUNCH = FAKTTID.LUNCH
+      sumtidtemp.OANT1 = FAKTTID.OANT1.      
+      GET NEXT faktidq NO-LOCK.
+   END.               
+   OPEN QUERY sbq FOR EACH sumtidtemp NO-LOCK,
+   EACH BEFATTNINGSTAB WHERE BEFATTNINGSTAB.BEFATTNING = sumtidtemp.BEFATTNING NO-LOCK.
+   GET FIRST sbq EXCLUSIVE-LOCK.
+   DO WHILE AVAILABLE (sumtidtemp):
+      ASSIGN 
+      sumtidtemp.PERSBEF = sumtidtemp.PERSONALKOD + " " + BEFATTNINGSTAB.NAMN
+      sumtidtemp.VIBEFATTNING = BEFATTNINGSTAB.NAMN 
+      sumtidtemp.VIOBEFATTNING = BEFATTNINGSTAB.NAMN.
+      GET NEXT sbq EXCLUSIVE-LOCK.
+   END.
+   OPEN QUERY sq FOR EACH sumtidtemp NO-LOCK,
+   EACH OVERTEXTFAKT WHERE OVERTEXTFAKT.OTEXTID = sumtidtemp.OTEXTID NO-LOCK.
+   GET FIRST sq EXCLUSIVE-LOCK.
+   DO WHILE AVAILABLE (sumtidtemp):
+      ASSIGN sumtidtemp.VIOBEFATTNING = OVERTEXTFAKT.OTEXT. 
+      GET NEXT sq EXCLUSIVE-LOCK.
+   END.
+END PROCEDURE.
+PROCEDURE anmark_UI :
+   DEFINE INPUT PARAMETER anmark AS INTEGER NO-UNDO.
+   IF anmark = 1 THEN DO:                  
+      CREATE tidutanm.
+      ASSIGN            
+      /*SUBSTRING(tidutanm.UT,21) = ":"   */
+      SUBSTRING(tidutanm.UT,23) = SUBSTRING(edtext,ednum,edtecken).
+   END.  
+   ELSE IF anmark = 2 THEN DO:           
+      CREATE tidutanm.
+      ASSIGN            
+   /*   SUBSTRING(tidutanm.UT,21) = ":"   */
+      SUBSTRING(tidutanm.UT,23) = tidtext.
+   END.   
+   ELSE IF anmark = 3 THEN DO:           
+      CREATE tidutanm.
+      ASSIGN           
+      /*SUBSTRING(tidutanm.UT,21) = ":"    */
+      SUBSTRING(tidutanm.UT,23) = SUBSTRING(edtext,1 + ednum2 * edtecken,edtecken).
+   END.                         
+END PROCEDURE.
+
+ 
+PROCEDURE bilaga_UI :   
+   OPEN QUERY faktaonrq FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR NO-LOCK.
+   GET FIRST faktaonrq NO-LOCK.
+   IF AVAILABLE FAKTAONR THEN DO:
+      CREATE uttemp.
+      ASSIGN 
+      uttemp.ORDNING = 1
+      uttemp.AONR = ""
+      uttemp.DELNR = 0
+      uttemp.C1 = 'Ingående ' + LC(Guru.Konstanter:gaok).
+      DO WHILE AVAILABLE(FAKTAONR):
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = FAKTAONR.AONR AND 
+         AONRTAB.DELNR = FAKTAONR.DELNR NO-LOCK NO-ERROR. 
+         CREATE uttemp.
+         ASSIGN 
+         uttemp.ORDNING = 1
+         uttemp.AONR = FAKTAONR.AONR
+         uttemp.DELNR = FAKTAONR.DELNR
+         uttemp.C1 = SUBSTRING(FAKTAONR.AONR + " " + STRING(FAKTAONR.DELNR,Guru.Konstanter:varforetypchar[1]) + " " + AONRTAB.ORT,1,26).
+         GET NEXT faktaonrq NO-LOCK.
+      END.
+   END.
+   IF fakbilag.TIDEJMED = TRUE OR fakbilag.TIDMED = TRUE OR fakbilag.TIDTOT THEN DO:    
+      RUN tid_UI.          
+   END.
+   IF fakbilag.KOST = TRUE THEN DO:
+      OPEN QUERY faktkostq FOR EACH FAKTKOST WHERE FAKTKOST.FAKTNR = FAKTURERAD.FAKTNR AND          
+      FAKTKOST.FDELNR = FAKTURERAD.FDELNR AND FAKTKOST.MED = TRUE 
+      USE-INDEX FAKTKOST NO-LOCK.
+      GET FIRST faktkostq NO-LOCK. 
+      IF AVAILABLE FAKTKOST THEN DO:   
+         CREATE uttemp.
+         ASSIGN 
+         uttemp.ORDNING = 3
+         uttemp.AONR = ""
+         uttemp.DELNR = 0
+         uttemp.C1 = 'Ingående externa fakturor'.        
+      END.
+      DO WHILE AVAILABLE(FAKTKOST):        
+         CREATE uttemp.
+         ASSIGN 
+         uttemp.ORDNING = 3
+         uttemp.AONR =  FAKTKOST.AONR
+         uttemp.DELNR = FAKTKOST.DELNR
+         uttemp.C1 = FAKTKOST.BENAMNING
+         uttemp.C4 = FAKTKOST.MASKKOST + FAKTKOST.MTRL + FAKTKOST.OVRKR + FAKTKOST.PERSKOST + FAKTKOST.TRAKTKOST + 
+         (FAKTKOST.MASKKOST * FAKTKOST.FRTJPA / 100) + (FAKTKOST.MTRL * FAKTKOST.MTRLPA / 100).           
+         /*
+         FIND FIRST KOSTREG WHERE KOSTREG.AONR = FAKTKOST.AONR AND 
+         KOSTREG.DELNR = FAKTKOST.DELNR AND KOSTREG.RADNR = FAKTKOST.RADNR
+         USE-INDEX KOST NO-LOCK NO-ERROR.                                 
+         IF AVAILABLE KOSTREG THEN DO:
+            CREATE uttemp.
+            ASSIGN 
+            uttemp.AONR =  FAKTKOST.AONR
+            uttemp.DELNR = FAKTKOST.DELNR
+            uttemp.C1 = FAKTKOST.BENAMNING
+            uttemp.C4 = KOSTREG.MASKKOST + KOSTREG.MTRL + KOSTREG.OVRKR + KOSTREG.PERSKOST + KOSTREG.TRAKTKOST + 
+            (KOSTREG.MASKKOST * FAKTKOST.FRTJPA / 100) + (KOSTREG.MTRL * FAKTKOST.MTRLPA / 100).           
+         END.
+         */
+         GET NEXT faktkostq NO-LOCK.   
+      END.      
+   END.   
+   IF fakbilag.FRI = TRUE THEN DO: 
+      OPEN QUERY faktfriq FOR EACH FAKTFRIA WHERE FAKTFRIA.FAKTNR = FAKTURERAD.FAKTNR AND          
+      FAKTFRIA.FDELNR = FAKTURERAD.FDELNR USE-INDEX FAKTFRIA NO-LOCK.  
+      GET FIRST faktfriq NO-LOCK.
+      IF AVAILABLE FAKTFRIA THEN DO:   
+         CREATE uttemp.
+         ASSIGN 
+         uttemp.ORDNING = 4
+         uttemp.AONR =  FAKTFRIA.AONR
+         uttemp.DELNR = FAKTFRIA.DELNR
+         uttemp.C1 = 'Fri komplettering'.        
+         DO WHILE AVAILABLE(FAKTFRIA):  
+            IF FAKTFRIA.FAKTTEXT = "DUBBEL-KLICKA PÅ DENNA RAD FÖR NYUPPLÄGG" THEN musz = musz.
+            ELSE DO:
+               CREATE uttemp.
+               ASSIGN 
+               uttemp.ORDNING = 4
+               uttemp.AONR =  FAKTFRIA.AONR
+               uttemp.DELNR = FAKTFRIA.DELNR
+               uttemp.C1 = SUBSTRING(FAKTFRIA.FAKTTEXT,1,26)
+               uttemp.C2 = FAKTFRIA.ANTAL
+               uttemp.C3 = FAKTFRIA.PRIS_ENHET
+               uttemp.C4 = FAKTFRIA.TOTALT.               
+            END.
+            GET NEXT faktfriq NO-LOCK.   
+         END.         
+      END.        
+   END.      
+   
+END PROCEDURE.
+
+PROCEDURE tid_UI :   
+   IF fakbilag.TIDMED = TRUE THEN DO:  
+      CREATE uttemp.
+      ASSIGN 
+      uttemp.ORDNING = 2
+      uttemp.AONR = ""
+      uttemp.DELNR = 0
+      uttemp.C1 = 'Ingående tidskrivning'.      
+   END.
+   FOR EACH sumtidtemp:
+      IF sumtidtemp.MED = ? THEN sumtidtemp.MED = FALSE.  
+   END.
+   IF fakbilag.TIDMED = TRUE THEN DO:                                        
+      FOR EACH sumtidtemp WHERE sumtidtemp.MED = TRUE BREAK BY sumtidtemp.MED BY sumtidtemp.VIBEFATTNING BY sumtidtemp.AONR BY sumtidtemp.DELNR:         
+         ACCUMULATE 
+         sumtidtemp.BELOPP (TOTAL BY sumtidtemp.MED BY sumtidtemp.VIBEFATTNING BY sumtidtemp.AONR BY sumtidtemp.DELNR).
+         ACCUMULATE 
+         sumtidtemp.TIMMAR (TOTAL BY sumtidtemp.MED BY sumtidtemp.VIBEFATTNING BY sumtidtemp.AONR BY sumtidtemp.DELNR).
+         ACCUMULATE 
+         sumtidtemp.OBELOPP (TOTAL BY sumtidtemp.MED BY sumtidtemp.VIBEFATTNING BY sumtidtemp.AONR BY sumtidtemp.DELNR).
+         ACCUMULATE 
+         sumtidtemp.OTIMMAR (TOTAL BY sumtidtemp.MED BY sumtidtemp.VIBEFATTNING BY sumtidtemp.AONR BY sumtidtemp.DELNR).
+         ACCUMULATE 
+         sumtidtemp.LONKOST (TOTAL BY sumtidtemp.MED BY sumtidtemp.VIBEFATTNING BY sumtidtemp.AONR BY sumtidtemp.DELNR). 
+         ACCUMULATE 
+         sumtidtemp.TBELOPP (TOTAL BY sumtidtemp.MED BY sumtidtemp.VIBEFATTNING BY sumtidtemp.AONR BY sumtidtemp.DELNR).
+         ACCUMULATE 
+         sumtidtemp.RESTIM (TOTAL BY sumtidtemp.MED BY sumtidtemp.VIBEFATTNING BY sumtidtemp.AONR BY sumtidtemp.DELNR).
+         ACCUMULATE 
+         sumtidtemp.RESKOSTDEC (TOTAL BY sumtidtemp.MED BY sumtidtemp.VIBEFATTNING BY sumtidtemp.AONR BY sumtidtemp.DELNR).
+         IF LAST-OF(sumtidtemp.DELNR) THEN DO:
+            CREATE uttemp.
+            ASSIGN 
+            uttemp.ORDNING = 2
+            uttemp.AONR =  ""
+            uttemp.DELNR = 0
+            uttemp.C1 = sumtidtemp.VIBEFATTNING
+            uttemp.C2 = (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.TIMMAR).
+            IF fakbilag.PRIS = TRUE THEN DO:
+               ASSIGN
+               uttemp.C4 = (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.BELOPP) + (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.OBELOPP) + (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.RESKOSTDEC).
+            END.                         
+         END.
+      END.
+   END.        
+   RUN fakbi1_UI.
+END PROCEDURE.
+
+PROCEDURE fakbi1_UI :
+   {FAKBIL.I}
+   RUN fakbi2_UI.                           
+   
+END PROCEDURE.
+
+PROCEDURE fakbi2_UI :
+   
+                            
+END PROCEDURE.
+
+
+
+PROCEDURE falttab_UI:
+   DEFINE INPUT PARAMETER hoger AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER faltvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER antaltomfalt AS INTEGER NO-UNDO.
+   DEFINE VARIABLE raknare AS INTEGER NO-UNDO.
+   IF faltvar NE "" THEN DO:
+      IF hoger = TRUE THEN  tidut.UT = tidut.UT + '<td align="right" height="14" valign="top">' + faltvar + '</td>'.
+      ELSE tidut.UT = tidut.UT + '<td align="left" height="14" valign="top">' + faltvar + '</td>'.      
+   END.
+   ELSE DO:
+      tidut.UT = tidut.UT + '<td height="14" valign="top">&nbsp;</td>'.      
+   END.
+   raknare = 1.
+   DO WHILE raknare <= antaltomfalt:
+      tidut.UT = tidut.UT + '<td height="14" valign="top">&nbsp;</td>'.               
+      raknare = raknare + 1.      
+   END.
+END PROCEDURE.
+PROCEDURE falttabbredd_UI:
+   DEFINE INPUT PARAMETER hoger AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER faltvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER breddproc AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER antaltomfalt AS INTEGER NO-UNDO.
+   DEFINE VARIABLE raknare AS INTEGER NO-UNDO.
+   IF faltvar NE "" THEN DO:
+      IF hoger = TRUE THEN tidut.UT = tidut.UT + '<td align="right" width="' + STRING(breddproc) + '%" height="14" valign="top">' + faltvar + '</td>'.
+      ELSE tidut.UT = tidut.UT + '<td align="left" width="' + STRING(breddproc) + '%" height="14" valign="top">' + faltvar + '</td>'.
+   END.
+   raknare = 1.
+   DO WHILE raknare <= antaltomfalt:
+      tidut.UT = tidut.UT + '<td  width="' + STRING(breddproc) + '%" height="14" valign="top">&nbsp;</td>'.               
+      raknare = raknare + 1.      
+   END.
+END PROCEDURE.
+PROCEDURE gorlangre_UI:
+   DEFINE INPUT PARAMETER faltvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER antalfalt AS INTEGER NO-UNDO.
+   IF faltvar NE "" THEN tidut.UT = tidut.UT + '<td colspan="' + STRING(antalfalt) + '" valign="top">' + faltvar + '</td>'.   
+END PROCEDURE.

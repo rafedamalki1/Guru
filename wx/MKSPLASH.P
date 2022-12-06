@@ -1,0 +1,89 @@
+
+/* ===================================================================
+   file     : MkSplash.p
+   by       : Jurjen Dijkstra, 1997
+   language : Progress 8.2A on Windows 95
+   purpose  : changes the appearance of a normal Progress window
+              into a Splash window, e.g. no caption, no border, 
+              centered to screen, stay-on-top.
+   params   : hClient    = HWND of a client window
+              ThinBorder = YES if a WS_BORDER style is wanted
+                           NO creates no border at all
+   usage    : during mainblock:
+              run MkSplash.p ({&WINDOW-NAME}:HWND, YES).
+   =================================================================== */
+ 
+DEFINE INPUT PARAMETER hClient AS INTEGER.
+DEFINE INPUT PARAMETER ThinBorder AS LOGICAL.
+ 
+  {windows.i}
+  {ProExtra.i}
+ 
+  DEFINE VARIABLE hNonclient AS INTEGER NO-UNDO.
+  DEFINE VARIABLE style AS INTEGER NO-UNDO.
+  DEFINE VARIABLE oldstyle AS INTEGER NO-UNDO.
+ 
+  hNonclient = GetParent(hClient).
+ 
+  /* delete the caption and the thickframe */
+  RUN GetWindowLong{&A} IN Guru.Konstanter:hpApi(hNonclient, {&GWL_STYLE}, OUTPUT style).
+  RUN Bit_Remove IN hpExtra(INPUT-OUTPUT style, {&WS_CAPTION}).
+  RUN Bit_Remove IN hpExtra(INPUT-OUTPUT style, {&WS_THICKFRAME}).
+  RUN SetWindowLong{&A} IN Guru.Konstanter:hpApi(hNonclient, {&GWL_STYLE}, style, OUTPUT oldstyle).
+ 
+  /* the next block creates a thin border around the window. 
+     This has to be done in a second SetWindowLong */
+  IF ThinBorder THEN DO:
+    RUN GetWindowLong{&A} IN Guru.Konstanter:hpApi(hNonclient, {&GWL_STYLE}, OUTPUT style).
+    RUN Bit_Or IN hpExtra(INPUT-OUTPUT style, {&WS_BORDER}).
+    RUN SetWindowLong{&A} IN Guru.Konstanter:hpApi(hNonclient, {&GWL_STYLE}, style, OUTPUT oldstyle).
+  END.
+ 
+  /* The above changes in window styles are usually done before the window is
+     created. Now we are actually too late, windows will not respond with an 
+     automatic redraw of the window. We will have to force it. This is done by
+     calling SetWindowPos with the SWP_FRAMECHANGED flag. 
+     Since we are calling SetWindowPos we might as well ask it to perform 
+     some other actions, like:
+       make this a TOPMOST window,
+       change the coordinates (centered to screen)
+  */
+ 
+  DEFINE VARIABLE lpRect AS MEMPTR NO-UNDO.
+  DEFINE VARIABLE WIDTH AS INTEGER NO-UNDO.
+  DEFINE VARIABLE HEIGHT AS INTEGER NO-UNDO.
+  DEFINE VARIABLE ReturnValue AS INTEGER NO-UNDO.
+ 
+  /* the lpRect structure is defined as LEFT,TOP,RIGHT,BOTTOM. */
+  SET-SIZE(lpRect) = 4 * {&INTSIZE}.
+ 
+  /* get the dimensions of the client area: */
+  RUN GetWindowRect IN Guru.Konstanter:hpApi(hClient, 
+                             GET-POINTER-VALUE(lpRect), 
+                             OUTPUT ReturnValue).
+ 
+  /* let Windows calculate how large the NonClient area must be
+     to fit exactly around the Client area: */
+  RUN AdjustWindowRect IN Guru.Konstanter:hpApi(GET-POINTER-VALUE(lpRect), style, 0, OUTPUT ReturnValue).
+ 
+  /* so these will be the new dimensions of the Nonclient area: */
+  WIDTH  =   get-{&INT}(lpRect, 1 + 2 * {&INTSIZE}) 
+           - get-{&INT}(lpRect, 1 + 0 * {&INTSIZE}). 
+  HEIGHT =   get-{&INT}(lpRect, 1 + 3 * {&INTSIZE}) 
+           - get-{&INT}(lpRect, 1 + 1 * {&INTSIZE}). 
+ 
+  SET-SIZE(lpRect) = 0.
+ 
+  /* Do it. SWP_FRAMECHANGED is the most important flag here */
+  RUN SetWindowPos IN Guru.Konstanter:hpApi
+      (hNonclient, 
+       -1, /* = HWND_TOPMOST */
+       INTEGER((SESSION:WIDTH-PIXELS - WIDTH) / 2), 
+       INTEGER((SESSION:HEIGHT-PIXELS - HEIGHT) / 2), 
+       WIDTH, 
+       HEIGHT, 
+       {&SWP_NOACTIVATE} + {&SWP_FRAMECHANGED},
+       OUTPUT ReturnValue
+      ).
+ 
+RETURN.

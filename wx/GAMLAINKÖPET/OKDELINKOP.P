@@ -1,0 +1,115 @@
+/*OKDELINKOP.P.*/
+  
+{KONVALTEMP.I}
+DEFINE VARIABLE aovar AS CHARACTER NO-UNDO.
+{BESTMTRL.I}
+DEFINE INPUT PARAMETER valaonr LIKE AONRTAB.AONR NO-UNDO.
+DEFINE INPUT PARAMETER valomrade LIKE AONRTAB.OMRADE NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR best_mtrl.
+DEFINE INPUT PARAMETER TABLE FOR kon_val.
+DEFINE INPUT PARAMETER gammal AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER bestvar AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER globforetag AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER klockansek AS INTEGER NO-UNDO.
+/* fler best per dag*/
+
+FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = valaonr AND BEREDNING.OMRADE = valomrade
+NO-LOCK NO-ERROR.
+aovar = BEREDNING.AONR.
+IF globforetag = "UMEA" THEN DO:
+   FOR EACH BEREDNING WHERE BEREDNING.AONR = aovar AND BEREDNING.OMRADE = valomrade NO-LOCK:      
+      RUN delete_UI.
+   END.
+END.
+ELSE DO:
+   RUN delete_UI.
+END.   
+FIND FIRST best_mtrl NO-LOCK NO-ERROR.
+IF AVAILABLE best_mtrl THEN DO:   
+   FOR EACH kon_val:      
+      IF kon_val.GRUPP NE 1000 THEN DO:
+         OPEN QUERY bq FOR EACH BERVAL WHERE BERVAL.AONR = kon_val.BERAONR AND BERVAL.OMRADE = kon_val.OMRADE AND
+         BERVAL.NUM = kon_val.NUM AND BERVAL.KSKAP = FALSE AND BERVAL.DELNR = 0 NO-LOCK.
+         DO TRANSACTION:
+            GET FIRST bq EXCLUSIVE-LOCK.
+            IF AVAILABLE BERVAL THEN DO:
+               /* fler best per dag          */
+               ASSIGN
+                  
+               BERVAL.DELNR = klockansek
+               BERVAL.ORT = STRING(best_mtrl.DATUM).
+            END.            
+         END.
+         REPEAT:
+            DO TRANSACTION:
+               GET NEXT bq EXCLUSIVE-LOCK.
+               IF AVAILABLE BERVAL THEN DO:
+                  ASSIGN                
+                  /* fler best per dag          */
+                  BERVAL.DELNR = klockansek
+                  BERVAL.ORT = STRING(best_mtrl.DATUM).
+               END.    
+               ELSE LEAVE.
+            END.
+         END.
+      END.
+      ELSE DO:
+         DO TRANSACTION:         
+            FIND FIRST BERUPP WHERE BERUPP.AONR = kon_val.BERAONR AND BERUPP.OMRADE = kon_val.OMRADE AND 
+            BERUPP.UPPLAG = INTEGER(STRING(kon_val.F2)) AND BERUPP.DELNR = 0 EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE BERUPP THEN DO:
+               /* fler best per dag          */
+               ASSIGN
+               BERUPP.DELNR = klockansek
+               BERUPP.ANTALRADER = INTEGER(best_mtrl.DATUM).
+            END.
+         END.
+      END.
+   END.
+END.
+            
+PROCEDURE skapa_UI :   
+   FOR EACH best_mtrl WHERE best_mtrl.KLAR = TRUE:
+      DELETE best_mtrl.
+   END.   
+   FOR EACH best_mtrl:
+      DO TRANSACTION:
+         CREATE BERMTRL.
+         ASSIGN 
+         BERMTRL.AONR = BEREDNING.BERAONR         
+         BERMTRL.OMRADE = valomrade
+         BERMTRL.ENR = best_mtrl.ENR
+         BERMTRL.BENAMNING = best_mtrl.BENAMNING
+         BERMTRL.ENHET = best_mtrl.ENHET         
+         BERMTRL.PRIS = best_mtrl.PRIS
+         BERMTRL.OPRIS = best_mtrl.OPRIS
+         BERMTRL.ANTAL = best_mtrl.ANTAL           
+         BERMTRL.LEVKOD = best_mtrl.LEVKOD
+         BERMTRL.BERLEV = best_mtrl.BERLEV
+         BERMTRL.DBEST = best_mtrl.DBEST
+         BERMTRL.DATUM = best_mtrl.DATUM
+         /* fler best per dag*/
+         BERMTRL.DELNR = klockansek
+         BERMTRL.INKOP = TRUE.
+         IF bestvar = TRUE THEN BERMTRL.KLAR = TRUE.
+      END.
+   END.   
+END PROCEDURE.
+PROCEDURE delete_UI :
+  
+   IF gammal = TRUE THEN DO:      
+      OPEN QUERY mtrlq FOR EACH BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND 
+      BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = TRUE 
+      AND BERMTRL.KLAR = FALSE USE-INDEX INKOP NO-LOCK.
+      GET FIRST mtrlq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(BERMTRL):
+         DELETE BERMTRL.       
+         GET NEXT mtrlq EXCLUSIVE-LOCK.
+      END.      
+      CLOSE QUERY mtrlq. 
+      RUN skapa_UI.      
+   END.
+   ELSE DO:
+      RUN skapa_UI.
+   END.
+END PROCEDURE.

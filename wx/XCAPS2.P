@@ -1,0 +1,88 @@
+
+/*XCOMPALLT.P*/
+DEFINE VARIABLE allasvar AS LOGICAL.
+DEFINE VARIABLE mappsvar AS LOGICAL.
+DEFINE VARIABLE utfil AS CHARACTER.
+DEFINE VARIABLE searchdir AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE savedir AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE tempsearchdir AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE guruwtidir AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE wcguruwtidir AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE cdirnames AS CHARACTER NO-UNDO.
+DEFINE VARIABLE delfile AS CHARACTER NO-UNDO.
+DEFINE VARIABLE curdir AS CHARACTER NO-UNDO.
+DEFINE VARIABLE statok AS INTEGER NO-UNDO.
+DEFINE VARIABLE numcdir AS INTEGER NO-UNDO.
+DEFINE VARIABLE dirnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE webforetag AS CHARACTER NO-UNDO.
+DEFINE VARIABLE filnamn AS CHARACTER FORMAT "x(25)" LABEL "File" NO-UNDO.
+DEFINE VARIABLE attrlist AS CHARACTER FORMAT "x(6)" LABEL "Attributes" NO-UNDO.
+DEFINE VARIABLE dirlist AS CHARACTER FORMAT "x(60)" LABEL "Directory" NO-UNDO.
+DEFINE VARIABLE webdate AS DATE NO-UNDO.
+DEFINE VARIABLE iCOMP AS INTEGER NO-UNDO.
+searchdir = "\\PC012\D\delad\pro9\guru\"  /*Sökväg till de filer som ska kompileras.*/.
+savedir = "\\pc012\d\delad\PRO9\guru\komp9\".   /*Sökväg till de kompilerade filerna.*/.
+webdate = 01/01/89.
+dirnr = 1.
+
+RUN mappkomp_UI (INPUT "C").
+RUN mappkomp_UI (INPUT "W").
+PROCEDURE  mappkomp_UI :
+   DEFINE INPUT PARAMETER bb AS CHARACTER NO-UNDO.
+   INPUT FROM OS-DIR(searchdir) NO-ECHO.
+   REPEAT:
+      SET filnamn ^ attrlist.
+      /*Kolla om filnamnet börjar på 'c' och om filen är en mapp.*/
+      IF filnamn BEGINS bb AND attrlist = "D" THEN DO: 
+         /*Sparar alla mappnamn i en textsträng.*/
+         IF cdirnames NE "" THEN DO:
+            cdirnames = cdirnames + "," + filnamn.
+         END.
+         ELSE DO: 
+            cdirnames = filnamn.
+         END.
+         numcdir = numcdir + 1.                                                                                        
+      END.
+   END.
+   INPUT CLOSE. 
+   /*Rensar tidigare innehåll i filen.*/
+   
+   mappsvar = TRUE.
+   MESSAGE "Vill du ÄNDRA TILL STORA BOKSTÄVER I " + bb + "?" 
+      VIEW-AS ALERT-BOX BUTTONS YES-NO UPDATE allasvar.
+   /*Lopar genom varje c-mapp*/
+   DO WHILE dirnr LE numcdir:
+      /*Plockar ut namnet för aktuell mapp*/
+      curdir = ENTRY(dirnr,cdirnames,",").
+      IF curdir = "Cwx" OR curdir = "WWEB"  THEN.
+      ELSE DO:
+         tempsearchdir = searchdir + curdir + "\".
+         /*Sätter denna mapp som input*/
+         IF allasvar = FALSE THEN DO:
+            MESSAGE "Vill du ÄNDRA TILL STORA BOKSTÄVER I: " + curdir + "?" 
+               VIEW-AS ALERT-BOX BUTTONS YES-NO UPDATE mappsvar.
+         END.
+         IF mappsvar = TRUE THEN DO:
+            INPUT FROM OS-DIR(tempsearchdir) NO-ECHO.
+            REPEAT:
+               /*Hämtar filnamn, hela sökvägen och vilken typ av fil det är*/
+               SET filnamn dirlist attrlist.
+               IF filnamn MATCHES "*.p" OR filnamn MATCHES "*.w"  THEN DO:
+                  /*Skriver ut vilken fil som håller på att kompileras och kompilera sedan.*/
+                  DEBUGGER:SET-BREAK().
+                  OS-COPY VALUE(dirlist) VALUE(CAPS(SESSION:TEMP-DIR + filnamn)).
+                  OS-DELETE VALUE(dirlist).
+                  OS-COPY VALUE(CAPS(SESSION:TEMP-DIR + filnamn)) VALUE(CAPS(dirlist)). 
+                  OS-DELETE VALUE(SESSION:TEMP-DIR + filnamn).
+                   MESSAGE curdir " ÄNDRAR file: " + filnamn + " into ".                  
+               END.
+               
+            END.
+            INPUT CLOSE.
+         END.
+      END.
+      dirnr = dirnr + 1.
+   END.
+   DISPLAY iCOMP.
+END PROCEDURE.
+

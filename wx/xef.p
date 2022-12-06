@@ -1,0 +1,19 @@
+DEF VAR CC AS DEC.
+DEF VAR aa AS DEC.
+FUNCTION klockan100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+DEFINE INPUT PARAMETER aovar AS CHAR. 
+FOR EACH FAKTTID WHERE AONR = aovar AND FAKTTID.FAKTNR = 123 AND YEAR(datum) = 2002  BY delnr BY PERSONALKOD  BY DATUM :
+   IF vfaktnr NE 0  THEN DO:
+      IF timmar + otimmar = 0 THEN do:
+         IF med = TRUE THEN aa = aa + (klockan100(SLUT) - klockan100(START)).
+      END.
+      ELSE  IF med = TRUE THEN cc = cc + timmar + otimmar.
+      DISPLAY DELNR LABEL "nr" DATUM START LABEL "START" FORMAT ">9.99" SLUT LABEL "slut" FORMAT ">9.99" TIMMAR FORMAT ">9.99" OTIMMAR FORMAT ">9.99" VECKOKORD FORMAT "X(10)" LABEL "VK" cc FORMAT ">>>9.99" aa FORMAT ">>>9.99".
+   END.
+END.

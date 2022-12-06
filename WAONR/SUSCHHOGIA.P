@@ -1,0 +1,769 @@
+ /*SUSCHHOGIA.P*/
+
+{LESAMMAN.I}  
+
+DEFINE INPUT PARAMETER kordatum AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER koranv LIKE ANVANDARE.ANVANDARE NO-UNDO.
+DEFINE INPUT PARAMETER gkorvar AS CHARACTER NO-UNDO.
+RUN sammut_UI (INPUT 1).
+&Scoped-define NEW   
+&Scoped-define SHARED 
+{LONEDEF.I}
+DEFINE NEW SHARED VARIABLE fnytid AS DECIMAL FORMAT "-99.99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE vkdatum AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE regvnr AS INTEGER FORMAT "999" NO-UNDO.     
+DEFINE NEW SHARED VARIABLE regdatum AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE regstart LIKE TIDREGITAB.START NO-UNDO. 
+DEFINE NEW SHARED VARIABLE regslut LIKE TIDREGITAB.SLUT NO-UNDO.
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+/*DEFINE NEW SHARED VARIABLE globanv LIKE ANVANDARE.ANVANDARE NO-UNDO.*/
+ 
+DEFINE NEW SHARED VARIABLE regdagnamn AS CHARACTER FORMAT "X(3)" NO-UNDO.        
+DEFINE NEW SHARED VARIABLE regtotalt LIKE TIDREGITAB.TOTALT NO-UNDO.
+DEFINE NEW SHARED VARIABLE frustarten AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE fruslutet AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE kaffestart AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE kaffeslut AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE lunchstarten AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE lunchslutet AS DECIMAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE nytid AS DECIMAL FORMAT "99.99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE sekunder AS INTEGER NO-UNDO.    
+DEFINE NEW SHARED VARIABLE korvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE overrapp1 AS CHARACTER FORMAT "X(70)".      /*LÖN*/
+
+DEFINE VARIABLE prognamn AS CHARACTER FORMAT "X(41)" NO-UNDO.
+DEFINE VARIABLE prognamn5 AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE prognamn6 AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE prognamn3 AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE filut AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lonfil AS CHARACTER NO-UNDO.
+
+DEFINE VARIABLE stdat  AS DATE NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE imax AS INTEGER NO-UNDO.
+DEFINE VARIABLE sppnr AS CHARACTER NO-UNDO.
+DEFINE TEMP-TABLE pschema
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD PERSONNUMMER AS CHARACTER
+   FIELD VIJUDID AS CHARACTER
+   FIELD LANGDMAN AS INTEGER 
+   FIELD SDATUM AS DATE EXTENT 32
+   FIELD rstart AS DECIMAL EXTENT 32
+   FIELD lustarten AS DECIMAL EXTENT 32
+   FIELD luslutet AS DECIMAL EXTENT 32
+   FIELD rslut AS DECIMAL EXTENT 32
+   FIELD rtotalt AS DECIMAL EXTENT 32
+   FIELD startlu AS DECIMAL EXTENT 32
+   FIELD luslut AS DECIMAL EXTENT 32.
+
+DEFINE TEMP-TABLE arbpass
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD PERSONNUMMER AS CHARACTER
+   FIELD VIJUDID AS CHARACTER
+   FIELD LANGDMAN AS INTEGER 
+   FIELD STARTDAG AS DATE
+   FIELD STARTTID AS DECIMAL
+   FIELD SLUTDAG AS DATE
+   FIELD SLUTTID AS DECIMAL 
+   FIELD LANGD AS DECIMAL   
+   INDEX PNR IS PRIMARY PERSONNUMMER STARTDAG STARTTID. 
+
+DEFINE BUFFER arbbuff FOR arbpass.
+
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+FUNCTION klock60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ) :
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) * 60 / 100 ).   /* Function return value. */
+
+END FUNCTION.
+{AMERICANEUROPEAN.I}
+RUN p1_UI.
+RUN p2_UI.
+RUN p3_UI.
+RUN p4_UI.
+RUN p5_UI.
+RUN sammut_UI (INPUT 2).
+{EUROPEANAMERICAN.I}
+PROCEDURE p1_ui:
+   FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.
+   Guru.Konstanter:globforetag = FORETAG.FORETAG.
+   IF Guru.Konstanter:globforetag = "SUND" THEN DO:
+      prognamn5 = "D:\delad\server\pro10s\EXPORT\lon\".   
+      prognamn6 = "D:\delad\server\pro10s\EXPORT\lon\lonfiler\".   
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+      prognamn5 = "D:\delad\server\pro10s\EXPORT\lonelnat\".   
+      prognamn6 = "D:\delad\server\pro10s\EXPORT\lonelnat\lonfiler\".
+      /*SNATBERGET*/   
+      prognamn5 = REPLACE(prognamn5,"D:\DELAD\SERVER\PRO10S\EXPORT\lonelnat\","D:\DELAD\PRO10S\BACKEXPORT\lonelnat\").
+      prognamn6 = REPLACE(prognamn6,"D:\DELAD\SERVER\PRO10S\","D:\DELAD\PRO10S\").
+         
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "misv" THEN DO:
+      prognamn5 = "C:\elpool\delad\pro10s\EXPORT\lon\".  
+      /*Guru.Konstanter:AppSpringSet[1] = "misvstb"*/
+      prognamn5 = "D:\elpool\delad\pro10s\EXPORT\lon\".
+      prognamn6 = "C:\elpool\delad\pro10s\EXPORT\lon\lonfiler\".
+      /*Guru.Konstanter:AppSpringSet[1] = "misvstb"*/
+      prognamn6 = "D:\elpool\delad\pro10s\EXPORT\lon\lonfiler\". 
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "ELPA" THEN prognamn5 = "\\pc112\delad\pro9s\korning\".
+   
+   
+   EMPTY TEMP-TABLE lonefil NO-ERROR.    
+   
+   ASSIGN
+   
+   vkdatum = kordatum
+   korvar = gkorvar
+   stdat = DATE(MONTH(vkdatum),01,YEAR(vkdatum)).
+   OPEN QUERY pq FOR EACH PERSONALTAB WHERE PERSONALTAB.PERSMASK = TRUE USE-INDEX PERSONALKOD NO-LOCK.
+   GET FIRST pq NO-LOCK.
+   DO WHILE AVAILABLE(PERSONALTAB):
+    musz = TRUE.
+    IF PERSONALTAB.AKTIV = FALSE THEN DO:   
+       FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+       YEAR(TIDREGITAB.DATUM) = YEAR(vkdatum) AND MONTH(TIDREGITAB.DATUM) = MONTH(vkdatum) USE-INDEX PSTART  NO-LOCK NO-ERROR.
+       IF NOT AVAILABLE TIDREGITAB THEN musz = FALSE.
+    END.
+    IF PERSONALTAB.PERSONNUMMER BEGINS "000000" THEN musz = FALSE.
+    IF musz = TRUE THEN DO:
+       i= 1.
+       imax = DAY(vkdatum).
+       persrec = RECID(PERSONALTAB).
+       regdatum = stdat.
+       RUN REGVEC.P.      
+       RUN SLUTARB.P.      
+       CREATE pschema.
+       ASSIGN 
+       pschema.PERSONALKOD = PERSONALTAB.PERSONALKOD
+       pschema.PERSONNUMMER = PERSONALTAB.PERSONNUMMER
+       pschema.LANGDMAN = DAY(vkdatum).
+       
+       /*personnummer för dem som är födda 2000 och senare 4 siffrigt årtal, för övriga 2 siffrigt årtal */
+       /*födda 2000-2029 ska ha årtal som börjar på 20- inte 19  Lena 20191112*/
+       IF  LENGTH(pschema.PERSONNUMMER) = 10 THEN DO:
+         IF SUBSTRING(pschema.PERSONNUMMER,1,1) = "0" THEN pschema.PERSONNUMMER = "20" + pschema.PERSONNUMMER.
+         ELSE IF SUBSTRING(pschema.PERSONNUMMER,1,1) = "1" THEN pschema.PERSONNUMMER = "20" + pschema.PERSONNUMMER.
+         ELSE IF SUBSTRING(pschema.PERSONNUMMER,1,1) = "2" THEN pschema.PERSONNUMMER = "20" + pschema.PERSONNUMMER.                  
+       END.   
+       
+       
+       ASSIGN
+       pschema.SDATUM[i] = stdat
+       pschema.rstart[i] = regstart
+       pschema.lustarten[i] = lunchstarten
+       pschema.luslutet[i] = lunchslutet
+       pschema.rslut[i] = regslut
+       pschema.rtotalt[i] = regtotalt
+       pschema.startlu[i] = klock60(klock100(lunchstarten) - klock100(regstart)).
+       pschema.luslut[i] = klock60(klock100(regslut) - klock100(lunchslutet)).
+       FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+       FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+       FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+       IF AVAILABLE JURPERS THEN DO:
+          ASSIGN pschema.VIJUDID = JURPERS.VIJUDID.
+       END.      
+       manad:
+       REPEAT:
+          i = i + 1.
+          regdatum = regdatum + 1.
+          IF regdatum > (vkdatum + 1)  THEN LEAVE manad.
+          RUN REGVEC.P.      
+          RUN SLUTARB.P.         
+          ASSIGN
+          pschema.SDATUM[i] = regdatum
+          pschema.rstart[i] = regstart
+          pschema.lustarten[i] = lunchstarten
+          pschema.luslutet[i] = lunchslutet
+          pschema.rslut[i] = regslut
+          pschema.rtotalt[i] = regtotalt.
+          pschema.startlu[i] = klock60(klock100(lunchstarten) - klock100(regstart)).
+          pschema.luslut[i] = klock60(klock100(regslut) - klock100(lunchslutet)).
+       END.      
+    END.
+    GET NEXT pq.
+   END.
+END PROCEDURE.
+PROCEDURE p2_ui:
+   FOR EACH pschema BY pschema.PERSONNUMMER.
+      i= 0.
+      REPEAT:
+         i= i + 1.
+         IF i > imax THEN LEAVE.   
+         CREATE arbpass.
+         ASSIGN   
+         arbpass.PERSONALKOD = pschema.PERSONALKOD
+         arbpass.PERSONNUMMER = pschema.PERSONNUMMER      
+         arbpass.LANGDMAN = pschema.LANGDMAN
+         arbpass.VIJUDID = pschema.VIJUDID
+         arbpass.startdag = pschema.SDATUM[i]
+         arbpass.starttid = pschema.rstart[i].
+         IF pschema.lustarten[i] NE 0 AND pschema.lustarten[i] NE pschema.luslutet[i] THEN DO:
+            ASSIGN
+            arbpass.slutdag = pschema.SDATUM[i]
+            arbpass.sluttid = pschema.lustarten[i]
+            arbpass.langd = pschema.startlu[i].
+            CREATE arbpass.
+            ASSIGN   
+            arbpass.PERSONALKOD = pschema.PERSONALKOD
+            arbpass.PERSONNUMMER = pschema.PERSONNUMMER         
+            arbpass.LANGDMAN = pschema.LANGDMAN
+            arbpass.VIJUDID = pschema.VIJUDID
+            arbpass.startdag = pschema.SDATUM[i]
+            arbpass.starttid = pschema.luslutet[i]
+            arbpass.slutdag = pschema.SDATUM[i]
+            arbpass.sluttid = pschema.rslut[i]
+            arbpass.langd = pschema.luslut[i].  
+         END.
+         ELSE DO:
+            ASSIGN
+            arbpass.slutdag = pschema.SDATUM[i]
+            arbpass.sluttid = pschema.rslut[i]
+            arbpass.langd = pschema.rtotalt[i].
+         END.
+
+      END.
+   END.
+   FOR EACH arbpass WHERE arbpass.langd  = 0:
+      DELETE arbpass.
+   END.
+
+   FOR EACH arbpass WHERE arbpass.startdag  = stdat AND arbpass.STARTTID = 00 AND arbpass.sluttid NE 24:
+      DELETE arbpass.
+   END.
+
+   /*Kolla om sista i månaden går över dygnbryt */
+   FOR EACH arbpass WHERE arbpass.startdag  = vkdatum AND arbpass.sluttid = 24 :  
+      FIND FIRST pschema WHERE pschema.PERSONNUMMER = arbpass.PERSONNUMMER NO-LOCK NO-ERROR.
+      IF AVAILABLE pschema THEN DO:
+         CREATE arbbuff.
+         ASSIGN   
+         arbbuff.PERSONALKOD = pschema.PERSONALKOD
+         arbbuff.PERSONNUMMER = pschema.PERSONNUMMER      
+         arbbuff.LANGDMAN = pschema.LANGDMAN
+         arbbuff.VIJUDID = pschema.VIJUDID
+         arbbuff.startdag = pschema.SDATUM[imax + 1]
+         arbbuff.starttid = pschema.rstart[imax + 1].
+         IF pschema.lustarten[imax + 1] NE 0 AND pschema.lustarten[imax + 1] NE pschema.luslutet[imax + 1] THEN DO:         
+            ASSIGN
+            arbbuff.slutdag = pschema.SDATUM[imax + 1]
+            arbbuff.sluttid = pschema.lustarten[imax + 1]
+            arbbuff.langd = pschema.startlu[imax + 1].
+
+         END.
+         ELSE DO:
+            ASSIGN
+            arbbuff.slutdag = pschema.SDATUM[imax + 1]
+            arbbuff.sluttid = pschema.rslut[imax + 1]
+            arbbuff.langd = pschema.rtotalt[imax + 1].
+         END.   
+      END.
+
+   END.
+   FOR EACH arbpass WHERE arbpass.sluttid = 24.00 :
+      FIND FIRST arbbuff WHERE arbbuff.PERSONALKOD = arbpass.PERSONALKOD AND
+      arbbuff.startdag = (arbpass.slutdag + 1) AND arbbuff.starttid = 00.00 NO-ERROR.
+      IF AVAILABLE arbbuff THEN DO:
+         ASSIGN
+         arbpass.slutdag = arbbuff.startdag
+         arbpass.sluttid = arbbuff.sluttid.
+         arbpass.langd = klock60(klock100(arbpass.langd) + klock100(arbbuff.langd)).
+         DELETE arbbuff.
+      END.                     
+
+   END.
+   FIND FIRST arbpass WHERE arbpass.slutdag = (vkdatum + 1) NO-ERROR.
+   IF AVAILABLE arbpass THEN DO:
+      FOR EACH arbbuff WHERE arbbuff.PERSONALKOD = arbpass.PERSONALKOD :
+         arbbuff.LANGDMAN = imax + 1.
+      END.
+   END.
+   
+   manskift:
+   REPEAT:
+      FIND NEXT arbpass WHERE arbpass.slutdag = (vkdatum + 1) NO-ERROR.
+      IF NOT AVAILABLE arbpass THEN LEAVE manskift.
+      FOR EACH arbbuff WHERE arbbuff.PERSONALKOD = arbpass.PERSONALKOD :
+         arbbuff.LANGDMAN = imax + 1.
+      END.
+
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE p3_ui:
+   /*Sundsvall Energi ELNÄT AB*/
+   IF  Guru.Konstanter:globforetag = "SNAT" THEN DO:      
+      IF korvar = "" THEN DO:
+         prognamn3 = prognamn5 + "Arbetsschemaelnät.txt".
+         OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+      END.
+      ELSE DO:
+         prognamn3 = prognamn5 + "Arbetsschemaelnätomk.txt".
+         OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+      END.
+   
+      overrapp1 = "Filhuvud".
+      PUT overrapp1.
+      PUT SKIP.
+      overrapp1 = '        Typ="Personschema"'.
+      PUT overrapp1.
+      PUT SKIP.
+      overrapp1 = '        SkapadAv="Tidomat"'.
+      PUT overrapp1.
+      PUT SKIP.
+      overrapp1 = "        DatumTid=#" + STRING(TODAY,"9999-99-99") + " " + STRING(TIME,"HH:MM:SS") + "#".
+      PUT overrapp1.
+      PUT SKIP.
+      sppnr = "".
+      FOR EACH arbpass WHERE arbpass.VIJUDID = "ELNÄT" USE-INDEX PNR:
+         IF sppnr NE arbpass.PERSONNUMMER THEN DO:   
+            IF sppnr = "" OR sppnr BEGINS "000000" THEN .
+            ELSE DO:
+               overrapp1 = "PSlut".
+               PUT overrapp1.
+               PUT SKIP.
+            END.
+            overrapp1 = "PStart".
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = '        Typ="Personschema"'.
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = '        Anställningsnummer=' + STRING(arbpass.PERSONNUMMER).
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = "        StartDatum=#" + STRING(stdat,"9999-99-99") + "#".
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = "        Längd=" + STRING(arbpass.LANGDMAN) .
+            PUT overrapp1.
+            PUT SKIP.
+            PUT SKIP.
+         END.
+         overrapp1 = "        Arbetspass".
+         PUT overrapp1.
+         PUT SKIP.
+         overrapp1 = "                StartDag=#" + STRING(arbpass.startdag,"9999-99-99") + "#".
+         PUT overrapp1.
+         PUT SKIP.                      
+         overrapp1 = "                StartTid=#" + SUBSTRING(STRING(arbpass.starttid,"99.99"),1,2) + ":" + SUBSTRING(STRING(arbpass.starttid,"99.99"),4,2) + "#".
+         PUT overrapp1.
+         PUT SKIP.
+         overrapp1 = "                SlutDag=#" + STRING(arbpass.slutdag,"9999-99-99") + "#".
+         PUT overrapp1.
+         PUT SKIP.                      
+         overrapp1 = "                SlutTid=#" + SUBSTRING(STRING(arbpass.sluttid,"99.99"),1,2) + ":" + SUBSTRING(STRING(arbpass.sluttid,"99.99"),4,2) + "#".
+         PUT overrapp1.
+         PUT SKIP.
+         overrapp1 = "                Längd=#" + SUBSTRING(STRING(arbpass.LANGD,"99.99"),1,2) + ":" + SUBSTRING(STRING(arbpass.LANGD,"99.99"),4,2) + "#".
+         PUT overrapp1.
+         PUT SKIP.
+               
+         ASSIGN sppnr = arbpass.PERSONNUMMER.   
+      END.
+      overrapp1 = "PSlut".
+      PUT overrapp1.
+      PUT SKIP.
+      OUTPUT CLOSE.
+   END.
+
+END PROCEDURE.
+PROCEDURE p4_ui:
+   IF Guru.Konstanter:globforetag = "SUND"  THEN DO:      
+      /*Sundsvall Energi AB*/
+      IF korvar = "" THEN DO:
+         prognamn3 = prognamn5 + "ArbetsschemaSEAB.txt".
+         OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+      END.
+      ELSE DO:
+         prognamn3 = prognamn5 + "ArbetsschemaSEABomk.txt".
+         OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+      END.
+      overrapp1 = "Filhuvud".
+      PUT overrapp1.
+      PUT SKIP.
+      overrapp1 = '        Typ="Personschema"'.
+      PUT overrapp1.
+      PUT SKIP.
+      overrapp1 = '        SkapadAv="Tidomat"'.
+      PUT overrapp1.
+      PUT SKIP.
+      overrapp1 = "        DatumTid=#" + STRING(TODAY,"9999-99-99") + " " + STRING(TIME,"HH:MM:SS") + "#".
+      PUT overrapp1.
+      PUT SKIP.
+      sppnr = "".
+      FOR EACH arbpass WHERE arbpass.VIJUDID = "SEAB" USE-INDEX PNR:
+         IF sppnr NE arbpass.PERSONNUMMER THEN DO:   
+            IF sppnr = "" OR sppnr BEGINS "000000" THEN .
+            ELSE DO:
+               overrapp1 = "PSlut".
+               PUT overrapp1.
+               PUT SKIP.
+            END.
+            overrapp1 = "PStart".
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = '        Typ="Personschema"'.
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = '        Anställningsnummer=' + STRING(arbpass.PERSONNUMMER).
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = "        StartDatum=#" + STRING(stdat,"9999-99-99") + "#".
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = "        Längd=" + STRING(arbpass.LANGDMAN) .
+            PUT overrapp1.
+            PUT SKIP.
+         END.
+         
+         overrapp1 = "        Arbetspass".
+         PUT overrapp1.
+         PUT SKIP.
+         overrapp1 = "                StartDag=#" + STRING(arbpass.startdag,"9999-99-99") + "#".
+         PUT overrapp1.
+         PUT SKIP.                      
+         overrapp1 = "                StartTid=#" + SUBSTRING(STRING(arbpass.starttid,"99.99"),1,2) + ":" + SUBSTRING(STRING(arbpass.starttid,"99.99"),4,2) + "#".
+         PUT overrapp1.
+         PUT SKIP.
+         overrapp1 = "                SlutDag=#" + STRING(arbpass.slutdag,"9999-99-99") + "#".
+         PUT overrapp1.
+         PUT SKIP.                      
+         overrapp1 = "                SlutTid=#" + SUBSTRING(STRING(arbpass.sluttid,"99.99"),1,2) + ":" + SUBSTRING(STRING(arbpass.sluttid,"99.99"),4,2) + "#".
+         PUT overrapp1.
+         PUT SKIP.
+         overrapp1 = "                Längd=#" + SUBSTRING(STRING(arbpass.LANGD,"99.99"),1,2) + ":" + SUBSTRING(STRING(arbpass.LANGD,"99.99"),4,2) + "#".
+         PUT overrapp1.
+         PUT SKIP.         
+         ASSIGN sppnr = arbpass.PERSONNUMMER.
+      END.
+      overrapp1 = "PSlut".
+      PUT overrapp1.
+      PUT SKIP.
+      OUTPUT CLOSE.
+   END.
+   IF  Guru.Konstanter:globforetag = "SNAT" THEN DO:      
+      /*ServaNet AB*/
+      IF korvar = "" THEN DO:
+         prognamn3 = prognamn5 + "ArbetsschemaServaNet.txt".
+         OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+      END.
+      ELSE DO:
+         prognamn3 = prognamn5 + "ArbetsschemaServaNetomk.txt".
+         OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+      END.
+      overrapp1 = "Filhuvud".
+      PUT overrapp1.
+      PUT SKIP.
+      overrapp1 = '        Typ="Personschema"'.
+      PUT overrapp1.
+      PUT SKIP.
+      overrapp1 = '        SkapadAv="Tidomat"'.
+      PUT overrapp1.
+      PUT SKIP.
+      overrapp1 = "        DatumTid=#" + STRING(TODAY,"9999-99-99") + " " + STRING(TIME,"HH:MM:SS") + "#".
+      PUT overrapp1.
+      PUT SKIP.
+      sppnr = "".
+      FOR EACH arbpass WHERE arbpass.VIJUDID = "ServaNet" USE-INDEX PNR:
+         IF sppnr NE arbpass.PERSONNUMMER THEN DO:   
+            IF sppnr = "" OR sppnr BEGINS "000000" THEN .
+            ELSE DO:
+               overrapp1 = "PSlut".
+               PUT overrapp1.
+               PUT SKIP.
+            END.
+            overrapp1 = "PStart".
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = '        Typ="Personschema"'.
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = '        Anställningsnummer=' + STRING(arbpass.PERSONNUMMER).
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = "        StartDatum=#" + STRING(stdat,"9999-99-99") + "#".
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = "        Längd=" + STRING(arbpass.LANGDMAN) .
+            PUT overrapp1.
+            PUT SKIP.
+         END.
+         
+         overrapp1 = "        Arbetspass".
+         PUT overrapp1.
+         PUT SKIP.
+         overrapp1 = "                StartDag=#" + STRING(arbpass.startdag,"9999-99-99") + "#".
+         PUT overrapp1.
+         PUT SKIP.                      
+         overrapp1 = "                StartTid=#" + SUBSTRING(STRING(arbpass.starttid,"99.99"),1,2) + ":" + SUBSTRING(STRING(arbpass.starttid,"99.99"),4,2) + "#".
+         PUT overrapp1.
+         PUT SKIP.
+         overrapp1 = "                SlutDag=#" + STRING(arbpass.slutdag,"9999-99-99") + "#".
+         PUT overrapp1.
+         PUT SKIP.                      
+         overrapp1 = "                SlutTid=#" + SUBSTRING(STRING(arbpass.sluttid,"99.99"),1,2) + ":" + SUBSTRING(STRING(arbpass.sluttid,"99.99"),4,2) + "#".
+         PUT overrapp1.
+         PUT SKIP.
+         overrapp1 = "                Längd=#" + SUBSTRING(STRING(arbpass.LANGD,"99.99"),1,2) + ":" + SUBSTRING(STRING(arbpass.LANGD,"99.99"),4,2) + "#".
+         PUT overrapp1.
+         PUT SKIP.         
+         ASSIGN sppnr = arbpass.PERSONNUMMER.
+      END.
+      overrapp1 = "PSlut".
+      PUT overrapp1.
+      PUT SKIP.
+      OUTPUT CLOSE.
+   END.
+   
+   IF Guru.Konstanter:globforetag = "SUND" THEN DO:      
+      /*REKO AB*/
+      IF korvar = "" THEN DO:
+         prognamn3 = prognamn5 + "ArbetsschemaREKO.txt".
+         OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+      END.
+      ELSE DO:
+         prognamn3 = prognamn5 + "ArbetsschemaREKOomk.txt".
+         OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+      END.
+      overrapp1 = "Filhuvud".
+      PUT overrapp1.
+      PUT SKIP.
+      overrapp1 = '        Typ="Personschema"'.
+      PUT overrapp1.
+      PUT SKIP.
+      overrapp1 = '        SkapadAv="Tidomat"'.
+      PUT overrapp1.
+      PUT SKIP.
+      overrapp1 = "        DatumTid=#" + STRING(TODAY,"9999-99-99") + " " + STRING(TIME,"HH:MM:SS") + "#".
+      PUT overrapp1.
+      PUT SKIP.
+      sppnr = "".
+      FOR EACH arbpass WHERE arbpass.VIJUDID = "REKO" USE-INDEX PNR:
+         IF sppnr NE arbpass.PERSONNUMMER THEN DO:   
+            IF sppnr = "" OR sppnr BEGINS "000000" THEN .
+            ELSE DO:
+               overrapp1 = "PSlut".
+               PUT overrapp1.
+               PUT SKIP.
+            END.
+            overrapp1 = "PStart".
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = '        Typ="Personschema"'.
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = '        Anställningsnummer=' + STRING(arbpass.PERSONNUMMER).
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = "        StartDatum=#" + STRING(stdat,"9999-99-99") + "#".
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = "        Längd=" + STRING(arbpass.LANGDMAN) .
+            PUT overrapp1.
+            PUT SKIP.
+         END.
+         
+         overrapp1 = "        Arbetspass".
+         PUT overrapp1.
+         PUT SKIP.
+         overrapp1 = "                StartDag=#" + STRING(arbpass.startdag,"9999-99-99") + "#".
+         PUT overrapp1.
+         PUT SKIP.                      
+         overrapp1 = "                StartTid=#" + SUBSTRING(STRING(arbpass.starttid,"99.99"),1,2) + ":" + SUBSTRING(STRING(arbpass.starttid,"99.99"),4,2) + "#".
+         PUT overrapp1.
+         PUT SKIP.
+         overrapp1 = "                SlutDag=#" + STRING(arbpass.slutdag,"9999-99-99") + "#".
+         PUT overrapp1.
+         PUT SKIP.                      
+         overrapp1 = "                SlutTid=#" + SUBSTRING(STRING(arbpass.sluttid,"99.99"),1,2) + ":" + SUBSTRING(STRING(arbpass.sluttid,"99.99"),4,2) + "#".
+         PUT overrapp1.
+         PUT SKIP.
+         overrapp1 = "                Längd=#" + SUBSTRING(STRING(arbpass.LANGD,"99.99"),1,2) + ":" + SUBSTRING(STRING(arbpass.LANGD,"99.99"),4,2) + "#".
+         PUT overrapp1.
+         PUT SKIP.         
+         ASSIGN sppnr = arbpass.PERSONNUMMER.
+      END.
+      overrapp1 = "PSlut".
+      PUT overrapp1.
+      PUT SKIP.
+      OUTPUT CLOSE.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE p5_UI :
+   IF Guru.Konstanter:globforetag = "MISV" THEN DO:      
+      /*Sundsvall Vatten AB*/
+      IF korvar = "" THEN DO:
+         prognamn3 = prognamn5 + "ArbetsschemaSVAB.txt".
+         OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+      END.
+      ELSE DO:
+         prognamn3 = prognamn5 + "ArbetsschemaSVABomk.txt".
+         OUTPUT TO VALUE(prognamn3) NO-ECHO.      
+      END.
+      overrapp1 = "Filhuvud".
+      PUT overrapp1.
+      PUT SKIP.
+      overrapp1 = '        Typ="Personschema"'.
+      PUT overrapp1.
+      PUT SKIP.
+      overrapp1 = '        SkapadAv="Tidomat"'.
+      PUT overrapp1.
+      PUT SKIP.
+      overrapp1 = "        DatumTid=#" + STRING(TODAY,"9999-99-99") + " " + STRING(TIME,"HH:MM:SS") + "#".
+      PUT overrapp1.
+      PUT SKIP.
+      sppnr = "".
+      FOR EACH arbpass WHERE arbpass.VIJUDID = "SVAB" USE-INDEX PNR:
+         IF sppnr NE arbpass.PERSONNUMMER THEN DO:   
+            IF sppnr = "" OR sppnr BEGINS "000000" THEN .
+            ELSE DO:
+               overrapp1 = "PSlut".
+               PUT overrapp1.
+               PUT SKIP.
+            END.
+            overrapp1 = "PStart".
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = '        Typ="Personschema"'.
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = '        Anställningsnummer=' + STRING(arbpass.PERSONNUMMER).
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = "        StartDatum=#" + STRING(stdat,"9999-99-99") + "#".
+            PUT overrapp1.
+            PUT SKIP.
+            overrapp1 = "        Längd=" + STRING(arbpass.LANGDMAN) .
+            PUT overrapp1.
+            PUT SKIP.
+         END.
+         
+         overrapp1 = "        Arbetspass".
+         PUT overrapp1.
+         PUT SKIP.
+         overrapp1 = "                StartDag=#" + STRING(arbpass.startdag,"9999-99-99") + "#".
+         PUT overrapp1.
+         PUT SKIP.                      
+         overrapp1 = "                StartTid=#" + SUBSTRING(STRING(arbpass.starttid,"99.99"),1,2) + ":" + SUBSTRING(STRING(arbpass.starttid,"99.99"),4,2) + "#".
+         PUT overrapp1.
+         PUT SKIP.
+         overrapp1 = "                SlutDag=#" + STRING(arbpass.slutdag,"9999-99-99") + "#".
+         PUT overrapp1.
+         PUT SKIP.                      
+         overrapp1 = "                SlutTid=#" + SUBSTRING(STRING(arbpass.sluttid,"99.99"),1,2) + ":" + SUBSTRING(STRING(arbpass.sluttid,"99.99"),4,2) + "#".
+         PUT overrapp1.
+         PUT SKIP.
+         overrapp1 = "                Längd=#" + SUBSTRING(STRING(arbpass.LANGD,"99.99"),1,2) + ":" + SUBSTRING(STRING(arbpass.LANGD,"99.99"),4,2) + "#".
+         PUT overrapp1.
+         PUT SKIP.         
+         ASSIGN sppnr = arbpass.PERSONNUMMER.
+      END.
+      overrapp1 = "PSlut".
+      PUT overrapp1.
+      PUT SKIP.
+      OUTPUT CLOSE.
+   END.
+   
+   IF Guru.Konstanter:globforetag = "SNAT" THEN DO:      
+      IF korvar = "" THEN DO:
+         prognamn3 = prognamn5 + "Arbetsschemaelnät.txt".   
+         prognamn = prognamn5 + "Arbetsschemaelnät" + STRING(vkdatum,"999999") + ".txt".              
+         OS-COPY VALUE(prognamn3) VALUE(prognamn).      
+         prognamn = prognamn6 + "Arbetsschemaelnät.txt".
+         OS-COPY VALUE(prognamn3) VALUE(prognamn). 
+         prognamn3 = prognamn5 + "ArbetsschemaServaNet.txt".
+         prognamn = prognamn5 + "ArbetsschemaServaNet" + STRING(vkdatum,"999999") + ".txt".              
+         OS-COPY VALUE(prognamn3) VALUE(prognamn).      
+         prognamn = prognamn6 + "ArbetsschemaServaNet.txt".
+         OS-COPY VALUE(prognamn3) VALUE(prognamn).                     
+      END.
+      ELSE DO:
+         prognamn3 = prognamn5 + "Arbetsschemaelnätomk.txt".   
+         prognamn = prognamn5 + "Arbetsschemaelnätomk" + STRING(vkdatum,"999999") + ".txt".              
+         OS-COPY VALUE(prognamn3) VALUE(prognamn).         
+         prognamn3 = prognamn5 + "ArbetsschemaServaNetomk.txt".
+         prognamn = prognamn5 + "ArbetsschemaServaNetomk" + STRING(vkdatum,"999999") + ".txt".              
+         OS-COPY VALUE(prognamn3) VALUE(prognamn).      
+      END.
+   END.
+   IF Guru.Konstanter:globforetag = "SUND" THEN DO:      
+      IF korvar = "" THEN DO:                  
+         prognamn3 = prognamn5 + "ArbetsschemaSEAB.txt".
+         prognamn = prognamn5 + "ArbetsschemaSEAB" + STRING(vkdatum,"999999") + ".txt".              
+         OS-COPY VALUE(prognamn3) VALUE(prognamn).      
+         prognamn = prognamn6 + "ArbetsschemaSEAB.txt".
+         OS-COPY VALUE(prognamn3) VALUE(prognamn).          
+         prognamn3 = prognamn5 + "ArbetsschemaREKO.txt".
+         prognamn = prognamn5 + "ArbetsschemaREKO" + STRING(vkdatum,"999999") + ".txt".              
+         OS-COPY VALUE(prognamn3) VALUE(prognamn).      
+         prognamn = prognamn6 + "ArbetsschemaREKO.txt".
+         OS-COPY VALUE(prognamn3) VALUE(prognamn).      
+      END.
+      ELSE DO:                
+         prognamn3 = prognamn5 + "ArbetsschemaSEABomk.txt".
+         prognamn = prognamn5 + "ArbetsschemaSEABomk" + STRING(vkdatum,"999999") + ".txt".              
+         OS-COPY VALUE(prognamn3) VALUE(prognamn).            
+         prognamn3 = prognamn5 + "ArbetsschemaREKOomk.txt".
+         prognamn = prognamn5 + "ArbetsschemaREKOomk" + STRING(vkdatum,"999999") + ".txt".              
+         OS-COPY VALUE(prognamn3) VALUE(prognamn).      
+      END.
+   END.
+   IF Guru.Konstanter:globforetag = "MISV" THEN DO:      
+      IF korvar = "" THEN DO:
+         prognamn3 = prognamn5 + "ArbetsschemaSVAB.txt".
+         prognamn = prognamn5 + "ArbetsschemaSVAB" + STRING(vkdatum,"999999") + ".txt".              
+         OS-COPY VALUE(prognamn3) VALUE(prognamn).      
+         prognamn = prognamn6 + "ArbetsschemaSVAB.txt".
+         OS-COPY VALUE(prognamn3) VALUE(prognamn).      
+      END.
+      ELSE DO:
+         prognamn3 = prognamn5 + "ArbetsschemaSVABomk.txt".
+         prognamn = prognamn5 + "ArbetsschemaSVABomk" + STRING(vkdatum,"999999") + ".txt".              
+         OS-COPY VALUE(prognamn3) VALUE(prognamn).         
+      END.
+
+   END.
+
+
+END PROCEDURE.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   
+  
+   

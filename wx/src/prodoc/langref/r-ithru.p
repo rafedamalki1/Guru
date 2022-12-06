@@ -1,0 +1,11 @@
+/* r-ithru.p */
+
+DEFINE VARIABLE process-id AS CHARACTER.
+DEFINE VARIABLE dir-path AS CHARACTER VIEW-AS EDITOR SIZE 60 BY 10.
+
+INPUT THROUGH echo $$ $PATH NO-ECHO.
+
+SET process-id dir-path WITH FRAME indata NO-BOX NO-LABELS.
+DISPLAY process-id dir-path FORMAT "x(70)".
+
+INPUT CLOSE.

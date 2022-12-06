@@ -1,0 +1,145 @@
+/*FTPDIRGETDEL_OSC.P*/
+
+DEFINE INPUT  PARAMETER ftpcomand AS CHARACTER NO-UNDO.
+DEFINE INPUT  PARAMETER motagandemaskin AS CHARACTER NO-UNDO.  /*ftp maskin */
+DEFINE INPUT  PARAMETER portremot AS INTEGER NO-UNDO.  /*ftp maskin */
+DEFINE INPUT  PARAMETER remotLogin  AS CHARACTER NO-UNDO.  /*login*/               
+DEFINE INPUT  PARAMETER remotpasswd AS CHARACTER NO-UNDO.  /*lösen*/
+DEFINE INPUT  PARAMETER motagandekat AS CHARACTER NO-UNDO.  /*underkatalog */
+DEFINE INPUT  PARAMETER motagandeextra AS CHARACTER NO-UNDO.  /*extra kommandon som ska köras, tex browsa ner i strukturen */
+DEFINE INPUT  PARAMETER ftpcommando_filnamn  AS CHARACTER NO-UNDO.  /* namn på ftpfil */ 
+DEFINE INPUT  PARAMETER filurval AS CHARACTER NO-UNDO. /* Om man vill filtrera ut filer att lista */
+DEFINE INPUT  PARAMETER dirformat  AS INTEGER NO-UNDO.  /* hur får vi tillbaka diren? */
+DEFINE INPUT  PARAMETER localpath AS CHARACTER NO-UNDO. /* var ska filen läggas? */
+DEFINE INPUT  PARAMETER localfilename  AS CHARACTER NO-UNDO.  /* Ska filen döpas om efter hämtning? */
+
+DEFINE VARIABLE vCnt AS INTEGER     NO-UNDO.
+DEFINE VARIABLE vDelFile AS LOGICAL NO-UNDO.
+DEFINE VARIABLE vDebugFtp AS LOGICAL     NO-UNDO.
+
+DEFINE TEMP-TABLE felmeddftptemp 
+  FIELD FELMEDD AS CHARACTER
+  FIELD VAL AS INTEGER.
+ 
+DEFINE TEMP-TABLE provag
+   FIELD VAGNR AS INTEGER
+   FIELD VAG AS CHARACTER
+   INDEX VAGNR IS PRIMARY VAGNR.
+   
+ DEFINE VARIABLE temdir AS CHARACTER NO-UNDO.
+ temdir = SESSION:TEMP-DIRECTORY.
+ {SESSIONTEMPDIR.I}.
+ IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN temdir = webclienttempdir.   
+
+   
+ IF INDEX(ftpcomand,"DEL") NE 0 THEN vDelFile = TRUE. /* Vi vill ta bort filen efter oss */
+ vDebugFtp = FALSE.
+
+ vCnt = 1.
+ IF INDEX(ftpcomand,"DIR,GET,DEL") NE 0  THEN DO:
+   RUN FTPDIR_OSC.P (INPUT motagandemaskin, 
+                     INPUT portremot, 
+                     INPUT remotLogin, 
+                     INPUT remotpasswd,
+                     INPUT motagandekat,
+                     INPUT motagandeextra,
+                     INPUT temdir + "dir_ftp" + ftpcommando_filnamn + STRING(vCnt),
+                     INPUT filurval,
+                     INPUT ?,                 
+                     OUTPUT TABLE provag).
+                
+    FOR EACH PROVAG NO-LOCK:
+       // DISP provag.VAG FORMAT "X(35)".           
+       
+       RUN FTPGETFILE_OSC.P (INPUT motagandemaskin, 
+                     INPUT portremot, 
+                     INPUT remotLogin, 
+                     INPUT remotpasswd,
+                     INPUT motagandekat,
+                     INPUT motagandeextra,
+                     INPUT temdir + "get_ftp" + ftpcommando_filnamn + STRING(vCnt),
+                     INPUT provag.VAG,
+                     INPUT FALSE,
+                     INPUT localpath,
+                     INPUT localfilename,                 
+                     OUTPUT TABLE felmeddftptemp). 
+                     
+       FIND FIRST felmeddftptemp WHERE NOT felmeddftptemp.FELMEDD BEGINS "Allt ok" NO-LOCK NO-ERROR.
+       IF NOT AVAIL felmeddftptemp THEN  /* Om överföringen gick bra så kan vi ta bort filen om vi vill det */
+       DO:     
+           IF vDelFile THEN
+           DO:
+                RUN FTPDELFILE_OSC.P (INPUT motagandemaskin, 
+                     INPUT portremot, 
+                     INPUT remotLogin, 
+                     INPUT remotpasswd,
+                     INPUT motagandekat,
+                     INPUT motagandeextra,
+                     INPUT temdir + "del_ftp" + ftpcommando_filnamn + STRING(vCnt),
+                     INPUT provag.VAG,
+                     INPUT FALSE,
+                     OUTPUT TABLE felmeddftptemp).              
+           END.               
+       END.
+       ELSE DO: /* Överföringen gick fel så vi rensar ev överfört skräp lokalt */
+             IF SEARCH(provag.VAG) <> ? THEN
+             DO:
+                 OS-DELETE VALUE(localpath + provag.VAG).    
+             END.
+       END. 
+       
+       vCnt = vCnt + 1.
+       
+    END.   
+ END.
+ IF INDEX(ftpcomand,"DEL") NE 0 THEN DO:
+    RUN FTPDELFILE_OSC.P (INPUT motagandemaskin, 
+      INPUT portremot, 
+      INPUT remotLogin, 
+      INPUT remotpasswd,
+      INPUT motagandekat,
+      INPUT motagandeextra,
+      INPUT temdir + "del_ftp" + ftpcommando_filnamn + STRING(vCnt),
+      INPUT filurval,
+      INPUT FALSE,
+      OUTPUT TABLE felmeddftptemp). 
+ END.   
+ IF vDebugFtp = FALSE THEN
+ DO:
+    /* Rensa bort ftp- och logg-filer. */
+    DEFINE VARIABLE ii AS INTEGER     NO-UNDO.
+    ii = 0.
+    DO ii = 1 TO vCnt:         
+        IF SEARCH(temdir + "dir_ftp" + ftpcommando_filnamn + STRING(ii) + ".ftp") <> ? THEN  
+        DO:
+            
+           OS-DELETE VALUE(temdir + "dir_ftp" + ftpcommando_filnamn + STRING(ii) + ".ftp"). 
+        END.  
+        IF SEARCH(temdir + "dir_ftp" + ftpcommando_filnamn + STRING(ii) + ".out") <> ? THEN
+        DO:
+           OS-DELETE VALUE(temdir + "dir_ftp" + ftpcommando_filnamn + STRING(ii) + ".out"). 
+        END.
+        IF SEARCH(temdir + "get_ftp" + ftpcommando_filnamn + STRING(ii) + ".ftp") <> ? THEN
+        DO:
+           OS-DELETE VALUE(temdir + "get_ftp" + ftpcommando_filnamn + STRING(ii) + ".ftp"). 
+        END.  
+        IF SEARCH(temdir + "get_ftp" + ftpcommando_filnamn + STRING(ii) + ".out") <> ? THEN
+        DO:
+           OS-DELETE VALUE(temdir + "get_ftp" + ftpcommando_filnamn + STRING(ii) + ".out"). 
+        END.
+        IF SEARCH(temdir + "del_ftp" + ftpcommando_filnamn + STRING(ii) + ".ftp") <> ? THEN
+        DO:
+           OS-DELETE VALUE(temdir + "del_ftp" + ftpcommando_filnamn + STRING(ii) + ".ftp"). 
+        END.  
+        IF SEARCH(temdir + "del_ftp" + ftpcommando_filnamn + STRING(ii) + ".out") <> ? THEN
+        DO:
+           OS-DELETE VALUE(temdir + "del_ftp" + ftpcommando_filnamn + STRING(ii) + ".out"). 
+        END.
+    END.       
+ END.
+
+
+
+                
+   
+ 

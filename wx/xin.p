@@ -1,0 +1,6 @@
+DEFINE VARIABLE datoranv AS CHARACTER NO-UNDO.
+RUN INLOAPI.P (OUTPUT datoranv).
+OUTPUT TO e:\delad\protemp9\anv.txt APPEND.
+PUT datoranv SKIP. 
+OUTPUT CLOSE.
+QUIT.

@@ -1,0 +1,103 @@
+/*BESTPUNKTSNAT.P*/
+{STARTFORAPP.I}
+
+DEFINE TEMP-TABLE eposttemp NO-UNDO
+   FIELD EPOST AS CHARACTER
+   FIELD GEPOST AS CHARACTER
+   FIELD BOLAG AS CHARACTER
+   FIELD MEDD AS CHARACTER
+   INDEX EPOST EPOST.
+
+
+DEFINE VARIABLE skick AS LOGICAL NO-UNDO.
+DEFINE VARIABLE efel AS CHARACTER FORMAT "X(30)" NO-UNDO.
+DEFINE VARIABLE servervar AS CHARACTER LABEL "Smtp Server" NO-UNDO.
+DEFINE VARIABLE franvar AS CHARACTER NO-UNDO.
+
+
+
+{NAMNDB.I}
+
+{SMTPDEF3.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+IF namndb() = "UTBI" THEN RETURN.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT FORETAG.FORETAG).
+IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+   {SMTPFRANELPOOL.I}
+END.
+ELSE DO:
+   ASSIGN
+   franvar = "elpool.ume@elpool.se"
+   servervar = CHR(115) + CHR(109) + CHR(116) + CHR(112) + CHR(46) + CHR(116) + CHR(101) + CHR(108) + CHR(101) + CHR(99) + CHR(111) + CHR(109) + CHR(51) + CHR(46) + CHR(110) + CHR(101) + CHR(116) .
+END.
+
+EMPTY TEMP-TABLE eposttemp NO-ERROR. 
+CREATE eposttemp.   
+eposttemp.EPOST = "Godsmottagning@sundsvallelnat.se".
+
+OPEN QUERY utq FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = 9 AND MTRLDEP.LAGER = TRUE USE-INDEX ENR NO-LOCK.
+GET FIRST utq NO-LOCK.
+DO WHILE AVAILABLE(MTRLDEP): 
+   IF MTRLDEP.SALDO < MTRLDEP.BESTPUNKT THEN DO:             
+      DO TRANSACTION:
+         FIND FIRST eposttemp  NO-ERROR.
+         IF AVAILABLE eposttemp THEN DO:
+               eposttemp.MEDD = eposttemp.MEDD +  MTRLDEP.ENR + " " + SUBSTRING(MTRLDEP.BENAMNING,1,30) + 
+            " BEST.P:" + STRING(MTRLDEP.BESTPUNKT)  + " SALDO:" + STRING(MTRLDEP.SALDO) + CHR(10).               
+            FIND FIRST BESTDEP WHERE BESTDEP.DEPNR = 9 AND  BESTDEP.LEVDATUM = ? AND BESTDEP.ENR = MTRLDEP.ENR AND BESTDEP.BERED = FALSE AND BESTDEP.LEVNAMN = "" NO-LOCK NO-ERROR.
+            IF AVAILABLE BESTDEP THEN DO:
+               eposttemp.MEDD = eposttemp.MEDD + "OBS! DET FINNS BESTÄLLNINGAR PÅ DENNA ARTIKEL SOM EJ ÄNNU ÄR LEVERERAD" + CHR(10).            
+            END.
+         END.                            
+      END.
+   END.   
+   GET NEXT utq NO-LOCK.
+END.                    
+CLOSE QUERY utq.  
+RUN emedd_UI.
+
+PROCEDURE emedd_UI.
+   /*DEFINE VARIABLE ctillvar AS CHARACTER LABEL "Kopia" NO-UNDO.*/
+  
+   FOR EACH eposttemp:  
+   
+      ASSIGN 
+      mailhub             = servervar     
+      EmailTo             = eposttemp.EPOST 
+      EmailFrom           = franvar
+      EmailCC             = ""
+      Attachmentstyp      = ""
+      LocalFiles          = ""
+      Subject             = "Enr under beställningspunkt för lager 9" 
+      Bodysmtp            = eposttemp.MEDD
+      MIMEHeader          = "type=text/plain/html:charset=iso-8859-1:filetype=ascii"
+      BodyType            = "".      
+      IF Guru.Konstanter:globforetag = "SNAT" THEN EmailFrom = "@guru.sundsvallelnat.se".      
+      RUN smtpmail_UI (INPUT FALSE).
+      IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+         /*SNATBERGET*/
+         OUTPUT TO D:\DELAD\PRO10S\mailrappbestpunkt.txt APPEND.
+         PUT UNFORMATTED TODAY " " oSuccessful " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         OUTPUT CLOSE. 
+      END.
+      IF oSuccessful = TRUE THEN DO TRANSACTION:
+         oSuccessful = FALSE.               
+      END.      
+      ELSE DO:         
+         IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+            /*SNATBERGET*/
+            OUTPUT TO D:\delad\pro10s\bestpunktfel.txt APPEND. 
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.         
+         OUTPUT CLOSE.
+    
+      END.
+   END.     
+END PROCEDURE.  
+
+ 
+   
+
+
+

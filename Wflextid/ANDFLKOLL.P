@@ -1,0 +1,188 @@
+/*ANDFLKOLL.P*/
+&Scoped-define NEW     
+&Scoped-define SHARED 
+{FLEXTAB.I}
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+{REGVAR.I}
+{SOKDEF.I}
+DEFINE INPUT PARAMETER vart AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER inregdatum AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER CMB_KNAPP AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER varaonr AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER vardelnr AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER FILL-IN_TID AS DECIMAL NO-UNDO.
+DEFINE INPUT PARAMETER FILL-IN_ORSAK AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER inglobanv AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER sregstart AS DECIMAL NO-UNDO.
+DEFINE INPUT PARAMETER sregslut AS DECIMAL NO-UNDO.
+DEFINE INPUT PARAMETER sregdagnamn AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER sregvnr AS INTEGER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE VARIABLE flrec AS RECID NO-UNDO. 
+DEFINE VARIABLE fldrec AS RECID NO-UNDO. 
+DEFINE VARIABLE flexstart AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE status-ok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE sparomrade AS CHARACTER NO-UNDO.
+DEFINE VARIABLE flexmost AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE flexmosl AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE seku AS INTEGER NO-UNDO.
+DEFINE VARIABLE fstart AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE fslut AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE flkoll AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE maxarbkort AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE foremaxarbkort AS DECIMAL NO-UNDO.
+DEFINE BUFFER flexbuff FOR FLEXTID.
+DEFINE BUFFER tidbuff FOR TIDREGITAB.
+DEFINE VARIABLE globanv AS CHARACTER NO-UNDO.
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+ASSIGN
+globanv = inglobanv
+regdatum = inregdatum
+regstart = sregstart
+regslut = sregslut
+regdagnamn = sregdagnamn
+regvnr = sregvnr. 
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+persrec = RECID(PERSONALTAB).
+
+
+FIND FIRST AONRTAB WHERE AONRTAB.AONR = varaonr AND AONRTAB.DELNR = vardelnr
+NO-LOCK NO-ERROR.
+IF vart = 1 THEN DO:
+   
+   /* arbetstidsförkortning*/
+   IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:            
+      DEFINE BUFFER tidbuff10 FOR TIDREGITAB.
+      DEFINE VARIABLE totarbkort AS DECIMAL NO-UNDO.
+      DEFINE VARIABLE totarbkorti AS DECIMAL NO-UNDO.
+      DEFINE VARIABLE avarfor AS INTEGER NO-UNDO.
+      IF AVAILABLE AONRTAB AND AONRTAB.AONR = "160" THEN DO:              
+         totarbkort = 0.                       
+         FOR EACH tidbuff10 WHERE tidbuff10.PERSONALKOD = PERSONALTAB.PERSONALKOD AND tidbuff10.AONR = "160"
+         AND YEAR(tidbuff10.DATUM) = YEAR(regdatum) AND tidbuff10.TIDLOG = TRUE NO-LOCK:
+            totarbkort = totarbkort + klock100(tidbuff10.TOTALT).
+         END.         
+         totarbkorti = totarbkort.         
+         IF CMB_KNAPP = "ANNAT IN" THEN DO:
+            ASSIGN 
+            nytid = regstart.
+            RUN TIMSEK.P.
+            regstartsek = sekunder.
+            nytid = FILL-IN_TID.
+            RUN TIMSEK.P.
+            regslutsek = sekunder. 
+            RUN TOTTID.P.            
+            totarbkort = totarbkort +  klock100(nytid).
+         END.
+         IF CMB_KNAPP = "ANNAT UT" OR CMB_KNAPP = "IN" OR CMB_KNAPP = "Flex in" THEN DO:
+            ASSIGN 
+            nytid = FILL-IN_TID.
+            RUN TIMSEK.P.
+            regstartsek = sekunder.
+            nytid = regslut.
+            RUN TIMSEK.P.
+            regslutsek = sekunder. 
+            RUN TOTTID.P.            
+            totarbkort = totarbkort +  klock100(nytid).
+         END.      
+         /*atkgräns*/ 
+         IF Guru.Konstanter:globforetag = "gkal"  THEN foremaxarbkort = 63.
+         ELSE IF Guru.Konstanter:globforetag = "SNAT"  THEN foremaxarbkort = 63.
+         ELSE IF Guru.Konstanter:globforetag = "SUND"  THEN foremaxarbkort = 54.
+         ELSE IF Guru.Konstanter:globforetag = "LULE"  THEN foremaxarbkort = 63.            
+         ELSE foremaxarbkort = 63.
+           
+         avarfor = 0.
+         IF Guru.Konstanter:globforetag = "gkal" OR Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "elpa" THEN DO:   
+            RUN havafor (INPUT PERSONALTAB.PERSONALKOD, OUTPUT avarfor).                        
+         END.         
+         IF avarfor > 0 THEN maxarbkort = avarfor.
+         ELSE maxarbkort = foremaxarbkort.
+         
+         IF totarbkort > maxarbkort THEN DO:            
+            CREATE felmeddtemp.  
+            felmeddtemp.felmedd = "Max " + STRING(maxarbkort) + " timmar per år får skrivas på arbetstidförkortning. Exklusive denna registrering har du skrivit "  + STRING(totarbkorti) + "timmar. Vill du ändå registrera ?".
+            RETURN.                  
+         END.            
+      END.  
+      IF AVAILABLE AONRTAB AND AONRTAB.AONR = "161" THEN DO:              
+         totarbkort = 0.                       
+         FOR EACH tidbuff10 WHERE tidbuff10.PERSONALKOD = PERSONALTAB.PERSONALKOD AND tidbuff10.AONR = "161"
+         AND YEAR(tidbuff10.DATUM) = YEAR(regdatum) AND tidbuff10.TIDLOG = TRUE NO-LOCK:
+            totarbkort = totarbkort + klock100(tidbuff10.TOTALT).
+         END.         
+         totarbkorti = totarbkort.         
+         IF CMB_KNAPP = "ANNAT IN" THEN DO:
+            ASSIGN 
+            nytid = regstart.
+            RUN TIMSEK.P.
+            regstartsek = sekunder.
+            nytid = FILL-IN_TID.
+            RUN TIMSEK.P.
+            regslutsek = sekunder. 
+            RUN TOTTID.P.            
+            totarbkort = totarbkort +  klock100(nytid).
+         END.
+         IF CMB_KNAPP = "ANNAT UT" OR CMB_KNAPP = "IN" THEN DO:
+            ASSIGN 
+            nytid = FILL-IN_TID.
+            RUN TIMSEK.P.
+            regstartsek = sekunder.
+            nytid = regslut.
+            RUN TIMSEK.P.
+            regslutsek = sekunder. 
+            RUN TOTTID.P.            
+            totarbkort = totarbkort +  klock100(nytid).
+         END.         
+         avarfor = 0.
+         IF Guru.Konstanter:globforetag = "gkal" OR Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "elpa" THEN DO:   
+            RUN havafor (INPUT PERSONALTAB.PERSONALKOD, OUTPUT avarfor).                        
+         END.         
+         /*atkgräns*/
+         IF avarfor > 0 THEN maxarbkort = avarfor.
+         ELSE  maxarbkort = 27.                          
+         IF totarbkort > maxarbkort THEN DO:            
+            CREATE felmeddtemp.  
+            felmeddtemp.felmedd = "Max " + STRING(maxarbkort) + " timmar per år får skrivas på arbetstidförkortning. Exklusive denna registrering har du skrivit"  + STRING(totarbkorti) + "timmar. Vill du ändå registrera ?".
+            RETURN.                  
+         END.            
+      END.    
+      IF AVAILABLE AONRTAB AND AONRTAB.AONR = "135" THEN DO:              
+         totarbkort = 0.                       
+         FOR EACH tidbuff10 WHERE tidbuff10.PERSONALKOD = PERSONALTAB.PERSONALKOD AND tidbuff10.AONR = "135"
+         AND YEAR(tidbuff10.DATUM) = YEAR(regdatum) AND tidbuff10.TIDLOG = TRUE NO-LOCK:
+            totarbkort = totarbkort + klock100(tidbuff10.TOTALT).
+         END.         
+         totarbkort = totarbkorti.
+         IF CMB_KNAPP = "ANNAT IN" THEN DO:
+            totarbkort = totarbkort +  klock100(FILL-IN_TID) - klock100(regstart).
+         END.
+         IF CMB_KNAPP = "ANNAT UT" THEN DO:
+            totarbkort = totarbkort +  klock100(regslut) - klock100(FILL-IN_TID).
+         END.
+         IF CMB_KNAPP = "IN" THEN DO:
+            totarbkort = totarbkort +  klock100(regslut) - klock100(FILL-IN_TID).
+         END.                          
+      END.    
+   END.
+END.
+{AVAFOR.I}
+
+
+

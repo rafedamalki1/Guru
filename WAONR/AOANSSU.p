@@ -1,0 +1,36 @@
+/*AOANSSU.P*/
+DEFINE INPUT PARAMETER vaonr LIKE AONRTAB.AONR NO-UNDO.
+DEFINE INPUT PARAMETER vdelnr LIKE AONRTAB.DELNR NO-UNDO.
+DEFINE INPUT PARAMETER vort LIKE AONRTAB.ORT NO-UNDO.
+DEFINE INPUT PARAMETER aranv LIKE PERSONALTAB.PERSONALKOD NO-UNDO.
+DEFINE INPUT PARAMETER glanv LIKE ANVANDARE.ANVANDARE NO-UNDO.
+DEFINE BUFFER anvbuff FOR ANVANDARE.
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+RUN medd_UI.
+
+PROCEDURE medd_UI:  
+   FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = glanv NO-LOCK NO-ERROR.   
+   FIND FIRST anvbuff WHERE anvbuff.PERSONALKOD = aranv 
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE ANVANDARE THEN DO:      
+      IF AVAILABLE anvbuff AND anvbuff.ANVANDARE NE ANVANDARE.ANVANDARE THEN DO TRANSACTION:         
+         CREATE MEDDELANDE.
+         ASSIGN               
+         MEDDELANDE.SANDARE = glanv            
+         MEDDELANDE.EMOTAGET = FALSE
+         MEDDELANDE.SDATUM = TODAY
+         MEDDELANDE.MEDD = "Detta projekt har dig som arbetsansvarig:" + CHR(10) 
+         /*MEDDELANDE.MEDD = "Detta " + CAPS(Guru.Konstanter:gaok) + " har dig som arbetsansvarig:" + CHR(10) */
+         MEDDELANDE.MOTTAGARE = anvbuff.ANVANDARE
+         MEDDELANDE.MEDD = MEDDELANDE.MEDD + " " + vaonr + " " +  
+         STRING(vdelnr,Guru.Konstanter:varforetypchar[1]) + " " + vort +  CHR(10).      
+      END.
+      RELEASE MEDDELANDE.
+   END.
+END PROCEDURE.

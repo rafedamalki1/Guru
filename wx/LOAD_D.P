@@ -1,0 +1,515 @@
+DEFINE VARIABLE file-name AS CHARACTER NO-UNDO.
+DEFINE VARIABLE  dot-d-dir AS CHARACTER NO-UNDO.
+file-name = "FASTANM.d".
+dot-d-dir = "F:\PRO8\GURU\WFAST".
+
+/*{ prodict/dictvar.i NEW }*/
+DEFINE NEW SHARED VARIABLE dict_rog    AS LOGICAL               NO-UNDO.
+DEFINE NEW SHARED VARIABLE dict_trans  AS LOGICAL               NO-UNDO.
+DEFINE NEW SHARED VARIABLE dict_dirty  AS LOGICAL               NO-UNDO.
+
+DEFINE NEW SHARED VARIABLE cache_dirty AS LOGICAL  INITIAL TRUE NO-UNDO.
+
+DEFINE NEW SHARED VARIABLE cache_db#   AS INTEGER   INITIAL 0   NO-UNDO.
+DEFINE NEW SHARED VARIABLE cache_db_s  AS CHARACTER EXTENT 64   NO-UNDO.
+DEFINE NEW SHARED VARIABLE cache_db_l  AS CHARACTER EXTENT 64   NO-UNDO.
+DEFINE NEW SHARED VARIABLE cache_db_p  AS CHARACTER EXTENT 64   NO-UNDO.
+DEFINE NEW SHARED VARIABLE cache_db_t  AS CHARACTER EXTENT 64   NO-UNDO.
+DEFINE NEW SHARED VARIABLE cache_db_e  AS CHARACTER EXTENT 64   NO-UNDO.
+/* s=schema_db, l=logical_db, p=physical_db, t=db_type(int), e=db_type(ext)*/
+
+DEFINE NEW SHARED VARIABLE cache_file# AS INTEGER  INITIAL 0    NO-UNDO.
+DEFINE NEW SHARED VARIABLE cache_file  AS CHARACTER EXTENT 2048 NO-UNDO.
+
+DEFINE NEW SHARED VARIABLE drec_db     AS RECID    INITIAL ?    NO-UNDO.
+DEFINE NEW SHARED VARIABLE drec_file   AS RECID    INITIAL ?    NO-UNDO.
+
+/* ism_typ.p needs the RECID of the current _Db
+ * TYY uses drec_db; GUI uses s_DbRecId
+ * so we define s_DbRecId here too, it has no real value for TTY-side
+ * ism_udt (called from ism_typ.p) uses s_DbRecId only if _Db(drec_db) 
+ * can't be found
+ */
+DEFINE NEW SHARED VARIABLE s_DbRecId   AS RECID    INITIAL ?    NO-UNDO.
+/*
+&IF "{&DATASERVER}" = "YES" OR "{&ORACLE-DATASERVER}" = "YES"
+ &THEN
+  { prodict/ora/ora_lkdf.i 
+      &new = " NEW"
+      } /* Defines temp-table s_ttb_link for DATASERVER*/
+  {prodict/gate/gatework.i 
+    &new        = " NEW"
+    &selvartype = "NEW shared variable s"
+    &options    = "initial ""*"" "
+    } /* Defines: temp-table gate-work */
+ &ENDIF
+ 
+*/
+
+
+/*{ prodict/user/uservar.i NEW }*/
+/*{adecomm/adestds.i}*/
+&GLOBAL ADESTDSI "" /* allow to check if this file has already been included */
+
+/* Include the file extensions and application names file */
+
+/*{adecomm/adefext.i}*/
+&GLOBAL ADEFEXTI "" /* allow to check if this file has already been included */
+
+/* ------------------------ APPLICATION NAMES  ----------------------------- */
+
+/* Application Names */
+
+&GLOBAL-DEFINE  UIB_NAME 	"User Interface Builder"
+&GLOBAL-DEFINE  UIB_SHORT_NAME  UIB
+
+&GLOBAL-DEFINE  FF_NAME         "FreezeFrame"
+
+/* --------------------------- TEMP FILE EXTENSIONS ------------------------ */
+
+&GLOBAL-DEFINE  STD_TYP_UIB_DUP	      "dp"
+&GLOBAL-DEFINE  STD_TYP_UIB_CLIP      "cb"
+&GLOBAL-DEFINE  STD_TYP_UIB_LAST      "ef"
+&GLOBAL-DEFINE  STD_TYP_UIB_RADIO     "rb"
+&GLOBAL-DEFINE  STD_TYP_UIB_DBFIELD   "db"
+&GLOBAL-DEFINE  STD_TYP_UIB_COMPILE   "cf"
+&GLOBAL-DEFINE  STD_TYP_UIB_TEMPLATE  "ct"
+&GLOBAL-DEFINE  STD_EXT_UIB           ".uib"
+&GLOBAL-DEFINE  STD_EXT_UIB_QS        ".qs"
+&GLOBAL-DEFINE  STD_EXT_UIB_WVX       ".wrx"
+
+&GLOBAL-DEFINE  STD_EXT_FF            ".ff"
+
+
+DEFINE NEW GLOBAL SHARED VARIABLE initialized_adestds AS LOGICAL 
+       INITIAL no NO-UNDO.
+   /* designates whether the resource file has already been read for these */
+   /* files */
+
+/* ---------------------------- ADE COLORS --------------------------------- */
+/*        Standard Color Variables to be used by ADE dialog boxes            */
+
+/* used as the bgcolor for the section dividers (title bands) */
+DEFINE NEW GLOBAL SHARED VARIABLE std_div_fgcolor AS INTEGER 
+       INITIAL 15 NO-UNDO. /* white */
+DEFINE NEW GLOBAL SHARED VARIABLE std_div_bgcolor AS INTEGER 
+       INITIAL 1  NO-UNDO. /* blue */
+        
+/* used as the bgcolor for the button section separator (rectangle 
+   behind the OK CANCEL row) */
+DEFINE NEW GLOBAL SHARED VARIABLE std_okbox_fgcolor AS INTEGER 
+       INITIAL 1 NO-UNDO. /* blue */
+DEFINE NEW GLOBAL SHARED VARIABLE std_okbox_bgcolor AS INTEGER 
+       INITIAL 8 NO-UNDO. /* grey */
+        
+/* used as the bgcolor/fgcolor for any fillin fields or editor widgets used
+   for standard data entry */
+DEFINE NEW GLOBAL SHARED VARIABLE std_fillin_fgcolor AS INTEGER 
+       INITIAL 0  NO-UNDO. /* black */
+DEFINE NEW GLOBAL SHARED VARIABLE std_fillin_bgcolor AS INTEGER 
+       INITIAL 8  NO-UNDO. /* gray */
+        
+/* used as the bgcolor/fgcolor for any editor widgets used for extended
+   4GL program entry like the section editor and procedure editor */
+DEFINE NEW GLOBAL SHARED VARIABLE std_ed4gl_fgcolor AS INTEGER 
+       INITIAL ?  NO-UNDO. /* default */
+DEFINE NEW GLOBAL SHARED VARIABLE std_ed4gl_bgcolor AS INTEGER 
+       INITIAL ?  NO-UNDO.  /* default */
+        
+/* used as the bgcolor/fgcolor for any editor widgets not used for extended
+   4GL program entry like the query builder or dictionary validation */
+DEFINE NEW GLOBAL SHARED VARIABLE std_ed4gl_small_fgcolor AS INTEGER 
+       INITIAL 0  NO-UNDO. /* black */
+DEFINE NEW GLOBAL SHARED VARIABLE std_ed4gl_small_bgcolor AS INTEGER 
+       INITIAL 8  NO-UNDO. /* grey */
+        
+/* ---------------------------- ADE FONTS ---------------------------------- */
+/* Standard Font Variables to be used by ADE applications (and dialog boxes) */
+
+DEFINE NEW GLOBAL SHARED VARIABLE fixed_font AS INTEGER INITIAL 0 NO-UNDO.
+   /* used where a fixed font is needed (eg. in a selection list) */
+   /* (this will be FONT 0).  It should be the same as the        */
+   /* DefaultFixedFont */
+
+DEFINE NEW GLOBAL SHARED VARIABLE std_font AS INTEGER INITIAL 1 NO-UNDO.
+   /* proportional font used for most text and input fields (FONT 1) */
+   /* (This should be the same as FONT ? = Default Font).  We need   */
+   /* this if we every want to make a integer fill-in in the default */
+   /* variable font. */
+
+DEFINE NEW GLOBAL SHARED VARIABLE editor_font AS INTEGER INITIAL 2 NO-UNDO.
+   /* used for most ADE editor widgets (FONT 2).  Usually this will  */
+   /* be a smaller fixed font */
+   /* Used ONLY for editor-widgets that will contain 4GL-Code! All */
+   /* other editor-widgets are to be treated like standard fill-ins */
+
+/* ------------------- GENERIC MARGINS AND WIDTHS  ------------------------- */
+/* generic and button specific minimum margins within a frame */
+
+&GLOBAL VM_WID        0.1 /* minimum vertical margin between widgets within
+                             the same group  - only required for widgets 
+                             that would otherwise touch like fillins under
+                             Windows */
+
+&IF "{&WINDOW-SYSTEM}" = "TTY" &THEN
+ &GLOBAL VM_WIDG      1   /* minimum vertical margin between widget groups */
+&ELSE
+ &GLOBAL VM_WIDG      0.5 /* minimum vertical margin between widget groups */
+&ENDIF
+
+&GLOBAL HM_WIDG       2.5 /* minimum horizontal margin between widget groups */
+&GLOBAL HM_BTN        0.5 /* horizontal margin between buttons in the same 
+                             group */
+&GLOBAL HM_BTNG       2.5 /* horizontal margin between button groups */
+
+&IF "{&WINDOW-SYSTEM}" = "OSF/Motif" &THEN
+ &GLOBAL HM_DBTN      0   /* horizontal margin between default buttons in the 
+                             same group. Def. btn. mote is more than enough */
+ &GLOBAL HM_DBTNG     2   /* horizontal margin between default button groups */
+&ELSE
+ &GLOBAL HM_DBTN      {&HM_BTN}  /* horizontal margin between default buttons 
+      	       	     	      	    in the same group */
+ &GLOBAL HM_DBTNG     {&HM_BTNG} /* horizontal margin between default button 
+      	       	     	      	    groups */
+&ENDIF
+
+/* generic margins relating to the frame */
+&IF "{&WINDOW-SYSTEM}" = "TTY" &THEN
+ &GLOBAL TFM_WID      1   /* minimum top frame margin between the top of the 
+                             frame and any widget */
+ &GLOBAL TFM_ROW      2   /* row that corresponds to a widget after skipping
+                             TFM_WID */
+&ELSE
+ &GLOBAL TFM_WID      0.5 /* minimum top frame margin between the top of the 
+                             frame and any widget */
+ &GLOBAL TFM_ROW      1.5 /* row that corresponds to a widget after skipping
+                             TFM_WID */
+&ENDIF
+
+&GLOBAL HFM_WID       1   /* minimum horizontal frame margin between the left
+                             and right sides of the frame and any widget */
+
+/* ----------------- OK CANCEL HELP BUTTON STANDARDS  ---------------------- */
+
+/* 
+** standards particular to the ok button row and the button separator 
+*/
+
+&IF "{&WINDOW-SYSTEM}" = "TTY" &THEN
+ &GLOBAL W_OKBTN      4  /* width  of the ok button and others in that row */
+ &GLOBAL H_OKBTN      1.00 /* height of the ok button and others in that row */
+&ELSEIF "{&WINDOW-SYSTEM}" = "MS-WINDOWS" &THEN
+ &GLOBAL W_OKBTN      10 /* width  of the ok button and others in that row */
+ &GLOBAL H_OKBTN      1.00 /* height of the ok button and others in that row */
+&ELSE
+ &GLOBAL W_OKBTN      10 /* width  of the ok button and others in that row */
+ &GLOBAL H_OKBTN      1.17 /* height of the ok button and others in that row */
+&ENDIF
+
+/* Since there's no button box on TTY or Motif, OK margin can be smaller. */
+&IF "{&WINDOW-SYSTEM}" = "MS-WINDOWS" &THEN
+ &GLOBAL AT_OKBTN     AT 3 /* leave a 3 PPU margin between the ok button and 
+                              the left edge of the frame */
+&ELSE
+ &GLOBAL AT_OKBTN     AT 2 /* leave a 2 PPU margin between the ok button and 
+                              the left edge of the frame */
+&ENDIF
+
+/* use this format phrase for the ok button and others in that row on GUI */
+&IF "{&WINDOW-SYSTEM}" <> "TTY" &THEN
+ &GLOBAL STDPH_OKBTN     SIZE {&W_OKBTN} BY {&H_OKBTN} MARGIN-EXTRA DEFAULT
+&ELSE
+ &GLOBAL STDPH_OKBTN
+&ENDIF
+
+/* ---------------------------- OK BOX STANDARDS  -------------------------- */
+
+/* standards for the ok box for the bottom row of buttons */
+&GLOBAL VM_OKBOX      0.25 /* vertical margin between the ok box and any widget
+                            above, and the ok box and the bottom of the frame */
+&GLOBAL AT_OKBOX      AT 2 /* leave a 1 PPU margin between the left edge of the
+                              ok box and the frame */
+&GLOBAL IVM_OKBOX     0.25 /* inner vertical margin for the button separator 
+                              Windows: The inner margin between the buttons 
+                              and the top or bottom of the sullivan box. */
+
+&IF "{&WINDOW-SYSTEM}" = "OSF/Motif" &THEN
+ &GLOBAL HFM_OKBOX    0 /* effectively, the horizontal frame margin between 
+      	       	     	 frame and help btn since there's no ok box */
+&ELSE
+ &GLOBAL HFM_OKBOX    1 /* horizontal frame margin for the ok box */
+&ENDIF
+                                                                         
+&IF "{&WINDOW-SYSTEM}" = "MS-WINDOWS" &THEN
+ &GLOBAL OKBOX        1
+&ELSE
+ &GLOBAL OKBOX        0  /* don't do for Motif or TTY */
+&ENDIF 
+
+/* use this format phrase for the rectangle used as the ok box */
+&GLOBAL STDPH_OKBOX   BGC std_okbox_bgcolor FGC std_okbox_fgcolor SIZE {&IVM_OKBOX} BY {&IVM_OKBOX} EDGE-PIXELS 2
+
+/* ---------------------- OTHER STANDARD PHRASES  -------------------------- */
+
+/* Use this for fillin fields, or any editor widgets that are for data entry. 
+   Do not use for editor widgets used for 4GL program entry. (see below) */
+&GLOBAL STDPH_FILL   bgc std_fillin_bgcolor fgc std_fillin_fgcolor 
+&GLOBAL STDPH_COMBO  {&STDPH_FILL} 
+&GLOBAL STDPH_EDITOR {&STDPH_FILL}
+
+/* Use this phrase for any editor widget that is used for 4GL program entry,
+   and that widget is the focus for data entry.  This is the value the 
+   customers will be able to modify in their PROGRESS.INI files.  */
+&GLOBAL STDPH_ED4GL       bgc std_ed4gl_bgcolor fgc std_ed4gl_fgcolor font editor_font 
+
+/* Use this phrase for any editor widget that is used for 4GL program entry,
+   and that widget is NOT the focus for data entry. */
+&GLOBAL STDPH_ED4GL_SMALL bgc std_ed4gl_small_bgcolor fgc std_ed4gl_small_fgcolor font editor_font 
+
+/* Use this phrase when you want to force a fixed font at compile time on
+   a selection list or editor widget. */
+&GLOBAL STDPH_FIX    FONT 0
+
+/* Use this phrase for section dividers (title bands). */
+&GLOBAL STDPH_SDIV   bgc std_div_bgcolor fgc std_div_fgcolor 
+
+/* Use this phrase for any non-ok buttons. */
+&GLOBAL STDPH_BTN    /* not mandated */
+
+DEFINE NEW SHARED VARIABLE user_dbname   AS CHARACTER           NO-UNDO.
+DEFINE NEW SHARED VARIABLE user_dbtype   AS CHARACTER           NO-UNDO.
+DEFINE NEW SHARED VARIABLE user_env      AS CHARACTER EXTENT 35 NO-UNDO.
+/* NOTE: this variable-definition has to be in sync with adedict/dictvar.i */
+DEFINE NEW SHARED VARIABLE user_filename AS CHARACTER           NO-UNDO.
+DEFINE NEW SHARED VARIABLE user_hdr      AS CHARACTER           NO-UNDO.
+DEFINE NEW SHARED VARIABLE user_menupos  AS INTEGER   INITIAL ? NO-UNDO.
+DEFINE NEW SHARED VARIABLE user_path     AS CHARACTER           NO-UNDO.
+DEFINE NEW SHARED VARIABLE user_trans    AS CHARACTER           NO-UNDO.
+DEFINE NEW SHARED VARIABLE user_status   AS CHARACTER INITIAL ? NO-UNDO.
+
+DEFINE BUTTON btn_Ok     LABEL "OK"     {&STDPH_OKBTN} AUTO-GO.
+DEFINE BUTTON btn_Cancel LABEL "Cancel" {&STDPH_OKBTN} AUTO-ENDKEY.
+
+DEFINE NEW SHARED STREAM logfile.
+DEFINE NEW SHARED VARIABLE logfile_open AS LOGICAL NO-UNDO INITIAL false.
+
+&IF "{&WINDOW-SYSTEM}" <> "TTY" &THEN 
+   DEFINE RECTANGLE rect_Btns {&STDPH_OKBOX}.
+   DEFINE BUTTON    btn_Help LABEL "&Help" {&STDPH_OKBTN}.
+
+   &GLOBAL-DEFINE   HLP_BTN  &HELP = "btn_Help"
+   &GLOBAL-DEFINE   HLP_BTN_NAME btn_Help
+   &GLOBAL-DEFINE   CAN_BTN  /* we have one but it's not passed to okrun.i */
+   &GLOBAL-DEFINE   WIDG_SKIP SKIP({&VM_WIDG})
+&ELSE
+   &GLOBAL-DEFINE   HLP_BTN  /* no help for tty */
+   &GLOBAL-DEFINE   HLP_BTN_NAME /* no help for tty */
+   &GLOBAL-DEFINE   CAN_BTN  &CANCEL = "btn_Cancel" /* so btn can be centered */
+   &GLOBAL-DEFINE   WIDG_SKIP SKIP /*Often don't need and can't afford blnklin*/
+&ENDIF
+
+
+&IF "{&WINDOW-SYSTEM}" <> "TTY"
+ AND "{&DICTG}" <> "dictg"
+ &THEN 
+   /* Help context defines and the name of the help file */
+  /* {prodict/admnhlp.i}*/
+   &global-define ADM_HELP_FILE "adehelp/admin.hlp"  
+&ENDIF
+
+
+DEFINE VARIABLE c           AS CHARACTER NO-UNDO INITIAL "".
+DEFINE VARIABLE i           AS INTEGER   NO-UNDO.
+DEFINE VARIABLE l_db-name   AS CHARACTER NO-UNDO.
+DEFINE VARIABLE l_dump-name AS CHARACTER NO-UNDO.
+DEFINE VARIABLE l_for-type  AS CHARACTER NO-UNDO.
+DEFINE VARIABLE l_int       AS INTEGER   NO-UNDO.
+DEFINE VARIABLE l_item      AS CHARACTER NO-UNDO.
+DEFINE VARIABLE l_list      AS CHARACTER NO-UNDO.
+DEFINE VARIABLE save_ab     AS LOGICAL   NO-UNDO.
+
+define temp-table ttb_dump
+        field db        as character
+        field tbl       as character
+        index upi is primary unique db tbl.
+        
+
+/****** general initialisations ***********************************/
+
+assign
+  save_ab                   = SESSION:APPL-ALERT-BOXES
+  SESSION:APPL-ALERT-BOXES  = NO
+  user_env[3]               = "" /* "MAP <name>" or "NO-MAP" OR "" */
+  user_env[4]               = "0"
+  dot-d-dir                 = ( if dot-d-dir matches "*" + "/"
+                                or dot-d-dir matches "*" + ".d"
+                                or dot-d-dir    =    ""
+                                then dot-d-dir 
+                                else dot-d-dir + "/"
+                              ).
+
+
+/****** 1. step: create temp-table from input file-list ***********/
+
+if file-name = "ALL"
+ then do:  /* load ALL files of ALL dbs */
+  for each DICTDB._DB:
+    create ttb_dump.
+    assign
+      ttb_dump.db  = ( if DICTDB._DB._DB-Type = "PROGRESS" 
+                        THEN LDBNAME("DICTDB")
+                        ELSE DICTDB._DB._Db-name
+                     )
+      ttb_dump.tbl = "ALL".
+    end.    
+  end.     /* load ALL fiels of ALL dbs */
+  
+ else do:  /* load SOME files of SOME dbs */
+ 
+  assign l_list = file-name.
+  repeat i = 1 to num-entries(l_list):    
+    create ttb_dump.
+    assign
+      l_item = entry(i,l_list)
+      l_int  = index(l_item,".").
+    if l_int = 0
+     then assign
+      ttb_dump.db  = ""
+      ttb_dump.tbl = l_item.
+     else /*assign
+      ttb_dump.db  = substring(l_item,1,l_int - 1,"character")
+      ttb_dump.tbl = substring(l_item,l_int + 1, -1,"character").*/
+      assign
+      
+      ttb_dump.tbl = substring(l_item,1,l_int - 1,"character").
+      
+      DISPLAY ttb_dump.db ttb_dump.tbl.
+   end.
+    
+  end.     /* dump SOME files of SOME dbs */
+
+
+/****** 2. step: prepare user_env[1] for this _db-record **********/  
+for each DICTDB._Db:
+
+  assign
+    l_db-name   = ( if DICTDB._DB._DB-Type = "PROGRESS" 
+                     THEN LDBNAME("DICTDB")
+                     ELSE _DB._DB-name
+                  )
+    user_env[1] = ""
+    l_for-type  = ( if CAN-DO("PROGRESS,RMS,CISAM",DICTDB._DB._DB-Type) 
+                     THEN ?
+                     ELSE "TABLE,VIEW"
+                  ).
+/* to generate the list of tables of this _db-record to be loaded and
+ * assign it to user_env[1] we
+ * a) try to use all tables WITHOUT db-specifyer
+ */
+ FOR EACH ttb_dump:
+ ttb_dump.db = l_db-name.
+ END.
+  for each ttb_dump
+    where ttb_dump.db = ""
+    while user_env[1] <> ",all":
+    if ttb_dump.tbl <> "all"
+     then do:
+      find first DICTDB._File of DICTDB._Db
+        where DICTDB._File._File-name = ttb_dump.tbl
+        no-lock no-error.
+      if available DICTDB._File
+       and ( can-do(l_for-type,DICTDB._File._For-type)
+       or    l_for-type = ? )
+       then assign
+        l_dump-name = DICTDB._File._dump-name
+        user_env[1] = user_env[1] + "," + ttb_dump.tbl.
+      end.
+     else assign user_env[1] = ",all".
+    end.
+
+/* b) try to use all tables WITH db-specifyer */
+ FOR EACH ttb_dump:
+ DISPLAY ttb_dump.
+ END.
+  for each ttb_dump
+    where ttb_dump.db = l_db-name
+    while user_env[1] <> ",all":
+    if ttb_dump.tbl <> "all"
+     then do:
+      find first DICTDB._File of DICTDB._Db
+        where DICTDB._File._File-name = ttb_dump.tbl
+        no-lock no-error.
+      if available DICTDB._File
+       and ( can-do(l_for-type,DICTDB._File._For-type)
+       or    l_for-type = ? )
+       then assign
+        l_dump-name = DICTDB._File._dump-name
+        user_env[1] = user_env[1] + "," + ttb_dump.tbl.
+      end.
+     else assign user_env[1] = ",all".
+    end.
+    
+/* c) if either "all" or "all of this db" then we take every file
+ *    of the current _Db
+ */
+  IF user_env[1] = ",all"
+   then do:  /* all files of this _Db */
+    for each DICTDB._File
+      WHERE DICTDB._File._File-number > 0
+      AND   DICTDB._File._Db-recid = RECID(_Db)
+      AND   NOT DICTDB._File._Hidden
+      BY    DICTDB._File._File-name:
+      if l_for-type = ?
+       or can-do(l_for-type,DICTDB._File._For-type)
+       then assign
+        l_dump-name = DICTDB._File._dump-name
+        user_env[1] = user_env[1] + "," + DICTDB._File._File-name.
+      END.
+    assign user_env[1] = substring(user_env[1],6,-1,"character").
+    END.     /* all files of this _Db */
+   else assign
+    user_env[1] = substring(user_env[1],2,-1,"character").
+   
+  /* is there something to load into this _db? */
+  if user_env[1] = "" then next.
+  
+
+/****** 3. step: prepare user_env[2] and user_env[5] **************/
+  
+  /* if one file => .d-name otherwise path */
+  if num-entries(user_env[1]) > 1
+   or dot-d-dir matches "*" + ".d"
+   then assign user_env[2] = dot-d-dir.  /* just path or .d-file-name */
+   else assign user_env[2] = dot-d-dir 
+                           +  SUBSTRING(
+                                ( if l_Dump-name = ?
+                                           THEN user_env[1] 
+                                           ELSE l_Dump-name
+                                ), 1, 8, "character" )
+                           + ".d".   /* full path and name of .d-file */
+
+  /* Indicate "y"es to disable triggers for dump of all files */
+  assign user_env[5] = "y".
+  do i = 2 to NUM-ENTRIES(user_env[1]):
+     assign user_env[5] = user_env[5] + ",y".
+     end.
+
+  /* other needed assignments */
+  assign
+    drec_db     = RECID(_Db)
+    user_dbname = if _Db._Db-name = ? THEN LDBNAME("DICTDB")
+                                      ELSE _Db._Db-Name
+    user_dbtype = if _Db._Db-name = ? THEN DBTYPE("DICTDB")
+                                      ELSE _Db._Db-Type.
+
+
+/****** 4. step: the actual loading-process ***********************/
+
+  RUN "prodict/dump/_loddata.p".
+
+  END.    /* all _Db's */
+
+  
+SESSION:APPL-ALERT-BOXES = save_ab.
+RETURN.
+

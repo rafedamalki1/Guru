@@ -1,0 +1,86 @@
+/*
+     Filename: PERSONALAPP.P
+      Created: 2003.11.25 10:07ELPAO     
+     Modified: 
+*/
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{PHMT.I}
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.   
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+PROCEDURE jurp_UI :
+   DEFINE INPUT  PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR jurperstemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR judavdtemp.
+   EMPTY TEMP-TABLE  jurperstemp NO-ERROR. 
+   EMPTY TEMP-TABLE judavdtemp NO-ERROR.
+   IF Guru.Konstanter:varforetypval[18] = 0 OR vem = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)   THEN DO:
+      FOR EACH JURPERS NO-LOCK:
+         CREATE  jurperstemp.
+         BUFFER-COPY JURPERS TO jurperstemp.     
+      END.          
+      FOR EACH AVDELNING WHERE AVDELNING.KOSTMASK = 0 :
+         CREATE judavdtemp.
+         ASSIGN              
+         judavdtemp.AVDELNINGNAMN = AVDELNING.AVDELNINGNAMN
+         judavdtemp.JUDID = AVDELNING.POSTANST
+         judavdtemp.AVDELNINGNR = AVDELNING.AVDELNINGNR.
+      END.
+   END. 
+   ELSE IF Guru.Konstanter:varforetypval[18] = 1 THEN DO: 
+      FOR EACH BOLAGSEK WHERE BOLAGSEK.ANVANDARE = vem NO-LOCK:
+         FOR EACH JURPERS WHERE JURPERS.JUDID = BOLAGSEK.OMRADE NO-LOCK:
+            CREATE  jurperstemp.
+            BUFFER-COPY JURPERS TO jurperstemp.     
+         END. 
+      END.  
+      FOR EACH jurperstemp:  
+         FOR EACH AVDELNING WHERE AVDELNING.POSTANST = jurperstemp.JUDID AND AVDELNING.KOSTMASK = 0 :
+            CREATE judavdtemp.
+            ASSIGN              
+            judavdtemp.AVDELNINGNAMN = AVDELNING.AVDELNINGNAMN
+            judavdtemp.JUDID = AVDELNING.POSTANST
+            judavdtemp.AVDELNINGNR = AVDELNING.AVDELNINGNR.
+         END.   
+      END.
+   END.
+    
+   /*
+   FOR EACH JURPERS NO-LOCK:
+      CREATE jurperstemp.
+      BUFFER-COPY JURPERS TO  jurperstemp.     
+   END.   
+   FOR EACH AVDELNING WHERE AVDELNING.KOSTMASK = 0 :
+      CREATE judavdtemp.
+      ASSIGN              
+      judavdtemp.AVDELNINGNAMN = AVDELNING.AVDELNINGNAMN
+      judavdtemp.JUDID = AVDELNING.POSTANST
+      judavdtemp.AVDELNINGNR = AVDELNING.AVDELNINGNR.
+   END.
+   */
+END PROCEDURE.
+PROCEDURE hamtagodk_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR godkannartemp.
+   EMPTY TEMP-TABLE godkannartemp  NO-ERROR.    
+   FOR EACH GODKANNARTAB:
+      CREATE godkannartemp.
+      BUFFER-COPY GODKANNARTAB TO godkannartemp.
+      godkannartemp.NAMN = godkannartemp.PERSONALKOD + " " + godkannartemp.FORNAMN +
+          " " + godkannartemp.EFTERNAMN.
+   END.
+   FOR EACH godkannartemp :
+      
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.TIDSGODK = godkannartemp.PERSONALKOD AND PERSONALTAB.AKTIV = TRUE   NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE PERSONALTAB THEN DO:
+         DELETE godkannartemp.
+      END.
+      ELSE  Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + godkannartemp.PERSONALKOD.     
+   END.
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+

@@ -1,0 +1,88 @@
+/*UPPLAGAPP.P*/
+{STARTFORAPP.I}
+{BERUPPTEMP.I}
+
+  
+DEFINE VARIABLE varupp AS INTEGER NO-UNDO.   
+DEFINE VARIABLE varadr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE varanm AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE komb AS LOGICAL NO-UNDO.
+
+DEFINE VARIABLE sparkod AS INTEGER NO-UNDO.
+DEFINE VARIABLE uppaonr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE uppdelnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE upplagapph AS HANDLE NO-UNDO.
+
+DEFINE BUFFER uppbuff FOR BERUPP.
+PROCEDURE btnok_UI :
+   /*bugg ändrat 20170330 Lena  */
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR berupptemp.
+   DEFINE VARIABLE ED_ANM AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE berpBuffer AS HANDLE NO-UNDO.
+   DEFINE VARIABLE qString AS CHARACTER NO-UNDO.
+   CREATE WIDGET-POOL "DynTableUP" NO-ERROR.
+   CREATE BUFFER berpBuffer FOR TABLE "BERPUNKT" IN WIDGET-POOL "DynTableUP". 
+   FIND FIRST berupptemp  NO-ERROR.
+   DO TRANSACTION:
+      FIND FIRST BERUPP WHERE BERUPP.AONR = berupptemp.AONR AND BERUPP.OMRADE = berupptemp.OMRADE AND 
+      BERUPP.UPPLAG = berupptemp.UPPLAG EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE BERUPP THEN DO:
+         CREATE BERUPP.
+         /*bugg tillagt 20170330 Lena */
+         berupptemp.BERROW = ROWID(BERUPP).
+      END.
+      
+      BUFFER-COPY berupptemp TO BERUPP.
+      qString = " WHERE AONR = '" + BERUPP.AONR + "' AND OMRADE = '" + BERUPP.OMRADE  + "' AND NUM = " + STRING(berupptemp.UPPLAG).
+      berpBuffer:FIND-FIRST(qString,EXCLUSIVE-LOCK) NO-ERROR.
+      IF berpBuffer:AVAILABLE THEN DO:
+      END.   
+      ELSE DO:
+         berpBuffer:BUFFER-CREATE ().
+      END.   
+      berpBuffer:BUFFER-COPY( BUFFER berupptemp:HANDLE,"DELNR,ANMARK,OMRADE").
+      ASSIGN
+      berpBuffer:BUFFER-FIELD("AONR"):BUFFER-VALUE = BERUPP.AONR
+      berpBuffer:BUFFER-FIELD("OMRADE"):BUFFER-VALUE = BERUPP.OMRADE
+      berpBuffer:BUFFER-FIELD("NUM"):BUFFER-VALUE = BERUPP.UPPLAG 
+      berpBuffer:BUFFER-FIELD("PUNKTNAMN"):BUFFER-VALUE = berupptemp.ORT
+      berpBuffer:BUFFER-FIELD("VINKEL"):BUFFER-VALUE = berupptemp.POSTNR
+      berpBuffer:BUFFER-FIELD("XKORD"):BUFFER-VALUE = berupptemp.XKORD * 10000000
+      berpBuffer:BUFFER-FIELD("YKORD"):BUFFER-VALUE = berupptemp.YKORD * 10000000
+      berpBuffer:BUFFER-FIELD("XKORDCH"):BUFFER-VALUE = berupptemp.XKORDCH
+      berpBuffer:BUFFER-FIELD("YKORDCH"):BUFFER-VALUE = berupptemp.YKORDCH.      
+      ED_ANM = BERUPP.ANMARK.
+      IF Guru.Konstanter:globforetag = "UMEA" THEN DO:
+         FIND FIRST BEREDNING WHERE BEREDNING.BERNR = INTEGER(berupptemp.AONR) AND
+         BEREDNING.OMRADE = berupptemp.OMRADE NO-LOCK NO-ERROR.
+         IF BEREDNING.AONR NE ? THEN DO:
+            ASSIGN
+            uppaonr = BEREDNING.AONR
+            uppdelnr = BEREDNING.DELNR.
+            OPEN QUERY aoq FOR EACH AONRTAB WHERE AONRTAB.AONR = uppaonr NO-LOCK.
+            GET FIRST aoq NO-LOCK.
+            DO WHILE AVAILABLE(AONRTAB):
+               IF AONRTAB.DELNR NE uppdelnr THEN DO:
+                  FIND FIRST BEREDNING WHERE BEREDNING.AONR = AONRTAB.AONR AND
+                  BEREDNING.DELNR = AONRTAB.DELNR NO-LOCK NO-ERROR.
+                  IF AVAILABLE BEREDNING THEN DO:
+                     FIND FIRST uppbuff WHERE uppbuff.AONR = BEREDNING.BERAONR AND
+                     uppbuff.OMRADE = BEREDNING.OMRADE AND uppbuff.UPPLAG = BERUPP.UPPLAG
+                     EXCLUSIVE-LOCK NO-ERROR.
+                     IF AVAILABLE uppbuff THEN DO:
+                        ASSIGN
+                        uppbuff.ADRESS = berupptemp.ADRESS
+                        uppbuff.ANMARK =  ED_ANM.
+                     END.
+                  END.
+               END.
+               GET NEXT aoq NO-LOCK.
+            END.
+            CLOSE QUERY aoq.
+         END.
+      END.
+   END.   
+   RELEASE BERUPP NO-ERROR.  
+   berpBuffer:BUFFER-RELEASE() NO-ERROR.
+   DELETE WIDGET-POOL "DynTableUP" NO-ERROR. 
+END PROCEDURE.

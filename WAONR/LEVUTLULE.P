@@ -1,0 +1,282 @@
+/*LEVUTLULE.P*/
+&Scoped-define NEW NEW
+{REGVAR.I}
+DEFINE TEMP-TABLE tidut
+   FIELD FTG AS CHARACTER
+   FIELD UT AS CHARACTER FORMAT "X(132)".
+DEFINE TEMP-TABLE foretemp NO-UNDO
+   FIELD FTG AS CHARACTER
+   INDEX FTG IS PRIMARY FTG.
+DEFINE VARIABLE sattfore AS CHARACTER NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE breddantal AS INTEGER NO-UNDO.
+DEFINE VARIABLE utnr AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE bredd AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE nrcol AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE prognamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE prognamnvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE progkopia AS CHARACTER NO-UNDO.
+
+DEFINE VARIABLE uttagsatt AS INTEGER NO-UNDO.
+DEFINE VARIABLE hbelopp AS CHARACTER NO-UNDO.
+DEFINE VARIABLE pbelopp AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hkbelopp AS CHARACTER NO-UNDO.
+DEFINE VARIABLE pkbelopp AS CHARACTER NO-UNDO.
+DEFINE VARIABLE rad AS INTEGER NO-UNDO.
+DEFINE STREAM eko.
+DEFINE STREAM ekospar.
+{NAMNDB.I}
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.
+IF namndb() = "UTBI" THEN RETURN.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.   
+IF Guru.Konstanter:globforetag = "ELPA" THEN DO:            
+   prognamnvar = "D:\DELAD\PRO9s\".   
+END.
+ELSE DO:            
+   prognamnvar = "D:\elpool\DELAD\PRO9s\".
+END.
+regar = YEAR(TODAY).
+regdatum = TODAY.
+RUN REGVEC.P.
+IF MONTH(TODAY) = 1 THEN regmannamn = "jan".
+ELSE IF MONTH(TODAY) = 2 THEN regmannamn = "feb".
+ELSE IF MONTH(TODAY) = 3 THEN regmannamn = "mar". 
+ELSE IF MONTH(TODAY) = 4 THEN regmannamn = "apr". 
+ELSE IF MONTH(TODAY) = 5 THEN regmannamn = "maj". 
+ELSE IF MONTH(TODAY) = 6 THEN regmannamn = "jun".
+ELSE IF MONTH(TODAY) = 7 THEN regmannamn = "jul".
+ELSE IF MONTH(TODAY) = 8 THEN regmannamn = "aug". 
+ELSE IF MONTH(TODAY) = 9 THEN regmannamn = "sep".
+ELSE IF MONTH(TODAY) = 10 THEN regmannamn = "okt". 
+ELSE IF MONTH(TODAY) = 11 THEN regmannamn = "nov".
+ELSE IF MONTH(TODAY) = 12 THEN regmannamn = "dec".
+
+
+FIND LAST INTERNFAKTKOLL USE-INDEX VDATUM NO-LOCK NO-ERROR.
+IF AVAILABLE INTERNFAKTKOLL THEN DO:
+   OPEN QUERY bq FOR EACH BERBEST WHERE BERBEST.Bestdatum >= INTERNFAKTKOLL.VDATUM AND 
+   BERBEST.OFFERT = FALSE AND
+   BERBEST.Bestdatum <= regdatum  NO-LOCK.
+END.
+ELSE DO:
+   OPEN QUERY bq FOR EACH BERBEST WHERE BERBEST.Bestdatum <= regdatum AND BERBEST.OFFERT = FALSE 
+   NO-LOCK.  
+END.
+GET FIRST bq NO-LOCK.
+IF AVAILABLE BERBEST THEN DO TRANSACTION:
+   IF NOT AVAILABLE INTERNFAKTKOLL THEN CREATE INTERNFAKTKOLL.
+   ELSE DO:
+      FIND CURRENT INTERNFAKTKOLL EXCLUSIVE-LOCK NO-ERROR.
+   END.
+   ASSIGN
+   INTERNFAKTKOLL.VECKOK = FALSE  
+   INTERNFAKTKOLL.VDATUM = regdatum 
+   INTERNFAKTKOLL.VECKOKORD = "w" + STRING(TODAY,"99999999").
+END.
+ELSE RETURN.
+RELEASE INTERNFAKTKOLL NO-ERROR. 
+ASSIGN
+nrcol[1] = 1
+nrcol[2] = 2
+nrcol[3] = 3
+nrcol[4] = 4
+nrcol[5] = 5
+nrcol[6] = 6
+nrcol[7] = 7
+nrcol[8] = 8
+nrcol[9] = 9
+nrcol[10] = 10
+nrcol[11] = 11
+breddantal = 11   
+bredd[1] = 4
+bredd[2] = 3
+bredd[3] = 4
+bredd[4] = 9
+bredd[5] = 10
+bredd[6] = 17
+bredd[7] = 30
+bredd[8] = 8
+bredd[9] = 4
+bredd[10] = 4
+bredd[11] = 7.
+
+
+ASSIGN
+i = 2.     
+utnr[nrcol[1]] = 1.
+DO WHILE i <= breddantal:             
+   utnr[i] = utnr[i - 1] + bredd[i - 1].            
+   i = i + 1.
+END.
+GET FIRST bq NO-LOCK.
+DO WHILE AVAILABLE(BERBEST):
+   IF BERBEST.UTTAG = TRUE THEN uttagsatt = 1.
+   ELSE uttagsatt = -1.
+   IF SUBSTRING(BERBEST.BESTALLARE,60,1) = " " THEN DO:
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = BERBEST.AONR AND AONRTAB.DELNR = BERBEST.DELNR
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DO:
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = AONRTAB.OMRADE NO-LOCK NO-ERROR.
+         FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+         FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+         /*sven 04/08/23 ej konto*/
+         /*belopp*/
+         sattfore = JURPERS.JUDID.
+         FIND FIRST foretemp WHERE foretemp.FTG = sattfore  NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE foretemp THEN DO:
+            CREATE foretemp.
+            foretemp.FTG = sattfore.
+         END.
+         hbelopp = TRIM(STRING((BERBEST.PRIS * BERBEST.ANTAL * uttagsatt),"->>>>>>>>>>>9.99")) + "0".
+         pbelopp = TRIM(STRING((0.12 * BERBEST.PRIS * BERBEST.ANTAL * uttagsatt),"->>>>>>>>>>>9.99")) + "0".
+         hkbelopp = TRIM(STRING((-1 * BERBEST.PRIS * BERBEST.ANTAL * uttagsatt),"->>>>>>>>>>>9.99")) + "0".
+         pkbelopp = TRIM(STRING((-1 * 0.12 * BERBEST.PRIS * BERBEST.ANTAL * uttagsatt),"->>>>>>>>>>>9.99")) + "0".
+         CREATE tidut.
+         
+         ASSIGN
+         tidut.FTG = sattfore
+         /*/*emil ändring*/
+         SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "1280"*/
+         SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "9461"
+         SUBSTRING(tidut.UT,utnr[nrcol[2]]) = ""
+         SUBSTRING(tidut.UT,utnr[nrcol[3]]) = ""   
+         SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(AONRTAB.AONR,"999999") + STRING(AONRTAB.DELNR,"999").
+         SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(YEAR(BERBEST.Bestdatum),"9999") + STRING(MONTH(BERBEST.Bestdatum),"99")  + STRING(DAY(BERBEST.Bestdatum),"99").
+         ASSIGN
+         SUBSTRING(tidut.UT,utnr[nrcol[6]]) = hbelopp.
+         ASSIGN
+         SUBSTRING(tidut.UT,utnr[nrcol[7]]) = "L" + STRING(AONRTAB.AONR,"999999") + STRING(AONRTAB.DELNR,"999") + STRING(AONRTAB.ORT,"X(20)")                                                                   
+         SUBSTRING(tidut.UT,utnr[nrcol[8]]) = STRING(YEAR(BERBEST.Bestdatum),"9999") + STRING(MONTH(BERBEST.Bestdatum),"99")                  
+         SUBSTRING(tidut.UT,utnr[nrcol[9]]) = "GUR".
+         IF BERBEST.REKNR NE 0 THEN SUBSTRING(tidut.UT,utnr[nrcol[10]]) = STRING(BERBEST.REKNR).                                                                                            
+         ELSE SUBSTRING(tidut.UT,utnr[nrcol[10]]) = "".
+         /*/*emil ändring*/
+         IF BERBEST.REKNR NE 0 THEN SUBSTRING(tidut.UT,utnr[nrcol[10]]) = STRING(BERBEST.REKNR).                                                                                            
+         ELSE SUBSTRING(tidut.UT,utnr[nrcol[10]]) = "9461".*/
+         
+         FIND LAST KOSTREG WHERE KOSTREG.AONR = AONRTAB.AONR AND KOSTREG.DELNR = AONRTAB.DELNR NO-LOCK NO-ERROR.  
+         rad = 1.                                                                      
+         IF AVAILABLE KOSTREG THEN rad = KOSTREG.RADNR + 1.     
+   
+         DO TRANSACTION:
+            CREATE KOSTREG.
+            ASSIGN  
+            KOSTREG.RADNR = rad
+            KOSTREG.AONR = AONRTAB.AONR
+            KOSTREG.DELNR = AONRTAB.DELNR
+            KOSTREG.REGDATUM = BERBEST.Bestdatum
+            KOSTREG.BETDATUM = TODAY
+            KOSTREG.BENAMNING = "FÖRÅDSUTTAG " + STRING(BERBEST.Bestdatum)
+            KOSTREG.BOKKONTO = "9461"
+             /*/*emil ändring*/
+            KOSTREG.BOKKONTO = "1280"*/
+            KOSTREG.FAKTURERAD = ?
+            KOSTREG.LEVKOD = ""               
+            SUBSTRING(KOSTREG.ANVANDARE,1,12) = "UTTAG"
+            KOSTREG.KOSTAUTO = TRUE
+            KOSTREG.MTRL = DECIMAL(hbelopp).  
+                         
+            
+         END.        
+        
+         /*kredit*/
+         CREATE tidut.
+         ASSIGN
+         tidut.FTG = sattfore
+         SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "9946"
+         SUBSTRING(tidut.UT,utnr[nrcol[2]]) = ""
+         SUBSTRING(tidut.UT,utnr[nrcol[3]]) = ""   
+         SUBSTRING(tidut.UT,utnr[nrcol[4]]) = ""   /*STRING(AONRTAB.AONR,"999999") + STRING(AONRTAB.DELNR,"999") linda 040419*/.
+         SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(YEAR(BERBEST.Bestdatum),"9999") + STRING(MONTH(BERBEST.Bestdatum),"99")  + STRING(DAY(BERBEST.Bestdatum),"99").
+         ASSIGN
+         SUBSTRING(tidut.UT,utnr[nrcol[6]]) = hkbelopp.
+         ASSIGN
+         SUBSTRING(tidut.UT,utnr[nrcol[7]]) = ""   /*STRING(AONRTAB.ORT,"X(30)")  linda 040419*/                                                                 
+         SUBSTRING(tidut.UT,utnr[nrcol[8]]) = STRING(YEAR(BERBEST.Bestdatum),"9999") + STRING(MONTH(BERBEST.Bestdatum),"99")                  
+         SUBSTRING(tidut.UT,utnr[nrcol[9]]) = "GUR"                                                                                          
+         SUBSTRING(tidut.UT,utnr[nrcol[10]]) = ""                                                                                             
+         SUBSTRING(tidut.UT,utnr[nrcol[11]]) = "".
+         
+            DO TRANSACTION:
+            GET CURRENT bq EXCLUSIVE-LOCK.
+            SUBSTRING(BERBEST.BESTALLARE,60) = "w" + STRING(TODAY,"99999999").
+         END.
+      END.     
+   END.
+   GET NEXT bq NO-LOCK.
+END.
+FOR EACH foretemp:
+   progkopia = CAPS(prognamnvar + "exkopia\bokf" + foretemp.FTG  + STRING(regar) + regmannamn + ".txt").    
+   prognamn = CAPS(prognamnvar + "export\bokfguru" + foretemp.FTG + "asw" + STRING(TODAY,"99999999") + ".txt").
+
+   OUTPUT STREAM eko TO VALUE(prognamn) APPEND.
+   OUTPUT STREAM ekospar TO VALUE(progkopia) APPEND.
+   PUT STREAM ekospar "ny fil  " TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+   FOR EACH tidut WHERE tidut.FTG = foretemp.FTG:
+      IF tidut.UT = ? THEN.
+      ELSE DO:
+         PUT STREAM eko UNFORMATTED
+         tidut.UT AT 1 SKIP.
+         PUT STREAM ekospar UNFORMATTED
+         tidut.UT AT 1 SKIP.
+      END.
+   END.
+
+   OUTPUT STREAM eko CLOSE. 
+   OUTPUT STREAM ekospar CLOSE.
+END.
+
+OPEN QUERY utq FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = 1 AND
+MTRLDEP.LAGER = TRUE USE-INDEX ENR
+NO-LOCK.
+GET FIRST utq NO-LOCK.
+DO WHILE AVAILABLE(MTRLDEP): 
+   IF MTRLDEP.SALDO < MTRLDEP.BESTPUNKT THEN DO:             
+      DO TRANSACTION:      
+         FIND FIRST MEDDELANDE WHERE MEDDELANDE.SANDARE = "BESTÄLLNINGSPUNKT" AND 
+         MEDDELANDE.MOTTAGARE = "LLM" AND LENGTH(MEDDELANDE.MEDD,"CHARACTER") < 30000 
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE MEDDELANDE THEN DO:
+            CREATE MEDDELANDE.
+            ASSIGN               
+            MEDDELANDE.SANDARE = "BESTÄLLNINGSPUNKT"
+            MEDDELANDE.EMOTAGET = FALSE
+            MEDDELANDE.SDATUM = TODAY
+            MEDDELANDE.MEDD = "BESTÄLLNINGSPUNKT" + CHR(10) 
+            MEDDELANDE.MOTTAGARE = "LLM".
+         END.
+         MEDDELANDE.MED = MEDDELANDE.MED + 
+         MTRLDEP.ENR + " " + SUBSTRING(MTRLDEP.BENAMNING,1,30) + 
+         " BEST.P:" + STRING(MTRLDEP.BESTPUNKT)  + " SALDO:" + STRING(MTRLDEP.SALDO) + CHR(10).               
+         FIND FIRST BESTDEP WHERE BESTDEP.DEPNR = 1 AND
+         BESTDEP.LEVDATUM = ? AND BESTDEP.ENR = MTRLDEP.ENR AND BESTDEP.BERED = FALSE AND BESTDEP.LEVNAMN = "" NO-LOCK NO-ERROR.
+         IF AVAILABLE BESTDEP THEN DO:
+            MEDDELANDE.MED = MEDDELANDE.MED + "OBS! DET FINNS BESTÄLLNINGAR PÅ DENNA ARTIKEL SOM EJ ÄNNU ÄR LEVERERAD" + CHR(10).
+         END.    
+      END.
+      DO TRANSACTION:      
+         FIND FIRST MEDDELANDE WHERE MEDDELANDE.SANDARE = "BESTÄLLNINGSPUNKT" AND 
+         MEDDELANDE.MOTTAGARE = "GSN" AND LENGTH(MEDDELANDE.MEDD,"CHARACTER") < 30000 
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE MEDDELANDE THEN DO:
+            CREATE MEDDELANDE.
+            ASSIGN               
+            MEDDELANDE.SANDARE = "BESTÄLLNINGSPUNKT"
+            MEDDELANDE.EMOTAGET = FALSE
+            MEDDELANDE.SDATUM = TODAY
+            MEDDELANDE.MEDD = "BESTÄLLNINGSPUNKT" + CHR(10) 
+            MEDDELANDE.MOTTAGARE = "GSN".
+         END.
+         MEDDELANDE.MED = MEDDELANDE.MED + 
+         MTRLDEP.ENR + " " + SUBSTRING(MTRLDEP.BENAMNING,1,20) + 
+         " BEST.P:" + STRING(MTRLDEP.BESTPUNKT)  + " SALDO:" + STRING(MTRLDEP.SALDO) + CHR(10).               
+         FIND FIRST BESTDEP WHERE BESTDEP.DEPNR = 1 AND
+         BESTDEP.LEVDATUM = ? AND BESTDEP.ENR = MTRLDEP.ENR AND BESTDEP.BERED = FALSE AND BESTDEP.LEVNAMN = "" NO-LOCK NO-ERROR.
+         IF AVAILABLE BESTDEP THEN DO:
+            MEDDELANDE.MED = MEDDELANDE.MED + "OBS! DET FINNS BESTÄLLNINGAR PÅ DENNA ARTIKEL." + CHR(10).
+         END.      
+      END.
+   END.   
+   GET NEXT utq NO-LOCK.
+END.                    
+CLOSE QUERY utq.  

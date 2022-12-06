@@ -1,0 +1,422 @@
+
+/*------------------------------------------------------------------------
+    File        : DarwinPlusUserDS.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Fri Apr 29 10:25:56 CEST 2016
+    Notes       :
+  ----------------------------------------------------------------------*/
+/*Anders Olsson Elpool i Umeå AB  8 nov 2017 10:31:11 
+AnvandareDarwin
+ANVVÄNDARE I DARWINPLUS
+ANVANDARNAMN
+ORGID VILKEN ORGANISATIN TILL HÖR PERSONEN
+
+AnvForDarwin
+ANVANDARNAMN
+IdentifikationsnrForetag
+
+ForetagDarwin
+IdentifikationsnrForetag
+
+
+OrganisationDarwin
+ORGID
+ 
+*/
+
+
+
+DEFINE TEMP-TABLE felmeddtemp 
+   FIELD FELMEDD AS CHARACTER
+   FIELD VAL     AS INTEGER.  
+   
+DEFINE VARIABLE usrtBuffer AS HANDLE   NO-UNDO.
+DEFINE VARIABLE usrfBuffer AS HANDLE   NO-UNDO.
+DEFINE VARIABLE secBuffer AS HANDLE    NO-UNDO.
+
+{DARWINPUSUSER.I}
+
+
+
+CREATE WIDGET-POOL "RestDynTable" NO-ERROR.
+
+{SparaDynDSstar.I}
+PROCEDURE LaddaUsersCreate_UI :
+   DEFINE VARIABLE iField AS INTEGER NO-UNDO.
+   CREATE TEMP-TABLE AnvDptth IN WIDGET-POOL "RestDynTable".
+   AnvDptth:CREATE-LIKE("AnvandareDarwin").
+   AnvDptth:ADD-NEW-FIELD("NAMN","CHARACTER").
+   AnvDptth:ADD-NEW-FIELD("LOSEN","CHARACTER").
+   AnvDptth:ADD-NEW-FIELD("TTRECID","RECID").
+   AnvDptth:TEMP-TABLE-PREPARE("AnvDP").
+   AnvDpbuffh = AnvDptth:DEFAULT-BUFFER-HANDLE.
+   
+   CREATE TEMP-TABLE AnvForDPtth IN WIDGET-POOL "RestDynTable".
+   AnvForDPtth:CREATE-LIKE("AnvForDarwin").
+   AnvForDPtth:ADD-NEW-FIELD("FORETAG","CHARACTER").
+   AnvForDPtth:ADD-NEW-FIELD("TTRECID","RECID").
+   AnvForDPtth:TEMP-TABLE-PREPARE("AnvForDP").
+   AnvForDPbuffh = AnvForDPtth:DEFAULT-BUFFER-HANDLE.
+   
+   CREATE TEMP-TABLE ForetagDPtth IN WIDGET-POOL "RestDynTable".
+   ForetagDPtth:CREATE-LIKE("ForetagDarwin").
+   ForetagDPtth:ADD-NEW-FIELD("TTRECID","RECID"). 
+   ForetagDPtth:TEMP-TABLE-PREPARE("ForetagDP").
+   ForetagDPbuffh = ForetagDPtth:DEFAULT-BUFFER-HANDLE.  
+   
+   CREATE TEMP-TABLE OrganisationDPtth IN WIDGET-POOL "RestDynTable".
+   OrganisationDPtth:CREATE-LIKE("OrganisationDarwin").
+   OrganisationDPtth:ADD-NEW-FIELD("TTRECID","RECID").
+   OrganisationDPtth:TEMP-TABLE-PREPARE("OrganisationDP").
+   OrganisationDPbuffh = OrganisationDPtth:DEFAULT-BUFFER-HANDLE.
+   
+END PROCEDURE.
+
+
+
+PROCEDURE LaddaUsers_UI :
+   DEFINE OUTPUT PARAMETER DATASET-HANDLE DarwinPlusUsersDS BIND.
+   DEFINE VARIABLE qString AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE hQuery AS HANDLE NO-UNDO.
+   RUN LaddaUsersCreate_UI.
+   RUN GetDatasetDeftt_UI ("DarwinPlusUsersDS").  
+   DatasetDeftt.antaltab = 4.
+   DatasetDeftt.pcBuffers[1] = STRING(AnvDpbuffh).
+   DatasetDeftt.pcBuffers[2] = STRING(AnvForDPbuffh). 
+   DatasetDeftt.pcBuffers[3] = STRING( ForetagDPbuffh). 
+   DatasetDeftt.pcBuffers[4] = STRING(OrganisationDPbuffh).
+   
+   DatasetDeftt.pcSources[1] = "AnvandareDarwin".
+   DatasetDeftt.pcSources[2] = "AnvForDarwin".
+   DatasetDeftt.pcSources[3] = "ForetagDarwin".
+   DatasetDeftt.pcSources[4] = "OrganisationDarwin".
+   DatasetDeftt.pcSourceKeys[1] = "ANVANDARNAMN".
+   DatasetDeftt.pcSourceKeys[2] = "ANVANDARNAMN,IdentifikationsnrForetag".
+   DatasetDeftt.pcSourceKeys[3] = "IdentifikationsnrForetag".
+   DatasetDeftt.pcSourceKeys[4] = "ORGID".
+   
+   DatasetDeftt.repMode = FALSE.
+   DatasetDeftt.nestMode = FALSE.
+   
+  
+   RUN DefAndLoadDsRe_UI  IN dyndamicDSh
+   ({DataSetInput.I} OUTPUT DATASET-HANDLE DarwinPlusUsersDS BIND).
+   IF secBuffer = ? THEN RETURN.
+   qString = "FOR EACH " + AnvDpbuffh:TABLE + " NO-LOCK".
+   RUN CreateCustomQuery(INPUT secBuffer,INPUT qString,OUTPUT hQuery). 
+   hQuery:GET-FIRST(EXCLUSIVE-LOCK).
+   DO WHILE hQuery:QUERY-OFF-END = FALSE:
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + AnvDpbuffh:BUFFER-FIELD("ANVANDARNAMN"):BUFFER-VALUE.      
+      hQuery:GET-NEXT(EXCLUSIVE-LOCK).
+   END.
+  
+   /* FUNKAR INTE FÖR ATT DET ÄR TVÅ DATABASER
+   Guru.GlobalaVariabler:GDPRtyp = "DP".
+   {GDPRLOGGCLIENT.I}  
+  */
+END PROCEDURE.
+
+
+/*
+DARWINTABELLER
+
+*/
+
+PROCEDURE restUserStart_UI :  
+   CREATE BUFFER usrtBuffer FOR TABLE "DARPLU._User" IN WIDGET-POOL "RestDynTable". 
+   CREATE BUFFER usrfBuffer FOR TABLE "DARPLU._User" IN WIDGET-POOL "RestDynTable". 
+   CREATE BUFFER secBuffer FOR TABLE "DARPLU._sec-granted-role" IN WIDGET-POOL "RestDynTable".
+END PROCEDURE. 
+
+
+PROCEDURE RestUserEnd_UI :
+   usrtBuffer:BUFFER-RELEASE() NO-ERROR.
+   usrfBuffer:BUFFER-RELEASE() NO-ERROR.
+   secBuffer:BUFFER-RELEASE() NO-ERROR.
+END PROCEDURE.
+
+
+PROCEDURE avslutarestUsr_UI:
+   RUN RestUserEnd_UI.
+   DELETE WIDGET-POOL "RestDynTable" NO-ERROR.
+END PROCEDURE.
+
+
+PROCEDURE restSkapaUserBytLosenord_UI:
+   DEFINE INPUT  PARAMETER darwinAnv AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER newpassword AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   DEFINE VARIABLE qString    AS CHARACTER NO-UNDO.
+   
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.
+   IF darwinAnv = "" OR darwinAnv = ? THEN RETURN.
+   RUN restUserStart_UI.
+   IF VALID-HANDLE(usrfBuffer) THEN DO TRANSACTION: 
+      qString = "WHERE _Userid = " + QUOTER(darwinAnv) + " AND _User._Domain-Name = 'RESTDomain'".
+      usrfBuffer:FIND-FIRST(qString,EXCLUSIVE-LOCK) NO-ERROR.
+      IF usrfBuffer:AVAILABLE THEN DO:
+         usrtBuffer:BUFFER-CREATE().
+         usrtBuffer:BUFFER-FIELD("_User-Name"):BUFFER-VALUE = usrfBuffer:BUFFER-FIELD("_User-Name"):BUFFER-VALUE.
+         usrtBuffer:BUFFER-FIELD("_User_number"):BUFFER-VALUE = usrfBuffer:BUFFER-FIELD("_User_number"):BUFFER-VALUE.
+         usrtBuffer:BUFFER-FIELD("_Domain-Name"):BUFFER-VALUE = usrfBuffer:BUFFER-FIELD("_Domain-Name"):BUFFER-VALUE.
+         usrtBuffer:BUFFER-FIELD("_Disabled"):BUFFER-VALUE = usrfBuffer:BUFFER-FIELD("_Disabled"):BUFFER-VALUE.
+         usrtBuffer:BUFFER-FIELD("_Password"):BUFFER-VALUE = ENCODE(newpassword).
+         usrfBuffer:BUFFER-DELETE().
+         usrtBuffer:BUFFER-FIELD("_Userid"):BUFFER-VALUE = darwinAnv.
+      END.
+      ELSE DO:
+         RUN restSkapaUser_UI (INPUT darwinAnv, INPUT newpassword).   
+      END.
+   END. 
+   RUN RestUserEnd_UI.
+END PROCEDURE.
+
+PROCEDURE restSkapaUser_UI:
+   DEFINE INPUT  PARAMETER darwinAnv AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER darwinPassword AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE userNr    AS INTEGER   NO-UNDO.
+   DEFINE VARIABLE qString   AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE hQuery    AS HANDLE    NO-UNDO. 
+   IF darwinAnv = "" OR darwinAnv = ? THEN RETURN.
+   IF VALID-HANDLE(usrtBuffer) THEN  DO:
+      qString = "FOR EACH " + usrtBuffer:TABLE + " WHERE _User._Domain-Name = 'RESTDomain' NO-LOCK BY _User_number DESCENDING ".
+      RUN CreateCustomQuery(INPUT usrtBuffer,INPUT qString,OUTPUT hQuery).                                        
+      hQuery:GET-FIRST(NO-LOCK).
+      IF(usrtBuffer:AVAILABLE) THEN userNr = usrtBuffer:BUFFER-FIELD("_User_number"):BUFFER-VALUE + 1.
+      ELSE userNr = 1.
+      DELETE OBJECT hQuery.
+   END.
+   
+   DO TRANSACTION:
+      usrtBuffer:BUFFER-CREATE ().
+      usrtBuffer:BUFFER-FIELD("_Userid"):BUFFER-VALUE = darwinAnv.
+      usrtBuffer:BUFFER-FIELD("_Password"):BUFFER-VALUE = ENCODE(darwinPassword).
+      usrtBuffer:BUFFER-FIELD("_User-Name"):BUFFER-VALUE = darwinAnv.
+      usrtBuffer:BUFFER-FIELD("_User_number"):BUFFER-VALUE = userNr.
+      usrtBuffer:BUFFER-FIELD("_Domain-Name"):BUFFER-VALUE = "RESTDomain".
+      usrtBuffer:BUFFER-FIELD("_Disabled"):BUFFER-VALUE = NO.
+     
+      secBuffer:BUFFER-CREATE ().
+      secBuffer:BUFFER-FIELD("_grantee"):BUFFER-VALUE = darwinAnv.
+      secBuffer:BUFFER-FIELD("_role-name"):BUFFER-VALUE = "PSCUser".
+      secBuffer:BUFFER-FIELD("_grantor"):BUFFER-VALUE = "".
+      secBuffer:BUFFER-FIELD("_grant-rights"):BUFFER-VALUE = YES.
+      secBuffer:BUFFER-FIELD("_granted-role-guid"):BUFFER-VALUE = SUBSTRING(BASE64-ENCODE(GENERATE-UUID), 1, 22).
+      
+      CREATE felmeddtemp.
+      ASSIGN 
+      felmeddtemp.FELMEDD = "DARWIN-Användare för " + darwinAnv + " är skapad i _User.".
+   END. 
+END PROCEDURE.
+
+PROCEDURE tabortDarwinUser_UI: /*KÖR DENNA*/
+   DEFINE INPUT  PARAMETER darwinAnv AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.
+   
+   RUN restUserStart_UI.
+   RUN restTabortUser_UI (INPUT darwinAnv).   
+   RUN RestUserEnd_UI.
+END PROCEDURE.
+
+PROCEDURE restTabortUser_UI:
+   DEFINE INPUT  PARAMETER darwinAnv AS CHARACTER NO-UNDO.
+   
+   IF darwinAnv = "" OR darwinAnv = ? THEN RETURN.
+   DEFINE VARIABLE hQuery    AS HANDLE    NO-UNDO. 
+   DEFINE VARIABLE qString   AS CHARACTER NO-UNDO. 
+   DEFINE VARIABLE okuser AS LOGICAL NO-UNDO.
+   IF VALID-HANDLE(usrtBuffer) THEN DO TRANSACTION: 
+      qString = "WHERE _Domain-Name = 'RESTDomain' AND _Userid = '" + darwinAnv + "'".
+      usrtBuffer:FIND-FIRST(qString,EXCLUSIVE-LOCK) NO-ERROR.
+      IF usrtBuffer:AVAILABLE THEN DO:
+         usrtBuffer:BUFFER-DELETE().
+         CREATE felmeddtemp.
+         ASSIGN 
+         felmeddtemp.FELMEDD = "DARWIN-Användare för " + darwinAnv + " togs bort ur _User.". 
+      END.
+      ELSE DO:
+         CREATE felmeddtemp.
+         ASSIGN 
+         felmeddtemp.FELMEDD = "DARWIN-Användaren " + darwinAnv + " som du försökte ta bort fanns inte i _User.".
+         
+         RETURN.
+      END.
+      
+   END.
+   DO TRANSACTION:
+      qString = "FOR EACH " + secBuffer:TABLE + " WHERE _grantee = '" + STRING(darwinAnv) + "' NO-LOCK".
+      RUN CreateCustomQuery(INPUT secBuffer,INPUT qString,OUTPUT hQuery). 
+      hQuery:GET-FIRST(EXCLUSIVE-LOCK).
+      DO WHILE hQuery:QUERY-OFF-END = FALSE:
+         secBuffer:BUFFER-DELETE().
+         hQuery:GET-NEXT(EXCLUSIVE-LOCK).
+      END.
+      DELETE OBJECT hQuery.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh IN WIDGET-POOL "RestDynTable".
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+/*
+PROCEDURE skapaDarwinAnvTable_UI:
+   DEFINE INPUT  PARAMETER darwinAnv AS CHARACTER NO-UNDO.
+   
+   DEFINE VARIABLE qString   AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE hQuery    AS HANDLE    NO-UNDO. 
+   
+   CREATE BUFFER anvBuffer FOR TABLE "AnvandareDarwin" IN WIDGET-POOL "RestDynTable".
+   
+   qString = "WHERE ANVANDARNAMN = '" + darwinAnv + "'".
+   anvBuffer:FIND-FIRST(qString, NO-LOCK) NO-ERROR.
+   
+   IF(anvBuffer:AVAILABLE) THEN DO:
+      CREATE felmeddtemp.
+      ASSIGN 
+      felmeddtemp.FELMEDD = "DARWIN-Användare " + darwinAnv + " fanns redan i AnvandareDarwin.".  
+      RETURN.
+   END.
+   
+   DO TRANSACTION:
+      anvBuffer:BUFFER-CREATE ().
+      anvBuffer:BUFFER-FIELD("ANVANDARNAMN"):BUFFER-VALUE = darwinAnv.
+      anvBuffer:BUFFER-FIELD("FNAMN"):BUFFER-VALUE = "Förnamn".
+      anvBuffer:BUFFER-FIELD("ENAMN"):BUFFER-VALUE = "Efternamn".
+      anvBuffer:BUFFER-FIELD("ORGID"):BUFFER-VALUE = 1.
+      anvBuffer:BUFFER-FIELD("TELE"):BUFFER-VALUE = "090123".
+      anvBuffer:BUFFER-FIELD("STDATUM"):BUFFER-VALUE = NOW.
+      anvBuffer:BUFFER-FIELD("EXDATUM"):BUFFER-VALUE = NOW.
+      anvBuffer:BUFFER-FIELD("AKTIV"):BUFFER-VALUE = YES.
+      
+      CREATE felmeddtemp.
+      ASSIGN 
+      felmeddtemp.FELMEDD = "DARWIN-Användare för " + darwinAnv + " är skapad i AnvandareDarwin.".
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE skapaDarwinUser_UI: /*KÖR DENNA*/
+   DEFINE INPUT  PARAMETER darwinAnv AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER darwinpassword AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.
+   RUN restUserStart_UI.
+
+   
+   RUN restSkapaUser_UI (INPUT darwinAnv, INPUT darwinpassword).   
+   RUN skapaDarwinAnvTable_UI (INPUT darwinAnv).   /*TEMP-TABLE SENARE*/
+   
+   RUN RestUserEnd_UI.
+END PROCEDURE.
+
+PROCEDURE tabortDarwinAnvTable_UI:
+   DEFINE INPUT  PARAMETER darwinAnv AS CHARACTER NO-UNDO.
+
+   IF darwinAnv = "" OR darwinAnv = ? THEN RETURN.
+   DEFINE VARIABLE hQuery    AS HANDLE    NO-UNDO. 
+   DEFINE VARIABLE qString   AS CHARACTER NO-UNDO. 
+   DEFINE VARIABLE okuser AS LOGICAL NO-UNDO.
+   
+   
+   IF VALID-HANDLE(anvBuffer) THEN DO TRANSACTION: 
+      qString = "WHERE ANVANDARNAMN = '" + darwinAnv + "'".
+      anvBuffer:FIND-FIRST(qString,EXCLUSIVE-LOCK) NO-ERROR.
+      IF anvBuffer:AVAILABLE THEN DO:
+         anvBuffer:BUFFER-DELETE().
+         CREATE felmeddtemp.
+         ASSIGN 
+         felmeddtemp.FELMEDD = "DARWIN-Användare för " + darwinAnv + " togs bort ur AnvandareDarwin.". 
+      END.
+      ELSE DO:
+         CREATE felmeddtemp.
+         ASSIGN 
+         felmeddtemp.FELMEDD = "DARWIN-Användaren som du försökte ta bort fanns inte i AnvandareDarwin.".
+         RUN RestUserEnd_UI.
+         RETURN.
+      END.
+   END.
+   
+END PROCEDURE.
+PROCEDURE fannsRESTUser_UI:
+   DEFINE INPUT  PARAMETER darwinAnv AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER fanns AS LOGICAL.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.
+   IF darwinAnv = "" OR darwinAnv = ? THEN RETURN.
+   DEFINE VARIABLE qString   AS CHARACTER NO-UNDO. 
+   DEFINE VARIABLE okuser AS LOGICAL NO-UNDO.
+   RUN restUserStart_UI .
+   IF okuser = FALSE THEN RETURN. 
+   
+   IF VALID-HANDLE(usrtBuffer) THEN DO: 
+      qString = "WHERE _Userid = '" + darwinAnv + "'".
+      usrtBuffer:FIND-FIRST(qString,NO-LOCK) NO-ERROR.
+      IF usrtBuffer:AVAILABLE THEN DO:    
+         fanns = TRUE.
+      END.
+      ELSE DO:
+         fanns = FALSE.
+      END.
+   END. 
+   RUN RestUserEnd_UI.
+   
+END PROCEDURE.
+PROCEDURE skapaDarwinOrg_UI: /*KÖR DENNA*/
+   DEFINE INPUT  PARAMETER orgNamn AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.
+      
+   DEFINE VARIABLE qString   AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE hQuery    AS HANDLE    NO-UNDO. 
+   DEFINE VARIABLE orgNr   AS INTEGER NO-UNDO.
+   
+   RUN restUserStart_UI.
+   
+   qString = "WHERE NAMN = '" + orgNamn + "'".
+   orgBuffer:FIND-FIRST(qString, NO-LOCK) NO-ERROR.
+   
+   IF(orgBuffer:AVAILABLE) THEN DO:
+      CREATE felmeddtemp.
+      ASSIGN 
+      felmeddtemp.FELMEDD = "Organisationen " + orgNamn + " fanns redan.".  
+      RETURN.
+   END.
+   
+   IF VALID-HANDLE(orgBuffer) THEN  DO:
+      qString = "FOR EACH " + orgBuffer:TABLE + " NO-LOCK BY ORGID DESCENDING ".
+      RUN CreateCustomQuery(INPUT orgBuffer,INPUT qString,OUTPUT hQuery).                                        
+      hQuery:GET-FIRST(NO-LOCK).
+      IF(orgBuffer:AVAILABLE) THEN orgNr = orgBuffer:BUFFER-FIELD("ORGID"):BUFFER-VALUE + 1.
+      ELSE orgNR = 1.
+      DELETE OBJECT hQuery.
+   END.
+   
+   DO TRANSACTION:
+      orgBuffer:BUFFER-CREATE ().
+      orgBuffer:BUFFER-FIELD("NAMN"):BUFFER-VALUE = orgNamn.
+      orgBuffer:BUFFER-FIELD("ORGID"):BUFFER-VALUE = orgNr.
+      orgBuffer:BUFFER-FIELD("AKTIV"):BUFFER-VALUE = YES.
+      
+      CREATE felmeddtemp.
+      ASSIGN 
+      felmeddtemp.FELMEDD = "Organisationen " + orgNamn + " är skapad med ORGID: "  + STRING(orgNr).
+   END.
+   
+END PROCEDURE.
+*/
+   

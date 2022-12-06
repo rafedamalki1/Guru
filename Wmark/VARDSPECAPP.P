@@ -1,0 +1,142 @@
+/*VARDSPECAPP.P*/
+{STARTFORAPP.I}
+{FASTIGHET.I}
+{MARKVARD.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+PROCEDURE fastighbethmt.
+   DEFINE INPUT PARAMETER valdfast AS RECID NO-UNDO.
+   DEFINE OUTPUT PARAMETER fastighbet AS CHARACTER NO-UNDO.
+   FIND FASTIGHET WHERE RECID(FASTIGHET) = valdfast NO-LOCK NO-ERROR.
+   ASSIGN fastighbet = FASTIGHET.BETECKNING.
+END PROCEDURE.
+
+PROCEDURE laddavol.
+   DEFINE OUTPUT PARAMETER TABLE FOR volskogtemp.
+   EMPTY TEMP-TABLE volskogtemp NO-ERROR.    
+   OPEN QUERY voq FOR EACH VOLSKOG USE-INDEX VARDNR NO-LOCK.
+   GET FIRST voq NO-LOCK.                                   
+   DO WHILE AVAILABLE(VOLSKOG):                             
+      CREATE volskogtemp.                                   
+      BUFFER-COPY VOLSKOG TO volskogtemp.                   
+      ASSIGN                                                
+      volskogtemp.VOLSKOGREC = RECID(VOLSKOG).              
+      GET NEXT voq NO-LOCK.                                 
+   END.                                                     
+   CLOSE QUERY voq.   
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE laddaakerkab.
+   DEFINE OUTPUT PARAMETER TABLE FOR akerkabtemp.
+   EMPTY TEMP-TABLE akerkabtemp NO-ERROR.    
+   OPEN QUERY akq FOR EACH AKERKAB USE-INDEX VARDNR NO-LOCK.
+   GET FIRST akq NO-LOCK.                                   
+   DO WHILE AVAILABLE(AKERKAB):                             
+      CREATE akerkabtemp.                                   
+      BUFFER-COPY AKERKAB TO akerkabtemp.                   
+      ASSIGN akerkabtemp.AKERKABREC = RECID(AKERKAB).              
+      GET NEXT akq NO-LOCK.                                 
+   END.                                                     
+   CLOSE QUERY akq.   
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE mtre.
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fastighbet AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER mtrevar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER volrec AS RECID NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR volskogtemp.
+   DO TRANSACTION:
+      FIND FIRST VOLSKOG  WHERE VOLSKOG.VARDNR = valvardnr AND
+      VOLSKOG.BETECKNING = fastighbet AND VOLSKOG.DIAM = 0 USE-INDEX VARDNR EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE VOLSKOG  THEN DO:
+         CREATE VOLSKOG.
+         ASSIGN
+         VOLSKOG.VARDNR = valvardnr 
+         VOLSKOG.BETECKNING = fastighbet
+         VOLSKOG.DIAM = 0.
+         volrec = RECID(VOLSKOG).  
+      END.      
+      FIND FIRST volskogtemp  WHERE volskogtemp.VARDNR = valvardnr AND
+      volskogtemp.BETECKNING = fastighbet AND volskogtemp.DIAM = 0 USE-INDEX VARDNR NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE volskogtemp THEN DO:
+         CREATE volskogtemp.
+         BUFFER-COPY VOLSKOG TO volskogtemp.
+         ASSIGN 
+         volskogtemp.VOLSKOGREC = RECID(VOLSKOG). 
+         ASSIGN volskogtemp.OM3 = mtrevar.
+      END.      
+      ASSIGN VOLSKOG.OM3 = mtrevar.
+      
+      IF VOLSKOG.OM3 = 0 THEN DO:
+         DELETE VOLSKOG.  
+         DELETE volskogtemp.
+         volrec = ?.
+      END.
+   END.
+   RELEASE VOLSKOG NO-ERROR.
+   
+END PROCEDURE.
+
+
+PROCEDURE bortskog.
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fastighbet AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER bestandvar AS INTEGER NO-UNDO.
+   FOR EACH SKOGVARD WHERE SKOGVARD.VARDNR = valvardnr AND 
+   SKOGVARD.BETECKNING = fastighbet AND 
+   SKOGVARD.BESTAND = bestandvar EXCLUSIVE-LOCK:   
+      DELETE SKOGVARD.  
+   END.
+END PROCEDURE.
+
+PROCEDURE bortvol.
+   DEFINE INPUT PARAMETER volskogtabrec AS RECID NO-UNDO.
+   FIND FIRST VOLSKOG WHERE RECID(VOLSKOG) = volskogtabrec EXCLUSIVE-LOCK NO-ERROR.
+   IF AVAILABLE VOLSKOG THEN DO:
+      DELETE VOLSKOG.  
+   END.
+END PROCEDURE.
+
+PROCEDURE bortakervard.
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fastighbet AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER stpnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER bortvar AS INTEGER NO-UNDO.
+   FIND FIRST AKERVARD WHERE AKERVARD.VARDNR = valvardnr AND 
+   AKERVARD.BETECKNING = fastighbet AND AKERVARD.STOLPNR = stpnr AND 
+   AKERVARD.L5 = bortvar EXCLUSIVE-LOCK NO-ERROR.
+   IF AVAILABLE AKERVARD THEN DO:
+      DELETE AKERVARD.  
+   END.
+END PROCEDURE.
+
+/*VARDSPECAPP.P*/
+PROCEDURE bortakerkab.
+   DEFINE INPUT PARAMETER akerrec AS RECID NO-UNDO.   
+   FIND FIRST AKERKAB WHERE RECID(AKERKAB) = akerrec EXCLUSIVE-LOCK NO-ERROR.
+   IF AVAILABLE AKERKAB THEN DO:
+      FIND FIRST AKERVARD WHERE AKERVARD.VARDNR = AKERKAB.VARDNR AND 
+      AKERVARD.BETECKNING = AKERKAB.BETECKNING AND AKERVARD.L5 = AKERKAB.L1 AND AKERVARD.STOLPNR = 0  EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE AKERVARD THEN DO:         
+         IF Guru.Konstanter:globforetag = "UMEA" OR Guru.Konstanter:globforetag = "UMBR"  THEN DELETE AKERVARD.  
+         ELSE IF AKERVARD.L5 > 1 THEN DELETE AKERVARD.  
+      END.
+      DELETE AKERKAB.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE sparfordyrad.
+   DEFINE INPUT PARAMETER valvardnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fastighbet AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER fordyrvar AS INTEGER NO-UNDO.
+   FIND FIRST FASTVARD WHERE FASTVARD.VARDNR = valvardnr AND 
+   FASTVARD.BETECKNING = fastighbet EXCLUSIVE-LOCK NO-ERROR.
+   IF AVAILABLE FASTVARD THEN DO:
+      ASSIGN FASTVARD.FORDYRAD = fordyrvar.
+   END.
+   RELEASE FASTVARD NO-ERROR.
+END PROCEDURE.

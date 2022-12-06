@@ -1,0 +1,340 @@
+
+/*SKAPKATEKG.P*/
+/*procedurerna flyttade till KalkylAdmDb.cls*/
+
+{EKGEBREGURU.I}
+{EKGKAT.I}
+DEFINE VARIABLE ekgp1frekvensTTh   AS HANDLE NO-UNDO.
+DEFINE VARIABLE ekgp2frekvensTTh   AS HANDLE NO-UNDO.
+ekgp1frekvensTTh = TEMP-TABLE ekgp1frekvensTT:HANDLE:DEFAULT-BUFFER-HANDLE.
+ekgp2frekvensTTh = TEMP-TABLE ekgp2frekvensTT:HANDLE:DEFAULT-BUFFER-HANDLE.
+DEFINE NEW SHARED VARIABLE quotervar AS CHARACTER FORMAT "X(256)" NO-UNDO.
+
+
+
+
+DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dirnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE OKvald AS LOGICAL NO-UNDO.
+DEFINE VARIABLE dirspar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE dynxml AS HANDLE NO-UNDO.
+DEFINE VARIABLE filnamnuppxml AS CHARACTER NO-UNDO.
+DEFINE VARIABLE servervar AS CHARACTER LABEL "Smtp Server" NO-UNDO.
+DEFINE VARIABLE franvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tillepost AS CHARACTER NO-UNDO.
+DEFINE VARIABLE klogvar AS INTEGER NO-UNDO.
+
+DEFINE VARIABLE ebrmont AS DECIMAL NO-UNDO.
+DEFINE VARIABLE ebrbervit AS DECIMAL NO-UNDO.   
+DEFINE VARIABLE ebrmask1 AS DECIMAL NO-UNDO.   
+DEFINE VARIABLE ebrmask2 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE ebrmask3 AS DECIMAL NO-UNDO.   
+DEFINE VARIABLE rorlig AS DECIMAL NO-UNDO.
+
+
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+
+DEFINE VARIABLE kpostid AS ROWID NO-UNDO.
+
+DEFINE TEMP-TABLE tidin
+   FIELD ARBKOD                 AS CHARACTER
+   FIELD LOPNR                  AS CHARACTER    
+   FIELD BENAMNING              AS CHARACTER
+   FIELD INGAREJ                AS CHARACTER.
+
+DEFINE TEMP-TABLE tidin2
+   FIELD ARBKOD                 AS CHARACTER
+   FIELD LOPNR                  AS CHARACTER 
+   FIELD BENAMNING              AS CHARACTER
+   FIELD INGAREJ                AS CHARACTER
+   INDEX ARBKOD ARBKOD LOPNR.
+   
+DEFINE TEMP-TABLE p2komtt NO-UNDO
+   FIELD ARBKOD AS CHARACTER
+   FIELD LOPNR AS INTEGER
+   FIELD ANM AS CHARACTER.
+
+
+ASSIGN 
+
+ebrmont  = 703.53
+ebrbervit  = 847.04    
+ebrmask1    = 723
+ebrmask2    = 712
+ebrmask3    = 744
+rorlig      = 376.89.
+DEFINE VARIABLE SkapApph AS HANDLE NO-UNDO.
+IF Guru.Konstanter:appcon THEN DO:
+   RUN SKAPKATEKGAPP.P PERSISTENT SET SkapApph ON Guru.Konstanter:apphand TRANSACTION DISTINCT .
+END.
+ELSE DO:
+   
+   RUN SKAPKATEKGAPP.P PERSISTENT SET SkapApph.
+END. 
+
+
+PROCEDURE rensa_UI :
+   EMPTY TEMP-TABLE ebr-Guru_costcatalogue NO-ERROR.
+   EMPTY TEMP-TABLE ebr-Guru_type NO-ERROR.
+   EMPTY TEMP-TABLE ebr-Guru_year NO-ERROR.
+   EMPTY TEMP-TABLE ebr-Guru_catalogue NO-ERROR. 
+   EMPTY TEMP-TABLE ebr-Guru_workcode NO-ERROR.
+   EMPTY TEMP-TABLE ebr-Guru_lop NO-ERROR.   
+   EMPTY TEMP-TABLE ebr-Guru_lopanm NO-ERROR. 
+   ekgp1frekvensTTh:EMPTY-TEMP-TABLE() NO-ERROR.
+   ekgp2frekvensTTh:EMPTY-TEMP-TABLE() NO-ERROR.
+   /*EMPTY TEMP-TABLE ekgp1frekvensTT NO-ERROR.
+   EMPTY TEMP-TABLE ekgp2frekvensTT NO-ERROR.*/  
+   
+   EMPTY TEMP-TABLE tidin NO-ERROR. 
+   EMPTY TEMP-TABLE tidin2 NO-ERROR. 
+   EMPTY TEMP-TABLE p2komtt NO-ERROR. 
+END PROCEDURE.
+
+PROCEDURE inP2komKLG1_UI :
+   {AMERICANEUROPEAN.I}
+   DEFINE INPUT  PARAMETER klogsubidvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER inlasstart AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE cSourceType AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cFile                   AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cReadMode               AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cSchemaLocation         AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE lOverrideDefaultMapping AS LOGICAL   NO-UNDO.
+   DEFINE VARIABLE globanv                 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE initDir                 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE dialogVar               AS LOGICAL   NO-UNDO.
+   initDir = SESSION:TEMP-DIRECTORY.
+   RUN rensa_UI.      
+   SYSTEM-DIALOG GET-FILE cFile
+      TITLE "Välj fil för P2 kommentarer KLG1!"
+      FILTERS 'All Files (*.skv*)' '*.skv*'
+      INITIAL-DIR initDir
+      UPDATE dialogVar.
+       
+   IF dialogVar = TRUE THEN    DO: 
+      inlasstart = TRUE.
+      ASSIGN
+      cSourceType             = "FILE"
+      cReadMode               = "MERGE"
+      cSchemaLocation         = ?
+      lOverrideDefaultMapping = FALSE.
+      INPUT FROM VALUE(cFile) NO-ECHO.
+      REPEAT:
+         DO TRANSACTION: 
+            CREATE tidin.
+            ASSIGN.
+            IMPORT DELIMITER ";" tidin   NO-ERROR.
+         END.               
+      END.
+      RUN startkomP2_UI IN SkapApph (INPUT klogsubidvar , input TABLE tidin).
+      
+   END.
+   RUN rensa_UI.
+   {EUROPEANAMERICAN.I}
+END PROCEDURE.
+PROCEDURE inP2komKLG2_UI :
+   {AMERICANEUROPEAN.I}
+   DEFINE INPUT  PARAMETER klogsubidvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER inlasstart AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE cSourceType AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cFile                   AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cReadMode               AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cSchemaLocation         AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE lOverrideDefaultMapping AS LOGICAL   NO-UNDO.
+   DEFINE VARIABLE globanv                 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE initDir                 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE dialogVar               AS LOGICAL   NO-UNDO.
+   initDir = SESSION:TEMP-DIRECTORY.
+   RUN rensa_UI.
+   SYSTEM-DIALOG GET-FILE cFile
+      TITLE "Välj fil för P2 kommentarer KLG2!"
+      FILTERS 'All Files (*.skv*)' '*.skv*'
+      INITIAL-DIR initDir
+      UPDATE dialogVar.
+       
+   IF dialogVar = TRUE THEN    DO: 
+      inlasstart = TRUE.
+      ASSIGN
+      cSourceType             = "FILE"
+      cReadMode               = "MERGE"
+      cSchemaLocation         = ?
+      lOverrideDefaultMapping = FALSE.
+      INPUT FROM VALUE(cFile) NO-ECHO.
+      REPEAT:
+         DO TRANSACTION: 
+            CREATE tidin.
+            ASSIGN.
+            IMPORT DELIMITER ";" tidin   NO-ERROR.
+         END.               
+      END.
+      RUN startkomP2K2_UI IN SkapApph (INPUT klogsubidvar , input TABLE tidin).
+      
+        
+   END. 
+   RUN rensa_UI. 
+   {EUROPEANAMERICAN.I}
+END PROCEDURE.
+
+/*PROCEDURE inDelkat_UI :
+   {AMERICANEUROPEAN.I}
+   DEFINE INPUT  PARAMETER klogsubidvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER inlasstart AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE cSourceType AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cFile                   AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cReadMode               AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cSchemaLocation         AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE lOverrideDefaultMapping AS LOGICAL   NO-UNDO.
+   DEFINE VARIABLE globanv                 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE initDir                 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE dialogVar               AS LOGICAL   NO-UNDO.
+   initDir = SESSION:TEMP-DIRECTORY.
+   RUN rensa_UI.      
+   SYSTEM-DIALOG GET-FILE cFile
+      TITLE "Välj fil för inläsning av delkatalog Excel!"
+      FILTERS "All Files (*.xls;*.xlsx)"  "*.xls;*.xlsx"
+      INITIAL-DIR initDir
+      UPDATE dialogVar.
+    IF dialogVar = FALSE THEN RETURN.  
+      tiduth:EMPTY-TEMP-TABLE() NO-ERROR.
+      
+      importdelkath:EMPTY-TEMP-TABLE() NO-ERROR.
+      THIS-OBJECT:ExcelImportLista(fildir,listaP).
+   
+       
+   /*IF dialogVar = TRUE THEN    DO: 
+      inlasstart = TRUE.
+      ASSIGN
+      cSourceType             = "FILE"
+      cReadMode               = "MERGE"
+      cSchemaLocation         = ?
+      lOverrideDefaultMapping = FALSE.
+      INPUT FROM VALUE(cFile) NO-ECHO.
+      REPEAT:
+         DO TRANSACTION: 
+            CREATE tidin.
+            ASSIGN.
+            IMPORT DELIMITER ";" tidin   NO-ERROR.
+         END.               
+      END.
+      RUN startkomP2_UI IN SkapApph (INPUT klogsubidvar , input TABLE tidin).
+      
+   END.*/
+   RUN rensa_UI.
+   {EUROPEANAMERICAN.I}
+END PROCEDURE.*/
+/*PROCEDURE inxmlfrek_UI:
+   {AMERICANEUROPEAN.I}
+   DEFINE INPUT  PARAMETER klogsubidvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER inlasstart AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE cSourceType AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cFile                   AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cReadMode               AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cSchemaLocation         AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE lOverrideDefaultMapping AS LOGICAL   NO-UNDO.
+   DEFINE VARIABLE globanv                 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE initDir                 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE dialogVar               AS LOGICAL   NO-UNDO.
+   initDir = SESSION:TEMP-DIRECTORY.
+   RUN rensa_UI.      
+   SYSTEM-DIALOG GET-FILE cFile
+      TITLE "Välj fil för frekvens P1P2!"
+      FILTERS 'All Files (*.xml*)' '*.xml*'
+      INITIAL-DIR initDir
+      UPDATE dialogVar.
+       
+   IF dialogVar = TRUE THEN    DO: 
+      inlasstart = TRUE.
+      ASSIGN
+      cSourceType             = "FILE"
+      cReadMode               = "MERGE"
+      cSchemaLocation         = ?
+      lOverrideDefaultMapping = FALSE.
+      ekgp1frekvensTTh:READ-XML (cSourceType, cFile, cReadMode,cSchemaLocation, lOverrideDefaultMapping).
+      RUN startfrekP1P2_UI IN SkapApph (INPUT klogsubidvar , INPUT ekgp1frekvensTTh). 
+      
+   END.  
+   RUN rensa_UI.
+   SYSTEM-DIALOG GET-FILE cFile
+      TITLE "Välj fil för frekvens P2P3!"
+      FILTERS 'All Files (*.xml*)' '*.xml*'
+      INITIAL-DIR initDir
+      UPDATE dialogVar.
+       
+   IF dialogVar = TRUE THEN    DO:
+      inlasstart = TRUE. 
+      ASSIGN
+      cSourceType             = "FILE"
+      cReadMode               = "MERGE"
+      cSchemaLocation         = ?
+      lOverrideDefaultMapping = FALSE.
+      ekgp2frekvensTTh:READ-XML (cSourceType, cFile, cReadMode,cSchemaLocation, lOverrideDefaultMapping).
+      RUN startfrekP2P3_UI IN SkapApph (INPUT klogsubidvar, INPUT ekgp2frekvensTTh). 
+   END.  
+   RUN rensa_UI.
+   {EUROPEANAMERICAN.I}
+END PROCEDURE.*/
+/*PROCEDURE inxmlkat_UI :
+   {AMERICANEUROPEAN.I}
+   DEFINE OUTPUT PARAMETER inlasstart AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE cSourceType AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cFile                   AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cReadMode               AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE cSchemaLocation         AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE lOverrideDefaultMapping AS LOGICAL   NO-UNDO.
+   DEFINE VARIABLE globanv                 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE initDir                 AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE dialogVar               AS LOGICAL   NO-UNDO.
+   initDir = SESSION:TEMP-DIRECTORY.
+   RUN rensa_UI.      
+   SYSTEM-DIALOG GET-FILE cFile
+      TITLE "Välj den fil som du vill importera för att skapa kostnadskatalog KLG1!"
+      FILTERS 'All Files (*.xml*)' '*.xml*'
+      INITIAL-DIR initDir
+      UPDATE dialogVar.
+       
+   IF dialogVar = TRUE THEN    DO: 
+      inlasstart = TRUE.
+      ASSIGN
+      cSourceType             = "FILE"
+      cReadMode               = "MERGE"
+      cSchemaLocation         = ?
+      lOverrideDefaultMapping = FALSE.
+      DATASET ebr-GuruDS:READ-XML (cSourceType, cFile, cReadMode,cSchemaLocation, lOverrideDefaultMapping).
+     DEBUGGER:SET-BREAK().
+      RUN startinxmlkat_UI IN SkapApph (INPUT DATASET ebr-GuruDS).
+      
+       
+   END.
+   RUN rensa_UI.
+   SYSTEM-DIALOG GET-FILE cFile
+      TITLE "Välj den fil som du vill importera för att skapa kostnadskatalog KLG2!"
+      FILTERS 'All Files (*.xml*)' '*.xml*'
+      INITIAL-DIR initDir
+      UPDATE dialogVar.
+       
+   IF dialogVar = TRUE THEN    DO: 
+      inlasstart = TRUE.
+      ASSIGN
+      cSourceType             = "FILE"
+      cReadMode               = "MERGE"
+      cSchemaLocation         = ?
+      lOverrideDefaultMapping = FALSE.
+      DATASET ebr-GuruDS:READ-XML (cSourceType, cFile, cReadMode,cSchemaLocation, lOverrideDefaultMapping).
+      RUN startinxmlkat_UI IN SkapApph (INPUT DATASET ebr-GuruDS).
+       
+   END. 
+   RUN rensa_UI. 
+   {EUROPEANAMERICAN.I}           
+END PROCEDURE.*/
+    
+
+
+
+
+
+
+
+
+

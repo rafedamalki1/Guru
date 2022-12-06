@@ -1,0 +1,8 @@
+/* r-edit.p */
+
+DEFINE VARIABLE i AS INTEGER.
+
+UPDATE i EDITING:
+    READKEY.
+    APPLY LASTKEY.
+END.

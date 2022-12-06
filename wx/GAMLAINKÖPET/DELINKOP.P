@@ -1,0 +1,127 @@
+/*DELINKOP.P*/
+DEFINE VARIABLE datvar LIKE BERMTRL.DATUM NO-UNDO.
+
+{KONVALTEMP.I}
+
+DEFINE TEMP-TABLE mtrl_temp    
+    FIELD ENR AS CHARACTER
+    FIELD BENAMNING AS CHARACTER
+    FIELD ENHET AS CHARACTER
+    FIELD PRIS AS DECIMAL       
+    FIELD ANTAL AS INTEGER     
+    FIELD BESTANT AS INTEGER    
+    FIELD LEVKOD AS CHARACTER 
+    FIELD BERLEV AS CHARACTER
+    FIELD DATUM AS DATE    
+     /* fler best per dag          */
+    FIELD DELNR AS INTEGER
+    INDEX ENR IS PRIMARY ENR ASCENDING.
+   
+
+DEFINE BUFFER linbuff FOR BERLINKAB.
+DEFINE INPUT PARAMETER bernrvar AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER omrvar AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER globforetag AS CHARACTER NO-UNDO.   
+DEFINE INPUT PARAMETER TABLE FOR kon_val.
+DEFINE OUTPUT PARAMETER TABLE FOR mtrl_temp.
+EMPTY TEMP-TABLE mtrl_temP NO-ERROR. 
+DEFINE BUFFER konvbuff FOR kon_val.
+FIND FIRST kon_val NO-LOCK NO-ERROR.
+IF AVAILABLE kon_val THEN DO:   
+   FIND LAST BERMTRL WHERE BERMTRL.AONR = kon_val.BERAONR AND 
+   BERMTRL.OMRADE = kon_val.OMRADE AND BERMTRL.INKOP = FALSE 
+   USE-INDEX DATUM NO-LOCK NO-ERROR.
+   IF AVAILABLE BERMTRL THEN DO:
+      datvar = BERMTRL.DATUM.
+   END.     
+   ELSE DO:
+      datvar = TODAY.
+   END.
+   FOR EACH kon_val:      
+      IF kon_val.GRUPP NE 1000 THEN DO:                 
+         OPEN QUERY mtrlprisq FOR EACH BERMTRL WHERE BERMTRL.AONR = kon_val.BERAONR AND
+         BERMTRL.OMRADE = kon_val.OMRADE AND BERMTRL.INKOP = FALSE
+         AND BERMTRL.DATUM = datvar AND BERMTRL.NUM = kon_val.NUM USE-INDEX DATUM NO-LOCK.
+         GET FIRST mtrlprisq NO-LOCK.
+         DO WHILE AVAILABLE(BERMTRL):
+            IF BERMTRL.ANTAL > 0 THEN DO:         
+               CREATE mtrl_temp.
+               ASSIGN
+               mtrl_temp.ENR = BERMTRL.ENR
+               mtrl_temp.BENAMNING = BERMTRL.BENAMNING
+               mtrl_temp.ENHET = BERMTRL.ENHET         
+               mtrl_temp.PRIS = BERMTRL.PRIS
+               mtrl_temp.ANTAL = BERMTRL.ANTAL               
+               mtrl_temp.LEVKOD = BERMTRL.LEVKOD
+               /*mtrl_temp.DATUM = BERMTRL.DATUM*/
+               mtrl_temp.DATUM = TODAY.
+               IF globforetag = "ELPA" {GLOBVES.I} THEN DO:
+                  IF BERMTRL.LEVKOD = "12" OR BERMTRL.LEVKOD = "13"  THEN mtrl_temp.LEVKOD = "16".
+               END.
+               ELSE IF globforetag = "UMEA" THEN DO:
+                  mtrl_temp.LEVKOD = "1".
+               END.
+            END.               
+            GET NEXT mtrlprisq NO-LOCK.
+         END.    
+         CLOSE QUERY mtrlprisq. 
+      END.
+      ELSE DO:        
+         OPEN QUERY linq FOR EACH BERLINKAB WHERE BERLINKAB.AONR = kon_val.BERAONR AND
+         BERLINKAB.OMRADE = kon_val.OMRADE AND BERLINKAB.DATUM = datvar AND BERLINKAB.KORTKOD = ?
+         AND BERLINKAB.UPPLAG = INTEGER(STRING(kon_val.F2)) NO-LOCK.
+         GET FIRST linq NO-LOCK.
+         DO WHILE AVAILABLE(BERLINKAB):
+            CREATE mtrl_temp.
+            ASSIGN            
+            mtrl_temp.ENR = BERLINKAB.ENR
+            mtrl_temp.BENAMNING = BERLINKAB.BENAMNING
+            mtrl_temp.ENHET = BERLINKAB.ENHET
+            mtrl_temp.ANTAL = BERLINKAB.METER
+            mtrl_temp.PRIS = BERLINKAB.PRIS            
+            mtrl_temp.LEVKOD = BERLINKAB.LEVKOD
+            mtrl_temp.DATUM = TODAY.                        
+            GET NEXT linq NO-LOCK.
+         END.
+         CLOSE QUERY linq.      
+      END.      
+   END.
+   FIND FIRST kon_val NO-LOCK NO-ERROR.
+   IF AVAILABLE kon_val THEN DO:          
+      FOR EACH BERVAL WHERE BERVAL.AONR = kon_val.BERAONR AND BERVAL.OMRADE = kon_val.OMRADE AND
+      BERVAL.ORT = SUBSTRING(kon_val.ANMARK,1,15)  AND  BERVAL.DELNR = INTEGER(SUBSTRING(kon_val.ANMARK,20,15)) EXCLUSIVE-LOCK:
+         FIND FIRST konvbuff WHERE konvbuff.BERAONR = BERVAL.AONR AND konvbuff.OMRADE = BERVAL.OMRADE AND
+         konvbuff.NUM = BERVAL.NUM AND BERVAL.ORT = SUBSTRING(konvbuff.ANMARK,1,15) AND 
+         STRING(BERVAL.DELNR) = SUBSTRING(konvbuff.ANMARK,20,15) NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE konvbuff THEN DO:
+            /*om konstruktion tas bort ur delbest ,och berval redan varit sparad med ORT och DELNR måste det blankas*/
+            ASSIGN BERVAL.ORT = "" BERVAL.DELNR = 0.
+         END.
+      END.
+   END. 
+END.   
+ELSE DO:
+   FIND FIRST BERMTRL WHERE BERMTRL.AONR = bernrvar AND 
+   BERMTRL.OMRADE = omrvar AND BERMTRL.INKOP = TRUE AND BERMTRL.KLAR = FALSE NO-LOCK NO-ERROR.
+   IF AVAILABLE BERMTRL THEN DO:
+      FOR EACH BERVAL WHERE BERVAL.AONR = bernrvar AND BERVAL.OMRADE = omrvar AND
+      BERVAL.ORT = STRING(BERMTRL.DATUM) AND  BERVAL.DELNR = BERMTRL.DELNR EXCLUSIVE-LOCK:
+         ASSIGN 
+         BERVAL.ORT = "" 
+         BERVAL.DELNR = 0.
+      END.
+      
+
+      FOR EACH BERUPP WHERE BERVAL.AONR = bernrvar AND BERVAL.OMRADE = omrvar AND
+      BERUPP.ANTALRADER = INTEGER(BERMTRL.DATUM) AND  BERUPP.DELNR = BERMTRL.DELNR EXCLUSIVE-LOCK:
+         ASSIGN 
+         BERUPP.ANTALRADER = 0 
+         BERUPP.DELNR = 0.
+      END.
+
+      FOR EACH BERMTRL WHERE BERMTRL.AONR = bernrvar AND 
+      BERMTRL.OMRADE = omrvar AND BERMTRL.INKOP = TRUE AND BERMTRL.KLAR = FALSE EXCLUSIVE-LOCK:
+         DELETE BERMTRL.
+      END.
+   END.
+END.

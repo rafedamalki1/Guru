@@ -1,0 +1,278 @@
+/*VALBERAPP.P*/
+{KONVALTEMP.I}
+{STARTFORAPP.I}
+{AONRTEMP.I}
+{BEREDNINGTEMP.I}
+DEFINE VARIABLE aosok           AS CHARACTER NO-UNDO.
+DEFINE VARIABLE TOG_AVS         AS LOGICAL NO-UNDO.
+DEFINE VARIABLE RAD_KALKAO      AS INTEGER NO-UNDO.
+DEFINE VARIABLE CMB_OMR         AS CHARACTER NO-UNDO.
+DEFINE VARIABLE CMB_UTF         AS CHARACTER NO-UNDO.
+DEFINE VARIABLE RAD_FAST        AS LOGICAL NO-UNDO.
+DEFINE VARIABLE TOG_KALKAT      AS LOGICAL NO-UNDO.
+DEFINE VARIABLE FILL-IN-STARTD  AS DATE NO-UNDO.
+DEFINE VARIABLE FILL-IN-SLUTD   AS DATE NO-UNDO.
+DEFINE VARIABLE omradevar       AS CHARACTER NO-UNDO.
+DEFINE VARIABLE felmedd         AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED TEMP-TABLE list_mtrl2 
+   {LISTMTRLTT.I}
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.   
+PROCEDURE ReMtrluppl_UI :
+   DEFINE INPUT PARAMETER varbernr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER varomrber AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE Revers AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR list_mtrl2.
+   DEFINE VARIABLE BerValdNr AS INTEGER NO-UNDO.
+   DEFINE VARIABLE BerValdaOmr AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE ValdBerLev AS CHARACTER NO-UNDO.
+   BerValdNr = INTEGER(varbernr).
+   BerValdaOmr = varomrber.
+   ValdBerLev = Guru.SharedVariable:KopiTillBerLeverantor.
+  
+   
+   {UTBBEREDNINGUID.I}
+   
+   FOR EACH list_mtrl2:
+      list_mtrl2.LISTAKUNDLEV = FALSE.
+   END.  
+   Revers = "ÅTERUPP".
+   /*ÅTERSTLLER TILL UPPLÄGGET*/
+   
+   FOR EACH list_mtrl2 WHERE list_mtrl2.LISTAKUNDLEV = FALSE:
+      RUN UTBYTESLISTA.P (INPUT Revers, INPUT listnr,INPUT list_mtrl2.LEVKOD,INPUT list_mtrl2.ENR,INPUT ValdBerLev, OUTPUT mrID). 
+      FIND FIRST MTRL WHERE ROWID(MTRL) = mrID NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         ASSIGN
+         list_mtrl2.ENR       = MTRL.ENR
+         list_mtrl2.BENAMNING = MTRL.BENAMNING
+         list_mtrl2.ENHET     = MTRL.ENHET
+         list_mtrl2.PRIS      = MTRL.NPRIS
+         list_mtrl2.LEVKOD    = MTRL.LEVKOD.
+      END.   
+      list_mtrl2.LISTAKUNDLEV = TRUE.   
+   END.
+       
+      
+END PROCEDURE.
+
+PROCEDURE konval_UI:
+   DEFINE INPUT PARAMETER varbernr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER varomrber AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER varnum AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR ekon_val.
+   EMPTY TEMP-TABLE ekon_val NO-ERROR. 
+   FOR EACH BERVAL WHERE BERVAL.AONR = varbernr AND
+   BERVAL.OMRADE = varomrber AND BERVAL.NUM = varnum NO-LOCK:
+      CREATE ekon_val.
+      BUFFER-COPY BERVAL TO ekon_val.
+      ASSIGN
+      ekon_val.F1 = BERVAL.KTYPKOD
+      ekon_val.GRUPP = BERVAL.KONSKOD.
+   END.          
+   
+END PROCEDURE.
+PROCEDURE aohmt_UI :
+   DEFINE INPUT PARAMETER TOG_AVS2         AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER RAD_KALKAO2      AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER CMB_OMR2         AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER RAD_FAST2        AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN-STARTD2  AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN-SLUTD2   AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR aonrtemp.
+   ASSIGN
+   TOG_AVS       = TOG_AVS2       
+   RAD_KALKAO    = RAD_KALKAO2    
+   CMB_OMR       = CMB_OMR2       
+   RAD_FAST      = RAD_FAST2      
+   FILL-IN-STARTD = FILL-IN-STARTD2
+   FILL-IN-SLUTD = FILL-IN-SLUTD2.
+   EMPTY TEMP-TABLE aonrtemp NO-ERROR. 
+   IF TOG_AVS = FALSE AND RAD_KALKAO = 1 THEN DO:          
+      IF CMB_OMR = Guru.Konstanter:gomrk + " : alla" THEN DO: 
+         FOR EACH AONRTAB WHERE AONRTAB.FASTAAONR = RAD_FAST AND 
+         AONRTAB.AONRAVDATUM = 01/01/1991 NO-LOCK:
+            CREATE aonrtemp.
+            BUFFER-COPY AONRTAB TO aonrtemp.
+         END.         
+      END.
+      ELSE DO:
+         FIND FIRST OMRADETAB WHERE OMRADETAB.NAMN = CMB_OMR NO-LOCK NO-ERROR.
+         IF AVAILABLE OMRADETAB THEN DO:
+            omradevar = OMRADETAB.OMRADE.
+            FOR EACH AONRTAB WHERE AONRTAB.OMRADE = omradevar AND 
+            AONRTAB.FASTAAONR = RAD_FAST AND AONRTAB.AONRAVDATUM = 01/01/1991 NO-LOCK:
+               CREATE aonrtemp.
+               BUFFER-COPY AONRTAB TO aonrtemp.            
+            END.
+            
+         END.
+      END.             
+   END.
+   IF TOG_AVS = TRUE AND RAD_KALKAO = 1 THEN DO:
+      IF CMB_OMR = Guru.Konstanter:gomrk + " : alla" THEN DO:
+         FOR EACH AONRTAB WHERE AONRTAB.FASTAAONR = RAD_FAST AND 
+         AONRTAB.AONRAVDATUM >= FILL-IN-STARTD AND AONRTAB.AONRAVDATUM <= FILL-IN-SLUTD NO-LOCK:
+            CREATE aonrtemp.
+            BUFFER-COPY AONRTAB TO aonrtemp.         
+         END.         
+      END.
+      ELSE DO:
+         FIND FIRST OMRADETAB WHERE OMRADETAB.NAMN = CMB_OMR NO-LOCK NO-ERROR.
+         IF AVAILABLE OMRADETAB THEN DO:
+            omradevar = OMRADETAB.OMRADE.
+            FOR EACH AONRTAB WHERE AONRTAB.OMRADE = omradevar AND 
+            AONRTAB.FASTAAONR = RAD_FAST AND 
+            AONRTAB.AONRAVDATUM >= FILL-IN-STARTD AND AONRTAB.AONRAVDATUM <= FILL-IN-SLUTD NO-LOCK:
+               CREATE aonrtemp.
+               BUFFER-COPY AONRTAB TO aonrtemp.            
+            END.            
+         END.
+      END.        
+   END.   
+END PROCEDURE.
+
+PROCEDURE berhmt_UI :
+   DEFINE INPUT PARAMETER RAD_KALKAO2      AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER CMB_OMR2         AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TOG_KALKAT2      AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER CMB_UTF2 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR beredningtemp.
+   ASSIGN
+   CMB_OMR       = CMB_OMR2       
+   RAD_KALKAO    = RAD_KALKAO2       
+   TOG_KALKAT    = TOG_KALKAT2
+   CMB_UTF       = CMB_UTF2.   
+   EMPTY TEMP-TABLE beredningtemp NO-ERROR. 
+   IF TOG_KALKAT = FALSE AND RAD_KALKAO = 2 THEN DO:       
+      IF CMB_OMR = Guru.Konstanter:gomrk + " : alla" THEN DO:
+         IF CMB_UTF NE "Alla" THEN DO:
+            FOR EACH BEREDNING WHERE BEREDNING.AKTIV = TRUE AND 
+            BEREDNING.ANVANDARE = CMB_UTF NO-LOCK:
+               CREATE beredningtemp.
+               BUFFER-COPY BEREDNING TO beredningtemp.           
+            END.            
+         END.
+         ELSE DO:           
+            FOR EACH BEREDNING WHERE BEREDNING.AKTIV = TRUE NO-LOCK:
+               CREATE beredningtemp.
+               BUFFER-COPY BEREDNING TO beredningtemp.            
+            END.            
+         END.
+      END.
+      ELSE DO:
+         FIND FIRST OMRADETAB WHERE OMRADETAB.NAMN = CMB_OMR NO-LOCK NO-ERROR.
+         IF AVAILABLE OMRADETAB THEN DO:
+            omradevar = OMRADETAB.OMRADE.
+            /*Av GG den 27/6*/
+            IF CMB_UTF NE "Alla" THEN DO:
+               FOR EACH BEREDNING WHERE BEREDNING.OMRADE = omradevar AND
+               BEREDNING.AKTIV = TRUE AND BEREDNING.ANVANDARE = CMB_UTF NO-LOCK:
+                  CREATE beredningtemp.
+                  BUFFER-COPY BEREDNING TO beredningtemp.
+               END.            
+            END.
+            ELSE DO:
+               FOR EACH BEREDNING WHERE BEREDNING.OMRADE = omradevar AND
+               BEREDNING.AKTIV = TRUE NO-LOCK:
+                  CREATE beredningtemp.
+                  BUFFER-COPY BEREDNING TO beredningtemp.
+               END.            
+            END.
+         END.
+      END.      
+   END.
+   IF TOG_KALKAT = TRUE AND RAD_KALKAO = 2 THEN DO:       
+      IF CMB_OMR = Guru.Konstanter:gomrk + " : alla" THEN DO:
+         FOR EACH BEREDNING WHERE BEREDNING.AKTIV = FALSE NO-LOCK:
+            CREATE beredningtemp.
+            BUFFER-COPY BEREDNING TO beredningtemp.
+         END.         
+      END.
+      ELSE DO:
+         FIND FIRST OMRADETAB WHERE OMRADETAB.NAMN = CMB_OMR NO-LOCK NO-ERROR.
+         IF AVAILABLE OMRADETAB THEN DO:
+            omradevar = OMRADETAB.OMRADE.
+            FOR EACH BEREDNING WHERE BEREDNING.OMRADE = omradevar AND
+            BEREDNING.AKTIV = FALSE NO-LOCK:
+               CREATE beredningtemp.
+               BUFFER-COPY BEREDNING TO beredningtemp.            
+            END.            
+         END.
+      END.         
+   END.
+END PROCEDURE.
+
+
+PROCEDURE anvkoll_UI :
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER berstopp AS LOGICAL NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER ejanv AS LOGICAL NO-UNDO.
+   ASSIGN
+   felmedd = "".
+   FIND FIRST BERANV WHERE BERANV.AONR = valaonr AND BERANV.OMRADE = valomrade USE-INDEX OMR NO-LOCK NO-ERROR.
+   IF AVAILABLE BERANV THEN DO: 
+      IF Guru.Konstanter:globniv NE 0 THEN DO:
+         FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = BERANV.ANVANDARE NO-LOCK NO-ERROR.
+         IF AVAILABLE ANVANDARE THEN DO:
+            ASSIGN 
+            felmedd = "Beredningen används av " + ANVANDARE.AV-NAMN + ". Funktionen ej möjlig att utföra."
+            berstopp = TRUE.         
+         END. 
+         ELSE DO:
+            ASSIGN 
+            felmedd = "Beredningen används av " + BERANV.ANVANDARE + ". Funktionen ej möjlig att utföra."
+            berstopp = TRUE.
+         END.     
+      END.
+      ELSE DO:
+         ASSIGN
+         berstopp = FALSE
+         ejanv = TRUE.
+      END.
+   END.
+   ELSE DO:
+      ASSIGN
+      ejanv = FALSE
+      berstopp = FALSE.
+   END.
+END PROCEDURE.
+
+PROCEDURE berdathmt_UI :
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER datvar AS DATE NO-UNDO.
+
+   FIND LAST BERMTRL WHERE BERMTRL.AONR = valaonr AND 
+   BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE 
+   USE-INDEX DATUM NO-LOCK NO-ERROR.
+   IF AVAILABLE BERMTRL THEN DO:
+      datvar = BERMTRL.DATUM.
+   END.
+   ELSE DO:
+      datvar = TODAY.
+   END. 
+END PROCEDURE.
+
+PROCEDURE levsattfran_UI :
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   
+   FIND FIRST BETFRIA WHERE BETFRIA.BETNR = INTEGER(valaonr) AND
+   BETFRIA.FAKTTEXT = valomrade   NO-LOCK NO-ERROR.
+   IF AVAILABLE BETFRIA THEN DO:          
+      Guru.SharedVariable:KopiFranBerLeverantor = BETFRIA.TYP.
+   END. 
+END PROCEDURE.
+
+PROCEDURE levsatttill_UI :
+   DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   
+   FIND FIRST BETFRIA WHERE BETFRIA.BETNR = INTEGER(valaonr) AND
+   BETFRIA.FAKTTEXT = valomrade    NO-LOCK NO-ERROR.
+   IF AVAILABLE BETFRIA THEN DO:          
+      Guru.SharedVariable:KopiTillBerLeverantor = BETFRIA.TYP.
+   END. 
+END PROCEDURE.

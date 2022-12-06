@@ -1,0 +1,1534 @@
+/*BERVALAPPK.P*/
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{STARTFORAPP.I}
+{KONSTRMTRL.I}
+{LEVTEMP.I}
+{MTRLTEMP.I}
+{SMTRL.I}
+{ANMARKTEMP.I}
+{BERANN.I} 
+{BERBILD.I}
+{EXTRADATA.I}
+{LISTMTRL.I}      
+{BILDBERTEMP.I}  
+{KSKBYTTEMP.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE varbild AS CHARACTER NO-UNDO.
+DEFINE VARIABLE raknare AS INTEGER NO-UNDO.
+DEFINE VARIABLE enrspar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE countvar AS INTEGER NO-UNDO.
+DEFINE TEMP-TABLE bildkomb NO-UNDO
+   FIELD NUM AS INTEGER
+   FIELD BILD AS CHARACTER
+   FIELD KOMB AS CHARACTER
+   INDEX NUM NUM.
+
+DEFINE TEMP-TABLE visamtrl NO-UNDO
+      FIELD ENR AS CHARACTER FORMAT "x(11)" LABEL "Enr"    
+      FIELD BENAMNING AS CHARACTER FORMAT "x(40)" LABEL "Benämning"   
+      FIELD ENHET AS CHARACTER FORMAT "x(5)" LABEL "Enhet" 
+      FIELD ANTAL AS INTEGER FORMAT ">>>>>9" LABEL "Antal"
+      FIELD LEVKOD AS CHARACTER
+      INDEX ENR IS PRIMARY ENR ASCENDING.
+PROCEDURE BeridBort_UI :
+   DEFINE INPUT PARAMETER valaonr LIKE AONRTAB.AONR NO-UNDO.                           
+   DEFINE INPUT PARAMETER valomrade LIKE AONRTAB.OMRADE NO-UNDO.                       
+   DEFINE INPUT  PARAMETER valnum AS INTEGER NO-UNDO.
+   DO TRANSACTION:
+      /*allt om id*/
+      FIND FIRST BERID  WHERE BERID.AONR = valaonr AND BERID.OMRADE = valomrade AND BERID.NUM = valnum EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BERID THEN DELETE BERID.
+      /*kartref*/
+      FIND FIRST BERID2  WHERE BERID2.AONR = valaonr AND BERID2.OMRADE = valomrade AND BERID2.NUM = valnum EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BERID2 THEN DELETE BERID2.
+   END.
+END PROCEDURE.
+PROCEDURE finnsberlinkab_UI :
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valbernr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER finnsok AS LOGICAL NO-UNDO.
+   FIND FIRST BERLINKAB WHERE BERLINKAB.AONR = valbernr AND
+   BERLINKAB.OMRADE = valomrade NO-LOCK NO-ERROR.
+   IF AVAILABLE BERLINKAB THEN finnsok = TRUE.
+      
+END PROCEDURE.
+
+PROCEDURE stolpbenhmt_UI :
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valbernr AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER numval AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER benvar AS CHARACTER NO-UNDO.
+   FOR EACH BERMTRL WHERE BERMTRL.AONR = valbernr  AND BERMTRL.OMRADE  = valomrade AND BERMTRL.NUM = numval AND BERMTRL.ANTAL > 0 NO-LOCK BY ENR.
+      FIND FIRST BERSTOLP WHERE BERSTOLP.LEVKOD = BERMTRL.LEVKOD AND BERSTOLP.ENR = BERMTRL.ENR NO-LOCK NO-ERROR.
+      IF AVAILABLE BERSTOLP THEN DO:
+         benvar = BERSTOLP.BENAMNING.
+         LEAVE.
+      END.
+   END.   
+   
+END PROCEDURE.
+
+PROCEDURE bildkomb_UI :
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valbernr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR bildkomb.
+   EMPTY TEMP-TABLE bildkomb NO-ERROR. 
+
+   FOR EACH BERID WHERE BERID.AONR = valbernr AND BERID.OMRADE = valomrade NO-LOCK.
+      IF BERID.XKORD = 0 THEN.
+      ELSE IF BERID.XKORD = ? THEN.
+      ELSE DO:
+         FIND FIRST bildkomb WHERE bildkomb.NUM = BERID.NUM NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE bildkomb THEN DO:
+            CREATE bildkomb.
+         END.
+         ASSIGN
+         bildkomb.NUM = BERID.NUM 
+         bildkomb.KOMB = "K".      
+      END.
+   END.  
+   RUN Bildkombhmt_UI (INPUT INTEGER(valbernr), INPUT valomrade).
+   FIND FIRST bildkomb WHERE NO-LOCK NO-ERROR.
+   IF AVAILABLE bildkomb THEN.
+   ELSE DO:
+      FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "BERBILD" AND EXTRADATA.HUVUDINT = INTEGER(valbernr) AND 
+      EXTRADATA.HUVUDCH = valomrade NO-LOCK:
+         FIND FIRST bildkomb WHERE bildkomb.NUM = EXTRADATA.SOKINT[1] NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE bildkomb THEN DO:
+            CREATE bildkomb.
+         END.
+         ASSIGN
+         bildkomb.NUM = EXTRADATA.SOKINT[1]
+         bildkomb.BILD = "B".           
+      END.
+   END.   
+END PROCEDURE.
+{Berbilderhmt.i}
+PROCEDURE hamtlev_UI :
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valbernr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.      
+   FIND FIRST BETFRIA WHERE BETFRIA.FAKTTEXT = valomrade AND
+   BETFRIA.BETNR = INTEGER(valbernr) NO-LOCK NO-ERROR. 
+   IF AVAILABLE BETFRIA THEN vald_lev = BETFRIA.TYP.         
+   ELSE vald_lev = "".
+END PROCEDURE.
+
+PROCEDURE hmtnasta_UI :
+   DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR. 
+   FIND FIRST MTRL WHERE MTRL.ENR = enrvar AND MTRL.LEVKOD = vald_lev 
+   AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      FIND NEXT MTRL WHERE MTRL.ENR NE enrvar AND MTRL.LEVKOD = vald_lev 
+      AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         CREATE mtrltemp.
+         BUFFER-COPY MTRL TO mtrltemp.
+         ASSIGN 
+         mtrltemp.ENHET = LC(mtrltemp.ENHET)
+         mtrltemp.MTRLROW = ROWID(MTRL).
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE hmtinnan_UI :
+   DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR. 
+   FIND FIRST MTRL WHERE MTRL.ENR = enrvar AND MTRL.LEVKOD = vald_lev 
+   AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      FIND PREV MTRL WHERE MTRL.ENR NE enrvar AND MTRL.LEVKOD = vald_lev 
+      AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         CREATE mtrltemp.
+         BUFFER-COPY MTRL TO mtrltemp.
+         ASSIGN 
+         mtrltemp.ENHET = LC(mtrltemp.ENHET)
+         mtrltemp.MTRLROW = ROWID(MTRL).         
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE hmtforsta_UI :
+   DEFINE INPUT PARAMETER vald_lev2 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.
+   DEFINE VARIABLE num AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR. 
+   num = 0.
+   FOR EACH MTRL WHERE MTRL.KALKNR = 0 AND  
+   MTRL.LEVKOD = vald_lev2 USE-INDEX ENR NO-LOCK :         
+      CREATE mtrltemp.                      
+      BUFFER-COPY MTRL TO mtrltemp.         
+      ASSIGN 
+      mtrltemp.ENHET = LC(mtrltemp.ENHET)
+      mtrltemp.MTRLROW = ROWID(MTRL).
+      num = num + 1.
+      IF num = 11 THEN RETURN.
+   END.  
+END PROCEDURE.
+
+PROCEDURE hmtsista_UI :
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.
+   DEFINE VARIABLE num AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR. 
+   num = 0.
+   FIND LAST MTRL WHERE MTRL.LEVKOD = vald_lev AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      REPEAT:
+         FIND PREV MTRL WHERE MTRL.LEVKOD = vald_lev AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRL THEN DO:
+            CREATE mtrltemp.
+            BUFFER-COPY MTRL TO mtrltemp.
+            ASSIGN 
+            mtrltemp.ENHET = LC(mtrltemp.ENHET)
+            mtrltemp.MTRLROW = ROWID(MTRL).
+            num = num + 1.
+            IF num = 11 THEN LEAVE.            
+         END.      
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE hmtskap_UI :
+   DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.
+   /*EMPTY TEMP-TABLE mtrltemp NO-ERROR. */
+   FIND FIRST MTRL WHERE MTRL.ENR = enrvar AND MTRL.LEVKOD = vald_lev 
+   AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+   IF AVAILABLE MTRL THEN DO:
+      CREATE mtrltemp.
+      BUFFER-COPY MTRL TO mtrltemp.
+      ASSIGN 
+      mtrltemp.ENHET = LC(mtrltemp.ENHET)
+      mtrltemp.MTRLROW = ROWID(MTRL).               
+   END.
+
+END PROCEDURE.
+PROCEDURE stolpaltlevUtb_UI :
+   DEFINE INPUT  PARAMETER BerOmr AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER BerBernr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER stolpvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vlev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER xtillyvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER senr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER slev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER spris AS DECIMAL NO-UNDO.   
+   FIND FIRST BEREDNING  WHERE BEREDNING.OMRADE = BerOmr AND BEREDNING.BERNR = BerBernr NO-LOCK NO-ERROR.
+   IF BEREDNING.UID > 0 THEN DO:
+      FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = BEREDNING.UID AND UTBYTESLISTA.ORGLEVKOD = vlev AND UTBYTESLISTA.ORGENR = stolpvar 
+      NO-LOCK NO-ERROR.
+   END.   
+   IF NOT AVAILABLE UTBYTESLISTA THEN DO:
+      FIND FIRST UTBYTESLISTA WHERE UTBYTESLISTA.UID = 0 AND UTBYTESLISTA.ORGLEVKOD = vlev AND UTBYTESLISTA.ORGENR = stolpvar AND
+      UTBYTESLISTA.BYTTILLLEVKOD = xtillyvar NO-LOCK NO-ERROR.
+   END.   
+   IF AVAILABLE UTBYTESLISTA THEN DO:        
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = UTBYTESLISTA.BYTTILLLEVKOD AND MTRL.ENR = UTBYTESLISTA.BYTTILLENR AND
+      MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:      
+         ASSIGN
+         slev = UTBYTESLISTA.BYTTILLLEVKOD
+         senr = UTBYTESLISTA.BYTTILLENR
+         spris = MTRL.NPRIS.
+      END.
+      ELSE DO:
+         ASSIGN
+         slev = UTBYTESLISTA.BYTTILLLEVKOD
+         senr = UTBYTESLISTA.BYTTILLENR
+         spris = 0.
+      END.
+   END.
+   ELSE DO:
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = xtillyvar AND MTRL.ENR = stolpvar AND
+      MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         ASSIGN
+         slev = MTRL.LEVKOD
+         senr = MTRL.ENR   
+         spris = MTRL.NPRIS.
+      END.
+   END.
+   RELEASE UTBYTESLISTA NO-ERROR.
+END PROCEDURE.
+
+/*Anders Olsson Elpool i Umeå AB  2 nov 2022 15:37:19 
+körs ej 
+
+PROCEDURE stolpaltlev_UI :
+   DEFINE INPUT PARAMETER stolpvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vlev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER xtillyvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER senr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER slev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER spris AS DECIMAL NO-UNDO.   
+   FIND FIRST BETPLAN WHERE BETPLAN.NAMN = vlev AND BETPLAN.ANVANDARE = stolpvar AND
+   BETPLAN.BESTID = xtillyvar NO-LOCK NO-ERROR.
+   IF AVAILABLE BETPLAN THEN DO:        
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = BETPLAN.BESTID AND MTRL.ENR = BETPLAN.OMRADE AND
+      MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:      
+         ASSIGN
+         slev = BETPLAN.BESTID
+         senr = BETPLAN.OMRADE
+         spris = MTRL.NPRIS.
+      END.
+      ELSE DO:
+         ASSIGN
+         slev = BETPLAN.BESTID
+         senr = BETPLAN.OMRADE
+         spris = 0.
+      END.
+   END.
+   ELSE DO:
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = xtillyvar AND MTRL.ENR = stolpvar AND
+      MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         ASSIGN
+         slev = MTRL.LEVKOD
+         senr = MTRL.ENR   
+         spris = MTRL.NPRIS.
+      END.
+   END.
+END PROCEDURE.
+*/
+
+PROCEDURE asynchmt_UI :
+   DEFINE OUTPUT PARAMETER klar2 AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.
+   DEFINE VARIABLE num AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR. 
+   ASSIGN
+   klar2 = FALSE
+   num = 0.
+   FOR EACH MTRL USE-INDEX ENR:
+      CREATE mtrltemp.
+      BUFFER-COPY MTRL TO mtrltemp.
+      ASSIGN 
+      mtrltemp.ENHET = LC(mtrltemp.ENHET)
+      mtrltemp.MTRLROW = ROWID(MTRL).
+      num = num + 1.
+      IF num = 11 THEN DO:
+         klar2 = TRUE.
+         RETURN.
+      END.
+   END.
+   IF num NE 11 THEN klar2 = TRUE.
+   RETURN.
+
+END PROCEDURE.
+
+
+PROCEDURE koppcheck_UI :
+   DEFINE INPUT PARAMETER grpkod AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   felmedd = "".
+   FIND FIRST KONSTGRUPP WHERE KONSTGRUPP.KONSKOD = grpkod NO-LOCK NO-ERROR.
+   IF AVAILABLE KONSTGRUPP THEN DO:
+      felmedd = "Det finns redan en " + KONSTGRUPP.BENAMNING + " med denna identifikation.".
+   END.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE enrhmt_UI :
+   DEFINE INPUT PARAMETER posok AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER begvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev2 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.
+   felmedd = "".
+   IF posok = "*" THEN DO:
+      FOR EACH emtrltemp WHERE emtrltemp.LEVKOD = vald_lev2 AND emtrltemp.KALKNR = 0 USE-INDEX LEV NO-LOCK:
+         CREATE mtrltemp.
+         BUFFER-COPY emtrltemp TO mtrltemp.
+         mtrltemp.ENHET = LC(mtrltemp.ENHET).
+         DELETE emtrltemp.         
+      END.
+      RETURN.
+   END.
+   IF begvar = ? THEN DO:
+      RUN starwars_UI (OUTPUT begvar,OUTPUT felmedd,INPUT-OUTPUT posok).
+      IF felmedd NE "" THEN RETURN.
+   END.
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR. 
+   
+   felmedd = "".
+   IF begvar = FALSE THEN DO:
+      FOR EACH emtrltemp WHERE emtrltemp.ENR MATCHES posok AND emtrltemp.LEVKOD = vald_lev2
+      AND emtrltemp.KALKNR = 0 USE-INDEX LEV NO-LOCK:
+         CREATE mtrltemp.
+         BUFFER-COPY emtrltemp TO mtrltemp.
+         mtrltemp.ENHET = LC(mtrltemp.ENHET).
+         DELETE emtrltemp.      
+      END.     
+   END.
+   ELSE DO:
+      OPEN QUERY bq FOR EACH emtrltemp WHERE emtrltemp.ENR BEGINS posok AND emtrltemp.LEVKOD = vald_lev2
+      AND emtrltemp.KALKNR = 0 USE-INDEX LEV NO-LOCK.
+      GET FIRST bq NO-LOCK.
+      DO WHILE AVAILABLE(emtrltemp):
+         CREATE mtrltemp.
+         BUFFER-COPY emtrltemp TO mtrltemp.
+         mtrltemp.ENHET = LC(mtrltemp.ENHET).
+         DELETE emtrltemp.
+         GET NEXT bq NO-LOCK.
+      END.
+      CLOSE QUERY bq.
+   END.
+   FIND FIRST mtrltemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE mtrltemp THEN DO:
+      ASSIGN felmedd = "Det finns inget på sökbegreppet".
+      RETURN.
+   END.      
+END PROCEDURE.
+
+PROCEDURE enrhmt2_UI :
+   DEFINE INPUT PARAMETER posok AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER begvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev2 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.
+
+   DEFINE VARIABLE num AS INTEGER NO-UNDO.
+   felmedd = "".
+   IF begvar = ? THEN DO:
+      RUN starwars_UI (OUTPUT begvar,OUTPUT felmedd,INPUT-OUTPUT posok).
+      IF felmedd NE "" THEN RETURN.
+   END.
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR. 
+   num = 0.
+   IF begvar = FALSE THEN DO:
+      FIND FIRST MTRL WHERE MTRL.ENR MATCHES posok AND MTRL.LEVKOD = vald_lev2
+      AND MTRL.KALKNR = 0 USE-INDEX LEV NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         REPEAT:      
+            FIND NEXT MTRL WHERE  MTRL.LEVKOD = vald_lev2 
+            AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE MTRL THEN LEAVE.
+            
+            CREATE mtrltemp.
+            BUFFER-COPY MTRL TO mtrltemp.
+            ASSIGN 
+            mtrltemp.ENHET = LC(mtrltemp.ENHET)
+            mtrltemp.MTRLROW = ROWID(MTRL).
+            num = num + 1.
+            IF num = 11 THEN LEAVE.
+         END.
+      END.
+   END.
+   ELSE DO:
+      FIND FIRST MTRL WHERE MTRL.ENR BEGINS posok AND MTRL.LEVKOD = vald_lev2
+      AND MTRL.KALKNR = 0 USE-INDEX LEV NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         REPEAT:      
+            FIND NEXT MTRL WHERE  MTRL.LEVKOD = vald_lev2 
+            AND MTRL.KALKNR = 0 USE-INDEX ENR NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE MTRL THEN LEAVE.
+            
+            CREATE mtrltemp.
+            BUFFER-COPY MTRL TO mtrltemp.
+            ASSIGN 
+            mtrltemp.ENHET = LC(mtrltemp.ENHET).
+            mtrltemp.MTRLROW = ROWID(MTRL).
+            num = num + 1.
+            IF num = 11 THEN LEAVE.
+         END.
+      END.
+   END.
+   FIND FIRST mtrltemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE mtrltemp THEN DO:
+      ASSIGN felmedd = "Det finns inget på sökbegreppet".
+      RETURN.
+   END.     
+END PROCEDURE.
+
+PROCEDURE benhmt_UI :
+   DEFINE INPUT PARAMETER aosok AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER satsvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER begvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev2 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrltemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR satstemp.
+   IF aosok = "*" THEN DO:
+      FOR EACH emtrltemp WHERE emtrltemp.LEVKOD = vald_lev2 AND MTRL.KALKNR = 0 USE-INDEX LEV NO-LOCK:
+         CREATE mtrltemp.
+         BUFFER-COPY emtrltemp TO mtrltemp.
+         mtrltemp.ENHET = LC(mtrltemp.ENHET).
+         DELETE emtrltemp.         
+      END.
+      RETURN.
+   END.
+   IF begvar = ? THEN DO:
+      RUN starwars_UI (OUTPUT begvar,OUTPUT felmedd,INPUT-OUTPUT aosok).
+      IF felmedd NE "" THEN RETURN.
+   END.
+   EMPTY TEMP-TABLE mtrltemp NO-ERROR. 
+   EMPTY TEMP-TABLE satstemp NO-ERROR. 
+   felmedd = "".
+   IF satsvar = FALSE THEN DO:
+      IF begvar = FALSE THEN DO:
+         FOR EACH emtrltemp WHERE emtrltemp.BENAMNING MATCHES aosok AND MTRL.LEVKOD = vald_lev2
+         AND emtrltemp.KALKNR = 0 USE-INDEX BEN NO-LOCK:        
+            CREATE mtrltemp.
+            BUFFER-COPY emtrltemp TO mtrltemp.
+            mtrltemp.ENHET = LC(mtrltemp.ENHET).
+            DELETE emtrltemp.            
+         END.
+      END.   
+      ELSE DO:
+         FOR EACH emtrltemp WHERE emtrltemp.BENAMNING BEGINS aosok AND MTRL.LEVKOD = vald_lev2
+         AND emtrltemp.KALKNR = 0 USE-INDEX BEN NO-LOCK:
+            CREATE mtrltemp.
+            BUFFER-COPY emtrltemp TO mtrltemp.
+            mtrltemp.ENHET = LC(mtrltemp.ENHET).
+            DELETE emtrltemp.            
+         END.
+      END.
+      FIND FIRST mtrltemp NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE mtrltemp THEN DO:
+         ASSIGN felmedd =  "Det finns inget på sökbegreppet.".
+         RETURN.
+      END.
+   END.
+   ELSE DO:
+      IF begvar = FALSE THEN DO:
+         FOR EACH SATS WHERE SATS.BENAMNING MATCHES aosok AND SATS.LEVKOD = vald_lev2
+         AND SATS.SATS = TRUE USE-INDEX KOD NO-LOCK:
+            CREATE satstemp.
+            BUFFER-COPY SATS TO satstemp.
+            ASSIGN satstemp.SATSROW = ROWID(SATS).
+         END.         
+      END.
+      ELSE DO:
+         FOR EACH SATS WHERE SATS.BENAMNING BEGINS aosok AND SATS.LEVKOD = vald_lev2
+         AND SATS.SATS = TRUE USE-INDEX KOD NO-LOCK:
+            CREATE satstemp.
+            BUFFER-COPY SATS TO satstemp.
+            ASSIGN satstemp.SATSROW = ROWID(SATS).          
+         END.         
+      END.
+      FIND FIRST satstemp NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE satstemp THEN DO:
+         ASSIGN felmedd =  "Det finns inget på sökbegreppet.".
+         RETURN.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE kodhmt_UI :
+   DEFINE INPUT PARAMETER posok AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER begvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR satstemp.
+   EMPTY TEMP-TABLE satstemp NO-ERROR. 
+   felmedd = "".  
+   IF begvar = FALSE THEN DO:
+      FOR EACH SATS WHERE SATS.KOD MATCHES posok AND SATS.LEVKOD = vald_lev
+      AND SATS.SATS = TRUE USE-INDEX KOD NO-LOCK:      
+         CREATE satstemp.
+         BUFFER-COPY SATS TO satstemp.
+         ASSIGN satstemp.SATSROW = ROWID(SATS).         
+      END.
+   END.
+   ELSE DO:
+      FOR EACH SATS WHERE SATS.KOD BEGINS posok AND SATS.LEVKOD = vald_lev
+      AND SATS.SATS = TRUE USE-INDEX KOD NO-LOCK:
+         CREATE satstemp.
+         BUFFER-COPY SATS TO satstemp.
+         ASSIGN satstemp.SATSROW = ROWID(SATS).
+      END.
+   END.
+   FIND FIRST satstemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE satstemp THEN DO:
+      ASSIGN felmedd = "Det finns ingen på sökbegreppet.".
+      RETURN.
+   END.
+END PROCEDURE.
+
+PROCEDURE starwars_UI:
+   DEFINE OUTPUT PARAMETER begvar AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER posok AS CHARACTER NO-UNDO.
+   IF INDEX(posok,"*",1) = 0 THEN DO:
+      ASSIGN
+      posok = "*" + posok + "*"
+      begvar = FALSE.
+      RETURN.
+   END.
+   IF SUBSTRING(posok,1,1) = "*" THEN DO:
+      IF INDEX(posok,"*",2) = 0 THEN DO:
+         ASSIGN
+         begvar = FALSE.
+         RETURN.
+      END.
+      ELSE DO:
+         felmedd = "Ni kan endast använda en '*' i början eller slutet av en sökning".
+         RETURN. 
+      END.
+   END.  
+   IF SUBSTRING(posok,LENGTH(posok),1) = "*" THEN DO:
+      IF INDEX(posok,"*",1) = LENGTH(posok) THEN DO:
+         ASSIGN
+         posok = SUBSTRING(posok,1,LENGTH(posok) - 1)
+         begvar = TRUE.
+         RETURN.
+      END.
+      ELSE DO:
+         felmedd = "Ni kan endast använda en '*' i början eller slutet av en sökning".
+         RETURN.            
+      END.
+   END.
+   ELSE DO:
+      ASSIGN
+      posok = "*" + posok + "*"
+      begvar = FALSE.      
+   END.
+END PROCEDURE.
+
+PROCEDURE laddatempen_UI:
+   DEFINE INPUT PARAMETER konskodvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR konstvaltemp.
+   EMPTY TEMP-TABLE konstvaltemp NO-ERROR. 
+   FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = konskodvar NO-LOCK.
+      CREATE konstvaltemp.
+      BUFFER-COPY KONSTVAL TO konstvaltemp.
+      ASSIGN 
+      konstvaltemp.TRIMKVALKOD = TRIM(konstvaltemp.KVALKOD).     
+      konstvaltemp.KVALROW = ROWID(KONSTVAL).     
+   END.
+   RUN bildladda_UI (INPUT 2).
+   RETURN.
+END PROCEDURE.
+{BERBILDLADDA.i}
+PROCEDURE laddanmpen_UI:
+   DEFINE INPUT PARAMETER progvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omrvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR fastanmtemp.
+   EMPTY TEMP-TABLE fastanmtemp NO-ERROR. 
+   FOR EACH FASTANM WHERE FASTANM.PROGRAM = progvar AND FASTANM.OMRADE = omrvar NO-LOCK:
+      CREATE fastanmtemp.
+      BUFFER-COPY FASTANM TO fastanmtemp.
+      ASSIGN fastanmtemp.FASTANVROW = ROWID(FASTANM).
+   END.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE berforladda_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR berfortemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR berlinjetemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR bernattemp.    
+   EMPTY TEMP-TABLE berfortemp NO-ERROR. 
+   EMPTY TEMP-TABLE berlinjetemp NO-ERROR.
+   EMPTY TEMP-TABLE bernattemp NO-ERROR. 
+   FOR EACH BERFOR NO-LOCK:
+      CREATE berfortemp.
+      BUFFER-COPY BERFOR TO berfortemp.
+      ASSIGN berfortemp.FORROW = ROWID(BERFOR).
+   END.
+   FIND FIRST BERFOR NO-LOCK NO-ERROR.
+   IF AVAILABLE BERFOR THEN DO:
+      FOR EACH BERLINJE WHERE BERLINJE.FORNR = BERFOR.FORNR NO-LOCK:
+         CREATE berlinjetemp.
+         BUFFER-COPY BERLINJE TO berlinjetemp.
+         ASSIGN berlinjetemp.LINROW = ROWID(BERLINJE).
+      END.
+      FIND FIRST BERLINJE WHERE BERLINJE.FORNR = BERFOR.FORNR NO-LOCK NO-ERROR.
+      IF AVAILABLE BERLINJE THEN DO:
+         FOR EACH BERNAT WHERE BERNAT.FORNR = BERLINJE.FORNR AND BERNAT.LINNR = BERLINJE.LINNR NO-LOCK:
+            CREATE bernattemp.
+            BUFFER-COPY BERNAT TO bernattemp.
+            ASSIGN bernattemp.NATROW = ROWID(BERNAT).
+         END.
+      END.
+   END.
+   RUN FINNSTABELL.P (INPUT "EXTRADATA", OUTPUT bloblog).
+   IF bloblog = FALSE THEN RETURN.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.                  
+   RUN extraomr_UI (INPUT ?).      
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+   edataapph = ?.
+   RETURN.        
+END PROCEDURE.
+
+PROCEDURE extraomr_UI :
+   DEFINE INPUT PARAMETER andrakod AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "ANLOMR"                   
+   inextradatatemp.HUVUDCH = andrakod
+   inextradatatemp.HUVUDINT = ?.
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp,OUTPUT TABLE extradatatemp).
+   
+   FOR EACH extradatatemp,
+   EACH berfortemp WHERE berfortemp.FORNR = extradatatemp.HUVUDCH:
+      berfortemp.OMRADE = extradatatemp.SOKCHAR[1].
+   END.
+
+   FOR EACH berfortemp,
+   EACH OMRADETAB WHERE OMRADETAB.OMRADE = berfortemp.OMRADE NO-LOCK,
+   EACH AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK,
+   EACH JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK:
+      ASSIGN
+      berfortemp.AVDNR = STRING(AVDELNING.AVDELNINGNR)
+      berfortemp.JUDID = JURPERS.JUDID
+      berfortemp.VIJUDID = JURPERS.VIJUDID.      
+   END.
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   
+END PROCEDURE.
+
+PROCEDURE natlinjeladda_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR berlinjetemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR bernattemp.    
+   EMPTY TEMP-TABLE berlinjetemp NO-ERROR.
+   EMPTY TEMP-TABLE bernattemp NO-ERROR.    
+   FOR EACH BERLINJE NO-LOCK:
+      CREATE berlinjetemp.
+      BUFFER-COPY BERLINJE TO berlinjetemp.
+      ASSIGN berlinjetemp.LINROW = ROWID(BERLINJE).
+   END.
+   FOR EACH BERNAT NO-LOCK:
+      CREATE bernattemp.
+      BUFFER-COPY BERNAT TO bernattemp.
+      ASSIGN bernattemp.NATROW = ROWID(BERNAT).      
+   END.
+   RETURN.        
+END PROCEDURE.
+
+PROCEDURE laddatemptab_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR berfortemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR berlinjetemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR bernattemp.    
+   EMPTY TEMP-TABLE berfortemp NO-ERROR. 
+   EMPTY TEMP-TABLE berlinjetemp NO-ERROR.
+   EMPTY TEMP-TABLE bernattemp NO-ERROR. 
+   FOR EACH BERFOR NO-LOCK:
+      CREATE berfortemp.
+      BUFFER-COPY BERFOR TO berfortemp.
+      ASSIGN berfortemp.FORROW = ROWID(BERFOR).
+   END.
+   FOR EACH BERLINJE USE-INDEX FORNR NO-LOCK:
+      CREATE berlinjetemp.
+      BUFFER-COPY BERLINJE TO berlinjetemp.
+      ASSIGN berlinjetemp.LINROW = ROWID(BERLINJE).
+   END.
+   FOR EACH BERNAT USE-INDEX NATNR NO-LOCK:
+      CREATE bernattemp.
+      BUFFER-COPY BERNAT TO bernattemp.
+      ASSIGN bernattemp.NATROW = ROWID(BERNAT).
+   END.
+   RETURN.        
+END PROCEDURE.
+
+PROCEDURE satshmt_UI :
+   DEFINE INPUT PARAMETER vald_lev2 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR satstemp.
+   EMPTY TEMP-TABLE satstemp NO-ERROR. 
+   OPEN QUERY sq FOR EACH SATS WHERE SATS.LEVKOD = vald_lev2 AND SATS.SATS = TRUE USE-INDEX KOD NO-LOCK.
+   GET FIRST sq NO-LOCK.
+   DO WHILE AVAILABLE(SATS):
+      CREATE satstemp.
+      BUFFER-COPY SATS TO satstemp.
+      ASSIGN satstemp.SATSROW = ROWID(SATS).
+      GET NEXT sq NO-LOCK.
+   END.
+   CLOSE QUERY sq.   
+END PROCEDURE.
+
+PROCEDURE berbildhmt_UI :
+   DEFINE INPUT PARAMETER ktypkodvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR berbildtemp.
+   EMPTY TEMP-TABLE berbildtemp NO-ERROR. 
+   FOR EACH BERBILD WHERE BERBILD.KTYPKOD = ktypkodvar 
+   USE-INDEX KOD NO-LOCK:
+      CREATE berbildtemp.
+      BUFFER-COPY BERBILD TO berbildtemp.
+      berbildtemp.BBROW = ROWID(BERBILD).
+   END.   
+   FIND FIRST berbildtemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE berbildtemp THEN DO:
+      varbild = REPLACE(ktypkodvar," ","").
+      FOR EACH BERBILD WHERE BERBILD.KTYPKOD = varbild 
+      USE-INDEX KOD NO-LOCK:
+         CREATE berbildtemp.
+         BUFFER-COPY BERBILD TO berbildtemp.
+         berbildtemp.BBROW = ROWID(BERBILD).
+      END.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE visamtrlhmt_UI :   
+   DEFINE INPUT PARAMETER ktypkodvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vismtrl AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER visval AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR visamtrl.
+   EMPTY TEMP-TABLE visamtrl NO-ERROR.    
+
+   IF visval = 1 THEN DO:   
+      /*HÄMTA MATERIELET SOM LIGGER DIREKT PÅ KONSTRUKTIONEN ENDAST EN GÅNG*/
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = ktypkodvar AND
+      MTRLBER.F1 = "" AND MTRLBER.F2 = " " AND MTRLBER.F3 = " " AND
+      MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapavisamtrl_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.      
+      CLOSE QUERY mtrlq.
+   END.
+   IF visval = 2 THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = ktypkodvar AND
+      MTRLBER.F1 = vismtrl AND MTRLBER.F2 = " " AND MTRLBER.F3 = " " AND
+      MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapavisamtrl_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.     
+   IF visval = 3 THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = ktypkodvar AND
+      MTRLBER.F2 = vismtrl AND MTRLBER.F1 = " " AND MTRLBER.F3 = " " AND
+      MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapavisamtrl_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.   
+   IF visval = 4 THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = ktypkodvar AND
+      MTRLBER.F3 = vismtrl AND MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND
+      MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapavisamtrl_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.   
+   IF visval = 5 THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = ktypkodvar AND
+      MTRLBER.F4 = vismtrl AND MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND
+      MTRLBER.F3 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapavisamtrl_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.   
+   IF visval = 6 THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = ktypkodvar AND
+      MTRLBER.F5 = vismtrl AND MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND
+      MTRLBER.F3 = " " AND MTRLBER.F4 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapavisamtrl_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.             
+END PROCEDURE.
+
+
+PROCEDURE skapavisamtrl_UI :    
+   CREATE visamtrl. 
+   ASSIGN
+   visamtrl.ENR = MTRLBER.ENR
+   visamtrl.BENAMNING = MTRLBER.BENAMNING
+   visamtrl.ENHET = MTRLBER.ENHET
+   visamtrl.ANTAL = MTRLBER.ANTAL
+   visamtrl.LEVKOD = MTRLBER.LEVKOD.
+END PROCEDURE.      
+
+
+PROCEDURE laddadir_UI:
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER dnamn AS CHARACTER NO-UNDO.
+   FIND FIRST MINNE WHERE MINNE.ANVANDARE = ganv + "$" + "BERED" 
+   USE-INDEX ANV NO-LOCK NO-ERROR.
+   IF AVAILABLE MINNE THEN dnamn = MINNE.RESULTATET.
+   ELSE dnamn = SESSION:TEMP-DIRECTORY.
+END PROCEDURE.
+
+
+PROCEDURE sparadir_UI:
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER dnamn AS CHARACTER NO-UNDO.
+   
+   DO TRANSACTION:
+      FIND FIRST MINNE WHERE MINNE.ANVANDARE = ganv + "$" + "BERED"
+      USE-INDEX ANV EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MINNE THEN MINNE.RESULTATET = dnamn.
+      ELSE DO:
+         CREATE MINNE.
+         ASSIGN
+         MINNE.ANVANDARE = ganv + "$" + "BERED"
+         MINNE.RESULTATET = dnamn.
+      END.
+   END.
+   IF AVAILABLE MINNE THEN RELEASE MINNE.
+END PROCEDURE.
+
+PROCEDURE hamtprio_UI:
+   DEFINE INPUT PARAMETER plusaonr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER plusdnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER aoprio AS INTEGER NO-UNDO.
+   aoprio = 0.
+   Guru.GlobalaVariabler:plusaonr = plusaonr.  
+   Guru.GlobalaVariabler:plusdnr = plusdnr.  
+   IF Guru.GlobalaVariabler:plusaonr NE "" THEN DO:
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = Guru.GlobalaVariabler:plusaonr AND AONRTAB.DELNR = Guru.GlobalaVariabler:plusdnr NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DO:
+         aoprio = AONRTAB.PKOD.
+      END.   
+   END.      
+END PROCEDURE.
+
+PROCEDURE impkskbyt_UI :
+DEFINE INPUT PARAMETER valaonr LIKE AONRTAB.AONR NO-UNDO.                           
+DEFINE INPUT PARAMETER valomrade LIKE AONRTAB.OMRADE NO-UNDO.
+DEFINE INPUT PARAMETER counter AS INTEGER  NO-UNDO.
+DEFINE INPUT PARAMETER counterord AS INTEGER  NO-UNDO.
+DEFINE INPUT PARAMETER counterbygg AS INTEGER  NO-UNDO.     
+DEFINE INPUT PARAMETER TABLE FOR kskbyttemp.
+DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE kabrak AS INTEGER NO-UNDO.
+DEFINE VARIABLE byggrak AS INTEGER NO-UNDO.
+DEFINE VARIABLE ksktyp AS CHARACTER NO-UNDO.
+DEFINE VARIABLE implev AS CHARACTER NO-UNDO.
+DEFINE VARIABLE antalfix AS INTEGER NO-UNDO.
+DEFINE VARIABLE siffbok  AS INTEGER NO-UNDO.
+DEFINE VARIABLE sibostart  AS INTEGER NO-UNDO.
+DEFINE VARIABLE hjsifffbok  AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hjenr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE artecken AS LOGICAL NO-UNDO.
+DEFINE VARIABLE ascivarde AS INTEGER NO-UNDO.
+DEFINE BUFFER bermtrlbuff FOR BERMTRL.
+felmedd = "".
+kabrak = 0.
+FIND FIRST kskbyttemp WHERE NO-LOCK NO-ERROR.
+IF kskbyttemp.FABRIKAT = "Kabeldon" THEN ksktyp = "CDC byt".
+ELSE DO:
+   felmedd = "Import är ej i funktion för " + kskbyttemp.FABRIKAT.
+   RETURN.
+END.
+/*FOR EACH kskbyttemp:
+   MESSAGE kskbyttemp.FABRIKAT kskbyttemp.BYGGNR kskbyttemp.DON1 kskbyttemp.DONANT1 kskbyttemp.DON2 kskbyttemp.DONANT2 kskbyttemp.DON3 kskbyttemp.DONANT3
+   VIEW-AS ALERT-BOX.
+END.*/
+
+FIND FIRST BETFRIA WHERE BETFRIA.FAKTTEXT = valomrade AND BETFRIA.BETNR = integer(valaonr) NO-LOCK NO-ERROR. 
+IF AVAILABLE BETFRIA THEN implev = BETFRIA.TYP.         
+ELSE DO:
+   FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+   IF AVAILABLE HUVUDLEV THEN implev = HUVUDLEV.LEVKOD.
+END.   
+
+
+FOR EACH kskbyttemp WHERE NO-LOCK:
+   
+   DO TRANSACTION:
+      kabrak = 0.      
+      CREATE BERVAL.
+      ASSIGN 
+      BERVAL.AONR = valaonr
+      BERVAL.OMRADE = valomrade
+      BERVAL.ANVANDARE = ""          
+      BERVAL.ID = TRUE     
+      BERVAL.KONSKOD = 0
+      BERVAL.KSKAP = FALSE 
+      BERVAL.KTYPKOD = ksktyp
+      /*BERVAL.NUM = kskbyttemp.BYGGNR*/
+      BERVAL.NUM = counter 
+      BERVAL.SKAPNUM = kabrak
+      BERVAL.TYP = 1.           
+      
+      CREATE BERORD.
+      ASSIGN
+      BERORD.AONR = valaonr
+      BERORD.OMRADE = valomrade
+      BERORD.NUM = counter
+      BERORD.ORD = counterord.
+      /*BERORD.NUM = kskbyttemp.BYGGNR
+      BERORD.ORD = kskbyttemp.BYGGNR.*/
+      
+      CREATE BERID.
+      ASSIGN
+      BERID.AONR = valaonr
+      BERID.OMRADE = valomrade
+      /*BERID.NUM = kskbyttemp.BYGGNR
+      BERID.FRI1 = ?
+      BERID.FRI2 = kskbyttemp.BYGGNR*/
+      BERID.NUM = counter
+      BERID.FRI1 = ?
+      BERID.FRI2 = counterbygg
+      BERID.FRI3 = kskbyttemp.LITTERA.
+     
+      CREATE BERID2.
+      ASSIGN
+      BERID2.AONR = valaonr
+      BERID2.OMRADE = valomrade
+      BERID2.NUM = counter.
+      siffbok = LENGTH(kskbyttemp.LITTERA).
+      sibostart = 1.
+  
+      DO WHILE sibostart LE siffbok :
+         hjsifffbok = SUBSTRING(kskbyttemp.LITTERA,sibostart,1).        
+         ascivarde = ASC(hjsifffbok).      
+         /*siffror*/
+         IF ascivarde >= 48 AND ascivarde <= 57 THEN DO:               
+             IF INTEGER (hjsifffbok)  = 0 THEN hjenr = "2988710".   
+             ELSE IF INTEGER (hjsifffbok)  = 1 THEN hjenr = "2988711".
+             ELSE IF INTEGER (hjsifffbok)  = 2 THEN hjenr = "2988712".
+             ELSE IF INTEGER (hjsifffbok)  = 3 THEN hjenr = "2988713".
+             ELSE IF INTEGER (hjsifffbok)  = 4 THEN hjenr = "2988714".
+             ELSE IF INTEGER (hjsifffbok)  = 5 THEN hjenr = "2988715".
+             ELSE IF INTEGER (hjsifffbok)  = 6 THEN hjenr = "2988716".
+             ELSE IF INTEGER (hjsifffbok)  = 7 THEN hjenr = "2988717".
+             ELSE IF INTEGER (hjsifffbok)  = 8 THEN hjenr = "2988718".
+             ELSE IF INTEGER (hjsifffbok)  = 9 THEN hjenr = "2988719".
+          END.
+          ELSE DO:
+             IF hjsifffbok  = "A" THEN hjenr = "2988720".   
+             ELSE IF hjsifffbok  = "K" THEN hjenr = "2988730".
+             ELSE IF hjsifffbok  = "N" THEN hjenr = "2988733".
+          END.   
+          IF hjenr NE "" THEN DO:   
+             FIND FIRST MTRL WHERE MTRL.LEVKOD = implev AND MTRL.KALKNR = 0 AND MTRL.Enr = hjenr NO-LOCK NO-ERROR.
+             IF NOT AVAILABLE MTRL THEN DO:                
+                FIND FIRST MTRL WHERE  MTRL.KALKNR = 0 AND MTRL.Enr = hjenr NO-LOCK NO-ERROR.                
+             END. 
+             IF AVAILABLE MTRL THEN DO:
+                FIND FIRST bermtrlbuff WHERE bermtrlbuff.AONR = valaonr AND bermtrlbuff.OMRADE = valomrade AND bermtrlbuff.NUM =  counter AND bermtrlbuff.SKAPNUM =  kabrak   AND bermtrlbuff.ENR = hjenr EXCLUSIVE-LOCK NO-ERROR.
+                IF AVAILABLE bermtrlbuff THEN DO:
+                   bermtrlbuff.antal = bermtrlbuff.antal + 1. 
+                 END.
+                 ELSE DO:             
+                  CREATE BERMTRL.                             
+                  ASSIGN
+                  BERMTRL.AONR = valaonr
+                  BERMTRL.OMRADE = valomrade
+                  BERMTRL.NUM = counter
+                  BERMTRL.SKAPNUM = kabrak
+                  BERMTRL.ENR = hjenr
+                  BERMTRL.ANTAL = 1
+                  BERMTRL.BENAMNING = MTRL.Benamning
+                  BERMTRL.BESTANT = 0
+                  BERMTRL.DATUM = TODAY
+                  BERMTRL.ENHET = MTRL.ENHET
+                  BERMTRL.INKOP = FALSE
+                  BERMTRL.KLAR = FALSE
+                  BERMTRL.LEVKOD = implev
+                  BERMTRL.PRIS = MTRL.NPRIS.
+               END.                                    
+            END.
+         END.
+         sibostart = sibostart + 1.                  
+      END.   
+     
+      IF  kskbyttemp.DONANT1 > 0 THEN DO:         
+         antalfix = kskbyttemp.DONANT1.         
+         DO WHILE antalfix > 0 :  
+            antalfix = antalfix - 1.
+            kabrak = kabrak + 1.
+            CREATE BERVAL.
+            ASSIGN 
+            BERVAL.AONR = valaonr
+            BERVAL.OMRADE = valomrade
+            BERVAL.ANVANDARE = ""          
+            BERVAL.ID = FALSE     
+            BERVAL.KONSKOD = 0
+            BERVAL.KSKAP = TRUE 
+            BERVAL.KTYPKOD = ksktyp
+            BERVAL.NUM = counter
+            BERVAL.SKAPNUM = kabrak
+            BERVAL.TYP = 1
+            BERVAL.F3 = kskbyttemp.DON1.
+            CREATE FRIKORT.
+            ASSIGN 
+            FRIKORT.AONR = valaonr
+            FRIKORT.OMRADE = valomrade
+            FRIKORT.NUM = counter
+            FRIKORT.kabnr = kabrak.
+            FRIKORT.ARTAL  = YEAR(TODAY).            
+                         
+            FOR EACH MTRLBER  WHERE MTRLBER.KTYPKOD = ksktyp AND TRIM(MTRLBER.F2) = TRIM(kskbyttemp.DON1) NO-LOCK:
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = implev AND MTRL.KALKNR = 0 AND MTRL.Enr = MTRLBER.ENR NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE MTRL THEN DO:                  
+                  FIND FIRST MTRL WHERE  MTRL.KALKNR = 0 AND MTRL.Enr = MTRLBER.ENR NO-LOCK NO-ERROR.               
+               END.                                    
+               CREATE BERMTRL.                             
+               ASSIGN
+               BERMTRL.AONR = valaonr
+               BERMTRL.OMRADE = valomrade
+               BERMTRL.NUM = counter
+               BERMTRL.SKAPNUM = kabrak
+               BERMTRL.ENR = MTRLBER.ENR
+               BERMTRL.ANTAL = MTRLBER.ANTAL
+               BERMTRL.BENAMNING = MTRLBER.Benamning
+               BERMTRL.BESTANT = 0
+               BERMTRL.DATUM = TODAY
+               BERMTRL.ENHET = MTRLBER.ENHET
+               BERMTRL.INKOP = FALSE
+               BERMTRL.KLAR = FALSE
+               BERMTRL.LEVKOD = implev
+               BERMTRL.TYPBER = MTRLBER.TYPBER
+               BERMTRL.MODUL = MTRLBER.MODUL.                   
+               IF AVAILABLE MTRL THEN DO:
+                  ASSIGN 
+                  BERMTRL.BENAMNING = MTRL.Benamning
+                  BERMTRL.ENHET = MTRL.ENHET
+                  BERMTRL.PRIS = MTRL.NPRIS
+                  BERMTRL.LEVKOD = MTRL.LEVKOD.
+                    
+               END.
+            END.                  
+         END.
+      END.   
+      IF  kskbyttemp.DONANT2 > 0 THEN DO:
+         antalfix = kskbyttemp.DONANT2.         
+         DO WHILE antalfix > 0 :  
+            antalfix = antalfix - 1.
+            kabrak = kabrak + 1.
+            CREATE BERVAL.
+            ASSIGN 
+            BERVAL.AONR = valaonr
+            BERVAL.OMRADE = valomrade
+            BERVAL.ANVANDARE = ""          
+            BERVAL.ID = FALSE     
+            BERVAL.KONSKOD = 0
+            BERVAL.KSKAP = TRUE 
+            BERVAL.KTYPKOD = ksktyp
+            BERVAL.NUM = counter            
+            BERVAL.SKAPNUM = kabrak
+            BERVAL.TYP = 1
+            BERVAL.F3 = kskbyttemp.DON2.
+            CREATE FRIKORT.
+            ASSIGN 
+            FRIKORT.AONR = valaonr
+            FRIKORT.OMRADE = valomrade
+            FRIKORT.NUM = counter
+            FRIKORT.kabnr = kabrak.
+            FRIKORT.ARTAL  = YEAR(TODAY).            
+            FIND FIRST BETFRIA WHERE BETFRIA.FAKTTEXT = valomrade AND
+            BETFRIA.BETNR = integer(valaonr) NO-LOCK NO-ERROR. 
+            IF AVAILABLE BETFRIA THEN implev = BETFRIA.TYP.             
+            FOR EACH MTRLBER  WHERE MTRLBER.KTYPKOD = ksktyp AND TRIM(MTRLBER.F2) = TRIM(kskbyttemp.DON2) NO-LOCK:
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = implev AND MTRL.KALKNR = 0 AND MTRL.Enr = MTRLBER.ENR NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE MTRL THEN DO:                  
+                  FIND FIRST MTRL WHERE  MTRL.KALKNR = 0 AND MTRL.Enr = MTRLBER.ENR NO-LOCK NO-ERROR.               
+               END.                     
+               CREATE BERMTRL.                             
+               ASSIGN
+               BERMTRL.AONR = valaonr
+               BERMTRL.OMRADE = valomrade
+               BERMTRL.NUM = counter
+               BERMTRL.SKAPNUM = kabrak 
+               BERMTRL.ENR = MTRLBER.ENR
+               BERMTRL.ANTAL = MTRLBER.ANTAL
+               BERMTRL.BENAMNING = MTRLBER.Benamning
+               BERMTRL.BESTANT = 0
+               BERMTRL.DATUM = TODAY
+               BERMTRL.ENHET = MTRLBER.ENHET
+               BERMTRL.INKOP = FALSE
+               BERMTRL.KLAR = FALSE
+               BERMTRL.LEVKOD = implev
+               BERMTRL.TYPBER = MTRLBER.TYPBER
+               BERMTRL.MODUL = MTRLBER.MODUL.
+                  
+               IF AVAILABLE MTRL THEN DO:
+                  ASSIGN 
+                  BERMTRL.BENAMNING = MTRL.Benamning
+                  BERMTRL.ENHET = MTRL.ENHET
+                  BERMTRL.PRIS = MTRL.NPRIS.                    
+               END.
+            END.
+         END.      
+      END.
+
+      IF  kskbyttemp.DONANT3 > 0 THEN DO:
+         antalfix = kskbyttemp.DONANT3.         
+         DO WHILE antalfix > 0 :  
+            antalfix = antalfix - 1.
+            kabrak = kabrak + 1.
+            CREATE BERVAL.
+            ASSIGN 
+            BERVAL.AONR = valaonr
+            BERVAL.OMRADE = valomrade
+            BERVAL.ANVANDARE = ""          
+            BERVAL.ID = FALSE     
+            BERVAL.KONSKOD = 0
+            BERVAL.KSKAP = TRUE 
+            BERVAL.KTYPKOD = ksktyp
+            BERVAL.NUM = counter            
+            BERVAL.SKAPNUM = kabrak
+            BERVAL.TYP = 1
+            BERVAL.F3 = kskbyttemp.DON3.
+            CREATE FRIKORT.
+            ASSIGN 
+            FRIKORT.AONR = valaonr
+            FRIKORT.OMRADE = valomrade
+            FRIKORT.NUM = counter
+            FRIKORT.kabnr = kabrak.
+            FRIKORT.ARTAL  = YEAR(TODAY).            
+                         
+            FOR EACH MTRLBER  WHERE MTRLBER.KTYPKOD = ksktyp AND TRIM(MTRLBER.F2) = TRIM(kskbyttemp.DON3) NO-LOCK:
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = implev AND MTRL.KALKNR = 0 AND MTRL.Enr = MTRLBER.ENR NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE MTRL THEN DO:                  
+                  FIND FIRST MTRL WHERE  MTRL.KALKNR = 0 AND MTRL.Enr = MTRLBER.ENR NO-LOCK NO-ERROR.               
+               END.                     
+               CREATE BERMTRL.                             
+               ASSIGN
+               BERMTRL.AONR = valaonr
+               BERMTRL.OMRADE = valomrade
+               BERMTRL.NUM = counter
+               BERMTRL.SKAPNUM = kabrak 
+               BERMTRL.ENR = MTRLBER.ENR
+               BERMTRL.ANTAL = MTRLBER.ANTAL
+               BERMTRL.BENAMNING = MTRLBER.Benamning
+               BERMTRL.BESTANT = 0
+               BERMTRL.DATUM = TODAY
+               BERMTRL.ENHET = MTRLBER.ENHET
+               BERMTRL.INKOP = FALSE
+               BERMTRL.KLAR = FALSE
+               BERMTRL.LEVKOD = implev
+               BERMTRL.TYPBER = MTRLBER.TYPBER
+               BERMTRL.MODUL = MTRLBER.MODUL.
+                  
+               IF AVAILABLE MTRL THEN DO:
+                  ASSIGN 
+                  BERMTRL.BENAMNING = MTRL.Benamning
+                  BERMTRL.ENHET = MTRL.ENHET
+                  BERMTRL.PRIS = MTRL.NPRIS.                    
+               END.
+            END.
+         END.      
+      END.
+      IF  kskbyttemp.DONANT4 > 0 THEN DO:
+         antalfix = kskbyttemp.DONANT4.         
+         DO WHILE antalfix > 0 :  
+            antalfix = antalfix - 1.
+            kabrak = kabrak + 1.
+            CREATE BERVAL.
+            ASSIGN 
+            BERVAL.AONR = valaonr
+            BERVAL.OMRADE = valomrade
+            BERVAL.ANVANDARE = ""          
+            BERVAL.ID = FALSE     
+            BERVAL.KONSKOD = 0
+            BERVAL.KSKAP = TRUE 
+            BERVAL.KTYPKOD = ksktyp
+            BERVAL.NUM = counter            
+            BERVAL.SKAPNUM = kabrak
+            BERVAL.TYP = 1
+            BERVAL.F3 = kskbyttemp.DON4.
+            CREATE FRIKORT.
+            ASSIGN 
+            FRIKORT.AONR = valaonr
+            FRIKORT.OMRADE = valomrade
+            FRIKORT.NUM = counter
+            FRIKORT.kabnr = kabrak.
+            FRIKORT.ARTAL  = YEAR(TODAY).            
+            FIND FIRST BETFRIA WHERE BETFRIA.FAKTTEXT = valomrade AND
+            BETFRIA.BETNR = integer(valaonr) NO-LOCK NO-ERROR. 
+            IF AVAILABLE BETFRIA THEN implev = BETFRIA.TYP.             
+            FOR EACH MTRLBER  WHERE MTRLBER.KTYPKOD = ksktyp AND TRIM(MTRLBER.F2) = TRIM(kskbyttemp.DON4) NO-LOCK:
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = implev AND MTRL.KALKNR = 0 AND MTRL.Enr = MTRLBER.ENR NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE MTRL THEN DO:                  
+                  FIND FIRST MTRL WHERE  MTRL.KALKNR = 0 AND MTRL.Enr = MTRLBER.ENR NO-LOCK NO-ERROR.               
+               END.      
+               CREATE BERMTRL.                             
+               ASSIGN
+               BERMTRL.AONR = valaonr
+               BERMTRL.OMRADE = valomrade
+               BERMTRL.NUM = counter
+               BERMTRL.SKAPNUM = kabrak 
+               BERMTRL.ENR = MTRLBER.ENR
+               BERMTRL.ANTAL = MTRLBER.ANTAL
+               BERMTRL.BENAMNING = MTRLBER.Benamning
+               BERMTRL.BESTANT = 0
+               BERMTRL.DATUM = TODAY
+               BERMTRL.ENHET = MTRLBER.ENHET
+               BERMTRL.INKOP = FALSE
+               BERMTRL.KLAR = FALSE
+               BERMTRL.LEVKOD = implev
+               BERMTRL.TYPBER = MTRLBER.TYPBER
+               BERMTRL.MODUL = MTRLBER.MODUL.
+                  
+               IF AVAILABLE MTRL THEN DO:
+                  ASSIGN 
+                  BERMTRL.BENAMNING = MTRL.Benamning
+                  BERMTRL.ENHET = MTRL.ENHET
+                  BERMTRL.PRIS = MTRL.NPRIS.                    
+               END.
+            END.            
+         END.      
+      END.
+      IF  kskbyttemp.DONANT5 > 0 THEN DO:
+         antalfix = kskbyttemp.DONANT5.         
+         DO WHILE antalfix > 0 :  
+            antalfix = antalfix - 1.
+            kabrak = kabrak + 1.
+            CREATE BERVAL.
+            ASSIGN 
+            BERVAL.AONR = valaonr
+            BERVAL.OMRADE = valomrade
+            BERVAL.ANVANDARE = ""          
+            BERVAL.ID = FALSE     
+            BERVAL.KONSKOD = 0
+            BERVAL.KSKAP = TRUE 
+            BERVAL.KTYPKOD = ksktyp
+            BERVAL.NUM = counter            
+            BERVAL.SKAPNUM = kabrak
+            BERVAL.TYP = 1
+            BERVAL.F3 = kskbyttemp.DON5.
+            CREATE FRIKORT.
+            ASSIGN 
+            FRIKORT.AONR = valaonr
+            FRIKORT.OMRADE = valomrade
+            FRIKORT.NUM = counter
+            FRIKORT.kabnr = kabrak.
+            FRIKORT.ARTAL  = YEAR(TODAY).            
+            FIND FIRST BETFRIA WHERE BETFRIA.FAKTTEXT = valomrade AND
+            BETFRIA.BETNR = integer(valaonr) NO-LOCK NO-ERROR. 
+            IF AVAILABLE BETFRIA THEN implev = BETFRIA.TYP.             
+            FOR EACH MTRLBER  WHERE MTRLBER.KTYPKOD = ksktyp AND TRIM(MTRLBER.F2) = TRIM(kskbyttemp.DON5) NO-LOCK:
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = implev AND MTRL.KALKNR = 0 AND MTRL.Enr = MTRLBER.ENR NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE MTRL THEN DO:                  
+                  FIND FIRST MTRL WHERE  MTRL.KALKNR = 0 AND MTRL.Enr = MTRLBER.ENR NO-LOCK NO-ERROR.               
+               END.                     
+               CREATE BERMTRL.                             
+               ASSIGN
+               BERMTRL.AONR = valaonr
+               BERMTRL.OMRADE = valomrade
+               BERMTRL.NUM = counter
+               BERMTRL.SKAPNUM = kabrak 
+               BERMTRL.ENR = MTRLBER.ENR
+               BERMTRL.ANTAL = MTRLBER.ANTAL
+               BERMTRL.BENAMNING = MTRLBER.Benamning
+               BERMTRL.BESTANT = 0
+               BERMTRL.DATUM = TODAY
+               BERMTRL.ENHET = MTRLBER.ENHET
+               BERMTRL.INKOP = FALSE
+               BERMTRL.KLAR = FALSE
+               BERMTRL.LEVKOD = implev
+               BERMTRL.TYPBER = MTRLBER.TYPBER
+               BERMTRL.MODUL = MTRLBER.MODUL.
+                  
+               IF AVAILABLE MTRL THEN DO:
+                  ASSIGN 
+                  BERMTRL.BENAMNING = MTRL.Benamning
+                  BERMTRL.ENHET = MTRL.ENHET
+                  BERMTRL.PRIS = MTRL.NPRIS.                    
+               END.
+            END.            
+         END.      
+      END.
+      IF  kskbyttemp.DONANT6 > 0 THEN DO:
+         antalfix = kskbyttemp.DONANT6.         
+         DO WHILE antalfix > 0 :  
+            antalfix = antalfix - 1.
+            kabrak = kabrak + 1.
+            CREATE BERVAL.
+            ASSIGN 
+            BERVAL.AONR = valaonr
+            BERVAL.OMRADE = valomrade
+            BERVAL.ANVANDARE = ""          
+            BERVAL.ID = FALSE     
+            BERVAL.KONSKOD = 0
+            BERVAL.KSKAP = TRUE 
+            BERVAL.KTYPKOD = ksktyp
+            BERVAL.NUM = counter            
+            BERVAL.SKAPNUM = kabrak
+            BERVAL.TYP = 1
+            BERVAL.F3 = kskbyttemp.DON6.
+            CREATE FRIKORT.
+            ASSIGN 
+            FRIKORT.AONR = valaonr
+            FRIKORT.OMRADE = valomrade
+            FRIKORT.NUM = counter
+            FRIKORT.kabnr = kabrak.
+            FRIKORT.ARTAL  = YEAR(TODAY).            
+            FIND FIRST BETFRIA WHERE BETFRIA.FAKTTEXT = valomrade AND
+            BETFRIA.BETNR = integer(valaonr) NO-LOCK NO-ERROR. 
+            IF AVAILABLE BETFRIA THEN implev = BETFRIA.TYP.             
+            FOR EACH MTRLBER  WHERE MTRLBER.KTYPKOD = ksktyp AND TRIM(MTRLBER.F2) = TRIM(kskbyttemp.DON6) NO-LOCK:
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = implev AND MTRL.KALKNR = 0 AND MTRL.Enr = MTRLBER.ENR NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE MTRL THEN DO:                  
+                  FIND FIRST MTRL WHERE  MTRL.KALKNR = 0 AND MTRL.Enr = MTRLBER.ENR NO-LOCK NO-ERROR.               
+               END.                     
+               CREATE BERMTRL.                             
+               ASSIGN
+               BERMTRL.AONR = valaonr
+               BERMTRL.OMRADE = valomrade
+               BERMTRL.NUM = counter
+               BERMTRL.SKAPNUM = kabrak 
+               BERMTRL.ENR = MTRLBER.ENR
+               BERMTRL.ANTAL = MTRLBER.ANTAL
+               BERMTRL.BENAMNING = MTRLBER.Benamning
+               BERMTRL.BESTANT = 0
+               BERMTRL.DATUM = TODAY
+               BERMTRL.ENHET = MTRLBER.ENHET
+               BERMTRL.INKOP = FALSE
+               BERMTRL.KLAR = FALSE
+               BERMTRL.LEVKOD = implev
+               BERMTRL.TYPBER = MTRLBER.TYPBER
+               BERMTRL.MODUL = MTRLBER.MODUL.
+                  
+               IF AVAILABLE MTRL THEN DO:
+                  ASSIGN 
+                  BERMTRL.BENAMNING = MTRL.Benamning
+                  BERMTRL.ENHET = MTRL.ENHET
+                  BERMTRL.PRIS = MTRL.NPRIS.                    
+               END.
+            END.            
+         END.      
+      END.
+      IF  kskbyttemp.DONANT7 > 0 THEN DO:
+         antalfix = kskbyttemp.DONANT7.         
+         DO WHILE antalfix > 0 :  
+            antalfix = antalfix - 1.
+            kabrak = kabrak + 1.
+            CREATE BERVAL.
+            ASSIGN 
+            BERVAL.AONR = valaonr
+            BERVAL.OMRADE = valomrade
+            BERVAL.ANVANDARE = ""          
+            BERVAL.ID = FALSE     
+            BERVAL.KONSKOD = 0
+            BERVAL.KSKAP = TRUE 
+            BERVAL.KTYPKOD = ksktyp
+            BERVAL.NUM = counter            
+            BERVAL.SKAPNUM = kabrak
+            BERVAL.TYP = 1
+            BERVAL.F3 = kskbyttemp.DON7.
+            CREATE FRIKORT.
+            ASSIGN 
+            FRIKORT.AONR = valaonr
+            FRIKORT.OMRADE = valomrade
+            FRIKORT.NUM = counter
+            FRIKORT.kabnr = kabrak.
+            FRIKORT.ARTAL  = YEAR(TODAY).            
+            FIND FIRST BETFRIA WHERE BETFRIA.FAKTTEXT = valomrade AND
+            BETFRIA.BETNR = integer(valaonr) NO-LOCK NO-ERROR. 
+            IF AVAILABLE BETFRIA THEN implev = BETFRIA.TYP.             
+            FOR EACH MTRLBER  WHERE MTRLBER.KTYPKOD = ksktyp AND TRIM(MTRLBER.F2) = TRIM(kskbyttemp.DON7) NO-LOCK:
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = implev AND MTRL.KALKNR = 0 AND MTRL.Enr = MTRLBER.ENR NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE MTRL THEN DO:                  
+                  FIND FIRST MTRL WHERE  MTRL.KALKNR = 0 AND MTRL.Enr = MTRLBER.ENR NO-LOCK NO-ERROR.               
+               END.                     
+               CREATE BERMTRL.                             
+               ASSIGN
+               BERMTRL.AONR = valaonr
+               BERMTRL.OMRADE = valomrade
+               BERMTRL.NUM = counter
+               BERMTRL.SKAPNUM = kabrak 
+               BERMTRL.ENR = MTRLBER.ENR
+               BERMTRL.ANTAL = MTRLBER.ANTAL
+               BERMTRL.BENAMNING = MTRLBER.Benamning
+               BERMTRL.BESTANT = 0
+               BERMTRL.DATUM = TODAY
+               BERMTRL.ENHET = MTRLBER.ENHET
+               BERMTRL.INKOP = FALSE
+               BERMTRL.KLAR = FALSE
+               BERMTRL.LEVKOD = implev
+               BERMTRL.TYPBER = MTRLBER.TYPBER
+               BERMTRL.MODUL = MTRLBER.MODUL.
+                  
+               IF AVAILABLE MTRL THEN DO:
+                  ASSIGN 
+                  BERMTRL.BENAMNING = MTRL.Benamning
+                  BERMTRL.ENHET = MTRL.ENHET
+                  BERMTRL.PRIS = MTRL.NPRIS.                    
+               END.
+            END.       
+         END.      
+      END.
+      IF  kskbyttemp.DONANT8 > 0 THEN DO:
+         antalfix = kskbyttemp.DONANT8.         
+         DO WHILE antalfix > 0 :  
+            antalfix = antalfix - 1.
+            kabrak = kabrak + 1.
+            CREATE BERVAL.
+            ASSIGN 
+            BERVAL.AONR = valaonr
+            BERVAL.OMRADE = valomrade
+            BERVAL.ANVANDARE = ""          
+            BERVAL.ID = FALSE     
+            BERVAL.KONSKOD = 0
+            BERVAL.KSKAP = TRUE 
+            BERVAL.KTYPKOD = ksktyp
+            BERVAL.NUM = counter            
+            BERVAL.SKAPNUM = kabrak
+            BERVAL.TYP = 1
+            BERVAL.F3 = kskbyttemp.DON8.
+            CREATE FRIKORT.
+            ASSIGN 
+            FRIKORT.AONR = valaonr
+            FRIKORT.OMRADE = valomrade
+            FRIKORT.NUM = counter
+            FRIKORT.kabnr = kabrak.
+            FRIKORT.ARTAL  = YEAR(TODAY).            
+            FIND FIRST BETFRIA WHERE BETFRIA.FAKTTEXT = valomrade AND
+            BETFRIA.BETNR = integer(valaonr) NO-LOCK NO-ERROR. 
+            IF AVAILABLE BETFRIA THEN implev = BETFRIA.TYP.             
+            FOR EACH MTRLBER  WHERE MTRLBER.KTYPKOD = ksktyp AND TRIM(MTRLBER.F2) = TRIM(kskbyttemp.DON8) NO-LOCK:
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = implev AND MTRL.KALKNR = 0 AND MTRL.Enr = MTRLBER.ENR NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE MTRL THEN DO:                  
+                  FIND FIRST MTRL WHERE  MTRL.KALKNR = 0 AND MTRL.Enr = MTRLBER.ENR NO-LOCK NO-ERROR.               
+               END.                     
+               CREATE BERMTRL.                             
+               ASSIGN
+               BERMTRL.AONR = valaonr
+               BERMTRL.OMRADE = valomrade
+               BERMTRL.NUM = counter
+               BERMTRL.SKAPNUM = kabrak 
+               BERMTRL.ENR = MTRLBER.ENR
+               BERMTRL.ANTAL = MTRLBER.ANTAL
+               BERMTRL.BENAMNING = MTRLBER.Benamning
+               BERMTRL.BESTANT = 0
+               BERMTRL.DATUM = TODAY
+               BERMTRL.ENHET = MTRLBER.ENHET
+               BERMTRL.INKOP = FALSE
+               BERMTRL.KLAR = FALSE
+               BERMTRL.LEVKOD = implev
+               BERMTRL.TYPBER = MTRLBER.TYPBER
+               BERMTRL.MODUL = MTRLBER.MODUL.
+                  
+               IF AVAILABLE MTRL THEN DO:
+                  ASSIGN 
+                  BERMTRL.BENAMNING = MTRL.Benamning
+                  BERMTRL.ENHET = MTRL.ENHET
+                  BERMTRL.PRIS = MTRL.NPRIS.                    
+               END.
+            END.
+         END.      
+      END.
+   END.      
+   assign
+   counter = counter  + 1
+   counterord = counterord  + 1
+   counterbygg = counterbygg  + 1.
+END.
+
+   
+END PROCEDURE.   
+

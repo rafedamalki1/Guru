@@ -1,0 +1,1767 @@
+/*KONMTRLAPP.P*/
+{STARTFORAPP.I}
+{KONSTRMTRL.I}
+{LEVTEMP.I}
+{MTRLTEMP.I}
+{SMTRL.I}
+{UTBYTESLNAMNTEMP.I}
+
+DEFINE VARIABLE felmedd AS CHARACTER NO-UNDO.
+DEFINE VARIABLE mark AS LOGICAL NO-UNDO.
+DEFINE VARIABLE brw AS INTEGER NO-UNDO.
+DEFINE VARIABLE var2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE var3 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE var4 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE var5 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE var6 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE konrowid AS ROWID NO-UNDO.
+DEFINE VARIABLE kvalkodvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE konapphand2 AS HANDLE NO-UNDO.
+
+/* DEFINE TEMP-TABLE kval          */
+/*    FIELD KVALKOD AS CHARACTER   */
+/*    FIELD KTYPKOD AS CHARACTER   */
+/*    FIELD KONSKOD AS INTEGER     */
+/*    FIELD KOPP AS LOGICAL        */
+/*    FIELD BENAMNING AS CHARACTER */
+/*    FIELD BB AS CHARACTER        */
+/*    FIELD ORDNING AS INTEGER     */
+/*    FIELD KROWID AS ROWID        */
+/*    INDEX ORD ORDNING.           */
+
+DEFINE TEMP-TABLE kval
+   FIELD TRIMKVALKOD   AS CHARACTER  FORMAT "X(8)" LABEL "Konstruktionsvalskod"    
+   FIELD KVALKOD AS CHARACTER
+   FIELD KTYPKOD AS CHARACTER 
+   FIELD KONSKOD AS INTEGER
+   FIELD KOPP AS LOGICAL
+   FIELD BENAMNING AS CHARACTER
+   FIELD BB AS CHARACTER
+   FIELD ORDNING AS INTEGER
+   FIELD KROWID AS ROWID
+   INDEX ORD ORDNING.
+DEFINE TEMP-TABLE ONODIGtemp NO-UNDO LIKE konstvaltemp.   
+DEFINE TEMP-TABLE visamtrl NO-UNDO
+   FIELD ENR AS CHARACTER FORMAT "x(11)" LABEL "Enr"    
+   FIELD BENAMNING AS CHARACTER FORMAT "x(40)" LABEL "Benämning"   
+   FIELD ENHET AS CHARACTER FORMAT "x(5)" LABEL "Enhet" 
+   FIELD ANTAL AS INTEGER FORMAT ">>>>>9" LABEL "Antal"
+   FIELD LEVKOD AS CHARACTER
+   INDEX ENR IS PRIMARY ENR ASCENDING.
+
+DEFINE TEMP-TABLE tempkval NO-UNDO LIKE kval.
+DEFINE TEMP-TABLE k_row 
+   FIELD KROW AS ROWID.
+
+DEFINE TEMP-TABLE copyvaltemp NO-UNDO LIKE konstvaltemp.
+DEFINE TEMP-TABLE copyvaltemp2 NO-UNDO LIKE konstvaltemp.
+
+DEFINE QUERY mtrlq FOR MTRLBER.
+DEFINE QUERY sok FOR MTRL. 
+DEFINE BUFFER mtrlbuf FOR MTRLBER.
+DEFINE BUFFER konstbuff FOR KONSTVAL.
+DEFINE BUFFER kbuff FOR KONSTRUKTION.
+
+PROCEDURE kopiera_UI:
+   DEFINE INPUT PARAMETER konstvalvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kongrkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER varkod AS CHARACTER NO-UNDO.
+   DEFINE BUFFER konstbuff FOR KONSTRUKTION.
+   DEFINE BUFFER mtrlbuff FOR MTRLBER.
+   DEFINE BUFFER konstvbuff FOR KONSTVAL.
+   DEFINE BUFFER kalkberbuff FOR KALKBER.
+   /*
+   FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = konstvalvar AND
+   KONSTRUKTION.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+
+   FIND FIRST konstbuff WHERE konstbuff.KTYPKOD = varkod AND
+   konstbuff.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+   */
+   FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = konstvalvar NO-LOCK:
+      DO TRANSACTION:
+         CREATE mtrlbuff.
+         BUFFER-COPY MTRLBER TO mtrlbuff.
+         mtrlbuff.KTYPKOD = varkod.
+      END.
+   END.
+   FOR EACH KONSTVAL WHERE KONSTVAL.KTYPKOD = konstvalvar AND KONSTVAL.KONSKOD = kongrkod AND KONSTVAL.KOPP = TRUE NO-LOCK:
+      DO TRANSACTION:
+         CREATE konstvbuff.
+         BUFFER-COPY KONSTVAL TO konstvbuff.
+         konstvbuff.KTYPKOD = varkod.
+      END.
+   END.
+   FOR EACH KALKBER WHERE KALKBER.KTYPKOD = konstvalvar NO-LOCK:
+      DO TRANSACTION:
+         CREATE kalkberbuff.
+         BUFFER-COPY KALKBER TO kalkberbuff.
+         kalkberbuff.KTYPKOD = varkod.
+      END.
+   END.
+     
+END PROCEDURE.
+
+PROCEDURE sparaord_UI:
+   DEFINE INPUT PARAMETER konskodvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER nrvar AS INTEGER NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST KONSTGRUPP WHERE KONSTGRUPP.KONSKOD = konskodvar EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE KONSTGRUPP THEN DO :
+         IF nrvar NE 0 THEN DO:
+            ASSIGN KONSTGRUPP.ORDNING = nrvar.
+         END.
+      END.
+   END.  
+   RELEASE KONSTGRUPP NO-ERROR.
+   RETURN.
+
+END PROCEDURE.
+
+PROCEDURE sparalast_UI:
+   DEFINE INPUT PARAMETER konskodvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER kongrlast AS LOGICAL NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST KONSTGRUPP WHERE KONSTGRUPP.KONSKOD = konskodvar EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE KONSTGRUPP THEN DO :
+         IF kongrlast NE ? THEN DO:
+            ASSIGN KONSTGRUPP.KONSTGRPLAST = kongrlast.
+         END.
+      END.
+   END.  
+   RELEASE KONSTGRUPP NO-ERROR.
+   RETURN.
+   
+
+END PROCEDURE.
+
+/*Används ej - tar för lång tid*/
+PROCEDURE laddatemp_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR konstvaltemp.
+   EMPTY TEMP-TABLE konstvaltemp NO-ERROR. 
+   FOR EACH KONSTVAL NO-LOCK.
+      CREATE konstvaltemp.
+      BUFFER-COPY KONSTVAL TO konstvaltemp.
+      ASSIGN konstvaltemp.KVALROW = ROWID(KONSTVAL).     
+   END.
+   RUN bildladda_UI (INPUT 2).
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE laddatempen_UI:
+   DEFINE INPUT PARAMETER konskodvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR konstvaltemp.
+   EMPTY TEMP-TABLE konstvaltemp NO-ERROR. 
+   FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = konskodvar NO-LOCK.
+      CREATE konstvaltemp.
+      BUFFER-COPY KONSTVAL TO konstvaltemp.
+      ASSIGN konstvaltemp.KVALROW = ROWID(KONSTVAL).     
+   END.
+    RUN bildladda_UI (INPUT 2).
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE bortkontroll_UI.
+   DEFINE INPUT PARAMETER bortkod AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   FIND FIRST BERVAL WHERE BERVAL.KONSKOD = bortkod NO-LOCK NO-ERROR.
+   IF AVAILABLE BERVAL THEN DO:
+      CREATE felmeddtemp.
+      ASSIGN felmeddtemp.FELMEDD = "OBS! Det finns Beredningar kopplade till denna konstruktionsgrupp. Vill du ändå ta bort den?".
+      RETURN.
+   END.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE bortgrupp_UI.
+   DEFINE INPUT PARAMETER bortkod AS INTEGER NO-UNDO.   
+   DO TRANSACTION:  
+      FIND FIRST KONSTGRUPP WHERE KONSTGRUPP.KONSKOD = bortkod EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE KONSTGRUPP THEN DO:
+         FIND FIRST BBENAMNING WHERE BBENAMNING.KONSKOD = bortkod EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE BBENAMNING THEN DO:
+            DELETE BBENAMNING. 
+         END.
+         FIND FIRST EDIGRUPP WHERE EDIGRUPP.KONSKOD = bortkod EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE EDIGRUPP THEN DO:
+            DELETE EDIGRUPP.
+         END.
+         OPEN QUERY delq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = bortkod NO-LOCK.
+         GET FIRST delq NO-LOCK.
+         DO WHILE AVAILABLE(KONSTRUKTION): 
+            OPEN QUERY delq3 FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD NO-LOCK.
+            GET FIRST delq3 NO-LOCK.
+            DO WHILE AVAILABLE(MTRLBER):
+               GET CURRENT delq3 EXCLUSIVE-LOCK.
+               DELETE MTRLBER.
+               GET NEXT delq3 NO-LOCK.
+            END.
+            CLOSE QUERY delq3.   
+            OPEN QUERY delq4 FOR EACH KALKBER WHERE KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD NO-LOCK.
+            GET FIRST delq4 NO-LOCK.
+            DO WHILE AVAILABLE(KALKBER):
+               GET CURRENT delq4 EXCLUSIVE-LOCK.
+               DELETE KALKBER.
+               GET NEXT delq4 NO-LOCK.
+            END.
+            CLOSE QUERY delq4.
+            GET CURRENT delq EXCLUSIVE-LOCK.
+            DELETE KONSTRUKTION.
+            GET NEXT delq NO-LOCK.
+         END. 
+         CLOSE QUERY delq.
+         OPEN QUERY delq2 FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = bortkod NO-LOCK.
+         GET FIRST delq2 NO-LOCK.
+         DO WHILE AVAILABLE(KONSTVAL):
+            GET CURRENT delq2 EXCLUSIVE-LOCK.
+            DELETE KONSTVAL.
+            GET NEXT delq2 NO-LOCK.
+         END.
+         CLOSE QUERY delq2.
+         
+         OPEN QUERY delq5 FOR EACH FASTANM WHERE FASTANM.OMRADE = STRING(bortkod) AND FASTANM.PROGRAM = "BERE" NO-LOCK.
+         GET FIRST delq5 NO-LOCK.
+         DO WHILE AVAILABLE(FASTANM):
+            GET CURRENT delq5 EXCLUSIVE-LOCK.
+            DELETE FASTANM.
+            GET NEXT delq5 NO-LOCK.
+         END.
+         CLOSE QUERY delq5.
+                  
+         
+         DELETE KONSTGRUPP.
+      END.     
+   END.
+   RELEASE BBENAMNING NO-ERROR.
+   RELEASE EDIGRUPP NO-ERROR.
+   
+END PROCEDURE.
+
+PROCEDURE skapamtrl_UI :
+   DEFINE INPUT PARAMETER mark AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER brw AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER typkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var3 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var4 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var5 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var6 AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR spec_mtrl.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR mtrlbertemp.
+   
+   IF mark = TRUE THEN DO:
+      IF brw = 2 THEN DO:
+         FIND FIRST MTRLBER WHERE MTRLBER.KTYPKOD = typkod AND
+         MTRLBER.F1 = var2 AND MTRLBER.F2 = " " AND MTRLBER.F3 = " "
+         AND MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRLBER THEN DO:               
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = typkod AND
+            MTRLBER.F1 = var2 AND MTRLBER.F2 = " " AND MTRLBER.F3 = " "
+            AND MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK.
+            GET FIRST mtrlq NO-LOCK.
+            DO WHILE AVAILABLE(MTRLBER):
+               GET CURRENT mtrlq EXCLUSIVE-LOCK.
+               FIND FIRST spec_mtrl WHERE spec_mtrl.ENR = MTRLBER.ENR AND
+               spec_mtrl.LEVKOD = MTRLBER.LEVKOD NO-ERROR.
+               IF AVAILABLE spec_mtrl THEN DO:
+                  RUN tabell3_UI.
+                  spec_mtrl.MARK = FALSE.
+               END.   
+               GET NEXT mtrlq EXCLUSIVE-LOCK.
+            END.
+            CLOSE QUERY mtrlq.                                       
+         END. 
+         FOR EACH spec_mtrl WHERE spec_mtrl.MARK = TRUE: 
+            RUN tabell_UI (INPUT typkod).
+            FIND FIRST mtrlbertemp WHERE mtrlbertemp.MTRLROW = ROWID(MTRLBER) NO-LOCK NO-ERROR.
+            IF AVAILABLE mtrlbertemp THEN DO:
+               ASSIGN
+               MTRLBER.F1 = var2
+               mtrlbertemp.F1 = var2.
+            END.
+         END.
+      END.
+      ELSE IF brw = 3 THEN DO:
+         FIND FIRST MTRLBER WHERE MTRLBER.KTYPKOD = typkod AND
+         MTRLBER.F1 = " " AND MTRLBER.F2 = var3 AND MTRLBER.F3 = " "
+         AND MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRLBER THEN DO:               
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = typkod AND
+            MTRLBER.F1 = " " AND MTRLBER.F2 = var3 AND MTRLBER.F3 = " "
+            AND MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK.
+            GET FIRST mtrlq NO-LOCK.
+            DO WHILE AVAILABLE(MTRLBER):
+               GET CURRENT mtrlq EXCLUSIVE-LOCK.
+               FIND FIRST spec_mtrl WHERE spec_mtrl.ENR = MTRLBER.ENR AND
+               spec_mtrl.LEVKOD = MTRLBER.LEVKOD NO-ERROR.
+               IF AVAILABLE spec_mtrl THEN DO:
+                  RUN tabell3_UI.
+                  spec_mtrl.MARK = FALSE.
+               END.   
+               GET NEXT mtrlq EXCLUSIVE-LOCK.
+            END.
+            CLOSE QUERY mtrlq.                                       
+         END. 
+         FOR EACH spec_mtrl WHERE spec_mtrl.MARK = TRUE: 
+            RUN tabell_UI (INPUT typkod).
+            FIND FIRST mtrlbertemp WHERE mtrlbertemp.MTRLROW = ROWID(MTRLBER) NO-LOCK NO-ERROR.
+            IF AVAILABLE mtrlbertemp THEN DO:
+               ASSIGN
+               MTRLBER.F2 = var3
+               mtrlbertemp.F2 = var3.
+            END.
+         END.
+      END.
+      ELSE IF brw = 4 THEN DO:
+         FIND FIRST MTRLBER WHERE MTRLBER.KTYPKOD = typkod AND
+         MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND MTRLBER.F3 = var4
+         AND MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRLBER THEN DO:               
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = typkod AND
+            MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND MTRLBER.F3 = var4
+            AND MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK.
+            GET FIRST mtrlq NO-LOCK.
+            DO WHILE AVAILABLE(MTRLBER):
+               GET CURRENT mtrlq EXCLUSIVE-LOCK.
+               FIND FIRST spec_mtrl WHERE spec_mtrl.ENR = MTRLBER.ENR AND
+               spec_mtrl.LEVKOD = MTRLBER.LEVKOD NO-ERROR.
+               IF AVAILABLE spec_mtrl THEN DO:
+                  RUN tabell3_UI.
+                  spec_mtrl.MARK = FALSE.
+               END.   
+               GET NEXT mtrlq EXCLUSIVE-LOCK.
+            END.
+            CLOSE QUERY mtrlq.                                       
+         END. 
+         FOR EACH spec_mtrl WHERE spec_mtrl.MARK = TRUE: 
+            RUN tabell_UI (INPUT typkod).
+            FIND FIRST mtrlbertemp WHERE mtrlbertemp.MTRLROW = ROWID(MTRLBER) NO-LOCK NO-ERROR.
+            IF AVAILABLE mtrlbertemp THEN DO:
+               ASSIGN
+               MTRLBER.F3 = var4
+               mtrlbertemp.F3 = var4.
+            END.
+         END.
+      END.
+      ELSE IF brw = 5 THEN DO:
+         FIND FIRST MTRLBER WHERE MTRLBER.KTYPKOD = typkod AND
+         MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND MTRLBER.F3 = " "
+         AND MTRLBER.F4 = var5 AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRLBER THEN DO:               
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = typkod AND
+            MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND MTRLBER.F3 = " "
+            AND MTRLBER.F4 = var5 AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK.
+            GET FIRST mtrlq NO-LOCK.
+            DO WHILE AVAILABLE(MTRLBER):
+               GET CURRENT mtrlq EXCLUSIVE-LOCK.
+               FIND FIRST spec_mtrl WHERE spec_mtrl.ENR = MTRLBER.ENR AND
+               spec_mtrl.LEVKOD = MTRLBER.LEVKOD NO-ERROR.
+               IF AVAILABLE spec_mtrl THEN DO:
+                  RUN tabell3_UI.
+                  spec_mtrl.MARK = FALSE.
+               END.   
+               GET NEXT mtrlq EXCLUSIVE-LOCK.
+            END.
+            CLOSE QUERY mtrlq.                                       
+         END. 
+         FOR EACH spec_mtrl WHERE spec_mtrl.MARK = TRUE: 
+            RUN tabell_UI (INPUT typkod).
+            FIND FIRST mtrlbertemp WHERE mtrlbertemp.MTRLROW = ROWID(MTRLBER) NO-LOCK NO-ERROR.
+            IF AVAILABLE mtrlbertemp THEN DO:
+               ASSIGN
+               MTRLBER.F4 = var5
+               mtrlbertemp.F4 = var5.
+            END.
+         END.
+      END.
+      ELSE DO: 
+         FIND FIRST MTRLBER WHERE MTRLBER.KTYPKOD = typkod AND
+         MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND MTRLBER.F3 = " "
+         AND MTRLBER.F4 = " " AND MTRLBER.F5 = var6 USE-INDEX KOD NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRLBER THEN DO:               
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = typkod AND
+            MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND MTRLBER.F3 = " "
+            AND MTRLBER.F4 = " " AND MTRLBER.F5 = var6 USE-INDEX KOD NO-LOCK.
+            GET FIRST mtrlq NO-LOCK.
+            DO WHILE AVAILABLE(MTRLBER):
+               GET CURRENT mtrlq EXCLUSIVE-LOCK.
+               FIND FIRST spec_mtrl WHERE spec_mtrl.ENR = MTRLBER.ENR AND
+               spec_mtrl.LEVKOD = MTRLBER.LEVKOD NO-ERROR.
+               IF AVAILABLE spec_mtrl THEN DO:
+                  RUN tabell3_UI.
+                  spec_mtrl.MARK = FALSE.
+               END.   
+               GET NEXT mtrlq EXCLUSIVE-LOCK.
+            END.
+            CLOSE QUERY mtrlq.                                       
+         END. 
+         FOR EACH spec_mtrl WHERE spec_mtrl.MARK = TRUE: 
+            RUN tabell_UI (INPUT typkod).
+            FIND FIRST mtrlbertemp WHERE mtrlbertemp.MTRLROW = ROWID(MTRLBER) NO-LOCK NO-ERROR.
+            IF AVAILABLE mtrlbertemp THEN DO:
+               ASSIGN
+               MTRLBER.F5 = var6
+               mtrlbertemp.F5 = var6.
+            END.
+         END.
+      END.
+      RELEASE MTRLBER NO-ERROR.
+   END.
+   ELSE DO:
+      FIND FIRST MTRLBER WHERE MTRLBER.KTYPKOD = typkod AND
+      MTRLBER.F1 = var2 AND MTRLBER.F2 = var3 AND MTRLBER.F3 = var4
+      AND MTRLBER.F4 = var5 AND MTRLBER.F5 = var6 USE-INDEX KOD NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRLBER THEN DO:         
+         OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = typkod AND
+         MTRLBER.F1 = var2 AND MTRLBER.F2 = var3 AND MTRLBER.F3 = var4
+         AND MTRLBER.F4 = var5 AND MTRLBER.F5 = var6 USE-INDEX KOD NO-LOCK.
+         GET FIRST mtrlq NO-LOCK.
+         DO WHILE AVAILABLE(MTRLBER):
+            GET CURRENT mtrlq EXCLUSIVE-LOCK.
+            FIND FIRST spec_mtrl WHERE spec_mtrl.ENR = MTRLBER.ENR AND
+            spec_mtrl.LEVKOD = MTRLBER.LEVKOD NO-ERROR.
+            IF AVAILABLE spec_mtrl THEN DO:
+               RUN tabell3_UI.
+               spec_mtrl.MARK = FALSE.
+            END.   
+            GET NEXT mtrlq EXCLUSIVE-LOCK.
+         END.
+         CLOSE QUERY mtrlq.                         
+      END.
+      FOR EACH spec_mtrl WHERE spec_mtrl.MARK = TRUE: 
+         RUN tabell_UI (INPUT typkod).
+         FIND FIRST mtrlbertemp WHERE mtrlbertemp.MTRLROW = ROWID(MTRLBER) NO-LOCK NO-ERROR.
+         IF AVAILABLE mtrlbertemp THEN DO:
+            ASSIGN
+            MTRLBER.F1 = var2 
+            MTRLBER.F2 = var3
+            MTRLBER.F3 = var4
+            MTRLBER.F4 = var5
+            MTRLBER.F5 = var6
+            mtrlbertemp.F1 = var2
+            mtrlbertemp.F2 = var3
+            mtrlbertemp.F3 = var4
+            mtrlbertemp.F4 = var5
+            mtrlbertemp.F5 = var6.
+         END.      
+      END.   
+      RELEASE MTRLBER NO-ERROR.
+   END.
+END PROCEDURE.
+
+PROCEDURE tabell_UI :
+   DEFINE INPUT PARAMETER typkod AS CHARACTER NO-UNDO.
+   DO TRANSACTION:
+      CREATE MTRLBER.
+      ASSIGN  
+      MTRLBER.KTYPKOD = typkod 
+      MTRLBER.ENR = spec_mtrl.ENR
+      MTRLBER.BENAMNING = spec_mtrl.BENAMNING 
+      MTRLBER.ENHET = spec_mtrl.ENHET
+      MTRLBER.PRIS = spec_mtrl.NPRIS 
+      MTRLBER.ANTAL = spec_mtrl.BERKVANT
+      MTRLBER.LEVKOD = spec_mtrl.LEVKOD 
+      MTRLBER.LINKAB = spec_mtrl.LINKAB 
+      MTRLBER.DIAMETER = spec_mtrl.DIAMETER 
+      MTRLBER.MODUL = spec_mtrl.MODUL 
+      MTRLBER.TYPBER = spec_mtrl.TYPBER
+      MTRLBER.SATS = spec_mtrl.SATS.
+      CREATE mtrlbertemp.
+      BUFFER-COPY MTRLBER TO mtrlbertemp.
+      ASSIGN mtrlbertemp.MTRLROW = ROWID(MTRLBER).   
+   END.
+END PROCEDURE.
+
+PROCEDURE tabell3_UI :
+   DO TRANSACTION:
+      /* GG 060508 - Lagt till BENAMNING */
+      ASSIGN
+      MTRLBER.BENAMNING = spec_mtrl.BENAMNING 
+      MTRLBER.ANTAL = spec_mtrl.BERKVANT   
+      MTRLBER.LINKAB = spec_mtrl.LINKAB 
+      MTRLBER.DIAMETER = spec_mtrl.DIAMETER 
+      MTRLBER.MODUL = spec_mtrl.MODUL 
+      MTRLBER.TYPBER = spec_mtrl.TYPBER
+      MTRLBER.SATS = spec_mtrl.SATS.   
+      FIND FIRST mtrlbertemp WHERE mtrlbertemp.MTRLROW = ROWID(MTRLBER) NO-LOCK NO-ERROR.
+      IF AVAILABLE mtrlbertemp THEN DO:
+         ASSIGN     
+         mtrlbertemp.BENAMNING = MTRLBER.BENAMNING
+         mtrlbertemp.ANTAL = MTRLBER.ANTAL    
+         mtrlbertemp.LINKAB = MTRLBER.LINKAB 
+         mtrlbertemp.DIAMETER = MTRLBER.DIAMETER
+         mtrlbertemp.MODUL = MTRLBER.MODUL  
+         mtrlbertemp.TYPBER = MTRLBER.TYPBER 
+         mtrlbertemp.SATS =  MTRLBER.SATS. 
+      END.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE btnkopp_UI:
+   DEFINE INPUT PARAMETER konstvalvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kongrkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR kval.
+   DEFINE VARIABLE ovar AS INTEGER NO-UNDO.
+   FOR EACH kval:
+      kvalkodvar = kval.KVALKOD.
+      IF kval.KOPP = FALSE THEN DO: 
+         kval.KOPP = TRUE.
+         /*FIND LAST konstbuff WHERE konstbuff.KONSKOD = kval.KONSKOD AND
+         konstbuff.KTYPKOD = konstvalvar AND konstbuff.BB = kval.BB AND
+         konstbuff.KOPP = TRUE
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE konstbuff THEN ovar = konstbuff.ORDNING + 1.
+         ELSE ovar = 1.*/
+         FIND FIRST KONSTVAL WHERE KONSTVAL.KVALKOD = kval.KVALKOD AND
+         KONSTVAL.KONSKOD = kval.KONSKOD AND KONSTVAL.BB = kval.BB AND
+         KONSTVAL.KOPP = FALSE AND KONSTVAL.KTYPKOD = kval.KTYPKOD
+         USE-INDEX KOPIA EXCLUSIVE-LOCK NO-ERROR.                   
+         IF AVAILABLE KONSTVAL THEN DO:
+            ASSIGN
+            /*KONSTVAL.ORDNING = ovar*/
+            KONSTVAL.KOPP = TRUE.
+         END.
+         ELSE DO:            
+            CREATE KONSTVAL.
+            ASSIGN 
+            KONSTVAL.KVALKOD = kval.KVALKOD
+            KONSTVAL.KTYPKOD = konstvalvar
+            KONSTVAL.KONSKOD = kval.KONSKOD
+            KONSTVAL.BENAMNING = kval.BENAMNING
+            KONSTVAL.ORDNING = kval.ORDNING
+            KONSTVAL.KOPP = kval.KOPP
+            KONSTVAL.BB = kval.BB.
+            
+            /*niklas*/
+            /*
+            FIND FIRST konstbuff WHERE konstbuff.KONSKOD = kval.KONSKOD AND
+            konstbuff.KVALKOD = kval.KVALKOD AND konstbuff.BB = kval.BB
+            NO-LOCK NO-ERROR.
+            IF AVAILABLE konstbuff THEN DO:
+               KONSTVAL.ORDNING = konstbuff.ORDNING.
+            END.
+            ELSE DO:
+               FIND LAST konstbuff WHERE konstbuff.KONSKOD = kval.KONSKOD AND
+               konstbuff.BB = kval.BB USE-INDEX ORD2 NO-LOCK NO-ERROR.
+               IF AVAILABLE konstbuff THEN KONSTVAL.ORDNING = konstbuff.ORDNING + 1.
+               ELSE KONSTVAL.ORDNING = 1.
+            END.
+            */
+         END.   
+      END.
+      ELSE DO: 
+         FIND FIRST KONSTVAL WHERE KONSTVAL.KVALKOD = kval.KVALKOD AND
+         KONSTVAL.KONSKOD = kval.KONSKOD AND KONSTVAL.BB = kval.BB AND
+         KONSTVAL.KOPP = TRUE AND KONSTVAL.KTYPKOD NE kval.KTYPKOD
+         USE-INDEX KOPIA NO-LOCK NO-ERROR.
+         IF AVAILABLE KONSTVAL THEN DO:    
+            FIND FIRST KONSTVAL WHERE KONSTVAL.KVALKOD = kval.KVALKOD AND
+            KONSTVAL.KONSKOD = kval.KONSKOD AND KONSTVAL.BB = kval.BB AND
+            KONSTVAL.KOPP = TRUE AND KONSTVAL.KTYPKOD = kval.KTYPKOD
+            USE-INDEX KOPIA EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE KONSTVAL THEN DELETE KONSTVAL.
+            kval.KOPP = FALSE.
+         END.
+         ELSE DO:
+            FIND FIRST KONSTVAL WHERE KONSTVAL.KVALKOD = kval.KVALKOD AND
+            KONSTVAL.KONSKOD = kval.KONSKOD AND KONSTVAL.BB = kval.BB AND
+            KONSTVAL.KOPP = TRUE AND KONSTVAL.KTYPKOD = kval.KTYPKOD
+            USE-INDEX KOPIA EXCLUSIVE-LOCK NO-ERROR.                   
+            IF AVAILABLE KONSTVAL THEN KONSTVAL.KOPP = FALSE.
+            kval.KOPP = FALSE.
+         END. 
+         RUN nej_UI (INPUT kongrkod,INPUT konstvalvar,INPUT kvalkodvar).
+      END.   
+   END.
+   RELEASE KONSTVAL NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE btnok_UI:
+   /*används denna ?*/
+   DEFINE INPUT PARAMETER konstvalvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kongrkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR kval.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR konstvaltemp. 
+   FOR EACH kval:
+      IF kval.KOPP = FALSE THEN DO:
+         kval.KOPP = TRUE.
+         FIND FIRST konstvaltemp WHERE konstvaltemp.KVALKOD = kval.KVALKOD AND
+         konstvaltemp.KONSKOD = kval.KONSKOD AND konstvaltemp.BB = kval.BB AND
+         konstvaltemp.KOPP = FALSE AND konstvaltemp.KTYPKOD = kval.KTYPKOD
+         USE-INDEX KOPIA NO-LOCK NO-ERROR.
+         IF AVAILABLE konstvaltemp THEN DO: 
+            DO TRANSACTION:
+               FIND FIRST KONSTVAL WHERE KONSTVAL.KVALKOD = konstvaltemp.KVALKOD AND
+               KONSTVAL.KONSKOD = konstvaltemp.KONSKOD AND KONSTVAL.BB = konstvaltemp.BB AND
+               KONSTVAL.KOPP = FALSE AND KONSTVAL.KTYPKOD = konstvaltemp.KTYPKOD
+               USE-INDEX KOPIA EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE KONSTVAL THEN DO:
+                  ASSIGN
+                  konstvaltemp.KOPP = TRUE.
+                  KONSTVAL.KOPP = TRUE.
+               END.
+               ELSE DO:
+                  CREATE KONSTVAL.
+                  ASSIGN
+                  KONSTVAL.KVALKOD = konstvaltemp.KVALKOD
+                  KONSTVAL.KTYPKOD = konstvalvar
+                  KONSTVAL.KONSKOD = konstvaltemp.KONSKOD
+                  KONSTVAL.BENAMNING = konstvaltemp.BENAMNING
+                  KONSTVAL.KOPP = konstvaltemp.KOPP
+                  KONSTVAL.BB = konstvaltemp.BB.
+                  /*niklas*/
+                  FIND FIRST konstbuff WHERE konstbuff.KONSKOD = konstvaltemp.KONSKOD AND
+                  konstbuff.KVALKOD = konstvaltemp.KVALKOD AND konstbuff.BB = konstvaltemp.BB
+                  NO-LOCK NO-ERROR.
+                  IF AVAILABLE konstbuff THEN DO:
+                     ASSIGN
+                     KONSTVAL.ORDNING = konstbuff.ORDNING
+                     konstvaltemp.ORDNING = konstbuff.ORDNING.
+                  END.
+                  ELSE DO:
+                     FIND LAST konstbuff WHERE konstbuff.KONSKOD = konstvaltemp.KONSKOD AND
+                     konstbuff.BB = konstvaltemp.BB USE-INDEX ORD2 NO-LOCK NO-ERROR.
+                     IF AVAILABLE konstbuff THEN DO:
+                        ASSIGN
+                        KONSTVAL.ORDNING = konstbuff.ORDNING + 1
+                        konstvaltemp.ORDNING = konstbuff.ORDNING + 1.
+                     END.
+                     ELSE DO:
+                        ASSIGN
+                        KONSTVAL.ORDNING = 1
+                        konstvaltemp.ORDNING = 1.
+                     END.
+                  END.
+               END.
+            END.
+         END.
+      END.
+      ELSE DO:
+         FIND FIRST konstvaltemp WHERE konstvaltemp.KVALKOD = kval.KVALKOD AND
+         konstvaltemp.KONSKOD = kval.KONSKOD AND konstvaltemp.BB = kval.BB AND
+         konstvaltemp.KOPP = TRUE AND konstvaltemp.KTYPKOD NE kval.KTYPKOD
+         USE-INDEX KOPIA NO-LOCK NO-ERROR.
+         IF AVAILABLE konstvaltemp THEN DO:
+            kvalkodvar = konstvaltemp.KVALKOD.
+            FIND FIRST KONSTVAL WHERE KONSTVAL.KVALKOD = konstvaltemp.KVALKOD AND
+            KONSTVAL.KONSKOD = konstvaltemp.KONSKOD AND KONSTVAL.BB = konstvaltemp.BB AND
+            KONSTVAL.KOPP = TRUE AND KONSTVAL.KTYPKOD NE konstvaltemp.KTYPKOD
+            USE-INDEX KOPIA NO-LOCK NO-ERROR.
+            IF AVAILABLE KONSTVAL THEN DO:
+               FIND FIRST konstvaltemp WHERE konstvaltemp.KVALKOD = kval.KVALKOD AND
+               konstvaltemp.KONSKOD = kval.KONSKOD AND konstvaltemp.BB = kval.BB AND
+               konstvaltemp.KOPP = TRUE AND konstvaltemp.KTYPKOD = kval.KTYPKOD
+               USE-INDEX KOPIA NO-LOCK NO-ERROR.
+               IF AVAILABLE konstvaltemp THEN DO:
+                  DO TRANSACTION:
+                     FIND FIRST KONSTVAL WHERE KONSTVAL.KVALKOD = konstvaltemp.KVALKOD AND
+                     KONSTVAL.KONSKOD = konstvaltemp.KONSKOD AND KONSTVAL.BB = konstvaltemp.BB AND
+                     KONSTVAL.KOPP = TRUE AND KONSTVAL.KTYPKOD = konstvaltemp.KTYPKOD
+                     USE-INDEX KOPIA EXCLUSIVE-LOCK NO-ERROR.
+                     IF AVAILABLE KONSTVAL THEN DO:
+                        DELETE KONSTVAL.
+                     END.
+                     ASSIGN
+                     konstvaltemp.KOPP = FALSE
+                     kval.KOPP = FALSE.
+                  END.
+               END.
+            END.
+            ELSE DO:
+               FIND FIRST konstvaltemp WHERE konstvaltemp.KVALKOD = kval.KVALKOD AND
+               konstvaltemp.KONSKOD = kval.KONSKOD AND konstvaltemp.BB = kval.BB AND
+               konstvaltemp.KOPP = TRUE AND konstvaltemp.KTYPKOD = kval.KTYPKOD
+               USE-INDEX KOPIA NO-LOCK NO-ERROR.
+               IF AVAILABLE konstvaltemp THEN DO: 
+                  DO TRANSACTION:
+                     FIND FIRST KONSTVAL WHERE KONSTVAL.KVALKOD = konstvaltemp.KVALKOD AND
+                     KONSTVAL.KONSKOD = konstvaltemp.KONSKOD AND KONSTVAL.BB = konstvaltemp.BB AND
+                     KONSTVAL.KOPP = TRUE AND KONSTVAL.KTYPKOD = konstvaltemp.KTYPKOD
+                     USE-INDEX KOPIA EXCLUSIVE-LOCK NO-ERROR.
+                     IF AVAILABLE KONSTVAL THEN DO:
+                        ASSIGN
+                        KONSTVAL.KOPP = FALSE.
+                        konstvaltemp.KOPP = FALSE.
+                        kval.KOPP = FALSE.
+                     END.
+                  END.
+                  RELEASE KONSTVAL NO-ERROR.
+               END.
+            END.
+            RUN nej_UI (INPUT kongrkod,INPUT konstvalvar,INPUT kvalkodvar).
+         END.
+      END.
+   END.
+   RELEASE KONSTVAL NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE nej_UI :
+   DEFINE INPUT PARAMETER kongrkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER konstvalvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kvalkodvar AS CHARACTER NO-UNDO.
+   FIND FIRST BBENAMNING WHERE BBENAMNING.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+   IF BBENAMNING.B2 = kval.BB THEN DO:
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE
+      MTRLBER.KTYPKOD = konstvalvar AND MTRLBER.F1 = kvalkodvar
+      USE-INDEX KOD NO-LOCK.
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         DO TRANSACTION:
+            GET CURRENT mtrlq EXCLUSIVE-LOCK.
+            DELETE MTRLBER.
+         END.
+         GET NEXT mtrlq NO-LOCK.
+      END.
+      CLOSE QUERY mtrlq.
+      OPEN QUERY kalkq FOR EACH KALKBER WHERE
+      KALKBER.KTYPKOD = konstvalvar AND KALKBER.F1 = kvalkodvar
+      NO-LOCK.
+      GET FIRST kalkq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         DO TRANSACTION:
+            GET CURRENT kalkq EXCLUSIVE-LOCK.
+            DELETE KALKBER.
+         END.
+         GET NEXT kalkq NO-LOCK.
+      END.
+      CLOSE QUERY kalkq.
+   END.
+   ELSE IF BBENAMNING.B3 = kval.BB THEN DO:
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE
+      MTRLBER.KTYPKOD = konstvalvar AND MTRLBER.F2 = kvalkodvar
+      USE-INDEX KOD NO-LOCK.
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         DO TRANSACTION:
+            GET CURRENT mtrlq EXCLUSIVE-LOCK.
+            DELETE MTRLBER.
+         END.
+         GET NEXT mtrlq NO-LOCK.
+      END.
+      CLOSE QUERY mtrlq.
+      OPEN QUERY kalkq FOR EACH KALKBER WHERE
+      KALKBER.KTYPKOD = konstvalvar AND KALKBER.F2 = kvalkodvar
+      NO-LOCK.
+      GET FIRST kalkq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         DO TRANSACTION:
+            GET CURRENT kalkq EXCLUSIVE-LOCK.
+            DELETE KALKBER.
+         END.
+         GET NEXT kalkq NO-LOCK.
+      END.
+      CLOSE QUERY kalkq.
+   END.
+   ELSE IF BBENAMNING.B4 = kval.BB THEN DO:
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE
+      MTRLBER.KTYPKOD = konstvalvar AND MTRLBER.F3 = kvalkodvar
+      USE-INDEX KOD NO-LOCK.
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         DO TRANSACTION:
+            GET CURRENT mtrlq EXCLUSIVE-LOCK.
+            DELETE MTRLBER.
+         END.
+         GET NEXT mtrlq NO-LOCK.
+      END.
+      CLOSE QUERY mtrlq.
+      OPEN QUERY kalkq FOR EACH KALKBER WHERE
+      KALKBER.KTYPKOD = konstvalvar AND KALKBER.F3 = kvalkodvar
+      NO-LOCK.
+      GET FIRST kalkq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         DO TRANSACTION:
+            GET CURRENT kalkq EXCLUSIVE-LOCK.
+            DELETE KALKBER.
+         END.
+         GET NEXT kalkq NO-LOCK.
+      END.
+      CLOSE QUERY kalkq.
+   END.
+   ELSE IF BBENAMNING.B5 = kval.BB THEN DO:
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE
+      MTRLBER.KTYPKOD = konstvalvar AND MTRLBER.F4 = kvalkodvar
+      USE-INDEX KOD NO-LOCK.
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         DO TRANSACTION:
+            GET CURRENT mtrlq EXCLUSIVE-LOCK.
+            DELETE MTRLBER.
+         END.
+         GET NEXT mtrlq NO-LOCK.
+      END.
+      CLOSE QUERY mtrlq.
+      OPEN QUERY kalkq FOR EACH KALKBER WHERE
+      KALKBER.KTYPKOD = konstvalvar AND KALKBER.F4 = kvalkodvar
+      NO-LOCK.
+      GET FIRST kalkq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         DO TRANSACTION:
+            GET CURRENT kalkq EXCLUSIVE-LOCK.
+            DELETE KALKBER.
+         END.
+         GET NEXT kalkq NO-LOCK.
+      END.
+      CLOSE QUERY kalkq.
+   END.
+   ELSE DO:
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE
+      MTRLBER.KTYPKOD = konstvalvar AND MTRLBER.F5 = kvalkodvar
+      USE-INDEX KOD NO-LOCK.
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         DO TRANSACTION:
+            GET CURRENT mtrlq EXCLUSIVE-LOCK.
+            DELETE MTRLBER.
+         END.
+         GET NEXT mtrlq NO-LOCK.
+      END.
+      CLOSE QUERY mtrlq.
+      OPEN QUERY kalkq FOR EACH KALKBER WHERE
+      KALKBER.KTYPKOD = konstvalvar AND KALKBER.F5 = kvalkodvar
+      NO-LOCK.
+      GET FIRST kalkq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         DO TRANSACTION:
+            GET CURRENT kalkq EXCLUSIVE-LOCK.
+            DELETE KALKBER.
+         END.
+         GET NEXT kalkq NO-LOCK.
+      END.
+      CLOSE QUERY kalkq.
+   END.
+END PROCEDURE.
+
+PROCEDURE nejkontroll_UI :
+   DEFINE INPUT PARAMETER kongrkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER konstvalvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kvalkodvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kvalbb AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   felmedd = "".
+   FIND FIRST BBENAMNING WHERE BBENAMNING.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+   IF BBENAMNING.B2 = kvalbb THEN DO:
+      FIND FIRST MTRLBER WHERE MTRLBER.KTYPKOD = konstvalvar AND MTRLBER.F1 = kvalkodvar USE-INDEX KOD NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRLBER THEN DO:
+         ASSIGN felmedd = "OBS! Materiel och kalkylkoder kopplade till " + kvalkodvar + " kommer att tas bort. Vill ni fortsätta?".
+      END.
+      FIND FIRST KALKBER WHERE KALKBER.KTYPKOD = konstvalvar AND KALKBER.F1 = kvalkodvar NO-LOCK NO-ERROR.
+      IF AVAILABLE KALKBER THEN DO:
+          ASSIGN felmedd = "OBS! Materiel och kalkylkoder kopplade till " + kvalkodvar + " kommer att tas bort. Vill ni fortsätta?".
+      END.         
+   END.
+   ELSE IF BBENAMNING.B3 = kvalbb THEN DO:
+      FIND FIRST MTRLBER WHERE MTRLBER.KTYPKOD = konstvalvar AND MTRLBER.F2 = kvalkodvar USE-INDEX KOD NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRLBER THEN DO:
+         ASSIGN felmedd = "OBS! Materiel och kalkylkoder kopplade till " + kvalkodvar + " kommer att tas bort. Vill ni fortsätta?".
+      END.
+      FIND FIRST KALKBER WHERE KALKBER.KTYPKOD = konstvalvar AND KALKBER.F2 = kvalkodvar NO-LOCK NO-ERROR.
+      IF AVAILABLE KALKBER THEN DO:
+          ASSIGN felmedd = "OBS! Materiel och kalkylkoder kopplade till " + kvalkodvar + " kommer att tas bort. Vill ni fortsätta?".
+      END.              
+   END.
+   ELSE IF BBENAMNING.B4 = kvalbb THEN DO:
+      FIND FIRST MTRLBER WHERE MTRLBER.KTYPKOD = konstvalvar AND MTRLBER.F3 = kvalkodvar USE-INDEX KOD NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRLBER THEN DO:
+         ASSIGN felmedd = "OBS! Materiel och kalkylkoder kopplade till " + kvalkodvar + " kommer att tas bort. Vill ni fortsätta?".
+      END.
+      FIND FIRST KALKBER WHERE KALKBER.KTYPKOD = konstvalvar AND KALKBER.F3 = kvalkodvar NO-LOCK NO-ERROR.
+      IF AVAILABLE KALKBER THEN DO:
+          ASSIGN felmedd = "OBS! Materiel och kalkylkoder kopplade till " + kvalkodvar + " kommer att tas bort. Vill ni fortsätta?".
+      END.                   
+   END.
+   ELSE IF BBENAMNING.B5 = kvalbb THEN DO:
+      FIND FIRST MTRLBER WHERE MTRLBER.KTYPKOD = konstvalvar AND MTRLBER.F4 = kvalkodvar USE-INDEX KOD NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRLBER THEN DO:
+         ASSIGN felmedd = "OBS! Materiel och kalkylkoder kopplade till " + kvalkodvar + " kommer att tas bort. Vill ni fortsätta?".
+      END.
+      FIND FIRST KALKBER WHERE KALKBER.KTYPKOD = konstvalvar AND KALKBER.F4 = kvalkodvar NO-LOCK NO-ERROR.
+      IF AVAILABLE KALKBER THEN DO:
+          ASSIGN felmedd = "OBS! Materiel och kalkylkoder kopplade till " + kvalkodvar + " kommer att tas bort. Vill ni fortsätta?".
+      END.                        
+   END.
+   ELSE DO:
+      FIND FIRST MTRLBER WHERE MTRLBER.KTYPKOD = konstvalvar AND MTRLBER.F5 = kvalkodvar USE-INDEX KOD NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRLBER THEN DO:
+         ASSIGN felmedd = "OBS! Materiel och kalkylkoder kopplade till " + kvalkodvar + " kommer att tas bort. Vill ni fortsätta?".
+      END.
+      FIND FIRST KALKBER WHERE KALKBER.KTYPKOD = konstvalvar AND KALKBER.F5 = kvalkodvar NO-LOCK NO-ERROR.
+      IF AVAILABLE KALKBER THEN DO:
+          ASSIGN felmedd = "OBS! Materiel och kalkylkoder kopplade till " + kvalkodvar + " kommer att tas bort. Vill ni fortsätta?".
+      END.                             
+   END.
+END PROCEDURE.
+
+PROCEDURE bytnrR_UI :
+   DEFINE INPUT PARAMETER val AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER frannr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER tillnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER kgrfranvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kgrtillvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER bbval AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER konstvalvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kongrkod AS INTEGER NO-UNDO.
+   
+   IF val = TRUE THEN DO:
+      EMPTY TEMP-TABLE k_row NO-ERROR. 
+      OPEN QUERY krowq FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = kongrkod AND
+      KONSTVAL.BB = bbval AND KONSTVAL.ORDNING = tillnr USE-INDEX ORD2 NO-LOCK.
+      GET FIRST krowq NO-LOCK.
+      DO WHILE AVAILABLE(KONSTVAL):
+         CREATE k_row.
+         ASSIGN
+         k_row.KROW = ROWID(KONSTVAL).
+         GET NEXT krowq NO-LOCK.
+      END.
+      OPEN QUERY bytq FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = kongrkod AND
+      KONSTVAL.BB = bbval AND KONSTVAL.ORDNING = frannr USE-INDEX ORD2 NO-LOCK.
+      GET FIRST bytq NO-LOCK.
+      DO WHILE AVAILABLE(KONSTVAL):
+         DO TRANSACTION:
+            GET CURRENT bytq EXCLUSIVE-LOCK.
+            ASSIGN KONSTVAL.ORDNING = tillnr.
+         END.
+         GET NEXT bytq NO-LOCK.
+      END.
+      CLOSE QUERY bytq.
+      FOR EACH k_row:
+         DO TRANSACTION:
+            FIND FIRST KONSTVAL WHERE ROWID(KONSTVAL) = k_row.KROW EXCLUSIVE-LOCK NO-ERROR.
+            KONSTVAL.ORDNING = frannr.
+         END.
+      END.
+   END.
+   ELSE DO:
+      DO TRANSACTION:
+         FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD =  kgrtillvar EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE KONSTRUKTION THEN DO:
+            ASSIGN KONSTRUKTION.ORDNING = frannr.  
+         END.
+         FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = kgrfranvar EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE KONSTRUKTION THEN DO:
+            KONSTRUKTION.ORDNING = tillnr. 
+         END.
+      END.
+
+   END.
+END PROCEDURE.
+
+PROCEDURE bytnr_UI :
+   DEFINE INPUT PARAMETER val AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER frannr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER tillnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER kgrfranvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kgrtillvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER bbval AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER konstvalvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kongrkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR ONODIGtemp.
+  
+   IF val = TRUE THEN DO:
+      EMPTY TEMP-TABLE k_row NO-ERROR. 
+      OPEN QUERY krowq FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = kongrkod AND
+      KONSTVAL.BB = bbval AND KONSTVAL.ORDNING = tillnr USE-INDEX ORD2 NO-LOCK.
+      GET FIRST krowq NO-LOCK.
+      DO WHILE AVAILABLE(KONSTVAL):
+         CREATE k_row.
+         ASSIGN
+         k_row.KROW = ROWID(KONSTVAL).
+         GET NEXT krowq NO-LOCK.
+      END.
+      OPEN QUERY bytq FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = kongrkod AND
+      KONSTVAL.BB = bbval AND KONSTVAL.ORDNING = frannr USE-INDEX ORD2 NO-LOCK.
+      GET FIRST bytq NO-LOCK.
+      DO WHILE AVAILABLE(KONSTVAL):
+         DO TRANSACTION:
+            GET CURRENT bytq EXCLUSIVE-LOCK.
+            ASSIGN KONSTVAL.ORDNING = tillnr.
+         END.
+         GET NEXT bytq NO-LOCK.
+      END.
+      CLOSE QUERY bytq.
+      FOR EACH k_row:
+         DO TRANSACTION:
+            FIND FIRST KONSTVAL WHERE ROWID(KONSTVAL) = k_row.KROW EXCLUSIVE-LOCK NO-ERROR.
+            KONSTVAL.ORDNING = frannr.
+         END.
+      END.
+   END.
+   ELSE DO:
+      DO TRANSACTION:
+         FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD =  kgrtillvar EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE KONSTRUKTION THEN DO:
+            ASSIGN KONSTRUKTION.ORDNING = frannr.  
+         END.
+         FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = kgrfranvar EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE KONSTRUKTION THEN DO:
+            KONSTRUKTION.ORDNING = tillnr. 
+         END.
+      END.
+
+   END.
+END PROCEDURE.
+
+PROCEDURE radkonto_UI:
+   DEFINE INPUT PARAMETER bbval AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kongrkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER konstvalvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR konstvaltemp.
+   DEFINE VARIABLE ordningkoll AS INTEGER NO-UNDO.
+   ordningkoll = 0.
+   EMPTY TEMP-TABLE konstvaltemp NO-ERROR. 
+   OPEN QUERY konstq FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = kongrkod
+   AND KONSTVAL.BB = bbval AND KONSTVAL.KTYPKOD = konstvalvar
+   NO-LOCK.
+   GET FIRST konstq NO-LOCK.
+   DO WHILE AVAILABLE(KONSTVAL):
+      CREATE konstvaltemp.
+      BUFFER-COPY KONSTVAL TO konstvaltemp.
+      ASSIGN konstvaltemp.KVALROW = ROWID(KONSTVAL).
+      /*IF ordningkoll < konstvaltemp.ORDNING THEN ordningkoll = konstvaltemp.ORDNING.*/
+      GET NEXT konstq NO-LOCK.
+   END.
+   CLOSE QUERY konstq.
+
+   OPEN QUERY konstq FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = kongrkod
+   AND KONSTVAL.BB = bbval AND KONSTVAL.KTYPKOD NE konstvalvar
+   USE-INDEX KOPIA NO-LOCK.
+   GET FIRST konstq NO-LOCK.
+   DO WHILE AVAILABLE(KONSTVAL):
+      FIND FIRST konstvaltemp WHERE konstvaltemp.KVALKOD = KONSTVAL.KVALKOD NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE konstvaltemp THEN DO:
+         CREATE konstvaltemp.
+         ASSIGN
+         konstvaltemp.KVALKOD = KONSTVAL.KVALKOD
+         konstvaltemp.KTYPKOD = konstvalvar
+         konstvaltemp.KONSKOD = KONSTVAL.KONSKOD
+         konstvaltemp.BENAMNING = KONSTVAL.BENAMNING
+         konstvaltemp.KOPP = FALSE
+         konstvaltemp.BB = KONSTVAL.BB
+         konstvaltemp.ORDNING = KONSTVAL.ORDNING.
+         /*konstvaltemp.ORDNING = ordningkoll + 1.*/
+         /*ordningkoll = ordningkoll + 1.*/
+         ASSIGN konstvaltemp.KVALROW = ROWID(KONSTVAL).
+      END.
+      GET NEXT konstq NO-LOCK.
+   END.
+   CLOSE QUERY konstq.
+   RUN bildladda_UI (INPUT 2).
+END PROCEDURE.
+
+
+
+/* kopierar mtrl från ett ställe till ett annat för valda konst  */
+PROCEDURE copykval_UI :
+   DEFINE INPUT PARAMETER TABLE FOR copyvaltemp.
+   DEFINE INPUT PARAMETER nykonskod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER nyktypkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER nybb AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER bfalt AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER konstfinns AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER mezz AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE ordningz AS INTEGER NO-UNDO.
+   /*DEFINE VARIABLE bytut AS LOGICAL NO-UNDO.*/
+   /*FIND LAST KONSTVAL WHERE KONSTVAL.KONSKOD = nykonskod AND KONSTVAL.KTYPKOD = nyktypkod AND KONSTVAL.BB = nybb USE-INDEX ORD NO-ERROR.*/
+   
+   RUN KONMTRLAPPSPEC.P PERSISTENT SET konapphand2.
+   
+   
+   /* hittar sista konstvalen för KONSKOD+BB */
+   FIND LAST KONSTVAL WHERE KONSTVAL.KONSKOD = nykonskod AND KONSTVAL.BB = nybb USE-INDEX ORD2 NO-ERROR.
+   IF AVAILABLE KONSTVAL THEN ordningz = KONSTVAL.ORDNING.
+   ELSE ordningz = 0.
+   ordningz = ordningz + 1.
+
+   FOR EACH copyvaltemp NO-LOCK:
+      
+      /* hitta för utan KTYPKOD (kopplad = nej) */
+      FIND FIRST KONSTVAL WHERE KONSTVAL.KVALKOD = copyvaltemp.KVALKOD AND KONSTVAL.KONSKOD = nykonskod AND KONSTVAL.BB = nybb NO-ERROR.
+      IF AVAILABLE KONSTVAL THEN ordningz = KONSTVAL.ORDNING.       
+            
+      /*hitta för specifik BB + KTYPKOD + KVALKOD + KONSKOD */
+      FIND FIRST KONSTVAL WHERE KONSTVAL.KVALKOD = copyvaltemp.KVALKOD AND KONSTVAL.KTYPKOD = nyktypkod AND KONSTVAL.KONSKOD = nykonskod AND KONSTVAL.BB = nybb NO-ERROR.
+      IF NOT AVAILABLE KONSTVAL THEN DO:
+                                   
+         CREATE KONSTVAL.
+         ASSIGN
+         KONSTVAL.ORDNING = ordningz
+         KONSTVAL.KVALKOD = copyvaltemp.KVALKOD
+         KONSTVAL.KTYPKOD = nyktypkod
+         KONSTVAL.KOPP = copyvaltemp.KOPP
+         KONSTVAL.KONSKOD = nykonskod
+         KONSTVAL.BENAMNING = copyvaltemp.BENAMNING
+         KONSTVAL.BB = nybb.
+
+         ordningz = ordningz + 1.
+         
+         konstfinns = FALSE.
+      END.
+      ELSE DO: /* fråga om kopiera mtrl */                                                            
+          
+         FIND FIRST KONSTGRUPP WHERE KONSTGRUPP.KONSKOD = nykonskod NO-ERROR.
+         mezz = KONSTVAL.KVALKOD + " finns redan för " + KONSTVAL.KTYPKOD + " under " + nybb + " i konstruktionsgruppen " + KONSTGRUPP.BENAMNING.
+         konstfinns = TRUE.
+         IF VALID-HANDLE(konapphand2) THEN DELETE PROCEDURE konapphand2.
+         RETURN.
+      END.    
+   END.
+   /*MESSAGE "o smid" VIEW-AS ALERT-BOX.*/
+   
+   RUN copymtrl_UI IN konapphand2 (INPUT TABLE copyvaltemp, INPUT nyktypkod, INPUT bfalt).
+   IF VALID-HANDLE(konapphand2) THEN DELETE PROCEDURE konapphand2.
+END PROCEDURE.
+
+
+
+
+PROCEDURE bortkval_UI:
+   DEFINE INPUT PARAMETER val AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER krow AS ROWID NO-UNDO.
+   DEFINE INPUT PARAMETER kongrkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER kvalkodvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER bbval AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR konstvaltemp.
+   IF val = TRUE THEN DO:
+      FIND FIRST konstvaltemp WHERE konstvaltemp.KVALROW = krow USE-INDEX KOPIA NO-LOCK NO-ERROR.
+      
+      IF AVAILABLE konstvaltemp THEN DO:
+         RUN koll_UI (INPUT kongrkod,INPUT kvalkodvar).
+         OPEN QUERY konstq FOR EACH KONSTVAL WHERE
+         KONSTVAL.KONSKOD = konstvaltemp.KONSKOD AND
+         KONSTVAL.KVALKOD = konstvaltemp.KVALKOD AND 
+         KONSTVAL.BB = bbval USE-INDEX KOPIA
+         NO-LOCK.
+         GET FIRST konstq NO-LOCK.
+         DO WHILE AVAILABLE(KONSTVAL):
+            DO TRANSACTION:
+               GET CURRENT konstq EXCLUSIVE-LOCK.
+               DELETE KONSTVAL.
+            END.
+            GET NEXT konstq NO-LOCK.
+         END.
+         CLOSE QUERY konstq.         
+      END.     
+   END.
+END PROCEDURE.
+
+PROCEDURE bortkonstr_UI :
+   DEFINE INPUT PARAMETER val AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER konstvalvar AS CHARACTER NO-UNDO.
+   IF val = FALSE THEN DO TRANSACTION:
+      FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = konstvalvar EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE KONSTRUKTION THEN DO :
+         konrowid = ROWID(KONSTRUKTION).
+         RUN koll2_UI (INPUT konstvalvar).
+         IF musz = FALSE THEN DO:
+            OPEN QUERY konstq FOR EACH KONSTVAL WHERE
+            KONSTVAL.KONSKOD = KONSTRUKTION.KONSKOD AND
+            KONSTVAL.KTYPKOD = KONSTRUKTION.KTYPKOD USE-INDEX KOPIA NO-LOCK.
+            GET FIRST konstq NO-LOCK.
+            DO WHILE AVAILABLE(KONSTVAL):
+               GET CURRENT konstq EXCLUSIVE-LOCK.
+               FIND FIRST konstbuff WHERE konstbuff.KVALKOD = KONSTVAL.KVALKOD AND
+               konstbuff.KONSKOD = KONSTVAL.KONSKOD AND konstbuff.BB = KONSTVAL.BB AND
+               konstbuff.KOPP = TRUE AND konstbuff.KTYPKOD NE KONSTVAL.KTYPKOD
+               USE-INDEX KOPIA NO-LOCK NO-ERROR.
+               IF AVAILABLE konstbuff THEN DO:
+                  DELETE KONSTVAL.
+               END.
+               ELSE DO:
+                  FIND FIRST kbuff WHERE kbuff.KONSKOD = KONSTVAL.KONSKOD
+                  AND ROWID(kbuff) NE konrowid NO-LOCK NO-ERROR.
+                  IF AVAILABLE kbuff THEN DO:
+                     ASSIGN
+                     KONSTVAL.KTYPKOD = kbuff.KTYPKOD
+                     KONSTVAL.KOPP = FALSE.
+                  END.
+                  ELSE DO:
+                     DELETE KONSTVAL.
+                  END.
+               END.
+               GET NEXT konstq NO-LOCK.
+            END.
+            CLOSE QUERY konstq.
+            DELETE KONSTRUKTION.            
+         END.
+         ELSE DO:
+            musz = FALSE.
+         END.
+      END.      
+      RELEASE KONSTRUKTION NO-ERROR.
+   END.
+END PROCEDURE.
+
+PROCEDURE koll_UI :
+   DEFINE INPUT PARAMETER kongrkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER kvalkodvar AS CHARACTER NO-UNDO.
+   FIND FIRST BBENAMNING WHERE BBENAMNING.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+   IF BBENAMNING.B2 = konstvaltemp.BB THEN DO:
+      OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = kongrkod
+      USE-INDEX KOD NO-LOCK.
+      GET FIRST kq NO-LOCK.
+      DO WHILE AVAILABLE(KONSTRUKTION):
+         OPEN QUERY mtrlq FOR EACH MTRLBER WHERE
+         MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND MTRLBER.F1 = kvalkodvar
+         USE-INDEX KOD NO-LOCK.
+         GET FIRST mtrlq NO-LOCK.
+         DO WHILE AVAILABLE(MTRLBER):
+            DO TRANSACTION:
+               GET CURRENT mtrlq EXCLUSIVE-LOCK.
+               DELETE MTRLBER.
+            END.
+            GET NEXT mtrlq NO-LOCK.
+         END.
+         CLOSE QUERY mtrlq.
+         OPEN QUERY kalkq FOR EACH KALKBER WHERE
+         KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND KALKBER.F1 = kvalkodvar
+         NO-LOCK.
+         GET FIRST kalkq NO-LOCK.
+         DO WHILE AVAILABLE(KALKBER):
+            DO TRANSACTION:
+               GET CURRENT kalkq EXCLUSIVE-LOCK.
+               DELETE KALKBER.
+            END.
+            GET NEXT kalkq NO-LOCK.
+         END.
+         CLOSE QUERY kalkq.
+         GET NEXT kq NO-LOCK.
+      END.
+      CLOSE QUERY kq.
+   END.
+   ELSE IF BBENAMNING.B3 = konstvaltemp.BB THEN DO:
+      OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = kongrkod
+      USE-INDEX KOD NO-LOCK.
+      GET FIRST kq NO-LOCK.
+      DO WHILE AVAILABLE(KONSTRUKTION):
+         OPEN QUERY mtrlq FOR EACH MTRLBER WHERE
+         MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND MTRLBER.F2 = kvalkodvar
+         USE-INDEX KOD NO-LOCK.
+         GET FIRST mtrlq NO-LOCK.
+         DO WHILE AVAILABLE(MTRLBER):
+            DO TRANSACTION:
+               GET CURRENT mtrlq EXCLUSIVE-LOCK.
+               DELETE MTRLBER.
+            END.
+            GET NEXT mtrlq NO-LOCK.
+         END.
+         CLOSE QUERY mtrlq.
+         OPEN QUERY kalkq FOR EACH KALKBER WHERE
+         KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND KALKBER.F2 = kvalkodvar
+         NO-LOCK.
+         GET FIRST kalkq NO-LOCK.
+         DO WHILE AVAILABLE(KALKBER):
+            DO TRANSACTION:
+               GET CURRENT kalkq EXCLUSIVE-LOCK.
+               DELETE KALKBER.
+            END.
+            GET NEXT kalkq NO-LOCK.
+         END.
+         CLOSE QUERY kalkq.
+         GET NEXT kq NO-LOCK.
+      END.
+      CLOSE QUERY kq.
+   END.
+   ELSE IF BBENAMNING.B4 = konstvaltemp.BB THEN DO:
+      OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = kongrkod
+      USE-INDEX KOD NO-LOCK.
+      GET FIRST kq NO-LOCK.
+      DO WHILE AVAILABLE(KONSTRUKTION):
+         OPEN QUERY mtrlq FOR EACH MTRLBER WHERE
+         MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND MTRLBER.F3 = kvalkodvar
+         USE-INDEX KOD NO-LOCK.
+         GET FIRST mtrlq NO-LOCK.
+         DO WHILE AVAILABLE(MTRLBER):
+            DO TRANSACTION:
+               GET CURRENT mtrlq EXCLUSIVE-LOCK.
+               DELETE MTRLBER.
+            END.
+            GET NEXT mtrlq NO-LOCK.
+         END.
+         CLOSE QUERY mtrlq.
+         OPEN QUERY kalkq FOR EACH KALKBER WHERE
+         KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND KALKBER.F3 = kvalkodvar
+         NO-LOCK.
+         GET FIRST kalkq NO-LOCK.
+         DO WHILE AVAILABLE(KALKBER):
+            DO TRANSACTION:
+               GET CURRENT kalkq EXCLUSIVE-LOCK.
+               DELETE KALKBER.
+            END.
+            GET NEXT kalkq NO-LOCK.
+         END.
+         CLOSE QUERY kalkq.
+         GET NEXT kq NO-LOCK.
+      END.
+      CLOSE QUERY kq.
+   END.
+   ELSE IF BBENAMNING.B5 = konstvaltemp.BB THEN DO:
+      OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = kongrkod
+      USE-INDEX KOD NO-LOCK.
+      GET FIRST kq NO-LOCK.
+      DO WHILE AVAILABLE(KONSTRUKTION):
+         OPEN QUERY mtrlq FOR EACH MTRLBER WHERE
+         MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND MTRLBER.F4 = kvalkodvar
+         USE-INDEX KOD NO-LOCK.
+         GET FIRST mtrlq NO-LOCK.
+         DO WHILE AVAILABLE(MTRLBER):
+            DO TRANSACTION:
+               GET CURRENT mtrlq EXCLUSIVE-LOCK.
+               DELETE MTRLBER.
+            END.
+            GET NEXT mtrlq NO-LOCK.
+         END.
+         CLOSE QUERY mtrlq.
+         OPEN QUERY kalkq FOR EACH KALKBER WHERE
+         KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND KALKBER.F4 = kvalkodvar
+         NO-LOCK.
+         GET FIRST kalkq NO-LOCK.
+         DO WHILE AVAILABLE(KALKBER):
+            DO TRANSACTION:
+               GET CURRENT kalkq EXCLUSIVE-LOCK.
+               DELETE KALKBER.
+            END.
+            GET NEXT kalkq NO-LOCK.
+         END.
+         CLOSE QUERY kalkq.
+         GET NEXT kq NO-LOCK.
+      END.
+      CLOSE QUERY kq.
+   END.
+   ELSE DO:
+      OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = kongrkod
+      USE-INDEX KOD NO-LOCK.
+      GET FIRST kq NO-LOCK.
+      DO WHILE AVAILABLE(KONSTRUKTION):
+         OPEN QUERY mtrlq FOR EACH MTRLBER WHERE
+         MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND MTRLBER.F5 = kvalkodvar
+         USE-INDEX KOD NO-LOCK.
+         GET FIRST mtrlq NO-LOCK.
+         DO WHILE AVAILABLE(MTRLBER):
+            DO TRANSACTION:
+               GET CURRENT mtrlq EXCLUSIVE-LOCK.
+               DELETE MTRLBER.
+            END.
+            GET NEXT mtrlq NO-LOCK.
+         END.
+         CLOSE QUERY mtrlq.
+         OPEN QUERY kalkq FOR EACH KALKBER WHERE
+         KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND KALKBER.F5 = kvalkodvar
+         NO-LOCK.
+         GET FIRST kalkq NO-LOCK.
+         DO WHILE AVAILABLE(KALKBER):
+            DO TRANSACTION:
+               GET CURRENT kalkq EXCLUSIVE-LOCK.
+               DELETE KALKBER.
+            END.
+            GET NEXT kalkq NO-LOCK.
+         END.
+         CLOSE QUERY kalkq.
+         GET NEXT kq NO-LOCK.
+      END.
+      CLOSE QUERY kq.
+   END.
+END PROCEDURE.
+
+PROCEDURE koll2_UI :
+   DEFINE INPUT PARAMETER konstvalvar AS CHARACTER NO-UNDO.
+   musz = FALSE.
+   OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = konstvalvar
+   USE-INDEX KOD NO-LOCK.
+   GET FIRST mtrlq NO-LOCK.
+   DO WHILE AVAILABLE(MTRLBER):
+      DO TRANSACTION:
+         GET CURRENT mtrlq EXCLUSIVE-LOCK.
+         DELETE MTRLBER.
+      END.
+      GET NEXT mtrlq NO-LOCK.
+   END.
+   CLOSE QUERY mtrlq.
+   OPEN QUERY kalkq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = konstvalvar
+   NO-LOCK.
+   GET FIRST kalkq NO-LOCK.
+   DO WHILE AVAILABLE(KALKBER):
+      DO TRANSACTION:
+         GET CURRENT kalkq EXCLUSIVE-LOCK.
+         DELETE KALKBER.
+      END.
+      GET NEXT kalkq NO-LOCK.
+   END.
+   CLOSE QUERY kalkq.
+END PROCEDURE.
+
+PROCEDURE laddanytt_UI:
+   DEFINE INPUT PARAMETER kongrkod AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR konsttemp.
+   EMPTY TEMP-TABLE konsttemp NO-ERROR. 
+   OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = kongrkod USE-INDEX ORD NO-LOCK.
+   GET FIRST kq NO-LOCK.
+   DO WHILE AVAILABLE(KONSTRUKTION):
+      CREATE konsttemp.
+      BUFFER-COPY KONSTRUKTION TO konsttemp.
+      IF konsttemp.UID NE 0 THEN DO:
+         FIND FIRST utbyteslnamntemp WHERE utbyteslnamntemp.UID = konsttemp.UID NO-LOCK NO-ERROR.
+         IF AVAILABLE utbyteslnamntemp THEN DO:
+             konsttemp.UNAMN =  utbyteslnamntemp.UNAMN.
+          END. 
+       END.     
+      GET NEXT kq NO-LOCK.
+   END.
+   CLOSE QUERY kq.
+   RUN bildladda_UI (INPUT 1).
+   RETURN.
+END PROCEDURE.
+{BERBILDLADDA.i}
+PROCEDURE ny_UI :
+   DEFINE INPUT PARAMETER mtrlkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var3 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var4 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var5 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER var6 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrlbertemp.
+   EMPTY TEMP-TABLE mtrlbertemp NO-ERROR. 
+   FOR EACH spec_mtrl:
+      FIND FIRST MTRLBER WHERE MTRLBER.KTYPKOD = mtrlkod AND
+      MTRLBER.ENR = spec_mtrl.ENR AND MTRLBER.F1 = var2
+      AND MTRLBER.F2 = var3 AND MTRLBER.F3 = var4 AND MTRLBER.F4 = var5
+      AND MTRLBER.F5 = var6 USE-INDEX KOD NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE MTRLBER THEN DO:
+         RUN nyand_UI (INPUT mtrlkod,INPUT var2,
+                       INPUT var3,INPUT var4,
+                       INPUT var5,INPUT var6).
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE ladda_UI :
+   DEFINE INPUT PARAMETER typkod AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrlbertemp.
+   EMPTY TEMP-TABLE mtrlbertemp NO-ERROR. 
+   OPEN QUERY mq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = typkod USE-INDEX KOD NO-LOCK. 
+   GET FIRST mq NO-LOCK.
+   DO WHILE AVAILABLE(MTRLBER):
+      CREATE mtrlbertemp.
+      BUFFER-COPY MTRLBER TO mtrlbertemp.
+      ASSIGN mtrlbertemp.MTRLROW = ROWID(MTRLBER).
+      GET NEXT mq NO-LOCK.
+   END.
+   CLOSE QUERY mq.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE kodhmt_UI :
+   DEFINE INPUT PARAMETER val AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER posok AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER begvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR satstemp.
+   EMPTY TEMP-TABLE satstemp NO-ERROR. 
+   felmedd = "".
+   
+   IF begvar = FALSE THEN DO:
+      OPEN QUERY mq FOR EACH SATS WHERE SATS.KOD MATCHES posok AND SATS.LEVKOD = vald_lev
+      AND SATS.SATS = TRUE USE-INDEX KOD NO-LOCK.
+      GET FIRST mq NO-LOCK.
+      DO WHILE AVAILABLE(SATS):
+         CREATE satstemp.
+         BUFFER-COPY SATS TO satstemp.
+         ASSIGN satstemp.SATSROW = ROWID(SATS).
+         GET NEXT mq NO-LOCK.
+      END.
+      CLOSE QUERY mq.
+   END.
+   ELSE DO:
+      OPEN QUERY mq FOR EACH SATS WHERE SATS.KOD BEGINS posok AND SATS.LEVKOD = vald_lev
+      AND SATS.SATS = TRUE USE-INDEX KOD NO-LOCK.
+      GET FIRST mq NO-LOCK.
+      DO WHILE AVAILABLE(SATS):
+         CREATE satstemp.
+         BUFFER-COPY SATS TO satstemp.
+         ASSIGN satstemp.SATSROW = ROWID(SATS).
+         GET NEXT mq NO-LOCK.
+      END.
+      CLOSE QUERY mq.        
+   END.
+   FIND FIRST satstemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE satstemp THEN DO:
+      ASSIGN felmedd = "Det finns ingen på sökbegreppet.".
+      RETURN.
+   END.
+
+END PROCEDURE.
+
+PROCEDURE checksats_UI :
+   DEFINE INPUT PARAMETER enrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER levkod AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER satskoll AS LOGICAL NO-UNDO.
+   FIND FIRST SATS WHERE SATS.SATS = TRUE AND SATS.KOD = enrvar AND
+   SATS.LEVKOD = levkod USE-INDEX KOD NO-LOCK NO-ERROR.
+   IF AVAILABLE SATS THEN satskoll = TRUE.
+   ELSE satskoll = FALSE.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE bort_UI :
+   DEFINE INPUT PARAMETER mtrl_rowid AS ROWID NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST MTRLBER WHERE ROWID(MTRLBER)= mtrl_rowid EXCLUSIVE-LOCK NO-ERROR.         
+      IF AVAILABLE MTRLBER THEN DO:
+         DELETE MTRLBER.                     
+      END.      
+   END.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE andlin_UI :
+   DEFINE INPUT PARAMETER mtrl_rowid AS ROWID NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST MTRLBER WHERE ROWID(MTRLBER) = mtrl_rowid EXCLUSIVE-LOCK NO-ERROR.         
+      IF AVAILABLE MTRLBER THEN DO:
+         ASSIGN
+         MTRLBER.LINKAB = FALSE
+         MTRLBER.DIAMETER = 0.  
+      END.
+   END.
+   RELEASE MTRLBER NO-ERROR.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE btnand_UI :
+   DEFINE INPUT PARAMETER mtrl_rowid AS ROWID NO-UNDO.
+   DEFINE INPUT PARAMETER mtrlkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER varf2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER varf3 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER varf4 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER varf5 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER varf6 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrlbertemp.
+   EMPTY TEMP-TABLE mtrlbertemp NO-ERROR. 
+   DO TRANSACTION:
+      FOR EACH spec_mtrl:     
+         FIND FIRST MTRLBER WHERE MTRLBER.KTYPKOD = mtrlkod AND
+         MTRLBER.ENR = spec_mtrl.ENR AND MTRLBER.F1 = varf2
+         AND MTRLBER.F2 = varf3 AND MTRLBER.F3 = varf4 AND MTRLBER.F4 = varf5
+         AND MTRLBER.F5 = varf6 AND ROWID(MTRLBER) NE mtrl_rowid
+         USE-INDEX KOD EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE MTRLBER THEN DO:
+            RUN nyand_UI (INPUT mtrlkod,INPUT varf2, INPUT varf3,INPUT varf4,
+                          INPUT varf5, INPUT varf6).
+         END.
+         ELSE DO:
+            DELETE MTRLBER. 
+            RUN nyand_UI (INPUT mtrlkod,INPUT varf2, INPUT varf3,INPUT varf4,
+                          INPUT varf5, INPUT varf6).
+         END.
+      END. 
+      FIND FIRST MTRLBER WHERE ROWID(MTRLBER) = mtrl_rowid EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MTRLBER THEN DO:
+         DELETE MTRLBER.
+      END.
+   END.
+   RETURN.
+END PROCEDURE.
+
+
+PROCEDURE nyand_UI :
+   DEFINE INPUT PARAMETER mtrlkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER varf2  AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER varf3  AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER varf4  AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER varf5  AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER varf6  AS CHARACTER NO-UNDO.
+   CREATE MTRLBER.
+   ASSIGN
+   MTRLBER.KTYPKOD = mtrlkod
+   MTRLBER.ENR = spec_mtrl.ENR
+   MTRLBER.BENAMNING = spec_mtrl.BENAMNING
+   MTRLBER.ENHET = spec_mtrl.ENHET
+   MTRLBER.PRIS = spec_mtrl.NPRIS
+   MTRLBER.ANTAL = spec_mtrl.BERKVANT
+   MTRLBER.LEVKOD = spec_mtrl.LEVKOD
+   MTRLBER.LINKAB = spec_mtrl.LINKAB
+   MTRLBER.MODUL = spec_mtrl.MODUL
+   MTRLBER.TYPBER = spec_mtrl.TYPBER
+   MTRLBER.DIAMETER = spec_mtrl.DIAMETER
+   MTRLBER.F1 = varf2
+   MTRLBER.F2 = varf3
+   MTRLBER.F3 = varf4
+   MTRLBER.F4 = varf5
+   MTRLBER.F5 = varf6
+   MTRLBER.SATS = spec_mtrl.SATS.
+   CREATE mtrlbertemp.
+   BUFFER-COPY MTRLBER TO mtrlbertemp.
+   ASSIGN mtrlbertemp.MTRLROW = ROWID(MTRLBER).
+END PROCEDURE.
+
+PROCEDURE satskoll_UI :   
+   DEFINE INPUT PARAMETER posok AS CHARACTER NO-UNDO.   
+   DEFINE INPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vald_fore AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.      
+   felmedd = "".
+      
+   IF vald_fore = "ELPA" /*{GLOBVES.I}*/ THEN DO:
+      IF vald_lev = "11" THEN DO:
+         FIND FIRST SATS WHERE SATS.KOD = posok AND SATS.LEVKOD = "1"
+         AND SATS.SATS = TRUE USE-INDEX KOD NO-LOCK NO-ERROR.
+      END.
+      ELSE DO:
+         FIND FIRST SATS WHERE SATS.KOD = posok AND SATS.LEVKOD = vald_lev
+         AND SATS.SATS = TRUE USE-INDEX KOD NO-LOCK NO-ERROR.
+      END.
+   END.
+   ELSE DO:   
+      FIND FIRST SATS WHERE SATS.KOD = posok AND SATS.LEVKOD = vald_lev
+      AND SATS.SATS = TRUE USE-INDEX KOD NO-LOCK NO-ERROR.
+   END.
+   IF NOT AVAILABLE SATS THEN DO:
+      felmedd = "saknas".
+   END.
+
+END PROCEDURE.
+
+/*Ändra antal, linor/kablar eller modul*/
+PROCEDURE andraspar_UI :
+   DEFINE INPUT PARAMETER TABLE FOR emtrlbertemp.
+   FOR EACH emtrlbertemp NO-LOCK:
+      FIND FIRST MTRLBER WHERE ROWID(MTRLBER) = emtrlbertemp.MTRLROW EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MTRLBER THEN DO:
+         ASSIGN
+         MTRLBER.ANTAL = emtrlbertemp.ANTAL
+         MTRLBER.LINKAB = emtrlbertemp.LINKAB
+         MTRLBER.MODUL = emtrlbertemp.MODUL.
+      END.
+   END.
+   RELEASE MTRLBER NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE visamtrlhmt_UI :   
+   DEFINE INPUT PARAMETER ktypkodvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vismtrl AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER visval AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR visamtrl.
+   EMPTY TEMP-TABLE visamtrl NO-ERROR.    
+
+   IF visval = 1 THEN DO:   
+      /*HÄMTA MATERIELET SOM LIGGER DIREKT PÅ KONSTRUKTIONEN ENDAST EN GÅNG*/
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = ktypkodvar AND
+      MTRLBER.F1 = "" AND MTRLBER.F2 = " " AND MTRLBER.F3 = " " AND
+      MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapavisamtrl_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.      
+      CLOSE QUERY mtrlq.
+   END.
+   IF visval = 2 THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = ktypkodvar AND
+      MTRLBER.F1 = vismtrl AND MTRLBER.F2 = " " AND MTRLBER.F3 = " " AND
+      MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapavisamtrl_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.     
+   IF visval = 3 THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = ktypkodvar AND
+      MTRLBER.F2 = vismtrl AND MTRLBER.F1 = " " AND MTRLBER.F3 = " " AND
+      MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapavisamtrl_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.   
+   IF visval = 4 THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = ktypkodvar AND
+      MTRLBER.F3 = vismtrl AND MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND
+      MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapavisamtrl_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.   
+   IF visval = 5 THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = ktypkodvar AND
+      MTRLBER.F4 = vismtrl AND MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND
+      MTRLBER.F3 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapavisamtrl_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.   
+   IF visval = 6 THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = ktypkodvar AND
+      MTRLBER.F5 = vismtrl AND MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND
+      MTRLBER.F3 = " " AND MTRLBER.F4 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapavisamtrl_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.             
+END PROCEDURE.
+
+PROCEDURE skapavisamtrl_UI :    
+   CREATE visamtrl. 
+   ASSIGN
+   visamtrl.ENR = MTRLBER.ENR
+   visamtrl.BENAMNING = MTRLBER.BENAMNING
+   visamtrl.ENHET = MTRLBER.ENHET
+   visamtrl.ANTAL = MTRLBER.ANTAL
+   visamtrl.LEVKOD = MTRLBER.LEVKOD.
+END PROCEDURE.      
+
+PROCEDURE lkontroll_UI :
+   DEFINE INPUT PARAMETER lkod1 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER lkod2 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.   
+   ASSIGN
+   felmedd = "".   
+   FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = lkod1 NO-LOCK NO-ERROR.
+   IF AVAILABLE LEVERANTOR THEN DO:
+      FIND FIRST MTRLBER WHERE MTRLBER.LEVKOD = LEVERANTOR.LEVKOD 
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE MTRLBER THEN DO:
+         felmedd = "Det finns inget materiel från " + LEVERANTOR.LEVNAMN + " upplagt.".
+         RETURN.
+      END.
+      ELSE DO: 
+         FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = lkod2  NO-LOCK NO-ERROR.
+         IF AVAILABLE LEVERANTOR THEN DO:
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = LEVERANTOR.LEVKOD AND   
+            MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE MTRL THEN DO:
+               felmedd = "Det finns ingen materielkatalog upplagd för " + LEVERANTOR.LEVNAMN.               
+               RETURN.
+            END.            
+         END.
+      END.
+   END.
+
+END PROCEDURE.
+
+PROCEDURE hmtUnamn_UI :
+    DEFINE OUTPUT PARAMETER TABLE FOR utbyteslnamntemp.
+    FOR EACH UTBYTESLNAMN WHERE NO-LOCK:
+        CREATE utbyteslnamntemp.
+        BUFFER-COPY UTBYTESLNAMN TO utbyteslnamntemp.
+    END.
+END PROCEDURE.
+
+
+

@@ -1,0 +1,53 @@
+ /*xaotid.p*/
+ DEFINE TEMP-TABLE aotemp NO-UNDO LIKE AONRTAB .
+ DEFINE OUTPUT PARAMETER qubu AS INTEGER NO-UNDO.
+ DEFINE OUTPUT PARAMETER qura AS INTEGER NO-UNDO.
+ DEFINE OUTPUT PARAMETER fora AS INTEGER NO-UNDO.
+ DEFINE OUTPUT PARAMETER fobu AS INTEGER NO-UNDO.
+ qubu = ETIME.
+ OPEN QUERY aq FOR EACH AONRTAB NO-LOCK.      
+ GET FIRST aq NO-LOCK.
+ DO  WHILE AVAILABLE(AONRTAB):
+    CREATE aotemp.
+    BUFFER-COPY AONRTAB TO aotemp.
+    GET NEXT aq NO-LOCK.
+ END.
+ CLOSE QUERY aq.
+ qubu = ETIME - qubu.
+ FOR EACH aotemp:
+    DELETE aotemp.
+ END.
+qura = ETIME.
+ OPEN QUERY aq FOR EACH AONRTAB NO-LOCK.      
+ GET FIRST aq NO-LOCK.
+ DO  WHILE AVAILABLE(AONRTAB):
+    CREATE aotemp.
+    RAW-TRANSFER AONRTAB TO aotemp.
+    GET NEXT aq NO-LOCK.
+ END.
+ CLOSE QUERY aq.
+ qura = ETIME - qura.
+ FOR EACH aotemp:
+    DELETE aotemp.
+ END.
+ fobu = ETIME.
+ FOR EACH AONRTAB NO-LOCK.      
+    CREATE aotemp.
+    BUFFER-COPY AONRTAB TO aotemp.
+ END.
+ CLOSE QUERY aq.
+ fobu = ETIME - fobu.
+ FOR EACH aotemp:
+    DELETE aotemp.
+ END.
+ 
+ fora = ETIME.
+ FOR EACH AONRTAB NO-LOCK.      
+    CREATE aotemp.
+    RAW-TRANSFER AONRTAB TO aotemp.
+ END.
+ fora = ETIME - fora.
+ FOR EACH aotemp:
+    DELETE aotemp.
+ END.
+ 

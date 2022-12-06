@@ -1,0 +1,94 @@
+/*DYNMTRL.P */
+{GLOBVAR2DEL1.I}
+
+DEFINE SHARED VARIABLE tth AS HANDLE NO-UNDO.
+DEFINE VARIABLE defaultcol AS INTEGER NO-UNDO INITIAL 1.
+DEFINE VARIABLE dynbrwh AS HANDLE NO-UNDO.
+DEFINE VARIABLE dynbuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE dyncurcolh AS HANDLE NO-UNDO.
+DEFINE VARIABLE dynfalth AS HANDLE NO-UNDO.
+DEFINE VARIABLE dynlastcolh AS HANDLE NO-UNDO.
+DEFINE VARIABLE dynok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE dynqueh AS HANDLE NO-UNDO.
+DEFINE VARIABLE temph AS HANDLE NO-UNDO. 
+DEFINE VARIABLE tempexh AS HANDLE NO-UNDO.                    
+DEFINE VARIABLE dynloadh AS HANDLE NO-UNDO.
+DEFINE VARIABLE valenr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tempbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE levkodvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE levnamnvar AS CHARACTER NO-UNDO.
+
+/* Håller ordning på menyerna i varje enskild browser. */
+DEFINE TEMP-TABLE menutemp
+   FIELD MENUH AS HANDLE
+   FIELD MENUITEMH AS HANDLE
+   FIELD BRWH AS HANDLE.
+
+/************************* RUN DYNMTRL.P PERSISTENT SET ... ********************************
+*  Kräver en handle till en browser vid första anrop, ex:                                 *
+*     RUN DYNMTRL.P PERSISTENT SET 'brwprochandle' (INPUT {&BROWSE-NAME}:HANDLE).          *
+*  Använd sedan 'brwprochandle' för att anropa interna procedurer i denna fil, ex:        *
+*     RUN openbdynspec_UI in 'brwprochandle'.                                             *
+******************************************************************************************/
+
+/********************************** INPUT Variables **************************************/
+DEFINE INPUT PARAMETER brwh AS HANDLE.
+dynbrwh = brwh.
+dynqueh = dynbrwh:QUERY.
+dynbuffh = dynqueh:GET-BUFFER-HANDLE.
+dyncurcolh = dynbrwh:GET-BROWSE-COLUMN(defaultcol).
+RUN DYNMTRLAPP.P PERSISTENT SET dynloadh.
+RUN setmenucopy_UI.
+RETURN.
+
+/******************************* Trigger Procedures *************************************/
+
+/*------------------------------------------------------------------------------
+   Namn:       setmenucopy_UI                
+   Syfte:      -  
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE setmenucopy_UI :
+   IF brwh:POPUP-MENU = ? THEN DO:
+      CREATE MENU temph.
+      temph:POPUP-ONLY = TRUE.
+      brwh:POPUP-MENU = temph.
+   END.             
+   ELSE DO:
+      CREATE MENU-ITEM temph.
+      temph:SUBTYPE = "RULE".
+      temph:PARENT = brwh:POPUP-MENU.
+   END.
+   CREATE MENU-ITEM temph.
+   temph:LABEL = "Visa materiel".
+   temph:PARENT = brwh:POPUP-MENU.
+   ON CHOOSE OF temph PERSISTENT RUN openlevproc_UI IN THIS-PROCEDURE.
+   
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       openlevproc_UI
+   Syfte:      Gå till leverantörs webplats och hämta upp mtrlspecifikation
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  Event procedure.
+------------------------------------------------------------------------------*/
+PROCEDURE openlevproc_UI :
+   dynbuffh = dynqueh:GET-BUFFER-HANDLE.
+   IF dynbuffh:AVAILABLE = TRUE THEN DO:
+      dynbrwh:SELECT-FOCUSED-ROW() NO-ERROR.
+      tempbufh = dynbuffh:BUFFER-FIELD("ENR").
+      valenr = tempbufh:BUFFER-VALUE.
+      tempbufh = dynbuffh:BUFFER-FIELD("LEVKOD").
+      levkodvar = tempbufh:BUFFER-VALUE.
+      IF levkodvar NE "" OR levkodvar NE ? THEN DO:
+         RUN levkodhmt_UI IN dynloadh (INPUT levkodvar,OUTPUT levnamnvar).
+         IF levnamnvar NE "" THEN DO:
+            {LEVLANK.I}
+           
+         END.         
+      END.
+   END.
+END PROCEDURE.

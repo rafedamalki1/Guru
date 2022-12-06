@@ -1,0 +1,11 @@
+/* r-arry.p */
+
+DEFINE VARIABLE i AS INTEGER.
+
+FOR EACH salesrep:
+   DISPLAY sales-rep region month-quota.
+   DO i = 1 TO 12:
+      SET month-quota[i] WITH 1 COLUMN.
+   END.
+   DISPLAY month-quota WITH FRAME a COLUMN 40 ROW 3 1 COLUMN.
+END.

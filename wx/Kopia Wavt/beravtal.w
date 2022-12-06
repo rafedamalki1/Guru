@@ -1,0 +1,812 @@
+&ANALYZE-SUSPEND _VERSION-NUMBER UIB_v8r12 GUI
+&ANALYZE-RESUME
+/* Connected Databases 
+          rt8              PROGRESS
+*/
+&Scoped-define WINDOW-NAME WINDOW-1
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CUSTOM _DEFINITIONS WINDOW-1 
+/*------------------------------------------------------------------------
+
+  File: 
+
+  Description: 
+
+  Input Parameters:
+      <none>
+
+  Output Parameters:
+      <none>
+
+  Author: 
+
+  Created: 95/05/02 -  1:43 pm
+
+------------------------------------------------------------------------*/
+/*          This .W file was created with the Progress UIB.             */
+/*----------------------------------------------------------------------*/
+
+/* Create an unnamed pool to store all the widgets created 
+     by this procedure. This is a good default which assures
+     that this procedure's triggers and internal procedures 
+     will execute in this procedure's storage, and that proper
+     cleanup will occur on deletion of the procedure. */
+
+CREATE WIDGET-POOL.
+
+/* ***************************  Definitions  ************************** */
+
+/* Parameters Definitions ---                                           */
+
+/* Local Variable Definitions ---                                       */
+
+DEFINE NEW SHARED VARIABLE brec AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE borec AS RECID NO-UNDO.
+DEFINE VARIABLE status-ok AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE BUFFER A FOR BEREDSKAPAV.
+DEFINE BUFFER B FOR BEREDSKAPSTART.
+DEFINE BUFFER C FOR BEREDSKAPTAB.
+DEFINE BUFFER D FOR BERKOD.
+DEFINE BUFFER E FOR BERTAB.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-PREPROCESSOR-BLOCK 
+
+/* ********************  Preprocessor Definitions  ******************** */
+
+&Scoped-define PROCEDURE-TYPE WINDOW
+
+/* Name of first Frame and/or Browse and/or first Query                 */
+&Scoped-define FRAME-NAME FRAME-A
+&Scoped-define BROWSE-NAME BRW_BERTAB
+
+/* Internal Tables (found by Frame, Query & Browse Queries)             */
+&Scoped-define INTERNAL-TABLES BERTAB
+
+/* Definitions for BROWSE BRW_BERTAB                                    */
+&Scoped-define FIELDS-IN-QUERY-BRW_BERTAB BERTAB.BEREDSKAPSAVTAL ~
+BERTAB.FORKL BERTAB.FAKTOR 
+&Scoped-define ENABLED-FIELDS-IN-QUERY-BRW_BERTAB 
+&Scoped-define FIELD-PAIRS-IN-QUERY-BRW_BERTAB
+&Scoped-define OPEN-QUERY-BRW_BERTAB OPEN QUERY BRW_BERTAB FOR EACH BERTAB NO-LOCK INDEXED-REPOSITION.
+&Scoped-define TABLES-IN-QUERY-BRW_BERTAB BERTAB
+&Scoped-define FIRST-TABLE-IN-QUERY-BRW_BERTAB BERTAB
+
+
+/* Definitions for FRAME FRAME-A                                        */
+&Scoped-define OPEN-BROWSERS-IN-QUERY-FRAME-A ~
+    ~{&OPEN-QUERY-BRW_BERTAB}
+
+/* Standard List Definitions                                            */
+&Scoped-Define ENABLED-OBJECTS RECT-50 RECT-49 RECT-48 BRW_BERTAB ~
+TOG_BEREDSKAPAV TOG_BEREDSKAPSTART TOG_BEREDSKAPTAB TOG_BERKOD BTN_BORT ~
+FILL-IN-BORTAV TOG_BERTAB FILL-IN-NAMN TOG_BYTPERS FILL-IN-NYTTAV ~
+FILL-IN-FRAN BTN_KOP BTN_AVSL FILL-IN-NYTTAVBYT FILL-IN-FRANBYT BTN_BYT 
+&Scoped-Define DISPLAYED-OBJECTS TOG_BEREDSKAPAV TOG_BEREDSKAPSTART ~
+TOG_BEREDSKAPTAB TOG_BERKOD FILL-IN-BORTAV TOG_BERTAB FILL-IN-NAMN ~
+TOG_BYTPERS FILL-IN-NYTTAV FILL-IN-FRAN FILL-IN-NYTTAVBYT FILL-IN-FRANBYT 
+
+/* Custom List Definitions                                              */
+/* List-1,List-2,List-3,List-4,List-5,List-6                            */
+
+/* _UIB-PREPROCESSOR-BLOCK-END */
+&ANALYZE-RESUME
+
+
+
+/* ***********************  Control Definitions  ********************** */
+
+/* Define the widget handle for the window                              */
+DEFINE VAR WINDOW-1 AS WIDGET-HANDLE NO-UNDO.
+
+/* Menu Definitions                                                     */
+DEFINE SUB-MENU m_Arkiv 
+       MENU-ITEM m_Avsluta      LABEL "Avsluta"       .
+
+DEFINE SUB-MENU m_Uppdatera 
+       MENU-ITEM m_Ny           LABEL "Ny"            
+       MENU-ITEM m_ndra         LABEL "Ändra"         
+       MENU-ITEM m_Bort         LABEL "Bort"          .
+
+DEFINE MENU MENU-BAR-WINDOW-1 MENUBAR
+       SUB-MENU  m_Arkiv        LABEL "Arkiv"         
+       SUB-MENU  m_Uppdatera    LABEL "Uppdatera"     .
+
+
+/* Definitions of the field level widgets                               */
+DEFINE BUTTON BTN_AVSL AUTO-END-KEY 
+     LABEL "AVSLUTA":L 
+     SIZE 10.5 BY 1.41.
+
+DEFINE BUTTON BTN_BORT 
+     LABEL "Ta bort":L 
+     SIZE 10 BY 1.18.
+
+DEFINE BUTTON BTN_BYT 
+     LABEL "Byt namn":L 
+     SIZE 11 BY 1.18.
+
+DEFINE BUTTON BTN_KOP 
+     LABEL "Kopiera":L 
+     SIZE 11 BY 1.18.
+
+DEFINE VARIABLE FILL-IN-BORTAV AS CHARACTER FORMAT "X(2)":U 
+     LABEL "Ta bort avtal" 
+     VIEW-AS FILL-IN 
+     SIZE 7 BY 1
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-FRAN AS CHARACTER FORMAT "X(2)":U 
+     LABEL "Från avtal" 
+     VIEW-AS FILL-IN 
+     SIZE 7 BY 1
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-FRANBYT AS CHARACTER FORMAT "X(2)":U 
+     LABEL "Från avtal" 
+     VIEW-AS FILL-IN 
+     SIZE 7 BY 1
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-NAMN AS CHARACTER FORMAT "X(256)":U 
+     LABEL "Namn nytt avtal" 
+     VIEW-AS FILL-IN 
+     SIZE 26 BY 1
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-NYTTAV AS CHARACTER FORMAT "X(2)":U 
+     LABEL "Nytt avtal" 
+     VIEW-AS FILL-IN 
+     SIZE 7 BY 1
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE VARIABLE FILL-IN-NYTTAVBYT AS CHARACTER FORMAT "X(2)":U 
+     LABEL "Nytt avtal" 
+     VIEW-AS FILL-IN 
+     SIZE 7 BY 1
+     BGCOLOR 8  NO-UNDO.
+
+DEFINE RECTANGLE RECT-48
+     EDGE-PIXELS 4 GRAPHIC-EDGE  NO-FILL 
+     SIZE 49.5 BY 5.18.
+
+DEFINE RECTANGLE RECT-49
+     EDGE-PIXELS 4 GRAPHIC-EDGE  NO-FILL 
+     SIZE 49.25 BY 1.86.
+
+DEFINE RECTANGLE RECT-50
+     EDGE-PIXELS 4 GRAPHIC-EDGE  NO-FILL 
+     SIZE 49.5 BY 5.14.
+
+DEFINE VARIABLE TOG_BEREDSKAPAV AS LOGICAL INITIAL no 
+     LABEL "Beredskapav" 
+     VIEW-AS TOGGLE-BOX
+     SIZE 18 BY .86 NO-UNDO.
+
+DEFINE VARIABLE TOG_BEREDSKAPSTART AS LOGICAL INITIAL no 
+     LABEL "Beredskapstart" 
+     VIEW-AS TOGGLE-BOX
+     SIZE 17.75 BY .86 NO-UNDO.
+
+DEFINE VARIABLE TOG_BEREDSKAPTAB AS LOGICAL INITIAL no 
+     LABEL "Beredskaptab" 
+     VIEW-AS TOGGLE-BOX
+     SIZE 18.63 BY .86 NO-UNDO.
+
+DEFINE VARIABLE TOG_BERKOD AS LOGICAL INITIAL no 
+     LABEL "Berkod" 
+     VIEW-AS TOGGLE-BOX
+     SIZE 11.13 BY .86 NO-UNDO.
+
+DEFINE VARIABLE TOG_BERTAB AS LOGICAL INITIAL no 
+     LABEL "Bertab" 
+     VIEW-AS TOGGLE-BOX
+     SIZE 16.25 BY .86 NO-UNDO.
+
+DEFINE VARIABLE TOG_BYTPERS AS LOGICAL INITIAL no 
+     LABEL "Byt på personaltab" 
+     VIEW-AS TOGGLE-BOX
+     SIZE 20.88 BY .86 NO-UNDO.
+
+/* Query definitions                                                    */
+&ANALYZE-SUSPEND
+DEFINE QUERY BRW_BERTAB FOR 
+      BERTAB SCROLLING.
+&ANALYZE-RESUME
+
+/* Browse definitions                                                   */
+DEFINE BROWSE BRW_BERTAB
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _DISPLAY-FIELDS BRW_BERTAB WINDOW-1 _STRUCTURED
+  QUERY BRW_BERTAB NO-LOCK DISPLAY
+      BERTAB.BEREDSKAPSAVTAL COLUMN-LABEL "Beravtal"
+      BERTAB.FORKL COLUMN-LABEL "Klartext"
+      BERTAB.FAKTOR COLUMN-LABEL "Faktor"
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+    WITH SIZE 49 BY 8
+         BGCOLOR 8 .
+
+
+/* ************************  Frame Definitions  *********************** */
+
+DEFINE FRAME FRAME-A
+     BRW_BERTAB AT ROW 5.14 COL 5
+     TOG_BEREDSKAPAV AT ROW 9.82 COL 55
+     TOG_BEREDSKAPSTART AT ROW 10.95 COL 55
+     TOG_BEREDSKAPTAB AT ROW 12.09 COL 55
+     TOG_BERKOD AT ROW 13.36 COL 55
+     BTN_BORT AT ROW 13.91 COL 35.75
+     FILL-IN-BORTAV AT ROW 14.09 COL 20 COLON-ALIGNED
+     TOG_BERTAB AT ROW 14.59 COL 55
+     FILL-IN-NAMN AT ROW 16 COL 19.75 COLON-ALIGNED
+     TOG_BYTPERS AT ROW 16.14 COL 54.25
+     FILL-IN-NYTTAV AT ROW 17.68 COL 39.63 COLON-ALIGNED
+     FILL-IN-FRAN AT ROW 17.77 COL 19.63 COLON-ALIGNED
+     BTN_KOP AT ROW 19.27 COL 25.38
+     BTN_AVSL AT ROW 21.09 COL 59.88
+     FILL-IN-NYTTAVBYT AT ROW 21.68 COL 38 COLON-ALIGNED
+     FILL-IN-FRANBYT AT ROW 21.73 COL 17.88 COLON-ALIGNED
+     BTN_BYT AT ROW 23.5 COL 25.13
+     RECT-50 AT ROW 21 COL 3.38
+     RECT-49 AT ROW 13.59 COL 3.5
+     RECT-48 AT ROW 15.59 COL 3.25
+     "Kopiera ett avtal till ett annat (bertab.beredskapsavtal)" VIEW-AS TEXT
+          SIZE 61.75 BY 1.5 AT ROW 1.82 COL 2.63
+     "Ta bort ett avtal" VIEW-AS TEXT
+          SIZE 19.13 BY 1.14 AT ROW 3.59 COL 3.75
+    WITH 1 DOWN NO-BOX KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 1
+         SIZE 75.75 BY 27.5.
+
+
+/* *********************** Procedure Settings ************************ */
+
+&ANALYZE-SUSPEND _PROCEDURE-SETTINGS
+/* Settings for THIS-PROCEDURE
+   Type: WINDOW
+ */
+&ANALYZE-RESUME _END-PROCEDURE-SETTINGS
+
+/* *************************  Create Window  ************************** */
+
+&ANALYZE-SUSPEND _CREATE-WINDOW
+IF SESSION:DISPLAY-TYPE = "GUI":U THEN
+  CREATE WINDOW WINDOW-1 ASSIGN
+         HIDDEN             = YES
+         TITLE              = "Beredskapsavtal"
+         COLUMN             = 15.63
+         ROW                = 2.55
+         HEIGHT             = 27.27
+         WIDTH              = 76.13
+         MAX-HEIGHT         = 27.5
+         MAX-WIDTH          = 83.13
+         VIRTUAL-HEIGHT     = 27.5
+         VIRTUAL-WIDTH      = 83.13
+         RESIZE             = yes
+         SCROLL-BARS        = yes
+         STATUS-AREA        = no
+         BGCOLOR            = ?
+         FGCOLOR            = ?
+         THREE-D            = yes
+         MESSAGE-AREA       = no
+         SENSITIVE          = yes.
+ELSE {&WINDOW-NAME} = CURRENT-WINDOW.
+
+ASSIGN {&WINDOW-NAME}:MENUBAR    = MENU MENU-BAR-WINDOW-1:HANDLE.
+/* END WINDOW DEFINITION                                                */
+&ANALYZE-RESUME
+
+
+/* ***************  Runtime Attributes and UIB Settings  ************** */
+
+&ANALYZE-SUSPEND _RUN-TIME-ATTRIBUTES
+/* SETTINGS FOR WINDOW WINDOW-1
+  VISIBLE,,RUN-PERSISTENT                                               */
+/* SETTINGS FOR FRAME FRAME-A
+                                                                        */
+/* BROWSE-TAB BRW_BERTAB TEXT-1 FRAME-A */
+IF SESSION:DISPLAY-TYPE = "GUI":U AND VALID-HANDLE(WINDOW-1)
+THEN WINDOW-1:HIDDEN = no.
+
+/* _RUN-TIME-ATTRIBUTES-END */
+&ANALYZE-RESUME
+
+
+/* Setting information for Queries and Browse Widgets fields            */
+
+&ANALYZE-SUSPEND _QUERY-BLOCK BROWSE BRW_BERTAB
+/* Query rebuild information for BROWSE BRW_BERTAB
+     _TblList          = "RT8.BERTAB"
+     _Options          = "NO-LOCK INDEXED-REPOSITION"
+     _FldNameList[1]   > RT8.BERTAB.BEREDSKAPSAVTAL
+"BERTAB.BEREDSKAPSAVTAL" "Beravtal" ? "character" ? ? ? ? ? ? no ?
+     _FldNameList[2]   > RT8.BERTAB.FORKL
+"BERTAB.FORKL" "Klartext" ? "character" ? ? ? ? ? ? no ?
+     _FldNameList[3]   > RT8.BERTAB.FAKTOR
+"BERTAB.FAKTOR" "Faktor" ? "decimal" ? ? ? ? ? ? no ?
+     _Query            is OPENED
+*/  /* BROWSE BRW_BERTAB */
+&ANALYZE-RESUME
+
+ 
+
+
+
+
+/* ************************  Control Triggers  ************************ */
+
+&Scoped-define BROWSE-NAME BRW_BERTAB
+&Scoped-define SELF-NAME BRW_BERTAB
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BRW_BERTAB WINDOW-1
+ON VALUE-CHANGED OF BRW_BERTAB IN FRAME FRAME-A
+DO:
+  brec = RECID(ANSTFORMTAB).
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_AVSL
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_AVSL WINDOW-1
+ON CHOOSE OF BTN_AVSL IN FRAME FRAME-A /* AVSLUTA */
+DO:
+  RETURN.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_BORT
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_BORT WINDOW-1
+ON CHOOSE OF BTN_BORT IN FRAME FRAME-A /* Ta bort */
+DO:
+   FILL-IN-BORTAV = INPUT FILL-IN-BORTAV.
+  
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.BEREDSKAPSAVTAL = FILL-IN-BORTAV
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+         MESSAGE "AVTALET FINNS PÅ" PERSONALTAB.PERSONALKOD VIEW-AS ALERT-BOX. 
+         RETURN.        
+  END.   
+
+
+ RUN bort_UI. 
+ OPEN QUERY BRW_BERTAB FOR EACH BERTAB NO-LOCK.
+ DISPLAY BRW_BERTAB WITH FRAME {&FRAME-NAME}.
+
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_BYT
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_BYT WINDOW-1
+ON CHOOSE OF BTN_BYT IN FRAME FRAME-A /* Byt namn */
+DO:
+  ASSIGN FILL-IN-FRANBYT = INPUT FILL-IN-FRANBYT
+  FILL-IN-NYTTAVBYT = INPUT FILL-IN-NYTTAVBYT.
+ 
+  IF FILL-IN-FRANBYT = "" THEN DO:
+     MESSAGE "AVTAL KAN INTE VARA BLANK" VIEW-AS ALERT-BOX. 
+     APPLY "ENTRY" TO FILL-IN-FRAN IN FRAME {&FRAME-NAME}.
+     APPLY "ENDKEY" TO BTN_BYT IN FRAME {&FRAME-NAME}.
+  END.   
+   IF FILL-IN-NYTTAVBYT = "" THEN DO:
+     MESSAGE "AVTAL KAN INTE VARA BLANK" VIEW-AS ALERT-BOX. 
+     APPLY "ENTRY" TO FILL-IN-NYTTAV IN FRAME {&FRAME-NAME}.
+     APPLY "ENDKEY" TO BTN_BYT IN FRAME {&FRAME-NAME}.
+  END.
+ 
+  ASSIGN
+  TOG_BEREDSKAPAV = INPUT TOG_BEREDSKAPAV 
+  TOG_BEREDSKAPSTART = INPUT TOG_BEREDSKAPSTART
+  TOG_BEREDSKAPTAB = INPUT TOG_BEREDSKAPTAB
+  TOG_BERKOD = INPUT TOG_BERKOD
+  TOG_BERTAB = INPUT TOG_BERTAB
+  TOG_BYTPERS = INPUT TOG_BYTPERS.
+  
+  RUN byt_UI.
+  OPEN QUERY BRW_BERTAB FOR EACH BERTAB NO-LOCK.
+  DISPLAY BRW_BERTAB WITH FRAME {&FRAME-NAME}.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME BTN_KOP
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL BTN_KOP WINDOW-1
+ON CHOOSE OF BTN_KOP IN FRAME FRAME-A /* Kopiera */
+DO:
+  ASSIGN FILL-IN-FRAN = INPUT FILL-IN-FRAN
+  FILL-IN-NYTTAV = INPUT FILL-IN-NYTTAV
+  FILL-IN-NAMN = INPUT FILL-IN-NAMN.
+  IF FILL-IN-FRAN = "" THEN DO:
+     MESSAGE "AVTAL KAN INTE VARA BLANK" VIEW-AS ALERT-BOX. 
+     APPLY "ENTRY" TO FILL-IN-FRAN IN FRAME {&FRAME-NAME}.
+     APPLY "ENDKEY" TO BTN_KOP IN FRAME {&FRAME-NAME}.
+  END.   
+   IF FILL-IN-NYTTAV = "" THEN DO:
+     MESSAGE "AVTAL KAN INTE VARA BLANK" VIEW-AS ALERT-BOX. 
+     APPLY "ENTRY" TO FILL-IN-NYTTAV IN FRAME {&FRAME-NAME}.
+     APPLY "ENDKEY" TO BTN_KOP IN FRAME {&FRAME-NAME}.
+  END.
+  IF FILL-IN-NAMN = "" THEN DO:
+     MESSAGE "NAMN PÅ AVTAL KAN INTE VARA BLANK" VIEW-AS ALERT-BOX. 
+     APPLY "ENTRY" TO FILL-IN-NAMN IN FRAME {&FRAME-NAME}.
+     APPLY "ENDKEY" TO BTN_KOP IN FRAME {&FRAME-NAME}.
+  END.
+
+  ASSIGN
+  TOG_BEREDSKAPAV = INPUT TOG_BEREDSKAPAV 
+  TOG_BEREDSKAPSTART = INPUT TOG_BEREDSKAPSTART
+  TOG_BEREDSKAPTAB = INPUT TOG_BEREDSKAPTAB
+  TOG_BERKOD = INPUT TOG_BERKOD
+  TOG_BERTAB = INPUT TOG_BERTAB
+  TOG_BYTPERS = INPUT TOG_BYTPERS.
+  
+  RUN kopiera_UI.
+  OPEN QUERY BRW_BERTAB FOR EACH BERTAB NO-LOCK.
+  DISPLAY BRW_BERTAB WITH FRAME {&FRAME-NAME}.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME m_Bort
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL m_Bort WINDOW-1
+ON CHOOSE OF MENU-ITEM m_Bort /* Bort */
+DO:
+  RUN bort.  
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME m_ndra
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL m_ndra WINDOW-1
+ON CHOOSE OF MENU-ITEM m_ndra /* Ändra */
+DO:
+  RUN andra.
+  
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&Scoped-define SELF-NAME m_Ny
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CONTROL m_Ny WINDOW-1
+ON CHOOSE OF MENU-ITEM m_Ny /* Ny */
+DO:
+  RUN ny.  
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&UNDEFINE SELF-NAME
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CUSTOM _MAIN-BLOCK WINDOW-1 
+
+
+/* ***************************  Main Block  *************************** */
+
+/* Set CURRENT-WINDOW: this will parent dialog-boxes and frames.        */
+ASSIGN CURRENT-WINDOW                = {&WINDOW-NAME} 
+       THIS-PROCEDURE:CURRENT-WINDOW = {&WINDOW-NAME}.
+
+/* The CLOSE event can be used from inside or outside the procedure to  */
+/* terminate it.                                                        */
+ON CLOSE OF THIS-PROCEDURE 
+   RUN disable_UI.
+   
+
+/* These events will close the window and terminate the procedure.      */
+/* (NOTE: this will override any user-defined triggers previously       */
+/*  defined on the window.)                                             */
+ON WINDOW-CLOSE OF {&WINDOW-NAME} DO:
+  APPLY "CLOSE":U TO THIS-PROCEDURE.
+  RETURN NO-APPLY.
+END.
+ON ENDKEY, END-ERROR OF {&WINDOW-NAME} ANYWHERE DO:
+  APPLY "CLOSE":U TO THIS-PROCEDURE.
+  RETURN NO-APPLY.
+END.
+
+/* Best default for GUI applications is...                              */
+PAUSE 0 BEFORE-HIDE.
+
+/* Now enable the interface and wait for the exit condition.            */
+/* (NOTE: handle ERROR and END-KEY so cleanup code will always fire.    */
+MAIN-BLOCK:
+DO ON ERROR   UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK
+   ON END-KEY UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK:
+  RUN enable_UI.
+  APPLY "HOME" TO {&BROWSE-NAME}.
+  status-ok = {&BROWSE-NAME}:SELECT-FOCUSED-ROW().
+  brec = RECID(ANSTFORMTAB).
+  IF NOT THIS-PROCEDURE:PERSISTENT THEN
+    WAIT-FOR CLOSE OF THIS-PROCEDURE.
+END.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+/* **********************  Internal Procedures  *********************** */
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE andra WINDOW-1 
+PROCEDURE andra :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+  
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE bort_UI WINDOW-1 
+PROCEDURE bort_UI :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+  MESSAGE "VILL DU VERKLIGEN TA BORT DETTA AVTAL?"
+  VIEW-AS ALERT-BOX QUESTION BUTTONS YES-NO TITLE FILL-IN-BORTAV
+  UPDATE answer AS LOGICAL.
+  IF answer THEN DO TRANSACTION:
+   FIND FIRST BERTAB WHERE BERTAB.BEREDSKAPSAVTAL = FILL-IN-BORTAV NO-LOCK NO-ERROR.
+   FOR EACH BEREDSKAPAV WHERE BEREDSKAPAV.BEREDSKAPSAVTAL = FILL-IN-BORTAV:
+     DELETE BEREDSKAPAV. 
+   END.
+   FOR EACH BEREDSKAPSTART WHERE BEREDSKAPSTART.BEREDSKAPSAVTAL = FILL-IN-BORTAV:
+      DELETE BEREDSKAPSTART.
+   END.
+   FOR EACH BEREDSKAPTAB WHERE BEREDSKAPTAB.BEREDSKAPSAVTAL = FILL-IN-BORTAV:
+      DELETE BEREDSKAPTAB.
+      
+   END.
+   FOR EACH BERKOD WHERE BERKOD.BEREDSKAPSAVTAL = FILL-IN-BORTAV:
+      DELETE BERKOD.
+   END.
+   FOR EACH BERTAB WHERE BERTAB.BEREDSKAPSAVTAL = FILL-IN-BORTAV:
+      DELETE BERTAB.
+   END.
+   
+   
+END.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE byt_UI WINDOW-1 
+PROCEDURE byt_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+IF TOG_BEREDSKAPAV = TRUE THEN DO TRANSACTION:
+FOR EACH BEREDSKAPAV WHERE BEREDSKAPAV.BEREDSKAPSAVTAL = FILL-IN-FRANBYT:
+  
+   ASSIGN
+   BEREDSKAPAV.BEREDSKAPSAVTAL = FILL-IN-NYTTAVBYT.
+END.
+END.
+IF TOG_BEREDSKAPSTART = TRUE THEN DO TRANSACTION:
+FOR EACH BEREDSKAPSTART WHERE BEREDSKAPSTART.BEREDSKAPSAVTAL = FILL-IN-FRANBYT:
+   ASSIGN                
+   BEREDSKAPSTART.BEREDSKAPSAVTAL = FILL-IN-NYTTAVBYT. 
+END.   
+END.
+IF TOG_BEREDSKAPTAB = TRUE THEN DO TRANSACTION:
+FOR EACH BEREDSKAPTAB WHERE BEREDSKAPTAB.BEREDSKAPSAVTAL = FILL-IN-FRANBYT:
+  
+   ASSIGN                   
+   BEREDSKAPTAB.BEREDSKAPSAVTAL = FILL-IN-NYTTAVBYT.
+END.   
+END.
+IF TOG_BERKOD = TRUE THEN DO TRANSACTION: 
+FOR EACH BERKOD WHERE BERKOD.BEREDSKAPSAVTAL = FILL-IN-FRANBYT:
+  
+   ASSIGN         
+   BERKOD.BEREDSKAPSAVTAL = FILL-IN-NYTTAVBYT.
+END.   
+END.
+IF TOG_BERTAB = TRUE THEN DO TRANSACTION:
+FOR EACH BERTAB WHERE BERTAB.BEREDSKAPSAVTAL = FILL-IN-FRANBYT:
+   
+       
+   BERTAB.BEREDSKAPSAVTAL = FILL-IN-NYTTAVBYT.
+END.   
+END.
+IF TOG_BYTPERS = TRUE THEN DO TRANSACTION:
+ 
+   OPEN QUERY persq FOR EACH PERSONALTAB WHERE PERSONALTAB.BEREDSKAPSAVTAL = FILL-IN-FRANBYT
+   NO-LOCK.
+   GET FIRST persq EXCLUSIVE-LOCK.
+   DO WHILE AVAILABLE PERSONALTAB:
+      ASSIGN PERSONALTAB.BEREDSKAPSAVTAL = FILL-IN-NYTTAVBYT.
+      GET NEXT persq EXCLUSIVE-LOCK.
+   END.   
+END.   
+
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE disable_UI WINDOW-1 _DEFAULT-DISABLE
+PROCEDURE disable_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     DISABLE the User Interface
+  Parameters:  <none>
+  Notes:       Here we clean-up the user-interface by deleting
+               dynamic widgets we have created and/or hide 
+               frames.  This procedure is usually called when
+               we are ready to "clean-up" after running.
+------------------------------------------------------------------------------*/
+  /* Delete the WINDOW we created */
+  IF SESSION:DISPLAY-TYPE = "GUI":U AND VALID-HANDLE(WINDOW-1)
+  THEN DELETE WIDGET WINDOW-1.
+  IF THIS-PROCEDURE:PERSISTENT THEN DELETE PROCEDURE THIS-PROCEDURE.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE enable_UI WINDOW-1 _DEFAULT-ENABLE
+PROCEDURE enable_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     ENABLE the User Interface
+  Parameters:  <none>
+  Notes:       Here we display/view/enable the widgets in the
+               user-interface.  In addition, OPEN all queries
+               associated with each FRAME and BROWSE.
+               These statements here are based on the "Other 
+               Settings" section of the widget Property Sheets.
+------------------------------------------------------------------------------*/
+  DISPLAY TOG_BEREDSKAPAV TOG_BEREDSKAPSTART TOG_BEREDSKAPTAB TOG_BERKOD 
+          FILL-IN-BORTAV TOG_BERTAB FILL-IN-NAMN TOG_BYTPERS FILL-IN-NYTTAV 
+          FILL-IN-FRAN FILL-IN-NYTTAVBYT FILL-IN-FRANBYT 
+      WITH FRAME FRAME-A IN WINDOW WINDOW-1.
+  ENABLE RECT-50 RECT-49 RECT-48 BRW_BERTAB TOG_BEREDSKAPAV TOG_BEREDSKAPSTART 
+         TOG_BEREDSKAPTAB TOG_BERKOD BTN_BORT FILL-IN-BORTAV TOG_BERTAB 
+         FILL-IN-NAMN TOG_BYTPERS FILL-IN-NYTTAV FILL-IN-FRAN BTN_KOP BTN_AVSL 
+         FILL-IN-NYTTAVBYT FILL-IN-FRANBYT BTN_BYT 
+      WITH FRAME FRAME-A IN WINDOW WINDOW-1.
+  {&OPEN-BROWSERS-IN-QUERY-FRAME-A}
+  VIEW WINDOW-1.
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE kopiera_UI WINDOW-1 
+PROCEDURE kopiera_UI :
+/*------------------------------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+------------------------------------------------------------------------------*/
+IF TOG_BEREDSKAPAV = TRUE THEN DO TRANSACTION:
+FOR EACH BEREDSKAPAV WHERE BEREDSKAPAV.BEREDSKAPSAVTAL = FILL-IN-FRAN NO-LOCK:
+   CREATE A.
+   ASSIGN
+        
+   A.BEREDSKAPSAVTAL = FILL-IN-NYTTAV
+   A.BEREDSKAP = BEREDSKAPAV.BEREDSKAP
+   A.DATUM = BEREDSKAPAV.DATUM
+   A.BERSTART1 = BEREDSKAPAV.BERSTART1
+   A.BERSTOPP1 = BEREDSKAPAV.BERSTOPP1
+   A.BERANTAL = BEREDSKAPAV.BERANTAL.
+ 
+END.
+END.
+IF TOG_BEREDSKAPSTART = TRUE THEN DO TRANSACTION:
+FOR EACH BEREDSKAPSTART WHERE BEREDSKAPSTART.BEREDSKAPSAVTAL = FILL-IN-FRAN NO-LOCK:
+   CREATE B.
+   ASSIGN 
+               
+   B.BEREDSKAPSAVTAL = FILL-IN-NYTTAV
+   B.BEREDSKAPDAGSTART = BEREDSKAPSTART.BEREDSKAPDAGSTART
+   B.BEREDSKAPDAGSLUT = BEREDSKAPSTART.BEREDSKAPDAGSLUT
+   B.BEREDSKAPSTART = BEREDSKAPSTART.BEREDSKAPSTART
+   B.BEREDSKAPSLUT = BEREDSKAPSTART.BEREDSKAPSLUT
+   B.BERANTAL = BEREDSKAPSTART.BERANTAL.
+  
+END.   
+END.
+IF TOG_BEREDSKAPTAB = TRUE THEN DO TRANSACTION:
+FOR EACH BEREDSKAPTAB WHERE BEREDSKAPTAB.BEREDSKAPSAVTAL = FILL-IN-FRAN NO-LOCK:
+   CREATE C.
+   ASSIGN
+                       
+   C.BEREDSKAPSAVTAL = FILL-IN-NYTTAV
+   C.BEREDSKAP = BEREDSKAPTAB.BEREDSKAP
+   C.DAGNR = BEREDSKAPTAB.DAGNR
+   C.BERSTART1 = BEREDSKAPTAB.BERSTART1
+   C.BERSTOPP1 = BEREDSKAPTAB.BERSTOPP1
+   C.BERANTAL = BEREDSKAPTAB.BERANTAL.
+   
+END.   
+END.
+IF TOG_BERKOD = TRUE THEN DO TRANSACTION: 
+FOR EACH BERKOD WHERE BERKOD.BEREDSKAPSAVTAL = FILL-IN-FRAN NO-LOCK:
+   CREATE D.
+   ASSIGN
+             
+   D.BEREDSKAPSAVTAL = FILL-IN-NYTTAV
+   D.BEREDSKAP = BERKOD.BEREDSKAP
+   D.VILART = BERKOD.VILART
+   D.ERSATTNING = BERKOD.ERSATTNING
+   D.ENHET = BERKOD.ENHET
+   D.LONKODTEXT = BERKOD.LONKODTEXT
+   D.VALBAR = BERKOD.VALBAR.
+  
+END.   
+END.
+IF TOG_BERTAB = TRUE THEN DO TRANSACTION:
+FOR EACH BERTAB WHERE BERTAB.BEREDSKAPSAVTAL = FILL-IN-FRAN NO-LOCK:
+   CREATE E.
+   ASSIGN 
+       
+   E.BEREDSKAPSAVTAL = FILL-IN-NYTTAV
+   E.FORKL = FILL-IN-NAMN
+   E.FAKTOR = BERTAB.FAKTOR.
+  
+ 
+END.   
+END.
+IF TOG_BYTPERS = TRUE THEN DO TRANSACTION:
+ 
+   OPEN QUERY persq FOR EACH PERSONALTAB WHERE PERSONALTAB.BEREDSKAPSAVTAL = FILL-IN-FRAN
+   NO-LOCK.
+   GET FIRST persq EXCLUSIVE-LOCK.
+   DO WHILE AVAILABLE PERSONALTAB:
+      ASSIGN PERSONALTAB.BEREDSKAPSAVTAL = FILL-IN-NYTTAV.
+      GET NEXT persq EXCLUSIVE-LOCK.
+   END.   
+END.   
+ 
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+
+&ANALYZE-SUSPEND _UIB-CODE-BLOCK _PROCEDURE ny WINDOW-1 
+PROCEDURE ny :
+/* -----------------------------------------------------------
+  Purpose:     
+  Parameters:  <none>
+  Notes:       
+-------------------------------------------------------------*/
+  
+END PROCEDURE.
+
+/* _UIB-CODE-BLOCK-END */
+&ANALYZE-RESUME
+
+

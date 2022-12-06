@@ -1,0 +1,123 @@
+/*ANMARKAPP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{ANMARKTEMP.I}
+&Scoped-define SHARED SHARED 
+{DIRDEF.I}
+{AONRDEF.I}
+
+PROCEDURE andra.
+   DEFINE INPUT PARAMETER anmrec AS ROWID NO-UNDO.
+   DEFINE INPUT PARAMETER editanm AS CHARACTER NO-UNDO.
+   DO TRANSACTION:      
+      FIND FIRST FASTANM WHERE ROWID(FASTANM) = anmrec EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE FASTANM THEN DO:
+         ASSIGN FASTANM.ANMARK = editanm.      
+      END.
+   END.
+   RELEASE FASTANM NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE btnok.
+   DEFINE INPUT PARAMETER aonrrec AS RECID NO-UNDO.
+   DEFINE INPUT PARAMETER editanm AS CHARACTER NO-UNDO.
+   DO TRANSACTION:      
+      FIND FIRST AONRTAB WHERE RECID(AONRTAB) = aonrrec EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DO:
+         ASSIGN
+         AONRTAB.ANM[1] = editanm.
+      END.
+   END.
+   RELEASE AONRTAB NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE hmtfastanm:
+   DEFINE INPUT PARAMETER vad AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR fastanmtemp.
+   EMPTY TEMP-TABLE fastanmtemp NO-ERROR.    
+   OPEN QUERY fq FOR EACH FASTANM WHERE FASTANM.PROGRAM = vad NO-LOCK.
+   GET FIRST fq NO-LOCK.
+   DO WHILE AVAILABLE(FASTANM):
+      CREATE fastanmtemp.
+      BUFFER-COPY FASTANM TO fastanmtemp.
+      ASSIGN fastanmtemp.FASTANVROW = ROWID(FASTANM).
+      GET NEXT fq NO-LOCK.         
+   END.
+   CLOSE QUERY fq.
+END PROCEDURE.
+
+PROCEDURE nyanm.
+   DEFINE INPUT PARAMETER editanm AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER anv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER prog AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER brec AS ROWID NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR fastanmtemp.
+   DO TRANSACTION:      
+      CREATE FASTANM.
+      ASSIGN
+      FASTANM.ANMARK = editanm
+      FASTANM.ANVANDARE = anv
+      FASTANM.OMRADE = omr
+      FASTANM.PROGRAM = prog.
+      CREATE fastanmtemp.
+      BUFFER-COPY FASTANM TO fastanmtemp.
+      fastanmtemp.FASTANVROW = ROWID(FASTANM).
+      brec =  ROWID(FASTANM).
+   END.
+   RELEASE FASTANM NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE hmtaonr.
+   DEFINE INPUT PARAMETER aonrrec AS RECID NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR uppaonrtemp.
+   DO TRANSACTION:
+      FIND AONRTAB WHERE RECID(AONRTAB) = aonrrec EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DO:
+         FIND FIRST uppaonrtemp WHERE uppaonrtemp.AONR = AONRTAB.AONR AND 
+         uppaonrtemp.DELNR = AONRTAB.DELNR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE uppaonrtemp THEN DO:
+            CREATE uppaonrtemp.
+            BUFFER-COPY AONRTAB TO uppaonrtemp.
+            ASSIGN 
+            uppaonrtemp.PROJEKTOR = AONRTAB.STARTDAG
+            uppaonrtemp.AONRREC = RECID(AONRTAB)
+            uppaonrtemp.TABORT = TRUE.
+         END.        
+         ASSIGN 
+         uppaonrtemp.ANM[1] = AONRTAB.ANM[1] + AONRTAB.ANM[2] + 
+                              AONRTAB.ANM[3] + AONRTAB.ANM[4] + 
+                              AONRTAB.ANM[5] + AONRTAB.ANM[6].  
+         ASSIGN 
+         uppaonrtemp.ANM[2] = ""
+         uppaonrtemp.ANM[3] = ""
+         uppaonrtemp.ANM[4] = "" 
+         uppaonrtemp.ANM[5] = ""
+         uppaonrtemp.ANM[6] = "".    
+         ASSIGN 
+         AONRTAB.ANM[1] = AONRTAB.ANM[1] + AONRTAB.ANM[2] + 
+                              AONRTAB.ANM[3] + AONRTAB.ANM[4] + 
+                              AONRTAB.ANM[5] + AONRTAB.ANM[6].  
+         ASSIGN 
+         AONRTAB.ANM[2] = ""
+         AONRTAB.ANM[3] = ""
+         AONRTAB.ANM[4] = "" 
+         AONRTAB.ANM[5] = ""
+         AONRTAB.ANM[6] = "". 
+      END.
+   END.
+   RELEASE AONRTAB NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE bortanm.
+   DEFINE INPUT PARAMETER brec AS ROWID NO-UNDO.
+   DO TRANSACTION:       
+      FIND FIRST FASTANM WHERE ROWID(FASTANM) = brec EXCLUSIVE-LOCK NO-ERROR.  
+      IF AVAILABLE FASTANM THEN DO:
+         DELETE FASTANM.   
+      END.
+   END.
+   RELEASE FASTANM NO-ERROR.
+END PROCEDURE.

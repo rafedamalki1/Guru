@@ -1,0 +1,140 @@
+/*INVGKAL3V.P INVENTERING EXCEL*/   
+{GLOBVAR2DEL1.I}
+DEFINE VARIABLE felexcel AS LOGICAL NO-UNDO.  
+DEFINE VARIABLE chExcelApplication      AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE chWorkbook              AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE chWorksheet             AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE chChart                 AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE chWorksheetRange        AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE iCount                  AS INTEGER NO-UNDO.
+DEFINE VARIABLE iIndex                  AS INTEGER NO-UNDO.
+DEFINE VARIABLE iMonth                  AS INTEGER NO-UNDO.
+DEFINE VARIABLE dAnnualQuota            AS DECIMAL NO-UNDO.
+DEFINE VARIABLE dTotalSalesAmount       AS DECIMAL NO-UNDO.
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 0 NO-UNDO.
+DEFINE VARIABLE cColumn                 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cRange                  AS CHARACTER NO-UNDO. 
+
+DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER startdat AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER sortering AS INTEGER NO-UNDO. 
+
+
+DEFINE TEMP-TABLE spec_mtrl NO-UNDO
+    FIELD DEPNR AS INTEGER FORMAT ">>9" LABEL "Depånr"   
+    FIELD ENR AS  CHARACTER  FORMAT "x(11)" LABEL "Enr"
+    FIELD BENAMNING AS CHARACTER FORMAT "x(40)" LABEL "Benämning" 
+    FIELD ENHET AS  CHARACTER FORMAT "x(5)"   LABEL "Enhet" 
+    FIELD NPRIS AS  DECIMAL FORMAT ">>>>99.99" LABEL "Netto pris" 
+    FIELD BPRIS AS  DECIMAL FORMAT ">>>>99.99"   
+    FIELD BERKVANT AS  DECIMAL FORMAT "->>>>9.99" LABEL "Antal"        
+    FIELD LEVKOD AS  CHARACTER FORMAT "x(4)"   
+    FIELD BESTKVANT AS DECIMAL FORMAT ">>>>9" LABEL "Best-kvant" 
+    FIELD BESTPUNKT AS INTEGER FORMAT ">>>>9" LABEL "Best-punkt"    
+    FIELD INVDATUM AS DATE
+    FIELD INVANT AS INTEGER FORMAT ">>>>9" LABEL "Inv-antal"
+    FIELD IB AS INTEGER
+    FIELD IBDATUM AS DATE
+    FIELD FACKID AS  CHARACTER  FORMAT "x(8)"
+    FIELD OMSATT  AS DECIMAL LABEL "Omsättning/år"
+    FIELD SALDO AS INTEGER FORMAT ">>>>>9" LABEL "Saldo"
+    FIELD LAGER AS LOGICAL
+    FIELD KLAR AS LOGICAL.   
+   
+   {muswait.i}
+   
+   CREATE "Excel.Application" chExcelApplication.
+   chExcelApplication:Visible = TRUE NO-ERROR.
+   chWorkbook = chExcelApplication:Workbooks:Add() NO-ERROR.
+   chWorkSheet = chExcelApplication:Sheets:Item(1) NO-ERROR.
+   chWorkSheet:Columns("A"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("B"):ColumnWidth = 30 NO-ERROR.
+   chWorkSheet:Columns("C"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("D"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("E"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("F"):ColumnWidth = 10 NO-ERROR.   
+   chWorkSheet:Columns("G"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("H"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("I"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("J"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("K"):ColumnWidth = 10 NO-ERROR.
+{EXCELFEL.I}
+/*    chWorkSheet:Range("A1:P1"):Font:Bold = TRUE.                                                           */
+/*    chWorkSheet:Range("A1"):Value = "DEPÅ - UTTAG/RETURER FR.O.M. DATUM:" + STRING(avdatum,"9999/99/99") + */
+/*    " T.O.M DATUM:" + STRING(bdatum,"9999/99/99").                                                         */
+   
+   chWorkSheet:Range("A1:P1"):Font:Bold = TRUE.
+
+   chWorkSheet:Range("A1"):Value = "E-nummer" NO-ERROR.
+   chWorkSheet:Range("B1"):Value = "Benämning" NO-ERROR.
+   chWorkSheet:Range("C1"):Value = "Fack id" NO-ERROR.
+   chWorkSheet:Range("D1"):Value = "Enhet" NO-ERROR.
+   chWorkSheet:Range("E1"):Value = "Pris" NO-ERROR.
+   chWorkSheet:Range("F1"):Value = "Inv.datum" NO-ERROR.
+   chWorkSheet:Range("G1"):Value = "Saldo vid inv." NO-ERROR.
+   chWorkSheet:Range("H1"):Value = "Inv.värde" NO-ERROR.
+   chWorkSheet:Range("I1"):Value = "Inv.värde i kr" NO-ERROR.
+   chWorkSheet:Range("J1"):Value = "Diff." NO-ERROR.
+   chWorkSheet:Range("K1"):Value = "Diff. i kr" NO-ERROR.    
+   chWorkSheet:Range("A:A"):NumberFormat = "@" NO-ERROR.   
+   {EXCELFEL.I}
+   FOR EACH spec_mtrl:
+      DELETE spec_mtrl.
+   END.
+   IF Guru.Konstanter:appcon THEN DO:                           
+      RUN INVGKAL4V.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+      (INPUT vald_depa, INPUT startdat, OUTPUT TABLE spec_mtrl).
+   END.
+   ELSE DO:
+      RUN INVGKAL4V.P
+      (INPUT vald_depa, INPUT startdat, OUTPUT TABLE spec_mtrl).
+   END.       
+   iColumn = 1.
+   IF sortering = 1 THEN DO:
+      FOR EACH spec_mtrl NO-LOCK BY spec_mtrl.FACKID:
+         RUN ut_UI.
+      END.      
+   END.
+   ELSE IF sortering = 2 THEN DO:
+      FOR EACH spec_mtrl NO-LOCK BY spec_mtrl.ENR:
+         RUN ut_UI.
+      END.      
+   END.
+   ELSE DO:
+      FOR EACH spec_mtrl NO-LOCK BY spec_mtrl.BENAMNING:
+         RUN ut_UI.
+      END.     
+   END.                 
+   RELEASE OBJECT chExcelApplication NO-ERROR.      
+   RELEASE OBJECT chWorkbook NO-ERROR.
+   RELEASE OBJECT chWorksheet NO-ERROR.
+   
+{EXCELFEL.I}
+PROCEDURE ut_UI :
+   iColumn = iColumn + 1.
+   cColumn = STRING(iColumn).
+   cRange = "A" + cColumn.
+   chWorkSheet:Range(cRange):Value = spec_mtrl.ENR NO-ERROR.
+   cRange = "B" + cColumn.
+   chWorkSheet:Range(cRange):Value = spec_mtrl.BENAMNING NO-ERROR.
+   cRange = "C" + cColumn.
+   chWorkSheet:Range(cRange):Value = spec_mtrl.FACKID NO-ERROR.
+   cRange = "D" + cColumn.
+   chWorkSheet:Range(cRange):Value = spec_mtrl.ENHET NO-ERROR.
+   cRange = "E" + cColumn.
+   chWorkSheet:Range(cRange):Value = STRING(spec_mtrl.NPRIS) NO-ERROR.
+   cRange = "F" + cColumn.
+   chWorkSheet:Range(cRange):Value = STRING(spec_mtrl.INVDAT,"9999/99/99") NO-ERROR.
+   cRange = "G" + cColumn.
+   chWorkSheet:Range(cRange):Value = STRING(spec_mtrl.IB) NO-ERROR.
+   cRange = "H" + cColumn.
+   chWorkSheet:Range(cRange):Value = STRING(spec_mtrl.INVANT) NO-ERROR.
+   cRange = "I" + cColumn.
+   chWorkSheet:Range(cRange):Value = STRING(spec_mtrl.NPRIS * spec_mtrl.INVANT) NO-ERROR.      
+   cRange = "J" + cColumn.
+   chWorkSheet:Range(cRange):Value = STRING(spec_mtrl.INVANT - spec_mtrl.IB) NO-ERROR.
+   cRange = "K" + cColumn.
+   chWorkSheet:Range(cRange):Value = STRING((spec_mtrl.INVANT - spec_mtrl.IB) * spec_mtrl.NPRIS) NO-ERROR.
+   {EXCELFEL.I}
+END PROCEDURE.

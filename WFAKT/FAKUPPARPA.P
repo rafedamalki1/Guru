@@ -1,0 +1,686 @@
+/*FAKUPPARPA.P*/
+
+&Scoped-define NEW NEW                          
+{FAKTTEMP.I}
+      
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kollvecko LIKE TIDREGITAB.VECKOKORD NO-UNDO.
+DEFINE VARIABLE FILL-IN_INKOMST AS DECIMAL NO-UNDO.
+DEFINE VARIABLE ordningvar AS INTEGER NO-UNDO.
+DEFINE QUERY fpq FOR FAKTPLAN.
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+PROCEDURE start2_UI:
+   OPEN QUERY fpq FOR EACH FAKTPLAN WHERE FAKTPLAN.SLUTFAKT = FALSE AND 
+   FAKTPLAN.FAKTTYP = "Takprisfakt." AND
+   FAKTPLAN.FAKTTYPUNDER = 2 NO-LOCK BY FAKTPLAN.FAKTNR.
+END PROCEDURE.
+PROCEDURE start4_UI:
+   OPEN QUERY fpq FOR EACH FAKTPLAN WHERE FAKTPLAN.SLUTFAKT = FALSE AND 
+   FAKTPLAN.FAKTTYP = "Takprisfakt." AND
+   FAKTPLAN.FAKTTYPUNDER = 4 NO-LOCK BY FAKTPLAN.FAKTNR.
+END PROCEDURE.
+PROCEDURE getfirst_UI:
+   DEFINE OUTPUT PARAMETER fnr AS INTEGER NO-UNDO.
+   GET FIRST fpq NO-LOCK.
+   IF AVAILABLE FAKTPLAN THEN DO:
+      fnr = FAKTPLAN.FAKTNR.
+   END.
+   ELSE DO:
+      CLOSE QUERY fpq.
+      fnr = 0.  
+   END.
+END PROCEDURE.
+PROCEDURE getnext_UI:
+   DEFINE OUTPUT PARAMETER fnr AS INTEGER NO-UNDO.
+   GET NEXT fpq NO-LOCK.
+   IF AVAILABLE FAKTPLAN THEN DO:
+      fnr = FAKTPLAN.FAKTNR.
+   END.
+   ELSE DO:
+      CLOSE QUERY fpq.
+      fnr = 0.
+   END.
+END PROCEDURE.
+PROCEDURE kost_UI:
+   DEFINE INPUT PARAMETER nrin LIKE FAKTPLAN.FAKTNR NO-UNDO.  
+   OPEN QUERY fpaq FOR EACH FAKTPLAN WHERE FAKTPLAN.FAKTNR = nrin,
+   EACH FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR NO-LOCK.
+   GET FIRST fpaq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTAONR): 
+      FIND FIRST FAKTKOLL WHERE FAKTKOLL.FAKTNR = FAKTAONR.FAKTNR AND
+      FAKTKOLL.AONR = FAKTAONR.AONR AND 
+      FAKTKOLL.DELNR = FAKTAONR.DELNR AND FAKTKOLL.SLUTFAKT = FALSE
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE FAKTAONR THEN DO:
+      END.
+      ELSE DO:
+         IF FAKTPLAN.FAKTTYPUNDER = 4 THEN DO:
+            FIND FIRST FAKTUPPARB WHERE FAKTUPPARB.FAKTNR = FAKTPLAN.FAKTNR AND
+            FAKTUPPARB.AONR = FAKTAONR.AONR AND FAKTUPPARB.DELNR = FAKTAONR.DELNR AND
+            FAKTUPPARB.KRITERIUM = "SLUT" NO-LOCK NO-ERROR.
+            IF AVAILABLE FAKTUPPARB THEN DO:
+               IF FAKTUPPARB.FAKTURERAD = TRUE THEN musz = TRUE.
+            END.
+         END.
+         IF musz = TRUE THEN musz = FALSE.
+         ELSE DO:
+             musz = FALSE.
+            /*FINNS NÅGRA KOSTNADER*/
+            FIND FIRST KOSTREG WHERE KOSTREG.AONR = FAKTAONR.AONR AND 
+            KOSTREG.DELNR = FAKTAONR.DELNR NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE KOSTREG THEN DO:
+               musz = TRUE.
+               FIND FIRST TIDREGITAB WHERE TIDREGITAB.AONR = FAKTAONR.AONR AND 
+               TIDREGITAB.DELNR = FAKTAONR.DELNR NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE TIDREGITAB THEN musz = TRUE.
+               ELSE musz = FALSE. 
+            END.
+            IF musz = FALSE THEN DO:   
+               /*HÄMTAR KOSTREG + TIDREG*/
+               RUN lop_UI.
+               /*SUMMERAR POSTER*/
+               RUN visa_UI (INPUT FALSE).
+               IF FAKTPLAN.FAKTTYPUNDER = 2 THEN DO:
+                  /*SKAPAR FAKTUPPARB OCH BERÄKNAR PRISET*/        
+                  RUN skapapost_UI (INPUT FAKTAONR.AONR, INPUT FAKTAONR.DELNR).
+                  /*BERÄKNAR TOTALT UPPARPRIS OCH SKICKAR MEDD*/        
+                  RUN uparb_UI (INPUT FAKTAONR.AONR, INPUT FAKTAONR.DELNR).
+               END.
+               IF FAKTPLAN.FAKTTYPUNDER = 4 THEN RUN uparbtyp4_UI (INPUT FAKTAONR.AONR, INPUT FAKTAONR.DELNR).
+               DO TRANSACTION:
+                  IF kollvecko NE "" THEN DO:     
+                     FIND FIRST FAKTKOLL WHERE FAKTKOLL.FAKTNR = FAKTPLAN.FAKTNR AND           
+                     FAKTKOLL.AONR = FAKTAONR.AONR  AND
+                     FAKTKOLL.DELNR = FAKTAONR.DELNR 
+                     USE-INDEX FAKTNR EXCLUSIVE-LOCK NO-ERROR. 
+                     ASSIGN         
+                     FAKTKOLL.SENASTFAK = TODAY 
+                     FAKTKOLL.SENASTTID = TODAY
+                     FAKTKOLL.SLUTFAKT = FALSE
+                     FAKTKOLL.VECKOKORD = kollvecko.  
+                  END.
+               END.   
+               IF FAKTREGLER.KOSTREGRGL = "AUTOMATISKA" THEN DO:
+                  OPEN QUERY kostq FOR EACH KOSTREG WHERE KOSTREG.AONR = FAKTAONR.AONR AND
+                  KOSTREG.DELNR = FAKTAONR.DELNR AND KOSTREG.KOSTAUTO = TRUE AND 
+                  KOSTREG.FAKTURERAD = ? AND KOSTREG.REGDATUM <= TODAY 
+                  USE-INDEX KOST NO-LOCK.         
+               END.
+               ELSE DO:
+                  OPEN QUERY kostq FOR EACH KOSTREG WHERE KOSTREG.AONR = FAKTAONR.AONR AND
+                  KOSTREG.DELNR = FAKTAONR.DELNR AND KOSTREG.KOSTAUTO = FALSE AND 
+                  KOSTREG.FAKTURERAD = ? AND KOSTREG.REGDATUM <= TODAY 
+                  USE-INDEX KOST NO-LOCK.         
+               END.
+               GET FIRST kostq NO-LOCK.
+               DO WHILE AVAILABLE(KOSTREG):
+                  DO TRANSACTION:
+                     GET CURRENT kostq EXCLUSIVE-LOCK.
+                     KOSTREG.FAKTURERAD = TRUE.            
+                  END.
+                  GET NEXT kostq NO-LOCK.
+               END.
+            END.
+         END.
+      END.
+      RUN noll_UI.
+      GET NEXT fpaq NO-LOCK.
+   END.
+   
+END PROCEDURE.
+PROCEDURE noll_UI :
+   musz = FALSE.
+   kollvecko = "".
+   EMPTY TEMP-TABLE sumtidtemp NO-ERROR. 
+   EMPTY TEMP-TABLE tidtemp NO-ERROR. 
+   EMPTY TEMP-TABLE kosttemp NO-ERROR. 
+   EMPTY TEMP-TABLE sumpers NO-ERROR. 
+   EMPTY TEMP-TABLE extrasum NO-ERROR.    
+END PROCEDURE.
+PROCEDURE lop_UI :
+   RUN open_UI.                         
+   RUN skappost_UI.  
+   FIND FIRST kosttemp NO-LOCK NO-ERROR.
+   IF AVAILABLE kosttemp THEN DO:      
+      RUN openkost_UI (INPUT 2).
+   END.            
+   RUN openfalt_UI.
+   
+   {GDPRLOGGCLIENT.I}   
+END PROCEDURE.
+
+PROCEDURE open_UI :
+  /*Hittills fakturerat*/        
+  FIND FIRST FAKTREGLER WHERE FAKTREGLER.FAKTNR = FAKTPLAN.FAKTNR 
+  USE-INDEX FAKTREGLER NO-LOCK NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE skappost_UI :
+   /*HÄMTA KALKYLER OCH KOSTNADSREGISTRERINGAR*/
+   RUN kostreg_UI.
+END PROCEDURE.
+
+PROCEDURE kostreg_UI :
+   RUN FAKOSAPP.P 
+   (INPUT FAKTPLAN.FAKTNR,INPUT FAKTPLAN.FDELNR,INPUT FAKTAONR.AONR,INPUT FAKTAONR.DELNR, INPUT TODAY, INPUT-OUTPUT FILL-IN_INKOMST, INPUT-OUTPUT TABLE kosttemp).
+END PROCEDURE.
+
+PROCEDURE openkost_UI :
+   /*HÄMTAR SPARADE KOSTREG OCH BERÄKNAR KOSTNAD*/
+   DEFINE INPUT PARAMETER korvar AS INTEGER NO-UNDO.
+   IF korvar = 2 THEN DO:
+      RUN skost_UI.                        
+   END.    
+END PROCEDURE.
+
+PROCEDURE skost_UI :
+   /*SPARADE KOSTREG*/
+   RETURN.
+END PROCEDURE.
+/*TID*/
+PROCEDURE openfalt_UI :
+   IF FAKTREGLER.OVERTIDRGL = "EGNA REGLER" OR 
+   FAKTREGLER.OVERTIDRGL = "TIDREDOVISNING" THEN DO:      
+      RUN overegna_UI.             
+      FOR EACH tidtemp:
+         IF tidtemp.PRISTYP = "RESTID..." THEN NEXT.          
+         CREATE sumtidtemp.
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = tidtemp.PERSONALKOD
+         USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO: 
+            ASSIGN
+            sumtidtemp.PERSMASK = PERSONALTAB.PERSMASK
+            sumtidtemp.BEFATTNING = PERSONALTAB.BEFATTNING               
+            sumtidtemp.NAMN = SUBSTRING(PERSONALTAB.FORNAMN,1,1) + "." + PERSONALTAB.EFTERNAMN.
+            Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.   
+         END.                  
+         ASSIGN
+         sumtidtemp.START = tidtemp.START
+         sumtidtemp.SLUT = tidtemp.SLUT
+         sumtidtemp.GSTART = tidtemp.START 
+         sumtidtemp.GSLUT = tidtemp.SLUT         
+         sumtidtemp.OTEXTID = tidtemp.OTEXTID
+         sumtidtemp.DATUM = tidtemp.DATUM
+         sumtidtemp.PERSONALKOD = tidtemp.PERSONALKOD
+         sumtidtemp.AONR = tidtemp.AONR
+         sumtidtemp.DELNR = tidtemp.DELNR         
+         sumtidtemp.TIMMAR = tidtemp.TOTALT
+         sumtidtemp.BELOPP = tidtemp.KOST 
+         sumtidtemp.OBELOPP = tidtemp.OKOST
+         sumtidtemp.OTIMMAR = tidtemp.OTIMMAR                                        
+         sumtidtemp.PRISA = tidtemp.PRIS
+         sumtidtemp.OPRIS = tidtemp.OPRIS
+         sumtidtemp.LUNCH = tidtemp.LUNCH
+         sumtidtemp.MED = TRUE.            
+      END.      
+      FOR EACH tidtemp WHERE tidtemp.PRISTYP = "RESTID...":          
+         CREATE sumtidtemp.
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = tidtemp.PERSONALKOD
+         USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO: 
+            ASSIGN
+            sumtidtemp.PERSMASK = PERSONALTAB.PERSMASK
+            sumtidtemp.BEFATTNING = PERSONALTAB.BEFATTNING               
+            sumtidtemp.NAMN = SUBSTRING(PERSONALTAB.FORNAMN,1,1) + "." + PERSONALTAB.EFTERNAMN.      
+            Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.        
+         END.         
+         ASSIGN
+         sumtidtemp.OTEXTID = tidtemp.OTEXTID
+         sumtidtemp.DATUM = tidtemp.DATUM
+         sumtidtemp.GSTART = tidtemp.START
+         sumtidtemp.GSLUT = tidtemp.SLUT
+         sumtidtemp.START = tidtemp.START
+         sumtidtemp.SLUT = tidtemp.SLUT
+         sumtidtemp.PERSONALKOD = tidtemp.PERSONALKOD
+         sumtidtemp.AONR = tidtemp.AONR
+         sumtidtemp.DELNR = tidtemp.DELNR                  
+         sumtidtemp.MED = TRUE
+         sumtidtemp.RESPRIS = tidtemp.RESPRIS 
+         sumtidtemp.RESKOSTDEC = sumtidtemp.RESKOSTDEC + tidtemp.RESKOSTDEC
+         sumtidtemp.RESTIM = sumtidtemp.RESTIM + tidtemp.RESTIM.         
+      END.              
+   END.            
+   RUN tidreg_UI. 
+   IF FAKTREGLER.TIMRGL = "INGA" THEN DO:      
+   END.           
+   ELSE IF FAKTREGLER.TIMRGL = "KUNDENS EGNA" THEN DO:
+      RUN tidegna_UI.                       
+   END.                                              
+   IF FAKTREGLER.LONRGL = "INGA" THEN DO:
+      
+   END.                           
+   IF FAKTREGLER.TIMRGL = "TIDREDOVISNING" THEN DO:
+      
+   END.       
+   IF FAKTREGLER.OVERTIDRGL = "TIDREDOVISNING" THEN DO:
+      
+   END.
+   IF FAKTREGLER.OVERTIDRGL = "EGNA REGLER" THEN DO:
+      
+   END.
+   IF FAKTREGLER.TRAKTRGL = "TIDREDOVISNING" OR 
+   FAKTREGLER.TRAKTRGL = "EGET PRIS" THEN DO:         
+      
+   END.
+   IF FAKTREGLER.LONRGL = "TIDREDOVISNING" OR 
+   FAKTREGLER.LONRGL = "ENDAST MILERSÄTTNING" THEN DO:
+      
+   END.     
+   IF FAKTREGLER.TIMRGL = "KUNDENS EGNA" THEN DO:  
+      
+   END.       
+   
+   RUN befat_UI.   
+   RUN stid_UI.
+   RUN gtid_UI.         
+   OPEN QUERY BRW_TID FOR EACH sumtidtemp NO-LOCK.   
+   GET FIRST BRW_TID NO-LOCK.
+   DO WHILE AVAILABLE(sumtidtemp):          
+      IF sumtidtemp.MED = TRUE THEN DO:                                      
+         IF FAKTREGLER.TIMRGL = "TIDREDOVISNING" THEN DO:
+           
+         END.       
+         IF FAKTREGLER.OVERTIDRGL = "TIDREDOVISNING" THEN DO:
+            
+         END.
+         IF FAKTREGLER.OVERTIDRGL = "EGNA REGLER" THEN DO:
+            
+         END.
+         IF FAKTREGLER.TRAKTRGL = "TIDREDOVISNING" THEN DO:         
+            
+         END.    
+         ELSE IF FAKTREGLER.TRAKTRGL = "EGET PRIS" THEN DO:
+            
+         END.                   
+         IF FAKTREGLER.LONRGL = "TIDREDOVISNING" THEN DO:
+            
+         END.   
+         ELSE IF FAKTREGLER.LONRGL = "ENDAST MILERSÄTTNING" THEN DO:
+            
+         END.  
+         IF FAKTREGLER.TIMRGL = "KUNDENS EGNA" THEN DO:  
+            
+         END.                                                    
+         IF FAKTREGLER.LONRGL = "ENDAST MILERSÄTTNING" THEN musz = musz.
+         ELSE DO:                     
+            ASSIGN 
+            sumtidtemp.LONTILLAGG = "" 
+            sumtidtemp.LONTILLANTAL = ?.
+         END. 
+         IF FAKTREGLER.TRAKTRGL = "EGET PRIS" OR FAKTREGLER.TRAKTRGL = "TIDREDOVISNING" THEN musz = musz.
+         ELSE DO:                     
+            ASSIGN 
+            sumtidtemp.TRAKTKOD = "" 
+            sumtidtemp.TRAKTANTAL = ?.      
+         END.            
+      END.
+      GET NEXT BRW_TID NO-LOCK.              
+   END.               
+END PROCEDURE.
+
+
+
+PROCEDURE overegna_UI :
+   {muswait.i}
+   RUN FAOBER.P 
+   (INPUT Guru.Konstanter:globforetag, INPUT RECID(FAKTPLAN), INPUT TODAY,INPUT FAKTAONR.AONR,
+    INPUT FAKTAONR.DELNR,INPUT-OUTPUT kollvecko,INPUT-OUTPUT TABLE tidtemp, 
+    INPUT-OUTPUT TABLE extrasum).                          
+   
+END PROCEDURE.
+
+PROCEDURE tidegna_UI :
+   OPEN QUERY faktbefq FOR EACH FAKTBEF WHERE FAKTBEF.FAKTNR = FAKTPLAN.FAKTNR
+   USE-INDEX FAKTBEF NO-LOCK.
+   GET FIRST faktbefq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTBEF):         
+      FOR EACH sumtidtemp WHERE sumtidtemp.BEFATTNING = FAKTBEF.BEFATTNING USE-INDEX BEF.         
+         ASSIGN
+         sumtidtemp.RESKOSTDEC = sumtidtemp.RESTIM * FAKTBEF.PRISRES
+         sumtidtemp.BELOPP = sumtidtemp.TIMMAR * FAKTBEF.PRISA
+         sumtidtemp.RESPRIS = FAKTBEF.PRISRES
+         sumtidtemp.PRISA = FAKTBEF.PRISA.
+      END.
+      GET NEXT faktbefq NO-LOCK.    
+   END. 
+END PROCEDURE.
+
+PROCEDURE tidreg_UI :
+   RUN FALONTRA.P 
+   (INPUT Guru.Konstanter:globforetag, INPUT RECID(FAKTPLAN), INPUT TODAY,INPUT FAKTAONR.AONR,
+    INPUT FAKTAONR.DELNR,INPUT-OUTPUT kollvecko,
+   INPUT-OUTPUT TABLE sumtidtemp).      
+END PROCEDURE.
+
+PROCEDURE befat_UI :
+   /*RÄTT TEXTER TILL BEFATTNING*/
+   RUN FABEFAPP.P 
+   (INPUT-OUTPUT TABLE sumtidtemp).   
+END PROCEDURE.
+
+PROCEDURE stid_UI :
+   /*SPARADE FAKTTIDER*/
+   RETURN. 
+END PROCEDURE.
+
+PROCEDURE gtid_UI :
+   /*TID MED SENSTFAK = ? SPARADE FAKTTIDER*/
+   RETURN.  
+END PROCEDURE.
+
+PROCEDURE visa_UI :
+   {muswait.i}
+   DEFINE INPUT PARAMETER fraga AS LOGICAL NO-UNDO.    
+   IF Guru.Konstanter:globforetag = "GRAN" OR Guru.Konstanter:globforetag = "GKAL" THEN DO:
+      FOR EACH sumtidtemp WHERE sumtidtemp.MED = TRUE  BREAK 
+      BY sumtidtemp.AONR:         
+         ACCUMULATE 
+         sumtidtemp.BELOPP (TOTAL BY sumtidtemp.AONR).
+         ACCUMULATE 
+         sumtidtemp.OBELOPP (TOTAL BY sumtidtemp.AONR).
+         ACCUMULATE 
+         sumtidtemp.RESKOSTDEC (TOTAL BY sumtidtemp.AONR).
+         ACCUMULATE 
+         sumtidtemp.TBELOPP (TOTAL BY sumtidtemp.AONR).
+         ACCUMULATE 
+         sumtidtemp.LONKOST (TOTAL BY sumtidtemp.AONR).
+         IF LAST-OF(sumtidtemp.AONR) THEN DO:         
+            FIND FIRST sumpers WHERE sumpers.AONR = sumtidtemp.AONR 
+            NO-ERROR.
+            IF NOT AVAILABLE sumpers THEN CREATE sumpers.
+            ASSIGN
+            sumpers.AONR = sumtidtemp.AONR 
+            sumpers.DELNR = 0         
+            sumpers.BELOPP = sumpers.BELOPP +
+            (ACCUM TOTAL BY sumtidtemp.AONR sumtidtemp.BELOPP) +
+            (ACCUM TOTAL BY sumtidtemp.AONR sumtidtemp.OBELOPP) +
+            (ACCUM TOTAL BY sumtidtemp.AONR sumtidtemp.RESKOSTDEC) +                             
+            (ACCUM TOTAL BY sumtidtemp.AONR sumtidtemp.TBELOPP) +
+            (ACCUM TOTAL BY sumtidtemp.AONR sumtidtemp.LONKOST).           
+         END.           
+      END. 
+   END.
+   ELSE DO:
+      FOR EACH sumtidtemp WHERE sumtidtemp.MED = TRUE  BREAK 
+      BY sumtidtemp.AONR BY sumtidtemp.DELNR:         
+         ACCUMULATE 
+         sumtidtemp.BELOPP (TOTAL BY sumtidtemp.AONR BY sumtidtemp.DELNR).
+         ACCUMULATE 
+         sumtidtemp.OBELOPP (TOTAL BY sumtidtemp.AONR BY sumtidtemp.DELNR).
+         ACCUMULATE 
+         sumtidtemp.RESKOSTDEC (TOTAL BY sumtidtemp.AONR BY sumtidtemp.DELNR).
+         ACCUMULATE 
+         sumtidtemp.TBELOPP (TOTAL BY sumtidtemp.AONR BY sumtidtemp.DELNR).
+         ACCUMULATE 
+         sumtidtemp.LONKOST (TOTAL BY sumtidtemp.AONR BY sumtidtemp.DELNR).
+         IF LAST-OF(sumtidtemp.DELNR) THEN DO:         
+            FIND FIRST sumpers WHERE sumpers.AONR = sumtidtemp.AONR AND
+            sumpers.DELNR = sumtidtemp.DELNR NO-ERROR.
+            IF NOT AVAILABLE sumpers THEN CREATE sumpers.
+            ASSIGN
+            sumpers.AONR = sumtidtemp.AONR 
+            sumpers.DELNR = sumtidtemp.DELNR         
+            sumpers.BELOPP = sumpers.BELOPP +
+            (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.BELOPP) +
+            (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.OBELOPP) +
+            (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.RESKOSTDEC) +                             
+            (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.TBELOPP) +
+            (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.LONKOST).           
+         END.           
+      END.
+   END.
+   FOR EACH kosttemp WHERE kosttemp.MED = TRUE BREAK 
+   BY kosttemp.AONR BY kosttemp.DELNR:         
+      ACCUMULATE 
+      kosttemp.MASKKOST (TOTAL BY kosttemp.AONR BY kosttemp.DELNR).
+      ACCUMULATE 
+      kosttemp.FRTJPAKR (TOTAL BY kosttemp.AONR BY kosttemp.DELNR).
+      ACCUMULATE 
+      kosttemp.MTRL (TOTAL BY kosttemp.AONR BY kosttemp.DELNR). 
+      ACCUMULATE 
+      kosttemp.MTRLPAKR (TOTAL BY kosttemp.AONR BY kosttemp.DELNR).
+      ACCUMULATE 
+      kosttemp.OVRKR (TOTAL BY kosttemp.AONR BY kosttemp.DELNR).
+      ACCUMULATE 
+      kosttemp.PERSKOST (TOTAL BY kosttemp.AONR BY kosttemp.DELNR).
+      ACCUMULATE 
+      kosttemp.TRAKTKOST (TOTAL BY kosttemp.AONR BY kosttemp.DELNR).         
+      IF LAST-OF(kosttemp.DELNR) THEN DO:            
+         FIND FIRST sumpers WHERE sumpers.AONR = kosttemp.AONR AND
+         sumpers.DELNR = kosttemp.DELNR NO-ERROR.
+         IF NOT AVAILABLE sumpers THEN CREATE sumpers.
+         ASSIGN
+         sumpers.AONR = kosttemp.AONR 
+         sumpers.DELNR = kosttemp.DELNR         
+         sumpers.BELOPP = sumpers.BELOPP +  
+         (ACCUM TOTAL BY kosttemp.DELNR kosttemp.PERSKOST) +                
+         (ACCUM TOTAL BY kosttemp.DELNR kosttemp.TRAKTKOST) +                 
+         (ACCUM TOTAL BY kosttemp.DELNR kosttemp.MASKKOST) +  
+         (ACCUM TOTAL BY kosttemp.DELNR kosttemp.FRTJPAKR) +                 
+         (ACCUM TOTAL BY kosttemp.DELNR kosttemp.MTRL) +   
+         (ACCUM TOTAL BY kosttemp.DELNR kosttemp.MTRLPAKR) + 
+         (ACCUM TOTAL BY kosttemp.DELNR kosttemp.OVRKR).                   
+      END.               
+   END.
+             
+END PROCEDURE.
+PROCEDURE skapapost_UI :
+   DEFINE INPUT PARAMETER aonrvar LIKE AONRTAB.AONR NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar LIKE AONRTAB.DELNR NO-UNDO.        
+   OPEN QUERY BRW_UPPARB FOR EACH FAKTUPPPLAN WHERE 
+   FAKTUPPPLAN.FAKTNR = FAKTPLAN.FAKTNR 
+   NO-LOCK BY FAKTUPPPLAN.UPLAN%.
+   GET FIRST BRW_UPPARB NO-LOCK.  
+   DO WHILE AVAILABLE(FAKTUPPPLAN):
+      DO TRANSACTION:         
+         FIND FIRST FAKTUPPARB WHERE FAKTUPPARB.FAKTNR = FAKTPLAN.FAKTNR AND    
+         FAKTUPPARB.AONR = aonrvar AND FAKTUPPARB.DELNR = delnrvar AND 
+         FAKTUPPARB.ORDNING = FAKTUPPPLAN.ORDNING EXCLUSIVE-LOCK NO-ERROR.   
+         IF AVAILABLE FAKTUPPARB THEN DO:
+            /*SKALL EJ RÄKNA OM PRISET*/
+            IF FAKTUPPARB.VFAKTNR NE 0 THEN musz = musz.
+            ELSE RUN skapapost2_UI (INPUT aonrvar, INPUT delnrvar).
+         END.
+         ELSE DO: 
+            CREATE FAKTUPPARB.
+            ASSIGN
+            FAKTUPPARB.ORDNING = FAKTUPPPLAN.ORDNING
+            FAKTUPPARB.FAKTURERAD = FALSE            
+            FAKTUPPARB.FULL = FALSE.            
+            RUN skapapost2_UI (INPUT aonrvar, INPUT delnrvar).
+         END.            
+      END.
+      GET NEXT BRW_UPPARB NO-LOCK.
+   END.   
+END PROCEDURE.
+PROCEDURE skapapost2_UI :
+   DEFINE INPUT PARAMETER aonrvar LIKE AONRTAB.AONR NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar LIKE AONRTAB.DELNR NO-UNDO.        
+   ASSIGN
+   FAKTUPPARB.FAKTNR = FAKTPLAN.FAKTNR
+   FAKTUPPARB.AONR = aonrvar  
+   FAKTUPPARB.DELNR = delnrvar         
+   FAKTUPPARB.KRITERIUM = FAKTUPPPLAN.KRITERIUM
+   FAKTUPPARB.FAKT% = FAKTUPPPLAN.FAKT%
+   FAKTUPPARB.UPLAN% = FAKTUPPPLAN.UPLAN%.  
+   /*
+   FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR AND
+   FAKTAONR.AONR = FAKTUPPARB.AONR AND FAKTAONR.DELNR = FAKTUPPARB.DELNR
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE FAKTAONR THEN */
+   FAKTUPPARB.FAKTBELOPP = FAKTAONR.OPRIS * (FAKTUPPARB.FAKT% / 100).                 
+END PROCEDURE.
+PROCEDURE uparb_UI :
+   DEFINE INPUT PARAMETER aonrvar LIKE AONRTAB.AONR NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar LIKE AONRTAB.DELNR NO-UNDO.
+   DEFINE VARIABLE gamlabelopp AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE nyttbeloppvar AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE totaltbeloppvar AS DECIMAL NO-UNDO.
+   /*
+   OPEN QUERY fuppq FOR EACH FAKTUPPARB WHERE FAKTUPPARB.FAKTNR = FAKTPLAN.FAKTNR AND
+   FAKTUPPARB.AONR = aonrvar AND FAKTUPPARB.DELNR = delnrvar AND
+   FAKTUPPARB.FULL = TRUE NO-LOCK BY FAKTUPPARB.UPLAN%.
+   GET LAST fuppq NO-LOCK.   
+   IF AVAILABLE FAKTUPPARB THEN DO:
+      totaltbeloppvar = FAKTUPPARB.UPPBELOPP. 
+   END.
+   */      
+   FIND FIRST sumpers WHERE sumpers.AONR = aonrvar AND 
+   sumpers.DELNR = delnrvar NO-LOCK NO-ERROR.
+   IF AVAILABLE sumpers THEN nyttbeloppvar = sumpers.BELOPP.
+   ELSE nyttbeloppvar = 0.   
+   OPEN QUERY fuppq FOR EACH FAKTUPPARB WHERE FAKTUPPARB.FAKTNR = FAKTPLAN.FAKTNR AND
+   FAKTUPPARB.AONR = aonrvar AND FAKTUPPARB.DELNR = delnrvar AND
+   FAKTUPPARB.FULL = FALSE NO-LOCK BY FAKTUPPARB.UPLAN%.
+   GET FIRST fuppq NO-LOCK.     
+   IF AVAILABLE FAKTUPPARB THEN DO TRANSACTION:      
+      GET CURRENT fuppq EXCLUSIVE-LOCK.
+      gamlabelopp = FAKTUPPARB.UPPBELOPP.
+      totaltbeloppvar = gamlabelopp + nyttbeloppvar.
+      FAKTUPPARB.UPPBELOPP = totaltbeloppvar.
+   END.    
+   DO WHILE AVAILABLE(FAKTUPPARB):           
+      DO TRANSACTION:
+         GET CURRENT fuppq EXCLUSIVE-LOCK.              
+         IF FAKTUPPARB.KRITERIUM = "SLUT" THEN DO:
+            FAKTUPPARB.UPPBELOPP = totaltbeloppvar.
+            IF FAKTAONR.OPRIS NE 0 THEN FAKTUPPARB.UPPARB% = (totaltbeloppvar / FAKTAONR.OPRIS) * 100.
+            IF FAKTUPPARB.UPLAN% <= FAKTUPPARB.UPPARB% THEN DO:         
+               FAKTUPPARB.FULL = FALSE.           
+               RUN medd_UI (INPUT FAKTPLAN.ANVANDARE).
+            END.         
+         END.
+         ELSE DO:            
+            FAKTUPPARB.UPPBELOPP = totaltbeloppvar.
+            IF FAKTAONR.OPRIS NE 0 THEN FAKTUPPARB.UPPARB% = (totaltbeloppvar / FAKTAONR.OPRIS) * 100.
+            IF FAKTUPPARB.UPLAN% <= FAKTUPPARB.UPPARB% THEN DO:                 
+               ASSIGN
+               FAKTUPPARB.UPPBELOPP = (FAKTUPPARB.UPLAN% * FAKTAONR.OPRIS) / 100            
+               FAKTUPPARB.UPPARB% = FAKTUPPARB.UPLAN%
+               FAKTUPPARB.FULL = TRUE.             
+               RUN medd_UI (INPUT FAKTPLAN.ANVANDARE).
+            END.         
+         END.
+      END.
+      GET NEXT fuppq NO-LOCK.
+   END.    
+END PROCEDURE.
+PROCEDURE uparbtyp4_UI :
+   DEFINE INPUT PARAMETER aonrvar LIKE AONRTAB.AONR NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar LIKE AONRTAB.DELNR NO-UNDO.
+   DEFINE VARIABLE tidfaktbelopp AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE nyttbeloppvar AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE totaltupparbbeloppvar AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE takbelopp AS DECIMAL NO-UNDO.  
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+   AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.
+   FIND FIRST sumpers WHERE sumpers.AONR = aonrvar AND 
+   sumpers.DELNR = delnrvar NO-LOCK NO-ERROR.
+   IF AVAILABLE sumpers THEN nyttbeloppvar = sumpers.BELOPP.
+   ELSE nyttbeloppvar = 0.
+   /*HUR MYCKET ÄR FAKTURERAT*/
+   
+   OPEN QUERY fuppq FOR EACH FAKTUPPARB WHERE FAKTUPPARB.FAKTNR = FAKTPLAN.FAKTNR AND
+   FAKTUPPARB.AONR = aonrvar AND FAKTUPPARB.DELNR = delnrvar AND
+   FAKTUPPARB.FAKTURERAD = TRUE NO-LOCK. 
+   GET FIRST fuppq NO-LOCK.         
+   DO WHILE AVAILABLE(FAKTUPPARB):
+      IF FAKTUPPARB.KRITERIUM NE "SLUT" THEN DO:              
+         ASSIGN
+         tidfaktbelopp = tidfaktbelopp + FAKTUPPARB.FAKTBELOPP.         
+      END.      
+      GET NEXT fuppq NO-LOCK.
+   END.      
+   /*HUR MYCKET SKALL SLUT POSTEN FAKTURERAS MED*/
+   FIND FIRST FAKTUPPPLAN WHERE FAKTUPPPLAN.FAKTNR = FAKTPLAN.FAKTNR AND 
+   FAKTUPPPLAN.KRITERIUM = "SLUT" NO-LOCK NO-ERROR.   
+   takbelopp = FAKTAONR.OPRIS * FAKTUPPPLAN.UPLAN% / 100. 
+   FIND FIRST FAKTUPPARB WHERE FAKTUPPARB.FAKTNR = FAKTPLAN.FAKTNR AND
+   FAKTUPPARB.AONR = aonrvar AND FAKTUPPARB.DELNR = delnrvar AND
+   FAKTUPPARB.KRITERIUM = "SLUT" NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE FAKTUPPARB THEN DO TRANSACTION:
+      CREATE FAKTUPPARB.
+      ASSIGN
+      FAKTUPPARB.ORDNING = FAKTUPPPLAN.ORDNING
+      FAKTUPPARB.FAKTURERAD = FALSE            
+      FAKTUPPARB.FULL = FALSE
+      FAKTUPPARB.FAKTNR = FAKTPLAN.FAKTNR
+      FAKTUPPARB.AONR = aonrvar  
+      FAKTUPPARB.DELNR = delnrvar         
+      FAKTUPPARB.KRITERIUM = FAKTUPPPLAN.KRITERIUM
+      FAKTUPPARB.FAKT% = FAKTUPPPLAN.FAKT%
+      FAKTUPPARB.UPLAN% = FAKTUPPPLAN.UPLAN%.      
+   END.
+   DO TRANSACTION:
+      FIND CURRENT FAKTUPPARB EXCLUSIVE-LOCK.
+      ASSIGN
+      FAKTUPPARB.UPPBELOPP = FAKTUPPARB.UPPBELOPP + nyttbeloppvar 
+      FAKTUPPARB.FAKTBELOPP = FAKTAONR.OPRIS * FAKTUPPPLAN.FAKT% / 100.
+      totaltupparbbeloppvar = FAKTUPPARB.UPPBELOPP.
+      FAKTUPPARB.UPPARB% = (totaltupparbbeloppvar / FAKTAONR.OPRIS) * 100.
+   END.
+   /*HUR MYCKET SKALL övriga POSTEN FAKTURERAS MED*/
+   FIND FIRST FAKTUPPARB WHERE FAKTUPPARB.FAKTNR = FAKTPLAN.FAKTNR AND
+   FAKTUPPARB.AONR = aonrvar AND FAKTUPPARB.DELNR = delnrvar AND
+   FAKTUPPARB.FAKTURERAD = FALSE AND FAKTUPPARB.KRITERIUM NE "SLUT" 
+   NO-LOCK NO-ERROR.
+   IF nyttbeloppvar = 0 THEN RETURN.
+   IF NOT AVAILABLE FAKTUPPARB THEN DO TRANSACTION:
+      CREATE FAKTUPPARB.
+      ASSIGN
+      FAKTUPPARB.FAKTURERAD = FALSE            
+      FAKTUPPARB.FULL = FALSE
+      FAKTUPPARB.FAKTNR = FAKTPLAN.FAKTNR
+      FAKTUPPARB.AONR = aonrvar  
+      FAKTUPPARB.DELNR = delnrvar.               
+   END.                        
+   DO TRANSACTION:      
+      FIND CURRENT FAKTUPPARB EXCLUSIVE-LOCK.
+      ASSIGN
+      FAKTUPPARB.UPPBELOPP = totaltupparbbeloppvar
+      FAKTUPPARB.FAKTBELOPP = FAKTUPPARB.FAKTBELOPP + nyttbeloppvar.
+      IF totaltupparbbeloppvar >= takbelopp THEN DO:
+         FAKTUPPARB.FAKTBELOPP = takbelopp - tidfaktbelopp.
+      END.      
+      IF FAKTAONR.OPRIS > 0 THEN DO:
+         ASSIGN
+         FAKTUPPARB.FAKT% = (FAKTUPPARB.FAKTBELOPP / FAKTAONR.OPRIS) * 100
+         FAKTUPPARB.UPLAN% = (FAKTUPPARB.FAKTBELOPP / FAKTAONR.OPRIS) * 100
+         FAKTUPPARB.UPPARB% = (FAKTUPPARB.UPPBELOPP / FAKTAONR.OPRIS) * 100.
+      END.
+      RUN medd_UI (INPUT FAKTPLAN.ANVANDARE).
+   END.            
+END PROCEDURE.
+PROCEDURE medd_UI :
+   DEFINE INPUT PARAMETER medpers LIKE MEDDELANDE.MOTTAGARE NO-UNDO.
+   DEFINE VARIABLE str AS CHARACTER NO-UNDO.
+   FIND FIRST MEDDELANDE WHERE MEDDELANDE.SANDARE = "FAKT.ADM.TAK" AND 
+   MEDDELANDE.MOTTAGARE = medpers AND LENGTH(MEDDELANDE.MEDD,"CHARACTER") < 30000
+   EXCLUSIVE-LOCK NO-ERROR.   
+   IF NOT AVAILABLE MEDDELANDE THEN DO:
+      ASSIGN            
+      SUBSTRING(str,1,11) = "FAKTURAPLAN"
+      SUBSTRING(str,13,10) = CAPS(Guru.Konstanter:gaok).      
+      CREATE MEDDELANDE.
+      ASSIGN               
+      MEDDELANDE.SANDARE = "FAKT.ADM.TAK"
+      MEDDELANDE.EMOTAGET = FALSE
+      MEDDELANDE.MOTTAGARE = medpers
+      MEDDELANDE.SDATUM = TODAY.
+      MEDDELANDE.MEDD = "FAKTURERA TAKPRIS MOT UPPARBETADKOSTNAD" + CHR(10) +
+      str + CHR(10).        
+   END.     
+   str = "".    
+   ASSIGN                             
+   SUBSTRING(str,1,11) = STRING(FAKTUPPARB.FAKTNR) 
+   SUBSTRING(str,13,10) = FAKTUPPARB.AONR + " " + STRING(FAKTUPPARB.DELNR,Guru.Konstanter:varforetypchar[1]).
+   ASSIGN
+   MEDDELANDE.MED = MEDDELANDE.MED + str + CHR(10).     
+END PROCEDURE.
+
+   
+

@@ -1,0 +1,3 @@
+DEFINE NEW SHARED VARIABLE Boston AS CHARACTER INITIAL "Arrived Safely!".
+
+RUN lt-06-02.p.

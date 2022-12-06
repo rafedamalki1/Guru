@@ -1,0 +1,181 @@
+/*
+               KSV Editor
+    Copyright: (C) 2000-2001 Serguey Klimoff (bulkl0DD)
+     Filename: G:\PRO9S\WX\XSKJSKLUP.P
+      Comment: <comment>
+   Parameters:
+         Uses:
+      Used by:
+      Created: 2009.11.04 09:22 ELPAO   
+     Modified: 2009.11.04 10:56 ELPAO    
+     Modified: 2010.01.11 17:48 ELPAO    
+     Modified: 2011.02.01 14:19 ELPAO    
+     Modified: 
+*/
+/*MKATEXELIN.P Inläsning materielkatalog från excel*/
+   
+DEFINE TEMP-TABLE kaltmp
+   FIELD ARBKOD AS CHARACTER 
+   FIELD LOPNR AS INTEGER
+   FIELD BANTAL AS DECIMAL
+   FIELD MOANTAL AS DECIMAL
+   FIELD MAANTAL AS DECIMAL
+   FIELD TOTSUM AS INTEGER
+   FIELD BEN AS CHARACTER
+   FIELD KOMM AS CHARACTER
+   FIELD ENHET AS CHARACTER.
+
+
+
+/*DEFINE VARIABLE plusaonr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE varforetypchar AS CHARACTER EXTENT 20 NO-UNDO.
+DEFINE VARIABLE plusdnr AS INTEGER NO-UNDO.*/
+DEFINE VARIABLE utskriv AS LOGICAL NO-UNDO.
+DEFINE VARIABLE klangd AS INTEGER NO-UNDO.
+/*
+/*/*{EGENBEN.I}*/*/
+{GLOBVAR2DEL1.I}
+{EXECLIN2.I}*/
+
+
+DEFINE NEW GLOBAL SHARED VARIABLE hpApi AS HANDLE NO-UNDO.
+DEFINE NEW GLOBAL SHARED VARIABLE hpWinFunc AS HANDLE NO-UNDO.
+DEFINE NEW GLOBAL SHARED VARIABLE retvalkoll AS LOGICAL NO-UNDO.
+
+
+ 
+{windows.i}
+DEFINE NEW SHARED TEMP-TABLE tidut
+   FIELD UT AS CHARACTER FORMAT "X(132)".
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+   
+ 
+
+
+                              
+                              
+DEFINE NEW SHARED VARIABLE orgpropath AS CHARACTER NO-UNDO.
+DEFINE VARIABLE ovkoll AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kvar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE kalkylar AS INTEGER NO-UNDO.
+{PROVAG.I}
+ 
+{EXECLIN2.I}
+
+
+DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.
+
+
+
+EMPTY TEMP-TABLE kaltmp NO-ERROR. 
+kalkylar = 2011.
+filnamn = "\\server04\d\elpool\elpnj\kalk\eon\SKl2011.xls.".
+
+/*filnamn = "\\server04\d\elpool\elpnj\kalk\eon\SKJ2011.xls.".*/
+RUN startin_UI.
+/*FOR EACH kaltmp WHERE NO-LOCK:
+   DISP kaltmp.ARBKOD LOPNR BEN FORMAT "X(20)" KOMM FORMAT "X(20)". 
+END.*/
+PROCEDURE startin_UI:
+   ASSIGN
+   startc = "A"
+   slutc = "H"
+   iRad = 0. 
+   RUN readexcelstart_UI (INPUT filnamn).   
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.   
+
+      IF allacolumtext[1] NE "" THEN DO:               
+         allacolumtext[2] = REPLACE(allacolumtext[2],",",".").   
+         allacolumtext[3] = REPLACE(allacolumtext[3],",",".").   
+         allacolumtext[4] = REPLACE(allacolumtext[4],",",".").   
+         CREATE kaltmp.
+         klangd = LENGTH(allacolumtext[1]).
+         ASSIGN kaltmp.ARBKOD = SUBSTRING(allacolumtext[1],1,(klangd - 2))
+         kaltmp.LOPNR = INTEGER(SUBSTRING(allacolumtext[1],(klangd - 1),2)) NO-ERROR.
+         kaltmp.BANTAL = DECIMAL(allacolumtext[2]) NO-ERROR.
+         kaltmp.MOANTAL = DECIMAL(allacolumtext[3]) NO-ERROR.
+         kaltmp.MAANTAL = DECIMAL(allacolumtext[4]) NO-ERROR.
+         kaltmp.TOTSUM = INTEGER(allacolumtext[5]) NO-ERROR.
+         kaltmp.BEN = allacolumtext[6] NO-ERROR.
+         kaltmp.KOM = allacolumtext[7] NO-ERROR.
+         kaltmp.ENHET = allacolumtext[8] NO-ERROR.
+      END.
+
+      
+      
+   END.
+   RUN slutreadexcel_UI.     
+END PROCEDURE.
+
+FIND FIRST KALKBEF WHERE KALKNR = 0 AND KATAR = kalkylar NO-LOCK NO-ERROR.
+FIND FIRST EBRPRIS WHERE EBRPRIS.ARTAL = kalkylar NO-LOCK NO-ERROR.
+FOR EACH kaltmp WHERE NO-LOCK:
+   FIND FIRST lop2 WHERE lop2.arbkod = kaltmp.arbkod AND lop2.lopnr = kaltmp.lopnr AND lop2.KATAR = kalkylar EXCLUSIVE-LOCK NO-ERROR.
+   IF NOT AVAILABLE lop2 THEN DO:
+      CREATE LOP2.
+      ASSIGN LOP2.ARBKOD = kaltmp.arbkoD lop2.lopnr = kaltmp.lopnr LOP2.KATAR = kalkylar.
+   END.
+   ovkoll = FALSE.
+   IF lop2.ovrigt NE 0 AND lop2.materiel = 0 THEN ovkoll = TRUE.
+   
+   ASSIGN
+   LOP2.ENHET = kaltmp.ENHET
+   LOP2.BENAMNING = ""
+   SUBSTRING(LOP2.BENAMNING,1,60) = kaltmp.ARBKOD + STRING(kaltmp.LOPNR) + " " +  kaltmp.BEN
+   SUBSTRING(LOP2.BENAMNING,60) = kaltmp.KOMM
+   LOP2.F1 = kaltmp.BANTAL
+   LOP2.F2 = kaltmp.MOANTAL.
+   IF LOP2.F3 = 0 AND LOP2.F4 = 0 THEN LOP2.F4 = kaltmp.MAANTAL.
+   ELSE IF LOP2.F4 NE 0 THEN LOP2.F4 = kaltmp.MAANTAL.
+   ELSE IF LOP2.F3 NE 0 THEN LOP2.F3 = kaltmp.MAANTAL.
+   LOP2.MASKINKOST = EBRPRIS.mask1  * LOP2.F3 +  EBRPRIS.mask2 * LOP2.F4.
+   lop2.ea = lop2.f2 + ((lop2.f3 * ebrpris.MASK1) / ebrpris.RORLIG) + ((lop2.f4 * ebrpris.MASK2) / ebrpris.RORLIG).
+   LOP2.ARBETE = (lop2.f1 + lop2.f2) * EBRPRIS.MONT.
+   ASSIGN
+   LOP2.UTRUSTKOST = 0
+   LOP2.OVRIGT = 0
+   LOP2.MATERIEL = 0.
+   kvar = kaltmp.TOTSUM - LOP2.ARBETE - LOP2.MASKINKOST.
+   IF kvar > 0 AND ovkoll = FALSE THEN DO:
+      LOP2.MATERIEL = kvar.
+      lop2.fast = TRUE.
+   END.
+   ELSE IF kvar > 0 AND ovkoll = TRUE THEN DO:
+      LOP2.OVRIGT = kvar.
+      lop2.fast = TRUE.
+   END.
+   ELSE IF kvar < 0 THEN DO:
+      LOP2.UTRUSTKOST = kvar.      
+      lop2.fast = TRUE.
+   END.
+
+   
+
+   
+END.
+
+/*DEFINE VARIABLE ARBVAR AS DECIMAL NO-UNDO.
+FIND FIRST KALKBEF WHERE KALKNR = 0 AND KATAR = kalkylar NO-LOCK NO-ERROR.
+FIND FIRST EBRPRIS WHERE EBRPRIS.ARTAL = kalkylar NO-LOCK NO-ERROR.
+FOR EACH lop2  WHERE lop2.katar = kalkylar AND lop2.arbkod = "skJ" :
+   FIND FIRST kaltmp WHERE kaltmp.arbkod = lop2.arbkod AND kaltmp.lopnr = lop2.lopnr   NO-LOCK NO-ERROR.
+   IF AVAILABLE kaltmp  THEN DO:
+   END.
+   ELSE DO:
+      DISP LOP2.
+   END.
+   /*ARBVAR = (LOP2.F1 + LOP2.F2) * EBRPRIS.MONT.
+   /*DISP LOP2.ARBKOD LOP2.LOPNR LOP2.ARBETE   ARBVAR.*/
+   LOP2.ARBETE = ARBVAR.*/
+END.*/
+
+/*FOR EACH lop2  WHERE katar = kalkylar AND arbkod = "skL" :
+   ARBVAR = (LOP2.F1 + LOP2.F2) * EBRPRIS.MONT.
+   /*DISP LOP2.ARBKOD LOP2.LOPNR LOP2.ARBETE   ARBVAR.*/
+   LOP2.ARBETE = ARBVAR.
+END.*/
+  

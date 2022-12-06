@@ -1,0 +1,400 @@
+/*NIVPERAPP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{SEKXGURUTEMP.I}
+{TIDUTTT.I}  
+
+PROCEDURE RepAvMeny_UI :
+   FOR EACH XLABEL WHERE XLABEL.MENYVART = "BERE" AND XLABEL.ORDNING = 12 EXCLUSIVE-LOCK:
+      XLABEL.MENY = "Används inte!".
+   END.
+   FOR EACH XGURU WHERE XGURU.MENYVART = "BERE" AND XGURU.ORDNING = 12 EXCLUSIVE-LOCK:
+      XGURU.MENY = "Används inte!".
+   END.
+END PROCEDURE.
+
+PROCEDURE sekmeny_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR xgurutemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR seksel.
+   EMPTY TEMP-TABLE seksel NO-ERROR.
+   EMPTY TEMP-TABLE xgurutemp NO-ERROR.  
+   RUN RepAvMeny_UI.
+   FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.   
+   FIND FIRST XFOREORDNING WHERE XFOREORDNING.FORETAG = FORETAG.FORETAG NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE XFOREORDNING THEN RETURN.
+   OPEN QUERY xlabelq FOR EACH XLABEL WHERE  XLABEL.MENYVART = "" AND 
+   XLABEL.FORETAG[XFOREORDNING.ORDNING] = FORETAG.FORETAG NO-LOCK.
+   GET FIRST xlabelq NO-LOCK.
+   DO WHILE AVAILABLE(XLABEL):
+      CREATE seksel.
+      ASSIGN 
+      seksel.MENYVART = XLABEL.MENYVART
+      seksel.MENY = XLABEL.MENY.       
+      GET NEXT xlabelq NO-LOCK.
+   END.
+   OPEN QUERY xq FOR EACH XLABEL WHERE   
+   XLABEL.FORETAG[XFOREORDNING.ORDNING] = FORETAG.FORETAG USE-INDEX MENYVART NO-LOCK,EACH XGURU WHERE 
+   XGURU.MENY = XLABEL.MENY AND XGURU.MENYVART = XLABEL.MENYVART AND XGURU.AV-LEVEL NE 0 
+   NO-LOCK.
+   GET FIRST xq NO-LOCK.
+   DO WHILE AVAILABLE(XGURU):
+      CREATE xgurutemp.
+      BUFFER-COPY XGURU TO xgurutemp.
+      GET NEXT xq NO-LOCK.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE andra_UI:
+   DEFINE INPUT PARAMETER avlevelvar  AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER menyvartvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER ordningvar  AS INTEGER NO-UNDO.
+   DEFINE VARIABLE xstor LIKE XGURU.STORKOPPLING NO-UNDO.
+   DEFINE VARIABLE xliten LIKE XGURU.KOPPLING NO-UNDO.   
+   DEFINE VARIABLE xmenyok LIKE XGURU.MENYOK NO-UNDO.
+   
+   DO TRANSACTION:
+      FIND FIRST XGURU WHERE XGURU.AV-LEVEL = avlevelvar AND
+      XGURU.MENYVART = menyvartvar AND XGURU.ORDNING = ordningvar
+      EXCLUSIVE-LOCK NO-ERROR.
+
+      IF XGURU.MENYOK = FALSE THEN ASSIGN XGURU.MENYOK = TRUE.
+      ELSE IF XGURU.MENYOK = TRUE THEN ASSIGN XGURU.MENYOK = FALSE.
+      FIND FIRST XSEK WHERE XSEK.MENYVART = XGURU.MENYVART AND XSEK.AV-LEVEL = XGURU.AV-LEVEL
+      USE-INDEX XSEK EXCLUSIVE-LOCK NO-ERROR.
+      ASSIGN 
+      XSEK.SEK[XGURU.ORDNING] = XGURU.MENYOK
+      xstor = XGURU.STORKOPPLING
+      xliten = XGURU.KOPPLING   
+      xmenyok = XGURU.MENYOK.
+   END.         
+   
+   /*ÄNDRAR ALLA SOM HAR STOR KOPPLING*/
+   IF XGURU.MENYVART = "GURU" AND XGURU.MENYOK = FALSE THEN DO:                
+      OPEN QUERY xguruq FOR EACH XGURU WHERE XGURU.STORKOPPLING = xstor AND 
+      XGURU.AV-LEVEL = avlevelvar
+      USE-INDEX STORKOPPLING NO-LOCK.          
+      DO TRANSACTION:
+         GET FIRST xguruq EXCLUSIVE-LOCK.
+         DO WHILE AVAILABLE(XGURU):
+            ASSIGN XGURU.MENYOK = FALSE.
+            FIND FIRST XSEK WHERE XSEK.MENYVART = XGURU.MENYVART AND XSEK.AV-LEVEL = XGURU.AV-LEVEL
+            USE-INDEX XSEK EXCLUSIVE-LOCK NO-ERROR.            
+            ASSIGN XSEK.SEK[XGURU.ORDNING] = XGURU.MENYOK. 
+            GET NEXT xguruq EXCLUSIVE-LOCK.                            
+         END.   
+      END.
+   END.     
+   FIND FIRST XGURU WHERE XGURU.AV-LEVEL = avlevelvar AND
+   XGURU.MENYVART = menyvartvar AND XGURU.ORDNING = ordningvar
+    NO-LOCK NO-ERROR.
+   /*FÖRHINDRAR ATT SISTA UNDERMENY ÄNDRA PÅ HÖGRE NIVÅER
+   EX NEJ PÅ ÄNDRA BEREDSKAP SKALL EJ SLÄCK ÄNDRING OCH TILLÄGG MEN SLÄCK ÄNDRING OCH TILLÄGG
+   SKALL ÄNDRA PÅ ÄNDRA BEREDSKAP*/
+   IF XGURU.MENYVART = "TADM" THEN DO:
+      xmenyok = xmenyok.
+   END.
+   ELSE IF XGURU.MENYVART = "TIDA" THEN DO: 
+      xmenyok = xmenyok.
+   END.    
+   ELSE IF XGURU.MENYVART = "BULA" THEN DO: 
+      xmenyok = xmenyok.
+   END.
+   ELSE IF XGURU.MENYVART = "BERE" THEN DO: 
+      xmenyok = xmenyok.
+   END.         
+   ELSE DO:
+      /*ÄNDRAR PÅ ALLA SOM HAR LITEN KOPPLING*/      
+      IF xliten NE 0 THEN DO:
+         OPEN QUERY xguruq FOR EACH XGURU WHERE XGURU.KOPPLING = xliten AND 
+         XGURU.AV-LEVEL = avlevelvar 
+         USE-INDEX KOPPLING NO-LOCK.
+         DO TRANSACTION:
+            GET FIRST xguruq EXCLUSIVE-LOCK.
+            DO WHILE AVAILABLE(XGURU):
+               ASSIGN XGURU.MENYOK = xmenyok.
+               FIND FIRST XSEK WHERE XSEK.MENYVART = XGURU.MENYVART AND 
+               XSEK.AV-LEVEL = XGURU.AV-LEVEL
+               USE-INDEX XSEK EXCLUSIVE-LOCK NO-ERROR.
+               ASSIGN XSEK.SEK[XGURU.ORDNING] = XGURU.MENYOK.
+               GET NEXT xguruq EXCLUSIVE-LOCK.                           
+            END.
+         END.
+      END.                
+   END.   
+   RELEASE XSEK NO-ERROR.
+   RELEASE XGURU NO-ERROR.
+   
+END PROCEDURE.
+
+PROCEDURE bort_UI:
+   DEFINE OUTPUT PARAMETER felvar AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN_AV-LEVEL LIKE ANVANDARE.AV-LEVEL NO-UNDO.
+   FIND FIRST ANVANDARE WHERE ANVANDARE.AV-LEVEL = FILL-IN_AV-LEVEL
+   USE-INDEX ANDV NO-LOCK NO-ERROR.
+   IF AVAILABLE ANVANDARE THEN DO:
+      felvar = TRUE.
+      RETURN.      
+   END.   
+   OPEN QUERY xtempq FOR EACH xgurutemp WHERE xgurutemp.AV-LEVEL = FILL-IN_AV-LEVEL NO-LOCK.
+   DO TRANSACTION:      
+      GET FIRST xtempq NO-LOCK.
+      DO WHILE AVAILABLE(xgurutemp):
+         DELETE xgurutemp.
+         GET NEXT xtempq NO-LOCK.
+      END.      
+   END.
+   OPEN QUERY xsekq FOR EACH XSEK WHERE XSEK.AV-LEVEL = FILL-IN_AV-LEVEL 
+   USE-INDEX XSEK NO-LOCK.
+   DO TRANSACTION:      
+      GET FIRST xsekq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(XSEK):
+         DELETE XSEK.
+         GET NEXT xsekq EXCLUSIVE-LOCK.
+      END.      
+   END.                      
+   OPEN QUERY xguruq FOR EACH XGURU WHERE XGURU.AV-LEVEL = FILL-IN_AV-LEVEL 
+   USE-INDEX AV-LEVEL NO-LOCK.
+   DO TRANSACTION:      
+      GET FIRST xguruq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(XGURU):
+         DELETE XGURU.
+         GET NEXT xguruq EXCLUSIVE-LOCK.
+      END.      
+   END.
+END PROCEDURE.
+
+PROCEDURE nivcheck_UI:
+   DEFINE INPUT PARAMETER FILL-IN_AV-LEVEL-FRAN AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN_AV-LEVEL-NY AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER .
+   felmedd = "".
+   FIND FIRST XGURU WHERE XGURU.AV-LEVEL = FILL-IN_AV-LEVEL-NY 
+   USE-INDEX AV-LEVEL NO-LOCK NO-ERROR.
+   IF AVAILABLE XGURU THEN DO:
+      felmedd = "Det finns redan en nivå med detta nummer.".
+   END.
+   ELSE DO:
+      FIND FIRST XGURU WHERE XGURU.AV-LEVEL = FILL-IN_AV-LEVEL-FRAN
+      USE-INDEX AV-LEVEL NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE XGURU THEN DO:
+         felmedd = "Det finns ingen nivå med nummer " + STRING(FILL-IN_AV-LEVEL-FRAN) + "." + CHR(10) +
+            "Välj ~"Från nivå~" = 0 om du vill skapa en ny nivå.".      
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE ny_UI:
+   DEFINE INPUT PARAMETER FILL-IN_AV-LEVEL-FRAN AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN_AV-LEVEL-NY AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR xgurutemp.
+   DEFINE VARIABLE xhop2 LIKE XGURU.MENYVART NO-UNDO.
+   DEFINE BUFFER menyguru FOR XGURU.
+
+
+   FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.   
+   FIND FIRST XFOREORDNING WHERE XFOREORDNING.FORETAG = FORETAG.FORETAG NO-LOCK NO-ERROR.
+   FOR EACH menyguru WHERE menyguru.AV-LEVEL = FILL-IN_AV-LEVEL-FRAN
+   USE-INDEX AV-LEVEL NO-LOCK.
+      CREATE XGURU.
+      ASSIGN XGURU.AV-LEVEL = FILL-IN_AV-LEVEL-NY
+      XGURU.KOPPLING = menyguru.KOPPLING
+      XGURU.MEDOK = menyguru.MEDOK
+      XGURU.MENY = menyguru.MENY
+      XGURU.MENYOK = menyguru.MENYOK
+      XGURU.MENYVART = menyguru.MENYVART
+      XGURU.ORDNING = menyguru.ORDNING
+      XGURU.STORKOPPLING = menyguru.STORKOPPLING.
+      CREATE xgurutemp.
+      BUFFER-COPY XGURU TO xgurutemp.
+   END.
+
+   /*Använd denna kod....*/
+   xhop2 = "".
+   OPEN QUERY xlabelq FOR EACH XLABEL WHERE XLABEL.FORETAG[XFOREORDNING.ORDNING] = FORETAG.FORETAG
+      NO-LOCK BY MENYVART.
+   GET FIRST xlabelq NO-LOCK.
+   REPEAT:
+      REPEAT:
+         IF NOT AVAILABLE XLABEL THEN LEAVE.
+         ELSE IF XLABEL.MENYVART = xhop2 THEN GET NEXT xlabelq NO-LOCK.
+         ELSE DO:
+            xhop2 = XLABEL.MENYVART.
+            LEAVE.
+         END.
+      END.
+      IF NOT AVAILABLE XLABEL THEN LEAVE.
+      OPEN QUERY xguruq FOR EACH XGURU WHERE XGURU.MENYVART = xhop2 AND
+         XGURU.AV-LEVEL = FILL-IN_AV-LEVEL-NY USE-INDEX ORDNING NO-LOCK.
+      DO TRANSACTION:
+         GET FIRST xguruq NO-LOCK.
+         CREATE XSEK.
+         DO WHILE AVAILABLE(XGURU):
+            ASSIGN XSEK.MENYVART = XGURU.MENYVART
+            XSEK.AV-LEVEL = XGURU.AV-LEVEL
+            XSEK.SEK[XGURU.ORDNING] = XGURU.MENYOK.
+            GET NEXT xguruq NO-LOCK.
+         END.
+      END.
+      GET NEXT xlabelq NO-LOCK.
+   END.
+
+                           /*Använd INTE denna kod....*/
+/*    xhop2 = "".                                                                                              */
+/*    OPEN QUERY xlabelq FOR EACH XLABEL WHERE XLABEL.FORETAG[XFOREORDNING.ORDNING] = FORETAG.FORETAG NO-LOCK. */
+/*    GET FIRST xlabelq NO-LOCK.                                                                               */
+/*    NYAMENY:                                                                                                 */
+/*    REPEAT:                                                                                                  */
+/*       IF NOT AVAILABLE XLABEL THEN LEAVE.                                                                   */
+/*       NASTA:                                                                                                */
+/*       REPEAT:                                                                                               */
+/*          IF NOT AVAILABLE XLABEL THEN LEAVE.                                                                */
+/*          ELSE IF XLABEL.MENYVART = xhop2 THEN GET NEXT xlabelq NO-LOCK.                                     */
+/*          ELSE DO:                                                                                           */
+/*             xhop2 = XLABEL.MENYVART.                                                                        */
+/*             LEAVE.                                                                                          */
+/*          END.                                                                                               */
+/*       END.                                                                                                  */
+/*       OPEN QUERY xguruq FOR EACH XGURU WHERE XGURU.MENYVART = xhop2 AND                                     */
+/*          XGURU.AV-LEVEL = FILL-IN_AV-LEVEL-NY USE-INDEX ORDNING NO-LOCK.                                    */
+/*       DO TRANSACTION:                                                                                       */
+/*          GET FIRST xguruq NO-LOCK.                                                                          */
+/*          CREATE XSEK.                                                                                       */
+/*          DO WHILE AVAILABLE(XGURU):                                                                         */
+/*             ASSIGN XSEK.MENYVART = XGURU.MENYVART                                                           */
+/*             XSEK.AV-LEVEL = XGURU.AV-LEVEL                                                                  */
+/*             XSEK.SEK[XGURU.ORDNING] = XGURU.MENYOK.                                                         */
+/*             GET NEXT xguruq NO-LOCK.                                                                        */
+/*          END.                                                                                               */
+/*       END.                                                                                                  */
+/*       GET NEXT xlabelq NO-LOCK.                                                                             */
+/*    END.                                                                                                     */
+/*    IF AVAILABLE XGURU THEN RELEASE XGURU.                                                                   */
+/*    IF AVAILABLE XSEK THEN RELEASE XSEK.                                                                     */
+END PROCEDURE.
+
+PROCEDURE utskriv_UI:
+   DEFINE INPUT PARAMETER xhop AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER SEL_MENY AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER helaut AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   DEFINE BUFFER huvubuff FOR XLABEL.
+   DEFINE BUFFER menyutbuff FOR XGURU.
+   DEFINE VARIABLE menyut LIKE Xlabel.MENY NO-UNDO.
+   EMPTY TEMP-TABLE tidut NO-ERROR.    
+   CREATE tidut.
+   ASSIGN SUBSTRING(tidut.ut,40,8) = STRING(TODAY,"99/99/99").  
+   FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.   
+   FIND FIRST XFOREORDNING WHERE XFOREORDNING.FORETAG = FORETAG.FORETAG NO-LOCK NO-ERROR.
+   IF helaut = FALSE THEN DO:
+      OPEN QUERY xlgq FOR EACH XLABEL WHERE XLABEL.MENYVART = xhop AND 
+      XLABEL.FORETAG[XFOREORDNING.ORDNING] = FORETAG.FORETAG USE-INDEX MENYVART NO-LOCK,EACH XGURU WHERE 
+      XGURU.MENY = XLABEL.MENY AND XGURU.MENYVART = xhop AND XGURU.AV-LEVEL NE 0 
+      NO-LOCK BY XGURU.MENYVART BY XGURU.AV-LEVEL BY XGURU.ORDNING.
+      CREATE tidut.
+      ASSIGN SUBSTRING(tidut.ut,4) = "SEKRETESS FÖR " + SEL_MENY.  
+      CREATE tidut.
+      CREATE tidut.                   
+      ASSIGN SUBSTRING(tidut.ut,1) = "BEHÖR.NIVÅ"
+      SUBSTRING(tidut.ut,12) = "MENY"
+      SUBSTRING(tidut.ut,38) = "BEHÖRIG".
+      CREATE tidut.                      
+      ASSIGN tidut.ut = "==========.=========================.=======".
+      GET FIRST xlgq NO-LOCK.
+      DO WHILE AVAILABLE(XGURU):
+         CREATE tidut.
+         ASSIGN SUBSTRING(tidut.ut,1) = STRING(XGURU.AV-LEVEL,">>>>>>>>>9")
+         SUBSTRING(tidut.ut,12) = XGURU.MENY
+         SUBSTRING(tidut.ut,38) = STRING(XGURU.MENYOK,"JA/NEJ").
+         GET NEXT xlgq NO-LOCK.
+      END.
+   END.
+   ELSE DO:      
+      menyut = "X".
+      CREATE tidut.
+      ASSIGN SUBSTRING(tidut.ut,4) = "SEKRETESS FÖR ALLA MENYER".
+      CREATE tidut.
+      CREATE tidut.
+      ASSIGN 
+      SUBSTRING(tidut.ut,1) = "MENY"
+      SUBSTRING(tidut.ut,27) = "BEHÖR.NIVÅ"
+      SUBSTRING(tidut.ut,38) = "UNDER-MENY"
+      SUBSTRING(tidut.ut,64) = "BEHÖRIG".
+      CREATE tidut.                      
+      ASSIGN tidut.ut =       
+
+      "=========================.==========.=========================.=======".      
+      FOR EACH XLABEL WHERE XLABEL.FORETAG[XFOREORDNING.ORDNING] = FORETAG.FORETAG AND XLABEL.MENYVART = "" NO-LOCK: 
+         xhop = menyhopp(XLABEL.MENY).   
+         OPEN QUERY xlxgq FOR EACH huvubuff WHERE huvubuff.FORETAG[XFOREORDNING.ORDNING] = FORETAG.FORETAG AND
+         huvubuff.MENYVART = xhop USE-INDEX MENYVART NO-LOCK,
+         EACH menyutbuff WHERE 
+         menyutbuff.MENY = huvubuff.MENY AND 
+         menyutbuff.MENYVART = huvubuff.MENYVART AND
+         menyutbuff.AV-LEVEL NE 0 
+         NO-LOCK BY menyutbuff.MENYVART BY menyutbuff.AV-LEVEL BY menyutbuff.ORDNING.    
+         GET FIRST xlxgq NO-LOCK.
+         DO WHILE AVAILABLE(menyutbuff):
+            CREATE tidut.
+            IF menyut NE huvubuff.MENYVART THEN DO:           
+               ASSIGN SUBSTRING(tidut.ut,1) = XLABEL.MENY.
+               menyut = huvubuff.MENYVART.
+            END.
+            ASSIGN SUBSTRING(tidut.ut,27) = STRING(menyutbuff.AV-LEVEL,">>>>>>>>>9")
+            SUBSTRING(tidut.ut,38) = menyutbuff.MENY
+            SUBSTRING(tidut.ut,64) = STRING(menyutbuff.MENYOK,"JA/NEJ").      
+            GET NEXT xlxgq NO-LOCK.
+         END.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE utvisa_UI:
+   DEFINE INPUT PARAMETER nivvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   DEFINE VARIABLE xhop AS CHARACTER NO-UNDO.
+   DEFINE BUFFER huvubuff FOR XLABEL.
+   DEFINE BUFFER menyutbuff FOR XGURU.
+   DEFINE VARIABLE menyut LIKE Xlabel.MENY NO-UNDO.
+   EMPTY TEMP-TABLE tidut NO-ERROR. 
+   
+   CREATE tidut.
+   ASSIGN SUBSTRING(tidut.ut,40,8) = STRING(TODAY,"99/99/99").  
+   
+   menyut = "X".
+   CREATE tidut.
+   ASSIGN SUBSTRING(tidut.ut,4) = "SEKRETESS FÖR NIVÅ " + STRING(nivvar).
+   CREATE tidut.
+   CREATE tidut.
+   ASSIGN 
+   SUBSTRING(tidut.ut,1) = "MENY"
+   SUBSTRING(tidut.ut,27) = "UNDER-MENY"
+   SUBSTRING(tidut.ut,53) = "BEHÖRIG".
+   CREATE tidut.                      
+   ASSIGN tidut.ut =       
+                              
+   "=========================.=========================.=======".      
+   FOR EACH XLABEL WHERE XLABEL.MENYVART = "" NO-LOCK: 
+      xhop = menyhopp(XLABEL.MENY).   
+      OPEN QUERY xlxgq FOR EACH huvubuff WHERE huvubuff.MENYVART = xhop USE-INDEX MENYVART NO-LOCK,
+      EACH menyutbuff WHERE 
+      menyutbuff.MENY = huvubuff.MENY AND 
+      menyutbuff.MENYVART = huvubuff.MENYVART AND
+      menyutbuff.AV-LEVEL = nivvar  
+      NO-LOCK BY menyutbuff.MENYVART BY menyutbuff.AV-LEVEL BY menyutbuff.ORDNING.    
+      GET FIRST xlxgq NO-LOCK.
+      DO WHILE AVAILABLE(menyutbuff):
+         CREATE tidut.
+         IF menyut NE huvubuff.MENYVART THEN DO:           
+            ASSIGN SUBSTRING(tidut.ut,1) = XLABEL.MENY.
+            menyut = huvubuff.MENYVART.
+         END.
+         ASSIGN 
+         SUBSTRING(tidut.ut,27) = menyutbuff.MENY
+         SUBSTRING(tidut.ut,53) = STRING(menyutbuff.MENYOK,"JA/NEJ").      
+         GET NEXT xlxgq NO-LOCK.
+      END.
+   END.
+   
+END PROCEDURE.
+  

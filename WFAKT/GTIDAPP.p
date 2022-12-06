@@ -1,0 +1,60 @@
+/*GTIDAPP.P*/
+&Scoped-define NEW NEW
+{FAKTTEMP.I}
+DEFINE INPUT PARAMETER fnr LIKE FAKTPLAN.FAKTNR NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR sumtidtemp.   
+OPEN QUERY faktidq FOR EACH FAKTTID WHERE 
+FAKTTID.VFAKTNR = 0 AND FAKTTID.FAKTNR = fnr AND
+FAKTTID.SENASTFAK = ? NO-LOCK.
+GET FIRST faktidq NO-LOCK.
+DO WHILE AVAILABLE(FAKTTID):
+   FIND FIRST sumtidtemp WHERE 
+   sumtidtemp.PERSONALKOD = FAKTTID.PERSONALKOD AND 
+   sumtidtemp.AONR = FAKTTID.AONR AND 
+   sumtidtemp.DELNR = FAKTTID.DELNR AND
+   sumtidtemp.DATUM = FAKTTID.DATUM AND 
+   sumtidtemp.START = FAKTTID.START AND 
+   sumtidtemp.SLUT = FAKTTID.SLUT AND
+   sumtidtemp.GSTART = FAKTTID.GSTART AND 
+   sumtidtemp.GSLUT = FAKTTID.GSLUT AND sumtidtemp.VECKOKORD = TRIM(SUBSTRING(FAKTTID.VECKOKORD,1,29)) AND 
+   sumtidtemp.FELKORD = TRIM(SUBSTRING(FAKTTID.VECKOKORD,30))
+   NO-ERROR.
+   IF NOT AVAILABLE sumtidtemp THEN CREATE sumtidtemp.      
+   ASSIGN                                                  
+   sumtidtemp.PERSONALKOD = FAKTTID.PERSONALKOD
+   sumtidtemp.NAMN = FAKTTID.NAMN 
+   sumtidtemp.AONR = FAKTTID.AONR
+   sumtidtemp.DELNR = FAKTTID.DELNR
+   sumtidtemp.TIMMAR = FAKTTID.TIMMAR
+   sumtidtemp.BELOPP = FAKTTID.BELOPP        
+   sumtidtemp.OBELOPP = FAKTTID.OBELOPP 
+   sumtidtemp.TBELOPP = FAKTTID.TBELOPP             
+   sumtidtemp.OTIMMAR = FAKTTID.OTIMMAR 
+   sumtidtemp.LONKOST = FAKTTID.LONKOST                  
+   sumtidtemp.PERSMASK = FAKTTID.PERSMASK
+   sumtidtemp.BEFATTNING = FAKTTID.BEFATTNING      
+   sumtidtemp.PERSMASK = FAKTTID.PERSMASK
+   sumtidtemp.TRAKTKOD = FAKTTID.TRAKTKOD
+   sumtidtemp.TRAKTANTAL = FAKTTID.TRAKTANTAL  
+   sumtidtemp.LONTILLAGG = FAKTTID.LONTILLAGG      
+   sumtidtemp.LONTILLANTAL = FAKTTID.LONTILLANTAL 
+   sumtidtemp.PRISA = FAKTTID.PRISA 
+   sumtidtemp.ENDAGS = FAKTTID.ENDAGS       
+   sumtidtemp.MED = FAKTTID.MED      
+   sumtidtemp.PRISTYP = FAKTTID.PRISTYP
+   sumtidtemp.RESTIM = FAKTTID.DECRESTID
+   sumtidtemp.RESPRIS = FAKTTID.RESPRIS
+   sumtidtemp.OPRIS = FAKTTID.OPRIS
+   sumtidtemp.RESKOSTDEC = FAKTTID.RESKOSTDEC
+   sumtidtemp.OTEXTID = FAKTTID.OTEXTID
+   sumtidtemp.DATUM = FAKTTID.DATUM
+   sumtidtemp.START = FAKTTID.START 
+   sumtidtemp.SLUT = FAKTTID.SLUT
+   sumtidtemp.GSTART = FAKTTID.GSTART 
+   sumtidtemp.GSLUT = FAKTTID.GSLUT
+   sumtidtemp.LUNCH = FAKTTID.LUNCH
+   sumtidtemp.OANT1 = FAKTTID.OANT1.      
+   GET NEXT faktidq NO-LOCK.
+END.             
+CLOSE QUERY faktidq.
+

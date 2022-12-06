@@ -1,0 +1,177 @@
+/*
+               KSV Editor
+    Copyright: (C) 2000-2001 Serguey Klimoff (bulkl0DD)
+     Filename:    AnonymPkod.p 
+      Comment: <comment>
+   Parameters:
+         Uses:
+      Used by:
+         
+      Created: 2011.05.19 15:16 ELPAO   
+     Modified: 2011.05.19 18:14 ELPAO    
+     Modified: 
+Byter namn och pkod på vald person     
+ ÄR PERSONEN BORTTAGEN
+ SKA MAN TA BORT PÅ BEREDNINGAR MM
+FOR EACH PERSONALTAB  WHERE NO-LOCK:
+   RUN AnonymPkod.p (INPUT PERSONALTAB.PERSONALKOD, FALSE, FALSE).
+END.
+FOR EACH BORTPERS  WHERE NO-LOCK:
+   RUN AnonymPkod.p (INPUT BORTPERS.PERSONALKOD, TRUE, FALSE).
+END.   
+*/
+
+
+DEFINE TEMP-TABLE bytatb NO-UNDO
+   FIELD pg AS CHARACTER
+   FIELD PERSONALKOD AS CHARACTER.
+
+
+DEFINE INPUT PARAMETER GamVarde AS CHARACTER NO-UNDO.
+DEFINE INPUT  PARAMETER borta AS LOGICAL NO-UNDO.
+DEFINE INPUT  PARAMETER anvbermark AS LOGICAL NO-UNDO.   
+DEFINE VARIABLE gfalt AS CHARACTER NO-UNDO.
+DEFINE VARIABLE styrtab AS CHARACTER NO-UNDO.
+DEFINE VARIABLE Nyvarde AS CHARACTER NO-UNDO.   /*fält för nya värden*/
+DEFINE VARIABLE NyvardeI AS INTEGER NO-UNDO.
+DEFINE VARIABLE orgtabh AS HANDLE NO-UNDO.                                
+DEFINE VARIABLE gfalth AS HANDLE NO-UNDO.
+DEFINE TEMP-TABLE kollpers NO-UNDO
+FIELD PKOD AS INTEGER
+INDEX PKOD PKOD.
+
+FIND FIRST BORTPERS WHERE BORTPERS.PERSONALKOD = GamVarde AND BORTPERS.FORNAMN MATCHES "Namn*" NO-LOCK NO-ERROR.
+IF AVAILABLE BORTPERS THEN RETURN.
+FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = GamVarde AND PERSONALTAB.FORNAMN MATCHES "Namn*" NO-LOCK NO-ERROR.
+IF AVAILABLE PERSONALTAB THEN RETURN.      
+FOR EACH BORTPERS WHERE BORTPERS.FORNAMN MATCHES "Namn*" NO-LOCK:
+   CREATE kollpers.
+   kollpers.PKOD = INTEGER(SUBSTRING(BORTPERS.PERSONALKOD,2)).
+END.
+FOR EACH PERSONALTAB WHERE PERSONALTAB.FORNAMN MATCHES "Namn*" NO-LOCK:
+   IF GamVarde = PERSONALTAB.PERSONALKOD THEN RETURN.
+   CREATE kollpers.
+   kollpers.PKOD = INTEGER(SUBSTRING(PERSONALTAB.PERSONALKOD,2)).
+END.
+NyvardeI = 1.   
+FIND LAST kollpers WHERE NO-LOCK NO-ERROR.
+IF AVAILABLE kollpers THEN NyvardeI = kollpers.PKOD + 1. 
+ELSE NyvardeI = 1.
+REPEAT:
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = "A" + STRING(NyvardeI) NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE PERSONALTAB THEN DO:
+      FIND FIRST BORTPERS WHERE BORTPERS.PERSONALKOD = "A" + STRING(NyvardeI) NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BORTPERS THEN LEAVE.
+   END.
+   NyvardeI = NyvardeI + 1.
+END.
+
+IF borta = FALSE THEN DO: 
+   styrtab = "PERSONALTAB".
+   
+END.
+ELSE DO:
+   styrtab = "BORTPERS".
+END.     
+Nyvarde = "A" + STRING(NyvardeI).
+
+gfalt = "PERSONALKOD".  
+
+  
+
+
+
+
+CREATE BUFFER orgtabh FOR TABLE styrtab NO-ERROR.
+orgtabh:FIND-FIRST("WHERE PERSONALKOD = " + QUOTER(GamVarde),NO-LOCK) NO-ERROR.
+IF orgtabh:AVAILABLE THEN DO:
+      
+   gfalth = orgtabh:BUFFER-FIELD(gfalt).
+   RUN allmanbyt_UI.
+   
+   DO TRANSACTION:
+      orgtabh:FIND-CURRENT(EXCLUSIVE-LOCK) NO-ERROR.
+      gfalth:BUFFER-VALUE = Nyvarde. 
+      orgtabh:BUFFER-FIELD("FORNAMN"):BUFFER-VALUE =  "Namn" + STRING(NyvardeI).
+      orgtabh:BUFFER-FIELD("EFTERNAMN"):BUFFER-VALUE = "Efternamn" + STRING(NyvardeI).  
+      orgtabh:BUFFER-FIELD("PERSONNUMMER"):BUFFER-VALUE = "000000-0000".
+      orgtabh:BUFFER-FIELD("TELEFON"):BUFFER-VALUE = "".
+      orgtabh:BUFFER-FIELD("TELEFON2"):BUFFER-VALUE = "".
+      orgtabh:BUFFER-FIELD("MOBILTEL"):BUFFER-VALUE = "".
+      orgtabh:BUFFER-FIELD("PERSONSOK"):BUFFER-VALUE = "".
+      FIND FIRST ANVANDARE WHERE ANVANDARE.PERSONALKOD = Nyvarde EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE ANVANDARE THEN DO:
+         ANVANDARE.AV-NAMN = orgtabh:BUFFER-FIELD("FORNAMN"):BUFFER-VALUE + " " + orgtabh:BUFFER-FIELD("EFTERNAMN"):BUFFER-VALUE.
+      END.   
+      FIND FIRST GODKANNARTAB WHERE GODKANNARTAB.PERSONALKOD = Nyvarde EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE GODKANNARTAB THEN DO:
+         GODKANNARTAB.FORNAMN = orgtabh:BUFFER-FIELD("FORNAMN"):BUFFER-VALUE. 
+         GODKANNARTAB.EFTERNAMN = orgtabh:BUFFER-FIELD("EFTERNAMN"):BUFFER-VALUE.
+      END.  
+      FOR EACH PERSONALTAB  WHERE PERSONALTAB.TIDSGODK = GamVarde  EXCLUSIVE-LOCK:
+         PERSONALTAB.TIDSGODK = Nyvarde. 
+      END.   
+   END.
+   
+END.   
+PROCEDURE allmanbyt_UI :
+   FOR EACH _File:
+      IF SUBSTRING(_File._File-name,1,1) = "_" THEN.
+      ELSE DO:
+         MESSAGE _File._File-name gfalth:BUFFER-VALUE Nyvarde.
+         RUN spec_UI.
+         IF _File._File-name = styrtab THEN.
+         ELSE DO:
+            FIND FIRST _Field OF _File WHERE _Field._Field-name = gfalt NO-ERROR.  
+            IF AVAILABLE _Field THEN DO:
+               RUN byt_UI.
+            END.
+         END.
+      END.   
+      
+   END. 
+
+END PROCEDURE.
+
+PROCEDURE byt_UI :
+   DEFINE VARIABLE borgtabh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE borgtabqh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE bfalth AS HANDLE NO-UNDO.
+   DEFINE VARIABLE bstyrkommando AS CHARACTER NO-UNDO.
+   bstyrkommando = "FOR EACH " + _File._File-name + " WHERE " + _File-name + "." + gfalt + " = '" + gfalth:BUFFER-VALUE + "'".  
+   
+   CREATE BUFFER Borgtabh FOR TABLE _File._File-name NO-ERROR.
+   bfalth = borgtabh:BUFFER-FIELD(gfalt).
+
+   
+   CREATE QUERY borgtabqh.   
+
+   borgtabqh:SET-BUFFERS(borgtabh).
+   borgtabqh:QUERY-PREPARE(bstyrkommando).
+   borgtabqh:QUERY-OPEN.
+   borgtabqh:GET-FIRST(NO-LOCK).
+   DO WHILE borgtabqh:QUERY-OFF-END = FALSE TRANSACTION:  
+      borgtabqh:GET-CURRENT(EXCLUSIVE-LOCK).
+      bfalth:BUFFER-VALUE = Nyvarde.  
+      borgtabqh:GET-NEXT(NO-LOCK).
+   END.
+
+   
+END PROCEDURE.
+
+PROCEDURE spec_UI :
+   /*   "AOPROJ" = PROJEKTÖR I AONRTAB.STARTVNR gprojl  
+extradata
+_ARBANSVARIG
+BEREDARE
+uppaonrtemp.STARTDAG =
+rensa i loggen eller gör anonym
+   
+   */
+   {PKODBYT.I}
+   IF anvbermark = TRUE  THEN DO:
+      
+   END.   
+   
+END PROCEDURE.
+

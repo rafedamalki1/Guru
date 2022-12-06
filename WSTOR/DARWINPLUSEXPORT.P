@@ -1,0 +1,332 @@
+/*DARWINPLUSEXPORT.P */
+{DarwinPlusExportImport.I}
+DEFINE INPUT  PARAMETER lokalt AS LOGICAL NO-UNDO.
+
+DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE fqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE dqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE kqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE lqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE sqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE smqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE kommandoquery2 AS CHARACTER NO-UNDO.
+DEFINE {&PUBLIC}  VARIABLE ForetagDBbuffh AS HANDLE NO-UNDO.
+DEFINE {&PUBLIC}  VARIABLE DistriktDBbuffh AS HANDLE NO-UNDO.
+DEFINE {&PUBLIC}  VARIABLE KundDataDBbuffh AS HANDLE NO-UNDO.
+DEFINE {&PUBLIC}  VARIABLE LedninggsDataDBbuffh AS HANDLE NO-UNDO.
+DEFINE {&PUBLIC}  VARIABLE StorningsDataDBbuffh AS HANDLE NO-UNDO.
+DEFINE {&PUBLIC}  VARIABLE StorFelMtrlDBbuffh AS HANDLE NO-UNDO.
+CREATE BUFFER ForetagDBbuffh FOR TABLE "AVDELNING".
+CREATE BUFFER DistriktDBbuffh FOR TABLE "STORDISTRIKT". 
+CREATE BUFFER KundDataDBbuffh FOR TABLE "KUNDSTOR".
+CREATE BUFFER LedninggsDataDBbuffh FOR TABLE "LEDNINGSDATA". 
+CREATE BUFFER StorningsDataDBbuffh FOR TABLE "STORNINGSTAB".
+CREATE BUFFER StorFelMtrlDBbuffh FOR TABLE "STORFELMTRL". 
+RUN DarwinExport_UI.
+RUN DarwinPlusConnect.P  (INPUT lokalt,INPUT TABLE ForetagData,INPUT TABLE DistriktData,INPUT TABLE KundData,INPUT TABLE LedningData,INPUT TABLE StorningData,INPUT TABLE StorFelMtrlData).
+
+FUNCTION GiltigaSpanid RETURNS INTEGER 
+(INPUT sid AS INTEGER):
+   IF sid = 5 THEN RETURN 6.
+   ELSE RETURN sid.   
+END FUNCTION.    
+
+
+PROCEDURE NOLL_UI :
+   FOR EACH AVDELNING WHERE AVDELNING.KOSTMASK = 1:
+      AVDELNING.KOSTPERS = 0.
+   END.
+   FOR EACH STORDISTRIKT WHERE  STORDISTRIKT.EXPORTDATUM NE ? :
+      STORDISTRIKT.EXPORTDATUM = ?.
+   END.  
+   FOR EACH KUNDSTOR WHERE  KUNDSTOR.EXPORTDATUM NE ? :
+      KUNDSTOR.EXPORTDATUM = ?.
+   END.  
+   FOR EACH LEDNINGSDATA WHERE  LEDNINGSDATA.EXPORTDATUM NE ? :
+      LEDNINGSDATA.EXPORTDATUM = ?.
+   END.  
+   FOR EACH STORNINGSTAB WHERE  STORNINGSTAB.EXPORTDATUM NE ?:
+      STORNINGSTAB.EXPORTDATUM = ?.
+   END.  
+   FOR EACH STORFELMTRL WHERE  STORFELMTR.EXPORTDATUM NE ? :
+      STORFELMTRL.EXPORTDATUM = ?.
+   END. 
+   
+ /*
+ FOR EACH ForetagDarwin:
+   DELETE ForetagDarwin.
+END.
+FOR EACH DistriktDarwin:
+  DELETE DistriktDarwin.
+END. 
+FOR EACH KundDarwin:
+   DELETE KundDarwin.
+END.    
+FOR EACH LedningDarwin:
+  DELETE LedningDarwin.
+END.
+FOR EACH StorningDarwin:
+   DELETE StorningDarwin.
+END.
+FOR EACH StorningFelMtrlDarwin:
+   DELETE StorningFelMtrlDarwin.
+END.
+*/    
+END PROCEDURE.
+  
+PROCEDURE DarwinExport_UI :
+   kommandoquery = "FOR EACH " + ForetagDBbuffh:TABLE + " WHERE AVDELNING.KOSTMASK = 1 AND AVDELNING.KOSTPERS = 0" + " NO-LOCK". 
+   RUN CreateCustomQuery(INPUT ForetagDBbuffh,INPUT kommandoquery,OUTPUT fqh).
+   fqH:GET-FIRST(NO-LOCK ).
+   DO WHILE fqH:QUERY-OFF-END = FALSE:
+      RUN ForetagUt_UI.
+      fqH:GET-NEXT(NO-LOCK ).
+   END.
+ 
+   kommandoquery = "FOR EACH " + DistriktDBbuffh:TABLE + " WHERE STORDISTRIKT.EXPORTDATUM = ? " + " NO-LOCK". 
+   RUN CreateCustomQuery(INPUT DistriktDBbuffh,INPUT kommandoquery,OUTPUT dqh).
+   dqH:GET-FIRST(NO-LOCK ).
+   DO WHILE dqH:QUERY-OFF-END = FALSE:
+      RUN DistriktUt_UI.
+      dqH:GET-NEXT(NO-LOCK ).
+   END.
+   kommandoquery = "FOR EACH " + KundDataDBbuffh:TABLE + " WHERE KUNDSTOR.EXPORTDATUM = ? " + " NO-LOCK". 
+   RUN CreateCustomQuery(INPUT KundDataDBbuffh,INPUT kommandoquery,OUTPUT kqh).
+   kqH:GET-FIRST().
+   DO WHILE kqH:QUERY-OFF-END = FALSE:
+      RUN KunddataUt_UI.
+      kqH:GET-NEXT().
+   END.
+   kommandoquery = "FOR EACH " + LedninggsDataDBbuffh:TABLE + " WHERE LEDNINGSDATA.EXPORTDATUM = ? " +  " NO-LOCK ". 
+   RUN CreateCustomQuery(INPUT LedninggsDataDBbuffh,INPUT kommandoquery,OUTPUT lqh).
+   lqH:GET-FIRST().
+   DO WHILE lqH:QUERY-OFF-END = FALSE:
+      RUN LedningsDataUt_UI.
+      lqH:GET-NEXT().
+   END. 
+   kommandoquery = "FOR EACH " + StorningsDataDBbuffh:TABLE + " WHERE STORNINGSTAB.EXPORTDATUM = ? " + " NO-LOCK". 
+   RUN CreateCustomQuery(INPUT StorningsDataDBbuffh,INPUT kommandoquery,OUTPUT sqh).
+   sqH:GET-FIRST().
+   DO WHILE sqH:QUERY-OFF-END = FALSE:
+      RUN StorningsDataUt_UI.
+      sqH:GET-NEXT().
+   END. 
+   kommandoquery = "FOR EACH " + StorFelMtrlDBbuffh:TABLE + " WHERE STORFELMTRL.EXPORTDATUM = ? " + " NO-LOCK". 
+   RUN CreateCustomQuery(INPUT StorFelMtrlDBbuffh,INPUT kommandoquery,OUTPUT smqh).
+   smqH:GET-FIRST().
+  
+   DO WHILE smqH:QUERY-OFF-END = FALSE:
+      RUN StorFelMtrlDataUt_UI.
+      smqH:GET-NEXT().
+   END.    
+ 
+END PROCEDURE.
+
+PROCEDURE ForetagUt_UI:
+   DO TRANSACTION:
+      CREATE ForetagData.
+      ASSIGN 
+      ForetagData.IdentifikationsnrForetag = ForetagDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE
+      ForetagData.Foretag = ForetagDBbuffh:BUFFER-FIELD("AVDELNINGNAMN"):BUFFER-VALUE.
+      ForetagData.IMPORTDATUM = NOW.
+      fqH:GET-CURRENT(EXCLUSIVE-LOCK ).
+      ForetagDBbuffh:BUFFER-FIELD("KOSTPERS"):BUFFER-VALUE = 1.
+   END.    
+END PROCEDURE.
+PROCEDURE DistriktUt_UI : 
+   DO TRANSACTION: 
+      CREATE DistriktData.
+      ASSIGN 
+      DistriktData.IdentifikationsnrForetag = DistriktDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE
+      DistriktData.DistriktsId = DistriktDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE       
+      DistriktData.Artal = DistriktDBbuffh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE
+      DistriktData.DistriktsNamn = DistriktDBbuffh:BUFFER-FIELD("NAMN"):BUFFER-VALUE.
+      DistriktData.IMPORTDATUM = NOW.
+      dqH:GET-CURRENT(EXCLUSIVE-LOCK ).
+      DistriktDBbuffh:BUFFER-FIELD("EXPORTDATUM"):BUFFER-VALUE = NOW.
+   END.   
+END PROCEDURE.     
+PROCEDURE KundDataUt_UI :
+   DO TRANSACTION:    
+      CREATE KundData.
+      ASSIGN
+      KundData.DistriktsId                 = KundDataDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE     
+      KundData.Artal                       = KundDataDBbuffh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE          
+      KundData.SpanNivId                   = GiltigaSpanid(KundDataDBbuffh:BUFFER-FIELD("SPANDARWINID"):BUFFER-VALUE)
+      KundData.AntalKunderTotalt           = KundDataDBbuffh:BUFFER-FIELD("ANTALKUNDER"):BUFFER-VALUE. 
+           
+      FIND FIRST SPANNINGSNIV WHERE SPANNINGSNIV.SPANDARWINID = GiltigaSpanid(KundDataDBbuffh:BUFFER-FIELD("SPANDARWINID"):BUFFER-VALUE) NO-LOCK NO-ERROR.
+      IF AVAILABLE SPANNINGSNIV THEN KundData.SpanNamn = CAPS(TRIM(SPANNINGSNIV.NAMN)).
+      KundData.IMPORTDATUM = NOW.
+      DistriktDBbuffh:FIND-FIRST("WHERE DistriktId = " + STRING(KundData.DistriktsId) ,NO-LOCK) NO-ERROR.
+      IF DistriktDBbuffh:AVAILABLE THEN DO:
+         ASSIGN
+         KundData.IdentifikationsnrForetag = DistriktDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE.
+      END.
+      kqH:GET-CURRENT(EXCLUSIVE-LOCK ).
+      KundDataDBbuffh:BUFFER-FIELD("EXPORTDATUM"):BUFFER-VALUE = NOW.
+   END.   
+END PROCEDURE.
+PROCEDURE LedningsDataUt_UI :
+   DO TRANSACTION: 
+      CREATE LedningData.
+      ASSIGN
+      LedningData.DistriktsId                  = LedninggsDataDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE     
+      LedningData.Artal                        = LedninggsDataDBbuffh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE          
+      LedningData.SpanNivId                    = GiltigaSpanid(LedninggsDataDBbuffh:BUFFER-FIELD("SPANDARWINID"):BUFFER-VALUE).         
+               
+      FIND FIRST SPANNINGSNIV WHERE SPANNINGSNIV.SPANDARWINID = GiltigaSpanid(LedninggsDataDBbuffh:BUFFER-FIELD("SPANDARWINID"):BUFFER-VALUE) NO-LOCK NO-ERROR.
+      IF AVAILABLE SPANNINGSNIV THEN LedningData.SpanNamn = CAPS(TRIM(SPANNINGSNIV.NAMN)).
+      FIND FIRST STORNATUPPKOPP WHERE 
+      STORNATUPPKOPP.NATUPPLAGGID1 = LedninggsDataDBbuffh:BUFFER-FIELD("NATUPPLAGGID1"):BUFFER-VALUE AND 
+      STORNATUPPKOPP.NATUPPLAGGID2 = LedninggsDataDBbuffh:BUFFER-FIELD("NATUPPLAGGID2"):BUFFER-VALUE AND
+      STORNATUPPKOPP.NATUPPLAGGID3 = LedninggsDataDBbuffh:BUFFER-FIELD("NATUPPLAGGID3"):BUFFER-VALUE AND 
+      STORNATUPPKOPP.NATUPPLAGGID4 = LedninggsDataDBbuffh:BUFFER-FIELD("NATUPPLAGGID4"):BUFFER-VALUE NO-LOCK NO-ERROR.
+      IF AVAILABLE STORNATUPPKOPP THEN DO:  
+         FIND FIRST STORTEXTER WHERE STORTEXTER.TID = STORNATUPPKOPP.TEXTID1 NO-LOCK NO-ERROR.
+         IF AVAILABLE STORTEXTER THEN LedningData.Text1 = CAPS(STORTEXTER.NAMN).
+         FIND FIRST STORTEXTER WHERE STORTEXTER.TID = STORNATUPPKOPP.TEXTID2 NO-LOCK NO-ERROR.
+         IF AVAILABLE STORTEXTER THEN LedningData.Text2 = CAPS(STORTEXTER.NAMN).
+         
+         LedningData.AntalTotalt                  = LedninggsDataDBbuffh:BUFFER-FIELD("LANGD"):BUFFER-VALUE * STORNATUPPKOPP.M-KM.
+      END.
+      LedningData.IMPORTDATUM = NOW.
+      DistriktDBbuffh:FIND-FIRST("WHERE DistriktId = " + STRING(LedningData.DistriktsId) ,NO-LOCK) NO-ERROR.
+      IF DistriktDBbuffh:AVAILABLE THEN DO:
+         ASSIGN
+         LedningData.IdentifikationsnrForetag = DistriktDBbuffh:BUFFER-FIELD("AVDELNINGNR"):BUFFER-VALUE.
+      END.
+      lqH:GET-CURRENT(EXCLUSIVE-LOCK ).
+      LedninggsDataDBbuffh:BUFFER-FIELD("EXPORTDATUM"):BUFFER-VALUE = NOW.
+   END.   
+END PROCEDURE.
+
+PROCEDURE StorningsDataUt_UI :
+   DEFINE VARIABLE timmar100 AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE timmar60 AS DECIMAL FORMAT ">9.999" NO-UNDO.
+   
+   DO TRANSACTION:     
+      CREATE StorningData.
+      ASSIGN   
+                     
+      StorningData.DistriktsId                                            =                   StorningsDataDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE                       
+      StorningData.StorId                                                 =                   StorningsDataDBbuffh:BUFFER-FIELD("STORNUMMERID"):BUFFER-VALUE                     
+      StorningData.StortypId                                                =                 StorningsDataDBbuffh:BUFFER-FIELD("STORTYPID"):BUFFER-VALUE.
+      FIND FIRST STORDISTRIKT  WHERE STORDISTRIKT.DISTRIKTID = StorningsDataDBbuffh:BUFFER-FIELD("DISTRIKTID"):BUFFER-VALUE NO-LOCK NO-ERROR.
+      StorningData.Artal = STORDISTRIKT.ARTAL. 
+      StorningData.IdentifikationsnrForetag = STORDISTRIKT.AVDELNINGNR.
+      /*Driftstörning = 1,Planeratavbrott = 2*/
+      IF StorningsDataDBbuffh:BUFFER-FIELD("STORTYPID"):BUFFER-VALUE = 1 THEN StorningData.StortypNamn = "Driftstörning". 
+      IF StorningsDataDBbuffh:BUFFER-FIELD("STORTYPID"):BUFFER-VALUE = 2 THEN StorningData.StortypNamn = "Planeratavbrott".
+      
+      ASSIGN                       
+      StorningData.StorningsDatum                                             =                   StorningsDataDBbuffh:BUFFER-FIELD("HDATUM"):BUFFER-VALUE                           
+      StorningData.StorningKlockan     /*sekunder från klockan 00:00*/        =                   StorningsDataDBbuffh:BUFFER-FIELD("HKLOCKAN"):BUFFER-VALUE                         
+      StorningData.SlutDatum                                                  =                   StorningsDataDBbuffh:BUFFER-FIELD("DATUM100%"):BUFFER-VALUE                        
+      StorningData.SlutKlockan       /*sekunder från klockan 00:00*/          =                   StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN100%"):BUFFER-VALUE                      
+      StorningData.KundAvbrottsTid                                            =                   StorningsDataDBbuffh:BUFFER-FIELD("AVBROTTSTID"):BUFFER-VALUE
+      StorningData.AntalHSP                                                   =                   StorningsDataDBbuffh:BUFFER-FIELD("ANTALHSP"):BUFFER-VALUE                         
+      StorningData.AntalLSP                                                   =                   StorningsDataDBbuffh:BUFFER-FIELD("ANTALLSP"):BUFFER-VALUE
+      StorningData.BORTKW                                                     =                   StorningsDataDBbuffh:BUFFER-FIELD("BORTMW"):BUFFER-VALUE * 1000 + 
+                                                                                                  StorningsDataDBbuffh:BUFFER-FIELD("BORTKW"):BUFFER-VALUE.
+      StorningData.StDriftId = StorningsDataDBbuffh:BUFFER-FIELD("STDRIFTDARWINID"):BUFFER-VALUE.
+      FIND FIRST STORDRIFTOMR WHERE STORDRIFTOMR.STDRIFTID = StorningsDataDBbuffh:BUFFER-FIELD("STDRIFTID"):BUFFER-VALUE  NO-LOCK NO-ERROR.  
+      IF AVAILABLE STORDRIFTOMR THEN StorningData.StDriftNamn  = CAPS(STORDRIFTOMR.NAMN). 
+     
+      RUN TIDBER.P (INPUT StorningsDataDBbuffh:BUFFER-FIELD("HDATUM"):BUFFER-VALUE, INPUT StorningsDataDBbuffh:BUFFER-FIELD("DATUM100%"):BUFFER-VALUE, INPUT  StorningsDataDBbuffh:BUFFER-FIELD("HKLOCKAN"):BUFFER-VALUE,
+        INPUT StorningsDataDBbuffh:BUFFER-FIELD("KLOCKAN100%"):BUFFER-VALUE, OUTPUT timmar100, OUTPUT timmar60).
+      IF timmar60 > 0000.03 THEN StorningData.Mer3Min = 1.                                                                                             
+      
+      StorningData.FranspanId                                                 =                   GiltigaSpanid(StorningsDataDBbuffh:BUFFER-FIELD("FRANSPANDARWINID"):BUFFER-VALUE).
+      IF StorningData.FranspanId = 0 THEN.
+      ELSE DO: 
+         FIND FIRST SPANNINGSNIV WHERE SPANNINGSNIV.SPANDARWINID = StorningsDataDBbuffh:BUFFER-FIELD("FRANSPANDARWINID"):BUFFER-VALUE NO-LOCK NO-ERROR.
+         IF AVAILABLE SPANNINGSNIV THEN StorningData.FranspanNamn = CAPS(TRIM(SPANNINGSNIV.NAMN)).
+         ELSE DO:
+            FIND FIRST SPANNINGSNIV WHERE SPANNINGSNIV.SPANID = StorningsDataDBbuffh:BUFFER-FIELD("FRANSPANID"):BUFFER-VALUE NO-LOCK NO-ERROR.
+            IF AVAILABLE SPANNINGSNIV THEN StorningData.FranspanNamn = CAPS(TRIM(SPANNINGSNIV.NAMN)).
+         END.                                                                      
+      END.
+      StorningData.FelspanId                                                 =                   GiltigaSpanid(StorningsDataDBbuffh:BUFFER-FIELD("FELSPANDARWINID"):BUFFER-VALUE).
+      IF StorningData.FelspanId = 0 THEN.
+      ELSE DO: 
+         FIND FIRST SPANNINGSNIV WHERE SPANNINGSNIV.SPANDARWINID = GiltigaSpanid(StorningsDataDBbuffh:BUFFER-FIELD("FELSPANDARWINID"):BUFFER-VALUE) NO-LOCK NO-ERROR.
+         IF AVAILABLE SPANNINGSNIV THEN StorningData.FelspanNamn = CAPS(TRIM(SPANNINGSNIV.NAMN)). 
+         ELSE DO:
+            FIND FIRST SPANNINGSNIV WHERE SPANNINGSNIV.SPANID = StorningsDataDBbuffh:BUFFER-FIELD("FELSPANID"):BUFFER-VALUE NO-LOCK NO-ERROR.
+            IF AVAILABLE SPANNINGSNIV THEN StorningData.FelspanNamn = CAPS(TRIM(SPANNINGSNIV.NAMN)).
+         END.
+      END.                           
+      StorningData.BrytoId                                                    =                   StorningsDataDBbuffh:BUFFER-FIELD("BRYTODARWINID"):BUFFER-VALUE.    
+      FIND FIRST BRYTORGAN  WHERE BRYTORGAN.BRYTODARWINID = StorningsDataDBbuffh:BUFFER-FIELD("BRYTODARWINID"):BUFFER-VALUE NO-LOCK NO-ERROR.
+      IF AVAILABLE BRYTORGAN THEN StorningData.BrytonNamn = CAPS(BRYTORGAN.NAMN).    
+      StorningData.BrytorgLit                                                 =                   StorningsDataDBbuffh:BUFFER-FIELD("BRYTORGLIT"):BUFFER-VALUE.
+      StorningData.SektionerId                                                =                   StorningsDataDBbuffh:BUFFER-FIELD("SEKTIONERDARWINID"):BUFFER-VALUE.
+      FIND FIRST SEKTIONERING  WHERE SEKTIONERING.SEKTIONERDARWINID  = StorningsDataDBbuffh:BUFFER-FIELD("SEKTIONERDARWINID"):BUFFER-VALUE NO-LOCK NO-ERROR.
+      IF AVAILABLE SEKTIONERING THEN StorningData.SektionNamn = CAPS(SEKTIONERING.NAMN).                      
+      StorningData.SektionLit                                                 =                   StorningsDataDBbuffh:BUFFER-FIELD("SEKTIONLIT"):BUFFER-VALUE.                       
+      StorningData.UtlosId                                                    =                   StorningsDataDBbuffh:BUFFER-FIELD("UTLOSDARWINID"):BUFFER-VALUE.
+      FIND FIRST UTLOSNINGSKYDD WHERE UTLOSNINGSKYDD.UTLOSDARWINID = StorningsDataDBbuffh:BUFFER-FIELD("UTLOSDARWINID"):BUFFER-VALUE NO-LOCK NO-ERROR.    
+      IF AVAILABLE UTLOSNINGSKYDD THEN StorningData.UtlosNamn = CAPS(UTLOSNINGSKYDD.NAMN).                                                                                                     
+      StorningData.RelinId                                                    =                   StorningsDataDBbuffh:BUFFER-FIELD("RELINDARWINID"):BUFFER-VALUE.    
+      FIND FIRST RELAINDIKERING WHERE RELAINDIKERING.RELINDARWINID = StorningsDataDBbuffh:BUFFER-FIELD("RELINDARWINID"):BUFFER-VALUE NO-LOCK NO-ERROR.
+      IF AVAILABLE RELAINDIKERING THEN StorningData.RelinNamn = CAPS(RELAINDIKERING.NAMN).                 
+      StorningData.FelYId                                                     =                   StorningsDataDBbuffh:BUFFER-FIELD("FELYID"):BUFFER-VALUE.
+      FIND FIRST FELYTTRING WHERE FELYTTRING.FELYID = StorningsDataDBbuffh:BUFFER-FIELD("FELYID"):BUFFER-VALUE NO-LOCK NO-ERROR.               
+      IF AVAILABLE FELYTTRING THEN StorningData.FelYNamn = CAPS(FELYTTRING.NAMN).
+      StorningData.StDriftLit                                                 =                   CAPS(StorningsDataDBbuffh:BUFFER-FIELD("STDRIFTLIT"):BUFFER-VALUE).
+      StorningData.AdelId                                                     =                   StorningsDataDBbuffh:BUFFER-FIELD("ADELDARWINID"):BUFFER-VALUE.
+      FIND FIRST ANLAGGNINGSDEL WHERE ANLAGGNINGSDEL.ADELDARWINID = StorningsDataDBbuffh:BUFFER-FIELD("ADELDARWINID"):BUFFER-VALUE NO-LOCK NO-ERROR.
+      IF AVAILABLE ANLAGGNINGSDEL THEN StorningData.AdelNamn = CAPS(ANLAGGNINGSDEL.NAMN).           
+      StorningData.FelOId                                                     =                   StorningsDataDBbuffh:BUFFER-FIELD("FELODARWINID"):BUFFER-VALUE.     
+      FIND FIRST FELORSAK WHERE FELORSAK.FELODARWINID = StorningsDataDBbuffh:BUFFER-FIELD("FELODARWINID"):BUFFER-VALUE NO-LOCK NO-ERROR.
+      IF AVAILABLE FELORSAK THEN StorningData.FelONamn = CAPS(FELORSAK.NAMN).
+      ELSE DO:
+         IF StorningData.STORTYPID = 1 THEN StorningData.FelONamn = CAPS("Ej angivet").
+         ELSE StorningData.FelONamn = CAPS("Planerat"). 
+      END.  
+      StorningData.IMPORTDATUM = NOW. 
+      
+      sqH:GET-CURRENT(EXCLUSIVE-LOCK ).
+      StorningsDataDBbuffh:BUFFER-FIELD("EXPORTDATUM"):BUFFER-VALUE = NOW.
+   END. 
+END PROCEDURE.
+
+PROCEDURE StorFelMtrlDataUt_UI :
+   DO TRANSACTION:
+      CREATE StorFelMtrlData.
+      ASSIGN 
+      
+      StorFelMtrlData.StorId                                            =                   StorFelMtrlDBbuffh:BUFFER-FIELD("STORNUMMERID"):BUFFER-VALUE  
+      StorFelMtrlData.SfmId                                             =                   StorFelMtrlDBbuffh:BUFFER-FIELD("SFMID"):BUFFER-VALUE         
+      StorFelMtrlData.Apparat                                           =                   CAPS(StorFelMtrlDBbuffh:BUFFER-FIELD("APPARAT"):BUFFER-VALUE)       
+      StorFelMtrlData.Leverantor                                        =                   CAPS(StorFelMtrlDBbuffh:BUFFER-FIELD("LEVERANTOR"):BUFFER-VALUE)    
+      StorFelMtrlData.Fabrikat                                          =                   CAPS(StorFelMtrlDBbuffh:BUFFER-FIELD("FABRIKAT"):BUFFER-VALUE)      
+      StorFelMtrlData.Artikelnr                                         =                   CAPS(StorFelMtrlDBbuffh:BUFFER-FIELD("ARTIKELNR"):BUFFER-VALUE)     
+      StorFelMtrlData.Artal                                             =                   StorFelMtrlDBbuffh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE         
+      StorFelMtrlData.Antal                                             =                   StorFelMtrlDBbuffh:BUFFER-FIELD("ANTAL"):BUFFER-VALUE.         
+      StorFelMtrlData.IMPORTDATUM = NOW.
+      smqH:GET-CURRENT(EXCLUSIVE-LOCK ).
+      StorFelMtrlDBbuffh:BUFFER-FIELD("EXPORTDATUM"):BUFFER-VALUE = NOW.
+      
+      FIND FIRST STORNINGSTAB WHERE STORNINGSTAB.STORNUMMERID = StorFelMtrlData.StorId  NO-LOCK NO-ERROR.
+      IF AVAILABLE STORNINGSTAB THEN DO:
+         FIND FIRST STORDISTRIKT  WHERE STORDISTRIKT.DISTRIKTID = STORNINGSTAB.DISTRIKTID NO-LOCK NO-ERROR.
+         IF AVAILABLE STORDISTRIKT THEN DO:
+            ASSIGN
+            StorFelMtrlData.IdentifikationsnrForetag = STORDISTRIKT.AVDELNINGNR
+            StorFelMtrlData.DistriktsId =  STORDISTRIKT.DISTRIKTID.
+         END.   
+      END.        
+   END. 
+END PROCEDURE.
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh .
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+

@@ -1,0 +1,29 @@
+/* p-method.p */
+
+DEFINE VARIABLE To-Do AS CHARACTER VIEW-AS EDITOR SIZE 60 BY 10.
+DEFINE FRAME DoFrame SPACE(3) To-Do WITH SIDE-LABELS SIZE 76 BY 12.
+
+ON GO OF To-Do IN FRAME DoFrame DO:
+    IF To-Do:SAVE-FILE("to-do.lst") THEN
+        MESSAGE "TO DO list saved."
+            VIEW-AS ALERT-BOX INFORMATION BUTTONS OK.
+    ELSE DO:
+        BELL.
+        MESSAGE "TO DO list NOT saved!!" 
+            VIEW-AS ALERT-BOX WARNING BUTTONS OK.
+    END.
+END.
+
+ON END-ERROR OF To-Do IN FRAME DoFrame
+    MESSAGE "TO DO list NOT changed." 
+        VIEW-AS ALERT-BOX INFORMATION BUTTONS OK.
+
+ENABLE ALL WITH FRAME DoFrame.
+
+IF To-Do:INSERT-FILE("to-do.lst") THEN
+    WAIT-FOR GO OF To-Do IN Frame DoFrame.
+ELSE DO:
+    BELL.
+    MESSAGE "TO DO list NOT available." 
+        VIEW-AS ALERT-BOX MESSAGE BUTTONS OK.
+END.

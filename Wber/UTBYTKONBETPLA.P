@@ -1,0 +1,98 @@
+
+/*------------------------------------------------------------------------
+    File        : UTBYTKONBETPLA.P
+    Purpose     : 
+
+    Syntax      :KONVERTERA FRÅN GAMLA BETPLAN TILL UTBYTESLISTA
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Tue Oct 06 10:00:01 CEST 2020
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+/* ***************************  Definitions  ************************** */
+
+
+RUN Betplankonv_UI.
+
+/*
+RUN ATERBETPLAN_UI.
+*/
+
+
+
+
+PROCEDURE Betplankonv_UI :
+     /*    BETPLAN    niklas Översättningstabell för materiel mellan olika leverantörer
+byt från enr  byt från lev  byt till enr   byt till lev
+ANVÄNDARE     NAMN          Område         BESTID        
+06681092      1             0668132          8
+*/
+MESSAGE "Konv start!"
+VIEW-AS ALERT-BOX.
+FOR EACH UTBYTESLNAMN :
+   DELETE UTBYTESLNAMN.
+END.
+FOR EACH UTBYTESLISTA :
+   DELETE UTBYTESLISTA.
+END.
+   DO TRANSACTION:
+      CREATE UTBYTESLNAMN.
+      ASSIGN
+      UTBYTESLNAMN.UID = 0
+      UTBYTESLNAMN.UNAMN = "Ersättningslista Leverantör".
+   END.
+   FOR EACH BETPLAN NO-LOCK:
+      IF BETPLAN.ANVANDARE = "" OR BETPLAN.OMRADE = "" THEN.
+      ELSE IF  BETPLAN.ANVANDARE = BETPLAN.OMRADE THEN. 
+      ELSE DO TRANSACTION: 
+         /* om man importerar en beredning som har enr som inte finns översatta så ska de gå att översätta till enr som finns. Lena 20210223
+         FIND FIRST MTRL WHERE MTRL.Enr = BETPLAN.ANVANDARE AND  MTRL.LEVKOD  = BETPLAN.NAMN
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRL THEN DO:*/
+         FIND FIRST MTRL WHERE MTRL.Enr = BETPLAN.OMRADE AND  MTRL.LEVKOD  = BETPLAN.BESTID
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRL THEN DO:
+            FIND FIRST UTBYTESLISTA WHERE 
+            UTBYTESLISTA.UID = UTBYTESLNAMN.UID AND  
+            UTBYTESLISTA.ORGENR = BETPLAN.ANVANDARE AND 
+            UTBYTESLISTA.ORGLEVKOD = BETPLAN.NAMN AND 
+            UTBYTESLISTA.BYTTILLENR = BETPLAN.OMRADE AND 
+            UTBYTESLISTA.BYTTILLLEVKOD = BETPLAN.BESTID   NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE UTBYTESLISTA THEN DO:
+               CREATE UTBYTESLISTA.
+               ASSIGN 
+               UTBYTESLISTA.UID = UTBYTESLNAMN.UID
+               UTBYTESLISTA.ORGENR = BETPLAN.ANVANDARE 
+               UTBYTESLISTA.ORGLEVKOD = BETPLAN.NAMN
+               UTBYTESLISTA.BYTTILLENR = BETPLAN.OMRADE
+               UTBYTESLISTA.BYTTILLLEVKOD = BETPLAN.BESTID.
+            END.
+         END.
+         /*END.*/    
+      END.    
+   END.
+  
+   DEFINE VARIABLE betplanfore AS CHARACTER NO-UNDO.
+   betplanfore = "BETPLAN" + Guru.Konstanter:AppSpringSet[1] + ".d".
+   OUTPUT TO VALUE(betplanfore)  CONVERT target "iso8859-1" source "iso8859-1".
+   FOR EACH BETPLAN EXCLUSIVE-LOCK:
+      EXPORT BETPLAN.
+      DELETE BETPLAN.    
+   END.
+   OUTPUT CLOSE.     
+END PROCEDURE.
+PROCEDURE ATERBETPLAN_UI :
+   MESSAGE "BETPLAN" 
+   VIEW-AS ALERT-BOX.
+   INPUT FROM D:\ELPOOL\PROTEMP9\BETPLAN.d CONVERT TARGET  "iso8859-1" source "iso8859-1" .
+
+   REPEAT:
+      CREATE BETPLAN.
+      ASSIGN.
+      IMPORT BETPLAN.
+   END.
+   INPUT CLOSE.
+END PROCEDURE.

@@ -1,0 +1,376 @@
+/*
+     Filename: DISTAPP.P
+      Created: 03.07.0029 08:25ELPAO     
+     Modified: 
+*/
+
+
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{STORTEMP.I}
+{NATUPPLAGG.I}
+DEFINE TEMP-TABLE grdata_temp
+   FIELD SPANID      AS INTEGER  
+   FIELD NAMN        AS CHARACTER
+   FIELD ANTAL       AS INTEGER   
+   FIELD ANTALBLAND  AS INTEGER  
+   FIELD ANTALLUFT   AS INTEGER 
+   FIELD ANTALKABEL  AS INTEGER.
+
+/********************************** STORDIST.W *********************************/
+
+PROCEDURE kopidist_UI :
+   DEFINE INPUT PARAMETER franar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER forvar AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR stordistemp.
+   
+   DEFINE VARIABLE dnr AS INTEGER NO-UNDO.
+   DEFINE BUFFER storbuff FOR STORDISTRIKT.
+
+   FOR EACH storbuff WHERE storbuff.AVDELNINGNR = forvar AND
+      storbuff.ARTAL = (franar - 1) NO-LOCK:
+      FIND LAST STORDISTRIKT USE-INDEX DISTRIKTID NO-LOCK NO-ERROR.
+      IF AVAILABLE STORDISTRIKT THEN DO:
+         dnr = STORDISTRIKT.DISTRIKTID + 1.
+      END.
+      ELSE DO:
+         dnr = 1.
+      END.   
+      CREATE STORDISTRIKT.
+      ASSIGN
+      STORDISTRIKT.DISTRIKTID = dnr
+      STORDISTRIKT.VIDISTRIKT = storbuff.VIDISTRIKT
+      STORDISTRIKT.NAMN = storbuff.NAMN
+      STORDISTRIKT.AVDELNINGNR = forvar
+      STORDISTRIKT.ARTAL = franar.
+      CREATE stordistemp.
+      BUFFER-COPY STORDISTRIKT TO stordistemp.
+   END.
+   IF AVAILABLE STORDISTRIKT THEN RELEASE STORDISTRIKT.
+END PROCEDURE. 
+
+PROCEDURE kopidata_UI :
+   DEFINE INPUT PARAMETER franar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER forvar AS INTEGER NO-UNDO.   
+      
+   DEFINE BUFFER storbuff FOR STORDISTRIKT.
+   FOR EACH storbuff WHERE storbuff.AVDELNINGNR = forvar AND
+   storbuff.ARTAL = (franar - 1) NO-LOCK:
+      FIND FIRST STORDISTRIKT WHERE STORDISTRIKT.AVDELNINGNR = forvar AND
+      STORDISTRIKT.NAMN = storbuff.NAMN AND STORDISTRIKT.ARTAL = franar NO-LOCK NO-ERROR.
+      RUN STORKOP.P 
+      (INPUT STORDISTRIKT.DISTRIKTID, INPUT franar, INPUT storbuff.DISTRIKTID, INPUT franar - 1).
+   END.
+   IF AVAILABLE STORDISTRIKT THEN RELEASE STORDISTRIKT.
+END PROCEDURE. 
+
+
+
+PROCEDURE stordistbtnbort_UI :
+   DEFINE INPUT PARAMETER distnr AS INTEGER NO-UNDO.                                                        
+                                                                     
+   DO TRANSACTION:
+      FIND STORDISTRIKT WHERE STORDISTRIKT.DISTRIKTID = distnr EXCLUSIVE-LOCK NO-ERROR.         
+      OPEN QUERY sq FOR EACH KUNDSTOR WHERE KUNDSTOR.DISTRIKTID = STORDISTRIKT.DISTRIKTID AND
+      KUNDSTOR.ARTAL = STORDISTRIKT.ARTAL NO-LOCK.
+      GET FIRST sq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(KUNDSTOR):
+         DELETE KUNDSTOR.
+         GET NEXT sq EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY sq.
+      OPEN QUERY aq FOR EACH LEDNINGSDATA WHERE LEDNINGSDATA.DISTRIKTID = STORDISTRIKT.DISTRIKTID AND
+      LEDNINGSDATA.ARTAL = STORDISTRIKT.ARTAL  NO-LOCK.
+      GET FIRST aq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(LEDNINGSDATA):
+         DELETE LEDNINGSDATA.
+         GET NEXT aq EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY aq.
+      OPEN QUERY dq FOR EACH STORNINGSTAB WHERE STORNINGSTAB.DISTRIKTID = STORDISTRIKT.DISTRIKTID
+      NO-LOCK.
+      GET FIRST dq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(STORNINGSTAB):
+         OPEN QUERY bq FOR EACH BORTKOPPLAD WHERE BORTKOPPLAD.STORNUMMERID = 
+         STORNINGSTAB.STORNUMMERID USE-INDEX STORNUMMERID NO-LOCK.
+         GET FIRST bq EXCLUSIVE-LOCK.
+         DO WHILE AVAILABLE(BORTKOPPLAD):
+            DELETE BORTKOPPLAD.
+            GET NEXT bq EXCLUSIVE-LOCK.
+         END.
+         CLOSE QUERY bq. 
+         DELETE STORNINGSTAB.
+         GET NEXT dq EXCLUSIVE-LOCK.
+      END.
+      CLOSE QUERY dq.
+      DELETE STORDISTRIKT.      
+   END.                                     
+END PROCEDURE. 
+
+/********************************** NYDIST.W *********************************/
+
+PROCEDURE nydistbtnok_UI :
+   DEFINE INPUT PARAMETER andra AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER franar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER forvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fillkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER fillben AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR stordistemp.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER dnr AS INTEGER NO-UNDO.
+
+   felmedd = "".
+   IF fillkod = " " THEN DO:
+      felmedd = "Nummer kan inte vara blank! Välj nytt nummer.".
+   END.
+   ELSE DO:
+      IF andra = FALSE THEN DO:         
+         FIND FIRST STORDISTRIKT WHERE STORDISTRIKT.VIDISTRIKT = fillkod 
+         AND STORDISTRIKT.AVDELNINGNR = forvar AND 
+         STORDISTRIKT.ARTAL = franar NO-LOCK NO-ERROR.
+         IF AVAILABLE STORDISTRIKT THEN DO:
+            felmedd = "Nummret finns redan upplagt! Välj nytt nummer.".            
+         END.
+         ELSE DO:
+            FIND LAST STORDISTRIKT USE-INDEX DISTRIKTID NO-LOCK NO-ERROR.
+            IF AVAILABLE STORDISTRIKT THEN DO:
+               dnr = STORDISTRIKT.DISTRIKTID + 1.
+            END.
+            ELSE DO:
+               dnr = 1.
+            END.   
+            CREATE STORDISTRIKT.
+            ASSIGN
+            STORDISTRIKT.DISTRIKTID = dnr
+            STORDISTRIKT.VIDISTRIKT = fillkod
+            STORDISTRIKT.NAMN = fillben
+            STORDISTRIKT.AVDELNINGNR = forvar
+            STORDISTRIKT.ARTAL = franar.
+            CREATE stordistemp.
+            BUFFER-COPY STORDISTRIKT TO stordistemp.
+         END.               
+      END.
+      ELSE DO:                 
+         FIND STORDISTRIKT WHERE STORDISTRIKT.DISTRIKTID = dnr EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE STORDISTRIKT THEN STORDISTRIKT.NAMN = fillben.         
+         FIND stordistemp WHERE stordistemp.DISTRIKTID = dnr EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE stordistemp THEN stordistemp.NAMN = fillben.         
+      END.
+   END.   
+   IF AVAILABLE STORDISTRIKT THEN RELEASE STORDISTRIKT.
+END PROCEDURE. 
+
+
+/********************************** GRDLED.W *********************************/
+
+PROCEDURE grdledbtnok_UI :
+   DEFINE INPUT PARAMETER dnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ar AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR leddata_temp.
+
+   FIND FIRST leddata_temp NO-LOCK NO-ERROR.
+   OPEN QUERY aq FOR EACH LEDNINGSDATA WHERE LEDNINGSDATA.DISTRIKTID = dnr AND
+   LEDNINGSDATA.ARTAL = ar AND LEDNINGSDATA.NATUPPLAGGID1 = leddata_temp.NATUPPLAGGID1 AND
+   LEDNINGSDATA.NATUPPLAGGID2 = leddata_temp.NATUPPLAGGID2 AND LEDNINGSDATA.NATUPPLAGGID3 = leddata_temp.NATUPPLAGGID3 AND
+   LEDNINGSDATA.NATUPPLAGGID4 = leddata_temp.NATUPPLAGGID4 NO-LOCK.
+   GET FIRST aq EXCLUSIVE-LOCK.
+   DO WHILE AVAILABLE(LEDNINGSDATA):
+      DELETE LEDNINGSDATA.
+      GET NEXT aq EXCLUSIVE-LOCK.
+   END.
+   CLOSE QUERY aq.
+   FOR EACH leddata_temp:     
+      CREATE LEDNINGSDATA.
+      ASSIGN
+      LEDNINGSDATA.DISTRIKTID = dnr
+      LEDNINGSDATA.ARTAL = ar
+      LEDNINGSDATA.LANGD = leddata_temp.LANGD
+      LEDNINGSDATA.SPANID = leddata_temp.SPANID
+      LEDNINGSDATA.NATUPPLAGGID1 = leddata_temp.NATUPPLAGGID1
+      LEDNINGSDATA.NATUPPLAGGID2 = leddata_temp.NATUPPLAGGID2
+      LEDNINGSDATA.NATUPPLAGGID3 = leddata_temp.NATUPPLAGGID3
+      LEDNINGSDATA.NATUPPLAGGID4 = leddata_temp.NATUPPLAGGID4.   
+   END.
+END PROCEDURE.
+
+PROCEDURE grdledhamta_UI :
+   DEFINE INPUT PARAMETER dnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER natvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER kollvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER kollvar1 AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER kollvar2 AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR leddata_temp.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR spann_temp.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR koll_temp.
+
+   FIND FIRST LEDNINGSDATA WHERE LEDNINGSDATA.DISTRIKTID = dnr AND
+   LEDNINGSDATA.ARTAL = ar AND LEDNINGSDATA.NATUPPLAGGID1 = natvar AND
+   LEDNINGSDATA.NATUPPLAGGID2 = kollvar AND LEDNINGSDATA.NATUPPLAGGID3 = kollvar1 AND
+   LEDNINGSDATA.NATUPPLAGGID4 = kollvar2 NO-LOCK NO-ERROR.   
+   IF AVAILABLE LEDNINGSDATA THEN DO:
+      OPEN QUERY aq FOR EACH LEDNINGSDATA WHERE LEDNINGSDATA.DISTRIKTID = dnr AND
+      LEDNINGSDATA.ARTAL = ar AND LEDNINGSDATA.NATUPPLAGGID1 = natvar AND
+      LEDNINGSDATA.NATUPPLAGGID2 = kollvar AND LEDNINGSDATA.NATUPPLAGGID3 = kollvar1 AND
+      LEDNINGSDATA.NATUPPLAGGID4 = kollvar2 NO-LOCK.
+      GET FIRST aq NO-LOCK.
+      DO WHILE AVAILABLE(LEDNINGSDATA):
+         FIND FIRST spann_temp WHERE spann_temp.SPANID = LEDNINGSDATA.SPANID NO-LOCK NO-ERROR.
+         CREATE leddata_temp.
+         ASSIGN
+         leddata_temp.SPANID = LEDNINGSDATA.SPANID
+         leddata_temp.NAMN = spann_temp.NAMN
+         leddata_temp.LANGD = LEDNINGSDATA.LANGD
+         leddata_temp.NATUPPLAGGID1 = LEDNINGSDATA.NATUPPLAGGID1
+         leddata_temp.NATUPPLAGGID2 = LEDNINGSDATA.NATUPPLAGGID2
+         leddata_temp.NATUPPLAGGID3 = LEDNINGSDATA.NATUPPLAGGID3
+         leddata_temp.NATUPPLAGGID4 = LEDNINGSDATA.NATUPPLAGGID4.
+         CREATE koll_temp.
+         ASSIGN
+         koll_temp.SPANID = LEDNINGSDATA.SPANID
+         koll_temp.LANGD = LEDNINGSDATA.LANGD.
+         GET NEXT aq NO-LOCK.
+      END.
+      CLOSE QUERY aq.   
+   END.
+   ELSE DO:   
+      FOR EACH spann_temp:
+         CREATE leddata_temp.
+         ASSIGN
+         leddata_temp.SPANID = spann_temp.SPANID
+         leddata_temp.NAMN = spann_temp.NAMN
+         leddata_temp.NATUPPLAGGID1 = natvar
+         leddata_temp.NATUPPLAGGID2 = kollvar
+         leddata_temp.NATUPPLAGGID3 = kollvar1
+         leddata_temp.NATUPPLAGGID4 = kollvar2
+         leddata_temp.LANGD = 0.
+         CREATE koll_temp.
+         ASSIGN
+         koll_temp.SPANID = spann_temp.SPANID
+         koll_temp.LANGD = 0.
+      END.
+   END. 
+END PROCEDURE.
+
+/********************************** GRDKUND.W *********************************/
+
+PROCEDURE grdkundspara_UI :
+   DEFINE INPUT PARAMETER dnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ar AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR grdata_temp.
+
+   OPEN QUERY sq FOR EACH KUNDSTOR WHERE KUNDSTOR.DISTRIKTID = dnr AND
+   KUNDSTOR.ARTAL = ar NO-LOCK.
+   GET FIRST sq EXCLUSIVE-LOCK.
+   DO WHILE AVAILABLE(KUNDSTOR):
+      DELETE KUNDSTOR.
+      GET NEXT sq EXCLUSIVE-LOCK.
+   END.
+   CLOSE QUERY sq.   
+   FOR EACH grdata_temp:
+      IF grdata_temp.ANTALBLAND > 0 OR grdata_temp.ANTALLUFT > 0 OR 
+      grdata_temp.ANTALKABEL > 0 THEN DO:
+         CREATE KUNDSTOR.
+         ASSIGN
+         KUNDSTOR.DISTRIKTID = dnr
+         KUNDSTOR.ARTAL = ar
+         KUNDSTOR.ANTALKUNDER = grdata_temp.ANTALBLAND + grdata_temp.ANTALLUFT + grdata_temp.ANTALKABEL
+         KUNDSTOR.ANTALBLAND = grdata_temp.ANTALBLAND
+         KUNDSTOR.ANTALLUFT = grdata_temp.ANTALLUFT
+         KUNDSTOR.ANTALKABEL = grdata_temp.ANTALKABEL
+         KUNDSTOR.SPANID = grdata_temp.SPANID. 
+      END.
+      ELSE DO:
+         IF grdata_temp.ANTAL > 0 THEN DO:
+            CREATE KUNDSTOR.
+            ASSIGN
+            KUNDSTOR.DISTRIKTID = dnr
+            KUNDSTOR.ARTAL = ar
+            KUNDSTOR.ANTALKUNDER = grdata_temp.ANTAL
+            KUNDSTOR.ANTALBLAND = 0
+            KUNDSTOR.ANTALLUFT = 0
+            KUNDSTOR.ANTALKABEL = 0
+            KUNDSTOR.SPANID = grdata_temp.SPANID. 
+         END.   
+      END.   
+   END.   
+
+END PROCEDURE.
+
+PROCEDURE grdkundhamta_UI :
+   DEFINE INPUT PARAMETER dnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ar AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR grdata_temp.
+
+   FIND FIRST KUNDSTOR WHERE KUNDSTOR.DISTRIKTID = dnr AND
+   KUNDSTOR.ARTAL = ar NO-LOCK NO-ERROR.
+   IF AVAILABLE KUNDSTOR THEN DO:
+      OPEN QUERY sq FOR EACH KUNDSTOR WHERE KUNDSTOR.DISTRIKTID = dnr AND
+      KUNDSTOR.ARTAL = ar NO-LOCK.
+      GET FIRST sq NO-LOCK.
+      DO WHILE AVAILABLE(KUNDSTOR):
+         FIND FIRST SPANNINGSNIV WHERE SPANNINGSNIV.SPANID = 
+         KUNDSTOR.SPANID USE-INDEX SPANID NO-LOCK NO-ERROR.
+         CREATE grdata_temp.
+         ASSIGN
+         grdata_temp.NAMN = SPANNINGSNIV.NAMN
+         grdata_temp.ANTAL = KUNDSTOR.ANTALKUNDER
+         grdata_temp.ANTALBLAND = KUNDSTOR.ANTALBLAND
+         grdata_temp.ANTALLUFT = KUNDSTOR.ANTALLUFT
+         grdata_temp.ANTALKABEL = KUNDSTOR.ANTALKABEL
+         grdata_temp.SPANID = SPANNINGSNIV.SPANID.
+         GET NEXT sq NO-LOCK.
+      END.
+      CLOSE QUERY sq.
+      OPEN QUERY sysq FOR EACH INLASTAB WHERE INLASTAB.INKOD = "D" NO-LOCK.
+      GET FIRST sysq NO-LOCK.
+      DO WHILE AVAILABLE(INLASTAB):
+         IF INLASTAB.INKODPOSCH NE "" THEN DO:
+            IF INLASTAB.INKODTYP = "1" THEN DO:
+               FIND FIRST SPANNINGSNIV WHERE SPANNINGSNIV.INKODID = 
+               INLASTAB.INKODID NO-LOCK NO-ERROR.
+               IF AVAILABLE SPANNINGSNIV THEN DO:
+                  FIND FIRST grdata_temp WHERE grdata_temp.SPANID = 
+                  SPANNINGSNIV.SPANID NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE grdata_temp THEN DO:
+                     CREATE grdata_temp.
+                     ASSIGN
+                     grdata_temp.NAMN = SPANNINGSNIV.NAMN
+                     grdata_temp.ANTAL = 0
+                     grdata_temp.ANTALBLAND = 0
+                     grdata_temp.ANTALLUFT = 0
+                     grdata_temp.ANTALKABEL = 0
+                     grdata_temp.SPANID = SPANNINGSNIV.SPANID.               
+                  END.   
+               END.
+            END.         
+         END.
+         GET NEXT sysq NO-LOCK.         
+      END.   
+      CLOSE QUERY sysq.               
+   END.
+   ELSE DO:
+      OPEN QUERY sysq FOR EACH INLASTAB WHERE INLASTAB.INKOD = "D" NO-LOCK.
+      GET FIRST sysq NO-LOCK.
+      DO WHILE AVAILABLE(INLASTAB):
+         IF INLASTAB.INKODPOSCH NE "" THEN DO:
+            IF INLASTAB.INKODTYP = "1" THEN DO:
+               FIND FIRST SPANNINGSNIV WHERE SPANNINGSNIV.INKODID = 
+               INLASTAB.INKODID NO-LOCK NO-ERROR.
+               IF AVAILABLE SPANNINGSNIV THEN DO:
+                  CREATE grdata_temp.
+                  ASSIGN
+                  grdata_temp.NAMN = SPANNINGSNIV.NAMN
+                  grdata_temp.ANTAL = 0
+                  grdata_temp.ANTALBLAND = 0
+                  grdata_temp.ANTALLUFT = 0
+                  grdata_temp.ANTALKABEL = 0
+                  grdata_temp.SPANID = SPANNINGSNIV.SPANID.               
+               END.
+            END.         
+         END.
+         GET NEXT sysq NO-LOCK.         
+      END.   
+      CLOSE QUERY sysq.
+   END.   
+END PROCEDURE.

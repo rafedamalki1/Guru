@@ -1,0 +1,730 @@
+/*
+               KSV Editor
+    Copyright: (C) 2000-2001 Serguey Klimoff (bulkl0DD)
+     Filename: ALLMANBYTaonr.P   
+      Comment: <comment>
+   Parameters
+         Uses:
+      Used by:
+         
+      Created: 2011.05.19 15:16 ELPAO   
+     Modified: 2011.05.19 18:14 ELPAO    
+     Modified: 
+*/
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+/*{EGENBVAR.I}*/
+{VALDBDEF.I}
+/*{EXECLIN2.I}*/
+
+DEFINE VARIABLE gfalt1in AS CHARACTER NO-UNDO.   /*fält för gamla värden*/
+DEFINE VARIABLE gfalt2in AS INTEGER NO-UNDO.
+DEFINE VARIABLE nyfalt1in AS CHARACTER NO-UNDO.   /*fält för nya värden*/
+DEFINE VARIABLE nyfalt2in AS INTEGER NO-UNDO.
+DEFINE VARIABLE nyfalt3in AS INTEGER NO-UNDO.
+DEFINE VARIABLE nyfalt4in AS CHARACTER NO-UNDO.
+DEFINE VARIABLE nyfalt5in AS CHARACTER NO-UNDO.
+DEFINE VARIABLE nyfalt6in AS DATE NO-UNDO.
+
+DEFINE VARIABLE styrtab AS CHARACTER NO-UNDO.  /*tabell som inne håller gamla och nya värden*/
+DEFINE VARIABLE updateorgtab AS LOGICAL NO-UNDO. /*om även styrtabellen ska uppdateras*/
+DEFINE VARIABLE okstarta AS LOGICAL NO-UNDO.
+  
+DEFINE VARIABLE hjdel AS INTEGER NO-UNDO.
+DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.
+DEFINE TEMP-TABLE tidwover
+   FIELD AONR                AS CHARACTER
+   FIELD delnr                AS INTEGER        
+   FIELD NYAONR          AS CHARACTER      
+   FIELD activitysec      AS CHARACTER    
+   INDEX AONRDELNR IS PRIMARY AONR DELNR.
+
+DEFINE TEMP-TABLE tidinahw
+   FIELD AONRDELNR                AS CHARACTER       
+   FIELD NYAONR          AS CHARACTER      
+   FIELD activitysec      AS CHARACTER    
+   INDEX AONRDELNR IS PRIMARY AONRDELNR.
+   
+  DEFINE TEMP-TABLE tidinaha
+   FIELD AONRDELNR                AS CHARACTER       
+   FIELD NYAONR1          AS CHARACTER   
+   FIELD NYAONR2              AS CHARACTER
+   FIELD NYARB              AS INTEGER
+   FIELD activitysec      AS CHARACTER      
+   INDEX AONRDELNR IS PRIMARY AONRDELNR.
+   
+DEFINE TEMP-TABLE bytaaonrtt NO-UNDO
+FIELD AONRDELNRG AS CHARACTER
+FIELD AONRG AS CHARACTER
+FIELD DELNRG AS INTEGER
+FIELD AONRN AS CHARACTER
+FIELD DELNRN AS INTEGER
+FIELD NYARB              AS INTEGER
+FIELD ACTIVITYSEC      AS CHARACTER
+FIELD MessageType      AS CHARACTER
+INDEX  AONRG AONRG DELNRG.   
+
+DEFINE TEMP-TABLE ejbytaaonrtt LIKE bytaaonrtt. 
+   
+DEFINE BUFFER aotbuff FOR bytaaonrtt.
+DEFINE BUFFER aotbuff2 FOR bytaaonrtt.
+DEFINE BUFFER aotbuff3 FOR bytaaonrtt.   
+
+
+                         
+RUN startin_UI.
+
+/*OUTPUT TO D:\ELPOOL\bytaaonrtt.TXT.
+FOR EACH bytaaonrtt NO-LOCK:
+   PUT UNFORMATTED bytaaonrtt.AONRG " " bytaaonrtt.DELNRG " " bytaaonrtt.AONRN " " bytaaonrtt.DELNRN " " bytaaonrtt.NYARB SKIP.
+   
+END.
+OUTPUT CLOSE.*/
+
+
+
+styrtab = "AONRTAB".
+updateorgtab = TRUE.
+DEFINE VARIABLE styrkommando AS CHARACTER NO-UNDO.
+DEFINE VARIABLE orgtabh AS HANDLE NO-UNDO.
+DEFINE VARIABLE orgtabqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE gfalth1 AS HANDLE NO-UNDO.
+DEFINE VARIABLE gfalth2 AS HANDLE NO-UNDO.
+DEFINE VARIABLE gfalth3 AS HANDLE NO-UNDO.
+DEFINE VARIABLE gfalth6 AS HANDLE NO-UNDO.
+DEFINE VARIABLE gfalt1 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE gfalt2 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE gfalt3 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE gfalt6 AS CHARACTER NO-UNDO.
+styrkommando = "FOR EACH " + styrtab.
+CREATE BUFFER orgtabh FOR TABLE styrtab NO-ERROR.
+gfalt1 = "AONR".
+gfalt2 = "DELNR".
+gfalt3 = "ARBARTKOD".
+gfalt6 = "AONRAVDATUM".
+gfalth1 = orgtabh:BUFFER-FIELD(gfalt1).
+gfalth2 = orgtabh:BUFFER-FIELD(gfalt2).
+gfalth3 = orgtabh:BUFFER-FIELD(gfalt3).
+gfalth6 = orgtabh:BUFFER-FIELD(gfalt6).   
+FOR EACH bytaaonrtt WHERE NO-LOCK:
+   gfalt1in = bytaaonrtt.AONRG.
+   gfalt2in = bytaaonrtt.DELNRG.
+   nyfalt1in = bytaaonrtt.AONRN.
+   nyfalt2in = bytaaonrtt.DELNRN.
+
+   nyfalt3in = bytaaonrtt.NYARB.
+   nyfalt4in = bytaaonrtt.ACTIVITYSEC.
+   nyfalt5in = bytaaonrtt.MessageType.   
+   nyfalt6in =  01/01/91.  
+   okstarta = TRUE.
+   
+   orgtabh:FIND-FIRST("WHERE AONR = " + QUOTER(gfalt1in) + " AND DELNR = " + STRING(gfalt2in),NO-LOCK) NO-ERROR.
+   IF orgtabh:AVAILABLE THEN DO:
+      RUN allmanbyt_UI. 
+      DO TRANSACTION:
+         orgtabh:FIND-FIRST("WHERE AONR = " + QUOTER(gfalt1in) + " AND DELNR = " + STRING(gfalt2in),EXCLUSIVE-LOCK) NO-ERROR.
+         IF orgtabh:AVAILABLE THEN DO:
+            gfalth1:BUFFER-VALUE = nyfalt1in.
+            gfalth2:BUFFER-VALUE = nyfalt2in.
+            gfalth3:BUFFER-VALUE = nyfalt3in.
+            IF gfalth6:BUFFER-VALUE = 12/24/2020 THEN gfalth6:BUFFER-VALUE = nyfalt6in.   /*avsluta aonr 12/24/2020*/
+            
+            RUN PaAv_UI. 
+         END.
+        
+      END.
+   END.         
+END.
+   
+PROCEDURE allmanbyt_UI :
+  FOR EACH _File:
+      IF SUBSTRING(_File._File-name,1,1) = "_" THEN.
+      ELSE DO:
+         RUN spec_UI.
+         IF _File._File-name =  styrtab THEN.
+         ELSE DO:
+            FIND FIRST _Field OF _File WHERE _Field._Field-name = gfalt1 NO-ERROR.  
+            IF AVAILABLE _Field THEN DO:
+               FIND FIRST _Field OF _File WHERE _Field._Field-name = gfalt2 NO-ERROR.  
+               IF AVAILABLE _Field THEN DO:
+                  RUN byt_UI.
+               END.
+            END.   
+         END.
+      END.   
+      
+   END. 
+
+END PROCEDURE.
+
+PROCEDURE byt_UI :
+   DEFINE VARIABLE borgtabh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE borgtabqh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE bfalth1 AS HANDLE NO-UNDO.
+   DEFINE VARIABLE bfalth2 AS HANDLE NO-UNDO.
+   DEFINE VARIABLE bstyrkommando AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE ffstyrkommando AS CHARACTER NO-UNDO.
+   DEFINE VAR DynWp AS CHARACTER NO-UNDO.
+   DynWp = "DynTableU" + STRING(TIME).
+   CREATE WIDGET-POOL STRING(DynWp) NO-ERROR.
+   
+   
+   bstyrkommando = "FOR EACH " + _File._File-name + " WHERE " + _File-name + "." + gfalt1 + " = " + QUOTER(gfalt1in)  +
+   " AND " + _File-name + "." + gfalt2 + " = " + STRING(gfalt2in).
+   ffstyrkommando = " WHERE " + _File-name + "." + gfalt1 + " = " + QUOTER(gfalt1in)  +  " AND " + _File-name + "." + gfalt2 + " = " + STRING(gfalt2in).
+   IF  _File._File-name = "BERMTRL" OR         
+   _File._File-name = "BERORD" OR 
+   _File._File-name = "BERLINKAB" OR 
+   _File._File-name = "BERVAL" OR 
+   _File._File-name = "FRIKORT" OR 
+   _File._File-name = "BERID" OR 
+   _File._File-name = "BERID2" OR 
+   _File._File-name = "BERUPP" OR 
+   _File._File-name = "BERPUNKT" OR 
+   _File._File-name = "BERKALK" OR 
+   _File._File-name = "BETAONR" OR 
+   _File._File-name = "BERKALKOPPLA" OR 
+   _File._File-name = "ANVAOTAB" OR  
+   _File._File-name = "MARKSTATIONIBEREDNING"
+    THEN RETURN. 
+   
+   CREATE BUFFER Borgtabh FOR TABLE _File._File-name IN WIDGET-POOL STRING(DynWp) NO-ERROR.
+   bfalth1 = borgtabh:BUFFER-FIELD(gfalt1).
+   bfalth2 = borgtabh:BUFFER-FIELD(gfalt2).
+   /*
+   Borgtabh:FIND-FIRST(ffstyrkommando,NO-LOCK) NO-ERROR.
+   IF Borgtabh:AVAILABLE THEN.
+   ELSE RETURN.
+   */
+         
+   
+   CREATE QUERY borgtabqh IN WIDGET-POOL STRING(DynWp).
+      
+
+   borgtabqh:SET-BUFFERS(borgtabh).
+   borgtabqh:QUERY-PREPARE(bstyrkommando).
+   borgtabqh:QUERY-OPEN.
+   borgtabqh:GET-FIRST(NO-LOCK) NO-ERROR.
+   DO WHILE borgtabh:AVAILABLE: 
+     DO TRANSACTION:  
+         borgtabqh:GET-CURRENT(EXCLUSIVE-LOCK).
+         bfalth1:BUFFER-VALUE = nyfalt1in.
+         bfalth2:BUFFER-VALUE = nyfalt2in.
+      END.     
+      borgtabqh:GET-NEXT(NO-LOCK) NO-ERROR.
+   END.
+   borgtabqh:BUFFER-RELEASE( ) NO-ERROR. 
+   borgtabqh:QUERY-CLOSE() NO-ERROR.  
+   
+   DELETE WIDGET-POOL STRING(DynWp) NO-ERROR.
+   DELETE OBJECT borgtabh NO-ERROR.
+   borgtabh = ?.
+   DELETE OBJECT borgtabqh NO-ERROR.
+   borgtabqh = ?.
+   
+END PROCEDURE.
+
+PROCEDURE spec_UI :
+   DEFINE VARIABLE Nyvarde AS CHARACTER NO-UNDO.   /*fält för nya värden*/
+   IF orgtabh:NAME = "AONRTAB" THEN DO: 
+      IF _File._File-name = "BESTDEP" THEN DO:
+         FOR EACH BESTDEP WHERE BESTDEP.LEVNAMN  = gfalt1in + ";" + STRING(gfalt2in) EXCLUSIVE-LOCK:
+            BESTDEP.LEVNAMN  = nyfalt1in + ";" + STRING(nyfalt2in).
+         END.
+      END.    
+      
+      IF _File._File-name = "INKMTRL" THEN DO:
+         FOR EACH INKMTRL WHERE INKMTRL.AONRAONR  = gfalt1in AND INKMTRL.AONRDELNR  = gfalt2in EXCLUSIVE-LOCK:
+            INKMTRL.AONRAONR  = nyfalt1in.
+            INKMTRL.AONRDELNR  = nyfalt2in.
+         END.
+      END.   
+      IF _File._File-name = "INKADRESS" THEN DO:
+         FOR EACH INKADRESS WHERE INKADRESS.AONRAONR  = gfalt1in AND INKADRESS.AONRDELNR  = gfalt2in EXCLUSIVE-LOCK:
+            INKADRESS.AONRAONR  = nyfalt1in.
+            INKADRESS.AONRDELNR  = nyfalt2in.
+         END.
+      END.
+      IF _File._File-name = "INKBER" THEN DO:  
+         FOR EACH INKBER WHERE INKBER.AONRAONR  = gfalt1in AND INKBER.AONRDELNR  = gfalt2in EXCLUSIVE-LOCK:
+            INKBER.AONRAONR  = nyfalt1in.
+            INKBER.AONRDELNR  = nyfalt2in.
+         END.
+      END.   
+      
+      IF _File._File-name = "LAGERPLATSKOPP" THEN DO:
+         FOR EACH LAGERPLATSKOPP WHERE LAGERPLATSKOPP.AONRAONR  = gfalt1in AND LAGERPLATSKOPP.AONRDELNR  = gfalt2in EXCLUSIVE-LOCK:
+            LAGERPLATSKOPP.AONRAONR  = nyfalt1in.
+            LAGERPLATSKOPP.AONRDELNR  = nyfalt2in.
+         END.
+      END.
+      IF _File._File-name = "BESTDEPAO" THEN DO:
+         FOR EACH BESTDEPAO WHERE BESTDEPAO.AONRAONR  = gfalt1in AND BESTDEPAO.AONRDELNR  = gfalt2in EXCLUSIVE-LOCK:
+            BESTDEPAO.AONRAONR  = nyfalt1in.
+            BESTDEPAO.AONRDELNR  = nyfalt2in.
+         END.
+      END.   
+      IF _File._File-name = "EXTRAKOPPLINGAR" THEN DO:
+         FOR EACH EXTRAKOPPLINGAR  WHERE EXTRAKOPPLINGAR.PROGRAM = "FBAONR" AND  EXTRAKOPPLINGAR.KOPPLACHAR1 = gfalt1in AND EXTRAKOPPLINGAR.KOPPLAINT1 =  gfalt2in  :
+            EXTRAKOPPLINGAR.KOPPLACHAR1 = nyfalt1in.
+            EXTRAKOPPLINGAR.KOPPLAINT1 =  nyfalt2in.  
+         END.
+         FOR EACH EXTRAKOPPLINGAR  WHERE EXTRAKOPPLINGAR.PROGRAM = "INTAONR" AND  EXTRAKOPPLINGAR.KOPPLACHAR1 = gfalt1in AND EXTRAKOPPLINGAR.KOPPLAINT1 =  gfalt2in  :
+            EXTRAKOPPLINGAR.KOPPLACHAR1 = nyfalt1in.
+            EXTRAKOPPLINGAR.KOPPLAINT1 =  nyfalt2in.  
+         END.
+         FOR EACH EXTRAKOPPLINGAR  WHERE EXTRAKOPPLINGAR.PROGRAM = "AOTIDPERS" AND  EXTRAKOPPLINGAR.KOPPLACHAR1 = gfalt1in AND EXTRAKOPPLINGAR.KOPPLAINT1 =  gfalt2in  :
+            EXTRAKOPPLINGAR.KOPPLACHAR1 = nyfalt1in.
+            EXTRAKOPPLINGAR.KOPPLAINT1 =  nyfalt2in.  
+         END.
+         FOR EACH EXTRAKOPPLINGAR  WHERE EXTRAKOPPLINGAR.PROGRAM = "AODAGBOK" AND  EXTRAKOPPLINGAR.KOPPLACHAR1 = gfalt1in AND EXTRAKOPPLINGAR.KOPPLAINT1 =  gfalt2in  :
+            EXTRAKOPPLINGAR.KOPPLACHAR1 = nyfalt1in.
+            EXTRAKOPPLINGAR.KOPPLAINT1 =  nyfalt2in.  
+         END.
+         FOR EACH EXTRAKOPPLINGAR  WHERE EXTRAKOPPLINGAR.PROGRAM = "FBDEB" AND  EXTRAKOPPLINGAR.KOPPLACHAR1 = gfalt1in AND EXTRAKOPPLINGAR.KOPPLAINT1 =  gfalt2in  :
+            EXTRAKOPPLINGAR.KOPPLACHAR1 = nyfalt1in.
+            EXTRAKOPPLINGAR.KOPPLAINT1 =  nyfalt2in.  
+         END.
+          FOR EACH EXTRAKOPPLINGAR  WHERE EXTRAKOPPLINGAR.PROGRAM = "FBKRED" AND  EXTRAKOPPLINGAR.KOPPLACHAR1 = gfalt1in AND EXTRAKOPPLINGAR.KOPPLAINT1 =  gfalt2in  :
+            EXTRAKOPPLINGAR.KOPPLACHAR1 = nyfalt1in.
+            EXTRAKOPPLINGAR.KOPPLAINT1 =  nyfalt2in.  
+         END.
+      END.
+      IF _File._File-name = "EXTRADATA" THEN DO:
+         FOR EACH EXTRADATA  WHERE EXTRADATA.PROGRAM = "AOREF" AND  EXTRADATA.HUVUDCH = gfalt1in AND EXTRADATA.HUVUDINT =  gfalt2in  :
+            EXTRADATA.HUVUDCH = nyfalt1in.
+            EXTRADATA.HUVUDINT =  nyfalt2in. 
+            /*LENA*/ 
+            EXTRADATA.SOKCHAR[7] =  nyfalt4in.
+            EXTRADATA.SOKCHAR[6] =  nyfalt5in. 
+            
+         END.
+         DO TRANSACTION: 
+            FIND FIRST EXTRADATA  WHERE EXTRADATA.PROGRAM = "AOREF" AND  EXTRADATA.HUVUDCH = nyfalt1in AND EXTRADATA.HUVUDINT =  nyfalt2in EXCLUSIVE-LOCK NO-ERROR.
+            IF NOT AVAILABLE EXTRADATA THEN DO:
+               CREATE EXTRADATA.
+               ASSIGN 
+               EXTRADATA.HUVUDCH = nyfalt1in
+               EXTRADATA.HUVUDINT =  nyfalt2in 
+               EXTRADATA.PROGRAM = "AOREF"
+               EXTRADATA.SOKCHAR[7] =  nyfalt4in
+               EXTRADATA.SOKCHAR[6] =  nyfalt5in. 
+            END.
+         END.
+         RELEASE EXTRADATA NO-ERROR.   
+            
+         FOR EACH EXTRADATA  WHERE EXTRADATA.PROGRAM = "RAIND" AND  EXTRADATA.HUVUDCH = gfalt1in AND EXTRADATA.HUVUDINT =  gfalt2in  :
+            EXTRADATA.HUVUDCH = nyfalt1in.
+            EXTRADATA.HUVUDINT =  nyfalt2in.  
+         END.
+         FOR EACH EXTRADATA  WHERE EXTRADATA.PROGRAM = "SISTNRPRE" AND  EXTRADATA.HUVUDCH = gfalt1in AND EXTRADATA.HUVUDINT =  gfalt2in  :
+            EXTRADATA.HUVUDCH = nyfalt1in.
+            EXTRADATA.HUVUDINT =  nyfalt2in.  
+         END.
+         FOR EACH EXTRADATA  WHERE EXTRADATA.PROGRAM = "FNYCKEL" AND  EXTRADATA.HUVUDCH = gfalt1in AND EXTRADATA.HUVUDINT =  gfalt2in  :
+            EXTRADATA.HUVUDCH = nyfalt1in.
+            EXTRADATA.HUVUDINT =  nyfalt2in.  
+         END.
+             
+      END.   
+      IF _File._File-name = "BYTAONR" THEN DO:
+         FOR EACH BYTAONR WHERE BYTAONR.NAONR =  gfalt1in AND BYTAONR.NDELNR  = gfalt2in :
+            BYTAONR.NAONR =  nyfalt1in.
+            BYTAONR.NDELNR  = nyfalt2in.
+         END.
+      END.
+      IF _File._File-name = "ANVAOTAB" THEN DO:
+         FOR EACH ANVAOTAB WHERE ANVAOTAB.ANVANDARE MATCHES "*AONR" AND ANVAOTAB.AONR =  gfalt1in AND ANVAOTAB.DELNR  = gfalt2in :
+            ANVAOTAB.AONR =  nyfalt1in.
+            ANVAOTAB.DELNR  = nyfalt2in.
+         END.
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE startin_UI:   
+   
+   EMPTY TEMP-TABLE tidinahw NO-ERROR. 
+   EMPTY TEMP-TABLE tidinaha NO-ERROR.
+   EMPTY TEMP-TABLE tidwover NO-ERROR.     
+   
+   /*filnamn = "D:\elpool\FixÖversättningsfil AktivaWOmedBerSkarp 2021 01 13.skv".*/
+   filnamn = "D:\elpool\FIXÖversättning AO_AU 2021 02 02.SKV".
+   
+     
+   RUN inlaswo_UI.
+   RUN skapaaoover_UI.
+   /*filnamn = "D:\elpool\Ort 10.skv".
+   /*filnamn = "D:\elpool\Gamla AO service ort 10-11.SKV".*/   
+   RUN inlas_UI.
+   filnamn = "D:\elpool\Ort 11.skv".
+   /*filnamn = "D:\elpool\Gamla AO service ort 12-13.SKV".*/   
+   RUN inlas_UI.
+   filnamn = "D:\elpool\Ort 12.skv".
+   /*filnamn = "D:\elpool\Gamla AO service ort 14-15.SKV".*/   
+   RUN inlas_UI.
+   filnamn = "D:\elpool\Ort 13.skv".
+   /*filnamn = "D:\elpool\Gamla AO service ort 16-17.SKV".*/   
+   RUN inlas_UI.
+   filnamn = "D:\elpool\Ort 14.skv".
+   /*filnamn = "D:\elpool\Gamla AO service ort 18-19.SKV".*/   
+   RUN inlas_UI.
+   filnamn = "D:\elpool\Ort 15.skv".
+   /*filnamn = "D:\elpool\Gamla AO service ort 20-21.SKV".*/   
+   RUN inlas_UI.
+   filnamn = "D:\elpool\Ort 16.skv".
+   /*filnamn = "D:\elpool\Gamla AO service ort 22-23.SKV".*/   
+   RUN inlas_UI.
+   filnamn = "D:\elpool\Ort 17.skv".
+   /*filnamn = "D:\elpool\Gamla AO service ort 24-26.SKV".*/   
+   RUN inlas_UI.
+   filnamn = "D:\elpool\Ort 18.skv".      
+   RUN inlas_UI.
+   filnamn = "D:\elpool\Ort 19.skv".      
+   RUN inlas_UI.
+   filnamn = "D:\elpool\Ort 20.skv".      
+   RUN inlas_UI.
+   filnamn = "D:\elpool\Ort 21.skv".      
+   RUN inlas_UI.
+   filnamn = "D:\elpool\Ort 22.skv".      
+   RUN inlas_UI.
+   filnamn = "D:\elpool\Ort 23.skv".      
+   RUN inlas_UI.
+   filnamn = "D:\elpool\Ort 24.skv".      
+   RUN inlas_UI.
+   filnamn = "D:\elpool\Ort 25.skv".      
+   RUN inlas_UI.
+   */
+      
+   /*filnamn = "D:\elpool\fixAO-nummer till IFS projekt GURU 2020 12 30.SKV".
+   /*filnamn = "D:\elpool\fixAO-nummer till IFS projekt GURR 2020 11 03.skv".*/      
+   RUN inlasa_UI.  
+*/
+   /*RUN skapaaot_UI.*/
+   
+   
+   
+   /* filnamn = "D:\elpool\aonrone.skv".
+    EMPTY TEMP-TABLE tidinah NO-ERROR.
+   
+   INPUT FROM VALUE(filnamn) NO-ECHO.
+   REPEAT:
+      DO TRANSACTION: 
+         CREATE tidinah.
+         ASSIGN.
+         IMPORT DELIMITER ";" tidinah   NO-ERROR.
+      END.               
+   END.
+
+   FOR EACH tidinah WHERE tidinah.AONRDELNR = "":
+      DELETE tidinah.
+   END.   
+   
+   EMPTY TEMP-TABLE bytaaonrtt NO-ERROR. 
+   FOR EACH tidinah NO-LOCK:                                          
+      CREATE bytaaonrtt.
+      ASSIGN
+      bytaaonrtt.AONRG = SUBSTRING(tidinah.AONRDELNR,1,6)
+      bytaaonrtt.DELNRG = INTEGER(SUBSTRING(tidinah.AONRDELNR,7,2))
+      bytaaonrtt.AONRN = tidinah.NYAONR
+      bytaaonrtt.DELNRN = tidinah.NYARB.  
+   END.
+   
+   */  
+END PROCEDURE.
+
+PROCEDURE inlaswo_UI: 
+
+   INPUT FROM VALUE(filnamn) NO-ECHO.
+   REPEAT:
+      DO TRANSACTION: 
+         CREATE tidwover.
+         ASSIGN.
+         IMPORT DELIMITER ";" tidwover   NO-ERROR.
+      END.               
+   END.
+   FOR EACH tidwover WHERE tidwover.AONR = "":
+      DELETE tidwover.
+   END.           
+END PROCEDURE.
+
+PROCEDURE inlas_UI: 
+   
+   
+   INPUT FROM VALUE(filnamn) NO-ECHO.
+   REPEAT:
+      DO TRANSACTION: 
+         CREATE tidinahw.
+         ASSIGN.
+         IMPORT DELIMITER ";" tidinahw   NO-ERROR.
+      END.               
+   END.
+   FOR EACH tidinahw WHERE tidinahw.AONRDELNR = "":
+      DELETE tidinahw.
+   END.           
+END PROCEDURE.
+
+PROCEDURE inlasa_UI: 
+
+   EMPTY TEMP-TABLE tidinaha NO-ERROR.
+   
+   INPUT FROM VALUE(filnamn) NO-ECHO.
+   REPEAT:
+      DO TRANSACTION: 
+         CREATE tidinaha.
+         ASSIGN.
+         IMPORT DELIMITER ";" tidinaha   NO-ERROR.
+      END.               
+   END.
+   FOR EACH tidinaha WHERE tidinaha.AONRDELNR = "":
+      DELETE tidinaha.
+   END.           
+END PROCEDURE.
+
+   
+
+
+PROCEDURE skapaaot_UI:   
+   
+   EMPTY TEMP-TABLE bytaaonrtt NO-ERROR. 
+   EMPTY TEMP-TABLE ejbytaaonrtt NO-ERROR.
+   OUTPUT TO D:\elpool\tidinaha.txt. 
+   FOR EACH tidinaha  NO-LOCK:
+      PUT UNFORMATTED tidinaha.AONRDELNR   " " tidinaha.NYAONR1  " " tidinaha.NYAONR2  " "  tidinaha.NYARB    SKIP. 
+   END.
+   OUTPUT CLOSE.
+   OUTPUT TO D:\elpool\tidinahw.txt. 
+   FOR EACH tidinahw  NO-LOCK:
+      PUT UNFORMATTED tidinahw.AONRDELNR " "  tidinahw.NYAONR " " tidinahw.activitysec  " "  SKIP. 
+   END.
+   OUTPUT CLOSE.
+  /* FOR EACH tidinaha NO-LOCK:          
+      FIND FIRST AONRTAB  WHERE AONRTAB.AONR = SUBSTRING(tidinaha.AONRDELNR,1,6)
+      AND AONRTAB.DELNR = INTEGER(SUBSTRING(tidinaha.AONRDELNR,7,2))  NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE AONRTAB THEN DO:
+         CREATE ejbytaaonrtt.
+         ASSIGN
+         ejbytaaonrtt.AONRDELNRG = tidinaha.AONRDELNR
+         ejbytaaonrtt.AONRG = SUBSTRING(tidinaha.AONRDELNR,1,6).
+         ejbytaaonrtt.DELNRG = INTEGER(SUBSTRING(tidinaha.AONRDELNR,7,2)).
+         ejbytaaonrtt.AONRN = tidinaha.NYAONR1 + "." + tidinaha.NYAONR2.
+         ejbytaaonrtt.NYARB = tidinaha.NYARB.
+         ejbytaaonrtt.activitysec = tidinaha.activitysec.
+         ejbytaaonrtt.MessageType = "ProjectActivity".
+      END.
+      ELSE DO:                                   
+         CREATE bytaaonrtt.
+         ASSIGN
+         bytaaonrtt.AONRDELNRG = tidinaha.AONRDELNR
+         bytaaonrtt.AONRG = SUBSTRING(tidinaha.AONRDELNR,1,6).
+         bytaaonrtt.DELNRG = INTEGER(SUBSTRING(tidinaha.AONRDELNR,7,2)).
+         bytaaonrtt.AONRN = tidinaha.NYAONR1 + "." + tidinaha.NYAONR2.
+         bytaaonrtt.DELNRN = 100.
+         bytaaonrtt.NYARB = tidinaha.NYARB.
+         bytaaonrtt.activitysec = tidinaha.activitysec.
+         bytaaonrtt.MessageType = "ProjectActivity".
+         
+      END.    
+   END.*/
+    
+   OUTPUT TO D:\elpool\DELNRBYT.txt.   
+   FOR EACH bytaaonrtt WHERE NO-LOCK:
+      hjdel = 0.
+      /*IF bytaaonrtt.AONRN = "2088.030" THEN DO:
+         MESSAGE "2088.030"
+         VIEW-AS ALERT-BOX.
+      END.   */
+      FIND FIRST aotbuff WHERE aotbuff.AONRN = bytaaonrtt.AONRN AND  aotbuff.AONRDELNRG NE bytaaonrtt.AONRDELNRG  NO-LOCK NO-ERROR.
+      IF AVAILABLE aotbuff THEN DO:         
+         FIND FIRST aotbuff2 WHERE aotbuff2.AONRN = bytaaonrtt.AONRN AND aotbuff2.DELNRN = bytaaonrtt.DELNRG AND aotbuff2.AONRG NE bytaaonrtt.AONRG     NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE aotbuff2 THEN DO:
+            FIND FIRST aotbuff2 WHERE aotbuff2.AONRN = bytaaonrtt.AONRN AND aotbuff2.DELNRN = bytaaonrtt.DELNRG AND RECID(aotbuff2) NE RECID (bytaaonrtt)     NO-LOCK NO-ERROR.
+         END.
+         IF AVAILABLE aotbuff2 THEN DO:                  
+            REPEAT:
+               FIND FIRST aotbuff3 WHERE aotbuff3.AONRN = bytaaonrtt.AONRN AND aotbuff3.DELNRN = hjdel  NO-LOCK NO-ERROR.
+               IF AVAILABLE aotbuff3 THEN DO:
+                  hjdel = hjdel + 1.
+               END.
+               ELSE DO:
+                  PUT UNFORMATTED bytaaonrtt.AONRG " "  bytaaonrtt.DELNRG " " bytaaonrtt.AONRN  " " bytaaonrtt.DELNRN " " bytaaonrtt.NYARB " "  hjdel " " "HJDEL" SKIP.
+                  ASSIGN bytaaonrtt.DELNRN = hjdel.
+                  LEAVE.
+               END.
+               IF hjdel > 99 THEN LEAVE.   
+            END.         
+         END.
+         ELSE DO:                        
+            ASSIGN bytaaonrtt.DELNRN = bytaaonrtt.DELNRG.   
+            PUT UNFORMATTED bytaaonrtt.AONRG " "  bytaaonrtt.DELNRG " " bytaaonrtt.AONRN  " " bytaaonrtt.DELNRN " " bytaaonrtt.NYARB  " " "DELNRNG" SKIP.
+         END.               
+      END.
+      ELSE DO:
+         ASSIGN bytaaonrtt.DELNRN = bytaaonrtt.NYARB
+         bytaaonrtt.NYARB = 0.
+      END.      
+   END.
+   OUTPUT CLOSE.
+   FOR EACH tidinahw NO-LOCK:                   
+      FIND FIRST AONRTAB  WHERE AONRTAB.AONR = SUBSTRING(tidinahw.AONRDELNR,1,6)
+      AND AONRTAB.DELNR = INTEGER(SUBSTRING(tidinahw.AONRDELNR,7,2))  NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE AONRTAB THEN DO:
+         CREATE ejbytaaonrtt.
+         ASSIGN
+         ejbytaaonrtt.AONRDELNRG = tidinahW.AONRDELNR
+         ejbytaaonrtt.AONRG = SUBSTRING(tidinahw.AONRDELNR,1,6).
+         ejbytaaonrtt.DELNRG = INTEGER(SUBSTRING(tidinahw.AONRDELNR,7,2)).
+         ejbytaaonrtt.AONRN = tidinahw.NYAONR.
+         ejbytaaonrtt.DELNRN = 0.
+         ejbytaaonrtt.activitysec = tidinahw.activitysec.
+         ejbytaaonrtt.MessageType = "WorkTask".
+      END.
+      ELSE DO:                          
+         CREATE bytaaonrtt.
+         ASSIGN
+         bytaaonrtt.AONRDELNRG = tidinahW.AONRDELNR
+         bytaaonrtt.AONRG = SUBSTRING(tidinahw.AONRDELNR,1,6).
+         bytaaonrtt.DELNRG = INTEGER(SUBSTRING(tidinahw.AONRDELNR,7,2)).
+         bytaaonrtt.AONRN = tidinahw.NYAONR.
+         bytaaonrtt.DELNRN = 0.
+         bytaaonrtt.activitysec = tidinahw.activitysec.
+         bytaaonrtt.MessageType = "WorkTask".
+      END.    
+   END.
+   
+   OUTPUT TO D:\elpool\AONREJTRAFF.txt.     
+   FOR EACH ejbytaaonrtt  NO-LOCK:      
+      PUT UNFORMATTED ejbytaaonrtt.AONRG " "  ejbytaaonrtt.DELNRG " " ejbytaaonrtt.AONRN " " ejbytaaonrtt.DELNRN " "  ejbytaaonrtt.NYARB SKIP.               
+   END.
+   OUTPUT CLOSE.   
+   
+   OUTPUT TO D:\elpool\AONRTRAFF.txt.     
+   FOR EACH bytaaonrtt  NO-LOCK:      
+      PUT UNFORMATTED bytaaonrtt.AONRG " "  bytaaonrtt.DELNRG " " bytaaonrtt.AONRN  " " bytaaonrtt.DELNRN " " bytaaonrtt.NYARB SKIP.              
+   END.                  
+   OUTPUT CLOSE.
+   
+   OUTPUT TO D:\elpool\AONRdub.txt.
+   FOR EACH bytaaonrtt  NO-LOCK:
+      FIND FIRST aotbuff WHERE aotbuff.AONRN = bytaaonrtt.AONRN AND aotbuff.DELNRN = bytaaonrtt.DELNRN AND aotbuff.NYARB = bytaaonrtt.NYARB  AND  aotbuff.AONRDELNRG NE bytaaonrtt.AONRDELNRG  NO-LOCK NO-ERROR.
+      IF AVAILABLE aotbuff THEN DO:
+         PUT UNFORMATTED bytaaonrtt.AONRN " "  bytaaonrtt.DELNRN " " bytaaonrtt.NYARB " " bytaaonrtt.AONRDELNRG  " B" SKIP.
+         PUT UNFORMATTED aotbuff.AONRN " "  aotbuff.DELNRN " " aotbuff.NYARB " " aotbuff.AONRDELNRG  " A" SKIP.
+      END.
+   END.
+   OUTPUT CLOSE.                               
+END PROCEDURE.
+PROCEDURE skapaaoover_UI:   
+   
+   EMPTY TEMP-TABLE bytaaonrtt NO-ERROR. 
+   EMPTY TEMP-TABLE ejbytaaonrtt NO-ERROR.
+   
+   OUTPUT TO D:\elpool\tidwover.txt. 
+   FOR EACH tidwover  NO-LOCK:
+      PUT UNFORMATTED tidwover.AONR   " " tidwover.delnr   " " tidinaha.NYAONR1  " " tidinaha.NYAONR2  " "  tidinaha.NYARB    SKIP. 
+   END.
+   OUTPUT CLOSE.
+    
+   
+   FOR EACH tidwover NO-LOCK:                   
+      FIND FIRST AONRTAB  WHERE AONRTAB.AONR = tidwover.AONR
+      AND AONRTAB.DELNR = tidwover.DELNR  NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE AONRTAB THEN DO:
+         CREATE ejbytaaonrtt.
+         ASSIGN
+         ejbytaaonrtt.AONRDELNRG = tidwover.AONR
+         ejbytaaonrtt.AONRG = tidwover.AONR.
+         ejbytaaonrtt.DELNRG = tidwover.DELNR.
+         ejbytaaonrtt.AONRN = tidwover.NYAONR.
+         ejbytaaonrtt.DELNRN = INTEGER(tidwover.activitysec).
+         ejbytaaonrtt.activitysec = tidwover.activitysec.
+         ejbytaaonrtt.MessageType = "WorkTask".
+      END.
+      ELSE DO:                          
+         CREATE bytaaonrtt.
+         ASSIGN
+         bytaaonrtt.AONRDELNRG = tidwover.AONR
+         bytaaonrtt.AONRG = tidwover.AONR.
+         bytaaonrtt.DELNRG = tidwover.DELNR.
+         bytaaonrtt.AONRN = tidwover.NYAONR.
+         bytaaonrtt.DELNRN = INTEGER(tidwover.activitysec).
+         bytaaonrtt.activitysec = tidwover.activitysec.
+         bytaaonrtt.MessageType = "WorkTask".
+      END.    
+   END.
+   
+   OUTPUT TO D:\elpool\AONREJTRAFF.txt.     
+   FOR EACH ejbytaaonrtt  NO-LOCK:      
+      PUT UNFORMATTED ejbytaaonrtt.AONRG " "  ejbytaaonrtt.DELNRG " " ejbytaaonrtt.AONRN " " ejbytaaonrtt.DELNRN " "  ejbytaaonrtt.NYARB SKIP.               
+   END.
+   OUTPUT CLOSE.   
+   
+   OUTPUT TO D:\elpool\AONRTRAFF.txt.     
+   FOR EACH bytaaonrtt  NO-LOCK:      
+      PUT UNFORMATTED bytaaonrtt.AONRG " "  bytaaonrtt.DELNRG " " bytaaonrtt.AONRN  " " bytaaonrtt.DELNRN " " bytaaonrtt.NYARB SKIP.              
+   END.                  
+   OUTPUT CLOSE.
+   
+   OUTPUT TO D:\elpool\AONRdub.txt.
+   FOR EACH bytaaonrtt  NO-LOCK:
+      FIND FIRST aotbuff WHERE aotbuff.AONRN = bytaaonrtt.AONRN AND aotbuff.DELNRN = bytaaonrtt.DELNRN AND aotbuff.NYARB = bytaaonrtt.NYARB  AND  aotbuff.AONRDELNRG NE bytaaonrtt.AONRDELNRG  NO-LOCK NO-ERROR.
+      IF AVAILABLE aotbuff THEN DO:
+         PUT UNFORMATTED bytaaonrtt.AONRN " "  bytaaonrtt.DELNRN " " bytaaonrtt.NYARB " " bytaaonrtt.AONRDELNRG  " B" SKIP.
+         PUT UNFORMATTED aotbuff.AONRN " "  aotbuff.DELNRN " " aotbuff.NYARB " " aotbuff.AONRDELNRG  " A" SKIP.
+      END.
+   END.
+   OUTPUT CLOSE.                               
+END PROCEDURE.   
+/*gör beredning och kalkyl aktiva för ej avslutade aonr och tvärtom*/     
+PROCEDURE PaAv_UI :
+   DEFINE VARIABLE onoff AS LOGICAL NO-UNDO.
+   IF orgtabh:BUFFER-FIELD("AONRAVDATUM"):BUFFER-VALUE = 01/01/91 THEN onoff = TRUE.
+   ELSE onoff = FALSE.
+   OPEN QUERY kalkaoq FOR EACH KALKAONR WHERE KALKAONR.AONR = orgtabh:BUFFER-FIELD("AONR"):BUFFER-VALUE  AND
+   KALKAONR.DELNR = orgtabh:BUFFER-FIELD("DELNR"):BUFFER-VALUE  USE-INDEX AONR NO-LOCK.
+   GET FIRST kalkaoq NO-LOCK.
+   DO WHILE AVAILABLE(KALKAONR):
+      DO TRANSACTION:
+         GET CURRENT kalkaoq EXCLUSIVE-LOCK.
+         KALKAONR.AKTIV = onoff.
+      END.
+      GET NEXT kalkaoq NO-LOCK.   
+   END.
+   CLOSE QUERY kalkaoq.
+   OPEN QUERY kalkaoq FOR EACH KALKAONR WHERE KALKAONR.AONR = orgtabh:BUFFER-FIELD("AONR"):BUFFER-VALUE AND
+   KALKAONR.DELNR = orgtabh:BUFFER-FIELD("DELNR"):BUFFER-VALUE USE-INDEX AONR NO-LOCK. 
+   GET FIRST kalkaoq NO-LOCK.
+   DO WHILE AVAILABLE(KALKAONR):
+      DO TRANSACTION:
+         FIND FIRST KALKHUV WHERE KALKHUV.KALKNR = KALKAONR.KALKNR EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE KALKHUV THEN DO:
+            KALKHUV.AKTIV = onoff.
+         END.   
+      END.
+      RELEASE KALKHUV NO-ERROR.
+      GET NEXT kalkaoq NO-LOCK.
+   END.
+         
+      
+   DO TRANSACTION:
+      FIND FIRST BEREDNING WHERE BEREDNING.AONR = orgtabh:BUFFER-FIELD("AONR"):BUFFER-VALUE AND
+      BEREDNING.DELNR = orgtabh:BUFFER-FIELD("DELNR"):BUFFER-VALUE USE-INDEX AONR
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BEREDNING THEN BEREDNING.AKTIV = onoff.  
+      
+      FIND FIRST AOVARD WHERE AOVARD.AONR = orgtabh:BUFFER-FIELD("AONR"):BUFFER-VALUE AND AOVARD.DELNR = orgtabh:BUFFER-FIELD("DELNR"):BUFFER-VALUE
+      USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF AVAILABLE AOVARD THEN DO:
+         IF AOVARD.VARDNR = ? THEN.
+         ELSE DO:
+            FIND FIRST VARDERING WHERE VARDERING.VARDNR = AOVARD.VARDNR USE-INDEX VARDNR
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE VARDERING THEN DO:
+               ASSIGN VARDERING.AKTIV = onoff.
+            END.
+         END.
+      END.            
+   END.
+   RELEASE BEREDNING NO-ERROR.
+   RELEASE VARDERING NO-ERROR.
+         
+END PROCEDURE.

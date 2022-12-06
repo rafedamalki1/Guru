@@ -1,0 +1,291 @@
+/*PODEBAPP.P*/
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+
+/*{REGVAR.I}*/
+{SOKDEF.I}
+
+
+DEFINE TEMP-TABLE intakttemp NO-UNDO
+   FIELD AONR         LIKE KOSTREG.AONR
+   FIELD DELNR        LIKE KOSTREG.DELNR   
+   FIELD BOKKONTO     LIKE KOSTREG.BOKKONTO
+   FIELD INTINTAKT    AS DECIMAL
+   FIELD EXTERNINTAKT AS DECIMAL
+   FIELD RESULTAT     AS DECIMAL
+   INDEX AONR IS PRIMARY AONR DELNR BOKKONTO.
+DEFINE TEMP-TABLE inkomsttemp NO-UNDO
+   FIELD AONR         LIKE KOSTREG.AONR
+   FIELD DELNR        LIKE KOSTREG.DELNR   
+   FIELD BOKKONTO     LIKE KOSTREG.BOKKONTO
+   FIELD INKOMST    AS DECIMAL   
+   INDEX AONR IS PRIMARY AONR DELNR BOKKONTO.
+   
+/*DEFINE TEMP-TABLE beftemp NO-UNDO
+   FIELD personalkod as character
+   FIELD befattning as character
+   FIELD startdatum as date
+   field pris as decimal
+   index pkod is primary  personalkod startdatum.*/
+   
+   
+DEFINE BUFFER overbuff FOR OVERKOD.
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+&Scoped-define NEW NEW
+{FAKTTYPDEF.I}
+&Scoped-define NEW 
+{FAKTTYPSKAP.I}
+FUNCTION klockan100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+
+FUNCTION klockan60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ):
+  RETURN TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) / 100) * 60 . 
+
+END FUNCTION.
+DEFINE VARIABLE superhandle AS HANDLE.
+DEFINE VARIABLE vartvar AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE kalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE intkalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE exkalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE summakostvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE hjalpvar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE spbef AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sppris AS DECIMAL NO-UNDO. 
+DEFINE QUERY fq FOR FAKTINTAKTKONT,FAKTURERAD.
+DEFINE QUERY fkq FOR FAKTINTAKTKONTKRED,FAKTKRED.
+DEFINE QUERY kq FOR KOSTREG.
+DEFINE QUERY sq FOR SUMTID.
+DEFINE QUERY stq FOR SUMTIDDAG.
+DEFINE QUERY tq FOR TIDREGITAB.
+{DIRDEF.I}
+{PHMT.I}
+{KALKTEMP.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+IF FORETAG.FORETAG = "GRIT" THEN DO:
+   RUN GRITIN.P PERSISTENT SET superhandle (INPUT 1).
+   THIS-PROCEDURE:ADD-SUPER-PROCEDURE (superhandle).
+END.
+{TIDUTTT.I}
+
+   
+DEFINE INPUT PARAMETER TABLE FOR uppvaltemp.
+DEFINE INPUT PARAMETER TABLE FOR valperstemp.
+DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+
+DEFINE NEW SHARED VARIABLE fastrec AS RECID NO-UNDO.
+DEFINE VARIABLE offert AS LOGICAL NO-UNDO.
+DEFINE VARIABLE xtypmtrl AS INTEGER NO-UNDO.
+DEFINE VARIABLE monpris LIKE EBRPRIS.MONT NO-UNDO.
+DEFINE VARIABLE berpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE kalkvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE breddantal AS INTEGER NO-UNDO.
+DEFINE VARIABLE utnr AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE bredd AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE nrcol AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE ingakostver AS LOGICAL NO-UNDO.
+DEFINE VARIABLE stim AS DECIMAL NO-UNDO.   
+DEFINE VARIABLE o50 AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE o75 AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE o100 AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE stimk AS DECIMAL NO-UNDO.   
+DEFINE VARIABLE o50k AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE o75k AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE o100k AS DECIMAL NO-UNDO.
+
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(256)" NO-UNDO.
+DEFINE VARIABLE pekod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE aokod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE delkod AS INTEGER NO-UNDO.
+DEFINE VARIABLE timmpris AS DECIMAL NO-UNDO.
+DEFINE BUFFER befattbuff FOR BEFATTNINGSTAB.
+/*BEREDNING*/
+{LISTDEF.I} 
+
+
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR. 
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+
+FIND FIRST uppvaltemp NO-ERROR.
+
+RUN huvud_UI.
+PROCEDURE huvud_UI :  
+   CREATE tidut. 
+   SUBSTRING(tidut.UT,60) = STRING(TODAY) + " " + STRING(TIME,"HH:MM").
+   CREATE tidut.
+   CREATE tidut.
+   tidut.UT = uppvaltemp.VALDLISTA. 
+  
+   ASSIGN   
+  
+   nrcol[28] = 1 
+   nrcol[5] = 2 
+   nrcol[1] = 3
+   nrcol[2] = 4   
+   nrcol[3] = 5   
+   nrcol[4] = 6
+   nrcol[6] = 7
+     
+   breddantal = 7   /*antal kolumner*/
+   bredd[1] = 30
+   bredd[2] = 20
+   bredd[3] = 8
+   bredd[4] = 13
+   bredd[5] = 13
+   bredd[6] = 22
+   bredd[7] = 8.   
+   
+   ASSIGN
+   i = 2.     
+   utnr[nrcol[28]] = 1.
+   
+   DO WHILE i <= breddantal:             
+      utnr[i] = utnr[i - 1] + bredd[i - 1] + 1.            
+      i = i + 1.
+   END.   
+   ASSIGN
+   str = "".  
+   i = 1.
+   DO WHILE i <= utnr[breddantal] + bredd[breddantal] - 1:
+      str = str + "=".     
+      i = i + 1.
+   END.   
+   i = 2.      
+   DO WHILE i <= breddantal:             
+      SUBSTRING(str,(utnr[i] - 1),1) = ".".      
+      i = i + 1.
+   END.          
+   CREATE tidut.  
+   CREATE tidut.   
+   CREATE tidut.             
+   FIND FIRST KBENAMNING NO-LOCK NO-ERROR.
+      
+   CREATE tidut.      
+   ASSIGN                                  
+   SUBSTRING(tidut.UT,utnr[nrcol[28]]) = "Enhet/Sign"   
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "Befattning"   
+   SUBSTRING(tidut.UT,utnr[nrcol[1]]) = "Timpris"     
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "Enkel övertid"             
+   SUBSTRING(tidut.UT,utnr[nrcol[3]]) = "Kval övertid"
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "Startdatum prislista"
+   SUBSTRING(tidut.UT,utnr[nrcol[6]]) = Guru.Konstanter:gomrk.
+   
+   
+   ASSIGN
+   pekod = ""
+   aokod = ""
+   delkod = 0.
+   
+   FOR EACH valperstemp USE-INDEX OMR:  
+      FIND FIRST ANSTFORMTAB  WHERE ANSTFORMTAB.ANSTALLNING =  valperstemp.ANSTALLNING NO-LOCK NO-ERROR.
+      FIND FIRST OVERKOD WHERE OVERKOD.KOD = ANSTFORMTAB.KOD AND OVERKOD.ENKEL = "ENKE" AND OVERKOD.OVERTIDUTTAG = "Ö" NO-LOCK NO-ERROR.
+      FIND FIRST overbuff WHERE overbuff.KOD = ANSTFORMTAB.KOD AND overbuff.ENKEL = "KVAL" AND overbuff.OVERTIDUTTAG = "Ö" NO-LOCK NO-ERROR.
+      FIND FIRST BEFATTNINGSTAB WHERE BEFATTNINGSTAB.BEFATTNING = valperstemp.BEFATTNING NO-LOCK NO-ERROR.
+      timmpris = 0.
+      IF YEAR(uppvaltemp.STARTDATUM)  = YEAR(uppvaltemp.SLUTDATUM) THEN DO: 
+         FIND FIRST PERSONALPRIS WHERE 
+         PERSONALPRIS.PERSONALKOD = valperstemp.PERSONALKOD AND
+         PERSONALPRIS.BEFATTNING = valperstemp.BEFATTNING AND 
+         PERSONALPRIS.STARTDATUM <= TODAY  AND 
+         PERSONALPRIS.SLUTDATUM >= TODAY NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE PERSONALPRIS THEN DO:
+            FIND LAST PERSONALPRIS WHERE 
+            PERSONALPRIS.PERSONALKOD = valperstemp.PERSONALKOD AND
+            PERSONALPRIS.BEFATTNING = valperstemp.BEFATTNING USE-INDEX PSTART NO-LOCK NO-ERROR.
+            IF AVAILABLE PERSONALPRIS THEN DO:
+               IF PERSONALPRIS.STARTDATUM > TODAY THEN DO:
+                  FIND FIRST TIMKOSTNADSTAB WHERE 
+                  TIMKOSTNADSTAB.PERSONALKOD = soktemp.SOKCHAR[2] AND
+                  TIMKOSTNADSTAB.PRISTYP = soktemp.SOKCHAR[3] 
+                  USE-INDEX PRISPERS NO-LOCK NO-ERROR.
+                  timmpris = TIMKOSTNADSTAB.PRISA.             
+               END.
+            END.
+         END.
+         timmpris = PERSONALPRIS.PRIS.  
+         CREATE tidut.                                       
+         ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[28]]) = valperstemp.PERSONALKOD + " " + SUBSTRING(valperstemp.FORNAMN,1) + " " + SUBSTRING(valperstemp.EFTERNAMN,1).
+         IF AVAILABLE BEFATTNINGSTAB THEN ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[5]]) = SUBSTRING(BEFATTNINGSTAB.NAMN,1). 
+         SUBSTRING(tidut.UT,utnr[nrcol[1]]) = STRING( timmpris,">>>>>9").
+         IF AVAILABLE OVERKOD THEN SUBSTRING(tidut.UT,utnr[nrcol[2]]) = STRING(((1 + OVERKOD.MULTIP) * timmpris),">>>>>9").                                                          
+         IF AVAILABLE overbuff THEN SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING(((1 + overbuff.MULTIP) * timmpris),">>>>>9") .
+         IF AVAILABLE PERSONALPRIS THEN SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(PERSONALPRIS.STARTDATUM,"9999-99-99") .      
+         SUBSTRING(tidut.UT,utnr[nrcol[6]]) =  valperstemp.OMRADE.
+      END.
+      ELSE DO:
+          
+         DEBUGGER:SET-BREAK().
+         spbef =   "".
+         sppris = 0.  
+         FOR EACH SUMTIDDAG  WHERE SUMTIDDAG.PERSONALKOD = valperstemp.PERSONALKOD AND  SUMTIDDAG.datum ge uppvaltemp.STARTDATUM AND SUMTIDDAG.datum LE uppvaltemp.SLUTDATUM
+         AND SUMTIDDAG.pristyp = "tot.pris." AND SUMTIDDAG.TIMMAR > 0  USE-INDEX personalkod NO-LOCK:
+               /*IF spbef =   SUBSTRING(SUMTIDDAG.BEFATTNING,1,20) AND sppris =  SUMTIDDAG.pris THEN.*/
+               IF sppris =  SUMTIDDAG.pris THEN.
+               ELSE DO:
+                  FIND FIRST befattbuff WHERE befattbuff.BEFATTNING = SUBSTRING(SUMTIDDAG.BEFATTNING,1,20) NO-LOCK NO-ERROR.  
+                  CREATE tidut.                                       
+                  ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[28]]) = valperstemp.PERSONALKOD + " " + SUBSTRING(valperstemp.FORNAMN,1) + " " + SUBSTRING(valperstemp.EFTERNAMN,1).
+                  IF AVAILABLE befattbuff THEN ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[5]]) = SUBSTRING(befattbuff.NAMN,1). 
+                  SUBSTRING(tidut.UT,utnr[nrcol[1]]) = STRING( SUMTIDDAG.pris,">>>>>9").
+                  IF AVAILABLE OVERKOD THEN SUBSTRING(tidut.UT,utnr[nrcol[2]]) = STRING(((1 + OVERKOD.MULTIP) * SUMTIDDAG.pris),">>>>>9").                                                          
+                  IF AVAILABLE overbuff THEN SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING(((1 + overbuff.MULTIP) * SUMTIDDAG.pris),">>>>>9") .
+                  SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(SUMTIDDAG.datum,"9999-99-99") .      
+                  SUBSTRING(tidut.UT,utnr[nrcol[6]]) =  valperstemp.OMRADE.
+               END.
+         
+               ASSIGN 
+               /*spbef =   SUBSTRING(SUMTIDDAG.BEFATTNING,1,20)*/
+               sppris =  SUMTIDDAG.pris.   
+         /*   FIND  FIRST beftemp where beftemp.personalkod = SUMTIDDAG.personalkod and beftemp.befattning = SUBSTRING(SUMTIDDAG.BEFATTNING,1,20) AND beftemp.pris = SUMTIDDAG.pris no-lock no-error.
+            IF NOT  AVAILABLE  beftemp THEN DO:
+               CREATE beftemp.
+               assign
+               beftemp.personalkod = SUMTIDDAG.personalkod 
+               beftemp.befattning = SUBSTRING(SUMTIDDAG.befattning,1,20)
+               beftemp.startdatum = SUMTIDDAG.datum
+               beftemp.pris = SUMTIDDAG.pris.
+               FIND FIRST befattbuff WHERE befattbuff.BEFATTNING = beftemp.befattning NO-LOCK NO-ERROR.  
+               CREATE tidut.                                       
+               ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[28]]) = valperstemp.PERSONALKOD + " " + SUBSTRING(valperstemp.FORNAMN,1) + " " + SUBSTRING(valperstemp.EFTERNAMN,1).
+               IF AVAILABLE befattbuff THEN ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[5]]) = SUBSTRING(befattbuff.NAMN,1). 
+               SUBSTRING(tidut.UT,utnr[nrcol[1]]) = STRING( beftemp.pris,">>>>>9").
+               IF AVAILABLE OVERKOD THEN SUBSTRING(tidut.UT,utnr[nrcol[2]]) = STRING(((1 + OVERKOD.MULTIP) * beftemp.pris),">>>>>9").                                                          
+               IF AVAILABLE overbuff THEN SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING(((1 + overbuff.MULTIP) * beftemp.pris),">>>>>9") .
+               IF AVAILABLE beftemp THEN SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(beftemp.startdatum,"9999-99-99") .      
+               SUBSTRING(tidut.UT,utnr[nrcol[6]]) =  valperstemp.OMRADE.
+               
+                          
+            end.              */
+         end. 
+         
+         
+         /*FOR EACH PERSONALPRIS WHERE  PERSONALPRIS.PERSONALKOD = valperstemp.PERSONALKOD AND
+         PERSONALPRIS.BEFATTNING = valperstemp.BEFATTNING AND 
+         PERSONALPRIS.STARTDATUM GE uppvaltemp.STARTDATUM  AND 
+         PERSONALPRIS.STARTDATUM LE uppvaltemp.SLUTDATUM NO-LOCK :
+         
+            timmpris = PERSONALPRIS.PRIS.  
+            CREATE tidut.                                       
+            ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[28]]) = valperstemp.PERSONALKOD + " " + SUBSTRING(valperstemp.FORNAMN,1) + " " + SUBSTRING(valperstemp.EFTERNAMN,1).
+            IF AVAILABLE BEFATTNINGSTAB THEN ASSIGN SUBSTRING(tidut.UT,utnr[nrcol[5]]) = SUBSTRING(BEFATTNINGSTAB.NAMN,1). 
+            SUBSTRING(tidut.UT,utnr[nrcol[1]]) = STRING( timmpris,">>>>>9").
+            IF AVAILABLE OVERKOD THEN SUBSTRING(tidut.UT,utnr[nrcol[2]]) = STRING(((1 + OVERKOD.MULTIP) * timmpris),">>>>>9").                                                          
+            IF AVAILABLE overbuff THEN SUBSTRING(tidut.UT,utnr[nrcol[3]]) = STRING(((1 + overbuff.MULTIP) * timmpris),">>>>>9") .
+            IF AVAILABLE PERSONALPRIS THEN SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(PERSONALPRIS.STARTDATUM,"9999-99-99") .      
+            SUBSTRING(tidut.UT,utnr[nrcol[6]]) =  valperstemp.OMRADE.
+         END.*/   
+      END.            
+   END.   
+END PROCEDURE.
+
+

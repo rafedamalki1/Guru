@@ -1,0 +1,553 @@
+/*EXPROTOEON.P*/
+{TIDUTTTNEW.I}
+
+DEFINE NEW SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE kommando2 AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE bladvar2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE protvar AS INTEGER NO-UNDO.
+
+DEFINE VARIABLE fnamn AS CHARACTER NO-UNDO.
+
+DEFINE VARIABLE valvardnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE omravd AS INTEGER NO-UNDO.
+DEFINE VARIABLE aovar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE delnrvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE ortvar AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE fkommun AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE fvaker AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE vman AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE vadress AS CHARACTER NO-UNDO.
+DEFINE VARIABLE vpadress AS CHARACTER NO-UNDO.
+DEFINE VARIABLE vtelef AS CHARACTER NO-UNDO.
+DEFINE VARIABLE felmedd AS CHARACTER NO-UNDO.
+DEFINE VARIABLE omromr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hjproc AS INTEGER NO-UNDO.
+DEFINE VARIABLE hjagare AS INTEGER NO-UNDO.
+DEFINE VARIABLE projl AS CHARACTER NO-UNDO.
+DEFINE VARIABLE arrendator AS CHARACTER NO-UNDO.
+DEFINE VARIABLE ipfakt AS INTEGER NO-UNDO.
+DEFINE VARIABLE ivfaktaker AS INTEGER NO-UNDO.
+DEFINE VARIABLE bbelopp AS INTEGER NO-UNDO.
+DEFINE VARIABLE pomr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE pfakt AS INTEGER NO-UNDO.
+DEFINE VARIABLE vskog AS CHARACTER NO-UNDO.
+DEFINE VARIABLE oktforekpi  AS DECIMAL NO-UNDO.
+DEFINE VARIABLE kpi1995 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE kabersatt AS DECIMAL NO-UNDO.
+DEFINE VARIABLE allnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE allpersnr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE antag AS INTEGER NO-UNDO.
+DEFINE VARIABLE kontpers AS CHARACTER NO-UNDO.
+DEFINE VARIABLE skogfast AS LOGICAL NO-UNDO.
+DEFINE VARIABLE fdyr AS INTEGER NO-UNDO.
+DEFINE VARIABLE telearb AS CHARACTER NO-UNDO.
+DEFINE VARIABLE telebost AS CHARACTER NO-UNDO.
+DEFINE VARIABLE mobil AS CHARACTER NO-UNDO.
+DEFINE VARIABLE epost AS CHARACTER NO-UNDO.
+DEFINE VARIABLE skprotapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE rakn AS INTEGER NO-UNDO.
+DEFINE VARIABLE lelitt AS CHARACTER NO-UNDO.
+DEFINE VARIABLE pnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE pled AS CHARACTER NO-UNDO.
+DEFINE VARIABLE konc AS CHARACTER NO-UNDO.
+/*DEFINE VARIABLE domsaga AS CHARACTER NO-UNDO.*/
+
+
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 0.
+DEFINE VARIABLE cColumn                 AS CHARACTER.
+{MAGA.I}
+
+DEFINE INPUT PARAMETER ponr AS CHARACTER FORMAT "X(12)" NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR maga.
+{MARAG.I}
+
+DEFINE TEMP-TABLE uppfoltemp   
+   FIELD FORETAG AS CHARACTER
+   FIELD ANVANDARE AS CHARACTER  
+   FIELD ALLAMA AS LOGICAL
+   FIELD VALVARD AS CHARACTER
+   FIELD FORSTA AS LOGICAL
+   FIELD STAMP AS LOGICAL.  
+
+{SUMTEMP.I}
+{allavardtemp.I}
+     
+DEFINE TEMP-TABLE fastaga         
+   FIELD MARKNR AS INTEGER
+   FIELD MARKAGARE AS CHARACTER
+   FIELD PERSONNUMMER AS CHARACTER     
+   INDEX MARKNR IS PRIMARY MARKNR ASCENDING.      
+
+{GLOBVAR2DEL1.I}
+&Scoped-define SHARED SHARED  
+{MARKVAL.I}                         
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{BLOB.I}
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE blobproch AS HANDLE NO-UNDO.
+DEFINE BUFFER marbuff FOR marag.
+{EXECLIN.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{EXTRADATA.I}
+IF Guru.Konstanter:appcon THEN DO:
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+END.
+ELSE DO:
+  RUN EXTRADATAHMT.P PERSISTENT SET edataapph.  
+END.
+IF Guru.Konstanter:appcon THEN DO:
+   RUN SKAPPROTOU7.P PERSISTENT SET skprotapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+END.
+ELSE DO:
+   RUN SKAPPROTOU7.P PERSISTENT SET skprotapph.
+END.
+
+fnamn = "VP-eon2008.XLS". 
+
+IF Guru.Konstanter:appcon THEN RUN FINNSTABELL.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT (INPUT "BLOBINFO", OUTPUT bloblog).
+ELSE RUN FINNSTABELL.P (INPUT "BLOBINFO", OUTPUT bloblog).
+IF bloblog = TRUE THEN DO:
+   {FINNSDYNBLOB.I}
+   DEFINE VARIABLE resid AS INTEGER NO-UNDO.
+   RUN blobfil_UI IN blobproch (INPUT fnamn, OUTPUT resid).
+   IF resid = ? THEN DO:
+      kommando = SEARCH(fnamn).      
+   END.
+   ELSE DO:
+      FIND FIRST blobinfotemp WHERE blobinfotemp.ID = resid NO-LOCK NO-ERROR.
+      RUN blobopen_UI IN blobproch (INPUT blobinfotemp.FILNAMN, OUTPUT kommando).
+      
+   END.
+   RUN deleteproc_UI IN blobproch.
+   IF VALID-HANDLE(blobproch) THEN DELETE PROCEDURE blobproch NO-ERROR.
+END.
+ELSE kommando = SEARCH(fnamn).   
+IF kommando = ? THEN DO:
+   MESSAGE "Hittade inte " fnamn VIEW-AS ALERT-BOX.
+   RETURN.       
+END.   
+kommando2 = SESSION:TEMP-DIRECTORY + Guru.Konstanter:globanv + "\".
+{SESSIONTEMPDIR.I}
+IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN kommando2 = webclienttempdir.
+
+OS-CREATE-DIR VALUE(kommando2) NO-ERROR.
+IF Guru.GlobalaVariabler:plusaonr = "" OR Guru.GlobalaVariabler:plusaonr = ? THEN DO:
+   kommando2 = kommando2 + fnamn.
+END.
+ELSE DO:
+   kommando2 = kommando2 + TRIM (Guru.GlobalaVariabler:plusaonr) + TRIM(STRING(Guru.GlobalaVariabler:plusdnr,Guru.Konstanter:varforetypchar[1])) + fnamn.
+END.
+
+OS-COPY VALUE(kommando) VALUE(kommando2).
+kommando = kommando2.
+
+/*RUN startexcel_UI.*/
+FIND FIRST markval NO-LOCK NO-ERROR.  
+IF Guru.Konstanter:appcon THEN DO:                           
+   RUN EXVPFAKT.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+   (INPUT markval.VARDNR,INPUT markval.BETECKNING,INPUT TABLE markval,OUTPUT omravd,OUTPUT omromr,OUTPUT aovar,OUTPUT delnrvar,OUTPUT ortvar,OUTPUT fkommun,OUTPUT fvaker
+   ,OUTPUT vman,OUTPUT vadress,OUTPUT vpadress, OUTPUT vtelef , OUTPUT projl, OUTPUT arrendator,
+    OUTPUT ipfakt,OUTPUT ivfaktaker,OUTPUT pomr,OUTPUT bbelopp,OUTPUT pfakt,OUTPUT vskog,OUTPUT oktforekpi,OUTPUT kpi1995, OUTPUT kabersatt,OUTPUT TABLE marag ).
+END.
+ELSE DO:
+   RUN EXVPFAKT.P 
+   (INPUT markval.VARDNR,INPUT markval.BETECKNING,INPUT TABLE markval,OUTPUT omravd,OUTPUT omromr,OUTPUT aovar,OUTPUT delnrvar,OUTPUT ortvar,OUTPUT fkommun,OUTPUT fvaker
+   ,OUTPUT vman,OUTPUT vadress,OUTPUT vpadress, OUTPUT vtelef , OUTPUT projl , OUTPUT arrendator,
+    OUTPUT ipfakt,OUTPUT ivfaktaker,OUTPUT pomr,OUTPUT bbelopp,OUTPUT pfakt,OUTPUT vskog,OUTPUT oktforekpi,OUTPUT kpi1995, OUTPUT kabersatt,OUTPUT TABLE marag ).
+END.   
+
+CREATE uppfoltemp.
+ASSIGN
+uppfoltemp.FORETAG = Guru.Konstanter:globforetag   
+uppfoltemp.ALLAMA = FALSE
+uppfoltemp.VALVARD = ""
+uppfoltemp.FORSTA = TRUE
+uppfoltemp.STAMP = TRUE.   
+FIND FIRST markval NO-LOCK NO-ERROR.  
+RUN vpVSAB_UI IN skprotapph
+   (INPUT "" ,INPUT markval.BETECKNING,INPUT markval.MARKREC,INPUT TABLE uppfoltemp,INPUT TABLE markval,INPUT TABLE maga,OUTPUT TABLE akevard,
+   OUTPUT TABLE svard ,OUTPUT TABLE akekab,OUTPUT TABLE sumtemp,OUTPUT allnamn, OUTPUT allpersnr,OUTPUT TABLE fastaga).
+
+FIND FIRST markval NO-LOCK NO-ERROR.  
+RUN fordyrad_UI IN skprotapph
+   (INPUT markval.VARDNR ,INPUT markval.BETECKNING,OUTPUT fdyr).
+
+EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+CREATE inextradatatemp.          
+ASSIGN
+inextradatatemp.PROGRAM = "NATPROJ"                   
+inextradatatemp.HUVUDCH = ponr.                    
+RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+IF AVAILABLE extradatatemp THEN DO:      
+   ASSIGN       
+   lelitt = extradatatemp.SOKCHAR[1] 
+   pnamn = extradatatemp.SOKCHAR[2] 
+   pled = extradatatemp.SOKCHAR[3] 
+   konc = extradatatemp.SOKCHAR[4]. 
+   /*domsaga = extradatatemp.SOKCHAR[5].*/ 
+END.   
+
+
+
+
+
+EMPTY TEMP-TABLE tidut NO-ERROR. 
+
+CREATE "Excel.Application" chExcelApplication.
+chExcelApplication:Visible = TRUE.
+{OPENEXCEL.I}
+chWorkbook = chExcelApplication:Workbooks:OPEN(kommando).
+
+   
+
+/*iColumn = 4.
+cColumn = STRING(iColumn).
+cRange = "BB" + cColumn.
+chWorkSheet:Range(cRange):Value = STRING(bbelopp).
+iColumn = 11.*/
+/*cColumn = STRING(iColumn).
+cRange = "C" + cColumn.
+chWorkSheet:Range(cRange):Value = STRING(ipfakt).*/
+/*iColumn = 15.
+cColumn = STRING(iColumn).
+cRange = "K" + cColumn.
+ivfaktaker = ivfaktaker / 5.71.
+chWorkSheet:Range(cRange):Value = STRING(ivfaktaker).
+iColumn = 15.
+cColumn = STRING(iColumn).
+cRange = "E" + cColumn.
+pomr = "Tab" + pomr.
+chWorkSheet:Range(cRange):Value = pomr.*/
+/*iColumn = 22.
+cColumn = STRING(iColumn).
+cRange = "C" + cColumn.
+
+IF vskog = "N" THEN chWorkSheet:Range(cRange):Value = STRING(pfakt - 1).
+IF vskog = "S" THEN chWorkSheet:Range(cRange):Value = STRING(pfakt).
+IF vskog = "G" THEN chWorkSheet:Range(cRange):Value = STRING(pfakt + 1).
+
+iColumn = 24.
+cColumn = STRING(iColumn).
+cRange = "C" + cColumn.
+IF vskog = "N" THEN chWorkSheet:Range(cRange):Value = "Norrl".
+IF vskog = "S" THEN chWorkSheet:Range(cRange):Value = "Svea".
+IF vskog = "G" THEN chWorkSheet:Range(cRange):Value = "Göta".
+iColumn = 29.
+cColumn = STRING(iColumn).
+cRange = "C" + cColumn.
+chWorkSheet:Range(cRange):Value = STRING(oktforekpi,">99.9").
+iColumn = 32.
+cColumn = STRING(iColumn).
+cRange = "C" + cColumn.
+chWorkSheet:Range(cRange):Value = STRING(oktforekpi,">99.9").
+iColumn = 35.
+cColumn = STRING(iColumn).
+cRange = "C" + cColumn.
+chWorkSheet:Range(cRange):Value = STRING(kabersatt).*/
+                                                   
+
+chWorkSheet = chExcelApplication:Sheets:Item(2) NO-ERROR.
+FIND FIRST markval NO-LOCK NO-ERROR.  
+FIND FIRST marag NO-LOCK NO-ERROR. 
+RUN versaler_UI (INPUT-OUTPUT markval.BETECKNING ).      
+RUN versaler_UI (INPUT-OUTPUT marag.MARKAGARE ). 
+RUN versaler_UI (INPUT-OUTPUT marag.GATUADRESS). 
+RUN versaler_UI (INPUT-OUTPUT marag.POSTADRESS). 
+RUN versaler_UI (INPUT-OUTPUT allnamn). 
+RUN versaler_UI (INPUT-OUTPUT fkommun). 
+RUN versaler_UI (INPUT-OUTPUT fvaker). 
+RUN versaler_UI (INPUT-OUTPUT vman). 
+
+
+
+
+EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+CREATE inextradatatemp.          
+ASSIGN
+inextradatatemp.PROGRAM = "FASTLOPNR"                   
+inextradatatemp.HUVUDCH = marag.BETECKNING.                    
+RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+IF AVAILABLE extradatatemp THEN DO:      
+   IF extradatatemp.SOKINT[1] NE 0 THEN DO:      
+      /*markägarnummer sparat på fastigheten*/
+      FIND FIRST marbuff WHERE marbuff.BETECKNING = marag.BETECKNING AND marbuff.MARKNR = extradatatemp.SOKINT[1] NO-LOCK NO-ERROR.
+      IF AVAILABLE marbuff THEN DO:
+         kontpers = marbuff.MARKAGARE.
+      END.
+      ELSE RUN ktakt_UI IN skprotapph (INPUT marag.BETECKNING,INPUT extradatatemp.SOKINT[1],OUTPUT kontpers).
+      RUN versaler_UI (INPUT-OUTPUT kontpers ).      
+   END.
+END.
+
+
+iColumn = 7.
+cColumn = STRING(iColumn).
+cRange = "G" + cColumn.
+
+IF kontpers NE "" THEN DO:  
+   chWorkSheet:Range(cRange):Value = kontpers NO-ERROR.
+   iColumn = 43.
+   cColumn = STRING(iColumn).
+   cRange = "F" + cColumn.
+   chWorkSheet:Range(cRange):Value = kontpers NO-ERROR.
+END.
+ELSE DO:   
+   chWorkSheet:Range(cRange):Value = marag.MARKAGARE NO-ERROR.
+   iColumn = 43.
+   cColumn = STRING(iColumn).
+   cRange = "F" + cColumn.
+   chWorkSheet:Range(cRange):Value = marag.MARKAGARE NO-ERROR.
+END.
+
+cRange = "G" + cColumn.
+iColumn = 8.
+cColumn = STRING(iColumn).
+chWorkSheet:Range(cRange):Value = marag.GATUADRESS NO-ERROR.
+iColumn = 9.
+cColumn = STRING(iColumn).
+chWorkSheet:Range(cRange):Value = marag.POSTNUMMER + " " + marag.POSTADRESS NO-ERROR.
+{EXCELFEL.I}
+
+
+IF Guru.Konstanter:globforetag = "TECT" THEN DO:
+   iColumn = 23.
+   cColumn = STRING(iColumn).
+   cRange = "B" + cColumn.
+   chWorkSheet:Range(cRange):Value = "TECTEL AB" NO-ERROR.
+END.
+IF Guru.Konstanter:globforetag = "PICA"  OR Guru.Konstanter:globforetag = "SWEO"   THEN DO:
+   iColumn = 23.
+   cColumn = STRING(iColumn).
+   cRange = "B" + cColumn.
+   chWorkSheet:Range(cRange):Value = "Sweco" NO-ERROR.
+END.
+IF Guru.Konstanter:globforetag = "FORS" THEN DO:
+   iColumn = 23.
+   cColumn = STRING(iColumn).
+   cRange = "B" + cColumn.
+   chWorkSheet:Range(cRange):Value = "Infratek" NO-ERROR.
+END.
+IF Guru.Konstanter:globforetag = "GREL" THEN DO:
+   iColumn = 23.
+   cColumn = STRING(iColumn).
+   cRange = "B" + cColumn.
+   chWorkSheet:Range(cRange):Value = "G.R Elkonsult" NO-ERROR.
+END.
+IF Guru.Konstanter:globforetag = "REJI" THEN DO:
+   iColumn = 23.
+   cColumn = STRING(iColumn).
+   cRange = "B" + cColumn.
+   chWorkSheet:Range(cRange):Value = "Rejlers Ingenjörer AB" NO-ERROR.
+END.
+IF Guru.Konstanter:globforetag = "ELPC" THEN DO:
+   iColumn = 23.
+   cColumn = STRING(iColumn).
+   cRange = "B" + cColumn.
+   chWorkSheet:Range(cRange):Value = "Elpedro Power Consultant  AB" NO-ERROR.
+END.
+IF Guru.Konstanter:globforetag = "ETSA" THEN DO:
+   iColumn = 23.
+   cColumn = STRING(iColumn).
+   cRange = "B" + cColumn.
+   chWorkSheet:Range(cRange):Value = "Energy Technical Services" NO-ERROR.
+END.
+IF Guru.Konstanter:globforetag = "ATS" THEN DO:
+   iColumn = 23.
+   cColumn = STRING(iColumn).
+   cRange = "B" + cColumn.
+   chWorkSheet:Range(cRange):Value = "ATS Kraftservice" NO-ERROR.
+END.
+
+
+iColumn = 25.
+cColumn = STRING(iColumn).
+cRange = "B" + cColumn.
+chWorkSheet:Range(cRange):Value = vman NO-ERROR.
+{EXCELFEL.I}
+RUN tuppg2_UI IN skprotapph (INPUT marag.MARKNR,OUTPUT telearb,OUTPUT telebost,OUTPUT mobil,OUTPUT epost).
+iColumn = 62.
+cColumn = STRING(iColumn).
+cRange = "C" + cColumn.
+chWorkSheet:Range(cRange):Value = STRING(telebost) NO-ERROR.
+iColumn = 64.
+cColumn = STRING(iColumn).
+cRange = "C" + cColumn.
+chWorkSheet:Range(cRange):Value = STRING(mobil) NO-ERROR.
+iColumn = 66.
+cColumn = STRING(iColumn).
+cRange = "C" + cColumn.
+chWorkSheet:Range(cRange):Value = STRING(epost) NO-ERROR.
+{EXCELFEL.I}
+
+
+antag = 0.
+FOR EACH fastaga NO-LOCK:
+   antag = antag + 1.
+END.
+
+
+
+chWorkSheet = chExcelApplication:Sheets:Item(3) NO-ERROR.
+
+FIND FIRST markval NO-LOCK NO-ERROR.  
+FIND FIRST marag NO-LOCK NO-ERROR.  
+cRange = "C" + cColumn.
+iColumn = 5.
+cColumn = STRING(iColumn).
+chWorkSheet:Range(cRange):Value = lelitt NO-ERROR.
+iColumn = 7.
+cColumn = STRING(iColumn).
+chWorkSheet:Range(cRange):Value = pled NO-ERROR.
+iColumn = 8.
+cColumn = STRING(iColumn).
+chWorkSheet:Range(cRange):Value = konc NO-ERROR.
+iColumn = 13.
+cColumn = STRING(iColumn).
+cRange = "C" + cColumn.
+chWorkSheet:Range(cRange):Value = fkommun NO-ERROR.
+iColumn = 12.
+cColumn = STRING(iColumn).
+cRange = "C" + cColumn.
+chWorkSheet:Range(cRange):Value = markval.BETECKNING NO-ERROR.
+iColumn = 13.
+cColumn = STRING(iColumn).
+cRange = "C" + cColumn.
+chWorkSheet:Range(cRange):Value = markval.MARKNR NO-ERROR.
+
+iColumn = 15.
+cColumn = STRING(iColumn).
+cRange = "B" + cColumn.
+chWorkSheet:Range(cRange):Value = fvaker NO-ERROR.
+{EXCELFEL.I}
+
+
+
+iColumn = 18.
+cColumn = STRING(iColumn).
+FOR EACH akevard WHERE akevard.MARKNR = markval.MARKNR AND akevard.BETECKNING = markval.BETECKNING
+AND akevard.L5 = 0 AND akevard.STOLPNR NE 0 AND akevard.KR > 0:
+   {EXCELFEL.I}
+   /*Tillfällig skada regleras separat- dvs fast pris ska inte med förrutom borttaget intrång som jag har lagt som fast pris*/
+   IF akevard.FASTPRIS = TRUE AND akevard.KRONOR > 0 THEN iColumn = iColumn.
+   ELSE DO:   
+      cColumn = STRING(iColumn).
+      cRange = "E" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(akevard.STOLPNR,">>9") NO-ERROR.
+      cRange = "B" + cColumn.
+      chWorkSheet:Range(cRange):Value = akevard.BENAMNING NO-ERROR.
+      cRange = "J" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(akevard.L1,">>>9") NO-ERROR.   
+      cRange = "K" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(akevard.L2,">>>9") NO-ERROR.
+      cRange = "H" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(akevard.L3,">>>9") NO-ERROR.   
+      IF akevard.SORT = "Åker" THEN DO:
+         cRange = "F" + cColumn.
+         chWorkSheet:Range(cRange):Value = "Åker" NO-ERROR.
+      END.
+      IF akevard.SORT = "Betesmark" THEN DO:
+         cRange = "F" + cColumn.
+         chWorkSheet:Range(cRange):Value = "Bete" NO-ERROR.
+      END.
+      IF akevard.SORT = "Impediment" THEN DO:
+         cRange = "F" + cColumn.
+         chWorkSheet:Range(cRange):Value = "Imp." NO-ERROR.
+      END.
+      iColumn = iColumn + 1.
+      cColumn = STRING(iColumn).
+   END.
+END.
+
+iColumn = 66.
+cColumn = STRING(iColumn).
+FOR EACH akevard WHERE akevard.MARKNR = markval.MARKNR AND akevard.BETECKNING = markval.BETECKNING
+AND akevard.L5 = 0 AND akevard.STOLPNR NE 0 AND akevard.KR < 0:
+   /*Tillfällig skada regleras separat- dvs fast pris ska inte med förrutom borttaget intrång som jag har lagt som fast pris*/
+   {EXCELFEL.I}
+   IF akevard.FASTPRIS = TRUE AND akevard.KRONOR > 0 THEN iColumn = iColumn.
+   ELSE DO:   
+      cColumn = STRING(iColumn).
+      cRange = "E" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(akevard.STOLPNR,">>9") NO-ERROR.
+      cRange = "B" + cColumn.
+      chWorkSheet:Range(cRange):Value = akevard.BENAMNING NO-ERROR.
+      cRange = "J" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(akevard.L1,">>>9") NO-ERROR.   
+      cRange = "K" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(akevard.L2,">>>9") NO-ERROR.
+      cRange = "H" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(akevard.L3,">>>9") NO-ERROR.   
+      IF akevard.SORT = "Åker" THEN DO:
+         cRange = "F" + cColumn.
+         chWorkSheet:Range(cRange):Value = "Åker" NO-ERROR.
+      END.
+      IF akevard.SORT = "Betesmark" THEN DO:
+         cRange = "F" + cColumn.
+         chWorkSheet:Range(cRange):Value = "Bete" NO-ERROR.
+      END.
+      IF akevard.SORT = "Impediment" THEN DO:
+         cRange = "F" + cColumn.
+         chWorkSheet:Range(cRange):Value = "Imp" NO-ERROR.
+      END.
+      iColumn = iColumn + 1.
+      cColumn = STRING(iColumn).
+   END.
+END.
+
+iColumn = 43.
+cColumn = STRING(iColumn).
+FOR EACH akekab WHERE akekab.MARKNR = markval.MARKNR AND akekab.BETECKNING = markval.BETECKNING:
+   {EXCELFEL.I}
+   /*Tillfällig skada regleras separat- dvs fast pris ska inte med förrutom borttaget intrång som jag har lagt som fast pris*/
+   IF akekab.FASTPRIS = TRUE AND akekab.KRONOR > 0 THEN iColumn = iColumn.
+   ELSE DO:
+      cColumn = STRING(iColumn).
+      cRange = "B" + cColumn.
+      chWorkSheet:Range(cRange):Value = akekab.BENAMNING NO-ERROR.
+      cRange = "L" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(akekab.L1,">>>9") NO-ERROR.   
+      /*cRange = "E" + cColumn.
+      IF akekab.L2 = 0 THEN chWorkSheet:Range(cRange):Value = STRING(1,">>>9").
+      chWorkSheet:Range(cRange):Value = STRING(akekab.L2 + 1).*/
+      iColumn = iColumn + 1.
+      cColumn = STRING(iColumn).
+   END.
+END.
+
+
+RELEASE OBJECT chExcelApplication NO-ERROR.      
+RELEASE OBJECT chWorkbook NO-ERROR.
+RELEASE OBJECT chWorksheet NO-ERROR.
+
+IF VALID-HANDLE(skprotapph) THEN DELETE PROCEDURE skprotapph.      
+skprotapph = ?.
+IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+edataapph = ?.
+
+PROCEDURE versaler_UI :
+   DEFINE INPUT-OUTPUT PARAMETER innamn AS CHARACTER NO-UNDO.      
+   innamn = CAPS(SUBSTRING(innamn,1,1)) + LC(SUBSTRING(innamn,2)).
+   RUN stor_UI (INPUT-OUTPUT innamn, INPUT " ").
+   RUN stor_UI (INPUT-OUTPUT innamn,INPUT "-").
+   RUN stor_UI (INPUT-OUTPUT innamn,INPUT "/").
+   RUN stor_UI (INPUT-OUTPUT innamn,INPUT ",").
+   
+END PROCEDURE.
+
+PROCEDURE stor_UI :
+   DEFINE INPUT-OUTPUT PARAMETER innamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER sok AS CHARACTER NO-UNDO.
+   rakn = 2.
+   REPEAT:
+     IF INDEX(innamn,sok,rakn) = 0 THEN LEAVE.
+      rakn = INDEX(innamn,sok,rakn).
+      rakn = rakn + 1.
+      SUBSTRING(innamn,rakn,1) = CAPS(SUBSTRING(innamn,rakn,1)).
+   END.
+END PROCEDURE.
+
+

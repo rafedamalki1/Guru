@@ -1,0 +1,258 @@
+/*TRANSEKO.P*/
+{DIRDEF.I}
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+&Scoped-define NEW NEW
+{FAKTTYPDEF.I}
+&Scoped-define NEW 
+{FAKTTYPSKAP.I}
+FUNCTION klockan100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+
+FUNCTION klockan60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ):
+  RETURN TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) / 100) * 60 . 
+
+END FUNCTION.
+DEFINE VARIABLE superhandle AS HANDLE.
+DEFINE VARIABLE vartvar AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE kalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE intkalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE exkalktotvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE summakostvar AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE hjalpvar AS DECIMAL NO-UNDO. 
+
+{TIDUTTT.I}
+
+
+DEFINE INPUT  PARAMETER ganv AS CHARACTER NO-UNDO.
+
+DEFINE INPUT PARAMETER TABLE FOR uppvaltemp.
+DEFINE INPUT PARAMETER TABLE FOR valdaao.
+DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+DEFINE OUTPUT PARAMETER str AS CHARACTER FORMAT "X(92)" NO-UNDO.
+DEFINE OUTPUT PARAMETER str2 AS CHARACTER FORMAT "X(92)" NO-UNDO.
+DEFINE OUTPUT PARAMETER str3 AS CHARACTER FORMAT "X(92)" NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE i AS INTEGER NO-UNDO.
+DEFINE VARIABLE breddantal AS INTEGER NO-UNDO.
+DEFINE VARIABLE utnr AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE bredd AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE VARIABLE nrcol AS INTEGER EXTENT 50 NO-UNDO.
+DEFINE TEMP-TABLE aotidltmp
+   FIELD AONR AS CHARACTER
+   FIELD DELNR AS INTEGER
+   /*FIELD BENAMNING AS CHARACTER*/
+   FIELD BENAMNING AS CHARACTER
+   FIELD DATUM AS DATE
+   FIELD IDTIDLAG AS CHARACTER
+   FIELD ANVANDARE AS CHARACTER
+   FIELD TIDLAGE AS CHARACTER
+   FIELD NR AS INTEGER
+   FIELD AKTIVITET AS CHARACTER
+   FIELD UPPLAGT AS DATE
+   FIELD TIDFORD AS DATE
+   FIELD MBEST AS DATE
+   INDEX AONR IS PRIMARY AONR DATUM.
+DEFINE TEMP-TABLE  sistaotidltmp LIKE aotidltmp.   
+DEFINE BUFFER aotidlbuff FOR aotidltmp.
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR. 
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+FIND FIRST uppvaltemp NO-ERROR.
+OPEN QUERY aq FOR EACH valdaao NO-LOCK. 
+
+GET FIRST aq NO-LOCK.
+DO WHILE AVAILABLE(valdaao):      
+   FOR EACH AONRTIDLAGE WHERE AONRTIDLAGE.AONR = valdaao.AONR AND AONRTIDLAGE.DELNR = valdaao.DELNR NO-LOCK:
+      CREATE aotidltmp.
+      ASSIGN
+      aotidltmp.AONR = valdaao.AONR
+      aotidltmp.DELNR = valdaao.DELNR
+      aotidltmp.BENAMNING = valdaao.ORT
+      aotidltmp.NR = 1
+      aotidltmp.DATUM = AONRTIDLAGE.DATUM1
+      aotidltmp.IDTIDLAG = AONRTIDLAGE.IDTIDLAG
+      aotidltmp.ANVANDARE = AONRTIDLAGE.ANVANDARE1.
+      IF AONRTIDLAGE.DATUM2 = ? THEN .
+      ELSE DO:
+         CREATE aotidltmp.
+         ASSIGN 
+         aotidltmp.AONR = valdaao.AONR
+         aotidltmp.DELNR = valdaao.DELNR
+         aotidltmp.BENAMNING = valdaao.ORT
+         aotidltmp.NR = 2
+         aotidltmp.DATUM = AONRTIDLAGE.DATUM2
+         aotidltmp.IDTIDLAG = AONRTIDLAGE.IDTIDLAG
+         aotidltmp.ANVANDARE = AONRTIDLAGE.ANVANDARE2.
+     END.    
+      
+   END.       
+   GET NEXT aq NO-LOCK.
+END.  
+
+FOR EACH aotidltmp:
+   FIND FIRST TIDSLAGEN WHERE TIDSLAGEN.IDTIDLAG = aotidltmp.IDTIDLAG NO-LOCK NO-ERROR.
+   IF AVAILABLE TIDSLAGEN  THEN DO:
+      aotidltmp.TIDLAGE = TIDSLAGEN.TIDLAGE.
+      IF aotidltmp.NR = 1 THEN DO:
+         aotidltmp.AKTIVITET = TIDSLAGEN.AKTIVITET1.
+      END.
+      IF aotidltmp.NR = 2 THEN DO:
+         aotidltmp.AKTIVITET = TIDSLAGEN.AKTIVITET2.
+      END.
+   END.        
+ END.   
+ FOR EACH aotidltmp :
+    FIND FIRST aotidlbuff WHERE aotidlbuff.AONR = aotidltmp.AONR AND aotidlbuff.DELNR = aotidltmp.DELNR AND aotidlbuff.IDTIDLAG = "AOUPPLAGT" NO-LOCK NO-ERROR.
+    IF AVAILABLE aotidlbuff THEN DO:
+       aotidltmp.UPPLAGT = aotidlbuff.DATUM.
+    END.
+ END.
+ FOR EACH aotidltmp WHERE aotidltmp.IDTIDLAG = "AOUPPLAGT":
+    DELETE aotidltmp.
+END.
+FOR EACH aotidltmp :
+    FIND FIRST aotidlbuff WHERE aotidlbuff.AONR = aotidltmp.AONR AND aotidlbuff.DELNR = aotidltmp.DELNR AND aotidlbuff.IDTIDLAG = "TIDFÖRD" NO-LOCK NO-ERROR.
+    IF AVAILABLE aotidlbuff THEN DO:
+       aotidltmp.TIDFORD = aotidlbuff.DATUM.
+    END.
+END.
+FOR EACH aotidltmp WHERE aotidltmp.IDTIDLAG = "TIDFÖRD":
+    DELETE aotidltmp.
+END. 
+FOR EACH aotidltmp :
+    FIND FIRST aotidlbuff WHERE aotidlbuff.AONR = aotidltmp.AONR AND aotidlbuff.DELNR = aotidltmp.DELNR AND aotidlbuff.IDTIDLAG = "MBESTÄLLT" NO-LOCK NO-ERROR.
+    IF AVAILABLE aotidlbuff THEN DO:
+       aotidltmp.MBEST = aotidlbuff.DATUM.
+    END.
+END.
+FOR EACH aotidltmp WHERE aotidltmp.IDTIDLAG = "MBESTÄLLT":
+    DELETE aotidltmp.
+END.           
+     
+FOR EACH valdaao USE-INDEX AONR:
+   FIND LAST aotidltmp WHERE aotidltmp.AONR = valdaao.AONR AND aotidltmp.DELNR = valdaao.DELNR NO-ERROR.
+   IF AVAILABLE aotidltmp THEN DO:
+      CREATE sistaotidltmp.
+      BUFFER-COPY aotidltmp TO sistaotidltmp.
+   END.
+END.           
+        
+ /*FOR EACH sistaotidltmp:
+    MESSAGE sistaotidltmp.aonr sistaotidltmp.delnr sistaotidltmp.UPPLAGT sistaotidltmp.datum sistaotidltmp.tidlage sistaotidltmp.aktivitet sistaotidltmp.anvandare
+    VIEW-AS ALERT-BOX.
+END.*/        
+   
+RUN huvud_UI.
+
+PROCEDURE huvud_UI :  
+   CREATE tidut. 
+   SUBSTRING(tidut.UT,60) = STRING(TODAY) + " " + STRING(TIME,"HH:MM").
+   CREATE tidut.
+   CREATE tidut.
+   tidut.UT = uppvaltemp.VALDLISTA. 
+          
+   ASSIGN
+   nrcol[1] = 1
+   nrcol[2] = 2
+   nrcol[3] = 3
+   nrcol[4] = 4
+   nrcol[5] = 5
+   nrcol[6] = 6
+   nrcol[7] = 7
+   nrcol[8] = 8
+   nrcol[9] = 9
+   nrcol[10] = 10.
+   /*nrcol[11] = 11.*/
+   ASSIGN
+   breddantal = 10   /*antal kolumner*/
+   bredd[1] = 8
+   bredd[2] = 3
+   bredd[3] = 30
+   bredd[4] = 7
+   bredd[5] = 7
+   bredd[6] = 7
+   bredd[7] = 25
+   bredd[8] = 10
+   bredd[9] = 6
+   bredd[10] = 7.
+   /*bredd[11] = 9.*/
+   
+   
+   ASSIGN
+   i = 2.     
+   utnr[nrcol[1]] = 1.
+   DO WHILE i <= breddantal:             
+      utnr[i] = utnr[i - 1] + bredd[i - 1] + 1.            
+      i = i + 1.
+   END.   
+   ASSIGN
+   str = "".  
+   i = 1.
+   DO WHILE i <= utnr[breddantal] + bredd[breddantal] - 1:
+      str = str + "=".     
+      i = i + 1.
+   END.   
+   i = 2.      
+   DO WHILE i <= breddantal:             
+      SUBSTRING(str,(utnr[i] - 1),1) = ".".      
+      i = i + 1.
+   END.          
+   CREATE tidut.  
+   CREATE tidut.   
+   CREATE tidut.             
+   ASSIGN                                                                                                       
+   
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "UPPLAGT"
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "TIDFÖRD"
+   SUBSTRING(tidut.UT,utnr[nrcol[6]]) = "M.BEST"
+   SUBSTRING(tidut.UT,utnr[nrcol[7]]) = "SENASTE TIDLÄGE"
+   SUBSTRING(tidut.UT,utnr[nrcol[10]]) = "ANVÄND-".                
+   str2 = tidut.UT.                 
+   CREATE tidut.      
+   ASSIGN                               
+   SUBSTRING(tidut.UT,utnr[nrcol[1]]) = CAPS(Guru.Konstanter:gaok)      
+   SUBSTRING(tidut.UT,utnr[nrcol[2]]) = "DEL" 
+   SUBSTRING(tidut.UT,utnr[nrcol[3]]) = "ORT"             
+   SUBSTRING(tidut.UT,utnr[nrcol[4]]) = "DATUM"         
+   SUBSTRING(tidut.UT,utnr[nrcol[5]]) = "DATUM"  
+   SUBSTRING(tidut.UT,utnr[nrcol[6]]) = "DATUM"   
+   SUBSTRING(tidut.UT,utnr[nrcol[8]]) = "AKTIVITET" 
+   SUBSTRING(tidut.UT,utnr[nrcol[9]]) = "DATUM"
+   SUBSTRING(tidut.UT,utnr[nrcol[10]]) = "ARE".   
+   str3 = tidut.UT.                
+   CREATE tidut.      
+   tidut.UT = str.
+   
+   DEBUGGER:SET-BREAK().  
+   FOR EACH sistaotidltmp BY sistaotidltmp.AONR BY sistaotidltmp.DELNR : 
+      CREATE tidut.      
+      ASSIGN                               
+      SUBSTRING(tidut.UT,utnr[nrcol[1]]) = sistaotidltmp.AONR      
+      SUBSTRING(tidut.UT,utnr[nrcol[2]]) = STRING(sistaotidltmp.DELNR,Guru.Konstanter:varforetypchar[1])  
+      SUBSTRING(tidut.UT,utnr[nrcol[3]]) = SUBSTRING(sistaotidltmp.BENAMNING,1,30).
+      IF sistaotidltmp.UPPLAGT NE ? THEN             
+      SUBSTRING(tidut.UT,utnr[nrcol[4]]) = STRING(sistaotidltmp.UPPLAGT,"999999").
+      IF sistaotidltmp.TIDFORD NE ? THEN
+      SUBSTRING(tidut.UT,utnr[nrcol[5]]) = STRING(sistaotidltmp.TIDFORD,"999999").
+      IF sistaotidltmp.MBEST NE ? THEN                                                                       
+      SUBSTRING(tidut.UT,utnr[nrcol[6]]) = STRING(sistaotidltmp.MBEST,"999999").
+      ASSIGN
+      SUBSTRING(tidut.UT,utnr[nrcol[7]]) = sistaotidltmp.TIDLAGE
+      SUBSTRING(tidut.UT,utnr[nrcol[8]]) = sistaotidltmp.AKTIVITET. 
+      IF sistaotidltmp.DATUM NE ? THEN
+      SUBSTRING(tidut.UT,utnr[nrcol[9]]) = STRING(sistaotidltmp.DATUM,"999999").
+      SUBSTRING(tidut.UT,utnr[nrcol[10]]) = sistaotidltmp.ANVANDARE.
+      
+   END.
+END PROCEDURE.   

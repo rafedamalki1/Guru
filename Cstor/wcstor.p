@@ -1,0 +1,2 @@
+/*wcstor.p*/
+RETURN.

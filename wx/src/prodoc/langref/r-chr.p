@@ -1,0 +1,10 @@
+/* r-chr.p */
+
+DEFINE VARIABLE letter AS CHARACTER FORMAT "x(1)" EXTENT 26.
+DEFINE VARIABLE i AS INTEGER.
+
+DO i = 1 TO 26:
+    letter[i] = CHR((ASC("A") - 1) + i).
+END.
+DISPLAY SKIP(1) letter WITH 2 COLUMNS NO-LABELS
+	TITLE "T H E  A L P H A B E T".

@@ -1,0 +1,80 @@
+/*INLASERSATTV.P*/
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE TEMP-TABLE tidineln
+   FIELD ENR1                AS CHARACTER 
+   FIELD ENR2                AS CHARACTER.
+
+DEFINE TEMP-TABLE infil
+   FIELD PROGNAMN AS CHARACTER FORMAT "X(78)" 
+   INDEX PRO IS PRIMARY PROGNAMN.
+DEFINE TEMP-TABLE intid
+   FIELD TIN AS CHARACTER FORMAT "X(78)" .
+
+   
+DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.   
+{AMERICANEUROPEAN.I}
+{muswait.i}      
+   EMPTY TEMP-TABLE intid NO-ERROR.
+   EMPTY TEMP-TABLE tidineln NO-ERROR.      
+   filnamn = "\\SERVER04\D\ELPOOL\ELPNJ\VESAB\ErsättningsartiklarEtillO.skv".
+     /*filnamn = "\\SERVER04\D\ELPOOL\ELPNJ\borl\onninen070221.txt".*/
+   kommando = filnamn.   
+   INPUT FROM VALUE(kommando) CONVERT TARGET "iso8859-1" SOURCE "iso8859-1" NO-ECHO.
+   REPEAT:
+      DO TRANSACTION: 
+         CREATE tidineln.
+         ASSIGN.
+         IMPORT DELIMITER ";" tidineln   .
+      END.               
+   END.
+   FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+   FOR EACH tidineln:
+      tidineln.ENR2 = REPLACE(tidineln.ENR2," ","").
+      IF FORETAG.FORETAG = "sund" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "ORBI" OR FORETAG.FORETAG = "celpa" THEN DO:            
+         IF SUBSTRING(tidineln.ENR1,1,1) NE "E" THEN tidineln.ENR1 = "E" + tidineln.ENR1.                                                   
+      END.
+      ELSE DO:                     
+         IF SUBSTRING(tidineln.ENR1,1,1) = "E" THEN tidineln.ENR1 = SUBSTRING(tidineln.ENR1,2).                                        
+      END.         
+      IF FORETAG.FORETAG = "sund" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "ORBI" OR FORETAG.FORETAG = "celpa" THEN DO:            
+         IF SUBSTRING(tidineln.ENR2,1,1) NE "E" THEN tidineln.ENR2 = "E" + tidineln.ENR2.                                                   
+      END.
+      ELSE DO:                     
+         IF SUBSTRING(tidineln.ENR2,1,1) = "E" THEN tidineln.ENR2 = SUBSTRING(tidineln.ENR2,2).                                        
+      END.            
+      /*IF SUBSTRING(tidineln.ENR1,1,1) = "E" THEN tidineln.ENR1 = SUBSTRING(tidineln.ENR1,2).
+      IF SUBSTRING(tidineln.ENR2,1,1) = "E" THEN tidineln.ENR2 = SUBSTRING(tidineln.ENR2,2).*/
+   END.
+   OUTPUT TO C:\PROTEMP9\FELENR.TXT.
+   FOR EACH tidineln:
+      
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = "1" AND MTRL.ENR = tidineln.ENR1 AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE MTRL THEN DO:
+         PUT UNFORMATTED "1" AT 1  tidineln.ENR1 AT 5.
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = "16" AND MTRL.ENR = tidineln.ENR2 AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE MTRL THEN DO:
+            PUT UNFORMATTED "16" AT 20  tidineln.ENR2 AT 25.
+         END.
+      END.
+      ELSE DO:
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = "16" AND MTRL.ENR = tidineln.ENR2 AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE MTRL THEN DO:
+            PUT UNFORMATTED "16" AT 20  tidineln.ENR2 AT 25.
+         END.
+         ELSE DO:
+            /*ska bara läggas upp om båda enr finns i resp katalog*/
+            IF tidineln.ENR1 = "" THEN DELETE tidineln.
+            ELSE DO:
+               CREATE BETPLAN.
+               ASSIGN
+               BETPLAN.NAMN = "1".        
+               BETPLAN.ANVANDARE = tidineln.ENR1.                           
+               BETPLAN.BESTID = "16".                  
+               BETPLAN.OMRADE = tidineln.ENR2.
+            END.
+         END.
+      END.
+         
+      
+   END.  
+{EUROPEANAMERICAN.I}      

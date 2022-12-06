@@ -1,0 +1,25 @@
+
+
+
+/* e-dllex2.p */
+
+DEFINE VARIABLE wave-name AS CHARACTER
+	INITIAL ? NO-UNDO.
+DEFINE VARIABLE play-status AS INTEGER.
+
+SYSTEM-DIALOG GET-FILE wave-name
+	TITLE "Choose the Sound"
+	FILTERS "Wave Files (*.wav)" "*.wav"
+	MUST-EXIST USE-FILENAME.
+
+RUN sndPlaySoundA (INPUT wave-name, INPUT 2, OUTPUT play-status).
+
+PROCEDURE sndPlaySoundA EXTERNAL "winmm.dll":
+	DEFINE INPUT PARAMETER ic AS CHARACTER.
+	DEFINE INPUT PARAMETER ish AS LONG.
+	DEFINE RETURN PARAMETER osh AS LONG.
+END PROCEDURE.
+
+
+
+

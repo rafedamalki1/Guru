@@ -1,0 +1,475 @@
+/*DEPBYTXTY.P BYT ARTIKEL X TILL ARTIKEL Y*/
+
+{SMTRL.I} 
+{BMTRL.I}
+{EXTRADATA.I}
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE vlk AS CHARACTER NO-UNDO.
+DEFINE BUFFER mdepbuff FOR MTRLDEP.
+DEFINE BUFFER mbuff FOR MTRL.
+DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER globanv AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER depvar AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+DEFINE INPUT PARAMETER TABLE FOR byt_mtrl.
+&Scoped-define NEW NEW
+{VARFORETYP.I}
+FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYREAPP.P (INPUT Guru.Konstanter:globforetag, INPUT-OUTPUT varforetypval, INPUT-OUTPUT varforetypchar, INPUT TRUE).
+{STYREAPPLADD.I}
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   FIND FIRST byt_mtrl NO-LOCK NO-ERROR.        
+   FIND FIRST spec_mtrl NO-LOCK NO-ERROR.     
+   IF depvar = 1 THEN DO:   
+      OPEN QUERY mtrlq FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa 
+      AND MTRLDEP.IBDATUM = ? AND MTRLDEP.LAGER = TRUE AND MTRLDEP.ENR = spec_mtrl.ENR    
+      NO-LOCK.
+      DO TRANSACTION:
+         GET FIRST mtrlq EXCLUSIVE-LOCK.
+         IF AVAILABLE MTRLDEP THEN DO:
+            RUN byt_UI.         
+         END.
+      END.      
+      REPEAT:
+         DO TRANSACTION:
+            GET NEXT mtrlq EXCLUSIVE-LOCK. 
+            IF AVAILABLE MTRLDEP THEN DO:
+               RUN byt_UI.
+            END.
+            ELSE LEAVE.
+         END.         
+      END.      
+      CLOSE QUERY mtrlq.
+      
+      
+   END.
+   ELSE IF depvar = 2 THEN DO:
+      OPEN QUERY mtrlq2 FOR EACH MTRL WHERE MTRL.KALKNR = 0
+      AND MTRL.ENR = spec_mtrl.ENR AND MTRL.LEVKOD NE byt_mtrl.LEVKOD NO-LOCK.
+      DO TRANSACTION:
+         GET FIRST mtrlq2 EXCLUSIVE-LOCK.
+         IF AVAILABLE MTRL THEN DO:
+            ASSIGN
+            MTRL.ENR = byt_mtrl.ENR
+            MTRL.BENAMNING = byt_mtrl.BENAMNING
+            MTRL.ENHET = byt_mtrl.ENHET.         
+         END.
+      END.      
+      REPEAT:
+         DO TRANSACTION:
+            GET NEXT mtrlq2 EXCLUSIVE-LOCK. 
+            IF AVAILABLE MTRL THEN DO:
+               ASSIGN
+               MTRL.ENR = byt_mtrl.ENR
+               MTRL.BENAMNING = byt_mtrl.BENAMNING
+               MTRL.ENHET = byt_mtrl.ENHET.         
+            END.
+            ELSE LEAVE.
+         END.         
+      END.      
+      CLOSE QUERY mtrlq2.
+   END.
+   ELSE IF depvar = 3 THEN  DO:            
+      OPEN QUERY mtrlq3 FOR EACH MTRLBER WHERE MTRLBER.ENR = spec_mtrl.ENR
+      NO-LOCK.                  
+      GET FIRST mtrlq3 NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER) TRANSACTION:         
+         GET CURRENT mtrlq3 EXCLUSIVE-LOCK.        
+         ASSIGN
+         MTRLBER.ENR = byt_mtrl.ENR
+         MTRLBER.BENAMNING = byt_mtrl.BENAMNING
+         MTRLBER.ENHET = byt_mtrl.ENHET
+         MTRLBER.PRIS = byt_mtrl.NPRIS. 
+         GET NEXT mtrlq3 NO-LOCK.           
+      END.               
+      CLOSE QUERY mtrlq3.
+      
+      OPEN QUERY stolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR
+      NO-LOCK.                  
+      GET FIRST stolpq no-LOCK.
+      DO WHILE AVAILABLE(BERSTOLP) TRANSACTION:         
+         GET CURRENT stolpq EXCLUSIVE-LOCK.         
+         ASSIGN
+         BERSTOLP.ENR = byt_mtrl.ENR
+         BERSTOLP.BENAMNING = byt_mtrl.BENAMNING
+         BERSTOLP.ENHET = byt_mtrl.ENHET
+         BERSTOLP.PRIS = byt_mtrl.NPRIS.
+         GET NEXT stolpq NO-LOCK.                  
+      END.               
+      CLOSE QUERY stolpq.
+      
+      OPEN QUERY skapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR
+      NO-LOCK.                  
+      GET FIRST skapq NO-LOCK.
+      DO WHILE AVAILABLE(BERSKAP) TRANSACTION:         
+         GET CURRENT skapq EXCLUSIVE-LOCK.         
+         ASSIGN
+         BERSKAP.ENR = byt_mtrl.ENR
+         BERSKAP.BENAMNING = byt_mtrl.BENAMNING
+         BERSKAP.ENHET = byt_mtrl.ENHET
+         BERSKAP.PRIS = byt_mtrl.NPRIS.
+         GET NEXT skapq NO-LOCK.            
+      END.                       
+      CLOSE QUERY skapq.
+      
+   END.
+PROCEDURE byt_UI :
+
+   CREATE BERBEST.
+   ASSIGN
+   BERBEST.DEPNR = vald_depa
+   BERBEST.BESTDATUM = TODAY
+   BERBEST.LEVDATUM = TODAY
+   BERBEST.SVINN = TRUE
+   SUBSTRING(BERBEST.BESTALLARE,1,59) = globanv
+   BERBEST.ENR = MTRLDEP.ENR
+   SUBSTRING(BERBEST.BENAMNING,1,59) = SUBSTRING(MTRLDEP.BENAMNING,1,59)
+   BERBEST.ENHET = MTRLDEP.ENHET
+   BERBEST.PRIS = MTRLDEP.NPRIS       
+   BERBEST.LEVKOD = MTRLDEP.LEVKOD
+   BERBEST.ANTAL = MTRLDEP.SALDO
+   BERBEST.UTTAG = TRUE
+   SUBSTRING(BERBEST.BENAMNING,60) = SUBSTRING(byt_mtrl.BENAMNING,60). /*KOMMENTAR*/
+
+   CREATE BERBEST.
+   ASSIGN
+   BERBEST.DEPNR = vald_depa
+   BERBEST.BESTDATUM = TODAY
+   BERBEST.LEVDATUM = TODAY
+   BERBEST.SVINN = TRUE
+   SUBSTRING(BERBEST.BESTALLARE,1,59) = globanv
+   BERBEST.ENR = byt_mtrl.ENR
+   SUBSTRING(BERBEST.BENAMNING,1,59) = SUBSTRING(byt_mtrl.BENAMNING,1,59)
+   BERBEST.ENHET = byt_mtrl.ENHET
+   BERBEST.PRIS = byt_mtrl.NPRIS       
+   BERBEST.LEVKOD = byt_mtrl.LEVKOD
+   BERBEST.ANTAL = MTRLDEP.SALDO
+   BERBEST.UTTAG = FALSE
+   SUBSTRING(BERBEST.BENAMNING,60) = SUBSTRING(byt_mtrl.BENAMNING,60). /*KOMMENTAR*/
+   /*kalmar depåändring*/
+   IF Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "BODE" OR Guru.Konstanter:globforetag = "gkal" OR Guru.Konstanter:globforetag = "KRAF" OR Guru.Konstanter:globforetag = "snat"  THEN DO:
+      /*Niklas 20070403 Här skall ej pris ändras på lagerfördmateriel*/
+      BERBEST.PRIS = MTRLDEP.NPRIS.       
+   END.
+   /*kalmar depåändring*/
+   IF Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "BODE" OR Guru.Konstanter:globforetag = "gkal" OR Guru.Konstanter:globforetag = "KRAF" OR Guru.Konstanter:globforetag = "snat" THEN DO:
+      /*Niklas 20070403 Här skall ej pris ändras på lagerfördmateriel*/
+      ASSIGN
+      MTRLDEP.ENR = byt_mtrl.ENR
+      MTRLDEP.BENAMNING = byt_mtrl.BENAMNING
+      MTRLDEP.ENHET = byt_mtrl.ENHET      
+      MTRLDEP.LEVKOD = byt_mtrl.LEVKOD.
+   END.
+   ELSE DO:
+      ASSIGN
+      MTRLDEP.ENR = byt_mtrl.ENR
+      MTRLDEP.BENAMNING = byt_mtrl.BENAMNING
+      MTRLDEP.ENHET = byt_mtrl.ENHET
+      MTRLDEP.NPRIS = byt_mtrl.NPRIS  
+      MTRLDEP.BPRIS = byt_mtrl.BPRIS  
+      MTRLDEP.LEVKOD = byt_mtrl.LEVKOD.
+   END.
+  /*Måste bytas i ej mottagna beställningar också. Lena 2009-12-07*/
+   FOR EACH BESTDEP WHERE BESTDEP.DEPNR = vald_depa AND 
+   BESTDEP.ENR = spec_mtrl.ENR AND BESTDEP.LEVDATUM = ? EXCLUSIVE-LOCK:
+      ASSIGN
+      BESTDEP.ENR = byt_mtrl.ENR
+      BESTDEP.BENAMNING = byt_mtrl.BENAMNING
+      BESTDEP.ENHET = byt_mtrl.ENHET
+      BESTDEP.PRIS = byt_mtrl.NPRIS        
+      BESTDEP.LEVKOD = byt_mtrl.LEVKOD.
+   END.
+   /* förslag komplettering x-y 20111019 lena*/
+   /*kalmar depåändring abc nu*/
+   IF Guru.Konstanter:globforetag = "LULE"  THEN DO:
+      /*kolla om nytt enr finns i katalog "41", om inte BYT*/      
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = "41" AND MTRL.KALKNR = 0 AND 
+      MTRL.ENR = spec_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         FIND FIRST mbuff WHERE mbuff.LEVKOD = "41" AND mbuff.KALKNR = 0 AND 
+         mbuff.ENR = byt_mtrl.ENR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE mbuff THEN DO:         
+            ASSIGN 
+            MTRL.ENR = byt_mtrl.ENR
+            MTRL.BENAMNING = byt_mtrl.BENAMNING
+            MTRL.ENHET = byt_mtrl.ENHET
+            MTRL.NPRIS = byt_mtrl.NPRIS
+            MTRL.BPRIS = byt_mtrl.BPRIS        
+            MTRL.LEVKOD = byt_mtrl.LEVKOD.
+         END.   
+      END.
+      /*byt även i beredningupplägget för lev "41"*/
+      OPEN QUERY mtrlq3 FOR EACH MTRLBER WHERE MTRLBER.ENR = spec_mtrl.ENR AND MTRLBER.LEVKOD = "41"
+      NO-LOCK.                  
+      GET FIRST mtrlq3 NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):         
+         GET CURRENT mtrlq3 EXCLUSIVE-LOCK.        
+         ASSIGN
+         MTRLBER.ENR = byt_mtrl.ENR
+         MTRLBER.BENAMNING = byt_mtrl.BENAMNING
+         MTRLBER.ENHET = byt_mtrl.ENHET
+         MTRLBER.PRIS = byt_mtrl.NPRIS. 
+         GET NEXT mtrlq3 NO-LOCK.           
+      END.               
+      CLOSE QUERY mtrlq3.
+      
+      OPEN QUERY stolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND BERSTOLP.LEVKOD = "41"
+      NO-LOCK.                  
+      GET FIRST stolpq no-LOCK.
+      DO WHILE AVAILABLE(BERSTOLP):         
+         GET CURRENT stolpq EXCLUSIVE-LOCK.         
+         ASSIGN
+         BERSTOLP.ENR = byt_mtrl.ENR
+         BERSTOLP.BENAMNING = byt_mtrl.BENAMNING
+         BERSTOLP.ENHET = byt_mtrl.ENHET
+         BERSTOLP.PRIS = byt_mtrl.NPRIS.
+         GET NEXT stolpq NO-LOCK.                  
+      END.               
+      CLOSE QUERY stolpq.
+      
+      OPEN QUERY skapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND BERSKAP.LEVKOD = "41"
+      NO-LOCK.                  
+      GET FIRST skapq NO-LOCK.
+      DO WHILE AVAILABLE(BERSKAP):         
+         GET CURRENT skapq EXCLUSIVE-LOCK.         
+         ASSIGN
+         BERSKAP.ENR = byt_mtrl.ENR
+         BERSKAP.BENAMNING = byt_mtrl.BENAMNING
+         BERSKAP.ENHET = byt_mtrl.ENHET
+         BERSKAP.PRIS = byt_mtrl.NPRIS.
+         GET NEXT skapq NO-LOCK.            
+      END.                       
+      CLOSE QUERY skapq.   
+   END.   
+   IF Guru.Konstanter:globforetag = "bode"  THEN DO:
+      /*kolla om nytt enr finns i katalog "6", om inte BYT*/      
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = "6" AND MTRL.KALKNR = 0 AND 
+      MTRL.ENR = spec_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         FIND FIRST mbuff WHERE mbuff.LEVKOD = "6" AND mbuff.KALKNR = 0 AND 
+         mbuff.ENR = byt_mtrl.ENR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE mbuff THEN DO:         
+            ASSIGN 
+            MTRL.ENR = byt_mtrl.ENR
+            MTRL.BENAMNING = byt_mtrl.BENAMNING
+            MTRL.ENHET = byt_mtrl.ENHET
+            MTRL.NPRIS = byt_mtrl.NPRIS
+            MTRL.BPRIS = byt_mtrl.BPRIS        
+            MTRL.LEVKOD = byt_mtrl.LEVKOD.
+         END.   
+      END.
+      /*byt även i beredningupplägget för lev "6"*/
+      OPEN QUERY mtrlq3 FOR EACH MTRLBER WHERE MTRLBER.ENR = spec_mtrl.ENR AND MTRLBER.LEVKOD = "6"
+      NO-LOCK.                  
+      GET FIRST mtrlq3 NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):         
+         GET CURRENT mtrlq3 EXCLUSIVE-LOCK.        
+         ASSIGN
+         MTRLBER.ENR = byt_mtrl.ENR
+         MTRLBER.BENAMNING = byt_mtrl.BENAMNING
+         MTRLBER.ENHET = byt_mtrl.ENHET
+         MTRLBER.PRIS = byt_mtrl.NPRIS. 
+         GET NEXT mtrlq3 NO-LOCK.           
+      END.               
+      CLOSE QUERY mtrlq3.
+      
+      OPEN QUERY stolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND BERSTOLP.LEVKOD = "6"
+      NO-LOCK.                  
+      GET FIRST stolpq no-LOCK.
+      DO WHILE AVAILABLE(BERSTOLP):         
+         GET CURRENT stolpq EXCLUSIVE-LOCK.         
+         ASSIGN
+         BERSTOLP.ENR = byt_mtrl.ENR
+         BERSTOLP.BENAMNING = byt_mtrl.BENAMNING
+         BERSTOLP.ENHET = byt_mtrl.ENHET
+         BERSTOLP.PRIS = byt_mtrl.NPRIS.
+         GET NEXT stolpq NO-LOCK.                  
+      END.               
+      CLOSE QUERY stolpq.
+      
+      OPEN QUERY skapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND BERSKAP.LEVKOD = "6"
+      NO-LOCK.                  
+      GET FIRST skapq NO-LOCK.
+      DO WHILE AVAILABLE(BERSKAP):         
+         GET CURRENT skapq EXCLUSIVE-LOCK.         
+         ASSIGN
+         BERSKAP.ENR = byt_mtrl.ENR
+         BERSKAP.BENAMNING = byt_mtrl.BENAMNING
+         BERSKAP.ENHET = byt_mtrl.ENHET
+         BERSKAP.PRIS = byt_mtrl.NPRIS.
+         GET NEXT skapq NO-LOCK.            
+      END.                       
+      CLOSE QUERY skapq.   
+   END.
+   /*IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+      /*snatdepå*/
+      IF vald_depa = 1 OR  vald_depa = 2 THEN vlk = "20".
+      IF vald_depa = 3 OR vald_depa = 4 THEN vlk = "21".
+      /*kolla om nytt enr finns i katalog "20", om inte BYT*/      
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = vlk AND MTRL.KALKNR = 0 AND 
+      MTRL.ENR = spec_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         FIND FIRST mbuff WHERE mbuff.LEVKOD = vlk AND mbuff.KALKNR = 0 AND 
+         mbuff.ENR = byt_mtrl.ENR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE mbuff THEN DO:         
+            ASSIGN 
+            MTRL.ENR = byt_mtrl.ENR
+            MTRL.BENAMNING = byt_mtrl.BENAMNING
+            MTRL.ENHET = byt_mtrl.ENHET
+            MTRL.NPRIS = byt_mtrl.NPRIS
+            MTRL.BPRIS = byt_mtrl.BPRIS        
+            MTRL.LEVKOD = byt_mtrl.LEVKOD.
+         END.   
+      END.
+      /*byt även i beredningupplägget för lev "20"*/
+      OPEN QUERY mtrlq3 FOR EACH MTRLBER WHERE MTRLBER.ENR = spec_mtrl.ENR AND MTRLBER.LEVKOD = vlk
+      NO-LOCK.                  
+      GET FIRST mtrlq3 NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):         
+         GET CURRENT mtrlq3 EXCLUSIVE-LOCK.        
+         ASSIGN
+         MTRLBER.ENR = byt_mtrl.ENR
+         MTRLBER.BENAMNING = byt_mtrl.BENAMNING
+         MTRLBER.ENHET = byt_mtrl.ENHET
+         MTRLBER.PRIS = byt_mtrl.NPRIS. 
+         GET NEXT mtrlq3 NO-LOCK.           
+      END.               
+      CLOSE QUERY mtrlq3.
+      
+      OPEN QUERY stolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND BERSTOLP.LEVKOD = vlk
+      NO-LOCK.                  
+      GET FIRST stolpq no-LOCK.
+      DO WHILE AVAILABLE(BERSTOLP):         
+         GET CURRENT stolpq EXCLUSIVE-LOCK.         
+         ASSIGN
+         BERSTOLP.ENR = byt_mtrl.ENR
+         BERSTOLP.BENAMNING = byt_mtrl.BENAMNING
+         BERSTOLP.ENHET = byt_mtrl.ENHET
+         BERSTOLP.PRIS = byt_mtrl.NPRIS.
+         GET NEXT stolpq NO-LOCK.                  
+      END.               
+      CLOSE QUERY stolpq.
+      
+      OPEN QUERY skapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND BERSKAP.LEVKOD = vlk
+      NO-LOCK.                  
+      GET FIRST skapq NO-LOCK.
+      DO WHILE AVAILABLE(BERSKAP):         
+         GET CURRENT skapq EXCLUSIVE-LOCK.         
+         ASSIGN
+         BERSKAP.ENR = byt_mtrl.ENR
+         BERSKAP.BENAMNING = byt_mtrl.BENAMNING
+         BERSKAP.ENHET = byt_mtrl.ENHET
+         BERSKAP.PRIS = byt_mtrl.NPRIS.
+         GET NEXT skapq NO-LOCK.            
+      END.                       
+      CLOSE QUERY skapq.   
+   END.*/
+   IF Guru.Konstanter:globforetag = "gkal"  THEN DO:
+      /*kolla om nytt enr finns i katalog "20", om inte BYT*/      
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = "20" AND MTRL.KALKNR = 0 AND 
+      MTRL.ENR = spec_mtrl.ENR EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         FIND FIRST mbuff WHERE mbuff.LEVKOD = "20" AND mbuff.KALKNR = 0 AND 
+         mbuff.ENR = byt_mtrl.ENR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE mbuff THEN DO:         
+            ASSIGN 
+            MTRL.ENR = byt_mtrl.ENR
+            MTRL.BENAMNING = byt_mtrl.BENAMNING
+            MTRL.ENHET = byt_mtrl.ENHET
+            MTRL.NPRIS = byt_mtrl.NPRIS
+            MTRL.BPRIS = byt_mtrl.BPRIS        
+            MTRL.LEVKOD = byt_mtrl.LEVKOD.
+         END.   
+      END.
+      /*byt även i beredningupplägget för lev "20"*/
+      OPEN QUERY mtrlq3 FOR EACH MTRLBER WHERE MTRLBER.ENR = spec_mtrl.ENR AND MTRLBER.LEVKOD = "20"
+      NO-LOCK.                  
+      GET FIRST mtrlq3 NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):         
+         GET CURRENT mtrlq3 EXCLUSIVE-LOCK.        
+         ASSIGN
+         MTRLBER.ENR = byt_mtrl.ENR
+         MTRLBER.BENAMNING = byt_mtrl.BENAMNING
+         MTRLBER.ENHET = byt_mtrl.ENHET
+         MTRLBER.PRIS = byt_mtrl.NPRIS. 
+         GET NEXT mtrlq3 NO-LOCK.           
+      END.               
+      CLOSE QUERY mtrlq3.
+      
+      OPEN QUERY stolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND BERSTOLP.LEVKOD = "20"
+      NO-LOCK.                  
+      GET FIRST stolpq no-LOCK.
+      DO WHILE AVAILABLE(BERSTOLP):         
+         GET CURRENT stolpq EXCLUSIVE-LOCK.         
+         ASSIGN
+         BERSTOLP.ENR = byt_mtrl.ENR
+         BERSTOLP.BENAMNING = byt_mtrl.BENAMNING
+         BERSTOLP.ENHET = byt_mtrl.ENHET
+         BERSTOLP.PRIS = byt_mtrl.NPRIS.
+         GET NEXT stolpq NO-LOCK.                  
+      END.               
+      CLOSE QUERY stolpq.
+      
+      OPEN QUERY skapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND BERSKAP.LEVKOD = "20"
+      NO-LOCK.                  
+      GET FIRST skapq NO-LOCK.
+      DO WHILE AVAILABLE(BERSKAP):         
+         GET CURRENT skapq EXCLUSIVE-LOCK.         
+         ASSIGN
+         BERSKAP.ENR = byt_mtrl.ENR
+         BERSKAP.BENAMNING = byt_mtrl.BENAMNING
+         BERSKAP.ENHET = byt_mtrl.ENHET
+         BERSKAP.PRIS = byt_mtrl.NPRIS.
+         GET NEXT skapq NO-LOCK.            
+      END.                       
+      CLOSE QUERY skapq.   
+   END.      
+   /*IF Guru.Konstanter:globforetag = "lule"  OR Guru.Konstanter:globforetag = "bode"  THEN DO:*/
+   IF Guru.Konstanter:varforetypval[54] = 1 THEN DO:   
+      /*FIFO*/
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "FIFO"                                  
+      inextradatatemp.HUVUDINT =  MTRLDEP.DEPNR
+      inextradatatemp.HUVUDCH =  spec_mtrl.ENR.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp).
+      FOR EACH extradatatemp:
+         ASSIGN 
+         extradatatemp.HUVUDCH = byt_mtrl.ENR
+         extradatatemp.SOKCHAR[2] =  byt_mtrl.BENAMNING.
+      END.   
+      RUN extraspar_UI IN edataapph (INPUT TABLE extradatatemp).         
+   
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "FIFO"                                  
+      inextradatatemp.HUVUDINT =  MTRLDEP.DEPNR
+      inextradatatemp.HUVUDCH =  spec_mtrl.ENR.
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp).
+      RUN exbort_UI IN edataapph (INPUT TABLE extradatatemp).         
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   END.
+   IF Guru.Konstanter:varforetypval[57] = 1 THEN DO:
+      /*om de använder trummor - byt även dessa*/
+      
+      FOR EACH TRUMMADEP WHERE TRUMMADEP.DEPNR =  MTRLDEP.DEPNR AND TRUMMADEP.ENR =  spec_mtrl.ENR EXCLUSIVE-LOCK:   
+         ASSIGN 
+         TRUMMADEP.ENR = byt_mtrl.ENR
+         TRUMMADEP.BENAMNING = byt_mtrl.BENAMNING.            
+      END.
+      FOR EACH TRUMMAAO WHERE TRUMMAAO.DEPNR =  MTRLDEP.DEPNR AND TRUMMAAO.ENR =  spec_mtrl.ENR EXCLUSIVE-LOCK:   
+         ASSIGN 
+         TRUMMAAO.ENR = byt_mtrl.ENR  
+         TRUMMAAO.BENAMNING  =  byt_mtrl.BENAMNING.       
+      END.
+            
+   END.       
+END PROCEDURE.
+

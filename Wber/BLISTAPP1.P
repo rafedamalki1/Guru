@@ -1,0 +1,99 @@
+/*BLISTAPP1.P*/
+{STARTFORAPP.I}
+{ANMARKD.I}
+{LISTDEF.I} 
+{KONVALTEMP.I}
+{MTRLJAM.I}   
+DEFINE VARIABLE edmedd AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE valkonst AS LOGICAL NO-UNDO.
+DEFINE VARIABLE prisvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE skrivut AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.          
+DEFINE VARIABLE valaonr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE valdelnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE valort AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE valomrade AS CHARACTER NO-UNDO.  
+DEFINE VARIABLE lin_recid AS RECID NO-UNDO.   
+
+
+DEFINE VARIABLE arrhjsum AS DECIMAL NO-UNDO.    
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(130)" NO-UNDO. 
+DEFINE VARIABLE str2 AS CHARACTER FORMAT "X(130)" NO-UNDO.
+DEFINE VARIABLE totalt AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE sumpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE sumantal AS INTEGER NO-UNDO.
+DEFINE VARIABLE stolpval AS INTEGER NO-UNDO.
+DEFINE VARIABLE baral AS LOGICAL NO-UNDO.
+
+DEFINE TEMP-TABLE mtrl_temp2   
+   {MTRLTEMP2TT.I} 
+
+
+
+
+
+DEFINE QUERY mtrlprisq FOR BERMTRL. 
+
+PROCEDURE skapalista_UI :   
+   DEFINE INPUT PARAMETER valaonr2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade2 AS CHARACTER NO-UNDO.   
+   DEFINE INPUT PARAMETER TABLE FOR ekon_val.      
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrl_temp2.
+   DEFINE OUTPUT PARAMETER TABLE FOR mtrl_temp.   
+    
+   EMPTY TEMP-TABLE mtrl_temp2 NO-ERROR. 
+   ASSIGN 
+   valaonr = valaonr2
+   valomrade = valomrade2.     
+      
+   IF musz = FALSE THEN RUN rubrik_UI.
+
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE rubrik_UI :
+      
+   ASSIGN
+   sumpris = 0
+   sumantal = 0.  
+     
+   RUN LISTPROG2U.P
+         (INPUT TABLE ekon_val, OUTPUT TABLE mtrl_temp, OUTPUT TABLE lin_upp, 
+         OUTPUT TABLE lin_temp).   
+   
+   FOR EACH mtrl_temp BREAK BY mtrl_temp.ENR: 
+      ACCUMULATE mtrl_temp.TOTPRIS (TOTAL BY mtrl_temp.ENR). 
+      ACCUMULATE mtrl_temp.ANTAL (TOTAL BY mtrl_temp.ENR).       
+      IF LAST-OF(mtrl_temp.ENR) THEN DO:
+         CREATE mtrl_temp2.
+         ASSIGN 
+         mtrl_temp2.ENR = mtrl_temp.ENR
+         mtrl_temp2.BENAMNING = mtrl_temp.BENAMNING 
+         mtrl_temp2.ENHET = mtrl_temp.ENHET 
+         mtrl_temp2.PRIS = mtrl_temp.PRIS
+         mtrl_temp2.TOTPRIS = (ACCUM TOTAL mtrl_temp.TOTPRIS) - sumpris                       
+         mtrl_temp2.ANTAL = (ACCUM TOTAL mtrl_temp.ANTAL) - sumantal                
+         sumpris = ACCUM TOTAL mtrl_temp.TOTPRIS 
+         sumantal = ACCUM TOTAL mtrl_temp.ANTAL.                       
+      END.     
+   END.       
+   FOR EACH lin_upp:
+      FIND FIRST mtrl_temp2 WHERE mtrl_temp2.ENR = lin_upp.ENR NO-LOCK NO-ERROR.
+      IF AVAILABLE mtrl_temp2 THEN DO:                      
+         ASSIGN
+         mtrl_temp2.ANTAL = mtrl_temp2.ANTAL + lin_upp.TOTMETER
+         mtrl_temp2.TOTPRIS = mtrl_temp2.TOTPRIS + lin_upp.TOTPRIS.
+      END.
+      ELSE DO:                    
+         CREATE mtrl_temp2.
+         ASSIGN 
+         mtrl_temp2.ENR = lin_upp.ENR
+         mtrl_temp2.BENAMNING = lin_upp.BENAMNING 
+         mtrl_temp2.ENHET = lin_upp.ENHET 
+         mtrl_temp2.PRIS = lin_upp.PRIS
+         mtrl_temp2.TOTPRIS = lin_upp.TOTPRIS                       
+         mtrl_temp2.ANTAL = lin_upp.TOTMETER.
+      END.
+   END.                
+
+END PROCEDURE.

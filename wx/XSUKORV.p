@@ -1,0 +1,41 @@
+/*XSUKORV.P. KOR REDAN VECKOKORDA*/
+/* KÖRNING AV ENBART TIDFEL, NÄR DE INTE KAN VÄNTA TILLS NÄSTA KÖRNING.
+OBS!! Ställ om VECKONATT för att TIDFEL:arna ska kommaa med i uppföljning*/
+DEFINE NEW SHARED VARIABLE globforetag LIKE FORETAG.FORETAG NO-UNDO.
+DEFINE NEW SHARED VARIABLE vkdatum AS DATE NO-UNDO.
+DEFINE NEW SHARED VARIABLE gvisatidpermanad AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE man AS INTEGER FORMAT "99" NO-UNDO.
+DEFINE NEW SHARED VARIABLE globanv LIKE ANVANDARE.ANVANDARE NO-UNDO.
+ 
+DEFINE  VARIABLE appcon AS LOGICAL NO-UNDO.
+DEFINE VARIABLE manval AS LOGICAL NO-UNDO.
+DEFINE VARIABLE samvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE vknummer AS CHARACTER FORMAT "X(4)" NO-UNDO.
+
+DEFINE NEW SHARED TEMP-TABLE tidut
+   FIELD UT AS CHARACTER FORMAT "X(132)".
+{CONAPP.I}
+
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.
+globforetag = FORETAG.FORETAG.
+globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79).
+vkdatum = 02/29/2004.
+samvar = "\\BEREDNING1\DELAD\SERVER\PRO9S\SULESAMM.TXT".        
+vknummer = "w20040304".
+RUN LESAMMAN.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT
+   (INPUT 1,INPUT samvar,OUTPUT TABLE tidut).
+CREATE SERVER Guru.Konstanter:apphand.
+appcon = Guru.Konstanter:apphand:CONNECT("-AppService appnsund -H 194.132.143.8 -S 2518",CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79),"KAGGEN","sundn9") NO-ERROR.     
+
+IF Guru.Konstanter:appcon THEN DO:
+   RUN SUFEEKO.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+      (INPUT samvar,INPUT vkdatum).           
+
+
+   RUN XTIDFSATT.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT
+   (INPUT samvar,INPUT globforetag,INPUT gvisatidpermanad,INPUT vkdatum,
+   INPUT vknummer).
+END.
+IF Guru.Konstanter:appcon THEN Guru.Konstanter:appcon = Guru.Konstanter:apphand:DISCONNECT().
+DELETE OBJECT Guru.Konstanter:apphand.
+appcon = FALSE.

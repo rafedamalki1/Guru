@@ -1,0 +1,191 @@
+/*BERHMTKONMTRL.P PROGRAMMET HÄMTAR MATERIEL 
+GAMBEREV.p HÄMTAR konstruktioner berval*/
+/*
+BERSPARKONMTR.P  NEJKOMBALLTVEN.P
+BERHMTKONMTRL.P NEJKOMBBERU.P
+ADMHMTKONMTRL.P  NEJKOMBU.P
+ADMHMTKONKALK.P  NEJKOMBU2.P
+
+från skarp till temp
+körs från bervaldi2.p mm
+via kopiera konstruktion
+körs från flera prog.
+BERVALSDI2.P (2 matches)
+KOPIMTRLU.W (2 matches)
+KSKAPM.P (2 matches)
+SKAPMATRLM.P (2 matches)
+VALKONKOP.W (2 matches)
+
+
+HÄMTAR MATERIEL TILL BEREDNING
+*/
+
+{STARTFORAPP.I}
+DEFINE VARIABLE forsta AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE beflev AS CHARACTER NO-UNDO.
+{KONVALTEMP.I}
+
+{LISTMTRL.I}      
+DEFINE INPUT PARAMETER valaonr LIKE AONRTAB.AONR NO-UNDO.
+DEFINE INPUT PARAMETER valomrade LIKE AONRTAB.OMRADE NO-UNDO.
+DEFINE INPUT PARAMETER datvar LIKE BERMTRL.DATUM NO-UNDO.
+DEFINE INPUT PARAMETER valnum LIKE BERVAL.NUM NO-UNDO.
+DEFINE INPUT PARAMETER xtillyvar AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR kon_val.
+DEFINE OUTPUT PARAMETER TABLE FOR list_mtrl. 
+
+DEFINE QUERY mtrlq FOR MTRLBER.
+DEFINE BUFFER kon_valbuff FOR kon_val.
+
+DEFINE VARIABLE inkaofenr AS LOGICAL NO-UNDO.
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+
+
+/*HUVUDPROGRAM*/
+     
+FOR EACH kon_val WHERE kon_val.KSKAP = FALSE:    
+   ASSIGN
+   forsta = TRUE
+   valnum = kon_val.NUM.            
+   FIND FIRST BERMTRL WHERE BERMTRL.AONR = valaonr AND
+   BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE AND
+   BERMTRL.DATUM = datvar AND BERMTRL.NUM = valnum NO-LOCK NO-ERROR.
+   IF AVAILABLE BERMTRL THEN DO:
+      RUN gammval_UI.
+   END.
+   ELSE DO:  
+      FOR EACH kon_valbuff WHERE kon_valbuff.NUM = valnum USE-INDEX NUM:
+         RUN val_UI.            
+      END.
+   END.         
+END.  
+IF xtillyvar NE "" THEN DO:
+   FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+   IF AVAILABLE HUVUDLEV THEN DO:
+      beflev = HUVUDLEV.LEVKOD.
+   END.
+   ELSE DO:
+      FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD NE "0"
+      AND LEVERANTOR.BORTTAG = FALSE NO-LOCK NO-ERROR.
+      beflev = LEVERANTOR.LEVKOD.
+   END.
+      
+
+   
+   /* beflev = HUVUDLEV  xtillyvar = VALDLEV*/
+   RUN UtbytStart_UI (INPUT "UPPERSATT",INPUT xtillyvar,INPUT INTEGER(valaonr),INPUT valomrade).
+   
+END.
+   
+PROCEDURE val_UI.
+   IF forsta = TRUE THEN DO:      
+      /*HÄMTA MATERIELET SOM LIGGER DIREKT PÅ KONSTRUKTIONEN ENDAST EN GÅNG*/
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = kon_valbuff.F1 AND
+      MTRLBER.F1 = "" AND MTRLBER.F2 = " " AND MTRLBER.F3 = " " AND
+      MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.      
+      CLOSE QUERY mtrlq.
+      forsta = FALSE.      
+   END.
+   IF kon_valbuff.F2 NE "" THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = kon_valbuff.F1 AND
+      MTRLBER.F1 = kon_valbuff.F2 AND MTRLBER.F2 = " " AND MTRLBER.F3 = " " AND
+      MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.     
+   IF kon_valbuff.F3 NE "" THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = kon_valbuff.F1 AND
+      MTRLBER.F2 = kon_valbuff.F3 AND MTRLBER.F1 = " " AND MTRLBER.F3 = " " AND
+      MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.   
+   IF kon_valbuff.F4 NE "" THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = kon_valbuff.F1 AND
+      MTRLBER.F3 = kon_valbuff.F4 AND MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND
+      MTRLBER.F4 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.   
+   IF kon_valbuff.F5 NE "" THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = kon_valbuff.F1 AND
+      MTRLBER.F4 = kon_valbuff.F5 AND MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND
+      MTRLBER.F3 = " " AND MTRLBER.F5 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.   
+   IF kon_valbuff.F6 NE "" THEN DO: 
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = kon_valbuff.F1 AND
+      MTRLBER.F5 = kon_valbuff.F6 AND MTRLBER.F1 = " " AND MTRLBER.F2 = " " AND
+      MTRLBER.F3 = " " AND MTRLBER.F4 = " " USE-INDEX KOD NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.      
+END PROCEDURE.  
+   
+PROCEDURE gammval_UI : 
+   FIND FIRST PARSTOLP NO-LOCK NO-ERROR.
+   FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr AND
+   BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE AND
+   BERMTRL.DATUM = datvar AND BERMTRL.NUM = valnum NO-LOCK:
+      CREATE list_mtrl.
+      BUFFER-COPY BERMTRL TO list_mtrl.
+      list_mtrl.ENHET = LC(list_mtrl.ENHET).
+      IF list_mtrl.PAR > 0 THEN DO:
+         IF list_mtrl.PAR = 1 THEN list_mtrl.PAR2 = PARSTOLP.A.
+         ELSE IF list_mtrl.PAR = 2 THEN list_mtrl.PAR2 = PARSTOLP.B.
+         ELSE list_mtrl.PAR2 = PARSTOLP.C.
+      END.      
+   END.      
+END PROCEDURE.  
+PROCEDURE skapa_UI :   
+   IF kon_valbuff.GRUPP = 0 THEN DO:
+      FIND FIRST list_mtrl WHERE list_mtrl.ENR = MTRLBER.ENR AND
+      list_mtrl.LEVKOD = MTRLBER.LEVKOD AND list_mtrl.NUM = kon_valbuff.NUM
+      AND list_mtrl.SKAPNUM = kon_valbuff.SKAPNUM NO-LOCK NO-ERROR.
+   END.
+   ELSE DO:
+      FIND FIRST list_mtrl WHERE list_mtrl.ENR = MTRLBER.ENR AND
+      list_mtrl.LEVKOD = MTRLBER.LEVKOD AND list_mtrl.NUM = kon_valbuff.NUM
+      /*  AND list_mtrl.SKAPNUM = kon_val.SKAPNUM*/
+      NO-LOCK NO-ERROR.
+   END.   
+   IF NOT AVAILABLE list_mtrl THEN DO:      
+      CREATE list_mtrl.
+      BUFFER-COPY MTRLBER TO list_mtrl.
+      ASSIGN 
+      list_mtrl.ENHET   = LC(list_mtrl.ENHET)
+      list_mtrl.NUM     = kon_valbuff.NUM
+      list_mtrl.SKAPNUM = kon_valbuff.SKAPNUM.        
+   END.
+   ELSE DO:
+      list_mtrl.ANTAL = list_mtrl.ANTAL + MTRLBER.ANTAL.   
+   END.      
+END PROCEDURE.  
+{UTBYTSTART.I}
+    

@@ -1,0 +1,232 @@
+/*DISPOVMANEPOST.P  Nattkörning mycket övertid epost till berörda*/
+{STARTFORAPP.I}
+
+DEFINE TEMP-TABLE eposttemp NO-UNDO
+   FIELD EPOST AS CHARACTER
+   FIELD GEPOST AS CHARACTER
+   FIELD BOLAG AS CHARACTER
+   FIELD MEDD AS CHARACTER
+   INDEX EPOST EPOST.
+
+DEFINE TEMP-TABLE povtim
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD FORNAMN AS CHARACTER
+   FIELD EFTERNAMN AS CHARACTER   
+   FIELD OVTIM AS DECIMAL  
+   FIELD BOLAG AS CHARACTER
+   FIELD EPOST AS CHARACTER 
+   FIELD GEPOST AS CHARACTER
+   INDEX PERSONALKOD IS PRIMARY PERSONALKOD. 
+      
+
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE VARIABLE aonrrec AS RECID NO-UNDO.
+DEFINE VARIABLE skick AS LOGICAL NO-UNDO.
+DEFINE VARIABLE efel AS CHARACTER FORMAT "X(30)" NO-UNDO.
+DEFINE VARIABLE servervar AS CHARACTER LABEL "Smtp Server" NO-UNDO.
+DEFINE VARIABLE franvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hjdat AS DATE NO-UNDO.
+DEFINE VARIABLE bolag AS CHARACTER NO-UNDO.
+DEFINE VARIABLE okbol AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kolldatum AS DATE NO-UNDO.
+DEFINE BUFFER persbuff FOR PERSONALTAB.
+DEFINE VARIABLE dispens AS LOGICAL NO-UNDO.
+DEFINE VARIABLE ovar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE ctillvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE grans AS INTEGER NO-UNDO.
+DEFINE VARIABLE hjman AS INTEGER NO-UNDO.
+DEFINE VARIABLE hjar AS INTEGER NO-UNDO.
+
+{SMTPDEF3.I}
+{EXTRADATA.I}
+RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT FORETAG.FORETAG).
+IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "MISV" THEN DO:
+   ASSIGN
+   franvar = "NOREPLY"
+   servervar = CHR(49) + CHR(55) + CHR(50) + CHR(46) + CHR(49) + CHR(54) + CHR(46) + CHR(50) + CHR(53) + CHR(52) + CHR(46) + CHR(50) + CHR(50) + CHR(50).
+   /*servervar = "130.1.27.253".
+   servervar = "172.16.79.249".*/
+END.
+ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+   {SMTPFRANELPOOL.I}
+END.
+ELSE DO:
+   ASSIGN
+   franvar = "elpool.ume@elpool.se"
+   servervar = CHR(115) + CHR(109) + CHR(116) + CHR(112) + CHR(46) + CHR(116) + CHR(101) + CHR(108) + CHR(101) + CHR(99) + CHR(111) + CHR(109) + CHR(51) + CHR(46) + CHR(110) + CHR(101) + CHR(116) .
+END.
+
+
+regdatum = TODAY - 3.      
+kolldatum = TODAY - 3.      
+ 
+RUN REGVEC.P.    
+ASSIGN
+regar = YEAR(regdatum)
+regmnr = MONTH(regdatum).
+
+FOR EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE AND PERSONALTAB.ANSTALLNING NE "Ej tidskrivande personal"  USE-INDEX PERSONALKOD NO-LOCK:
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+   FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+   FIND FIRST JURPERS WHERE JURPERS.JUDID = AVDELNING.POSTANST NO-LOCK NO-ERROR.
+   IF AVAILABLE JURPERS THEN DO:                        
+      /* max 200 övertidtimmar per år*/
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+      dispens = FALSE.
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "DISPENSÖ"                   
+      inextradatatemp.HUVUDCH = PERSONALTAB.PERSONALKOD.            
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.     
+      IF AVAILABLE extradatatemp THEN DO:      
+         ASSIGN dispens = extradatatemp.SOKLOG[1].         
+      END.   
+      ELSE dispens = FALSE.         
+      hjar = YEAR(TODAY).       
+      IF DAY(TODAY) < 7 THEN DO:
+         IF MONTH(TODAY) = 1 THEN DO:
+             hjman = 12.
+             hjar = YEAR(TODAY) - 1.
+         END.     
+         ELSE hjman = MONTH(TODAY)- 1.
+      END.               
+      ELSE hjman = MONTH(TODAY).         
+      ASSIGN
+      ovar = 0.
+      OPEN QUERY toq FOR EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND YEAR(TIDREGITAB.DATUM) = hjar
+      AND MONTH(TIDREGITAB.DATUM) = hjman AND TIDREGITAB.OKOD1 NE ""  NO-LOCK.
+      GET FIRST toq NO-LOCK.
+      DO WHILE AVAILABLE (TIDREGITAB):          
+         /*ändrad till verklig tid inte inte avrundad tid 20171122 Lena */     
+         ovar = ovar + klock100(TIDREGITAB.TOTALT).                                   
+         GET NEXT toq NO-LOCK.
+      END.
+      
+      IF Guru.Konstanter:globforetag = "MISV" then grans = 30.
+      
+      IF ovar > grans THEN DO:            
+         CREATE povtim.        
+         ASSIGN
+         povtim.PERSONALKOD = PERSONALTAB.PERSONALKOD                                   
+         povtim.FORNAMN = PERSONALTAB.FORNAMN
+         povtim.EFTERNAMN = PERSONALTAB.EFTERNAMN
+         povtim.ovtim = ovar
+         povtim.BOLAG =  JURPERS.VIJUDID.
+         povtim.EPOST = SUBSTRING(PERSONALTAB.PERSONSOK,20).
+         FIND FIRST persbuff WHERE persbuff.PERSONALKOD = PERSONALTAB.TIDSGODK NO-LOCK NO-ERROR.
+         IF AVAILABLE persbuff THEN DO:
+            povtim.GEPOST = SUBSTRING(persbuff.PERSONSOK,20).
+         END.                
+      END.                                                           
+   END.
+END.      
+EMPTY TEMP-TABLE eposttemp NO-ERROR. 
+ IF Guru.Konstanter:globforetag = "MISV" THEN DO:
+   ctillvar = "lena.jonsson@msva.se".
+   FOR EACH povtim WHERE povtim.BOLAG NE "" NO-LOCK.   
+      FIND FIRST eposttemp WHERE eposttemp.BOLAG = povtim.BOLAG AND eposttemp.EPOST = "lena.jonsson@msva.se" AND 
+      LENGTH(eposttemp.MEDD,"CHARACTER") < 30000 EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE eposttemp THEN DO:
+         CREATE eposttemp.
+         
+         ASSIGN     
+         eposttemp.EPOST = ctillvar
+         eposttemp.BOLAG = povtim.BOLAG.
+         eposttemp.MEDD = "Följande personer har mer än " + STRING(grans) + " övertidstimmar registrerade i Guru månad " + STRING(hjman) + " år " + STRING(hjar)  + CHR(10)
+                        + "====================================================================================================== " + CHR(10).
+         eposttemp.MEDD = eposttemp.MEDD + "Efter 50 timmar övertid en månad behövs dispens. Räknad på verklig övertid, ej avrundad." + CHR(10).                      
+      END.      
+      eposttemp.MEDD = eposttemp.MEDD + povtim.PERSONALKOD + " " +  povtim.FORNAMN + " " + povtim.EFTERNAMN + " har månad " +  STRING(hjman) + " år " + string(hjar) + " arbetat "  + STRING(povtim.OVTIM) + " tim " + CHR(10) + CHR(10).          
+   END.
+   
+   if available eposttemp then Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + eposttemp.EPOST + "," +  eposttemp.MEDD . .
+   
+   FOR EACH povtim WHERE povtim.EPOST NE "" NO-LOCK.
+      IF povtim.GEPOST NE "" THEN   ctillvar = povtim.EPOST +  ";" + povtim.GEPOST.
+      ELSE ctillvar = povtim.EPOST.  
+      FIND FIRST eposttemp WHERE eposttemp.BOLAG = povtim.BOLAG AND eposttemp.EPOST = ctillvar AND 
+      LENGTH(eposttemp.MEDD,"CHARACTER") < 30000 EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE eposttemp THEN DO:
+         CREATE eposttemp.      
+         ASSIGN     
+         eposttemp.EPOST = ctillvar
+         eposttemp.BOLAG = povtim.BOLAG.
+         eposttemp.MEDD = "Du har mer än " + STRING(grans) + " övertidstimmar registrerade i Guru månad " + STRING(hjman) + " år " + STRING(hjar)  + CHR(10)
+                        + "========================================================================================================= " + CHR(10).
+         eposttemp.MEDD = eposttemp.MEDD + "Efter 50 timmar övertid en månad behövs dispens. Räknad på verklig övertid, ej avrundad." + CHR(10).               
+                               
+      END.      
+      eposttemp.MEDD = eposttemp.MEDD + povtim.PERSONALKOD + " " +  povtim.FORNAMN + " " + povtim.EFTERNAMN + " har månad " +  STRING(hjman) + " år " + string(hjar) + " arbetat "  + STRING(povtim.OVTIM) + " tim " + CHR(10) + CHR(10).          
+   END.
+   if available eposttemp then Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + eposttemp.EPOST + "," +  eposttemp.MEDD . .   
+END.   
+RUN emedd_UI.
+Guru.GlobalaVariabler:GDPRtyp = "EP".
+{GDPRLOGGCLIENT.I}
+PROCEDURE emedd_UI.
+   DEFINE VARIABLE ctillvar AS CHARACTER LABEL "Kopia" NO-UNDO.
+   ctillvar = "".   
+   FOR EACH eposttemp:  
+      ASSIGN 
+      mailhub             = servervar     
+      EmailTo             = eposttemp.EPOST 
+      EmailFrom           = franvar
+      EmailCC             = ""
+      Attachmentstyp      = ""
+      LocalFiles          = ""
+      Subject             = "Övertidskontroll månad" 
+      Bodysmtp            = eposttemp.MEDD
+      MIMEHeader          = "type=text/plain/html:charset=iso-8859-1:filetype=ascii"
+      BodyType            = "".
+      IF Guru.Konstanter:globforetag = "sund"  THEN EmailFrom = "webguru@sundsvallenergi.se".
+      IF Guru.Konstanter:globforetag = "SNAT" THEN EmailFrom = "@guru.sundsvallelnat.se".
+      IF Guru.Konstanter:globforetag = "MISV" THEN EmailFrom = "webguru@mittsverigevatten.se".
+      RUN smtpmail_UI (INPUT FALSE).
+      IF oSuccessful = TRUE THEN DO TRANSACTION:
+         oSuccessful = FALSE.               
+      END.      
+      ELSE DO:
+         IF Guru.Konstanter:globforetag = "SUND" THEN DO:
+            OUTPUT TO D:\delad\server\pro10s\EXPORT\lon\dispensfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+            /*SNATBERGET*/
+            OUTPUT TO D:\delad\pro10s\dispensfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END. 
+         ELSE IF Guru.Konstanter:globforetag = "MISV" THEN DO:            
+            OUTPUT TO D:\elpool\delad\pro10s\EXPORT\lon\dispensfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "ELPA" THEN DO:
+            OUTPUT TO c:\protemp9\godkandkollfel.txt APPEND.            
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         OUTPUT CLOSE.
+    
+      END.
+   END.     
+END PROCEDURE.  
+
+ 
+   
+

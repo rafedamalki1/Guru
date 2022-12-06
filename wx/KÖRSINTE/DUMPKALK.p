@@ -1,0 +1,224 @@
+/*DUMPKALK.P PROGRAMMET DUMPAR UT KALKYLUNDERLAG*/
+
+DEFINE VARIABLE valar LIKE P1.KATAR NO-UNDO.
+   
+   ASSIGN
+   valar = 2017.   
+   {AMERICANEUROPEAN.I}
+
+   OUTPUT TO C:\PRO10\GURU\WTID\p1.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq FOR EACH P1 WHERE P1.KATAR = valar NO-LOCK.
+   GET FIRST kq NO-LOCK.
+   DO WHILE AVAILABLE(P1):
+      EXPORT P1.
+      GET NEXT kq NO-LOCK.
+   END.
+   CLOSE QUERY kq.
+   OUTPUT CLOSE.
+
+   OUTPUT TO C:\PRO10\GURU\WTID\p2.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq2 FOR EACH P2 WHERE P2.KATAR = valar NO-LOCK.
+   GET FIRST kq2 NO-LOCK.
+   DO WHILE AVAILABLE(P2):
+      EXPORT P2.
+      GET NEXT kq2 NO-LOCK.
+   END.
+   CLOSE QUERY kq2.
+   OUTPUT CLOSE.
+
+   OUTPUT TO C:\PRO10\GURU\WTID\p3.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq3 FOR EACH P3 WHERE P3.KATAR = valar NO-LOCK.
+   GET FIRST kq3 NO-LOCK.
+   DO WHILE AVAILABLE(P3):
+      EXPORT P3.
+      GET NEXT kq3 NO-LOCK.
+   END.
+   CLOSE QUERY kq3.
+   OUTPUT CLOSE.   
+
+   OUTPUT TO C:\PRO10\GURU\WTID\lop1.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq4 FOR EACH LOP1 WHERE LOP1.KATAR = valar NO-LOCK.
+   GET FIRST kq4 NO-LOCK.
+   DO WHILE AVAILABLE(LOP1):
+      EXPORT LOP1.
+      GET NEXT kq4 NO-LOCK.
+   END.
+   CLOSE QUERY kq4.
+   OUTPUT CLOSE.
+
+   OUTPUT TO C:\PRO10\GURU\WTID\lop2.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq5 FOR EACH LOP2 WHERE LOP2.KATAR = valar NO-LOCK.
+   GET FIRST kq5 NO-LOCK.
+   DO WHILE AVAILABLE(LOP2):
+      EXPORT LOP2.
+      GET NEXT kq5 NO-LOCK.
+   END.
+   CLOSE QUERY kq5.
+   OUTPUT CLOSE.
+
+   OUTPUT TO C:\PRO10\GURU\WTID\lop3.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq6 FOR EACH LOP3 WHERE LOP3.KATAR = valar NO-LOCK.
+   GET FIRST kq6 NO-LOCK.
+   DO WHILE AVAILABLE(LOP3):
+      EXPORT LOP3.
+      GET NEXT kq6 NO-LOCK.
+   END.
+   CLOSE QUERY kq6.
+   OUTPUT CLOSE.  
+
+   OUTPUT TO C:\PRO10\GURU\WTID\frekvens.d convert target "iso8859-1" source "iso8859-1" append.  
+   OPEN QUERY kq7 FOR EACH FREKVENS WHERE FREKVENS.KATAR = valar NO-LOCK.
+   GET FIRST kq7 NO-LOCK.
+   DO WHILE AVAILABLE(FREKVENS):
+      EXPORT FREKVENS.
+      GET NEXT kq7 NO-LOCK.
+   END.
+   CLOSE QUERY kq7.
+   OUTPUT CLOSE.
+   
+   OUTPUT TO C:\PRO10\GURU\WTID\ebrpris.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq8 FOR EACH EBRPRIS WHERE EBRPRIS.ARTAL = valar NO-LOCK.
+   GET FIRST kq8 NO-LOCK.
+   DO WHILE AVAILABLE(EBRPRIS):
+      EXPORT EBRPRIS.
+      GET NEXT kq8 NO-LOCK.
+   END.
+   CLOSE QUERY kq8.
+   OUTPUT CLOSE.
+
+   OUTPUT TO C:\PRO10\GURU\WTID\sebrpris.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq10 FOR EACH SEBRPRIS WHERE SEBRPRIS.ARTAL = valar NO-LOCK.
+   GET FIRST kq10 NO-LOCK.
+   DO WHILE AVAILABLE(SEBRPRIS):
+      EXPORT SEBRPRIS.
+      GET NEXT kq10 NO-LOCK.
+   END.
+   CLOSE QUERY kq10.
+   OUTPUT CLOSE.
+
+   OUTPUT TO C:\PRO10\GURU\WTID\kalkbef.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq9 FOR EACH KALKBEF WHERE KALKBEF.KATAR = valar AND
+   KALKBEF.KALKNR = 0 NO-LOCK.
+   GET FIRST kq9 NO-LOCK.
+   DO WHILE AVAILABLE(KALKBEF):
+      EXPORT KALKBEF.
+      GET NEXT kq9 NO-LOCK.
+   END.
+   CLOSE QUERY kq9.
+   OUTPUT CLOSE.
+
+   OUTPUT TO C:\PRO10\GURU\WTID\p5.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq31 FOR EACH P5 WHERE P5.KATAR = valar NO-LOCK.
+   GET FIRST kq31 NO-LOCK.
+   DO WHILE AVAILABLE(P5):
+      EXPORT P5.
+      GET NEXT kq31 NO-LOCK.
+   END.
+   CLOSE QUERY kq31.
+   OUTPUT CLOSE.
+
+   OUTPUT TO C:\PRO10\GURU\WTID\lop5.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq61 FOR EACH LOP5 WHERE LOP5.KATAR = valar NO-LOCK.
+   GET FIRST kq61 NO-LOCK.
+   DO WHILE AVAILABLE(LOP5):
+      EXPORT LOP5.
+      GET NEXT kq61 NO-LOCK.
+   END.
+   CLOSE QUERY kq61.
+   OUTPUT CLOSE.
+     {EUROPEANAMERICAN.I}
+
+   /*
+   /*DUMPA ALLT*/
+   
+   OUTPUT TO p1.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq FOR EACH P1 NO-LOCK.
+   GET FIRST kq NO-LOCK.
+   DO WHILE AVAILABLE(P1):
+      EXPORT P1.
+      GET NEXT kq NO-LOCK.
+   END.
+   CLOSE QUERY kq.
+   OUTPUT CLOSE.
+
+   OUTPUT TO p2.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq2 FOR EACH P2 NO-LOCK.
+   GET FIRST kq2 NO-LOCK.
+   DO WHILE AVAILABLE(P2):
+      EXPORT P2.
+      GET NEXT kq2 NO-LOCK.
+   END.
+   CLOSE QUERY kq2.
+   OUTPUT CLOSE.
+
+   OUTPUT TO p3.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq3 FOR EACH P3 NO-LOCK.
+   GET FIRST kq3 NO-LOCK.
+   DO WHILE AVAILABLE(P3):
+      EXPORT P3.
+      GET NEXT kq3 NO-LOCK.
+   END.
+   CLOSE QUERY kq3.
+   OUTPUT CLOSE.
+
+   OUTPUT TO lop1.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq4 FOR EACH LOP1 NO-LOCK.
+   GET FIRST kq4 NO-LOCK.
+   DO WHILE AVAILABLE(LOP1):
+      EXPORT LOP1.
+      GET NEXT kq4 NO-LOCK.
+   END.
+   CLOSE QUERY kq4.
+   OUTPUT CLOSE.
+
+   OUTPUT TO lop2.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq5 FOR EACH LOP2 NO-LOCK.
+   GET FIRST kq5 NO-LOCK.
+   DO WHILE AVAILABLE(LOP2):
+      EXPORT LOP2.
+      GET NEXT kq5 NO-LOCK.
+   END.
+   CLOSE QUERY kq5.
+   OUTPUT CLOSE.
+
+   OUTPUT TO lop3.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq6 FOR EACH LOP3 NO-LOCK.
+   GET FIRST kq6 NO-LOCK.
+   DO WHILE AVAILABLE(LOP3):
+      EXPORT LOP3.
+      GET NEXT kq6 NO-LOCK.
+   END.
+   CLOSE QUERY kq6.
+   OUTPUT CLOSE.
+
+   OUTPUT TO frekvens.d convert target "iso8859-1" source "iso8859-1" append.  
+   OPEN QUERY kq7 FOR EACH FREKVENS NO-LOCK.
+   GET FIRST kq7 NO-LOCK.
+   DO WHILE AVAILABLE(FREKVENS):
+      EXPORT FREKVENS.
+      GET NEXT kq7 NO-LOCK.
+   END.
+   CLOSE QUERY kq7.
+   OUTPUT CLOSE.
+
+   OUTPUT TO ebrpris.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq8 FOR EACH EBRPRIS NO-LOCK.
+   GET FIRST kq8 NO-LOCK.
+   DO WHILE AVAILABLE(EBRPRIS):
+      EXPORT EBRPRIS.
+      GET NEXT kq8 NO-LOCK.
+   END.
+   CLOSE QUERY kq8.
+   OUTPUT CLOSE.
+
+   OUTPUT TO kalkbef.d convert target "iso8859-1" source "iso8859-1" append.
+   OPEN QUERY kq9 FOR EACH KALKBEF WHERE KALKBEF.KALKNR = 0 NO-LOCK.
+   GET FIRST kq9 NO-LOCK.
+   DO WHILE AVAILABLE(KALKBEF):
+      EXPORT KALKBEF.
+      GET NEXT kq9 NO-LOCK.
+   END.
+   CLOSE QUERY kq9.
+   OUTPUT CLOSE.
+   {EUROPEANAMERICAN.I}
+   */

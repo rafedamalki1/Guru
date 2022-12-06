@@ -1,0 +1,12 @@
+   FOR EACH MTRL WHERE MTRL.LEVKOD = "1" USE-INDEX LEV:
+      OUTPUT TO F:\ELPNJ\PRISER\gran.asc APPEND CONVERT TARGET "ibm850" SOURCE "iso8859-1" 
+      NO-ECHO.           
+      PUT UNFORMATTED        
+      MTRL.ENR AT 1
+      MTRL.BENAMNING AT 11                
+      STRING(MTRL.NPRIS,">>,>>9.99") AT 60
+      MTRL.ENHET AT 75
+      STRING(MTRL.BPRIS,">>,>>9.99") AT 80
+      CHR(10) AT 95.
+      OUTPUT CLOSE.
+   END.    

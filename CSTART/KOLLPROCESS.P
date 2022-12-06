@@ -1,0 +1,97 @@
+/*KOLLPROCESS.P programmet söker efter en process 
+och lopar tills processen inte längre finns*/
+DEFINE INPUT PARAMETER vad AS INTEGER NO-UNDO.
+DEFIN INPUT PARAMETER valprocess AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER klar AS LOGICAL NO-UNDO.
+
+
+&GLOB TH32CS_SNAPPROCESS 2
+DEFINE TEMP-TABLE list
+   FIELD list AS CHARACTER.
+IF vad = 1 THEN DO:
+   klar = FALSE.
+   REPEAT WHILE klar = FALSE.
+      FOR EACH list:
+         DELETE list.
+      END.
+      RUN ListProcesses.
+      FIND FIRST list WHERE list.list = SUBSTRING(valprocess,1,15) NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE list THEN klar = TRUE.
+   END.
+END.
+IF vad = 2 THEN DO:
+   EMPTY TEMP-TABLE list NO-ERROR. 
+   RUN ListProcesses.
+   FIND FIRST list WHERE list.list = SUBSTRING(valprocess,1,15) NO-LOCK NO-ERROR.
+   IF AVAILABLE list THEN klar = TRUE.  
+END.
+PROCEDURE ListProcesses:
+ 
+    DEF VAR hSnapShot   AS INTEGER   NO-UNDO.
+    DEF VAR lpPE        AS MEMPTR    NO-UNDO. /* PROCESSENTRY32 structure */
+    DEF VAR ReturnValue AS INTEGER   NO-UNDO.    
+ 
+ 
+    /* Create and open SnapShot-list */
+    RUN CreateToolhelp32Snapshot({&TH32CS_SNAPPROCESS}, 0, OUTPUT hSnapShot).
+    IF hSnapShot = -1 THEN RETURN.
+ 
+    /* init buffer for lpPE */
+    SET-SIZE(lpPE)    = 336.
+    PUT-LONG(lpPE, 1) = GET-SIZE(lpPE).
+ 
+    /* Cycle thru process-records */
+    RUN Process32First(hSnapShot, 
+                       lpPE,
+                       OUTPUT ReturnValue).
+    DO WHILE ReturnValue NE 0:
+       CREATE list.
+/*        list = list + "~n".                            */
+/*                                                       */
+/*        /* show process identifier (pid): */           */
+/*       list = list + STRING(GET-LONG(lpPE, 9)) + " ".  */
+ 
+       /* show path and filename of executable: */
+       list.list = GET-STRING(lpPE, 37).
+ 
+       RUN Process32Next(hSnapShot, 
+                         lpPE,
+                         OUTPUT ReturnValue).
+    END.
+ 
+    /* Close SnapShot-list */
+    RUN CloseHandle(hSnapShot, OUTPUT ReturnValue).
+/*     FOR EACH list:                          */
+/*        MESSAGE list.list VIEW-AS ALERT-BOX. */
+/*     END.                                    */
+ 
+END PROCEDURE.
+
+ 
+
+
+ 
+PROCEDURE CreateToolhelp32Snapshot EXTERNAL "kernel32" :
+  DEFINE INPUT  PARAMETER dwFlags           AS LONG.
+  DEFINE INPUT  PARAMETER th32ProcessId     AS LONG.
+  DEFINE RETURN PARAMETER hSnapShot         AS LONG.
+END PROCEDURE.
+ 
+PROCEDURE Process32First EXTERNAL "kernel32" :
+  DEFINE INPUT  PARAMETER hSnapShot         AS LONG.
+  DEFINE INPUT  PARAMETER lpProcessEntry32  AS MEMPTR.
+  DEFINE RETURN PARAMETER ReturnValue       AS LONG.
+END PROCEDURE.
+ 
+PROCEDURE Process32Next EXTERNAL "kernel32" :
+  DEFINE INPUT  PARAMETER hSnapShot         AS LONG.
+  DEFINE INPUT  PARAMETER lpProcessEntry32  AS MEMPTR.
+  DEFINE RETURN PARAMETER ReturnValue       AS LONG.
+END PROCEDURE.
+ 
+PROCEDURE CloseHandle EXTERNAL "kernel32" :
+  DEFINE INPUT  PARAMETER hObject           AS LONG.
+  DEFINE RETURN PARAMETER ReturnValue       AS LONG.
+END PROCEDURE.
+ 
+

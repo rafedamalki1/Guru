@@ -1,0 +1,344 @@
+
+/* HENRAPP.P*/
+{STARTFORAPP.I}
+{SMTRL.I}
+{BMTRL.I}
+{KONSTRMTRL.I}
+DEFINE TEMP-TABLE grupp_temp NO-UNDO
+   FIELD KONSKOD AS INTEGER
+   FIELD BENAMNING AS CHARACTER.    
+DEFINE VARIABLE valgrupp AS INTEGER NO-UNDO.
+
+  
+DEFINE TEMP-TABLE senmtrlbertmp NO-UNDO LIKE mtrlbertemp
+ 
+ FIELD AONRAONR AS  CHARACTER
+ FIELD AONRDELNR AS INTEGER
+ FIELD ENRERS AS  CHARACTER                      
+ FIELD LEVKODERS AS  CHARACTER
+ FIELD LEVKODNAMNERS AS  CHARACTER
+ FIELD LEVKODNAMN AS  CHARACTER
+ FIELD INKBESTID AS INTEGER
+ FIELD SENDAT AS DATE.
+DEFINE  TEMP-TABLE kon_temp
+   FIELD KONSKOD AS INTEGER
+   FIELD KTYPKOD AS CHARACTER
+   FIELD BENAMNING AS CHARACTER
+   FIELD ORDNING AS INTEGER
+   INDEX ORD ORDNING ASCENDING.
+
+PROCEDURE henr_UI :
+   DEFINE INPUT PARAMETER TABLE FOR grupp_temp.
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR byt_mtrl.
+   DEFINE INPUT PARAMETER valla AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER erslev AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE kabelskapup AS LOGICAL NO-UNDO.
+   DEFINE QUERY mtrlq FOR MTRLBER.
+   DEFINE QUERY kq FOR KONSTRUKTION.
+   
+   FIND FIRST byt_mtrl NO-LOCK NO-ERROR.        
+   FIND FIRST spec_mtrl NO-LOCK NO-ERROR.
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   Guru.Konstanter:globforetag = FORETAG.FORETAG.
+   
+   FOR EACH grupp_temp:
+      valgrupp = grupp_temp.KONSKOD.  
+      IF valgrupp = 0 THEN kabelskapup = TRUE.
+      OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = valgrupp NO-LOCK.
+      GET FIRST kq NO-LOCK.
+      DO WHILE AVAILABLE(KONSTRUKTION):
+         IF Guru.Konstanter:globforetag = "ELPA" /*{GLOBVES.I}*/ THEN DO:
+            IF spec_mtrl.LEVKOD = "1" OR spec_mtrl.LEVKOD = "11" THEN DO:
+               OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+               MTRLBER.ENR = spec_mtrl.ENR AND
+               (MTRLBER.LEVKOD = "1" OR MTRLBER.LEVKOD = "11") NO-LOCK.         
+            END.
+            ELSE DO:
+               OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+               MTRLBER.ENR = spec_mtrl.ENR AND
+               MTRLBER.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+            END.
+         END.
+         ELSE DO:
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+            MTRLBER.ENR = spec_mtrl.ENR AND
+            MTRLBER.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+         END.       
+         GET FIRST mtrlq NO-LOCK.
+         DO WHILE AVAILABLE(MTRLBER):
+            CREATE byt_mtrl.
+            ASSIGN
+            byt_mtrl.KTYPKOD = MTRLBER.KTYPKOD
+            byt_mtrl.F1 = MTRLBER.F1
+            byt_mtrl.F2 = MTRLBER.F2
+            byt_mtrl.F3 = MTRLBER.F3
+            byt_mtrl.F4 = MTRLBER.F4
+            byt_mtrl.F5 = MTRLBER.F5
+            byt_mtrl.ANTAL = MTRLBER.ANTAL
+            byt_mtrl.ENR = MTRLBER.ENR
+            byt_mtrl.LEVKOD = MTRLBER.LEVKOD.
+            
+            GET NEXT mtrlq NO-LOCK.
+         END.
+         CLOSE QUERY mtrlq.
+         GET NEXT kq NO-LOCK.
+      END.
+      CLOSE QUERY kq.
+      
+      /*skåpupp*/
+      IF kabelskapup = TRUE THEN DO:
+         kabelskapup = FALSE.
+         IF Guru.Konstanter:globforetag = "ELPA" /*{GLOBVES.I}*/ THEN DO:
+            IF spec_mtrl.LEVKOD = "1" OR spec_mtrl.LEVKOD = "11" THEN DO:
+               OPEN QUERY mskapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND
+               (BERSKAP.LEVKOD = "1" OR BERSKAP.LEVKOD = "11") NO-LOCK.         
+            END.
+            ELSE DO:
+               OPEN QUERY mskapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND
+               BERSKAP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+            END.
+         END.
+         ELSE DO:
+            OPEN QUERY mskapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND
+            BERSKAP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+         END.         
+         GET FIRST mskapq NO-LOCK.
+         DO WHILE AVAILABLE(BERSKAP):
+            CREATE byt_mtrl.
+            ASSIGN
+            byt_mtrl.KTYPKOD = BERSKAP.KTYPKOD
+            byt_mtrl.F1 = BERSKAP.KOD
+            byt_mtrl.ANTAL = BERSKAP.ANTAL
+            byt_mtrl.ENR = BERSKAP.ENR
+            byt_mtrl.LEVKOD = BERSKAP.LEVKOD.
+            GET NEXT mskapq NO-LOCK.
+         END.
+         CLOSE QUERY mskapq.
+      END.
+      IF erslev = TRUE THEN DO:
+        /* Med översättning från huvudleverantör*/
+         /*ERSÄTTNING*/
+         FIND FIRST UTBYTESLISTA  WHERE UTBYTESLISTA.UID = 0 AND UTBYTESLISTA.BYTTILLENR = spec_mtrl.ENR AND UTBYTESLISTA.BYTTILLLEVKOD = spec_mtrl.LEVKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE UTBYTESLISTA THEN DO:
+            OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = valgrupp NO-LOCK.
+            GET FIRST kq NO-LOCK.
+            DO WHILE AVAILABLE(KONSTRUKTION):
+               
+               OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+               MTRLBER.ENR = UTBYTESLISTA.ORGENR AND
+               MTRLBER.LEVKOD = UTBYTESLISTA.ORGLEVKOD NO-LOCK.         
+               
+               GET FIRST mtrlq NO-LOCK.
+               DO WHILE AVAILABLE(MTRLBER):
+                  CREATE byt_mtrl.
+                  ASSIGN
+                  byt_mtrl.KTYPKOD = MTRLBER.KTYPKOD
+                  byt_mtrl.F1 = MTRLBER.F1
+                  byt_mtrl.F2 = MTRLBER.F2
+                  byt_mtrl.F3 = MTRLBER.F3
+                  byt_mtrl.F4 = MTRLBER.F4
+                  byt_mtrl.F5 = MTRLBER.F5
+                  byt_mtrl.ANTAL = MTRLBER.ANTAL
+                  byt_mtrl.ENR = MTRLBER.ENR
+                  byt_mtrl.LEVKOD = MTRLBER.LEVKOD.
+                  GET NEXT mtrlq NO-LOCK.
+               END.
+               CLOSE QUERY mtrlq.
+               GET NEXT kq NO-LOCK.
+            END.
+            CLOSE QUERY kq.
+         END.
+      END.
+   END.   
+   IF valla = TRUE THEN DO:
+      /*stolpar trafo*/
+      IF Guru.Konstanter:globforetag = "ELPA" /*{GLOBVES.I}*/ THEN DO:
+         IF spec_mtrl.LEVKOD = "1" OR spec_mtrl.LEVKOD = "11" THEN DO:
+            OPEN QUERY mstolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND
+            (BERSTOLP.LEVKOD = "1" OR BERSTOLP.LEVKOD = "11") NO-LOCK.         
+         END.
+         ELSE DO:
+            OPEN QUERY mstolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND
+            BERSTOLP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+         END.
+      END.
+      ELSE DO:
+         OPEN QUERY mstolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND
+         BERSTOLP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+      END.         
+      GET FIRST mstolpq NO-LOCK.
+      DO WHILE AVAILABLE(BERSTOLP):
+         CREATE byt_mtrl.
+         IF BERSTOLP.STOLPE = TRUE THEN byt_mtrl.KTYPKOD = "Stolpar".
+         ELSE byt_mtrl.KTYPKOD = "Transformatorer". 
+         ASSIGN      
+         byt_mtrl.ANTAL = BERSTOLP.ANTAL
+         byt_mtrl.ENR = BERSTOLP.ENR
+         byt_mtrl.LEVKOD = BERSTOLP.LEVKOD.
+         
+         GET NEXT mstolpq NO-LOCK.
+      END.
+      CLOSE QUERY mstolpq.
+   END.
+   
+   FOR EACH byt_mtrl:
+      FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = byt_mtrl.KTYPKOD
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE KONSTRUKTION THEN DO:
+         FIND FIRST KONSTGRUPP WHERE KONSTGRUPP.KONSKOD = KONSTRUKTION.KONSKOD
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE KONSTGRUPP THEN DO:
+            ASSIGN
+            byt_mtrl.KONSKOD = KONSTGRUPP.KONSKOD
+            byt_mtrl.BENAMNING = KONSTGRUPP.BENAMNING.
+            byt_mtrl.KBEN = KONSTRUKTION.BENAMNING.
+            /*byt_mtrl.KTYPKOD = byt_mtrl.KTYPKOD + " " + KONSTRUKTION.BENAMNING.*/
+         END.
+         ELSE IF byt_mtrl.KTYPKOD = "Stolpar" THEN DO: 
+            
+         END.
+         ELSE IF byt_mtrl.KTYPKOD = "Transformatorer" THEN DO: 
+            
+         END.
+      END.
+      FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = byt_mtrl.LEVKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE LEVERANTOR  THEN DO:
+         byt_mtrl.LEVNAMN = LEVERANTOR.LEVNAMN.
+      END.   
+      /*MESSAGE "KONS" byt_mtrl.KONSKOD "KTYP"  byt_mtrl.KTYPKOD "F1" byt_mtrl.F1 "F2" byt_mtrl.F2 "F3" byt_mtrl.F3 "F4" byt_mtrl.F4 "F5" byt_mtrl.F5 "ENR" byt_mtrl.ENR "LEVKOD" byt_mtrl.LEVKOD VIEW-AS ALERT-BOX.*/
+   END.
+END PROCEDURE.
+PROCEDURE henrKonst_UI :
+   DEFINE INPUT PARAMETER TABLE FOR kon_temp.
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+   DEFINE OUTPUT PARAMETER TABLE FOR byt_mtrl.
+   EMPTY TEMP-TABLE byt_mtrl NO-ERROR. 
+   FIND FIRST byt_mtrl NO-LOCK NO-ERROR.        
+   FIND FIRST spec_mtrl NO-LOCK NO-ERROR.
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   Guru.Konstanter:globforetag = FORETAG.FORETAG.
+   
+   FOR EACH kon_temp:
+      FOR EACH spec_mtrl WHERE NO-LOCK:
+         FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = kon_temp.KTYPKOD AND
+         MTRLBER.ENR = spec_mtrl.ENR AND
+         MTRLBER.LEVKOD = spec_mtrl.LEVKOD NO-LOCK:         
+            CREATE byt_mtrl.
+            ASSIGN
+            byt_mtrl.KTYPKOD = MTRLBER.KTYPKOD
+            byt_mtrl.F1 = MTRLBER.F1
+            byt_mtrl.F2 = MTRLBER.F2
+            byt_mtrl.F3 = MTRLBER.F3
+            byt_mtrl.F4 = MTRLBER.F4
+            byt_mtrl.F5 = MTRLBER.F5
+            byt_mtrl.ANTAL = MTRLBER.ANTAL
+            byt_mtrl.ENR = MTRLBER.ENR
+            byt_mtrl.LEVKOD = MTRLBER.LEVKOD.
+            FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = kon_temp.KTYPKOD
+            NO-LOCK NO-ERROR.
+            IF AVAILABLE KONSTRUKTION THEN DO:
+               byt_mtrl.KBEN = KONSTRUKTION.BENAMNING.
+            END.
+         END.
+      END.
+   END.
+   FOR EACH byt_mtrl:
+      FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = byt_mtrl.LEVKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE LEVERANTOR  THEN DO:
+         byt_mtrl.LEVNAMN = LEVERANTOR.LEVNAMN.
+      END.
+   END.    
+END PROCEDURE.
+
+PROCEDURE sparaant_UI :
+   DEFINE INPUT PARAMETER TABLE FOR byt_mtrl.
+   FOR EACH byt_mtrl WHERE byt_mtrl.ANDRAD = TRUE:
+      /*MESSAGE byt_mtrl.KTYPKOD byt_mtrl.F1 byt_mtrl.F2 byt_mtrl.F3 byt_mtrl.F4 byt_mtrl.F5 byt_mtrl.enr byt_mtrl.levkod
+      VIEW-AS ALERT-BOX.*/  
+      DO TRANSACTION:         
+         FIND FIRST MTRLBER WHERE 
+         MTRLBER.KTYPKOD =  byt_mtrl.KTYPKOD  AND   
+         MTRLBER.F1 = byt_mtrl.F1  AND
+         MTRLBER.F2 = byt_mtrl.F2  AND
+         MTRLBER.F3 = byt_mtrl.F3  AND
+         MTRLBER.F4 = byt_mtrl.F4  AND
+         MTRLBER.F5 = byt_mtrl.F5  AND
+         MTRLBER.ENR = byt_mtrl.ENR AND
+         MTRLBER.LEVKOD = byt_mtrl.LEVKOD EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE MTRLBER THEN DO:
+            ASSIGN MTRLBER.ANTAL = byt_mtrl.ANTAL.
+            /*MESSAGE byt_mtrl.antal
+            VIEW-AS ALERT-BOX.*/
+         END.
+         ELSE DO:
+            FIND FIRST BERSKAP WHERE 
+            BERSKAP.KTYPKOD =  byt_mtrl.KTYPKOD  AND   
+            BERSKAP.KOD = byt_mtrl.F1  AND            
+            BERSKAP.ENR = byt_mtrl.ENR AND
+            BERSKAP.LEVKOD = byt_mtrl.LEVKOD EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE BERSKAP THEN DO:
+               ASSIGN BERSKAP.ANTAL = byt_mtrl.ANTAL.
+            END.   
+            ELSE DO:
+               /*STOLPAR OCH TRANSFORMATORER HAR INGET ANTAL*/
+                     
+            END.               
+            
+         END.   
+      END.
+      RELEASE MTRLBER.
+      RELEASE BERSKAP.
+      RELEASE BERSTOLP.   
+   END.      
+   
+END PROCEDURE.
+
+PROCEDURE senkop_UI :   
+   DEFINE INPUT PARAMETER TABLE FOR mtrlbertemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR senmtrlbertmp.
+   EMPTY TEMP-TABLE senmtrlbertmp NO-ERROR. 
+   
+   FOR EACH mtrlbertemp NO-LOCK:
+      CREATE senmtrlbertmp.
+      BUFFER-COPY mtrlbertemp TO senmtrlbertmp.
+      /*INKMTRL.ENR INKMTRL.ENRORG(orginal)  INKMTRL.LEVKODINK INKMTRL.LEVKOD(orginal)  */
+      FIND LAST INKMTRL WHERE INKMTRL.LEVKOD = mtrlbertemp.LEVKOD  AND INKMTRL.ENRORG = mtrlbertemp.ENR USE-INDEX LEVENRID NO-LOCK NO-ERROR.
+      IF AVAILABLE INKMTRL THEN DO:
+         ASSIGN
+         senmtrlbertmp.ENRERS = INKMTRL.ENR
+         senmtrlbertmp.LEVKODERS = INKMTRL.LEVKODINK
+         senmtrlbertmp.INKBESTID = INKMTRL.INKBESTID
+         senmtrlbertmp.AONRAONR = INKMTRL.AONRAONR
+         senmtrlbertmp.AONRDELNR = INKMTRL.AONRDELNR.         
+      END.   
+   END.
+   FOR EACH senmtrlbertmp WHERE senmtrlbertmp.INKBESTID > 0 NO-LOCK:
+      FIND FIRST INKADRESS WHERE INKADRESS.INKBESTID = senmtrlbertmp.INKBESTID   NO-LOCK NO-ERROR.
+      IF AVAILABLE INKADRESS THEN DO:
+         ASSIGN 
+         senmtrlbertmp.SENDAT =   INKADRESS.BESTDATUM.
+      END.   
+      IF senmtrlbertmp.ENR = senmtrlbertmp.ENRERS THEN DO:
+         senmtrlbertmp.ENRERS = "".
+      END.    
+      FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = senmtrlbertmp.LEVKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE LEVERANTOR  THEN DO:
+         senmtrlbertmp.LEVKODNAMN = LEVERANTOR.LEVNAMN.
+         IF senmtrlbertmp.LEVKOD = senmtrlbertmp.LEVKODERS THEN DO:
+            ASSIGN
+            senmtrlbertmp.LEVKODERS = ""
+            senmtrlbertmp.LEVKODNAMNERS = "".
+         END.    
+         ELSE DO:
+            FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = senmtrlbertmp.LEVKODERS NO-LOCK NO-ERROR.
+            IF AVAILABLE LEVERANTOR  THEN DO:
+               senmtrlbertmp.LEVKODNAMNERS = LEVERANTOR.LEVNAMN.
+            END.
+         END.   
+      END.   
+   END.
+ 
+        
+END PROCEDURE.   
+

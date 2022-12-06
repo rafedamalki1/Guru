@@ -1,0 +1,186 @@
+/*
+               KSV Editor
+    Copyright: (C) 2000-2001 Serguey Klimoff (bulkl0DD)
+     Filename: G:\PRO9S\WX\P2REGIONKOMM.P
+      Comment: <comment>
+   Parameters:
+         Uses:
+      Used by:
+      Created: 2011.03.23 16:12 ELPAO   
+     Modified: 2011.03.24 16:42 ELPAO    
+     Modified: 2011.03.28 12:52 ELPAO    
+     Modified: 
+*/
+
+DEFINE VARIABLE words AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE spkomm AS CHARACTER NO-UNDO.
+DEFINE VARIABLE utfil AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sokfil AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER NO-UNDO.
+
+DEFINE VARIABLE arvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE startvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE slutvar AS INTEGER NO-UNDO.
+      DEFINE TEMP-TABLE forst
+      FIELD post AS CHARACTER FORMAT "X(132)".
+      DEFINE TEMP-TABLE tidin
+      FIELD arbkod AS CHARACTER
+      FIELD lopnummer AS CHARACTER
+      FIELD komm AS CHARACTER      .
+      /*spara word-dokumentet som textfil
+      kolla:
+      ingenting annat än arbetskod får börja på siffra
+      X- ingår inte på rätt plats
+      delning kommentar på 2 rader*/
+                            
+      kommando = SEARCH("quoter.exe").
+      FIND FIRST foretag WHERE NO-LOCK NO-ERROR.
+      IF foretag.foretag = "elpa" THEN DO:
+         utfil = "Z:\kalk\2011\Klg211p2k.txt".
+         wtidvar = "Z:\kalk\2011\Klg211p2k.q".
+      END.
+      IF foretag.foretag = "fors" THEN DO:
+         utfil = "C:\delad\pro9\guru\Klg211p2k.txt".
+         wtidvar = "C:\delad\pro9\guru\Klg211p2k.q".
+      END.
+      IF foretag.foretag = "VAST" THEN DO:                  
+         utfil = "e:\delad\pro9\guru\Klg211p2k.txt".
+         wtidvar = "e:\delad\pro9\guru\Klg211p2k.q".
+      END.
+
+      /*INPUT FROM VALUE("C:\KOMMENTARP2TEST.txt") CONVERT TARGET "iso8859-1" SOURCE "iso8859-1" NO-ECHO.*/
+      
+      
+      OS-COMMAND SILENT VALUE(kommando) VALUE(utfil) > VALUE(wtidvar).   
+
+      INPUT FROM VALUE(wtidvar) CONVERT TARGET "iso8859-1" SOURCE "iso8859-1" NO-ECHO.
+      
+      /*iso8859-1 swedish-7-bit ibm850"*/
+      REPEAT:
+         SET words VIEW-AS EDITOR INNER-CHARS 50 INNER-LINES 3 WITH FRAME DDD WIDTH 80.
+         IF words NE "" THEN DO:     
+            CREATE forst.
+            forst.post = words.            
+         END.
+      END.
+      
+      spkomm = "".
+      FOR EACH forst:
+         
+         IF forst.post NE "" THEN DO:     
+            IF ASC(SUBSTRING(forst.post,1,1)) >= 48 AND ASC(SUBSTRING(forst.post,1,1)) <= 57 AND length(forst.post) = 2 THEN DO:
+               IF AVAILABLE tidin THEN DO:
+                  IF spkomm NE "" THEN DO:
+                     tidin.komm = tidin.komm + chr(10) + spkomm.
+                     spkomm = "".
+                  END.
+               END.
+               CREATE tidin.
+               tidin.arbkod = SUBSTRING(forst.post,1,2).
+            END.
+            ELSE IF SUBSTRING(forst.post,1,1) = "." THEN DO:
+               tidin.lopnummer =  SUBSTRING(forst.post,2).
+            END.
+            ELSE DO:
+               IF forst.post = "x" THEN DO:                  
+                  tidin.komm = tidin.komm + chr(10) + "Ingår ej: " + spkomm.
+                  spkomm = "".
+               END.
+               ELSE IF spkomm NE "" THEN DO:
+                  tidin.komm = tidin.komm + chr(10) + spkomm.
+                  spkomm = forst.post.
+               END.
+               ELSE DO:
+                  spkomm = forst.post.
+               END.
+               
+            END.
+            
+          END.
+      END.
+      OUTPUT TO c:\akp2komr.txt.
+      FOR EACH tidin WHERE NO-LOCK:
+         PUT UNFORMATTED arbkod lopnummer  SKIP.
+         PUT SKIP.
+      END.
+      arvar = 2014.
+      RUN pakomup_ui.
+      
+
+   PROCEDURE pakomup_ui.
+      FOR EACH tidin:
+         IF SUBSTRING(tidin.lopnummer,3,1) = "-" THEN DO:
+            ASSIGN
+            startvar = INTEGER(SUBSTRING(tidin.lopnummer,1,2))
+            slutvar = INTEGER(SUBSTRING(tidin.lopnummer,4,2)).
+            DO WHILE startvar <= slutvar:
+               DO TRANSACTION:         
+                  FIND FIRST LOP2 WHERE trim(LOP2.ARBKOD) = tidin.ARBKOD AND
+                  LOP2.LOPNR = startvar AND LOP2.KATAR = arvar
+                  EXCLUSIVE-LOCK NO-ERROR.
+                  IF AVAILABLE LOP2 THEN DO:
+                     SUBSTRING(LOP2.BENAMNING,60,1000) = " ".
+                     SUBSTRING(LOP2.BENAMNING,60) = tidin.KOMM.                     
+                  END.
+                  startvar = startvar + 1.
+               END.
+            END.
+         END.
+         ELSE IF SUBSTRING(tidin.lopnummer,3,1) = "," THEN DO:
+            DO TRANSACTION:      
+               FIND FIRST LOP2 WHERE trim(LOP2.ARBKOD) = tidin.ARBKOD AND
+               LOP2.LOPNR = INTEGER(INTEGER(SUBSTRING(tidin.lopnummer,1,2))) AND LOP2.KATAR = arvar
+               EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE LOP2 THEN DO:
+                  SUBSTRING(LOP2.BENAMNING,60,1000) = " ".
+                  SUBSTRING(LOP2.BENAMNING,60) = tidin.KOMM.    
+               END.
+            END.
+            DO TRANSACTION:      
+               FIND FIRST LOP2 WHERE trim(LOP2.ARBKOD) = tidin.ARBKOD AND
+               LOP2.LOPNR = INTEGER(SUBSTRING(tidin.lopnummer,4,2)) AND LOP2.KATAR = arvar
+               EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE LOP2 THEN DO:
+                  SUBSTRING(LOP2.BENAMNING,60,1000) = " ".
+                  SUBSTRING(LOP2.BENAMNING,60) = tidin.KOMM.    
+               END.
+            END.
+         END.
+         ELSE DO:            
+            DO TRANSACTION:         
+               FIND FIRST LOP2 WHERE trim(LOP2.ARBKOD) = tidin.ARBKOD AND
+               LOP2.LOPNR = INTEGER(SUBSTRING(tidin.lopnummer,1,2)) AND LOP2.KATAR = arvar
+               EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE LOP2 THEN DO:
+                  SUBSTRING(LOP2.BENAMNING,60,1000) = " ".
+                  SUBSTRING(LOP2.BENAMNING,60) = tidin.KOMM.  
+               END.
+            END.            
+         END.
+         IF SUBSTRING(tidin.lopnummer,6,1) = "," THEN DO:
+            DO TRANSACTION:      
+               FIND FIRST LOP2 WHERE trim(LOP2.ARBKOD) = tidin.ARBKOD AND
+               LOP2.LOPNR = INTEGER(INTEGER(SUBSTRING(tidin.lopnummer,7,2))) AND LOP2.KATAR = arvar
+               EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE LOP2 THEN DO:
+                  SUBSTRING(LOP2.BENAMNING,60,1000) = " ".
+                  SUBSTRING(LOP2.BENAMNING,60) = tidin.KOMM.    
+               END.
+            END.           
+         END.
+         IF SUBSTRING(tidin.lopnummer,9,1) = "," THEN DO:
+            DO TRANSACTION:      
+               FIND FIRST LOP2 WHERE trim(LOP2.ARBKOD) = tidin.ARBKOD AND
+               LOP2.LOPNR = INTEGER(INTEGER(SUBSTRING(tidin.lopnummer,10,2))) AND LOP2.KATAR = arvar
+               EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE LOP2 THEN DO:
+                  SUBSTRING(LOP2.BENAMNING,60,1000) = " ".
+                  SUBSTRING(LOP2.BENAMNING,60) = tidin.KOMM.    
+               END.
+            END.           
+         END.
+
+      END. 
+
+   END PROCEDURE.
+      

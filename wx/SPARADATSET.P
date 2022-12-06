@@ -1,0 +1,142 @@
+
+/*------------------------------------------------------------------------
+    File        : SPARADATSET.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : elpao
+    Created     : Wed Jun 27 15:51:21 CEST 2012
+    Notes       :
+  ----------------------------------------------------------------------*/
+DEFINE INPUT  PARAMETER ChDataSet AS HANDLE NO-UNDO.
+DEFINE VARIABLE phBuffer AS HANDLE NO-UNDO.
+DEFINE VARIABLE hBeforeBuff AS HANDLE    NO-UNDO.
+DEFINE VARIABLE hTopBuff    AS HANDLE  NO-UNDO.
+DEFINE VARIABLE iBuff       AS INTEGER NO-UNDO.
+DO iBuff = 1 TO ChDataSet:NUM-TOP-BUFFERS:
+   hTopBuff = ChDataSet:GET-TOP-BUFFER(iBuff).
+   /* Skip the reposition children. */
+   IF hTopBuff:PARENT-RELATION NE ? THEN NEXT. 
+   
+   RUN traverseBuffers (hTopBuff).
+END. /* END DO iBuff */
+
+PROCEDURE traverseBuffers:
+  DEFINE INPUT PARAMETER phBuffer AS HANDLE NO-UNDO.
+  DEFINE VARIABLE iChildRel AS INTEGER NO-UNDO.
+  RUN saveBuffer(phBuffer).
+  DO iChildRel = 1 TO phBuffer:NUM-CHILD-RELATIONS:
+    RUN traverseBuffers (phBuffer:GET-CHILD-RELATION(iChildRel):CHILD-BUFFER).
+  END. /* END DO iChildRel */
+END PROCEDURE. /* traverseBuffers */
+
+PROCEDURE saveBuffer:
+   DEFINE INPUT PARAMETER phBufferin AS HANDLE NO-UNDO.
+   
+   DEFINE VARIABLE hBeforeQry  AS HANDLE    NO-UNDO.
+   DEFINE VARIABLE cLogicProc  AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE iErrors AS INTEGER NO-UNDO.
+   phBuffer = phBufferin.
+   hBeforeBuff = phBuffer:BEFORE-BUFFER.
+   IF VALID-HANDLE(hBeforeBuff) THEN DO:
+      CREATE QUERY hBeforeQry.
+      hBeforeQry:ADD-BUFFER(hBeforeBuff).
+      hBeforeQry:QUERY-PREPARE("FOR EACH " + hBeforeBuff:NAME).
+      hBeforeQry:QUERY-OPEN().
+      hBeforeQry:GET-FIRST().
+      DO WHILE NOT hBeforeQry:QUERY-OFF-END:
+         DO TRANSACTION :
+            
+            cLogicProc = phBuffer:TABLE-HANDLE:NAME +
+            IF hBeforeBuff:ROW-STATE = ROW-DELETED THEN "Delete"
+            ELSE IF hBeforeBuff:ROW-STATE = ROW-CREATED THEN "Create"
+            ELSE "Modify".
+            /*TESTER
+            IF hBeforeBuff:AFTER-ROWID = ? THEN DO:
+               phBuffer:FIND-BY-ROWID(hBeforeBuff:ROWID, EXCLUSIVE-LOCK) NO-ERROR.
+               hBeforeBuff:SAVE-ROW-CHANGES() NO-ERROR.
+            END.   
+            ELSE DO:
+               phBuffer:FIND-BY-ROWID(hBeforeBuff:AFTER-ROWID, EXCLUSIVE-LOCK) NO-ERROR.
+               hBeforeBuff:SAVE-ROW-CHANGES() NO-ERROR.           
+            END.
+            IF NOT ERROR-STATUS:ERROR AND ERROR-STATUS:NUM-MESSAGES = 0 THEN. 
+            ELSE DO: 
+               IF hBeforeBuff:ERROR THEN DO:
+                  ASSIGN 
+                  ChDataSet:ERROR       = TRUE
+                  hBeforeBuff:REJECTED = TRUE.
+               END.
+               RUN LOCK_ui.
+               
+               MESSAGE "FEL"
+               VIEW-AS ALERT-BOX.
+            END.   
+            hBeforeBuff:ACCEPT-ROW-CHANGES () NO-ERROR.
+            IF hBeforeBuff:ERROR THEN DO:
+               ASSIGN 
+               ChDataSet:ERROR       = TRUE
+               hBeforeBuff:REJECTED = TRUE.
+            END.
+            TESTER*/
+            /*   ORGINAL*/
+            IF hBeforeBuff:AFTER-ROWID = ? THEN DO:
+               phBuffer:FIND-BY-ROWID(hBeforeBuff:ROWID, EXCLUSIVE-LOCK) NO-ERROR.
+               hBeforeBuff:SAVE-ROW-CHANGES() .
+            END.   
+            ELSE DO:
+               phBuffer:FIND-BY-ROWID(hBeforeBuff:AFTER-ROWID, EXCLUSIVE-LOCK) NO-ERROR.
+               hBeforeBuff:SAVE-ROW-CHANGES() .           
+            END.
+            
+            hBeforeBuff:ACCEPT-ROW-CHANGES () .
+            IF hBeforeBuff:ERROR THEN DO:
+               ASSIGN 
+               ChDataSet:ERROR       = TRUE
+               hBeforeBuff:REJECTED = TRUE.
+            END.
+            
+            
+         END.      
+         hBeforeQry:GET-NEXT().
+      END. /* DO WHILE NOT QUERY-OFF-END */
+      DELETE OBJECT hBeforeQry.
+   END. /* DO IF VALID-HANDLE */
+END PROCEDURE. /* saveChanges */
+
+/*
+PROCEDURE lock_UI :
+   DEFINE VARIABLE hDBBuffer AS HANDLE NO-UNDO.
+   DEFINE VARIABLE iNumFields AS INTEGER NO-UNDO.
+   DEFINE VARIABLE i AS INTEGER NO-UNDO.
+   DEFINE VARIABLE hTTField AS HANDLE NO-UNDO.
+   DEFINE VARIABLE hDBField AS HANDLE NO-UNDO.
+    
+   FIND FIRST KALKNUM WHERE.
+   hDBBuffer = BUFFER kalknum:HANDLE .
+   iNumFields = hDBBuffer:NUM-FIELDS.
+   
+   /*
+   MESSAGE hDBField:NAME hTTField:BUFFER-VALUE    
+   
+   
+   hDBField:BUFFER-VALUE
+           VIEW-AS ALERT-BOX.
+   */
+   
+     
+   DO i = 1 TO iNumfields:
+       hDBField = hDBBuffer:BUFFER-FIELD (i).
+       hTTField = hBeforeBuff:BUFFER-FIELD (hDBField:NAME).
+       
+       IF hTTField:BUFFER-VALUE()<> hDBField:BUFFER-VALUE() THEN
+           MESSAGE hDBField:NAME hTTField:BUFFER-VALUE  hDBField:BUFFER-VALUE
+           VIEW-AS ALERT-BOX.
+   
+   END.
+    
+END PROCEDURE.
+*/

@@ -1,0 +1,3 @@
+/*SMS0.P*/
+{LDALIAS8.I}
+RUN SMS.P.

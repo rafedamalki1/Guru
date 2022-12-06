@@ -1,0 +1,71 @@
+ /*NYSINGELV.P*/
+DEFINE INPUT PARAMETER instart AS INTEGER NO-UNDO. 
+DEFINE INPUT PARAMETER gamladb AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER nydb AS CHARACTER NO-UNDO.  /*toma*/
+DEFINE INPUT PARAMETER tempvar AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER cdvar AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER arbdbb AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER felkod AS INTEGER NO-UNDO.
+
+
+
+DEFINE VARIABLE stat AS INTEGER NO-UNDO.
+
+DEFINE VARIABLE kommando AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kommando2 AS CHARACTER NO-UNDO.
+/*UTBI FLEXTID*/
+/*kundens db till utbi protemp9*/
+IF instart = 0 THEN DO:
+   kommando = Guru.Konstanter:dlcvar + "procopy " + gamladb + " " + tempvar + "utbi".
+   OS-COMMAND VALUE(kommando).
+END.
+/*den toma databasen kopieras från cd till rätt plats*/
+IF instart <= 1 THEN DO:   
+   kommando = "copy " + cdvar + ":\PRO9\GURU\DB\TOMA*.*" + "   " + nydb + "*.*".
+   OS-COMMAND VALUE(kommando) .
+END.
+MESSAGE "Ändra behörigheter på GURU-mappen och dess under mappar"
+VIEW-AS ALERT-BOX.
+/*kundens db tas bort */
+IF instart <= 2 THEN DO:
+   kommando = Guru.Konstanter:dlcvar + "prodel " + gamladb.
+   OS-COMMAND VALUE(kommando).
+   kommando = " del " + gamladb + "*.*".
+   OS-COMMAND VALUE(kommando).
+END.
+/*den toma databasen får rätt struktur*/
+IF instart <= 3 THEN DO:
+   kommando = Guru.Konstanter:dlcvar + "PROSTRCT REPAIR " + nydb.
+   OS-COMMAND VALUE(kommando).
+END.
+/*den toma databasen kopieras så den får rätt namn*/
+IF instart <= 4 THEN DO:
+   kommando = Guru.Konstanter:dlcvar + "procopy " + nydb + " " + gamladb.
+   OS-COMMAND VALUE(kommando).
+END.
+/*den toma databasen tas bort*/
+IF instart <= 5 THEN DO:
+   kommando = " del " + nydb + "*.*".
+   OS-COMMAND VALUE(kommando).
+END.
+/*den toma som nu har kundens orginal namn ansluts*/
+IF instart <= 6 THEN DO:
+   kommando = "-db " + gamladb + " -s 63 -1 " + " -P " + QUOTER({setpwd.I}) +  " -U " + QUOTER({setuser.I}).
+   CONNECT VALUE(kommando) NO-ERROR.
+END.
+IF NOT CONNECTED(arbdbb) THEN DO:
+   MESSAGE "Den nya databasen gick ej att starta! Kontakta Elpool i Umeå AB." VIEW-AS ALERT-BOX. 
+   felkod = 1.
+   RETURN.
+END.
+CREATE ALIAS RT9 FOR DATABASE VALUE(arbdbb) NO-ERROR.
+
+/*kunden orginal db som nu heter utbi ansluts*/
+kommando = "-db " + tempvar + "utbi" + " -s 63 -1 " + " -P " + QUOTER({setpwd.I}) +  " -U " + QUOTER({setuser.I}).
+CONNECT VALUE(kommando) NO-ERROR.
+IF NOT CONNECTED("UTBI") THEN DO:
+   MESSAGE "Den gamla databasen gick ej att starta! Kontakta Elpool i Umeå AB." VIEW-AS ALERT-BOX. 
+   felkod = 2.
+   RETURN.
+END.
+/*CREATE ALIAS UTBI FOR DATABASE "UTBI" NO-ERROR.*/

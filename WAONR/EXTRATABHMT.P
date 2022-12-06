@@ -1,0 +1,244 @@
+/*EXTRATABHMT.P*/
+
+/*
+FINNS KALKYL-BEREDNING SUNDSVALL 
+"KALKBER"  BEREDNING  KOPPLAD TILL KALKYL
+              KOPPLACHAR1 = OMRADE    
+              KOPPLAINT1 = KALKNR  
+              KOPPLACHAR2 = OMRADE    
+              KOPPLAINT2 = BERNR  
+              
+   
+   "FBAONR" = AONR TILL FAKTURA BESTÄLLARENS AONR
+              SOKINT[1] 
+              SOKCHAR[1]
+   INTAONR" = AONR TILL SOM BÄR DEN VÄRKLIGA INTÄKTEN
+              SOKINT[1] 
+              SOKCHAR[1]          
+             
+   "FBBESID" = BESTID TILL FAKTURA BESTÄLLARE
+   "FBFPLAN" = FAKTURA PLAN TILL FAKTURA BESTÄLLARE
+   inextrakopptemp.KOPPLAINT1 =  vfaktplantemp.FAKTNR 
+  
+  
+   "AOTIDPERS" = aonr - tidpersonal sek
+   extrakopptemp.PROGRAM = "AOTIDPERS"
+  
+   extrakopptemp.KOPPLACHAR1 = aonr    
+   extrakopptemp.KOPPLAINT1 = delnr 
+   extrakopptemp.KOPPLACHAR2 = PERSONALKOD         
+   extrakopptemp.KOPPLAINT2 =  ?
+   extrakopptemp.SOKCHAR[1] = globanv vem
+   extrakopptemp.SOKDAT[1] = TODAY    när
+   
+   
+   
+   "AODAGBOK"  = dagbok för aonr
+    
+      ASSIGN
+      SUBSTRING(inextrakopptemp.SOKCHAR[raknare],1,15) = dagboktemp.ANVANDARE
+      SUBSTRING(inextrakopptemp.SOKCHAR[raknare],20)   = dagboktemp.DAGBOKAO 
+      inextrakopptemp.SOKDAT[raknare]                  = dagboktemp.DATUM
+      inextrakopptemp.SOKDEC[raknare]                  = dagboktemp.TIMMAR. 
+    
+   
+   "FBDEB"  = FAKTURA BESTÄLLARE AONR DELNR BELOPP DATUM FAKTURANUMMER VID DEBET FAKT
+               BELOPPET ÄR DET BELOPP SOM SKALL FÖRDELAS PÅ FB´S AONR´S KONTON
+    "FBKRED" = FAKTURA BESTÄLLARE AONR DELNR BELOPP DATUM FAKTURANUMMER VID KREDIT FAKT
+               BELOPPET ÄR DET BELOPP SOM SKALL FÖRDELAS PÅ FB´S AONR´S KONTON
+               IDAG FUNKAR DET BARA MED ETT FB AONR TILL ETT UTFÖRANDE AONR.
+    
+    
+    "MARKSTN"  GRUPP PER KABEL      
+      KOPPLACHAR1 =   bernr    
+      KOPPLACHAR2 = omrade      
+      KOPPLAINT1 = num      
+      SOKINT[1] = KABNR
+      SOKCHAR[1] = GRUPP
+      SOKCHAR[2] = ARTNR
+      SOKCHAR[3] = ABONNENT
+
+   "AOBERSING" = används ej  om ett ftg har två guruinstallationer, en WEB och en SINGEL så är detta en koppling
+                 som gör det möjligt att hålla reda på vilket AONR som beredningen är kopplad till i WEB.
+                 Denna post skapas vid IMPORT på SINGEL om GLOBFORETAG == GLOBFORETAG samt Guru.SharedVariable:singel == TRUE.
+                 Denna post tas endast bort om beredningen tas bort från SINGEL.
+                 Alltså kan det finnas flera beredningar på singel kopplade på detta sätt till ett AONR.                 
+   KOPPLACHAR1 = beromrade_SINGEL
+   KOPPLACHAR2 = aonr_WEB
+   KOPPLAINT1 = bernr_SINGEL
+   KOPPLAINT2 = aodelnr_WEB      
+   SOKCHAR[1] = aoomrade_WEB
+      
+*/
+{EXTRATAB.I}  
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+
+{DYNHMT.I}
+
+PROCEDURE etabhamt_UI:
+   DEFINE INPUT PARAMETER TABLE FOR inextrakopptemp. 
+   DEFINE OUTPUT PARAMETER TABLE FOR extrakopptemp. 
+   EMPTY TEMP-TABLE extrakopptemp NO-ERROR.    
+   FIND FIRST inextrakopptemp NO-ERROR.
+   IF NOT AVAILABLE inextrakopptemp THEN RETURN.
+   RUN kom_UI.
+   ASSIGN
+   nytab      = "extrakopptemp"
+   orginaltab = "EXTRAKOPPLINGAR".    
+   /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE extrakopptemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN egenkoll_UI (INPUT inextrakopptemp.PROGRAM).
+   RUN objdelete_UI.
+END PROCEDURE.
+PROCEDURE kom_UI:  
+   ASSIGN 
+   kommandoquery = "FOR EACH EXTRAKOPPLINGAR WHERE EXTRAKOPPLINGAR.PROGRAM = '" + inextrakopptemp.PROGRAM + "'".
+   IF inextrakopptemp.KOPPLACHAR1 NE ? THEN DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + " EXTRAKOPPLINGAR.KOPPLACHAR1 = '" + inextrakopptemp.KOPPLACHAR1 + "'".
+   END.
+   IF inextrakopptemp.KOPPLACHAR2 NE ? THEN DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + " EXTRAKOPPLINGAR.KOPPLACHAR2 = '"  + inextrakopptemp.KOPPLACHAR2 + "'".
+   END.
+   IF inextrakopptemp.KOPPLAINT1 NE ? THEN DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + " EXTRAKOPPLINGAR.KOPPLAINT1 = " + STRING(inextrakopptemp.KOPPLAINT1). 
+   END.
+   IF inextrakopptemp.KOPPLAINT2 NE ? THEN DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + " EXTRAKOPPLINGAR.KOPPLAINT2 = " + STRING(inextrakopptemp.KOPPLAINT2) + " NO-LOCK".  
+   END.
+END PROCEDURE. 
+PROCEDURE egenkoll_UI:  
+   DEFINE INPUT PARAMETER val AS CHARACTER NO-UNDO.
+   IF val = "FBAONR" THEN DO:
+      FOR EACH extrakopptemp,
+      EACH AONRTAB WHERE AONRTAB.AONR = extrakopptemp.KOPPLACHAR2 AND AONRTAB.DELNR = extrakopptemp.KOPPLAINT2 NO-LOCK:
+         extrakopptemp.SOKCHAR[1] = AONRTAB.ORT.
+      END.
+   END. 
+   IF val = "INTAONR" THEN DO:
+      FOR EACH extrakopptemp,
+      EACH AONRTAB WHERE AONRTAB.AONR = extrakopptemp.KOPPLACHAR2 AND AONRTAB.DELNR = extrakopptemp.KOPPLAINT2 NO-LOCK:
+         extrakopptemp.SOKCHAR[1] = AONRTAB.ORT.
+      END.
+   END. 
+   IF val = "FBBESID" OR val = "FBFPLAN" THEN DO:
+      FOR EACH extrakopptemp,
+      EACH ANVANDARE WHERE ANVANDARE.ANVANDARE = extrakopptemp.KOPPLACHAR2 NO-LOCK:
+         extrakopptemp.SOKCHAR[2] = ANVANDARE.AV-NAMN.
+      END.
+   END.
+   
+END PROCEDURE. 
+PROCEDURE dynstartkoll_UI:  
+   musz = FALSE.
+END PROCEDURE. 
+PROCEDURE exbort_UI:
+   DEFINE INPUT PARAMETER TABLE FOR inextrakopptemp. 
+   orginaltab = "EXTRAKOPPLINGAR".
+   FOR EACH inextrakopptemp:    
+      RUN kom_UI.
+      RUN dyndelete_UI (INPUT FALSE).
+   END.
+   RUN objdelete_UI.
+END PROCEDURE.
+PROCEDURE finnsextra_UI:
+   DEFINE INPUT PARAMETER TABLE FOR inextrakopptemp. 
+   DEFINE OUTPUT PARAMETER finnsok AS LOGICAL NO-UNDO.
+   EMPTY TEMP-TABLE extrakopptemp NO-ERROR.    
+   FIND FIRST inextrakopptemp NO-ERROR.
+   IF NOT AVAILABLE inextrakopptemp THEN RETURN.
+   RUN kom_UI.
+   ASSIGN
+   nytab      = "extrakopptemp"
+   orginaltab = "EXTRAKOPPLINGAR". 
+   ASSIGN extratemptabh = TEMP-TABLE extrakopptemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   FIND FIRST extrakopptemp NO-ERROR.
+   IF AVAILABLE extrakopptemp THEN finnsok = TRUE.
+   ELSE finnsok = FALSE.   
+   RUN objdelete_UI.
+END PROCEDURE.
+/*skap och spar*/
+PROCEDURE sparaextra_UI:
+   DEFINE INPUT PARAMETER TABLE FOR inextrakopptemp. 
+   ASSIGN
+   nytab      = "inextrakopptemp"
+   orginaltab = "EXTRAKOPPLINGAR". 
+   kommandoquery = "FOR EACH inextrakopptemp ".
+   ASSIGN extratemptabh = TEMP-TABLE inextrakopptemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynspar_UI.  
+   RUN objdelete_UI.
+END PROCEDURE.
+
+/*SPARA använd denna*/
+PROCEDURE extraspar_UI:
+   DEFINE INPUT PARAMETER TABLE FOR inextrakopptemp. 
+   FOR EACH inextrakopptemp:
+      DO TRANSACTION:
+         FIND FIRST EXTRAKOPPLINGAR WHERE 
+         EXTRAKOPPLINGAR.PROGRAM      = inextrakopptemp.PROGRAM      AND
+         EXTRAKOPPLINGAR.KOPPLACHAR1  = inextrakopptemp.KOPPLACHAR1  AND
+         EXTRAKOPPLINGAR.KOPPLACHAR2  = inextrakopptemp.KOPPLACHAR2  AND
+         EXTRAKOPPLINGAR.KOPPLAINT1   = inextrakopptemp.KOPPLAINT1   AND
+         EXTRAKOPPLINGAR.KOPPLAINT2   = inextrakopptemp.KOPPLAINT2
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE EXTRAKOPPLINGAR THEN CREATE EXTRAKOPPLINGAR.
+         BUFFER-COPY inextrakopptemp TO EXTRAKOPPLINGAR. 
+      END.     
+   END.  
+   RELEASE EXTRAKOPPLINGAR NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE extraspar1_UI: 
+   DEFINE INPUT PARAMETER TABLE FOR inextrakopptemp. 
+   FOR EACH inextrakopptemp:
+      DO TRANSACTION:
+         FIND FIRST EXTRAKOPPLINGAR WHERE 
+         EXTRAKOPPLINGAR.PROGRAM      = inextrakopptemp.PROGRAM      AND
+         EXTRAKOPPLINGAR.KOPPLACHAR1  = inextrakopptemp.KOPPLACHAR1  AND
+         EXTRAKOPPLINGAR.KOPPLAINT1   = inextrakopptemp.KOPPLAINT1
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE EXTRAKOPPLINGAR THEN CREATE EXTRAKOPPLINGAR.
+         BUFFER-COPY inextrakopptemp TO EXTRAKOPPLINGAR. 
+      END.     
+   END.  
+   RELEASE EXTRAKOPPLINGAR NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE extraspar2_UI:
+   DEFINE INPUT PARAMETER TABLE FOR inextrakopptemp. 
+   FOR EACH inextrakopptemp:
+      DO TRANSACTION:
+         FIND FIRST EXTRAKOPPLINGAR WHERE 
+         EXTRAKOPPLINGAR.PROGRAM      = inextrakopptemp.PROGRAM      AND
+         EXTRAKOPPLINGAR.KOPPLACHAR2  = inextrakopptemp.KOPPLACHAR2  AND
+         EXTRAKOPPLINGAR.KOPPLAINT2   = inextrakopptemp.KOPPLAINT2
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE EXTRAKOPPLINGAR THEN CREATE EXTRAKOPPLINGAR.
+         BUFFER-COPY inextrakopptemp TO EXTRAKOPPLINGAR. 
+      END.     
+   END.  
+   RELEASE EXTRAKOPPLINGAR NO-ERROR.
+END PROCEDURE.
+
+
+PROCEDURE fakturabesthmtalla_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR extrakopptemp. 
+   EMPTY TEMP-TABLE extrakopptemp NO-ERROR.    
+   FOR EACH XGURU WHERE XGURU.MENYVART = "FAKT" AND XGURU.MENY = "FAKTURA BESTÄLLARE" AND XGURU.MENYOK = TRUE NO-LOCK,
+   EACH ANVANDARE WHERE ANVANDARE.AV-LEVEL = XGURU.AV-LEVEL NO-LOCK:
+      IF XGURU.AV-LEVEL NE 0 THEN DO:
+         CREATE extrakopptemp.
+         ASSIGN
+         extrakopptemp.KOPPLACHAR2 = ANVANDARE.ANVANDARE
+         extrakopptemp.SOKCHAR[1]  = ANVANDARE.ANVANDARE
+         extrakopptemp.SOKCHAR[2] = ANVANDARE.AV-NAMN.         
+      END.             
+   END.   
+END PROCEDURE.
+   
+

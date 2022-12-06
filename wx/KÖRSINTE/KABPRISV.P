@@ -1,0 +1,159 @@
+/*KABPRISV.P INLÄSNING AV ELEKTROSKANDIAS LIN- OCH KABELPRISER*/       
+{GLOBVAR2DEL1.I}
+DEFINE NEW SHARED VARIABLE quotervar AS CHARACTER FORMAT "X(256)" NO-UNDO.
+
+
+
+DEFINE VARIABLE gurubilder AS CHARACTER NO-UNDO.
+{PROVAG.I}
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+
+DEFINE VARIABLE rad AS INTEGER NO-UNDO.
+DEFINE VARIABLE prognamn AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamndat AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamnque AS CHARACTER FORMAT "X(20)" NO-UNDO.                
+DEFINE VARIABLE words AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE kommando2 AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE kommandoprog AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE satsvar AS CHARACTER FORMAT "X(11)" NO-UNDO.
+DEFINE VARIABLE enrvar AS CHARACTER FORMAT "X(11)" NO-UNDO.
+DEFINE VARIABLE melvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE melvar2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE langd AS INTEGER NO-UNDO.
+DEFINE VARIABLE pos1 AS INTEGER NO-UNDO. 
+
+DEFINE TEMP-TABLE tidink
+   FIELD B1                 AS CHARACTER FORMAT "X(1)" 
+   FIELD B2                 AS CHARACTER FORMAT "X(11)" 
+   FIELD ENR                AS CHARACTER FORMAT "X(11)"
+   FIELD B3                 AS CHARACTER FORMAT "X(11)" 
+   FIELD B4                 AS CHARACTER FORMAT "X(40)"
+   FIELD EJ2                AS CHARACTER FORMAT "X(11)"
+   FIELD EJ3                AS CHARACTER FORMAT "X(11)"
+   FIELD EJ4                AS CHARACTER FORMAT "X(11)"
+   FIELD EJ5                AS CHARACTER FORMAT "X(11)"
+   FIELD EJ6                AS CHARACTER FORMAT "X(11)"
+   FIELD PRIS               AS DECIMAL FORMAT ">>>>>9.99"   
+   INDEX ENR IS PRIMARY ENR.
+
+DEFINE TEMP-TABLE tidink2   
+   FIELD ENR                AS CHARACTER FORMAT "X(11)"
+   FIELD BENAMNING          AS CHARACTER FORMAT "X(40)" 
+   FIELD PRIS               AS DECIMAL FORMAT ">>>>>9.99"   
+   INDEX ENR IS PRIMARY ENR.
+
+DEFINE TEMP-TABLE infil
+   FIELD PROGNAMN AS CHARACTER FORMAT "X(78)" 
+   INDEX PRO IS PRIMARY PROGNAMN.
+DEFINE TEMP-TABLE intid
+   FIELD TIN AS CHARACTER FORMAT "X(78)" .
+   
+DEFINE INPUT PARAMETER filnamn AS CHARACTER NO-UNDO.   
+DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.   
+
+{muswait.i}         
+globforetag = gforetag.
+{AMERICANEUROPEAN.I}
+RUN in_UI.
+{EUROPEANAMERICAN.I}
+{musarrow.i}
+
+PROCEDURE in_UI: 
+   EMPTY TEMP-TABLE intid NO-ERROR.
+   EMPTY TEMP-TABLE tidink NO-ERROR.
+   EMPTY TEMP-TABLE tidink2 NO-ERROR.
+   
+   ASSIGN
+   filnamn = "e:\delad\pro9\guru\wtid\kabel.skv"
+   kommando2 = dlcvar + "QUOTER.EXE"
+   kommando = wtidvar + "kabpris.q".
+      /*
+   IF  
+   globforetag = "VAST"  OR  globforetag = "VUTBI" THEN DO:
+      ASSIGN
+      filnamn = "e:\delad\pro9\guru\wtid/kabel.skv"
+      kommando = "e:\delad\pro9\guru\wtid/kabpris.q"
+      kommando2 = "/usr/dlc/bin/quoter". 
+   END.  
+   ELSE DO:
+    
+      ASSIGN
+      kommando2 = dlcvar + "QUOTER.EXE"
+      kommando = wtidvar + "kabpris.q".
+   END.              
+   */
+   OS-COMMAND SILENT VALUE(kommando2)
+   VALUE(filnamn) > VALUE(kommando).   
+   INPUT FROM VALUE(kommando) NO-ECHO.    
+   /*CONVERT TARGET "iso8859-1" SOURCE "ibm850" NO-ECHO.
+   iso8859-1 swedish-7-bit ibm850"*/
+   REPEAT:
+      DO TRANSACTION: 
+         SET words VIEW-AS EDITOR INNER-CHARS 78 INNER-LINES 80 WITH FRAME DDD WIDTH 80.   
+         CREATE intid.   
+         ASSIGN intid.TIN = words.   
+      END.
+   END.
+   INPUT CLOSE.               
+   OUTPUT TO VALUE(kommando).
+   FOR EACH intid:          
+      PUT UNFORMATTED intid.TIN SKIP.     
+   END.
+   OUTPUT CLOSE.
+   INPUT FROM VALUE(kommando) NO-ECHO.
+   REPEAT:
+      DO TRANSACTION: 
+         CREATE tidink.
+         ASSIGN.
+         IMPORT DELIMITER ";" tidink   NO-ERROR.
+      END.               
+   END.
+   /*FOR EACH tidink WHERE tidink.ENR = "":
+ *       DELETE tidink.
+ *    END.*/      
+   FOR EACH tidink NO-LOCK:
+      DO TRANSACTION:
+         ASSIGN
+         satsvar = ""
+         enrvar = ""
+         langd = LENGTH(tidink.ENR)
+         pos1 = 1
+         melvar = INDEX(tidink.ENR," ",pos1).
+         IF melvar NE 0 THEN DO:
+            DO WHILE melvar < langd: 
+               IF pos1 = 1 THEN                    
+               ASSIGN
+               satsvar = satsvar + SUBSTRING(tidink.ENR,pos1,melvar - 1).            
+               ELSE
+               ASSIGN
+               satsvar = satsvar + SUBSTRING(tidink.ENR,pos1,melvar - pos1).
+               ASSIGN
+               pos1 = melvar + 1
+               melvar2 = INDEX(tidink.ENR," ",pos1).
+               IF melvar2 = 0 THEN LEAVE.
+               ELSE melvar = melvar2.
+            END.             
+            satsvar = satsvar + SUBSTRING(tidink.ENR,pos1,langd - pos1 + 1).
+            CREATE tidink2.
+            ASSIGN
+            tidink2.ENR = satsvar
+            tidink2.BENAMNING = TRIM(tidink.B1) + " " + TRIM(tidink.B2) + " " + TRIM(tidink.B3) + "kV" + " " + TRIM(tidink.B4).
+            tidink2.PRIS = tidink.PRIS / 100.                
+         END.           
+      END.   
+   END.   
+   MESSAGE "Nu börjar kabelpriser att skapas".
+   /*RUN skapasats_UI.           */
+   IF Guru.Konstanter:appcon THEN DO:                           
+      RUN KPRISAPP.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+      (INPUT TABLE tidink2, INPUT leverant).
+   END.
+   ELSE DO:
+      RUN KPRISAPP.P 
+      (INPUT TABLE tidink2, INPUT leverant).
+   END.
+   OS-DELETE VALUE(kommando).
+END PROCEDURE.
+

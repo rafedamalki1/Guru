@@ -1,0 +1,193 @@
+/*IFSWEBCLIENT.P*/
+DEFINE INPUT  PARAMETER vadifran AS INTEGER NO-UNDO.
+DEFINE INPUT  PARAMETER infill AS LONGCHAR NO-UNDO.
+DEFINE OUTPUT PARAMETER resultvar AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER alltok AS LOGICAL NO-UNDO.
+DEFINE TEMP-TABLE PURCHASE_ORDER_HEAD NO-UNDO
+   FIELD WO_NO AS CHARACTER
+   FIELD GURU_ORDER_NO AS CHARACTER
+   FIELD USER_ID AS CHARACTER.
+         
+DEFINE TEMP-TABLE PURCHASE_ORDER_LINE NO-UNDO
+   FIELD PART_NO AS CHARACTER
+   FIELD QTY AS CHARACTER
+   FIELD DELIVERY_DATE AS CHARACTER.
+
+DEFINE TEMP-TABLE BODY NO-UNDO
+   FIELD WO_NO AS CHARACTER.
+DEFINE TEMP-TABLE LINES NO-UNDO
+   FIELD WO_NO AS CHARACTER.
+DEFINE TEMP-TABLE WORK_ORDER NO-UNDO
+   FIELD WO_NO AS CHARACTER
+   FIELD WO_DESCR AS CHARACTER
+   FIELD STATE AS CHARACTER
+   FIELD WORK_LEADER_SIGN AS CHARACTER
+   FIELD ORG_CODE AS CHARACTER.
+DEFINE TEMP-TABLE tempnamn NO-UNDO
+   FIELD NAMNH AS HANDLE
+   FIELD TORGTH AS HANDLE
+   FIELD NODTAB AS CHARACTER
+   FIELD ORDNING AS INTEGER
+   INDEX ORDNING ORDNING.
+DEFINE TEMP-TABLE bytxmltemp NO-UNDO
+   FIELD FRAN AS CHARACTER
+   FIELD TILL AS CHARACTER
+   FIELD ORDNING AS INTEGER
+   INDEX ORDNING  ORDNING. 
+
+
+
+DEFINE VARIABLE hWebService AS HANDLE NO-UNDO.
+DEFINE VARIABLE hServer AS HANDLE      NO-UNDO.
+DEFINE VARIABLE lReturn AS LOGICAL     NO-UNDO.
+DEFINE VARIABLE infraPortType AS HANDLE NO-UNDO.
+DEFINE VARIABLE hMainSoapHeader AS HANDLE.
+
+DEFINE VARIABLE dbconn AS LOGICAL NO-UNDO.
+DEFINE VARIABLE felrapp AS CHARACTER   NO-UNDO.
+DEFINE VARIABLE hSoapFault AS HANDLE.
+DEFINE VARIABLE hSOAPFaultDetail AS HANDLE.
+DEFINE VARIABLE HeaderXML AS LONGCHAR VIEW-AS EDITOR SIZE 70 BY 15 LARGE.
+DEFINE VARIABLE infraPortTypehandle AS HANDLE NO-UNDO.
+DEFINE VARIABLE hServerprojin AS HANDLE      NO-UNDO.
+
+DEFINE VARIABLE hTMMWebSvcs AS HANDLE NO-UNDO.
+DEFINE VARIABLE hXdoc AS HANDLE.
+DEFINE VARIABLE hXnoderef1 AS HANDLE.
+DEFINE VARIABLE hXnoderef2 AS HANDLE.
+DEFINE VARIABLE hXnoderef3 AS HANDLE.
+DEFINE VARIABLE hXtext AS HANDLE.
+DEFINE VARIABLE cUsername AS CHARACTER INIT "infrifstest".
+DEFINE VARIABLE cPassword AS CHARACTER INIT "ifsworld".
+DEFINE VARIABLE g_header AS HANDLE.
+IF vadifran = 1 THEN DO: 
+   cUsername = "infrifstest".
+   cUsername = "ifsconnect".
+   cPassword =  "ifsworld".
+END.
+ELSE IF vadifran = 2 THEN DO:
+   cUsername = "ifsconnect".
+   cPassword =  "ifsworld".
+END.
+
+
+RUN BuildRequestHeader (OUTPUT g_header).
+
+
+CREATE SERVER hServer.
+DEBUGGER:SET-BREAK().
+/*vadifran = 2 skarp*/
+IF vadifran = 1 THEN DO: 
+   
+   lReturn = hServer:CONNECT("-WSDL http://lkpei73.linkoping.infra.local:8080/fndext/internalsoapgateway?handler=InboundGuruTrans -SOAPEndpointUserid 'infrifstest' -SOAPEndpointPassword 'ifsworld' -SOAPEndpoint http://lkpei73.linkoping.infra.local:8080/fndext/internalsoapgateway").
+   /*
+   lReturn = hServer:CONNECT("-WSDL http://193.41.168.110:8080/fndext/internalsoapgateway?handler=InboundGuruTrans -SOAPEndpointUserid 'ifsconnect' -SOAPEndpointPassword 'ifsworld' -SOAPEndpoint http://193.41.168.110:8080/fndext/internalsoapgateway").
+   */
+   
+END.
+ELSE IF vadifran = 2 THEN DO:
+   /*
+   http://lkpei74.linkoping.infra.local:8080 pekar på Infrateks skarpa miljö, eller produktionsmiljö som vi säger.
+Testmiljön finns på http://lkpei73.linkoping.infra.local:8080.
+
+PROD lkpei74 har ip 10.189.24.73 och 
+TEST lkpei73 har ip 10.189.24.72.
+193.41.168.110:8080
+-WSDL http://193.41.168.110:8080/fndext/internalsoapgateway?handler=InboundGuruTrans -SOAPEndpointUserid 'ifsconnect' -SOAPEndpointPassword 'infrifstest' -SOAPEndpoint http://lkpei73.linkoping.infratek.local:8080/fndext/internalsoapgateway"
+   
+   lReturn = hServer:CONNECT("-WSDL http://infraifsapp02:8080/fndext/internalsoapgateway?handler=InboundGuruTrans -SOAPEndpointUserid 'ifsconnect' -SOAPEndpointPassword 'infrifsprod' -SOAPEndpoint http://infraifsapp02:8080/fndext/internalsoapgateway").
+   sslc
+    */
+    lReturn = hServer:CONNECT("-WSDL http://lkpei74.linkoping.infra.local:8080/fndext/internalsoapgateway?handler=InboundGuruTrans -SOAPEndpointUserid 'ifsconnect' -SOAPEndpointPassword 'ifsworld' -SOAPEndpoint http://lkpei74.linkoping.infra.local:8080/fndext/internalsoapgateway").
+
+                                     
+ 
+    
+END.
+
+IF lReturn = NO THEN DO:         
+   alltok = FALSE.
+   resultvar = "OBS!!! Webtjänsten är inte i drift! Inget har skickats. " + "Kontakta Elpool 090/184540".
+   APPLY "CLOSE":U TO THIS-PROCEDURE.
+   RETURN.
+END.
+RUN inbound_guru_transPortType SET infraPortType ON SERVER hServer.
+infraPortType:SET-CALLBACK-PROCEDURE("REQUEST-HEADER","ReqHandler").
+RUN receive_guru_order IN infraPortType (INPUT infill, OUTPUT resultvar).
+IF resultvar = "" THEN DO:
+   resultvar = "OBS!! Något har gått fel med filen! Inget har skickats. " + "Kontakta Elpool 090/184540".
+   alltok = FALSE.
+END.   
+ELSE DO:
+   alltok = TRUE.
+END.    
+hServer:DISCONNECT().
+DELETE OBJECT infraPortType NO-ERROR.
+DELETE OBJECT hServer NO-ERROR.
+
+PROCEDURE ReqHandler:
+   /* Define procedure parameters */
+   DEFINE OUTPUT PARAMETER hHeader AS HANDLE.
+   DEFINE INPUT PARAMETER cNamespace AS CHARACTER.
+   DEFINE INPUT PARAMETER cLocalNS AS CHARACTER.
+   DEFINE OUTPUT PARAMETER lDeleteOnDone AS LOGICAL.
+
+   /* Pass in global header reused for every request */
+   hHeader = g_header.
+   lDeleteOnDone = FALSE.
+END PROCEDURE.
+PROCEDURE BuildRequestHeader:
+   DEFINE VARIABLE utfil AS CHARACTER NO-UNDO.
+   utfil = "D:\Elpool\FaktE\sec.xml".
+   /* Define procedure parameter */
+   DEFINE OUTPUT PARAMETER hHeader AS HANDLE.
+   DEFINE VARIABLE hHeaderEntryref AS HANDLE.
+   DEFINE VARIABLE ClientNS AS CHARACTER INITIAL "http://ServiceHost/SOAPHeader" .
+
+   ClientNS = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd".               
+   /* Create SOAP header and server objects */
+   CREATE SOAP-HEADER hHeader.
+   CREATE SOAP-HEADER-ENTRYREF hHeaderEntryref.
+
+   /* Create x-doc objects to build header */
+   CREATE X-DOCUMENT hXdoc.
+   CREATE X-NODEREF hXnoderef1.
+   CREATE X-NODEREF hXnoderef2.
+   CREATE X-NODEREF hXnoderef3.
+   CREATE X-NODEREF hXtext.
+
+   /* Create the header entry */
+   hHeader:ADD-HEADER-ENTRY(hHeaderEntryref).
+
+   /* Create the header namespace data */
+   hXdoc:CREATE-NODE-NAMESPACE(hXnoderef3, ClientNS, "Security", "ELEMENT").
+   hXdoc:CREATE-NODE-NAMESPACE(hXnoderef1, ClientNS, "UsernameToken", "ELEMENT").
+   hXdoc:INSERT-BEFORE(hXnoderef1, ?).
+
+   /* Create the Username/Password data */
+   hXdoc:CREATE-NODE-NAMESPACE(hXnoderef2, ClientNS, "Username", "ELEMENT").
+   hXnoderef1:APPEND-CHILD(hXnoderef2).
+   hXdoc:CREATE-NODE(hXtext,"","text").
+   hXnoderef2:APPEND-CHILD(hXtext).
+   hXtext:NODE-VALUE = cUsername.
+   hXdoc:CREATE-NODE-NAMESPACE(hXnoderef2, ClientNS, "Password", "ELEMENT").
+   hXnoderef1:APPEND-CHILD(hXnoderef2).
+   hXdoc:CREATE-NODE(hXtext, "", "text").
+   hXnoderef2:APPEND-CHILD(hXtext).
+   hXtext:NODE-VALUE = cPassword.
+   hXnoderef3:APPEND-CHILD( hXnoderef1 ).
+
+   /* Fill the header entry using a deep copy */
+   hHeaderEntryref:SET-NODE(hXnoderef3).
+   hHeaderEntryref:SET-MUST-UNDERSTAND ( TRUE ).
+      
+   /* Procedure/header cleanup */ 
+   DELETE OBJECT hXdoc.
+   DELETE OBJECT hXnoderef1.
+   DELETE OBJECT hXnoderef2.
+   DELETE OBJECT hXtext.
+   DELETE OBJECT hHeaderEntryref.
+END PROCEDURE.
+
+
+   

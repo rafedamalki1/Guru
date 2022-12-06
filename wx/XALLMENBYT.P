@@ -1,0 +1,185 @@
+
+
+DEFINE VAR gfalt AS CHARACTER NO-UNDO.   /*fält för gamla värden*/
+DEFINE VAR nyfalt AS CHARACTER NO-UNDO.   /*fält för nya värden*/
+DEFINE VAR styrtab AS CHARACTER NO-UNDO.  /*tabell som inne håller gamla och nya värden*/
+
+gfalt = "PERSONALKOD".
+Nyfalt = "TELEFON2".
+styrtab = "PERSONALTAB".
+DEFINE VARIABLE styrkommando AS CHARACTER NO-UNDO.
+DEFINE VARIABLE orgtabh AS HANDLE NO-UNDO.
+DEFINE VARIABLE orgtabqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE gfalth AS HANDLE NO-UNDO.
+DEFINE VARIABLE nyfalth AS HANDLE NO-UNDO.
+styrkommando = "FOR EACH " + styrtab + " WHERE PERSONALKOD = 'JOS'".
+CREATE BUFFER orgtabh FOR TABLE styrtab NO-ERROR.
+gfalth = orgtabh:BUFFER-FIELD(gfalt).
+nyfalth = orgtabh:BUFFER-FIELD(nyfalt).   
+CREATE QUERY orgtabqh.   
+
+orgtabqh:SET-BUFFERS(orgtabh).
+orgtabqh:QUERY-PREPARE(styrkommando).
+orgtabqh:QUERY-OPEN.
+orgtabqh:GET-FIRST(NO-LOCK).
+DO WHILE orgtabqh:QUERY-OFF-END = FALSE:  
+   RUN allmanbyt_UI.
+   DO TRANSACTION:
+      orgtabqh:GET-CURRENT(EXCLUSIVE-LOCK).
+      gfalth:BUFFER-VALUE = nyfalth:BUFFER-VALUE.  
+   END.
+   
+   orgtabqh:GET-NEXT(NO-LOCK).
+END.
+
+PROCEDURE allmanbyt_UI :
+   FOR EACH _File:
+      IF SUBSTRING(_File._File-name,1,1) = "_" THEN.
+      ELSE DO:
+         MESSAGE _File._File-name gfalth:BUFFER-VALUE nyfalth:BUFFER-VALUE.
+         RUN spec_UI.
+         IF _File._File-name =  styrtab THEN.
+         ELSE DO:
+            FIND FIRST _Field OF _File WHERE _Field._Field-name = gfalt NO-ERROR.  
+            IF AVAILABLE _Field THEN DO:
+               RUN byt_UI.
+            END.
+         END.
+      END.   
+      
+   END. 
+
+END PROCEDURE.
+
+PROCEDURE byt_UI :
+   DEFINE VARIABLE borgtabh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE borgtabqh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE bfalth AS HANDLE NO-UNDO.
+   DEFINE VARIABLE bstyrkommando AS CHARACTER NO-UNDO.
+   bstyrkommando = "FOR EACH " + _File._File-name + " WHERE " + _File-name + "." + gfalt + " = '" + gfalth:BUFFER-VALUE + "'".  
+   
+   CREATE BUFFER Borgtabh FOR TABLE _File._File-name NO-ERROR.
+   bfalth = borgtabh:BUFFER-FIELD(gfalt).
+
+   
+   CREATE QUERY borgtabqh.   
+
+   borgtabqh:SET-BUFFERS(borgtabh).
+   borgtabqh:QUERY-PREPARE(bstyrkommando).
+   borgtabqh:QUERY-OPEN.
+   borgtabqh:GET-FIRST(NO-LOCK).
+   DO WHILE borgtabqh:QUERY-OFF-END = FALSE TRANSACTION:  
+      borgtabqh:GET-CURRENT(EXCLUSIVE-LOCK).
+      bfalth:BUFFER-VALUE = nyfalth:BUFFER-VALUE.  
+      borgtabqh:GET-NEXT(NO-LOCK).
+   END.
+
+   
+END PROCEDURE.
+
+PROCEDURE spec_UI :
+   IF orgtabh:NAME = "PERSONALTAB" THEN DO:
+      IF _File._File-name = "AONRTAB" THEN DO:
+         FOR EACH AONRTAB WHERE AONRTAB.STARTDAG =  gfalth:BUFFER-VALUE:
+            AONRTAB.STARTDAG =  nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH AONRTAB WHERE AONRTAB.ARBANSVARIG =  gfalth:BUFFER-VALUE:
+            AONRTAB.ARBANSVARIG =  nyfalth:BUFFER-VALUE.
+         END. 
+         FOR EACH AONRTAB WHERE AONRTAB.BEREDARE=  gfalth:BUFFER-VALUE:
+            AONRTAB.BEREDARE=  nyfalth:BUFFER-VALUE.
+         END.
+      END.
+      IF _File._File-name = "EXTRADATA" THEN DO:
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = 'AOPROJ' AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END.
+      END.
+      IF _File._File-name = "FASTSPEC" THEN DO:
+         FOR EACH FASTSPEC WHERE FASTSPEC.KALKANV =  gfalth:BUFFER-VALUE:
+            FASTSPEC.KALKANV =  nyfalth:BUFFER-VALUE.
+         END.
+      END.   
+      IF _File._File-name = "VARDERING" THEN DO:
+         FOR EACH VARDERING WHERE VARDERING.VARDANV =  gfalth:BUFFER-VALUE:
+            VARDERING.VARDANV =  nyfalth:BUFFER-VALUE.
+         END.
+      END.   
+      
+   END.
+   IF orgtabh:NAME = "OMRADETAB" THEN DO:
+      IF _File._File-name = "AONRTAB" THEN DO:
+         FOR EACH AONRTAB WHERE AONRTAB.BESTID =  gfalth:BUFFER-VALUE:
+            AONRTAB.BESTID =  nyfalth:BUFFER-VALUE.
+         END.
+
+      END.
+      IF _File._File-name = "EXTRADATA" THEN DO:
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = 'DOKALKYL' AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END.
+
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = 'ANLOMR' AND EXTRADATA.SOKCHAR[1] = gfalth:BUFFER-VALUE:
+            EXTRADATA.SOKCHAR[1] = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = 'BERFORE' AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      IF _File._File-name = "EXTRAKOPPLINGAR" THEN DO:
+         FOR EACH EXTRAKOPPLINGAR WHERE EXTRAKOPPLINGAR.PROGRAM = 'KALKBER' AND EXTRAKOPPLINGAR.KOPPLACHAR1 = gfalth:BUFFER-VALUE:
+            EXTRAKOPPLINGAR.KOPPLACHAR1 = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH EXTRAKOPPLINGAR WHERE EXTRAKOPPLINGAR.PROGRAM = 'KALKBER' AND EXTRAKOPPLINGAR.KOPPLACHAR2 = gfalth:BUFFER-VALUE:
+            EXTRAKOPPLINGAR.KOPPLACHAR2 = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH EXTRAKOPPLINGAR WHERE EXTRAKOPPLINGAR.PROGRAM = 'MARKSTN' AND EXTRAKOPPLINGAR.KOPPLACHAR2 = gfalth:BUFFER-VALUE:
+            EXTRAKOPPLINGAR.KOPPLACHAR2 = nyfalth:BUFFER-VALUE.
+         END.
+      END.
+      IF _File._File-name = "BYTAONR" THEN DO:
+         FOR EACH BYTAONR WHERE BYTAONR.NOMRADE = gfalth:BUFFER-VALUE:
+            BYTAONR.NOMRADE = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      IF _File._File-name = "KALKPASLAG" THEN DO:
+         FOR EACH KALKPASLAG WHERE KALKPASLAG.GEOMRADE = gfalth:BUFFER-VALUE:
+            KALKPASLAG.GEOMRADE = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      IF _File._File-name = "SUMTID" THEN DO:
+         FOR EACH SUMTID WHERE SUMTID.GEOMRADE = gfalth:BUFFER-VALUE:
+            SUMTID.GEOMRADE = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      IF _File._File-name = "SUMTIDDAG" THEN DO:
+         FOR EACH SUMTIDDAG WHERE SUMTIDDAG.GEOMRADE = gfalth:BUFFER-VALUE:
+            SUMTIDDAG.GEOMRADE = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      IF _File._File-name = "ANVAOTAB" THEN DO:
+         FOR EACH ANVAOTAB WHERE ANVAOTAB.ANVANDARE MATCHES "*KALK" AND ANVAOTAB.AONR = gfalth:BUFFER-VALUE:
+            ANVAOTAB.AONR = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      IF _File._File-name = "ANVAOTAB" THEN DO:
+         FOR EACH ANVAOTAB WHERE ANVAOTAB.ANVANDARE MATCHES "*PLAN" AND ANVAOTAB.AONR = gfalth:BUFFER-VALUE:
+            ANVAOTAB.AONR = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      IF _File._File-name = "ANVAOTAB" THEN DO:
+         FOR EACH ANVAOTAB WHERE ANVAOTAB.ANVANDARE MATCHES "*MARK" AND ANVAOTAB.AONR = gfalth:BUFFER-VALUE:
+            ANVAOTAB.AONR = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      
+   END.
+END PROCEDURE.

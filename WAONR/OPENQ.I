@@ -1,0 +1,23 @@
+
+/*OPENQ.I*/
+DEFINE VARIABLE orgtabh AS HANDLE NO-UNDO.
+DEFINE VARIABLE qh AS HANDLE NO-UNDO.
+CREATE WIDGET-POOL "dynTemp" NO-ERROR.   
+
+
+PROCEDURE dynquery_UI:
+   DEFINE INPUT PARAMETER tabvar AS CHARACTER NO-UNDO.   
+   DEFINE INPUT PARAMETER kommandoquery AS CHARACTER NO-UNDO.
+   CREATE BUFFER orgtabh FOR TABLE tabvar IN WIDGET-POOL "dynTemp".
+   CREATE QUERY qh IN WIDGET-POOL "dynTemp".
+   qh:SET-BUFFERS(orgtabh).
+   qh:QUERY-PREPARE(kommandoquery).   
+   qh:QUERY-OPEN().
+   qh:GET-FIRST(NO-LOCK).
+   DO WHILE orgtabh:AVAILABLE:        
+      
+      qh:GET-NEXT(NO-LOCK).        
+   END.  
+   qh:QUERY-CLOSE().   
+   DELETE WIDGET-POOL "dynTemp" NO-ERROR.   
+END PROCEDURE. 

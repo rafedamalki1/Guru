@@ -1,0 +1,47 @@
+/*KbHMT.P*/
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+DEFINE TEMP-TABLE kbtemp
+   FIELD K1 AS CHARACTER
+   FIELD K2 AS CHARACTER
+   FIELD K3 AS CHARACTER
+   FIELD K4 AS CHARACTER
+   FIELD K5 AS CHARACTER.
+DEFINE TEMP-TABLE jurtemp
+   FIELD JUDID AS CHARACTER
+   FIELD NAMN AS CHARACTER
+   FIELD VIJUDID AS CHARACTER.   
+
+DEFINE INPUT PARAMETER vadgora AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER cglobforetag AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR kbtemp.
+DEFINE OUTPUT PARAMETER TABLE FOR jurtemp.
+Guru.Konstanter:globforetag = cglobforetag.
+
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+IF vadgora = 1 THEN DO:
+   FIND FIRST KBENAMNING USE-INDEX KBEN NO-LOCK NO-ERROR.
+   CREATE kbtemp.   
+   ASSIGN
+   kbtemp.K1 = KBENAMNING.K1
+   kbtemp.K2 = KBENAMNING.K2
+   kbtemp.K3 = KBENAMNING.K3
+   kbtemp.K4 = KBENAMNING.K4
+   kbtemp.K5 = KBENAMNING.K5.   
+   /*konto jurp*/
+   IF Guru.Konstanter:varforetypval[18] = 1 THEN DO:
+      FOR EACH JURPERS NO-LOCK:
+        CREATE jurtemp.
+        ASSIGN
+        jurtemp.JUDID = JURPERS.JUDID
+        jurtemp.NAMN = JURPERS.NAMN
+        jurtemp.VIJUDID = JURPERS.VIJUDID.
+      END.
+   END.
+   ELSE DO:
+      CREATE jurtemp.
+      ASSIGN
+      jurtemp.JUDID = ""
+      jurtemp.VIJUDID = "".
+   END.
+END.

@@ -1,0 +1,9 @@
+/* r-sdbnm.p */
+
+DEFINE VARIABLE i AS INTEGER.
+REPEAT i= 1 TO NUM-DBS:
+	DISPLAY SDBNAME(i)
+	SDBNAME(i) = LDBNAME(i)
+	FORMAT "SCHEMA-HOLDER/SUB-SCHEMA        "
+		COLUMN-LABEL "DataServer!Classification".
+END.

@@ -1,0 +1,2337 @@
+/*SOKPROG.P*/
+{SOKDEF.I}
+{NAMNDB.I}
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR soktemp.
+DEFINE VARIABLE startadi AS LOGICAL NO-UNDO.
+DEFINE VARIABLE inkberh AS HANDLE NO-UNDO.
+DEFINE BUFFER tidbuff FOR TIDREGITAB.
+DEFINE BUFFER soktempbuff FOR soktemp.
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+FIND FIRST soktemp NO-ERROR.
+IF soktemp.SOKVAL >= 1 AND soktemp.SOKVAL <= 50 THEN RUN sok1_UI.
+ELSE IF soktemp.SOKVAL >= 51 AND soktemp.SOKVAL <= 85 THEN RUN sok2_UI.
+ELSE RUN sok3_UI.
+
+PROCEDURE timpris_UI :
+   FIND FIRST TIMKOSTNADSTAB WHERE 
+   TIMKOSTNADSTAB.PERSONALKOD = soktemp.SOKCHAR[2] AND
+   TIMKOSTNADSTAB.PRISTYP = soktemp.SOKCHAR[3] 
+   USE-INDEX PRISPERS NO-LOCK NO-ERROR.
+   IF AVAILABLE TIMKOSTNADSTAB THEN soktemp.SOKDECI[1] = TIMKOSTNADSTAB.PRISA.             
+END PROCEDURE.
+
+PROCEDURE sok1_UI:
+   IF soktemp.SOKVAL = 1 THEN DO:
+      IF soktemp.SOKINT[1]  = 1 THEN DO:         
+         IF soktemp.SOKCHAR[4] = "" THEN DO:
+            FIND FIRST PERSONALTAB WHERE 
+            PERSONALTAB.PERSONALKOD = soktemp.SOKCHAR[2] 
+            NO-LOCK NO-ERROR.         
+            soktemp.SOKCHAR[4] = PERSONALTAB.BEFATTNING.
+         END.
+         /*vissa som har ejkostn får kostnad i guru men ej till eko*/
+         IF soktemp.SOKCHAR[3] = "EJ.KOSTN." THEN DO:
+            IF FORETAG.FORETAG = "SUND" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "MISV" OR FORETAG.FORETAG = "elpa" THEN DO:
+               FIND FIRST PERSONALPRIS WHERE 
+               PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+               PERSONALPRIS.BEFATTNING = soktemp.SOKCHAR[3] AND 
+               PERSONALPRIS.STARTDATUM <= soktemp.SOKDATE[1] AND 
+               PERSONALPRIS.SLUTDATUM >= soktemp.SOKDATE[1] 
+               NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE PERSONALPRIS THEN DO:
+                  FIND LAST PERSONALPRIS WHERE 
+                  PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+                  PERSONALPRIS.BEFATTNING = soktemp.SOKCHAR[3] 
+                  USE-INDEX PSTART NO-LOCK NO-ERROR.
+                  IF AVAILABLE PERSONALPRIS THEN DO:
+                     IF PERSONALPRIS.STARTDATUM > soktemp.SOKDATE[1] THEN DO:
+                        RUN timpris_UI.
+                        RETURN.  
+                     END.
+                  END.
+               END.
+               IF AVAILABLE PERSONALPRIS THEN soktemp.SOKDECI[1] = PERSONALPRIS.PRIS.  
+               RETURN.
+            END.
+         END.
+         IF soktemp.SOKCHAR[3] = "FASTPRIS1" THEN DO:
+            IF FORETAG.FORETAG = "SUND" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "MISV" OR FORETAG.FORETAG = "elpa" THEN DO:
+               FIND FIRST PERSONALPRIS WHERE 
+               PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+               PERSONALPRIS.BEFATTNING = soktemp.SOKCHAR[3] AND 
+               PERSONALPRIS.STARTDATUM <= soktemp.SOKDATE[1] AND 
+               PERSONALPRIS.SLUTDATUM >= soktemp.SOKDATE[1] 
+               NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE PERSONALPRIS THEN DO:
+                  FIND LAST PERSONALPRIS WHERE 
+                  PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+                  PERSONALPRIS.BEFATTNING = soktemp.SOKCHAR[3] 
+                  USE-INDEX PSTART NO-LOCK NO-ERROR.
+                  IF AVAILABLE PERSONALPRIS THEN DO:
+                     IF PERSONALPRIS.STARTDATUM > soktemp.SOKDATE[1] THEN DO:
+                        RUN timpris_UI.
+                        RETURN.  
+                     END.
+                  END.
+               END.
+               IF AVAILABLE PERSONALPRIS THEN soktemp.SOKDECI[1] = PERSONALPRIS.PRIS.  
+               RETURN.
+            END.
+         END.
+         IF soktemp.SOKCHAR[3] = "FRÅNVARO." OR soktemp.SOKCHAR[3] = "RESTID..." THEN DO:
+            FIND FIRST PERSONALPRIS WHERE 
+            PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+            PERSONALPRIS.BEFATTNING = soktemp.SOKCHAR[3] AND 
+            PERSONALPRIS.STARTDATUM <= soktemp.SOKDATE[1] AND 
+            PERSONALPRIS.SLUTDATUM >= soktemp.SOKDATE[1] 
+            NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE PERSONALPRIS THEN DO:
+               FIND LAST PERSONALPRIS WHERE 
+               PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+               PERSONALPRIS.BEFATTNING = soktemp.SOKCHAR[3] 
+               USE-INDEX PSTART NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALPRIS THEN DO:
+                  IF PERSONALPRIS.STARTDATUM > soktemp.SOKDATE[1] THEN DO:
+                     RUN timpris_UI.
+                     RETURN.  
+                  END.
+               END.
+            END.
+            IF AVAILABLE PERSONALPRIS THEN soktemp.SOKDECI[1] = PERSONALPRIS.PRIS.  
+            RETURN.
+         END.
+         FIND FIRST PERSONALPRIS WHERE 
+         PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+         PERSONALPRIS.BEFATTNING = soktemp.SOKCHAR[4] AND 
+         PERSONALPRIS.STARTDATUM <= soktemp.SOKDATE[1]  AND 
+         PERSONALPRIS.SLUTDATUM >= soktemp.SOKDATE[1] 
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE PERSONALPRIS THEN DO:
+            FIND LAST PERSONALPRIS WHERE 
+            PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+            PERSONALPRIS.BEFATTNING = soktemp.SOKCHAR[4] 
+            USE-INDEX PSTART NO-LOCK NO-ERROR.
+            IF AVAILABLE PERSONALPRIS THEN DO:
+               IF PERSONALPRIS.STARTDATUM > soktemp.SOKDATE[1] THEN DO:
+                  RUN timpris_UI.
+                  RETURN.  
+               END.
+            END.
+         END.
+         IF AVAILABLE PERSONALPRIS THEN soktemp.SOKDECI[1] = PERSONALPRIS.PRIS.  
+         RETURN.  
+      END.
+      ELSE DO:
+         FIND FIRST TIMKOSTNADSTAB WHERE 
+         TIMKOSTNADSTAB.PERSONALKOD = soktemp.SOKCHAR[2] AND
+         TIMKOSTNADSTAB.PRISTYP = soktemp.SOKCHAR[3] 
+         USE-INDEX PRISPERS NO-LOCK NO-ERROR.
+         soktemp.SOKDECI[1] = TIMKOSTNADSTAB.PRISA.
+         RETURN.
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 2 THEN DO:
+      IF soktemp.SOKCHAR[3] = "EJ.KOSTN." THEN DO:
+         IF FORETAG.FORETAG = "SUND" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "MISV" OR FORETAG.FORETAG = "elpa" THEN DO:
+            FIND FIRST PERSONALPRIS WHERE PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+            PERSONALPRIS.BEFATTNING = soktemp.SOKCHAR[3] AND 
+            PERSONALPRIS.STARTDATUM <= soktemp.SOKDATE[1] AND 
+            PERSONALPRIS.SLUTDATUM >= soktemp.SOKDATE[1] 
+            NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE PERSONALPRIS THEN DO:
+               FIND LAST PERSONALPRIS WHERE PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+               PERSONALPRIS.BEFATTNING = soktemp.SOKCHAR[3] 
+               USE-INDEX PSTART NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALPRIS THEN DO:
+                  IF PERSONALPRIS.STARTDATUM > soktemp.SOKDATE[1] THEN DO:
+                     RUN timpris_UI.
+                     FIND FIRST AONRTAB WHERE AONRTAB.AONR = soktemp.SOKCHAR[1] AND AONRTAB.DELNR = soktemp.SOKINT[1]
+                     NO-LOCK NO-ERROR.
+                     ASSIGN
+                     soktemp.SOKINT[1] = AONRTAB.TRAKTAMENTE 
+                     soktemp.SOKCHAR[3] = AONRTAB.PRISTYP. 
+                     RETURN.  
+                  END.
+               END.
+            END.
+            IF AVAILABLE PERSONALPRIS THEN soktemp.SOKDECI[1] = PERSONALPRIS.PRIS.
+            FIND FIRST AONRTAB WHERE AONRTAB.AONR = soktemp.SOKCHAR[1] AND AONRTAB.DELNR = soktemp.SOKINT[1]
+            NO-LOCK NO-ERROR.
+            ASSIGN
+            soktemp.SOKINT[1] = AONRTAB.TRAKTAMENTE 
+            soktemp.SOKCHAR[3] = AONRTAB.PRISTYP. 
+            RETURN.
+         END.
+      END.
+      IF soktemp.SOKCHAR[3] = "FASTPRIS1" THEN DO:
+         IF FORETAG.FORETAG = "SUND" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "MISV" OR FORETAG.FORETAG = "elpa" THEN DO:
+            FIND FIRST PERSONALPRIS WHERE PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+            PERSONALPRIS.BEFATTNING = soktemp.SOKCHAR[3] AND 
+            PERSONALPRIS.STARTDATUM <= soktemp.SOKDATE[1] AND 
+            PERSONALPRIS.SLUTDATUM >= soktemp.SOKDATE[1] 
+            NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE PERSONALPRIS THEN DO:
+               FIND LAST PERSONALPRIS WHERE PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+               PERSONALPRIS.BEFATTNING = soktemp.SOKCHAR[3] 
+               USE-INDEX PSTART NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALPRIS THEN DO:
+                  IF PERSONALPRIS.STARTDATUM > soktemp.SOKDATE[1] THEN DO:
+                     RUN timpris_UI.
+                     FIND FIRST AONRTAB WHERE AONRTAB.AONR = soktemp.SOKCHAR[1] AND AONRTAB.DELNR = soktemp.SOKINT[1]
+                     NO-LOCK NO-ERROR.
+                     ASSIGN
+                     soktemp.SOKINT[1] = AONRTAB.TRAKTAMENTE 
+                     soktemp.SOKCHAR[3] = AONRTAB.PRISTYP. 
+                     RETURN.  
+                  END.
+               END.
+            END.
+            IF AVAILABLE PERSONALPRIS THEN   soktemp.SOKDECI[1] = PERSONALPRIS.PRIS.
+            FIND FIRST AONRTAB WHERE AONRTAB.AONR = soktemp.SOKCHAR[1] AND AONRTAB.DELNR = soktemp.SOKINT[1]
+            NO-LOCK NO-ERROR.
+            ASSIGN
+            soktemp.SOKINT[1] = AONRTAB.TRAKTAMENTE 
+            soktemp.SOKCHAR[3] = AONRTAB.PRISTYP. 
+            RETURN.
+         END.
+      END.
+      IF soktemp.SOKCHAR[3] = "FRÅNVARO." OR soktemp.SOKCHAR[3] = "RESTID..." THEN DO:
+         FIND FIRST PERSONALPRIS WHERE PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+         PERSONALPRIS.BEFATTNING = soktemp.SOKCHAR[3] AND 
+         PERSONALPRIS.STARTDATUM <= soktemp.SOKDATE[1] AND 
+         PERSONALPRIS.SLUTDATUM >= soktemp.SOKDATE[1] 
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE PERSONALPRIS THEN DO:
+            FIND LAST PERSONALPRIS WHERE PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+            PERSONALPRIS.BEFATTNING = soktemp.SOKCHAR[3] 
+            USE-INDEX PSTART NO-LOCK NO-ERROR.
+            IF AVAILABLE PERSONALPRIS THEN DO:
+               IF PERSONALPRIS.STARTDATUM > soktemp.SOKDATE[1] THEN DO:
+                  RUN timpris_UI.
+                  FIND FIRST AONRTAB WHERE AONRTAB.AONR = soktemp.SOKCHAR[1] AND AONRTAB.DELNR = soktemp.SOKINT[1]
+                  NO-LOCK NO-ERROR.
+                  ASSIGN
+                  soktemp.SOKINT[1] = AONRTAB.TRAKTAMENTE 
+                  soktemp.SOKCHAR[3] = AONRTAB.PRISTYP. 
+                  RETURN.  
+               END.
+            END.
+         END.
+         IF AVAILABLE PERSONALPRIS THEN soktemp.SOKDECI[1] = PERSONALPRIS.PRIS.
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = soktemp.SOKCHAR[1] AND AONRTAB.DELNR = soktemp.SOKINT[1]
+         NO-LOCK NO-ERROR.
+         ASSIGN
+         soktemp.SOKINT[1] = AONRTAB.TRAKTAMENTE 
+         soktemp.SOKCHAR[3] = AONRTAB.PRISTYP. 
+         RETURN.
+      END.
+      FIND FIRST PERSONALPRIS WHERE PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+      PERSONALPRIS.BEFATTNING = soktemp.SOKCHAR[4] AND 
+      PERSONALPRIS.STARTDATUM <= soktemp.SOKDATE[1] AND 
+      PERSONALPRIS.SLUTDATUM >= soktemp.SOKDATE[1] 
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE PERSONALPRIS THEN DO:
+         FIND LAST PERSONALPRIS WHERE PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+         PERSONALPRIS.BEFATTNING = soktemp.SOKCHAR[4] 
+         USE-INDEX PSTART NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALPRIS THEN DO:
+            IF PERSONALPRIS.STARTDATUM > soktemp.SOKDATE[1] THEN DO:
+               RUN timpris_UI.
+               FIND FIRST AONRTAB WHERE AONRTAB.AONR = soktemp.SOKCHAR[1] AND AONRTAB.DELNR = soktemp.SOKINT[1]
+               NO-LOCK NO-ERROR.
+               ASSIGN
+               soktemp.SOKINT[1] = AONRTAB.TRAKTAMENTE 
+               soktemp.SOKCHAR[3] = AONRTAB.PRISTYP. 
+               RETURN.  
+            END.
+         END.
+      END.
+      IF AVAILABLE PERSONALPRIS THEN soktemp.SOKDECI[1] = PERSONALPRIS.PRIS.  
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = soktemp.SOKCHAR[1] AND AONRTAB.DELNR = soktemp.SOKINT[1]
+      NO-LOCK NO-ERROR.
+      ASSIGN
+      soktemp.SOKINT[1] = AONRTAB.TRAKTAMENTE 
+      soktemp.SOKCHAR[3] = AONRTAB.PRISTYP. 
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 3 THEN DO:
+      IF soktemp.SOKINT[1]  = 1 THEN DO:         
+         FIND FIRST PERSONALTAB WHERE 
+         PERSONALTAB.PERSONALKOD = soktemp.SOKCHAR[2] NO-LOCK NO-ERROR.
+         FIND FIRST PERSONALPRIS WHERE 
+         PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+         PERSONALPRIS.BEFATTNING = PERSONALTAB.BEFATTNING
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALPRIS THEN RETURN.
+         FIND FIRST PERSONALPRIS WHERE 
+         PERSONALPRIS.BEFATTNING = PERSONALTAB.BEFATTNING
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALPRIS THEN DO:
+            ASSIGN
+            soktemp.SOKDECI[1] = PERSONALPRIS.PRIS
+            soktemp.SOKDECI[2] = PERSONALPRIS.OPRIS.
+         END.
+         ELSE DO:
+            ASSIGN
+            soktemp.SOKDECI[1] = 0
+            soktemp.SOKDECI[2] = 0.
+         END.
+         DO TRANSACTION:           
+            FIND FIRST PERSONALPRIS WHERE 
+            PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+            PERSONALPRIS.BEFATTNING = "RESTID..."
+            NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE PERSONALPRIS THEN DO:         
+               CREATE PERSONALPRIS.
+               ASSIGN
+               PERSONALPRIS.BEFATTNING = "RESTID..."
+               PERSONALPRIS.KLAR       = FALSE
+               PERSONALPRIS.OPRIS      = 0
+               PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2]
+               PERSONALPRIS.PRIS       = 0
+               PERSONALPRIS.STARTAD    = TRUE
+               PERSONALPRIS.STARTDATUM = DATE(01,01,YEAR(TODAY)).
+            END.
+            FIND FIRST PERSONALPRIS WHERE 
+            PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+            PERSONALPRIS.BEFATTNING = PERSONALTAB.BEFATTNING
+            NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE PERSONALPRIS THEN DO:         
+               CREATE PERSONALPRIS.
+               ASSIGN
+               PERSONALPRIS.BEFATTNING = PERSONALTAB.BEFATTNING
+               PERSONALPRIS.KLAR       = FALSE
+               PERSONALPRIS.OPRIS      = soktemp.SOKDECI[2]
+               PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2]
+               PERSONALPRIS.PRIS       = soktemp.SOKDECI[1]
+               PERSONALPRIS.STARTAD    = TRUE
+               PERSONALPRIS.STARTDATUM = DATE(01,01,YEAR(TODAY)).     
+            END.
+            FIND FIRST PERSONALPRIS WHERE 
+            PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+            PERSONALPRIS.BEFATTNING = "FRÅNVARO."
+            NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE PERSONALPRIS THEN DO:
+               CREATE PERSONALPRIS.
+               ASSIGN
+               PERSONALPRIS.BEFATTNING = "FRÅNVARO."
+               PERSONALPRIS.KLAR       = FALSE
+               PERSONALPRIS.OPRIS      = 0
+               PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2]
+               PERSONALPRIS.PRIS       = 0
+               PERSONALPRIS.STARTAD    = TRUE
+               PERSONALPRIS.STARTDATUM = DATE(01,01,YEAR(TODAY)).             
+            END.
+            IF FORETAG.FORETAG = "sund" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "MISV" OR FORETAG.FORETAG = "elpa" THEN DO:
+               FIND FIRST PERSONALPRIS WHERE 
+               PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+               PERSONALPRIS.BEFATTNING = "EJ.KOSTN."
+               NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE PERSONALPRIS THEN DO:         
+                  CREATE PERSONALPRIS.
+                  ASSIGN
+                  PERSONALPRIS.BEFATTNING = "EJ.KOSTN."
+                  PERSONALPRIS.KLAR       = FALSE
+                  PERSONALPRIS.OPRIS      = 0
+                  PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2]
+                  PERSONALPRIS.PRIS       = 0
+                  PERSONALPRIS.STARTAD    = TRUE
+                  PERSONALPRIS.STARTDATUM = DATE(01,01,YEAR(TODAY)).
+               END.
+            END.
+            IF FORETAG.FORETAG = "sund" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "elpa" THEN DO:
+               FIND FIRST PERSONALPRIS WHERE 
+               PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2] AND
+               PERSONALPRIS.BEFATTNING = "FASTPRIS1"
+               NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE PERSONALPRIS THEN DO:         
+                  CREATE PERSONALPRIS.
+                  ASSIGN
+                  PERSONALPRIS.BEFATTNING = "FASTPRIS1"
+                  PERSONALPRIS.KLAR       = FALSE
+                  PERSONALPRIS.OPRIS      = 500
+                  PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2]
+                  PERSONALPRIS.PRIS       = 500
+                  PERSONALPRIS.STARTAD    = TRUE
+                  PERSONALPRIS.STARTDATUM = DATE(01,01,YEAR(TODAY)).
+               END.
+            END.
+
+            IF FORETAG.FORETAG = "GRAN" THEN DO:
+               CREATE PERSONALPRIS.
+               ASSIGN
+               PERSONALPRIS.BEFATTNING = "FELAVHJÄLP. DAGTID"
+               PERSONALPRIS.KLAR       = FALSE
+               PERSONALPRIS.OPRIS      = soktemp.SOKDECI[2]
+               PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2]
+               PERSONALPRIS.PRIS       = soktemp.SOKDECI[1]
+               PERSONALPRIS.STARTAD    = TRUE
+               PERSONALPRIS.STARTDATUM = DATE(01,01,YEAR(TODAY)).
+               CREATE PERSONALPRIS.
+               ASSIGN
+               PERSONALPRIS.BEFATTNING = "FELAVHJÄLP.ÖVRIG TID"
+               PERSONALPRIS.KLAR       = FALSE
+               PERSONALPRIS.OPRIS      = soktemp.SOKDECI[2] 
+               PERSONALPRIS.PERSONALKOD = soktemp.SOKCHAR[2]
+               PERSONALPRIS.PRIS       = soktemp.SOKDECI[1] 
+               PERSONALPRIS.STARTAD    = TRUE
+               PERSONALPRIS.STARTDATUM = DATE(01,01,YEAR(TODAY)).
+            END.
+         END.
+      END.
+      FOR EACH AUTOMREG USE-INDEX PRISTYPER NO-LOCK:
+         FIND FIRST TIMKOSTNADSTAB WHERE TIMKOSTNADSTAB.PERSONALKOD = soktemp.SOKCHAR[2] AND
+         TIMKOSTNADSTAB.PRISTYP = AUTOMREG.PRISTYP USE-INDEX PRISPERS NO-LOCK NO-ERROR.            
+         IF NOT AVAILABLE TIMKOSTNADSTAB THEN DO:
+            CREATE TIMKOSTNADSTAB.
+            ASSIGN 
+            TIMKOSTNADSTAB.PERSONALKOD = soktemp.SOKCHAR[2]
+            TIMKOSTNADSTAB.PRISTYP = AUTOMREG.PRISTYP
+            TIMKOSTNADSTAB.PRISA = AUTOMREG.PRISA.
+         END.
+      END.   
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 4 THEN DO:
+      FIND FIRST VECKOARBETID WHERE 
+      VECKOARBETID.ARBTIDMAN = soktemp.SOKINT[1] OR
+      VECKOARBETID.ARBTIDTIS = soktemp.SOKINT[1] OR
+      VECKOARBETID.ARBTIDONS = soktemp.SOKINT[1] OR
+      VECKOARBETID.ARBTIDTOR = soktemp.SOKINT[1] OR
+      VECKOARBETID.ARBTIDFRE = soktemp.SOKINT[1] OR
+      VECKOARBETID.ARBTIDLOR = soktemp.SOKINT[1] OR 
+      VECKOARBETID.ARBTIDSON = soktemp.SOKINT[1] 
+      USE-INDEX VECKOSCHEMA NO-LOCK NO-ERROR. 
+      IF AVAILABLE VECKOARBETID THEN DO:
+         ASSIGN
+         soktemp.SOKINT[2] = 1
+         soktemp.SOKINT[3] = VECKOARBETID.VECKOSCHEMA.
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 5 THEN DO:
+      FIND LAST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1]  AND
+      TIDREGITAB.TIDLOG = TRUE AND TIDREGITAB.DATUM LE TODAY
+      USE-INDEX PSTART NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE TIDREGITAB THEN DO:
+         soktemp.SOKCHAR[1] = "XX".
+         RETURN.
+      END.
+      ASSIGN
+      soktemp.SOKCHAR[2] = TIDREGITAB.AONR
+      soktemp.SOKINT[1] = TIDREGITAB.DELNR
+      soktemp.SOKDATE[1] = TIDREGITAB.DATUM
+      soktemp.SOKDECI[1] = TIDREGITAB.START
+      soktemp.SOKDECI[2] = TIDREGITAB.SLUT
+      soktemp.SOKCHAR[3] = TIDREGITAB.DAG.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 6 THEN DO:
+      FIND FIRST VECKONATT WHERE SUBSTRING(VECKONATT.DAG_AR,1,3) = "DAG" AND
+      VECKONATT.VECKOKORD = soktemp.SOKCHAR[1] 
+      USE-INDEX NATT NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE VECKONATT THEN DO:
+         soktemp.SOKINT[1]  = 0.
+         FIND FIRST VECKONATT WHERE VECKONATT.NYKORD = TRUE    
+         AND VECKONATT.VECKOKORD BEGINS "w"
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE VECKONATT THEN soktemp.SOKINT[1]  = 0.
+         ELSE DO:  
+            ASSIGN
+            soktemp.SOKINT[1]  = 2.      
+            soktemp.SOKCHAR[1] = "Nattkörningar har ej fungerat. Kontakta ansvarig! Ekonomi- och lönesammanställningen kan ej starta!".         
+         END.
+      END.
+      ELSE DO:
+         ASSIGN
+         soktemp.SOKINT[1]  = 1
+         soktemp.SOKCHAR[1] =  "Ekonomi- och lönesammanställningen är redan gjord i dag!".               
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 7 THEN DO:      
+      ASSIGN
+      soktemp.SOKINT[1]  = 1
+      soktemp.SOKCHAR[1] = 
+      "Vill du verkligen starta eko.- och lönesammanstälningen" + CHR(10) +
+      "för samtliga godkända tidsedlar nu ?" + CHR(10).
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 8 THEN DO:
+      IF soktemp.SOKINT[1]  = 1 THEN DO TRANSACTION:
+         soktemp.SOKINT[1]  = 0.   
+         FIND FIRST VKORN WHERE VKORN.VECKOK = TRUE
+         USE-INDEX VKORN EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE VKORN THEN DO:
+            FIND FIRST VKORN USE-INDEX VKORN EXCLUSIVE-LOCK NO-ERROR.
+            IF NOT AVAILABLE VKORN THEN DO:
+               CREATE VKORN.
+               ASSIGN VKORN.VECKOK = TRUE.
+            END.
+            ELSE DO:
+               ASSIGN VKORN.VECKOK = TRUE.               
+            END.
+         END.
+         ELSE DO:
+            ASSIGN
+            soktemp.SOKINT[1]  = 1
+            soktemp.SOKCHAR[1] = 
+            "Förra ekonomi- och lönesammanställningen gick ej färdigt eller" + CHR(10) +
+            "så får inte körning startas! Kontakta Elpool AB!".
+            RELEASE VKORN.
+         END.
+      END.
+      IF soktemp.SOKINT[1]  = 2 THEN DO:
+         soktemp.SOKINT[1]  = 0.
+         DO TRANSACTION:
+            FIND FIRST VKORN USE-INDEX VKORN EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE VKORN THEN DO:
+               ASSIGN VKORN.VECKOK = FALSE.             
+            END.
+         END.
+         RELEASE VKORN.
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 9 THEN DO TRANSACTION:
+      CREATE LOGGOD.                             
+      ASSIGN                                                    
+      LOGGOD.ANVANDARE = soktemp.SOKCHAR[1]               
+      LOGGOD.KLOCKSLAG = TIME                                   
+      LOGGOD.FGB = "M"                                          
+      LOGGOD.DATUM = TODAY.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 10 THEN DO: 
+      FIND FIRST TIDSLAGEN WHERE TIDSLAGEN.IDTIDLAG = soktemp.SOKCHAR[2] NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE TIDSLAGEN THEN DO:
+         soktemp.SOKCHAR[1] = "FINNS EJ".
+         RETURN.
+      END.
+      FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.AONR = soktemp.SOKCHAR[1] AND 
+      AONRTIDLAGE.DELNR = soktemp.SOKINT[1] AND
+      AONRTIDLAGE.IDTIDLAG = TIDSLAGEN.IDTIDLAG
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE AONRTIDLAGE THEN DO:
+         soktemp.SOKCHAR[1] = "FINNS EJ".         
+         RETURN.
+      END.
+      ELSE DO:
+         ASSIGN
+         soktemp.SOKCHAR[1] = TIDSLAGEN.TIDLAGE 
+         soktemp.SOKCHAR[2] = AONRTIDLAGE.ANVANDARE1 
+         soktemp.SOKCHAR[3] = AONRTIDLAGE.ANVANDARE2 
+         soktemp.SOKCHAR[4] = TIDSLAGEN.AKTIVITET1  
+         soktemp.SOKCHAR[5] = TIDSLAGEN.AKTIVITET2 
+         soktemp.SOKDATE[1] = AONRTIDLAGE.DATUM1 
+         soktemp.SOKDATE[2] = AONRTIDLAGE.DATUM2. 
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 11 THEN DO: 
+      DO TRANSACTION:
+         FIND FIRST VECKONATT WHERE SUBSTRING(VECKONATT.DAG_AR,1,3) = "DAG" 
+         USE-INDEX NATT EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE VECKONATT THEN DO:
+            CREATE VECKONATT.
+         END.
+         ASSIGN
+         VECKONATT.NYKORD = TRUE
+         SUBSTRING(VECKONATT.DAG_AR,1,7) = "DAG" + " " + STRING(soktemp.SOKINT[1],"999")
+         VECKONATT.VECKOKORD = soktemp.SOKCHAR[1].          
+         FIND FIRST VECKONATT WHERE VECKONATT.DAG_AR = "ÅR" 
+         USE-INDEX NATT EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE VECKONATT THEN DO:
+            CREATE VECKONATT.
+         END.
+         ASSIGN
+         VECKONATT.NYKORD = TRUE
+         VECKONATT.DAG_AR = "ÅR"
+         VECKONATT.VECKOKORD = soktemp.SOKCHAR[1].         
+      END.
+      RELEASE VECKONATT.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 12 THEN DO: 
+      FIND LAST TIDREGITAB WHERE TIDREGITAB.VECKOKORD NE "" 
+      USE-INDEX KOLL NO-LOCK NO-ERROR.
+      IF AVAILABLE TIDREGITAB THEN DO TRANSACTION:
+         FIND FIRST VECKONATT WHERE SUBSTRING(VECKONATT.DAG_AR,1,3) = "DAG" 
+         USE-INDEX NATT EXCLUSIVE-LOCK NO-ERROR.
+         SUBSTRING(VECKONATT.DAG_AR,8,4) = " " + STRING(TIDREGITAB.VECKONUMMER,"999").      
+      END.
+      RELEASE VECKONATT.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 13 THEN DO: 
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = soktemp.SOKCHAR[1] AND
+      PERSONALTAB.AKTIV = soktemp.SOKLOG[1] NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE PERSONALTAB THEN DO:
+         soktemp.SOKCHAR[1] = "FINNS EJ".
+         RETURN.
+      END.
+      ASSIGN
+      soktemp.SOKCHAR[1] = PERSONALTAB.OMRADE
+      soktemp.SOKCHAR[2] = PERSONALTAB.ANSTALLNING
+      soktemp.SOKCHAR[3] = PERSONALTAB.OVERTIDUTTAG
+      soktemp.SOKCHAR[4] = PERSONALTAB.BEFATTNING
+      soktemp.SOKCHAR[5] = PERSONALTAB.FORNAMN + "&" + PERSONALTAB.EFTERNAMN
+      soktemp.SOKLOG[1] = PERSONALTAB.DELTID.
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+      {GDPRLOGGCLIENT.I}
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 14 THEN DO: 
+      soktemp.SOKINT[3] = 0.
+      OPEN QUERY felq FOR EACH FELTEXT WHERE FELTEXT.ANVANDARE = soktemp.SOKCHAR[1] AND 
+      FELTEXT.EMOTAGET = FALSE
+      USE-INDEX FELTEXT NO-LOCK.
+      ASSIGN
+      soktemp.SOKINT[1] = 0
+      soktemp.SOKCHAR[1] = "".
+      GET FIRST felq NO-LOCK.      
+      DO WHILE AVAILABLE(FELTEXT): 
+         DO TRANSACTION:
+            soktemp.SOKINT[3] = soktemp.SOKINT[3] + 1.
+            IF soktemp.SOKINT[3] > soktemp.SOKINT[2] THEN DO:
+               soktemp.SOKINT[1] = 1.
+               RETURN.
+            END.
+            GET CURRENT felq EXCLUSIVE-LOCK.                 
+            ASSIGN 
+            FELTEXT.EMOTAGET = TRUE.
+            soktemp.SOKCHAR[soktemp.SOKINT[3]] = FELTEXT.FELTEXT.
+         END.
+         GET NEXT felq NO-LOCK.
+      END.    
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 15 THEN DO: 
+      FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = soktemp.SOKCHAR[1] USE-INDEX ANDV NO-LOCK NO-ERROR.
+      soktemp.SOKCHAR[2] = ANVANDARE.PERSONALKOD. 
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 16 THEN DO:
+      FIND FIRST VKORN USE-INDEX VKORN NO-LOCK NO-ERROR.
+      IF AVAILABLE VKORN THEN DO:
+         soktemp.SOKLOG[1] = VKORN.VECKOK = TRUE.
+      END.
+      ELSE soktemp.SOKLOG[1] = FALSE.   
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 17 THEN DO:
+      IF soktemp.SOKINT[1] = 1 THEN DO:
+         FIND FIRST TIDREGITAB WHERE 
+         TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND
+         YEAR(TIDREGITAB.DATUM) = YEAR(soktemp.SOKDATE[1]) AND
+         MONTH(TIDREGITAB.DATUM) = MONTH(soktemp.SOKDATE[1]) AND 
+         TIDREGITAB.TIDLOG = TRUE AND TIDREGITAB.VECKOKORD NE ""
+         NO-LOCK NO-ERROR.
+      END.
+      IF soktemp.SOKINT[1] = 2 THEN DO:
+         FIND FIRST TIDREGITAB WHERE 
+         TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND
+         YEAR(TIDREGITAB.DATUM) = YEAR(soktemp.SOKDATE[1]) AND
+         MONTH(TIDREGITAB.DATUM) = MONTH(soktemp.SOKDATE[1]) AND 
+         TIDREGITAB.LONTILLAGG NE "" AND
+         TIDREGITAB.TIDLOG = FALSE AND TIDREGITAB.VECKOKORD NE ""
+         NO-LOCK NO-ERROR.
+      END.
+      IF soktemp.SOKINT[1] = 3 THEN DO:
+         FIND FIRST TIDREGITAB WHERE 
+         TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND
+         YEAR(TIDREGITAB.DATUM) = YEAR(soktemp.SOKDATE[1]) AND
+         MONTH(TIDREGITAB.DATUM) = MONTH(soktemp.SOKDATE[1]) AND 
+         TIDREGITAB.BEREDSKAP NE "" AND
+         TIDREGITAB.TIDLOG = FALSE AND TIDREGITAB.VECKOKORD NE ""
+         NO-LOCK NO-ERROR.
+      END.
+      IF soktemp.SOKINT[1] = 4 THEN DO:
+         FIND FIRST TIDREGITAB WHERE 
+         TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND
+         YEAR(TIDREGITAB.DATUM) = YEAR(soktemp.SOKDATE[1]) AND
+         MONTH(TIDREGITAB.DATUM) = MONTH(soktemp.SOKDATE[1]) AND 
+         TIDREGITAB.TRAKTKOD NE "" AND
+         TIDREGITAB.TIDLOG = FALSE AND TIDREGITAB.VECKOKORD NE ""
+         NO-LOCK NO-ERROR.
+      END.
+      IF NOT AVAILABLE TIDREGITAB THEN DO:
+         soktemp.SOKLOG[1] = TRUE.
+      END.
+      ELSE DO:   
+         soktemp.SOKLOG[1] = FALSE.
+      END.     
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 18 THEN DO:
+      FIND TIDREGITAB WHERE RECID(TIDREGITAB) = soktemp.SOKINT[2] NO-LOCK NO-ERROR.
+      IF soktemp.SOKINT[1] = 1 THEN DO:
+         FIND FIRST TIDFEL WHERE TIDFEL.PERSONALKOD = TIDREGITAB.PERSONALKOD AND
+         TIDFEL.DATUM = TIDREGITAB.DATUM AND TIDFEL.START = TIDREGITAB.START AND
+         TIDFEL.SLUT <= TIDREGITAB.SLUT AND TIDFEL.TIDLOG = TRUE NO-LOCK NO-ERROR.           
+      END.
+      IF soktemp.SOKINT[1] = 2 THEN DO:
+         FIND FIRST TIDFEL WHERE TIDFEL.PERSONALKOD = TIDREGITAB.PERSONALKOD AND
+         TIDFEL.DATUM = TIDREGITAB.DATUM AND TIDFEL.LONTILLAGG = TIDREGITAB.LONTILLAGG AND
+         TIDFEL.LONTILLANTAL = TIDREGITAB.LONTILLANTAL AND TIDFEL.TIDLOG = FALSE NO-LOCK NO-ERROR.
+      END.
+      IF soktemp.SOKINT[1] = 3 THEN DO:
+         FIND FIRST TIDFEL WHERE TIDFEL.PERSONALKOD = TIDREGITAB.PERSONALKOD AND
+         TIDFEL.DATUM = TIDREGITAB.DATUM AND TIDFEL.BEREDSKAP = TIDREGITAB.BEREDSKAP AND
+         TIDFEL.BEREDSKAPSTART = TIDREGITAB.BEREDSKAPSTART AND TIDFEL.BEREDSKAPSLUT = TIDREGITAB.BEREDSKAPSLUT AND
+         TIDFEL.BERANTAL = TIDREGITAB.BERANTAL AND TIDFEL.TIDLOG = FALSE NO-LOCK NO-ERROR.
+      END.
+      IF soktemp.SOKINT[1] = 4 THEN DO:
+         FIND FIRST TIDFEL WHERE TIDFEL.PERSONALKOD = TIDREGITAB.PERSONALKOD AND
+         TIDFEL.DATUM = TIDREGITAB.DATUM AND TIDFEL.TRAKTKOD = TIDREGITAB.TRAKTKOD AND
+         TIDFEL.TRAKTANTAL = TIDREGITAB.TRAKTANTAL AND TIDFEL.TIDLOG = FALSE NO-LOCK NO-ERROR.
+      END.
+      IF NOT AVAILABLE TIDFEL THEN DO:
+         soktemp.SOKLOG[1] = FALSE.
+      END.
+      ELSE DO:   
+         soktemp.SOKLOG[1] = TRUE.
+      END.   
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 19 THEN DO:
+      IF soktemp.SOKINT[1] = 1 THEN DO:
+         IF soktemp.SOKCHAR[1] = "hela året" THEN DO:
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[2] AND
+            YEAR(TIDREGITAB.DATUM) = soktemp.SOKINT[2]  
+            USE-INDEX PSTART NO-LOCK NO-ERROR.
+         END.
+         ELSE DO:
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[2] AND
+            YEAR(TIDREGITAB.DATUM) = soktemp.SOKINT[2] AND MONTH(TIDREGITAB.DATUM) = soktemp.SOKINT[3] 
+            USE-INDEX PSTART NO-LOCK NO-ERROR.
+         END.
+      END.
+      ELSE IF soktemp.SOKINT[1] = 2 THEN DO:
+         IF soktemp.SOKCHAR[1] = "hela året" THEN DO:
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[2] AND
+            YEAR(TIDREGITAB.DATUM) = soktemp.SOKINT[2] AND 
+            TIDREGITAB.GODKAND NE ""  
+            USE-INDEX PSTART NO-LOCK NO-ERROR.
+         END.
+         ELSE DO:
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[2] AND
+            YEAR(TIDREGITAB.DATUM) = soktemp.SOKINT[2] AND MONTH(TIDREGITAB.DATUM) = soktemp.SOKINT[3] AND 
+            TIDREGITAB.GODKAND NE ""  
+            USE-INDEX PSTART NO-LOCK NO-ERROR.
+         END.
+      END.
+      ELSE IF soktemp.SOKINT[1] = 3 THEN DO:
+         IF soktemp.SOKCHAR[1] = "hela året" THEN DO:
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[2] AND
+            YEAR(TIDREGITAB.DATUM) = soktemp.SOKINT[2] AND
+            TIDREGITAB.GODKAND = ""  
+            USE-INDEX PSTART NO-LOCK NO-ERROR.
+         END.
+         ELSE DO:
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[2] AND
+            YEAR(TIDREGITAB.DATUM) = soktemp.SOKINT[2] AND MONTH(TIDREGITAB.DATUM) = soktemp.SOKINT[3] AND
+            TIDREGITAB.GODKAND = ""  
+            USE-INDEX PSTART NO-LOCK NO-ERROR.
+         END.
+      END.
+      IF NOT AVAILABLE TIDREGITAB THEN DO:
+         soktemp.SOKLOG[1] = TRUE.
+      END.
+      ELSE DO:   
+         soktemp.SOKLOG[1] = FALSE.
+      END. 
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 20 THEN DO:
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = soktemp.SOKCHAR[1] 
+      NO-LOCK NO-ERROR.         
+      FIND FIRST ANSTFORMTAB WHERE ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+      USE-INDEX ANSTF NO-LOCK NO-ERROR.
+      soktemp.SOKINT[1] = 5.
+      FIND FIRST LONTILL WHERE LONTILL.KOD = ANSTFORMTAB.KOD AND
+      LONTILL.VILART = soktemp.SOKCHAR[2] NO-LOCK NO-ERROR.
+      IF AVAILABLE LONTILL THEN DO:
+         ASSIGN 
+         soktemp.SOKCHAR[1] = soktemp.SOKCHAR[2]
+         soktemp.SOKINT[1] = 2.
+         RETURN.
+      END.   
+      FIND FIRST BERKOD WHERE BERKOD.BEREDSKAPSAVTAL = PERSONALTAB.BEREDSKAPSAVTAL AND
+      BERKOD.VILART = soktemp.SOKCHAR[3] NO-LOCK NO-ERROR.
+      IF AVAILABLE BERKOD THEN DO:
+         ASSIGN 
+         soktemp.SOKCHAR[1] = soktemp.SOKCHAR[3]
+         soktemp.SOKINT[1] = 3.
+         RETURN.
+      END.   
+      FIND FIRST TRAKTATAB WHERE TRAKTATAB.TRAAVTAL = PERSONALTAB.TRAAVTAL AND
+      TRAKTATAB.VILART = soktemp.SOKCHAR[4] NO-LOCK NO-ERROR.
+      IF AVAILABLE TRAKTATAB THEN DO:
+         ASSIGN 
+         soktemp.SOKCHAR[1] = soktemp.SOKCHAR[4]
+         soktemp.SOKINT[1] = 4. 
+         RETURN.
+      END.   
+      FIND FIRST OVERKOD WHERE OVERKOD.KOD = ANSTFORMTAB.KOD AND
+      OVERKOD.VILART = soktemp.SOKCHAR[5] NO-LOCK NO-ERROR.
+      IF AVAILABLE OVERKOD THEN DO:
+         ASSIGN 
+         soktemp.SOKCHAR[1] = soktemp.SOKCHAR[5]
+         soktemp.SOKINT[1] = 5.
+         RETURN.   
+      END.   
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 21 THEN DO:
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = soktemp.SOKCHAR[1] 
+      NO-LOCK NO-ERROR.    
+      soktemp.SOKCHAR[1] = "".
+      IF soktemp.SOKINT[1] = 2 THEN DO:
+         FIND FIRST ANSTFORMTAB WHERE ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+         USE-INDEX ANSTF NO-LOCK NO-ERROR.
+         IF AVAILABLE ANSTFORMTAB THEN DO: 
+            soktemp.SOKCHAR[1] = ANSTFORMTAB.ANSTALLNING.      
+            soktemp.SOKCHAR[2] = ANSTFORMTAB.KOD.
+         END.
+      END.
+      IF soktemp.SOKINT[1] = 3 THEN DO:
+         FIND FIRST BERTAB WHERE BERTAB.BEREDSKAPSAVTAL = PERSONALTAB.BEREDSKAPSAVTAL
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE BERTAB THEN soktemp.SOKCHAR[1] = BERTAB.FORKL.      
+      END. 
+      IF soktemp.SOKINT[1] = 4 THEN DO:
+         FIND FIRST TRAAVTAB WHERE TRAAVTAB.TRAAVTAL = PERSONALTAB.TRAAVTAL
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE TRAAVTAB THEN soktemp.SOKCHAR[1] = TRAAVTAB.FORKLARING.      
+      END.                       
+      IF soktemp.SOKINT[1] = 5 THEN DO:
+         FIND FIRST ANSTFORMTAB WHERE ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+         USE-INDEX ANSTF NO-LOCK NO-ERROR.
+         IF AVAILABLE ANSTFORMTAB THEN soktemp.SOKCHAR[1] =  ANSTFORMTAB.ANSTALLNING.      
+      END.   
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 22 THEN DO:
+      IF soktemp.SOKINT[1] = 2 THEN DO:
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND
+         TIDREGITAB.VECKOKORD = "" AND TIDREGITAB.GODKAND BEGINS "G" AND 
+         TIDREGITAB.DATUM LE soktemp.SOKDATE[1] USE-INDEX PVKORD NO-LOCK NO-ERROR.
+      END.   
+      ELSE DO:
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND
+         TIDREGITAB.VECKOKORD = "" AND TIDREGITAB.GODKAND = "F"
+         USE-INDEX PVKORD NO-LOCK NO-ERROR.
+      END.    
+      IF AVAILABLE TIDREGITAB THEN DO:
+         soktemp.SOKDATE[2] = TIDREGITAB.DATUM.
+      END.
+      ELSE DO:
+         soktemp.SOKDATE[2] = ?.
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 23 THEN DO:
+      IF soktemp.SOKINT[1] = 2 THEN DO:
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND
+         TIDREGITAB.VECKOKORD = "" AND TIDREGITAB.GODKAND BEGINS "G" AND 
+         YEAR(TIDREGITAB.DATUM) = YEAR(soktemp.SOKDATE[1]) AND 
+         MONTH(TIDREGITAB.DATUM) = MONTH(soktemp.SOKDATE[1])
+         USE-INDEX PVKORD NO-LOCK NO-ERROR. 
+      END.
+      ELSE IF soktemp.SOKINT[1] = 3 THEN DO:
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND
+         TIDREGITAB.VECKOKORD = "" AND TIDREGITAB.GODKAND = "F" AND 
+         YEAR(TIDREGITAB.DATUM) = YEAR(soktemp.SOKDATE[1]) AND 
+         MONTH(TIDREGITAB.DATUM) = MONTH(soktemp.SOKDATE[1])
+         USE-INDEX PVKORD NO-LOCK NO-ERROR. 
+      END.
+      IF AVAILABLE TIDREGITAB THEN DO:
+         soktemp.SOKDATE[2] = TIDREGITAB.DATUM.
+      END.
+      ELSE DO:
+         soktemp.SOKDATE[2] = ?.
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 24 THEN DO:
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = soktemp.SOKCHAR[1] 
+      NO-LOCK NO-ERROR.         
+      soktemp.SOKLOG[2] = PERSONALTAB.AKTIV.
+      IF soktemp.SOKINT[2] = 2 AND (soktemp.SOKINT[1] = 2 OR soktemp.SOKINT[1] = 3) THEN DO:
+         IF soktemp.SOKINT[1] = 2 THEN DO:
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND
+            TIDREGITAB.VECKOKORD = "" AND TIDREGITAB.GODKAND BEGINS "G" AND
+            TIDREGITAB.DATUM >= soktemp.SOKDATE[1] AND TIDREGITAB.DATUM <= soktemp.SOKDATE[2]
+            USE-INDEX PVKORD NO-LOCK NO-ERROR.
+         END.
+         ELSE DO:
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND
+            TIDREGITAB.VECKOKORD = "" AND TIDREGITAB.GODKAND = "F" AND
+            TIDREGITAB.DATUM >= soktemp.SOKDATE[1] AND TIDREGITAB.DATUM <= soktemp.SOKDATE[2]
+            USE-INDEX PVKORD NO-LOCK NO-ERROR.
+         END.      
+      END.
+      ELSE IF soktemp.SOKINT[2] = 2 AND soktemp.SOKINT[1] = 1 THEN DO:        /*2004-01-20 tillägg /Lena*/
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1]  AND TIDREGITAB.GODKAND BEGINS "G" AND
+         TIDREGITAB.DATUM >= soktemp.SOKDATE[1] AND TIDREGITAB.DATUM <= soktemp.SOKDATE[2]
+         USE-INDEX PVKORD NO-LOCK NO-ERROR.
+      END.
+      ELSE IF soktemp.SOKINT[2] = 3 THEN DO:                        /*2004-01-20 tillägg /Lena*/
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND
+         TIDREGITAB.VECKOKORD = "" AND TIDREGITAB.GODKAND = "" AND
+         TIDREGITAB.DATUM >= soktemp.SOKDATE[1] AND TIDREGITAB.DATUM <= soktemp.SOKDATE[2]
+         USE-INDEX PVKORD NO-LOCK NO-ERROR.         
+      END.
+      ELSE DO:
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND
+         TIDREGITAB.DATUM >= soktemp.SOKDATE[1] AND TIDREGITAB.DATUM <= soktemp.SOKDATE[2]
+         USE-INDEX PSTART NO-LOCK NO-ERROR.      
+      END.
+      IF NOT AVAILABLE TIDREGITAB THEN soktemp.SOKLOG[1] = TRUE.
+      ELSE soktemp.SOKLOG[1] = FALSE.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 25 THEN DO:
+      IF soktemp.SOKINT[1] NE 0 THEN DO:  
+         FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = soktemp.SOKCHAR[2] AND
+         TIDSEK.PERSONALKOD = soktemp.SOKCHAR[1] 
+         USE-INDEX TIDSEK NO-LOCK NO-ERROR.   
+         IF NOT AVAILABLE TIDSEK THEN DO: 
+            soktemp.SOKLOG[1] = TRUE.
+         END.   
+         ELSE DO:
+            IF TIDSEK.PANDRA = FALSE THEN DO:
+               soktemp.SOKLOG[1] = TRUE.
+            END. 
+            ELSE DO:
+               soktemp.SOKLOG[1] = FALSE.
+            END.  	
+         END.   
+      END.     
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 26 THEN DO:
+      soktemp.SOKLOG[3] = FALSE.
+      FIND FIRST GODKOLL WHERE GODKOLL.PERSONALKOD = soktemp.SOKCHAR[1] AND
+      GODKOLL.DATAR = soktemp.SOKINT[1] AND GODKOLL.DATMAN = soktemp.SOKINT[2]                  
+      USE-INDEX PKODAR NO-LOCK NO-ERROR.
+      IF AVAILABLE GODKOLL THEN DO:
+         soktemp.SOKLOG[2] = TRUE.
+         IF GODKOLL.KLAR = TRUE THEN DO:
+            soktemp.SOKLOG[1] = TRUE.
+            
+            FIND LAST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND
+            YEAR(TIDREGITAB.DATUM) = soktemp.SOKINT[1] AND MONTH(TIDREGITAB.DATUM) = soktemp.SOKINT[2]
+            AND TIDREGITAB.GODKAND = "F" USE-INDEX PSTART NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE TIDREGITAB THEN  soktemp.SOKLOG[3] = TRUE.            
+
+         END.
+         ELSE DO:
+            soktemp.SOKLOG[1] = FALSE.         
+         END.
+         soktemp.SOKDATE[1] = GODKOLL.DATUM. 
+      END.
+      ELSE DO:
+         ASSIGN
+         soktemp.SOKDATE[1] = ?
+         soktemp.SOKLOG[1] = FALSE
+         soktemp.SOKLOG[2] = FALSE.
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 27 THEN DO:
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = soktemp.SOKCHAR[2] 
+      NO-LOCK NO-ERROR.      
+      FIND FIRST ANSTFORMTAB WHERE ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+      USE-INDEX ANSTF NO-LOCK NO-ERROR.
+      FIND FIRST LONTILL WHERE LONTILL.KOD = ANSTFORMTAB.KOD AND
+      LONTILL.VILART = soktemp.SOKCHAR[2] NO-LOCK NO-ERROR.
+      IF AVAILABLE LONTILL THEN ASSIGN soktemp.SOKCHAR[2] = LONTILL.LONTILLAGG.
+      ELSE soktemp.SOKCHAR[2] = "".
+      FIND FIRST BERKOD WHERE BERKOD.BEREDSKAPSAVTAL = PERSONALTAB.BEREDSKAPSAVTA AND
+      BERKOD.VILART = soktemp.SOKCHAR[3] NO-LOCK NO-ERROR.
+      IF AVAILABLE BERKOD THEN ASSIGN soktemp.SOKCHAR[3] = BERKOD.BEREDSKAP.     
+      ELSE soktemp.SOKCHAR[3] = "".
+      FIND FIRST TRAKTATAB WHERE TRAKTATAB.TRAAVTAL = PERSONALTAB.TRAAVTA AND
+      TRAKTATAB.VILART = soktemp.SOKCHAR[4] NO-LOCK NO-ERROR.
+      IF AVAILABLE TRAKTATAB THEN  ASSIGN soktemp.SOKCHAR[4] = TRAKTATAB.TRAKTKOD.        
+      ELSE soktemp.SOKCHAR[4] = "".
+      FIND FIRST OVERKOD WHERE OVERKOD.KOD = ANSTFORMTAB.KOD AND
+      OVERKOD.VILART = soktemp.SOKCHAR[5] NO-LOCK NO-ERROR.
+      IF AVAILABLE OVERKOD THEN ASSIGN soktemp.SOKCHAR[5] = OVERKOD.OVERTIDTILL. 
+      ELSE soktemp.SOKCHAR[5] = "".
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 28 THEN DO:
+      IF soktemp.SOKINT[1] = 1 THEN DO:
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND 
+         TIDREGITAB.DATUM = soktemp.SOKDATE[1] AND
+         TIDREGITAB.START = soktemp.SOKDEC[1] AND TIDREGITAB.SLUT = soktemp.SOKDEC[2]
+         NO-LOCK NO-ERROR.
+      END.
+      ELSE IF soktemp.SOKINT[1] = 2 THEN DO:
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND 
+         TIDREGITAB.DATUM = soktemp.SOKDATE[1] AND
+         TIDREGITAB.LONTILLAGG = soktemp.SOKCHAR[2]
+         NO-LOCK NO-ERROR.
+      END.
+      IF soktemp.SOKINT[1] = 3 THEN DO:
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND 
+         TIDREGITAB.DATUM = soktemp.SOKDATE[1] AND
+         TIDREGITAB.BEREDSKAP = soktemp.SOKCHAR[2]
+         NO-LOCK NO-ERROR.
+      END.
+      IF soktemp.SOKINT[1] = 4 THEN DO:
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND 
+         TIDREGITAB.DATUM = soktemp.SOKDATE[1] AND
+         TIDREGITAB.TRAKTKOD = soktemp.SOKCHAR[2]
+         NO-LOCK NO-ERROR.
+      END.
+      IF soktemp.SOKINT[1] = 5 THEN DO:
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND 
+         TIDREGITAB.DATUM = soktemp.SOKDATE[1] AND
+         TIDREGITAB.OKOD1 = soktemp.SOKCHAR[2] 
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE TIDREGITAB THEN DO:
+            FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND 
+            TIDREGITAB.DATUM = soktemp.SOKDATE[1] AND
+            TIDREGITAB.OKOD2 = soktemp.SOKCHAR[2] 
+            NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE TIDREGITAB THEN DO:
+               FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND 
+               TIDREGITAB.DATUM = soktemp.SOKDATE[1] AND
+               TIDREGITAB.OKOD3 = soktemp.SOKCHAR[2] 
+               NO-LOCK NO-ERROR.         
+               IF NOT AVAILABLE TIDREGITAB THEN DO:
+                  soktemp.SOKINT[2] = 0.
+               END.
+               ELSE soktemp.SOKINT[3] = 3.
+            END.
+            ELSE soktemp.SOKINT[3] = 2.
+         END.       
+         ELSE soktemp.SOKINT[3] = 1.
+      END.
+      IF AVAILABLE TIDREGITAB THEN DO:
+         soktemp.SOKINT[2] = RECID(TIDREGITAB).
+      END.
+      ELSE soktemp.SOKINT[2] = 0.    
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 34 THEN DO:
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = soktemp.SOKCHAR[2] AND
+      AONRTAB.DELNR = soktemp.SOKINT[1] USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DO:
+         ASSIGN 
+         soktemp.SOKINT[2] = AONRTAB.KALKNR
+         soktemp.SOKINT[3] = RECID(AONRTAB)
+         soktemp.SOKLOG[2] = AONRTAB.FASTKALK.  
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 35 THEN DO:
+      FIND FIRST BEREDNING WHERE BEREDNING.AONR = soktemp.SOKCHAR[1] AND
+      BEREDNING.DELNR = soktemp.SOKINT[1] 
+      USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF AVAILABLE BEREDNING THEN DO:
+         soktemp.SOKLOG[1] = BEREDNING.KALK.  
+      END.
+      ELSE soktemp.SOKLOG[1] = FALSE.
+      RETURN.
+   END.
+   
+   ELSE IF soktemp.SOKVAL = 37 THEN DO:
+      FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = soktemp.SOKCHAR[1] AND
+      PLANNRTAB.ARTAL = soktemp.SOKINT[1] NO-LOCK NO-ERROR.
+      ASSIGN 
+      soktemp.SOKINT[2] = RECID(PLANNRTAB) 
+      soktemp.SOKLOG[1] = PLANNRTAB.UPP 
+      soktemp.SOKLOG[2] = PLANNRTAB.UPPNR
+      soktemp.SOKLOG[3] = PLANNRTAB.FASTKALK.   
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 40 THEN DO:
+      FIND LAST EBRPRIS USE-INDEX AR NO-LOCK NO-ERROR.
+      soktemp.SOKINT[1] = EBRPRIS.ARTAL.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 42 THEN DO:
+      FIND FIRST KALKFOR WHERE KALKFOR.KALKNR = soktemp.SOKINT[1] NO-LOCK NO-ERROR.
+      IF AVAILABLE KALKFOR THEN soktemp.SOKINT[2] = 1.
+      ELSE soktemp.SOKINT[2] = 0.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 43 THEN DO TRANSACTION:
+      FIND AONRTAB WHERE RECID(AONRTAB) = soktemp.SOKINT[1] EXCLUSIVE-LOCK NO-ERROR.   
+      AONRTAB.AUTOREG = TRUE.
+      RELEASE AONRTAB.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 44 THEN DO TRANSACTION:
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = soktemp.SOKCHAR[1] AND    
+      AONRTAB.DELNR = soktemp.SOKINT[1] 
+      USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN DO:
+         ASSIGN
+         soktemp.SOKCHAR[2] = AONRTAB.PRISTYP
+         soktemp.SOKINT[2] = AONRTAB.TRAKTAMENTE.
+      END.
+      ELSE DO:
+         ASSIGN
+         soktemp.SOKCHAR[2] = "TOT.PRIS."
+         soktemp.SOKINT[2] = 0.
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 45 THEN DO:
+      FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = soktemp.SOKCHAR[1] AND
+      PLANNRTAB.ARTAL = soktemp.SOKINT[1]
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE PLANNRTAB THEN   
+      soktemp.SOKINT[2] = INTEGER(RECID(PLANNRTAB)).
+      ELSE soktemp.SOKINT[2] = 0.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 46 THEN DO TRANSACTION:
+      FIND FIRST KALKAONR WHERE KALKAONR.KALKNR = soktemp.SOKINT[1]
+      EXCLUSIVE-LOCK NO-ERROR.
+      ASSIGN
+      KALKAONR.AONR      = ?
+      KALKAONR.DELNR     = ?
+      KALKAONR.STATUSNIV = ?
+      KALKAONR.PLANNR    = ?
+      KALKAONR.ARTAL     = ?.
+      FIND FIRST FASTSPEC WHERE FASTSPEC.KALKNR = soktemp.SOKINT[1]
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE FASTSPEC THEN DO:
+         IF soktemp.SOKINT[2] = 0 THEN DO:
+            ASSIGN
+            FASTSPEC.AONR      = ?
+            FASTSPEC.DELNR     = ?.
+         END.
+         ASSIGN
+         FASTSPEC.PLANNR    = ?
+         FASTSPEC.ARTAL     = ?.
+      END.
+      FIND FIRST KALKSPEC WHERE KALKSPEC.KALKNR = soktemp.SOKINT[1]
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE KALKSPEC THEN DO:
+         ASSIGN
+         KALKSPEC.AONR      = ?
+         KALKSPEC.DELNR     = ?
+         KALKSPEC.PLANNR    = ?
+         KALKSPEC.ARTAL     = ?.
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 47 THEN DO:
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = soktemp.SOKCHAR[1] AND 
+      AONRTAB.DELNR = soktemp.SOKINT[1] NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE AONRTAB THEN DO: 
+         ASSIGN
+         soktemp.SOKCHAR[2] = ?
+         soktemp.SOKINT[2] = ?.
+      END.
+      ELSE DO:
+         ASSIGN
+         soktemp.SOKDATE[1] = AONRTAB.AONRAVDATUM
+         soktemp.SOKINT[3] = AONRTAB.TRAKTAMENTE 
+         soktemp.SOKCHAR[3] = AONRTAB.PRISTYP.   
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 48 THEN DO:
+      FIND FIRST AONRTAB WHERE AONRTAB.PLANNR = soktemp.SOKCHAR[1] AND
+      AONRTAB.ARTAL = soktemp.SOKINT[1] NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE AONRTAB THEN DO:
+         ASSIGN
+         soktemp.SOKCHAR[2] = ?
+         soktemp.SOKINT[2] = ?.
+      END.
+      ELSE DO:
+         ASSIGN
+         soktemp.SOKCHAR[2] = AONRTAB.AONR
+         soktemp.SOKCHAR[3] = AONRTAB.ORT
+         soktemp.SOKINT[1] = AONRTAB.DELNR.
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 49 THEN DO:
+      DO TRANSACTION:
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = soktemp.SOKCHAR[1] AND 
+         AONRTAB.DELNR = soktemp.SOKINT[1] EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE AONRTAB THEN DO: 
+            ASSIGN
+            AONRTAB.PLANNR = ?
+            AONRTAB.ARTAL = ?.         
+         END.           
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 50 THEN DO:
+      DO TRANSACTION:
+         FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = soktemp.SOKCHAR[1] AND 
+         PLANNRTAB.ARTAL = soktemp.SOKINT[1] EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE PLANNRTAB THEN DO:
+            ASSIGN
+            PLANNRTAB.STARTVNR = soktemp.SOKINT[2]
+            PLANNRTAB.SLUTVNR = soktemp.SOKINT[3].         
+         END.
+      END.
+      RETURN.
+   END.
+  
+END PROCEDURE.
+PROCEDURE sok2_UI:
+
+   IF soktemp.SOKVAL = 51 THEN DO:
+      DO TRANSACTION:
+         FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = soktemp.SOKCHAR[1] AND 
+         PLANNRTAB.ARTAL = soktemp.SOKINT[1] EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE PLANNRTAB THEN DO:
+            ASSIGN
+            soktemp.SOKCHAR[1] = PLANNRTAB.OMRADE 
+            soktemp.SOKCHAR[2] = PLANNRTAB.BESTID         
+            soktemp.SOKCHAR[3] = PLANNRTAB.ORT
+            soktemp.SOKCHAR[4] = PLANNRTAB.ARBANSVARIG
+            soktemp.SOKINT[2] = PLANNRTAB.ARBARTKOD.           
+         END.
+      END.
+      RETURN.
+   END.
+   /*budtill.w*/
+   ELSE IF soktemp.SOKVAL = 52 THEN DO:
+      DO TRANSACTION:
+         FIND FIRST BUDGET WHERE BUDGET.OMRADE = soktemp.SOKCHAR[1] AND 
+         BUDGET.KONTO = soktemp.SOKCHAR[2] AND 
+         BUDGET.KONTONR = soktemp.SOKCHAR[3]
+         AND BUDGET.ARTAL = soktemp.SOKINT[1] USE-INDEX BUD NO-LOCK NO-ERROR.
+         IF AVAILABLE BUDGET THEN DO:
+            ASSIGN
+            soktemp.SOKINT[2] = BUDGET.PENGAR  
+            soktemp.SOKINT[3] = BUDGET.TIMMAR. 
+         END.        
+      END.
+      RETURN.
+   END. 
+   /*budtill.w*/
+   ELSE IF soktemp.SOKVAL = 53 THEN DO:
+      DO TRANSACTION:
+         FIND FIRST BUDGET WHERE BUDGET.OMRADE = soktemp.SOKCHAR[1] AND 
+         BUDGET.KONTO = soktemp.SOKCHAR[2] AND 
+         BUDGET.KONTONR = soktemp.SOKCHAR[3] AND 
+         BUDGET.ARTAL = soktemp.SOKINT[1] USE-INDEX BUD EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE BUDGET THEN DO:
+            ASSIGN
+            BUDGET.PENGAR = soktemp.SOKINT[2]
+            BUDGET.TIMMAR = soktemp.SOKINT[3].
+         END.
+         ELSE DO:
+            CREATE BUDGET.
+            ASSIGN
+            BUDGET.OMRADE =  soktemp.SOKCHAR[1]
+            BUDGET.KONTO = soktemp.SOKCHAR[2]
+            BUDGET.KONTONR = soktemp.SOKCHAR[3]
+            BUDGET.BENAMNING = soktemp.SOKCHAR[4]
+            BUDGET.ARTAL = soktemp.SOKINT[1]
+            BUDGET.PENGAR = soktemp.SOKINT[2]
+            BUDGET.TIMMAR = soktemp.SOKINT[3].
+         END.
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 54 THEN DO:
+      FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = soktemp.SOKCHAR[1]
+      AND PLANNRTAB.ARTAL = ((soktemp.SOKINT[1]) + 1) USE-INDEX PLAN NO-LOCK NO-ERROR.
+      IF AVAILABLE PLANNRTAB THEN DO:
+         ASSIGN 
+         soktemp.SOKLOG[1] = TRUE.
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 55 THEN DO:
+      FIND FIRST SUMTID USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF AVAILABLE SUMTID THEN DO:
+         soktemp.SOKINT[1] = YEAR(SUMTID.DATUM).          
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 56 THEN DO: /*Koppla från Beredning*/
+      IF soktemp.SOKINT[1] = 1 THEN DO:
+      END.
+      ELSE IF soktemp.SOKINT[1] = 2 THEN DO:
+         
+         FIND FIRST BEREDNING WHERE BEREDNING.AONR = soktemp.SOKCHAR[1] AND 
+         BEREDNING.DELNR = soktemp.SOKINT[2] 
+         USE-INDEX AONR NO-LOCK NO-ERROR.
+         IF AVAILABLE BEREDNING THEN DO:
+            FIND FIRST BERANV WHERE BERANV.AONR = BEREDNING.BERAONR AND 
+            BERANV.OMRADE = soktemp.SOKCHAR[2] USE-INDEX OMR NO-LOCK NO-ERROR.
+            IF AVAILABLE BERANV THEN DO:
+               FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = SUBSTRING(BERANV.ANVANDARE,1,40) 
+               NO-LOCK NO-ERROR.    
+               IF AVAILABLE ANVANDARE THEN DO:
+                  IF SUBSTRING(BERANV.ANVANDAR,50,6) = "Export" THEN DO:
+                     soktemp.SOKCHAR[3] = "Beredningen är exporterad. Utfärdare är " +
+                     ANVANDARE.AV-NAMN + ". Funktionen ej möjlig att utföra.".         
+                  END.
+                  ELSE DO:
+                     soktemp.SOKCHAR[3] = "Beredningen används av " + 
+                     ANVANDARE.AV-NAMN + ". Funktionen ej möjlig att utföra. För att låsa upp beredningen - gå till meny Låsta Beredningar".
+                  END.               
+               END.
+               ELSE DO:
+                  soktemp.SOKCHAR[3] = "Beredningen är låst! Funktionen ej möjlig att utföra. För att låsa upp beredningen - gå till meny Låsta Beredningar".
+               END.
+               RETURN.
+            END.
+            /*nYA INK*/
+            RUN FINNSTABELL.P (INPUT "INKBER", OUTPUT startadi).
+            IF startadi = TRUE THEN DO:   
+               IF NOT VALID-HANDLE(inkberh) THEN RUN INKBERAPP.P PERSISTENT SET inkberh.
+               IF VALID-HANDLE(inkberh) THEN DO:
+                  RUN inkkoll_UI IN inkberh (INPUT soktemp.SOKCHAR[1],INPUT soktemp.SOKINT[2],OUTPUT startadi).
+                  IF startadi = TRUE THEN DO:
+                     startadi = FALSE.
+                     soktemp.SOKCHAR[3] = "Det finns ett pågående inköp! Funktionen kan ej startas.".
+                     ASSIGN
+                     soktemp.SOKCHAR[5] = BEREDNING.OMRADE
+                     soktemp.SOKINT[5]  = BEREDNING.BERNR.
+                     RETURN.
+                  END.
+                  RUN inkfinns2_UI IN inkberh (INPUT soktemp.SOKCHAR[1],INPUT soktemp.SOKINT[2],OUTPUT startadi).
+                  IF startadi = TRUE THEN DO:
+                     startadi = FALSE.
+                     soktemp.SOKCHAR[3] = "Det finns ett pågående inköp! Funktionen kan ej startas.".
+                     ASSIGN
+                     soktemp.SOKCHAR[5] = BEREDNING.OMRADE
+                     soktemp.SOKINT[5]  = BEREDNING.BERNR.
+                     RETURN.
+                  END.
+                  IF VALID-HANDLE(inkberh) THEN DO: 
+                     RUN InkAvs_UI IN inkberh.
+                     DELETE PROCEDURE inkberh NO-ERROR.
+                  END.   
+               END.
+            END.         
+            
+            DO TRANSACTION:
+               FIND FIRST BEREDNING WHERE BEREDNING.AONR = soktemp.SOKCHAR[1] AND 
+               BEREDNING.DELNR = soktemp.SOKINT[2] 
+               USE-INDEX AONR EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE BEREDNING THEN DO:
+                  FIND FIRST BERMTRL WHERE BERMTRL.AONR = BEREDNING.BERAONR AND
+                  BERMTRL.OMRADE = BEREDNING.OMRADE AND BERMTRL.INKOP = TRUE NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE BERMTRL THEN DO:
+                     ASSIGN 
+                     BEREDNING.AONR = ?
+                     BEREDNING.DELNR = ?.     
+                  END.
+                  ELSE DO:
+                     soktemp.SOKCHAR[3] = "Inköp av materiel utfört. Koppling ej möjlig att ta bort.".         
+                  END.         
+                  ASSIGN
+                  soktemp.SOKCHAR[5] = BEREDNING.OMRADE
+                  soktemp.SOKINT[5]  = BEREDNING.BERNR.
+               END.                                                   
+            END.            
+         END.
+         RELEASE BEREDNING NO-ERROR.
+         RETURN.
+      END.
+   END.
+   ELSE IF soktemp.SOKVAL = 57 THEN DO: /*Kontroll av beredning användning*/
+      IF soktemp.SOKINT[1] = 1 THEN DO:
+         /*SKAPAR EN BEREDNINGS STOPP*/
+         IF soktemp.SOKINT[2] NE 0 THEN DO:
+            DO TRANSACTION:
+               CREATE BERANV.
+               ASSIGN                     
+               BERANV.AONR = soktemp.SOKCHAR[1]
+               BERANV.OMRADE = soktemp.SOKCHAR[2]
+               BERANV.ANVANDARE = soktemp.SOKCHAR[3].      
+            END.   
+            RELEASE BERANV.
+         END.
+         ELSE DO:
+            IF soktemp.SOKLOG[1] = FALSE THEN DO:
+               DO TRANSACTION:
+                  CREATE BERANV.
+                  ASSIGN                     
+                  BERANV.AONR = soktemp.SOKCHAR[1]
+                  BERANV.OMRADE = soktemp.SOKCHAR[2]
+                  BERANV.ANVANDARE = soktemp.SOKCHAR[3].     
+               END.   
+               RELEASE BERANV.
+            END.
+         END.    
+      END.
+      ELSE IF soktemp.SOKINT[1] = 2 THEN DO:
+         /*KOLL OM  BEREDNINGS STOPP FINNS*/
+         FIND FIRST BERANV WHERE BERANV.AONR = soktemp.SOKCHAR[1] AND 
+         BERANV.OMRADE = soktemp.SOKCHAR[2] USE-INDEX OMR NO-LOCK NO-ERROR.
+         IF AVAILABLE BERANV THEN DO: 
+            FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = SUBSTRING(BERANV.ANVANDARE,1,40) NO-LOCK NO-ERROR.
+            IF AVAILABLE ANVANDARE THEN DO:
+               soktemp.SOKCHAR[3] = "Beredningen används av " + ANVANDARE.AV-NAMN + ". Funktionen ej möjlig att utföra. För att låsa upp beredningen - gå till meny Låsta Beredningar".
+               IF soktemp.SOKCHAR[4] = ANVANDARE.ANVANDARE THEN DO:
+                  IF Guru.Konstanter:globforetag = "UMEA" THEN DO:
+                     FIND FIRST INKBER WHERE INKBER.AONRAONR = soktemp.SOKCHAR[5] AND INKBER.PAGAENDE = TRUE  NO-LOCK NO-ERROR.
+                  END.
+                  ELSE DO:
+                     FIND FIRST INKBER WHERE INKBER.AONRAONR = soktemp.SOKCHAR[5] AND INKBER.AONRDELNR = soktemp.SOKINT[3] AND INKBER.PAGAENDE = TRUE NO-LOCK NO-ERROR.
+                  END.      
+                  IF AVAILABLE INKBER THEN DO:
+                     IF INKBER.PAGAENDE = TRUE THEN soktemp.SOKCHAR[4] = "".
+                  END.
+                  IF soktemp.SOKCHAR[4] = ANVANDARE.ANVANDARE THEN DO:
+                     soktemp.SOKCHAR[3] = "Du låser denna beredning! Vill du låsa upp den?".
+                     soktemp.SOKLOG[2] = TRUE.
+                     soktemp.SOKLOG[3] = FALSE.
+                     RETURN.
+                  END.   
+                  
+                  
+               END.
+               ELSE soktemp.SOKCHAR[4] = "". 
+            END.
+            ELSE DO:
+               soktemp.SOKCHAR[3] = "Beredningen används av " + SUBSTRING(BERANV.ANVANDARE,1,40) + ". Funktionen ej möjlig att utföra. För att låsa upp beredningen - gå till meny Låsta Beredningar".
+            END.
+            IF soktemp.SOKINT[2] NE 0 THEN DO:
+               ASSIGN
+               soktemp.SOKLOG[2] = TRUE.
+               soktemp.SOKLOG[3] = FALSE.
+               soktemp.SOKCHAR[4] = "".
+            END. 
+            ELSE DO:
+               ASSIGN
+               soktemp.SOKLOG[2] = FALSE
+               soktemp.SOKLOG[3] = TRUE.
+               soktemp.SOKCHAR[4] = "".
+            END.  
+         END.
+         ELSE DO:
+            ASSIGN
+            soktemp.SOKLOG[2] = FALSE
+            soktemp.SOKLOG[3] = FALSE.
+            soktemp.SOKCHAR[4] = "".
+         END.
+      END.
+      ELSE IF soktemp.SOKINT[1] = 3 THEN DO:
+          /* tar bort BEREDNINGS STOPP*/
+         IF soktemp.SOKINT[2] NE 0 THEN DO:
+            DO TRANSACTION:
+               FIND FIRST BERANV WHERE BERANV.AONR = soktemp.SOKCHAR[1] AND
+               BERANV.OMRADE = soktemp.SOKCHAR[2] USE-INDEX OMR EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE BERANV THEN DELETE BERANV.
+            END.   
+         END.
+         ELSE DO:
+            IF soktemp.SOKLOG[1] = FALSE THEN DO:
+               DO TRANSACTION:
+                  FIND FIRST BERANV WHERE BERANV.AONR = soktemp.SOKCHAR[1] AND
+                  BERANV.OMRADE = soktemp.SOKCHAR[2] USE-INDEX OMR EXCLUSIVE-LOCK NO-ERROR.
+                  IF AVAILABLE BERANV THEN DELETE BERANV.
+               END.
+            END.
+            ELSE soktemp.SOKLOG[1] = FALSE.
+         END.   
+      END.
+      ELSE IF soktemp.SOKINT[1] = 4 THEN DO:
+         /*vid inaktivering av beredning*/
+         FIND FIRST BERANV WHERE BERANV.AONR = soktemp.SOKCHAR[1] AND 
+            BERANV.OMRADE = soktemp.SOKCHAR[2] USE-INDEX OMR NO-LOCK NO-ERROR.
+         IF AVAILABLE BERANV THEN DO: 
+            FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = SUBSTRING(BERANV.ANVANDARE,1,40) NO-LOCK NO-ERROR.      
+            ASSIGN                                                                                                   
+            soktemp.SOKLOG[1] = TRUE
+            soktemp.SOKCHAR[3] = "Beredningen används av " + ANVANDARE.AV-NAMN + ". Funktionen ej möjlig att utföra. För att låsa upp beredningen - gå till meny Låsta Beredningar ".
+         IF soktemp.SOKINT[2] NE 0 THEN DO:
+               soktemp.SOKLOG[2] = TRUE.
+            END. 
+            ELSE DO:
+               ASSIGN
+               soktemp.SOKLOG[2] = FALSE
+               soktemp.SOKLOG[3] = TRUE.
+            END.  
+         END.
+         ELSE DO:
+            DO TRANSACTION:
+               FIND FIRST BEREDNING WHERE BEREDNING.BERNR = soktemp.SOKINT[3] AND 
+                  BEREDNING.OMRADE = soktemp.SOKCHAR[2] USE-INDEX AONR EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE BEREDNING THEN DO:
+                  BEREDNING.AKTIV = NOT BEREDNING.AKTIV.      
+                  ASSIGN
+                  soktemp.SOKLOG[1] = FALSE
+                  soktemp.SOKLOG[2] = FALSE
+                  soktemp.SOKLOG[3] = FALSE.
+               END.
+               ELSE DO:
+                  ASSIGN
+                  soktemp.SOKLOG[1] = TRUE
+                  soktemp.SOKCHAR[3] = "Sökt beredning ej funnen!".
+               END.
+               RELEASE BEREDNING.
+            END.
+         END.
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 58 THEN DO: /*Kontroll av berednings material användning INKÖP PÅGÅR*/
+   
+      FIND FIRST BERMTRL WHERE BERMTRL.AONR = soktemp.SOKCHAR[1] AND
+      BERMTRL.OMRADE = soktemp.SOKCHAR[2] AND BERMTRL.INKOP = TRUE AND
+      BERMTRL.KLAR = FALSE USE-INDEX DATUM NO-LOCK NO-ERROR.
+      IF AVAILABLE BERMTRL THEN DO:
+         soktemp.SOKLOG[1] = TRUE.
+         soktemp.SOKCHAR[3] = "Du måste återställa inköpsprotokollet innan du kan gå in och ändra på beredningen.".
+      END.
+      ELSE DO:
+         soktemp.SOKLOG[1] = FALSE.
+         FIND LAST BERMTRL WHERE BERMTRL.AONR = soktemp.SOKCHAR[1] AND 
+         BERMTRL.OMRADE = soktemp.SOKCHAR[2] AND BERMTRL.INKOP = TRUE 
+         USE-INDEX DATUM NO-LOCK NO-ERROR.
+         IF AVAILABLE BERMTRL THEN DO:   
+            /*endast gamla inköp*/  
+            soktemp.SOKDATE[1] = BERMTRL.DATUM.
+            IF soktemp.SOKDATE[1] = TODAY THEN DO:
+         
+               /*DELINKÖP*/
+               FIND FIRST BERVAL WHERE BERVAL.AONR = soktemp.SOKCHAR[1] AND 
+               BERVAL.OMRADE = soktemp.SOKCHAR[2] AND BERVAL.ORT NE ""  AND BERVAL.ORT NE "STOPP" NO-LOCK NO-ERROR.
+               
+               IF AVAILABLE BERVAL THEN DO:
+                  soktemp.SOKLOG[2] = FALSE.
+                  FIND LAST BERMTRL WHERE BERMTRL.AONR = soktemp.SOKCHAR[1] AND 
+                  BERMTRL.OMRADE = soktemp.SOKCHAR[2] AND BERMTRL.INKOP = FALSE 
+                  USE-INDEX DATUM NO-LOCK NO-ERROR.
+                  IF AVAILABLE BERMTRL THEN DO:                        
+                     ASSIGN
+                     soktemp.SOKDATE[1] = BERMTRL.DATUM
+                     soktemp.SOKLOG[3] = FALSE.                        
+                  END.                         
+               END.
+               ELSE DO:
+                  soktemp.SOKLOG[2] = TRUE.
+                  soktemp.SOKCHAR[3] = "Ändring av beredning ej möjlig samma dag som beställning gjorts.".            
+               END.
+            END.
+            ELSE DO:   
+         
+               /*DELINKÖP*/
+               FIND FIRST BERVAL WHERE BERVAL.AONR = soktemp.SOKCHAR[1] AND 
+               BERVAL.OMRADE = soktemp.SOKCHAR[2] AND BERVAL.ORT NE "" NO-LOCK NO-ERROR.
+               IF AVAILABLE BERVAL THEN DO:
+                  soktemp.SOKLOG[2] = FALSE.
+                  FIND LAST BERMTRL WHERE BERMTRL.AONR = soktemp.SOKCHAR[1] AND 
+                  BERMTRL.OMRADE = soktemp.SOKCHAR[2] AND BERMTRL.INKOP = FALSE 
+                  USE-INDEX DATUM NO-LOCK NO-ERROR.
+                  IF AVAILABLE BERMTRL THEN DO:                        
+                     ASSIGN
+                     soktemp.SOKDATE[1] = BERMTRL.DATUM
+                     soktemp.SOKLOG[3] = FALSE.                        
+                  END.                         
+               END.
+               ELSE DO:
+                  soktemp.SOKLOG[2] = FALSE.
+                  FIND LAST BERMTRL WHERE BERMTRL.AONR = soktemp.SOKCHAR[1] AND 
+                  BERMTRL.OMRADE = soktemp.SOKCHAR[2] AND BERMTRL.INKOP = FALSE 
+                  USE-INDEX DATUM NO-LOCK NO-ERROR.
+                  IF AVAILABLE BERMTRL THEN DO:
+                     IF BERMTRL.DATUM > soktemp.SOKDATE[1] THEN DO:
+                        ASSIGN
+                        soktemp.SOKDATE[1] = BERMTRL.DATUM
+                        soktemp.SOKLOG[3] = FALSE.
+                     END.
+                     ELSE DO:  
+                        ASSIGN 
+                        soktemp.SOKDATE[1] = BERMTRL.DATUM        
+                        /*datvar = TODAY*/                   
+                        soktemp.SOKLOG[3] = TRUE.  
+                     END.    
+                  END.                       
+               END.
+      
+            END.   
+         END.
+         ELSE DO:
+            /*endast nya inköp*/
+            FIND LAST BERMTRL WHERE BERMTRL.AONR = soktemp.SOKCHAR[1] AND 
+            BERMTRL.OMRADE = soktemp.SOKCHAR[2] AND BERMTRL.INKOP = FALSE 
+            USE-INDEX DATUM NO-LOCK NO-ERROR.
+            IF AVAILABLE BERMTRL THEN DO:
+               soktemp.SOKDATE[1] = BERMTRL.DATUM.
+            END.
+            ELSE DO:
+               soktemp.SOKDATE[1] = TODAY.
+            END.
+            ASSIGN
+            soktemp.SOKLOG[4] = FALSE
+            soktemp.SOKLOG[3] = FALSE.   
+         END.                    
+      END.
+           
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 59 THEN DO: /*Funktion för knapparna 'Åtgärder' och 'Inköp' 'kopiera' i beredning*/
+      IF soktemp.SOKINT[1] = 1 THEN DO:    
+         FIND FIRST BERVAL WHERE BERVAL.AONR = soktemp.SOKCHAR[1] AND BERVAL.OMRADE = soktemp.SOKCHAR[2] USE-INDEX OMR NO-LOCK NO-ERROR.
+         IF AVAILABLE BERVAL THEN.
+         ELSE DO:
+            soktemp.SOKCHAR[3] = "Det finns inga konstruktioner valda i beredningen. Funktionen ej möjlig att utföra.".      
+            soktemp.SOKLOG[1] = TRUE.
+         END.           
+      END.      
+      ELSE IF soktemp.SOKINT[1] = 2 THEN DO:
+         /*listor start inköp*/
+         FIND FIRST BERVAL WHERE BERVAL.AONR = soktemp.SOKCHAR[1] AND 
+         BERVAL.OMRADE = soktemp.SOKCHAR[2] USE-INDEX OMR NO-LOCK NO-ERROR.
+         IF AVAILABLE BERVAL THEN DO:
+            soktemp.SOKLOG[1] = TRUE.
+         END.
+      END.
+      RETURN.
+   END.   
+   ELSE IF soktemp.SOKVAL = 60 THEN DO: /*Funktion för knapparna 'Åtgärder' och 'Inköp' i beredning*/
+      IF soktemp.SOKINT[1] NE 0 THEN DO:
+         FIND FIRST PERSEK WHERE PERSEK.ANVANDARE = soktemp.SOKCHAR[2] AND
+         PERSEK.PERSONALKOD = soktemp.SOKCHAR[1] 
+         USE-INDEX PERSEK NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE PERSEK THEN DO: 
+            ASSIGN
+            soktemp.SOKLOG[1] = TRUE
+            soktemp.SOKLOG[2] = TRUE.
+            FIND FIRST PERSONALTAB WHERE 
+            PERSONALTAB.PERSONALKOD = soktemp.SOKCHAR[1] NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE PERSONALTAB THEN DO:
+               soktemp.SOKCHAR[3] = "Personen finns inte i systemet!". 
+            END.
+            ELSE DO:
+               soktemp.SOKCHAR[3] = "Du har inte behörighet att göra ändringar på denna person!".
+            END.
+         END.   
+         ELSE DO:
+            IF PERSEK.PANDRA = FALSE THEN DO:
+               ASSIGN
+               soktemp.SOKLOG[1] = TRUE
+               soktemp.SOKLOG[2] = TRUE.
+               soktemp.SOKCHAR[3] = "Du har inte behörighet att göra ändringar på denna person!".
+            END.           
+         END.
+      END.      
+      RETURN.
+   END.   
+     
+   ELSE IF soktemp.SOKVAL = 62 THEN DO: /**/
+      DO TRANSACTION:   
+         FIND KALKSPEC WHERE RECID(KALKSPEC) =  soktemp.SOKINT[1] EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE KALKSPEC THEN DELETE KALKSPEC.
+      END.
+      RETURN.
+   END.   
+   ELSE IF soktemp.SOKVAL = 63 THEN DO: 
+      DO TRANSACTION:   
+         IF soktemp.SOKCHAR[1] NE "XXX" THEN DO:
+            FIND FIRST TIMKOSTNADSTAB WHERE TIMKOSTNADSTAB.PERSONALKOD = soktemp.SOKCHAR[5] AND 
+            TIMKOSTNADSTAB.PRISTYP = soktemp.SOKCHAR[1] USE-INDEX PRISPERS EXCLUSIVE-LOCK NO-ERROR.                             
+            IF AVAILABLE TIMKOSTNADSTAB THEN TIMKOSTNADSTAB.PRISA = soktemp.SOKINT[1]. 
+         END.
+         IF soktemp.SOKCHAR[2] NE "XXX" THEN DO:
+            FIND FIRST TIMKOSTNADSTAB WHERE TIMKOSTNADSTAB.PERSONALKOD = soktemp.SOKCHAR[5] AND 
+            TIMKOSTNADSTAB.PRISTYP = soktemp.SOKCHAR[2] USE-INDEX PRISPERS EXCLUSIVE-LOCK NO-ERROR.                       
+            IF AVAILABLE TIMKOSTNADSTAB THEN TIMKOSTNADSTAB.PRISA = soktemp.SOKINT[2].
+         END.
+         IF soktemp.SOKCHAR[3] NE "XXX" THEN DO:
+            FIND FIRST TIMKOSTNADSTAB WHERE TIMKOSTNADSTAB.PERSONALKOD = soktemp.SOKCHAR[5] AND 
+            TIMKOSTNADSTAB.PRISTYP = soktemp.SOKCHAR[3] USE-INDEX PRISPERS EXCLUSIVE-LOCK NO-ERROR.                       
+            IF AVAILABLE TIMKOSTNADSTAB THEN TIMKOSTNADSTAB.PRISA = soktemp.SOKINT[3].
+         END.
+         IF soktemp.SOKCHAR[4] NE "XXX" THEN DO:
+            FIND FIRST TIMKOSTNADSTAB WHERE TIMKOSTNADSTAB.PERSONALKOD = soktemp.SOKCHAR[5] AND 
+            TIMKOSTNADSTAB.PRISTYP = soktemp.SOKCHAR[4] USE-INDEX PRISPERS EXCLUSIVE-LOCK NO-ERROR.                       
+            IF AVAILABLE TIMKOSTNADSTAB THEN TIMKOSTNADSTAB.PRISA = soktemp.SOKINT[4].      
+         END.
+      END.
+      RETURN.
+   END.   
+   ELSE IF soktemp.SOKVAL = 64 THEN DO:
+      FIND FIRST PLANNRTAB USE-INDEX PLANNR NO-LOCK NO-ERROR.
+      IF AVAILABLE PLANNRTAB THEN DO:
+         soktemp.SOKINT[1] = PLANNRTAB.ARTAL.
+      END.
+      FIND LAST PLANNRTAB USE-INDEX PLANNR NO-LOCK NO-ERROR.
+      IF AVAILABLE PLANNRTAB THEN DO:
+         soktemp.SOKINT[2] = PLANNRTAB.ARTAL.
+      END.
+      ELSE DO:
+         ASSIGN
+         soktemp.SOKINT[1] = YEAR(TODAY)
+         soktemp.SOKINT[2] = YEAR(TODAY).
+      END.
+      IF soktemp.SOKINT[1] > soktemp.SOKINT[2] THEN soktemp.SOKINT[1] = soktemp.SOKINT[2] - 1.
+      IF soktemp.SOKINT[1] > YEAR(TODAY) THEN soktemp.SOKINT[1] = YEAR(TODAY).
+      IF soktemp.SOKINT[2] < YEAR(TODAY) THEN soktemp.SOKINT[2] = YEAR(TODAY) + 1.
+      RETURN.
+   END.   
+   ELSE IF soktemp.SOKVAL = 65 THEN DO:
+      OPEN QUERY fastpq FOR EACH PLANNRTAB WHERE PLANNRTAB.PLANNR = soktemp.SOKCHAR[1] USE-INDEX PLANNR NO-LOCK.
+      GET FIRST fastpq NO-LOCK.
+      DO WHILE AVAILABLE(PLANNRTAB):   
+         DO TRANSACTION:
+            GET CURRENT fastpq EXCLUSIVE-LOCK.
+            ASSIGN PLANNRTAB.FASTAPLANNR = soktemp.SOKLOG[1].
+         END.
+         GET NEXT fastpq NO-LOCK.
+      END.
+      CLOSE QUERY fastpq.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 66 THEN DO:
+      FIND FIRST FAKTURADM USE-INDEX ANDV NO-LOCK NO-ERROR.  
+      IF NOT AVAILABLE FAKTURADM THEN soktemp.SOKLOG[1] = FALSE.
+      ELSE DO:
+         ASSIGN 
+         soktemp.SOKCHAR[2] = FAKTURADM.ANVANDARE
+         soktemp.SOKLOG[1] = TRUE.
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 67 THEN DO:
+      DEBUGGER:SET-BREAK().
+      FIND LAST FAKTPLAN USE-INDEX FAKTNR NO-LOCK NO-ERROR.
+      IF AVAILABLE FAKTPLAN THEN soktemp.SOKINT[1] = FAKTPLAN.FAKTNR + 1.
+      ELSE soktemp.SOKINT[1] = 1. 
+      DO TRANSACTION:
+         CREATE FAKTPLAN.
+         ASSIGN FAKTPLAN.FAKTNR = soktemp.SOKINT[1]
+         FAKTPLAN.FAKTTYP = "Löpande räkning"      
+         FAKTPLAN.PANVANDARE = soktemp.SOKCHAR[1]
+         FAKTPLAN.ANVANDARE = soktemp.SOKCHAR[1].
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 68 THEN DO:
+      FIND LAST FAKTPLAN WHERE FAKTPLAN.FAKTNR = soktemp.SOKINT[1] USE-INDEX FAKTNR NO-LOCK NO-ERROR.
+      IF AVAILABLE FAKTPLAN THEN DO:                            
+         DO TRANSACTION:
+            FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = FAKTPLAN.FAKTNR AND
+            FAKTURERAD.FDELNR = FAKTPLAN.FDELNR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE FAKTURERAD THEN DO:
+               DELETE FAKTURERAD.
+            END.
+         END. 
+         OPEN QUERY fnamnq FOR EACH FAKTNAMN WHERE 
+         FAKTNAMN.FAKTURNR = FAKTPLAN.FAKTNR AND 
+         FAKTNAMN.FDELNR = FAKTPLAN.FDELNR 
+         NO-LOCK.
+         DO TRANSACTION:            
+            GET FIRST fnamnq EXCLUSIVE-LOCK.
+            DO WHILE AVAILABLE(FAKTNAMN):
+               DELETE FAKTNAMN. 
+               GET NEXT fnamnq EXCLUSIVE-LOCK.
+            END. 
+         END.   
+         OPEN QUERY fakkostq FOR EACH FAKTKOST WHERE 
+         FAKTKOST.FAKTNR = FAKTPLAN.FAKTNR AND FAKTKOST.FDELNR = FAKTPLAN.FDELNR
+         NO-LOCK.  
+         DO TRANSACTION:
+            GET FIRST fakkostq EXCLUSIVE-LOCK.   
+            DO WHILE AVAILABLE(FAKTKOST):  
+               DELETE FAKTKOST.               
+               GET NEXT fakkostq EXCLUSIVE-LOCK.
+            END.   
+         END.   
+         OPEN QUERY faktidq FOR EACH FAKTTID WHERE FAKTTID.FAKTNR = FAKTPLAN.FAKTNR AND  
+         FAKTTID.FDELNR = FAKTPLAN.FDELNR NO-LOCK.
+         DO TRANSACTION:
+            GET FIRST faktidq EXCLUSIVE-LOCK.   
+            DO WHILE AVAILABLE(FAKTTID):              
+               DELETE FAKTTID.     
+               GET NEXT faktidq EXCLUSIVE-LOCK.
+            END.
+         END.          
+         OPEN QUERY fakfriaq FOR EACH FAKTFRIA WHERE FAKTFRIA.FAKTNR = FAKTPLAN.FAKTNR AND  
+         FAKTFRIA.FDELNR = FAKTPLAN.FDELNR 
+         NO-LOCK.
+         DO TRANSACTION:
+            GET FIRST fakfriaq EXCLUSIVE-LOCK.   
+            DO WHILE AVAILABLE(FAKTFRIA):              
+               DELETE FAKTFRIA.     
+               GET NEXT fakfriaq EXCLUSIVE-LOCK.
+            END.   
+         END.
+         OPEN QUERY faktmtrlq FOR EACH FAKTMTRL WHERE FAKTMTRL.FAKTNR = FAKTPLAN.FAKTNR AND
+         FAKTMTRL.FDELNR = FAKTPLAN.FDELNR NO-LOCK.  
+         DO TRANSACTION:
+            GET FIRST faktmtrlq EXCLUSIVE-LOCK.   
+            DO WHILE AVAILABLE(FAKTMTRL):              
+               DELETE FAKTMTRL.     
+               GET NEXT faktmtrlq EXCLUSIVE-LOCK.
+            END.   
+         END.
+         OPEN QUERY faktkontq FOR EACH FAKTINTAKTKONT WHERE 
+         FAKTINTAKTKONT.FAKTNR = FAKTPLAN.FAKTNR AND  
+         FAKTINTAKTKONT.FDELNR = FAKTPLAN.FDELNR AND 
+         FAKTINTAKTKONT.VFAKTNR = 0 NO-LOCK.
+         DO TRANSACTION:
+            GET FIRST faktkontq EXCLUSIVE-LOCK.
+            DO WHILE AVAILABLE FAKTINTAKTKONT:
+               DELETE FAKTINTAKTKONT.
+               GET NEXT faktkontq EXCLUSIVE-LOCK.
+            END.
+         END.
+         OPEN QUERY faktkundq FOR EACH FAKTKUNDKONTO WHERE 
+         FAKTKUNDKONTO.FAKTNR = FAKTPLAN.FAKTNR AND  
+         FAKTKUNDKONTO.FDELNR = FAKTPLAN.FDELNR AND 
+         FAKTKUNDKONTO.VFAKTNR = 0 NO-LOCK.
+         DO TRANSACTION:
+            GET FIRST faktkundq EXCLUSIVE-LOCK.
+            DO WHILE AVAILABLE FAKTKUNDKONTO:
+               DELETE FAKTKUNDKONTO.
+               GET NEXT faktkundq EXCLUSIVE-LOCK.
+            END.
+         END.
+         OPEN QUERY faktmomsq FOR EACH FAKTMOMS WHERE 
+         FAKTMOMS.FAKTNR = FAKTPLAN.FAKTNR AND  
+         FAKTMOMS.FDELNR = FAKTPLAN.FDELNR AND 
+         FAKTMOMS.VFAKTNR = 0 NO-LOCK.
+         DO TRANSACTION:
+            GET FIRST faktmomsq EXCLUSIVE-LOCK.
+            DO WHILE AVAILABLE FAKTMOMS:
+               DELETE FAKTMOMS.
+               GET NEXT faktmomsq EXCLUSIVE-LOCK.
+            END.
+         END.
+         DO TRANSACTION:                        
+            FIND FAKTPLAN WHERE FAKTPLAN.FAKTNR = soktemp.SOKINT[1] EXCLUSIVE-LOCK NO-ERROR.   
+            FAKTPLAN.FDELNR = 0.            
+         END.   
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 69 THEN DO: /*Koppla från MARK*/
+      DO TRANSACTION:
+         FIND FIRST VARDERING WHERE VARDERING.AONR = soktemp.SOKCHAR[1] AND 
+         VARDERING.DELNR = soktemp.SOKINT[1] 
+         EXCLUSIVE-LOCK NO-ERROR.
+         ASSIGN 
+         VARDERING.AONR = ?
+         VARDERING.DELNR = ?.  
+         FIND FIRST AOVARD WHERE AOVARD.VARDNR = VARDERING.VARDNR EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE AOVARD  THEN DO:
+            ASSIGN AOVARD.VARDNR = ?.
+         END.
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 70 THEN DO: 
+      FIND FIRST FAKTKRED WHERE FAKTKRED.FAKTNR = soktemp.SOKINT[1] 
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE FAKTKRED THEN soktemp.SOKLOG[1] = TRUE.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 71 THEN DO: 
+      FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+      IF  namndb() = "UTBI" THEN RETURN.
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = soktemp.SOKCHAR[1] AND
+      AONRTAB.DELNR = soktemp.SOKINT[1]
+      NO-LOCK NO-ERROR.   
+      IF MONTH(TODAY) GE 9 THEN soktemp.SOKDATE[1] = DATE(12,31,YEAR(TODAY) + 1).
+      ELSE soktemp.SOKDATE[1] = DATE(12,31,YEAR(TODAY)).
+      IF MONTH(TODAY) = 01 AND DAY(TODAY) < 5 THEN soktemp.SOKDATE[2] = DATE(12,01,YEAR(TODAY) - 1).
+      ELSE IF DAY(TODAY) < 5 THEN soktemp.SOKDATE[2] = DATE(MONTH(TODAY) - 1,01,YEAR(TODAY)).
+      ELSE soktemp.SOKDATE[2] = DATE(MONTH(TODAY),01,YEAR(TODAY)).
+      
+      IF AONRTAB.OMRADE NE "" THEN DO:
+         {AMERICANEUROPEAN.I}
+         IF LENGTH(AONRTAB.AONR) = 4 THEN soktemp.SOKCHAR[1] = soktemp.SOKCHAR[1] + "0".
+         IF FORETAG.FORETAG = "SNAT" THEN DO:
+            /*SNATBERGET*/
+            OUTPUT TO D:\delad\pro10s\EXPORT\nyproj.txt APPEND.
+         END.    
+         ELSE OUTPUT TO D:\delad\SERVER\pro10s\EXPORT\nyproj.txt APPEND.            
+         ASSIGN soktemp.SOKCHAR[2] = "".
+         ASSIGN
+         SUBSTRING(soktemp.SOKCHAR[2],1,5) = soktemp.SOKCHAR[1].
+         SUBSTRING(soktemp.SOKCHAR[2],7,30) = SUBSTRING(AONRTAB.ORT,1,30).
+         SUBSTRING(soktemp.SOKCHAR[2],38,10) = STRING(soktemp.SOKDATE[2],"9999/99/99").
+         IF AONRTAB.FASTAAONR = TRUE THEN soktemp.SOKCHAR[1] = soktemp.SOKCHAR[1].
+         ELSE SUBSTRING(soktemp.SOKCHAR[2],49,10) = STRING(soktemp.SOKDATE[1],"9999/99/99").   
+         SUBSTRING(soktemp.SOKCHAR[2],60,3) = STRING(AONRTAB.DELNR,"999").                           
+         PUT UNFORMATTED soktemp.SOKCHAR[2].   
+         PUT SKIP.
+         OUTPUT CLOSE.
+         IF FORETAG.FORETAG = "SNAT" THEN DO:
+            /*SNATBERGET*/
+            OUTPUT TO D:\delad\pro10s\EXPORT\allanyproj.txt APPEND.
+         END.    
+         ELSE OUTPUT TO D:\delad\SERVER\pro10s\EXPORT\allanyproj.txt APPEND.
+         PUT UNFORMATTED soktemp.SOKCHAR[2].   
+         PUT SKIP.
+         OUTPUT CLOSE.     
+         {EUROPEANAMERICAN.I} 
+      END.      
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 72 THEN DO: 
+      /*används ej*/
+      ASSIGN
+      soktemp.SOKCHAR[1] = ""
+      soktemp.SOKCHAR[2] = "".
+      FIND FIRST XGURU WHERE XGURU.AV-LEVEL = soktemp.SOKINT[2] 
+      USE-INDEX AV-LEVEL NO-LOCK NO-ERROR.
+      IF AVAILABLE XGURU THEN DO:
+         soktemp.SOKCHAR[1] = "Det finns redan en nivå med detta nummer.".
+      END.   
+      FIND FIRST XGURU WHERE XGURU.AV-LEVEL = soktemp.SOKINT[1] 
+      USE-INDEX AV-LEVEL NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE XGURU THEN DO:
+         soktemp.SOKCHAR[2] = "Det finns ingen nivå med detta nummer.".      
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 73 THEN DO: 
+      FIND FIRST BESTTAB WHERE BESTTAB.BESTID = soktemp.SOKCHAR[1] USE-INDEX BEST NO-LOCK NO-ERROR.
+      IF AVAILABLE BESTTAB THEN soktemp.SOKINT[1] = 1.
+      ELSE soktemp.SOKINT[1] = 0.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 74 THEN DO: 
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = soktemp.SOKCHAR[1] NO-LOCK NO-ERROR.
+      IF AVAILABLE BESTTAB THEN soktemp.SOKINT[1] = 1.
+      ELSE soktemp.SOKINT[1] = 0.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 75 THEN DO: 
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = soktemp.SOKCHAR[1] 
+      USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN soktemp.SOKCHAR[2] = PERSONALTAB.FORNAMN + " " + PERSONALTAB.EFTERNAMN.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 76 THEN DO: 
+      FIND FIRST BESTTAB WHERE BESTTAB.BESTID = soktemp.SOKCHAR[1] 
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BESTTAB THEN DO:
+         soktemp.SOKINT[1] = 1.
+         RETURN.
+      END.
+      ASSIGN 
+      soktemp.SOKCHAR[2] = BESTTAB.BESTNAMN
+      soktemp.SOKCHAR[3] = BESTTAB.KONTAKT
+      soktemp.SOKCHAR[4] = BESTTAB.TEL.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 77 THEN DO: 
+      ASSIGN  
+      soktemp.SOKCHAR[1] = namndb().
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 78 THEN DO: 
+      DO TRANSACTION: 
+         FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = soktemp.SOKCHAR[1] EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE ANVANDARE THEN DO:
+            ASSIGN 
+            ANVANDARE.SIDS = soktemp.SOKINT[1]
+            ANVANDARE.SIDL = soktemp.SOKINT[2]. 
+         END.
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 79 THEN DO:
+      FIND LAST FAKTURERAD WHERE FAKTURERAD.FAKTNR = soktemp.SOKINT[1] USE-INDEX FAKTNR NO-LOCK NO-ERROR.
+      IF AVAILABLE FAKTURERAD THEN DO:                            
+         soktemp.SOKLOG[1] = FAKTURERAD.PRELGOD.  
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 80 THEN DO:
+      /*aonr bort mm*/
+      DO TRANSACTION:
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = soktemp.SOKCHAR[1] AND 
+         AONRTAB.DELNR = soktemp.SOKINT[1] EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE AONRTAB THEN DO: 
+            DELETE AONRTAB.            
+         END.           
+         FOR EACH AONRKONTKOD WHERE AONRKONTKOD.AONR = soktemp.SOKCHAR[1] AND 
+         AONRKONTKOD.DELNR = soktemp.SOKINT[1] EXCLUSIVE-LOCK:
+            DELETE AONRKONTKOD.
+         END.
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 81 THEN DO:
+      FIND FIRST KUNDREGLER WHERE KUNDREGLER.BESTID = soktemp.SOKCHAR[1]
+      USE-INDEX KUNDREGLER NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KUNDREGLER THEN soktemp.SOKLOG[1] = TRUE.
+      ELSE soktemp.SOKLOG[1] = FALSE.        
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 82 THEN DO:
+      DO TRANSACTION:
+         FIND FIRST FAKTURADM EXCLUSIVE-LOCK NO-ERROR.  
+         IF NOT AVAILABLE FAKTURADM THEN CREATE FAKTURADM.
+         FAKTURADM.ANVANDARE = soktemp.SOKCHAR[1].
+      END.                
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 83 THEN DO:
+      OPEN QUERY faktuq FOR EACH FAKTURERAD WHERE FAKTURERAD.FAKTNR = soktemp.SOKINT[1] 
+      USE-INDEX FAKTNR NO-LOCK.
+      GET FIRST faktuq NO-LOCK.
+      DO WHILE AVAILABLE(FAKTURERAD):                                  
+         ASSIGN  
+         soktemp.SOKDEC[1] = soktemp.SOKDEC[1] +  FAKTURERAD.BELOPP
+         soktemp.SOKDEC[2] = soktemp.SOKDEC[2] + FAKTURERAD.KOSTBELOPP
+         soktemp.SOKDEC[3] = soktemp.SOKDEC[3] + FAKTURERAD.LONKOST
+         soktemp.SOKDEC[4] = soktemp.SOKDEC[4] + FAKTURERAD.RESKOSTDEC
+         soktemp.SOKDEC[5] = soktemp.SOKDEC[5] + FAKTURERAD.OBELOPP
+         soktemp.SOKINT[2] = soktemp.SOKINT[2] + FAKTURERAD.TBELOPP         
+         soktemp.SOKINT[3] = soktemp.SOKINT[3] + FAKTURERAD.OVRKOST
+         soktemp.SOKINT[4] = soktemp.SOKINT[4] + FAKTURERAD.MTRLKOST. 
+         GET NEXT faktuq NO-LOCK.
+      END.                
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 84 THEN DO:
+      DO TRANSACTION:
+         FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = soktemp.SOKINT[1] EXCLUSIVE-LOCK NO-ERROR.
+         FAKTPLAN.SLUTFAKT = soktemp.SOKLOG[1].
+         FOR EACH FAKTKOLL WHERE FAKTKOLL.FAKTNR = FAKTPLAN.FAKTNR EXCLUSIVE-LOCK:
+            FAKTKOLL.SLUTFAKT = soktemp.SOKLOG[1].
+         END.
+      END.
+                      
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 85 THEN DO:
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = soktemp.SOKCHAR[1] NO-LOCK NO-ERROR.
+      IF AVAILABLE OMRADETAB THEN DO:
+         FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+         ASSIGN
+         soktemp.SOKINT[1] = AVDELNING.AVDELNINGNR
+         soktemp.SOKCHAR[1] = AVDELNING.AVDELNINGNAMN.
+      END.                     
+      RETURN.
+   END.
+END PROCEDURE.
+PROCEDURE sok3_UI:
+   IF soktemp.SOKVAL = 86 THEN DO:
+      /*Anders Olsson Elpool i Umeå AB  27 sep 2017 10:44:17 
+      FLEXTID ANSLUTER APPSERVERS 
+      */
+      
+      FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.
+      ASSIGN      
+      soktemp.SOKCHAR[1] = Guru.Konstanter:AppSpringSet[1]
+      soktemp.SOKCHAR[2] = Guru.Konstanter:AppSpringSet[13].      
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 87 THEN DO:
+      FIND FIRST MTRLSPEC WHERE MTRLSPEC.ENR = soktemp.SOKCHAR[1] AND MTRLSPEC.LEVKOD = soktemp.SOKCHAR[2]
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRLSPEC THEN soktemp.SOKCHAR[3] = MTRLSPEC.MED.
+      
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 88 THEN DO:
+      /*Anders Olsson Elpool i Umeå AB  27 sep 2017 10:45:55 
+      FÖR ATT UPPDATERA PROGRAM VIA BLOBB ANVÄNDS INTE 
+      */
+      FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.
+      IF SUBSTRING(FORETAG.VERSION,32) = "-AppService flexapp -H SERVER3 -S 2559" THEN soktemp.SOKLOG[1] = TRUE.
+      ELSE soktemp.SOKLOG[1] = FALSE.
+      
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 89 THEN DO:
+      IF soktemp.SOKCHAR[1] = "KALLE" THEN DO:
+         ASSIGN
+         soktemp.SOKCHAR[2] = "1-5"
+         soktemp.SOKLOG[1] = FALSE   /*  "AONR"                     */
+         soktemp.SOKLOG[2] = FALSE   /* "Materielhantering"         */
+         soktemp.SOKLOG[3] = TRUE    /* "Kalkylering"               */              
+         soktemp.SOKLOG[4] = FALSE   /*"Tidredovisning              */
+         soktemp.SOKLOG[5] = FALSE.   /* "Flextid"                           */
+         CREATE soktemp.
+         ASSIGN
+         soktemp.SOKCHAR[2] = "6-10"
+         soktemp.SOKLOG[1] = FALSE   /* "Uppföljning"                       */
+         soktemp.SOKLOG[2] = FALSE   /* "Personaladministration"            */
+         soktemp.SOKLOG[3] = FALSE   /* "Sekretess"                         */
+         soktemp.SOKLOG[4] = FALSE   /* "Register"                          */
+         soktemp.SOKLOG[5] = FALSE.  /* "Faktureringsrutin"                 */
+         CREATE soktemp.
+         ASSIGN
+         soktemp.SOKCHAR[2] = "11-15"
+         soktemp.SOKLOG[1] = FALSE  /* "Plan"                              */
+         soktemp.SOKLOG[2] = FALSE  /* "Markvärdering"                     */
+         soktemp.SOKLOG[3] = FALSE  /* "Projekteringskalender"             */
+         soktemp.SOKLOG[4] = FALSE  /* "Avbrott/Störning"                  */
+         soktemp.SOKLOG[5] = FALSE.  /* "SMS-administration"                */
+      END.
+      ELSE DO:
+         ASSIGN
+         soktemp.SOKCHAR[2] = "1-5"
+         soktemp.SOKLOG[1] = FALSE   /*  "AONR"                     */
+         soktemp.SOKLOG[2] = FALSE   /* "Materielhantering"         */
+         soktemp.SOKLOG[3] = TRUE    /* "Kalkylering"               */              
+         soktemp.SOKLOG[4] = FALSE   /*"Tidredovisning              */
+         soktemp.SOKLOG[5] = FALSE.   /* "Flextid"                           */
+         CREATE soktemp.
+         ASSIGN
+         soktemp.SOKCHAR[2] = "6-10"
+         soktemp.SOKLOG[1] = FALSE   /* "Uppföljning"                       */
+         soktemp.SOKLOG[2] = FALSE   /* "Personaladministration"            */
+         soktemp.SOKLOG[3] = FALSE   /* "Sekretess"                         */
+         soktemp.SOKLOG[4] = FALSE   /* "Register"                          */
+         soktemp.SOKLOG[5] = FALSE.  /* "Faktureringsrutin"                 */
+         CREATE soktemp.
+         ASSIGN
+         soktemp.SOKCHAR[2] = "11-15"
+         soktemp.SOKLOG[1] = FALSE  /* "Plan"                              */
+         soktemp.SOKLOG[2] = FALSE  /* "Markvärdering"                     */
+         soktemp.SOKLOG[3] = FALSE  /* "Projekteringskalender"             */
+         soktemp.SOKLOG[4] = FALSE  /* "Avbrott/Störning"                  */
+         soktemp.SOKLOG[5] = FALSE.  /* "SMS-administration"                */
+      END.
+      
+      RETURN.
+   END.
+
+   ELSE IF soktemp.SOKVAL = 90 THEN DO:
+      FIND FIRST FASTSPEC WHERE FASTSPEC.KALKNR = soktemp.SOKINT[1] NO-LOCK NO-ERROR.
+      
+         FIND LAST EBRPRIS USE-INDEX AR NO-LOCK NO-ERROR.
+         IF FASTSPEC.KATAR NE EBRPRIS.ARTAL THEN DO:
+            IF FASTSPEC.KATAR = 1998 THEN DO:
+               soktemp.SOKCHAR[1] = "Kalkylen går ej att kopiera då den är gjord enligt " + STRING(FASTSPEC.KATAR) + " års kostnadskatalog. Formatet har ändrats.".
+               RETURN.
+            END.
+            ELSE DO:
+               IF FORETAG.FORETAG = "GRAN" THEN DO:
+                  IF EBRPRIS.ARTAL = 2001 AND FASTSPEC.KATAR = 1999 THEN DO:
+                     RETURN.
+                  END.
+                  ELSE DO:
+                     IF EBRPRIS.ARTAL - FASTSPEC.KATAR > 3 THEN DO:
+                        soktemp.SOKCHAR[1] = "Kalkylen går ej att kopiera då den är bygger på en för gammal kostnadskatalog.".                  
+                        RETURN.
+                     END.
+                  END.
+               END.
+               ELSE DO:
+                  IF EBRPRIS.ARTAL - FASTSPEC.KATAR > 3 THEN DO:
+                     soktemp.SOKCHAR[1] = "Kalkylen går ej att kopiera då den är bygger på en för gammal kostnadskatalog.".
+                     RETURN.
+                  END.
+               END.
+            END.
+         END.
+      
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 91 THEN DO:
+      ASSIGN
+      soktemp.SOKINT[1] = 0
+      soktemp.SOKINT[2] = 0.
+      FOR EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND YEAR(TIDREGITAB.DATUM) = YEAR(soktemp.SOKDATE[1])
+      AND MONTH(TIDREGITAB.DATUM) = MONTH(soktemp.SOKDATE[1]) AND TIDREGITAB.LONTILLAGG = "0116" NO-LOCK:
+         soktemp.SOKINT[1] = soktemp.SOKINT[1] + TIDREGITAB.LONTILLANTAL.
+      END.      
+      FIND FIRST PERSONALTAB WHERE 
+      PERSONALTAB.PERSONALKOD = soktemp.SOKCHAR[1] NO-LOCK NO-ERROR.
+      FIND FIRST ANSTFORMTAB WHERE ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+      USE-INDEX ANSTF NO-LOCK NO-ERROR.      
+      FIND FIRST LONTILL WHERE LONTILL.KOD = ANSTFORMTAB.KOD AND
+      LONTILL.VILART = soktemp.SOKCHAR[2] NO-LOCK NO-ERROR.
+      IF AVAILABLE LONTILL THEN DO:
+         ASSIGN 
+         soktemp.SOKCHAR[3] = LONTILL.ENHET.
+      END.
+   END.
+   ELSE IF soktemp.SOKVAL = 92 THEN DO:
+      FIND FIRST ANVANDARE WHERE ANVANDARE.PERSONALKOD = soktemp.SOKCHAR[1] NO-LOCK NO-ERROR.
+      IF AVAILABLE ANVANDARE THEN soktemp.SOKCHAR[2] = ANVANDARE.ANVANDARE.
+      ELSE DO:
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = soktemp.SOKCHAR[1] NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN soktemp.SOKCHAR[2] = PERSONALTAB.PERSONALKOD.
+      END.
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = soktemp.SOKCHAR[1] NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN soktemp.SOKCHAR[3] = SUBSTRING(PERSONALTAB.PERSONSOK,20).
+
+   END.
+   ELSE IF soktemp.SOKVAL = 93 THEN DO:
+      ASSIGN
+      soktemp.SOKINT[1] = 0
+      soktemp.SOKCHAR[4] = "" .                
+      FOR EACH TIDREGITAB WHERE TIDREGITAB.LONTILLAGG = "0117" AND YEAR(TIDREGITAB.DATUM) = YEAR(soktemp.SOKDATE[1])
+      AND MONTH(TIDREGITAB.DATUM) = MONTH(soktemp.SOKDATE[1])  NO-LOCK:      
+         ASSIGN
+         soktemp.SOKINT[1] = soktemp.SOKINT[1] + TIDREGITAB.LONTILLANTAL
+         soktemp.SOKCHAR[4] = soktemp.SOKCHAR[4] + " " + TIDREGITAB.PERSONALKOD.
+      END.
+      FIND FIRST PERSONALTAB WHERE 
+      PERSONALTAB.PERSONALKOD = soktemp.SOKCHAR[1] NO-LOCK NO-ERROR.
+      FIND FIRST ANSTFORMTAB WHERE ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+      USE-INDEX ANSTF NO-LOCK NO-ERROR.      
+      FIND FIRST LONTILL WHERE LONTILL.KOD = ANSTFORMTAB.KOD AND
+      LONTILL.VILART = soktemp.SOKCHAR[2] NO-LOCK NO-ERROR.
+      IF AVAILABLE LONTILL THEN DO:
+         ASSIGN 
+         soktemp.SOKCHAR[3] = LONTILL.ENHET.
+      END.
+   END.
+   ELSE IF soktemp.SOKVAL = 94 THEN DO:      
+      ASSIGN
+      soktemp.SOKDEC[1] = 0.     
+      FOR EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND TIDREGITAB.DATUM = soktemp.SOKDATE[1]
+      AND TIDREGITAB.LONTILLAGG = "4372" NO-LOCK:
+         soktemp.SOKDEC[1] = klock100(soktemp.SOKDEC[1]) + klock100(TIDREGITAB.LONTILLANTAL).
+      END.
+   END.
+   ELSE IF soktemp.SOKVAL = 95 THEN DO:      
+      ASSIGN
+      soktemp.SOKLOG[1] = FALSE.
+      FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND TIDREGITAB.DATUM = (soktemp.SOKDATE[1] - 1 )
+      AND TIDREGITAB.BEREDSKAP NE "" NO-LOCK NO-ERROR.
+      IF AVAILABLE TIDREGITAB THEN DO:
+         soktemp.SOKLOG[1] = TRUE.
+      END.      
+
+   END.
+   ELSE IF soktemp.SOKVAL = 96 THEN DO:
+      ASSIGN
+      soktemp.SOKINT[1] = 0
+      soktemp.SOKINT[2] = 0.
+      FOR EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND TIDREGITAB.DATUM = soktemp.SOKDATE[1]
+      AND TIDREGITAB.LONTILLAGG = "5896" NO-LOCK:
+         soktemp.SOKINT[1] = soktemp.SOKINT[1] + TIDREGITAB.LONTILLANTAL.
+      END.           
+   END.
+   ELSE IF soktemp.SOKVAL = 97 THEN DO:
+      FIND LAST FAKTKRED WHERE FAKTKRED.FAKTNR = soktemp.SOKINT[1] USE-INDEX FAKTNR NO-LOCK NO-ERROR.
+      IF AVAILABLE FAKTKRED THEN DO:                            
+         soktemp.SOKLOG[1] = FAKTKRED.PRELGOD.  
+      END.
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 98 THEN DO:
+      DO TRANSACTION:
+         FIND LAST FAKTURERAD WHERE FAKTURERAD.FAKTNR = soktemp.SOKINT[1] USE-INDEX FAKTNR EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE FAKTURERAD THEN DO:                            
+            FAKTURERAD.PRELGOD = FALSE.
+         END.
+      END.     
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 99 THEN DO:
+      DO TRANSACTION:
+         FIND LAST FAKTKRED WHERE FAKTKRED.FAKTNR = soktemp.SOKINT[1] USE-INDEX FAKTNR EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE FAKTKRED THEN DO:                            
+            FAKTKRED.PRELGOD = FALSE.
+         END.
+      END.      
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 100 THEN DO:          
+      FIND FIRST BERMTRL WHERE BERMTRL.AONR = soktemp.SOKCHAR[1] AND BERMTRL.OMRADE = soktemp.SOKCHAR[2] AND 
+      BERMTRL.INKOP = TRUE NO-LOCK NO-ERROR.
+      IF AVAILABLE BERMTRL THEN DO:
+         soktemp.SOKLOG[1] = TRUE.
+      END.
+      RETURN.
+   END.   
+   ELSE IF soktemp.SOKVAL = 101 THEN DO: /*Funktion för knapparna 'Åtgärder' och 'Inköp' i beredning*/
+      FIND FIRST PERSONALTAB WHERE
+      PERSONALTAB.PERSONNUMMER = soktemp.SOKCHAR[1] NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN DO:
+         IF soktemp.SOKINT[1] NE 0 THEN DO:
+            FIND FIRST PERSEK WHERE PERSEK.ANVANDARE = soktemp.SOKCHAR[2] AND
+            PERSEK.PERSONALKOD = PERSONALTAB.PERSONALKOD 
+            USE-INDEX PERSEK NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE PERSEK THEN DO: 
+               ASSIGN
+               soktemp.SOKLOG[1] = TRUE
+               soktemp.SOKLOG[2] = TRUE.
+               soktemp.SOKCHAR[3] = "Du har inte behörighet att göra ändringar på denna person!".          
+            END.   
+            ELSE DO:
+               IF PERSEK.PANDRA = FALSE THEN DO:
+                  ASSIGN
+                  soktemp.SOKLOG[1] = TRUE
+                  soktemp.SOKLOG[2] = TRUE.
+                  soktemp.SOKCHAR[3] = "Du har inte behörighet att göra ändringar på denna person!".
+               END.           
+            END.
+         END.
+      END.
+      IF NOT AVAILABLE PERSONALTAB THEN DO:
+         soktemp.SOKCHAR[3] = "Personen finns inte i systemet!". 
+      END.         
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 102 THEN DO:
+      
+      FOR EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1]  AND
+      TIDREGITAB.DATUM = soktemp.SOKDATE[1] AND TIDREGITAB.LONTILLAGG NE "" AND TIDREGITAB.LONAUTO = TRUE USE-INDEX PSTART NO-LOCK:
+         IF TIDREGITAB.LONTILLAGG = "4105" THEN DO: 
+            FIND FIRST tidbuff WHERE tidbuff.PERSONALKOD = soktemp.SOKCHAR[1]  AND
+            tidbuff.DATUM = soktemp.SOKDATE[1] AND tidbuff.LONTILLAGG = "320" AND tidbuff.LONAUTO = FALSE NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE tidbuff THEN DO:            
+               CREATE soktempbuff.
+               ASSIGN
+               soktempbuff.SOKCHAR[2] = "OB"
+               soktempbuff.SOKCHAR[3] = "320"
+               soktempbuff.SOKDECI[1] = TIDREGITAB.LONTILLANTAL.
+            END.                  
+         END.
+         IF TIDREGITAB.LONTILLAGG = "4106" THEN DO: 
+            FIND FIRST tidbuff WHERE tidbuff.PERSONALKOD = soktemp.SOKCHAR[1]  AND
+            tidbuff.DATUM = soktemp.SOKDATE[1] AND tidbuff.LONTILLAGG = "321" AND tidbuff.LONAUTO = FALSE NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE tidbuff THEN DO:            
+               CREATE soktempbuff.
+               ASSIGN
+               soktempbuff.SOKCHAR[2] = "OB"
+               soktempbuff.SOKCHAR[3] = "321"
+               soktempbuff.SOKDECI[1] = TIDREGITAB.LONTILLANTAL.
+            END.                  
+         END.
+         IF TIDREGITAB.LONTILLAGG = "4107" THEN DO: 
+            FIND FIRST tidbuff WHERE tidbuff.PERSONALKOD = soktemp.SOKCHAR[1]  AND
+            tidbuff.DATUM = soktemp.SOKDATE[1] AND tidbuff.LONTILLAGG = "322" AND tidbuff.LONAUTO = FALSE NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE tidbuff THEN DO:            
+               CREATE soktempbuff.
+               ASSIGN
+               soktempbuff.SOKCHAR[2] = "OB"
+               soktempbuff.SOKCHAR[3] = "322"
+               soktempbuff.SOKDECI[1] = TIDREGITAB.LONTILLANTAL.
+            END.                  
+         END.    
+      END.   
+      RETURN.
+   END.
+   ELSE IF soktemp.SOKVAL = 103 THEN DO:
+     
+      ASSIGN
+      soktemp.SOKINT[1] = 0.                     
+      FOR EACH TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = soktemp.SOKCHAR[1] AND TIDREGITAB.LONTILLAGG = "303" AND YEAR(TIDREGITAB.DATUM) = YEAR(soktemp.SOKDATE[1])
+      AND MONTH(TIDREGITAB.DATUM) = MONTH(soktemp.SOKDATE[1])  NO-LOCK:      
+         ASSIGN
+         soktemp.SOKINT[1] = soktemp.SOKINT[1] + TIDREGITAB.LONTILLANTAL.      
+      END.
+      
+   END.     
+END PROCEDURE.

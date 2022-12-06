@@ -1,0 +1,142 @@
+/*enrkonst4.p ta bort  ARTIKEL X */
+{STARTFORAPP.I}
+{SMTRL.I}
+DEFINE TEMP-TABLE grupp_temp NO-UNDO
+   FIELD KONSKOD AS INTEGER
+   FIELD BENAMNING AS CHARACTER.
+DEFINE INPUT PARAMETER valgrupp LIKE KONSTGRUPP.KONSKOD NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+DEFINE INPUT PARAMETER TABLE FOR grupp_temp.
+DEFINE INPUT PARAMETER valla AS LOGICAL NO-UNDO.
+
+DEFINE VARIABLE kabelskapup AS LOGICAL NO-UNDO.
+DEFINE QUERY mtrlq FOR MTRLBER.
+DEFINE QUERY kq FOR KONSTRUKTION.
+   
+FIND FIRST spec_mtrl NO-LOCK NO-ERROR.
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+/*valgrupp = ? ska aldrig inträffa*/
+IF valgrupp = ? THEN DO:
+
+   IF Guru.Konstanter:globforetag = "ELPA" /*{GLOBVES.I}*/ THEN DO:
+      IF spec_mtrl.LEVKOD = "1" OR spec_mtrl.LEVKOD = "11" THEN DO:
+         OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.ENR = spec_mtrl.ENR AND
+         (MTRLBER.LEVKOD = "1" OR MTRLBER.LEVKOD = "11") NO-LOCK.            
+      END.
+      ELSE DO:
+         OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.ENR = spec_mtrl.ENR AND
+         MTRLBER.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.            
+      END.
+   END.
+   ELSE DO:
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.ENR = spec_mtrl.ENR AND
+      MTRLBER.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.            
+   END.      
+   DO TRANSACTION:
+      GET FIRST mtrlq EXCLUSIVE-LOCK.
+      IF AVAILABLE MTRLBER THEN DELETE MTRLBER.
+   END.               
+   REPEAT:   
+      DO TRANSACTION:
+         GET NEXT mtrlq EXCLUSIVE-LOCK. 
+         IF AVAILABLE MTRLBER THEN DELETE MTRLBER.
+         ELSE LEAVE.         
+      END.                  
+   END.      
+   CLOSE QUERY mtrlq.   
+END.
+ELSE DO:    
+   FOR EACH grupp_temp:
+      IF valgrupp = 0 THEN kabelskapup = TRUE.
+      valgrupp = grupp_temp.KONSKOD.
+      OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = valgrupp NO-LOCK.
+      GET FIRST kq NO-LOCK.
+      DO WHILE AVAILABLE(KONSTRUKTION):
+         IF Guru.Konstanter:globforetag = "ELPA" /*{GLOBVES.I}*/ THEN DO:
+            IF spec_mtrl.LEVKOD = "1" OR spec_mtrl.LEVKOD = "11" THEN DO:
+               OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+               MTRLBER.ENR = spec_mtrl.ENR AND
+               (MTRLBER.LEVKOD = "1" OR MTRLBER.LEVKOD = "11") NO-LOCK.         
+            END.
+            ELSE DO:
+               OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+               MTRLBER.ENR = spec_mtrl.ENR AND
+               MTRLBER.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+            END.
+         END.
+         ELSE DO:
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+            MTRLBER.ENR = spec_mtrl.ENR AND
+            MTRLBER.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+         END.         
+         DO TRANSACTION:
+            GET FIRST mtrlq EXCLUSIVE-LOCK.
+            IF AVAILABLE MTRLBER THEN DELETE MTRLBER.
+         END.               
+         REPEAT:   
+            DO TRANSACTION:
+               GET NEXT mtrlq EXCLUSIVE-LOCK. 
+               IF AVAILABLE MTRLBER THEN DELETE MTRLBER.
+               ELSE LEAVE.         
+            END.                  
+         END.      
+         CLOSE QUERY mtrlq.   
+         GET NEXT kq NO-LOCK.
+      END.
+      CLOSE QUERY kq.
+   END.
+   /*skåpupp*/
+   IF kabelskapup = TRUE THEN DO:
+      IF Guru.Konstanter:globforetag = "ELPA" /*{GLOBVES.I}*/ THEN DO:
+         IF spec_mtrl.LEVKOD = "1" OR spec_mtrl.LEVKOD = "11" THEN DO:
+            OPEN QUERY mskapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND
+            (BERSKAP.LEVKOD = "1" OR BERSKAP.LEVKOD = "11") NO-LOCK.         
+         END.
+         ELSE DO:
+            OPEN QUERY mskapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND
+            BERSKAP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+         END.
+      END.
+      ELSE DO:
+         OPEN QUERY mskapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND
+         BERSKAP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+      END.         
+      GET FIRST mskapq NO-LOCK.
+      DO WHILE AVAILABLE(BERSKAP):
+         DO TRANSACTION:
+            GET CURRENT mskapq EXCLUSIVE-LOCK.
+            DELETE BERSKAP.
+         END.
+         GET NEXT mskapq NO-LOCK.
+      END.
+      CLOSE QUERY mskapq.
+    
+   END.
+   IF valla = TRUE THEN DO:
+      IF Guru.Konstanter:globforetag = "ELPA" /*{GLOBVES.I}*/ THEN DO:
+         IF spec_mtrl.LEVKOD = "1" OR spec_mtrl.LEVKOD = "11" THEN DO:
+            OPEN QUERY mstolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND
+            (BERSTOLP.LEVKOD = "1" OR BERSTOLP.LEVKOD = "11") NO-LOCK.         
+         END.
+         ELSE DO:
+            OPEN QUERY mstolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND
+            BERSTOLP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+         END.
+      END.
+      ELSE DO:
+         OPEN QUERY mstolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND
+         BERSTOLP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+      END.         
+      GET FIRST mstolpq NO-LOCK.
+      DO WHILE AVAILABLE(BERSTOLP):
+         DO TRANSACTION:
+            GET CURRENT mstolpq EXCLUSIVE-LOCK.
+            DELETE BERSTOLP.
+         END.
+         GET NEXT mstolpq NO-LOCK.
+      END.
+      CLOSE QUERY mstolpq.
+    
+   END.
+END.      

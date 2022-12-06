@@ -1,0 +1,5 @@
+DEFINE VARIABLE i AS INTEGER.
+
+DO i = 1 TO MESSAGE-LINES:
+   MESSAGE "This is message line" i.
+END.

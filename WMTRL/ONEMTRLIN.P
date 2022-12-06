@@ -1,0 +1,327 @@
+/*ONEMTRLIN.P INLÄSNING AV PRISFIL tex Onninen för One Nordic*/       
+DEFINE INPUT PARAMETER prognamnque AS CHARACTER NO-UNDO.
+DEFINE NEW SHARED VARIABLE quotervar AS CHARACTER FORMAT "X(256)" NO-UNDO.
+
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE kommandoprog AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE tider AS CHARACTER NO-UNDO.
+DEFINE VARIABLE prognamnvar AS CHARACTER FORMAT "X(50)" NO-UNDO.
+DEFINE VARIABLE progkopiainnan AS CHARACTER FORMAT "X(50)" NO-UNDO.               
+DEFINE VARIABLE progkopia AS CHARACTER FORMAT "X(50)" NO-UNDO.
+DEFINE VARIABLE progkopiaej AS CHARACTER FORMAT "X(50)" NO-UNDO.
+DEFINE VARIABLE levavt AS CHARACTER NO-UNDO.
+DEFINE VARIABLE levnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE levfk AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE rens AS LOGICAL NO-UNDO.
+DEFINE VARIABLE fnamn AS CHARACTER NO-UNDO.       
+
+DEFINE BUFFER mtrlbuff FOR MTRL.
+
+DEFINE TEMP-TABLE tidineln
+   FIELD EJ1                AS CHARACTER
+   FIELD LEV                AS CHARACTER
+   FIELD AVNR                 AS CHARACTER   
+   FIELD ARTNO               AS CHARACTER   
+   FIELD ENR                AS CHARACTER
+   FIELD EJ6                AS CHARACTER
+   FIELD BENAMNING          AS CHARACTER
+   FIELD EJ8                AS CHARACTER       
+   FIELD BPRIS               AS DECIMAL
+   FIELD RABATT              AS DECIMAL
+   FIELD NPRIS               AS DECIMAL
+   FIELD ERABATT             AS DECIMAL
+   FIELD EJ13                AS CHARACTER
+   FIELD EJ14                AS CHARACTER
+   FIELD EJ15                AS CHARACTER
+   FIELD EJ16                AS CHARACTER
+   FIELD EJ17                AS CHARACTER
+   FIELD EJ18                AS CHARACTER
+   FIELD MARK                AS CHARACTER
+   FIELD EJ20                AS CHARACTER
+   FIELD ENHET              AS CHARACTER 
+   
+   INDEX ENR IS PRIMARY ENR.
+   
+DEFINE TEMP-TABLE infil
+   FIELD PROGNAMN AS CHARACTER FORMAT "X(78)"   
+   INDEX PRO IS PRIMARY PROGNAMN.
+
+   
+DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE levant LIKE LEVERANTOR.LEVKOD NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{EXTRADATA.I}
+RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+{AMERICANEUROPEAN.I}
+SESSION:NUMERIC-FORMAT = "european".
+{muswait.i}
+
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.   
+
+EMPTY TEMP-TABLE infil NO-ERROR.
+EMPTY TEMP-TABLE tidineln NO-ERROR.   
+/* levant = "".
+filnamn = "\\server05\d\elpool\elplo\Elektrosandberg\mtrlekonomi\one.txt".*/
+   
+IF Guru.Konstanter:globforetag = "GRAN" THEN DO:            
+   kommandoprog = "D:\elpool\delad\pro9s\import\MTRLIN.TXT".
+   kommando = "DIR/a:-d /b D:\elpool\delad\pro9s\import\mtrl\*.* > D:\elpool\delad\pro9s\import\MTRLIN.TXT".      
+END.
+ 
+OS-DELETE VALUE(kommandoprog) NO-ERROR.
+OS-COMMAND SILENT VALUE(kommando).
+INPUT FROM VALUE(kommandoprog) NO-ECHO.
+REPEAT:
+   DO TRANSACTION:       
+      CREATE infil.
+      ASSIGN.
+      IMPORT DELIMITER ".txt" infil   NO-ERROR.      
+   END.
+END.
+INPUT CLOSE.
+/*FOR EACH infil:   
+   IF INDEX(infil.PROGNAMN,"GURU.") = 0 THEN DO:       
+      DELETE infil.
+      NEXT.
+   END.
+END.*/
+FOR EACH infil:   
+   IF infil.PROGNAMN = "" OR infil.PROGNAMN = ".txt"  THEN DO:       
+      DELETE infil.      
+   END.
+END.
+FIND FIRST infil NO-ERROR.
+IF NOT AVAILABLE infil THEN DO:
+   OUTPUT TO VALUE(prognamnque)  APPEND.
+   PUT "DET FANNS INGEN MTRL-FIL  " Guru.Konstanter:globforetag " " TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+   OUTPUT CLOSE.
+END.
+FOR EACH infil:
+   
+   OUTPUT TO VALUE(prognamnque)  APPEND.
+   PUT UNFORMATTED "DET FANNS MTRL-FIL  " Guru.Konstanter:globforetag " " TODAY " " STRING(TIME,"HH:MM:SS") + " " + infil.PROGNAMN SKIP.
+   OUTPUT CLOSE.
+   
+   levfk = "".
+   levavt = "".
+   levnamn = "".
+   /*leverantörs företagskod*/
+   DEBUGGER:SET-BREAK().
+   IF INDEX(infil.PROGNAMN,"SE5563719474") NE 0  THEN DO : /*Onninen*/
+      levant = "1".
+      levfk = "SE5563719474". 
+      levnamn = "Onninen".
+   END.   
+   ELSE IF INDEX(infil.PROGNAMN,"SE5565112991") NE 0 THEN DO : /*Onninen*/
+      levant = "1".
+      levfk = "SE5565112991". 
+      levnamn = "Onninen".
+   END.    
+   ELSE IF INDEX(infil.PROGNAMN,"7300009003013") NE 0 THEN DO: /*Ahlsell*/
+       levant = "2".
+       levfk = "7300009003013". 
+       levnamn = "Ahlsell".
+   END.       
+   ELSE IF INDEX(infil.PROGNAMN,"ELEKTROSKANDIA") NE 0 THEN DO: /*Elektroskandia*/
+       levant = "8".
+       levfk = "ELEKTROSKANDIA".
+       levnamn = "Elektroskandia".
+   END.
+   ELSE IF INDEX(infil.PROGNAMN,"7381010030007") NE 0 THEN DO: /*Selga*/
+       levant = "5".
+       levfk = "7381010030007".
+       levnamn = "Selga".
+   END.    
+   /*IF INDEX(infil.PROGNAMN,"7391272119815") NE 0 THEN levfk = "7391272119815". /*B&B Tools Sverige AB*/
+   IF INDEX(infil.PROGNAMN,"7381030000172") NE 0 THEN levfk = "7381030000172". /*Dahl*/*/   
+   
+   /*avtalsnummer*/     
+   IF INDEX(infil.PROGNAMN,"E ON ES_Ahlsell_1") NE 0 THEN levavt = "E ON ES_Ahlsell_1". /*Ahlsell*/
+   ELSE IF INDEX(infil.PROGNAMN,"7391272119815") NE 0 THEN levavt = "7391272119815". /*B&B Tools Sverige AB*/
+   /*IF INDEX(infil.PROGNAMN,"ONE_Dahl 1") NE 0 THEN levavt = "ONE_Dahl 1". /*Dahl*/*/
+   ELSE IF INDEX(infil.PROGNAMN,"E ON ES_ELEKTROSKANDIA_1") NE 0 THEN levavt = "E ON ES_ELEKTROSKANDIA_1". /*Elektroskandia*/
+   ELSE IF INDEX(infil.PROGNAMN,"E ON ES_Onninen_1") NE 0 THEN levavt = "E ON ES_Onninen_1". /*Onninen*/
+   ELSE IF INDEX(infil.PROGNAMN,"E ON ES_SELGA_1") NE 0 THEN levavt = "E ON ES_SELGA_1". /*Selga*/ 
+   DEBUGGER:SET-BREAK().
+   IF levfk NE ""  THEN DO:                 
+      tider = REPLACE(STRING(TIME,"HH:MM"),":","").
+      progkopia = "D:\elpool\delad\pro9s\importkopia\mtrl\" + infil.PROGNAMN + STRING(TODAY,"99999999") + tider + ".txt".
+      progkopiaej = "D:\elpool\delad\pro9s\importkopiaej\" + infil.PROGNAMN + STRING(TODAY,"99999999") + tider + ".txt".          
+      prognamnvar = "D:\elpool\delad\pro9s\import\mtrl\" + infil.PROGNAMN + ".txt".
+      fnamn = "mtrl" + levant +  STRING(TODAY,"99999999") + tider + ".d".                          
+      progkopiainnan = "D:\elpool\delad\pro9s\importkopia\mtrl\" + fnamn.
+      RUN sakkopia_ui.
+              
+      RUN in_UI.            
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "INLKAT"                   
+      inextradatatemp.HUVUDCH = levant.                                              
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE extradatatemp THEN DO:
+         CREATE extradatatemp.
+         ASSIGN
+         extradatatemp.PROGRAM = "INLKAT"                   
+         extradatatemp.HUVUDCH = levant
+         extradatatemp.SOKLOG[1] = FALSE.
+      END.
+      ASSIGN
+      extradatatemp.SOKDATE[1] = TODAY 
+      extradatatemp.SOKCHAR[1] = STRING(TIME,"hh:mm") 
+      extradatatemp.SOKCHAR[2] =  "Natt"
+      extradatatemp.SOKLOG[1] =  TRUE.
+      RUN extraspar_UI IN edataapph (INPUT TABLE extradatatemp). 
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      EMPTY TEMP-TABLE extradatatemp NO-ERROR.      
+      OS-RENAME VALUE(prognamnvar) VALUE(progkopia).
+      RUN medd_UI (INPUT levnamn).
+   END.
+   ELSE DO:
+      progkopiaej = "D:\elpool\delad\pro9s\importkopiaej\" + infil.PROGNAMN + STRING(TODAY,"99999999") + tider + ".txt".          
+      prognamnvar = "D:\elpool\delad\pro9s\import\mtrl\" + infil.PROGNAMN + ".txt".
+      OS-RENAME VALUE(prognamnvar) VALUE(progkopiaej).
+   END.      
+END.
+SESSION:NUMERIC-FORMAT = "AMERICAN".
+{EUROPEANAMERICAN.I}   
+   
+PROCEDURE in_UI:             
+   EMPTY TEMP-TABLE tidineln  NO-ERROR.  
+   DEFINE VARIABLE inlong AS LONGCHAR NO-UNDO.
+   COPY-LOB FROM FILE prognamnvar  TO inlong.
+   inlong= REPLACE(inlong, '"','').
+   COPY-LOB inlong TO FILE prognamnvar  .   
+   INPUT FROM VALUE(prognamnvar) CONVERT TARGET "iso8859-1" SOURCE "iso8859-1" NO-ECHO.
+   REPEAT:
+      DO TRANSACTION: 
+         CREATE tidineln.
+         ASSIGN.
+         IMPORT DELIMITER "~t" tidineln NO-ERROR.  /* "~t" */
+      END.               
+   END.
+      
+   FOR EACH tidineln WHERE tidineln.ENR = "":
+      DELETE tidineln.
+   END.
+   FOR EACH tidineln WHERE tidineln.NPRIS = 0:
+      tidineln.NPRIS = tidineln.BPRIS - (tidineln.BPRIS * tidineln.RABATT).            
+   END.
+   /*enligt Mats Johansson rabatt skall alltid avräknas nettopris*/
+   FOR EACH tidineln WHERE tidineln.NPRIS >  0 AND tidineln.ERABATT > 0:
+      tidineln.NPRIS = tidineln.NPRIS - (tidineln.NPRIS * tidineln.ERABATT).            
+   END.
+   
+   /*Ta bort alla artiklar som inte börjar på "E" i Articlenummer för Onninen*/
+   IF levant = "1" THEN DO:
+      FOR EACH tidineln WHERE SUBSTRING(tidineln.ARTNO,1,1) NE "E":
+         DELETE tidineln.
+      END. 
+   END.   
+   
+     
+   rens = TRUE.  /*ska den sättas till true någon gång????????*/
+   IF rens = TRUE THEN RUN tabort_UI.     
+       
+   RUN skapaenr_UI.
+END.      
+
+PROCEDURE skapaenr_UI:      
+   /*FOR EACH tidineln NO-LOCK:       
+      DISPLAY tidineln.eJ1 ";" tidineln.LEV ";" tidineln. ";" tidineln.enr ";" tidineln.EJ5 ";" tidineln.EJ6 ";" tidineln.benamning  ";" tidineln.EJ8 ";"  tidineln.BPRIS ";" tidineln.EJ10 ";"
+      tidineln.NPRIS ";" tidineln.EJ12 ";" tidineln.EJ13 ";"  tidineln.EJ14 ";"  tidineln.EJ15 ";"  tidineln.EJ16 ";" tidineln.EJ17 ";" tidineln.EJ18 ";" tidineln.MARK ";" tidineln.EJ20 ";" tidineln.ENHET ";"  .
+   END.*/
+          
+   FOR EACH tidineln WHERE tidineln.LEV = levfk NO-LOCK:     
+      IF SUBSTRING(tidineln.ENR,1,1) = "E" THEN tidineln.ENR = SUBSTRING(tidineln.ENR,2).                                
+      DO TRANSACTION: 
+         FIND FIRST mtrlbuff WHERE mtrlbuff.ENR =  tidineln.ENR AND
+         mtrlbuff.LEVKOD = levant AND mtrlbuff.KALKNR = 0 USE-INDEX LEV
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE mtrlbuff THEN DO:            
+            ASSIGN 
+            mtrlbuff.BENAMNING = tidineln.BENAMNING
+            mtrlbuff.ENHET = tidineln.ENHET       
+            mtrlbuff.BPRIS = tidineln.BPRIS .
+            mtrlbuff.NPRIS = tidineln.NPRIS .
+            IF tidineln.MARK = "A" THEN mtrlbuff.KUND = ?.
+            ELSE IF tidineln.MARK = "B" THEN mtrlbuff.KUND = TRUE.
+            ELSE  mtrlbuff.KUND = FALSE.  
+            mtrlbuff.INDATETIME = NOW.
+   mtrlbuff.INANVPROG = THIS-PROCEDURE:NAME   + " " + Guru.Konstanter:globanv.
+            /* Bytt 20170428 för att sortering på två färger ska fungera
+            IF tidineln.MARK = "A" THEN mtrlbuff.KUND = TRUE.
+            ELSE IF tidineln.MARK = "B" THEN mtrlbuff.KUND = ?.
+            ELSE  mtrlbuff.KUND = FALSE.   */
+         END.
+         ELSE DO:                               
+            CREATE MTRL.
+            ASSIGN      
+            MTRL.ENR = tidineln.ENR
+            MTRL.LEVKOD = levant 
+            MTRL.KALKNR = 0        
+            MTRL.BENAMNING = tidineln.BENAMNING
+            MTRL.ENHET = tidineln.ENHET            
+            MTRL.BPRIS = tidineln.BPRIS 
+            MTRL.NPRIS = tidineln.NPRIS .
+            {MTRLCREATE.I}
+            IF tidineln.MARK = "A" THEN MTRL.KUND = ?.
+            ELSE IF tidineln.MARK = "B" THEN MTRL.KUND = TRUE.
+            ELSE  MTRL.KUND = FALSE.                    
+            /* Bytt 20170428 för att sortering på två färger ska fungera
+            IF tidineln.MARK = "A" THEN MTRL.KUND = TRUE.
+            ELSE IF tidineln.MARK = "B" THEN MTRL.KUND = ?.
+            ELSE  MTRL.KUND = FALSE.*/  
+         END.   
+      END.
+   END.               
+      
+END PROCEDURE.   
+
+PROCEDURE tabort_UI:
+   FIND FIRST tidineln WHERE tidineln.LEV = levfk NO-ERROR.
+   IF AVAILABLE tidineln THEN DO:
+      IF levant NE "" THEN DO: 
+         OPEN QUERY dq FOR EACH MTRL WHERE MTRL.LEVKOD = levant AND  MTRL.KALKNR = 0 /*AND MTRL.KPRIS = 0*/ NO-LOCK.
+         GET FIRST dq NO-LOCK.
+         DO WHILE AVAILABLE(MTRL):
+            DO TRANSACTION:
+               GET CURRENT dq EXCLUSIVE-LOCK NO-WAIT.            
+               IF AVAILABLE MTRL THEN DELETE MTRL.
+            END.   
+            GET NEXT dq NO-LOCK.
+         END.         
+      END.   
+   END.
+END PROCEDURE.
+
+PROCEDURE sakkopia_UI:
+   OUTPUT TO VALUE(progkopiainnan) convert target "iso8859-1" source "iso8859-1".
+   
+   OPEN QUERY mq FOR EACH MTRL WHERE MTRL.LEVKOD = levant AND  MTRL.KALKNR = 0 /*AND MTRL.KPRIS = 0*/ NO-LOCK.
+   GET FIRST mq NO-LOCK.
+   DO WHILE AVAILABLE(MTRL):
+      EXPORT MTRL.
+      GET NEXT mq NO-LOCK.
+   END.
+   CLOSE QUERY mq.
+   OUTPUT CLOSE.
+END PROCEDURE.
+
+                
+PROCEDURE medd_UI:  
+   DEFINE INPUT PARAMETER lnamn AS CHARACTER NO-UNDO.
+   /*Mats Johansson ska ha meddelande att ny katalog lästs in*/  
+   FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = "M22537"   NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE ANVANDARE THEN RETURN.         
+   CREATE MEDDELANDE.
+   ASSIGN               
+   MEDDELANDE.SANDARE = "Ny materielkatalog inläst"
+   MEDDELANDE.EMOTAGET = FALSE
+   MEDDELANDE.SDATUM = TODAY
+   MEDDELANDE.MEDD = "Ny materilelkatalog inläst för " + lnamn  +  CHR(10) 
+   MEDDELANDE.MOTTAGARE = ANVANDARE.ANVANDARE.              
+END PROCEDURE.

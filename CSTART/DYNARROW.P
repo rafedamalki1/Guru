@@ -1,0 +1,1343 @@
+/****************************************************************************************** 
+*                                                                                         *
+*  file:       DYNARROW.P                                                                 *
+*  by:         Elpool i Umeå AB, 2004                                                     *
+*  mailto:     anders@elpool.se                                                           *
+*  http:       www.elpool.se                                                              *
+*  language:   Progress 9.1D                                                              *
+*  purpose:    Connecting two browsers and maximum of four buttons. Copying records       *   
+*              between the two browsers, from left to right.                              *
+******************************************************************************************/
+DEFINE VARIABLE aoverprog AS CHARACTER NO-UNDO.
+DEFINE VARIABLE overprog AS CHARACTER NO-UNDO.
+DEFINE VARIABLE backprog AS CHARACTER NO-UNDO.
+DEFINE VARIABLE abackprog AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dynprogoverh AS HANDLE NO-UNDO.
+DEFINE VARIABLE leftbrwh AS HANDLE NO-UNDO.
+DEFINE VARIABLE rightbrwh AS HANDLE NO-UNDO.
+DEFINE VARIABLE leftqueh AS HANDLE NO-UNDO.
+DEFINE VARIABLE rightqueh AS HANDLE NO-UNDO.
+DEFINE VARIABLE leftbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE rightbufh AS HANDLE NO-UNDO.
+DEFINE VARIABLE delleftbrwok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE compsave AS LOGICAL NO-UNDO.
+DEFINE VARIABLE antvalda AS INTEGER NO-UNDO.
+DEFINE VARIABLE antraknare AS INTEGER NO-UNDO.
+DEFINE VARIABLE command_ok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kommandoprep AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE brwid AS ROWID NO-UNDO.
+DEFINE VARIABLE bigsize AS INTEGER NO-UNDO.
+DEFINE VARIABLE bigpos AS INTEGER NO-UNDO.
+DEFINE VARIABLE sizebig AS LOGICAL NO-UNDO.
+DEFINE VARIABLE rightorgtitle AS CHARACTER NO-UNDO.
+DEFINE VARIABLE leftorgtitle AS CHARACTER NO-UNDO.
+DEFINE VARIABLE titlelog AS LOGICAL NO-UNDO.
+
+/******************************* Sök-fält variabler ****************************/
+DEFINE VARIABLE brwrow AS ROWID NO-UNDO.
+DEFINE VARIABLE colformat AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dynbrwh AS HANDLE NO-UNDO.
+DEFINE VARIABLE dynbuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE dyncurcolh AS HANDLE NO-UNDO.
+DEFINE VARIABLE dynfalth AS HANDLE NO-UNDO.
+DEFINE VARIABLE dynqueh AS HANDLE NO-UNDO.
+DEFINE VARIABLE faltvalue AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lastbrwrow AS ROWID NO-UNDO.
+DEFINE VARIABLE logdate AS CHARACTER NO-UNDO.
+DEFINE VARIABLE logtrue AS CHARACTER NO-UNDO.
+DEFINE VARIABLE logfalse AS CHARACTER NO-UNDO.
+DEFINE VARIABLE multi AS LOGICAL NO-UNDO.
+DEFINE VARIABLE multibrwsok AS CHARACTER NO-UNDO.
+DEFINE VARIABLE retvalue AS LOGICAL NO-UNDO.
+DEFINE VARIABLE saverowid AS ROWID NO-UNDO.
+DEFINE VARIABLE sokord AS CHARACTER NO-UNDO.
+DEFINE VARIABLE tempcounter AS INTEGER NO-UNDO.
+DEFINE VARIABLE temph AS HANDLE NO-UNDO.
+DEFINE VARIABLE trimnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE brwradnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE selfh AS HANDLE NO-UNDO.
+DEFINE VARIABLE otherh AS HANDLE NO-UNDO.
+DEFINE VARIABLE sfalth AS HANDLE NO-UNDO.
+DEFINE VARIABLE ofalth AS HANDLE NO-UNDO.
+DEFINE VARIABLE ssok AS CHARACTER NO-UNDO.
+DEFINE VARIABLE osok AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sfaltvalue AS CHARACTER NO-UNDO.
+DEFINE VARIABLE ofaltvalue AS CHARACTER NO-UNDO.
+DEFINE VARIABLE rowcompextravar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE dynprogextrah AS HANDLE NO-UNDO.
+DEFINE VARIABLE procexrowdisvar AS CHARACTER NO-UNDO.
+DEFINE TEMP-TABLE fillintemp
+   FIELD FH AS HANDLE
+   FIELD SH AS HANDLE.     
+
+DEFINE TEMP-TABLE multiseltemp
+   FIELD NUMSEL AS INTEGER
+   FIELD SELROW AS ROWID
+   INDEX NUM AS PRIMARY NUMSEL.
+
+/* Håller ordning på menyerna i varje enskild browser, samt vilken browser som har
+   blivit maximerad. */
+DEFINE TEMP-TABLE menutemp
+   FIELD XPOS AS INTEGER
+   FIELD XWIDTH AS INTEGER
+   FIELD MENUH AS HANDLE
+   FIELD MENUITEMH AS HANDLE
+   FIELD LEFTACTIVE AS LOGICAL
+   FIELD LEFTBRW AS LOGICAL
+   FIELD BRWH AS HANDLE.
+
+
+/********************************** INPUT Variables **************************************/
+DEFINE INPUT PARAMETER lbrwh AS HANDLE NO-UNDO.
+DEFINE INPUT PARAMETER rbrwh AS HANDLE NO-UNDO.
+DEFINE INPUT PARAMETER over AS HANDLE NO-UNDO.
+DEFINE INPUT PARAMETER allover AS HANDLE NO-UNDO.
+DEFINE INPUT PARAMETER allback AS HANDLE NO-UNDO.
+DEFINE INPUT PARAMETER lback AS HANDLE NO-UNDO.
+
+/* Detta sker vid första anrop av DYNARROW.P, sparar undan inparametrar och sätter 
+   DEFAULT värden.*/
+leftbrwh = lbrwh.
+leftqueh = leftbrwh:QUERY.
+leftbufh = leftqueh:GET-BUFFER-HANDLE.
+rightbrwh = rbrwh.
+rightqueh = rightbrwh:QUERY.
+rightbufh = rightqueh:GET-BUFFER-HANDLE.
+dynbrwh = leftbrwh.
+dynqueh = dynbrwh:QUERY.
+dynbuffh = dynqueh:GET-BUFFER-HANDLE.
+RUN createmenu_UI (INPUT leftbrwh, INPUT TRUE).
+RUN createmenu_UI (INPUT rightbrwh, INPUT FALSE).
+bigsize = (rightbrwh:X + rightbrwh:WIDTH-PIXELS) - leftbrwh:X.
+bigpos = leftbrwh:X.
+rightorgtitle = rightbrwh:TITLE. 
+leftorgtitle = leftbrwh:TITLE. 
+IF INDEX(rightorgtitle,"Antal") > 0 THEN DO:
+   rightorgtitle = SUBSTRING(rightorgtitle,1,INDEX(rightorgtitle,"Antal") - 1).  
+END.   
+IF INDEX(leftorgtitle,"Antal") > 0 THEN DO:
+   leftorgtitle = SUBSTRING(leftorgtitle,1,INDEX(leftorgtitle,"Antal") - 1).  
+END.
+dynprogextrah = THIS-PROCEDURE.
+procexrowdisvar = "rowex_UI".
+
+IF over NE ? THEN DO:
+   ON ANY-KEY OF lbrwh PERSISTENT RUN lanykey_UI IN THIS-PROCEDURE.
+   ON CHOOSE OF over PERSISTENT RUN sel_over_UI IN THIS-PROCEDURE.
+   ON 'MOUSE-SELECT-DBLCLICK':U OF leftbrwh PERSISTENT RUN sel_over_UI IN THIS-PROCEDURE.
+END.
+IF allover NE ? THEN DO:
+   ON CHOOSE OF allover PERSISTENT RUN all_over_UI IN THIS-PROCEDURE.
+END.
+IF allback NE ? THEN DO:
+   ON CHOOSE OF allback PERSISTENT RUN all_back_UI IN THIS-PROCEDURE.
+END.
+IF lback NE ? THEN DO:
+   ON ANY-KEY OF rbrwh PERSISTENT RUN ranykey_UI IN THIS-PROCEDURE.
+   ON CHOOSE OF lback PERSISTENT RUN sel_back_UI IN THIS-PROCEDURE.
+END.
+
+RETURN.
+
+
+/******************************** TRIGGER Procedures **********************************/
+
+/*------------------------------------------------------------------------------
+   Namn:       anykey_UI                   
+   Syfte:      Vid 'RETURN' görs en sökning i browsern utifrån
+               sökfältets innehåll (FILL-IN kopplat till browser).
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  Event procedure, anropas vid ANY-KEY för ett angivet fill-in-fält.
+------------------------------------------------------------------------------*/
+/*------------------------------------------------------------------------------
+   Namn:       frmhset_UI                  
+   Syfte:      font .
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  
+------------------------------------------------------------------------------*/
+PROCEDURE ostempdel_UI :
+  /*SKA VARA KVAR*/
+END PROCEDURE.
+PROCEDURE bigsize_UI :
+   DEFINE OUTPUT PARAMETER bigsize2 AS DECIMAL NO-UNDO.
+   bigsize2 = bigsize.
+END PROCEDURE.
+PROCEDURE frmhset_UI :
+   DEFINE INPUT PARAMETER frmh AS HANDLE NO-UNDO.
+END PROCEDURE.
+PROCEDURE lanykey_UI :
+   IF KEYFUNCTION(LASTKEY) = ("END-ERROR") THEN  RETURN NO-APPLY. 
+   IF KEYFUNCTION(LASTKEY) = ("CURSOR-RIGHT") OR KEYFUNCTION(LASTKEY) = ("CURSOR-LEFT") OR
+      KEYFUNCTION(LASTKEY) = ("CURSOR-DOWN") OR KEYFUNCTION(LASTKEY) = ("CURSOR-UP") THEN DO :
+         APPLY KEYFUNCTION(LASTKEY).
+         RETURN NO-APPLY.
+   END.
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      RUN sel_over_UI.   
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE ranykey_UI :
+   IF KEYFUNCTION(LASTKEY) = ("END-ERROR") THEN  RETURN NO-APPLY. 
+   IF KEYFUNCTION(LASTKEY) = ("CURSOR-RIGHT") OR KEYFUNCTION(LASTKEY) = ("CURSOR-LEFT") OR
+      KEYFUNCTION(LASTKEY) = ("CURSOR-DOWN") OR KEYFUNCTION(LASTKEY) = ("CURSOR-UP") THEN DO :
+         APPLY KEYFUNCTION(LASTKEY).
+         RETURN NO-APPLY.
+   END.
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      RUN sel_back_UI.   
+   END.
+END PROCEDURE.
+
+
+/*------------------------------------------------------------------------------
+   Namn:       trigsize_UI                   
+   Syfte:      Ändrar storleken på en browser
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  Aktiveras vid val av 'Ändra storlek' i POPUP-MENY i browsern.
+------------------------------------------------------------------------------*/
+PROCEDURE trigsize_UI :
+   FIND FIRST menutemp WHERE menutemp.MENUITEMH = SELF:HANDLE NO-LOCK NO-ERROR.
+   IF menutemp.BRWH:WIDTH-PIXELS NE bigsize THEN DO:
+      rightbrwh:NO-EMPTY-SPACE = FALSE NO-ERROR.
+      bigsize = (rightbrwh:X + rightbrwh:WIDTH-PIXELS) - leftbrwh:X.
+      IF menutemp.LEFTBRW = TRUE THEN menutemp.LEFTACTIVE = TRUE.
+      ASSIGN
+      menutemp.XWIDTH = menutemp.BRWH:WIDTH-PIXELS
+      menutemp.XPOS = menutemp.BRWH:X
+      menutemp.BRWH:X = bigpos
+      menutemp.BRWH:WIDTH-PIXELS = bigsize.
+      menutemp.BRWH:MOVE-TO-TOP().
+      IF menutemp.BRWH = rightbrwh THEN DO:
+         dynbrwh = rightbrwh.
+         dynqueh = dynbrwh:QUERY.
+         dynbuffh = dynqueh:GET-BUFFER-HANDLE.
+      END.
+      
+   END. 
+   ELSE DO:
+      IF menutemp.LEFTBRW = TRUE THEN menutemp.LEFTACTIVE = FALSE.
+      
+      ASSIGN
+      sizebig = FALSE
+      menutemp.BRWH:WIDTH-PIXELS = menutemp.XWIDTH
+      menutemp.BRWH:X = menutemp.XPOS.
+      IF menutemp.BRWH = rightbrwh THEN DO:
+         dynbrwh = leftbrwh.
+         dynqueh = dynbrwh:QUERY.
+         dynbuffh = dynqueh:GET-BUFFER-HANDLE.
+      END.
+      rightbrwh:NO-EMPTY-SPACE = TRUE NO-ERROR.
+   END.
+END PROCEDURE.
+
+/********************************** PROCEDURES ********************************/
+/*------------------------------------------------------------------------------
+   Namn:       urvalaktiv_UI                   
+   Syfte:      Check för att kolla om den vänstra browsern är aktiv
+   In-data:    -
+   Ut-data:    TRUE ifall den är aktiv.
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE urvalaktiv_UI :
+   DEFINE OUTPUT PARAMETER laktiv AS LOGICAL NO-UNDO.
+   laktiv = FALSE.
+   IF laktiv = laktiv THEN RETURN.
+   FIND FIRST menutemp WHERE menutemp.BRWH = leftbrwh NO-LOCK NO-ERROR.
+   laktiv = menutemp.LEFTACTIVE.  
+   
+END PROCEDURE.   
+
+/*------------------------------------------------------------------------------
+   Namn:       changesize_UI                   
+   Syfte:      Funktion för att ändra storlek på browser utan trigger.
+   In-data:    Left = TRUE, Right = False
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE changesize_UI :
+   DEFINE INPUT PARAMETER brwlog AS LOGICAL NO-UNDO. 
+   FIND FIRST menutemp WHERE menutemp.LEFTBRW = brwlog NO-LOCK NO-ERROR.
+   IF AVAILABLE menutemp THEN DO:
+      APPLY "CHOOSE" TO menutemp.MENUITEMH.
+   END.
+END PROCEDURE.   
+
+/*------------------------------------------------------------------------------
+   Namn:       sel_over_UI                   
+   Syfte:      Kopierar markerade rader från vänster till höger browser.
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  BUFFER-COPY används vid kopiering, så endast de kolumner i de två
+               browsrarna som har samma namn kopieras. 
+------------------------------------------------------------------------------*/
+PROCEDURE sel_over_UI :  
+   IF Guru.GlobalaVariabler:LastTimeDepa NE 0 THEN Guru.GlobalaVariabler:LastTimeDepa = TIME.
+   IF rowcompextravar = TRUE THEN DO:
+      RUN VALUE(procexrowdisvar) IN dynprogextrah (INPUT rightbrwh).
+   END.
+   ASSIGN
+   leftbufh = leftqueh:GET-BUFFER-HANDLE
+   rightbufh = rightqueh:GET-BUFFER-HANDLE
+   antvalda = leftbrwh:NUM-SELECTED-ROWS. 
+          
+   IF antvalda = 0 THEN DO:      
+      MESSAGE "Inget är markerat" VIEW-AS ALERT-BOX 
+         TITLE "Meddelande".
+      RETURN.                
+   END.
+   ELSE DO:
+      EMPTY TEMP-TABLE multiseltemp NO-ERROR. 
+      antraknare = 1.
+      DO WHILE antraknare LE antvalda:
+         leftbrwh:FETCH-SELECTED-ROW(antraknare).
+         compsave = FALSE.
+         IF rightqueh:IS-OPEN = TRUE THEN DO:
+            rightqueh:GET-FIRST(NO-LOCK).
+            DO WHILE rightqueh:QUERY-OFF-END = FALSE:
+                compsave = rightbufh:BUFFER-COMPARE(leftbufh) NO-ERROR.
+               /*
+               MESSAGE  compsave leftbufh:BUFFER-FIELD("delnr"):BUFFER-VALUE rightbufh:BUFFER-FIELD("delnr"):BUFFER-VALUE rightbufh:BUFFER-FIELD("aonr"):BUFFER-VALUE 
+                        
+               VIEW-AS ALERT-BOX.
+               */
+               IF compsave = TRUE THEN LEAVE.
+               rightqueh:GET-NEXT(NO-LOCK).
+            END.
+         END.
+         IF compsave = FALSE THEN DO:
+            rightbufh:BUFFER-CREATE().
+            rightbufh:BUFFER-COPY(leftbufh).
+            CREATE multiseltemp.
+            ASSIGN
+            multiseltemp.NUMSEL = antraknare   /* Sparar undan markeringsordningen */
+            multiseltemp.SELROW = rightbufh:ROWID.  /* Sparar Rowid för posten */
+            IF delleftbrwok = TRUE THEN DO:
+               leftbufh:BUFFER-DELETE().
+               IF antraknare = antvalda THEN DO:
+                  RUN selnextprevrowleft_UI.
+               END.
+            END.
+         END.
+         CREATE multiseltemp.
+         ASSIGN
+         multiseltemp.NUMSEL = antraknare   /* Sparar undan markeringsordningen */
+         multiseltemp.SELROW = rightbufh:ROWID.  /* Sparar Rowid för posten */
+         IF antraknare = 1 THEN DO:
+            brwid = rightbufh:ROWID.         
+         END.
+         IF antraknare = 1 THEN DO:
+            IF rightqueh:PREPARE-STRING = ? THEN DO:
+               kommandoprep = "FOR EACH " + rightbufh:TABLE + " NO-LOCK.".
+            END.
+            ELSE DO:
+               kommandoprep = rightqueh:PREPARE-STRING.
+            END.
+            rightqueh:QUERY-PREPARE(kommandoprep).
+            rightqueh:QUERY-OPEN().
+         END.
+         antraknare = antraknare + 1.
+      END.
+      /*
+      IF delleftbrwok = TRUE THEN command_ok = leftbrwh:REFRESH().
+      */
+       
+      IF delleftbrwok = TRUE THEN DO:
+         RUN leftopenbrw.
+         IF lastbrwrow NE ? THEN DO:
+            RUN repodyn_UI (INPUT lastbrwrow).
+            leftbrwh:SELECT-FOCUSED-ROW() NO-ERROR.         
+         END.
+         ELSE DO:
+            leftqueh:GET-LAST(NO-LOCK).
+            IF leftbufh:AVAILABLE THEN DO:
+               RUN repodyn_UI (INPUT leftbufh:ROWID).
+               leftbrwh:SELECT-FOCUSED-ROW() NO-ERROR.         
+            END.           
+         END.
+      END.
+      IF rightqueh:PREPARE-STRING = ? THEN DO:
+         kommandoprep = "FOR EACH " + rightbufh:TABLE + " NO-LOCK.".
+      END.
+      ELSE DO:
+         kommandoprep = rightqueh:PREPARE-STRING.
+      END.
+      rightqueh:QUERY-PREPARE(kommandoprep).
+      rightqueh:QUERY-OPEN().
+      /*
+      IF rowcompextravar = TRUE THEN DO:
+         RUN VALUE(procexrowdisvar) IN dynprogextrah (INPUT rightbrwh).
+      END.
+      */
+      RUN maxdata_UI.
+      RUN multiselect_UI.
+      RUN repodynright_UI (INPUT brwid).
+      /*
+      rightqueh:REPOSITION-TO-ROWID(brwid).
+      rightbrwh:SELECT-FOCUSED-ROW().
+      APPLY "VALUE-CHANGED" TO rightbrwh.
+      */
+   END.
+   IF titlelog = TRUE THEN DO:
+      rightqueh:GET-LAST(NO-LOCK).
+      rightbrwh:TITLE = rightorgtitle + " Antal " + STRING(rightqueh:NUM-RESULTS).
+      leftqueh:GET-LAST(NO-LOCK).
+      leftbrwh:TITLE = leftorgtitle + " Antal " + STRING(leftqueh:NUM-RESULTS).
+   END.
+   
+   IF VALID-HANDLE(dynprogoverh) THEN DO:
+      IF overprog NE "" THEN RUN VALUE(overprog) IN dynprogoverh.
+   END.
+END PROCEDURE.
+
+PROCEDURE overextra_UI :  
+   DEFINE INPUT PARAMETER procexvc AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER rowvckorh AS HANDLE NO-UNDO.
+   overprog = procexvc.
+   dynprogoverh = rowvckorh.
+   
+END PROCEDURE.
+
+PROCEDURE aoverextra_UI :  
+   DEFINE INPUT PARAMETER procexvc AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER rowvckorh AS HANDLE NO-UNDO.
+   aoverprog = procexvc.
+   dynprogoverh = rowvckorh.
+   
+END PROCEDURE.
+
+PROCEDURE backextra_UI :  
+   DEFINE INPUT PARAMETER procexvc AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER rowvckorh AS HANDLE NO-UNDO.
+   backprog = procexvc.
+   dynprogoverh = rowvckorh.
+   
+END PROCEDURE.
+
+PROCEDURE abackextra_UI :  
+   DEFINE INPUT PARAMETER procexvc AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER rowvckorh AS HANDLE NO-UNDO.
+   abackprog = procexvc.
+   dynprogoverh = rowvckorh.
+   
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       sel_back_UI
+   Syfte:      Tar helt enkelt bort de markerade raderna i höger browser
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  Ifall 'delleftbrwok' är satt kommer de borttagna posterna först
+               att kopieras tillbaka till vänster browser.
+------------------------------------------------------------------------------*/
+PROCEDURE sel_back_UI :
+   IF Guru.GlobalaVariabler:LastTimeDepa NE 0 THEN Guru.GlobalaVariabler:LastTimeDepa = TIME.
+   RUN getrownr_UI. 
+   ASSIGN               
+   lastbrwrow = ?
+   rightbufh = rightqueh:GET-BUFFER-HANDLE.
+   antvalda = rightbrwh:NUM-SELECTED-ROWS. 
+   IF antvalda = 0 THEN DO:      
+      MESSAGE "Inget är markerat" VIEW-AS ALERT-BOX
+         TITLE "Meddelande".
+      RETURN.                
+   END.
+   ELSE DO: 
+      antraknare = 1.
+      DO WHILE antraknare LE antvalda:
+         rightbrwh:FETCH-SELECTED-ROW(antraknare).
+         IF rightbufh:AVAILABLE THEN DO:        
+            IF delleftbrwok = TRUE THEN DO:
+               leftbufh:BUFFER-CREATE().
+               leftbufh:BUFFER-COPY(rightbufh).            
+            END.           
+            rightbufh:BUFFER-DELETE() NO-ERROR.            
+            IF antraknare = antvalda THEN DO:
+               RUN selnextprevrowright_UI.
+            END.
+            
+         END.
+         antraknare = antraknare + 1.
+      END.
+      
+      RUN rightopenbrw.
+      IF lastbrwrow NE ? THEN DO:
+         RUN repodynright_UI (INPUT lastbrwrow).
+         rightbrwh:SELECT-FOCUSED-ROW() NO-ERROR.                  
+      END.
+      ELSE DO:
+         rightqueh:GET-LAST(NO-LOCK).
+         IF rightbufh:AVAILABLE THEN DO:
+            RUN repodynright_UI (INPUT rightbufh:ROWID).
+            rightbrwh:SELECT-FOCUSED-ROW() NO-ERROR.         
+         END.           
+      END.
+      IF delleftbrwok = TRUE THEN RUN leftopenbrw.
+   END.
+   IF titlelog = TRUE THEN DO:
+      rightqueh:GET-LAST(NO-LOCK).
+      rightbrwh:TITLE = rightorgtitle + " Antal " + STRING(rightqueh:NUM-RESULTS).
+      leftqueh:GET-LAST(NO-LOCK).
+      leftbrwh:TITLE = leftorgtitle + " Antal " + STRING(leftqueh:NUM-RESULTS).
+   END.
+   IF VALID-HANDLE(dynprogoverh) THEN DO:
+      IF backprog NE "" THEN RUN VALUE(backprog) IN dynprogoverh.
+   END.
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       all_over_UI                   
+   Syfte:      Kopierar alla rader från vänster till höger browser.
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  BUFFER-COPY används vid kopiering, så endast de kolumner i de två
+               browsrarna som har samma namn kopieras. 
+------------------------------------------------------------------------------*/
+PROCEDURE all_over_UI :  
+   IF Guru.GlobalaVariabler:LastTimeDepa NE 0 THEN Guru.GlobalaVariabler:LastTimeDepa = TIME. 
+   antraknare = 1.
+   leftqueh:GET-FIRST(NO-LOCK) NO-ERROR.
+   IF leftqueh:QUERY-OFF-END = TRUE THEN DO:
+      MESSAGE "Det finns inga poster att flytta" VIEW-AS ALERT-BOX
+         TITLE "Meddelande".
+      RETURN.   
+   END.
+   ASSIGN
+   leftbufh = leftqueh:GET-BUFFER-HANDLE
+   rightbufh = rightqueh:GET-BUFFER-HANDLE.
+   DO WHILE leftqueh:QUERY-OFF-END = FALSE:
+      compsave = FALSE.
+      IF rightqueh:IS-OPEN = TRUE THEN DO:
+         rightqueh:GET-FIRST(NO-LOCK).
+         DO WHILE rightqueh:QUERY-OFF-END = FALSE:
+            compsave = rightbufh:BUFFER-COMPARE(leftbufh) NO-ERROR.
+            IF compsave = TRUE THEN LEAVE.
+            rightqueh:GET-NEXT(NO-LOCK).
+         END.
+      END.
+      IF compsave = FALSE THEN DO:
+         rightbufh:BUFFER-CREATE().
+         rightbufh:BUFFER-COPY(leftbufh).
+         IF delleftbrwok = TRUE THEN leftbufh:BUFFER-DELETE().
+      END.
+      leftqueh:GET-NEXT(NO-LOCK).
+      antraknare = antraknare + 1.
+   END.
+   IF antraknare GT 1 THEN DO:
+      /*
+      IF delleftbrwok = TRUE THEN command_ok = leftbrwh:REFRESH().
+      */
+      IF delleftbrwok = TRUE THEN RUN leftopenbrw.
+      ELSE command_ok = leftbrwh:DESELECT-ROWS().
+      IF rightqueh:PREPARE-STRING = ? THEN DO:
+         kommandoprep = "FOR EACH " + rightbufh:TABLE + " NO-LOCK.".
+      END.
+      ELSE DO:
+         kommandoprep = rightqueh:PREPARE-STRING.
+      END.
+      rightqueh:QUERY-PREPARE(kommandoprep).
+      rightqueh:QUERY-OPEN().  
+      RUN maxdata_UI.
+      rightqueh:GET-FIRST(NO-LOCK).
+      brwid = rightbufh:ROWID.
+      rightbrwh:REFRESHABLE = FALSE.
+      rightbrwh:SET-REPOSITIONED-ROW(35,"ALWAYS").
+      rightqueh:REPOSITION-TO-ROWID(brwid).
+      rightbrwh:REFRESHABLE = TRUE. 
+      rightbrwh:SELECT-FOCUSED-ROW().
+      APPLY "VALUE-CHANGED" TO rightbrwh.
+   END.
+   IF titlelog = TRUE THEN DO:
+      rightqueh:GET-LAST(NO-LOCK).
+      rightbrwh:TITLE = rightorgtitle + " Antal " + STRING(rightqueh:NUM-RESULTS).
+      leftqueh:GET-LAST(NO-LOCK).
+      leftbrwh:TITLE = leftorgtitle + " Antal " + STRING(leftqueh:NUM-RESULTS).
+   END.
+   IF VALID-HANDLE(dynprogoverh) THEN DO:
+      IF aoverprog NE "" THEN RUN VALUE(aoverprog) IN dynprogoverh.
+   END.
+   
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       maxdata_UI                
+   Syfte:      -  
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE maxdata_UI :
+   
+   rightqueh:GET-LAST(NO-LOCK).   
+   rightbrwh:MAX-DATA-GUESS = rightqueh:NUM-RESULTS.
+   rightqueh:GET-FIRST(NO-LOCK).   
+   
+END PROCEDURE.
+
+
+/*------------------------------------------------------------------------------
+   Namn:       all_back_UI                   
+   Syfte:      tar bort alla poster från höger browser
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  Ifall 'delleftbrwok' är satt kommer de borttagna posterna först
+               att kopieras tillbaka till vänster browser.
+------------------------------------------------------------------------------*/
+PROCEDURE all_back_UI :
+   IF Guru.GlobalaVariabler:LastTimeDepa NE 0 THEN Guru.GlobalaVariabler:LastTimeDepa = TIME.
+   rightbufh = rightqueh:GET-BUFFER-HANDLE.
+   rightqueh:GET-FIRST(NO-LOCK).
+   IF rightqueh:QUERY-OFF-END = TRUE THEN DO:
+      MESSAGE "Det finns inga poster att flytta" VIEW-AS ALERT-BOX
+         TITLE "Meddelande".
+      RETURN.   
+   END.
+   DO WHILE rightqueh:QUERY-OFF-END = FALSE:
+      IF delleftbrwok = TRUE THEN DO:
+         leftbufh:BUFFER-CREATE().
+         leftbufh:BUFFER-COPY(rightbufh).            
+      END.
+      rightbufh:BUFFER-DELETE().
+      rightqueh:GET-NEXT(NO-LOCK).
+   END.
+   IF rightqueh:PREPARE-STRING = ? THEN DO:
+      kommandoprep = "FOR EACH " + rightbufh:TABLE + " NO-LOCK.".
+   END.
+   ELSE DO:
+      kommandoprep = rightqueh:PREPARE-STRING.
+   END.
+   rightqueh:QUERY-PREPARE(kommandoprep).
+   rightqueh:QUERY-OPEN().
+   IF delleftbrwok = TRUE THEN RUN leftopenbrw.
+   IF titlelog = TRUE THEN DO:
+      rightqueh:GET-LAST(NO-LOCK).
+      rightbrwh:TITLE = rightorgtitle + " Antal " + STRING(rightqueh:NUM-RESULTS).
+      leftqueh:GET-LAST(NO-LOCK).
+      leftbrwh:TITLE = leftorgtitle + " Antal " + STRING(leftqueh:NUM-RESULTS).
+   END.
+   IF VALID-HANDLE(dynprogoverh) THEN DO:
+      IF abackprog NE "" THEN RUN VALUE(abackprog) IN dynprogoverh.
+   END.
+END PROCEDURE.
+
+PROCEDURE rowex_UI :
+   /*extra*/
+
+END PROCEDURE.
+
+PROCEDURE rowcompextrakor :  
+   DEFINE INPUT PARAMETER rowdispextra AS LOGICAL NO-UNDO.
+   ASSIGN
+   rowcompextravar = rowdispextra.  
+END PROCEDURE.
+
+PROCEDURE dynprogextra :  
+   DEFINE INPUT PARAMETER procexrowdis AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER rowdispkorh AS HANDLE NO-UNDO.
+   procexrowdisvar = procexrowdis.
+   dynprogextrah = rowdispkorh.
+   
+END PROCEDURE.
+
+
+/*------------------------------------------------------------------------------
+   Namn:       multiselect_UI                
+   Syfte:      Markerar de poster som finns i multiseltemp tabellen.
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE multiselect_UI :
+   DEFINE VARIABLE dynok AS LOGICAL NO-UNDO.
+   rightbrwh:REFRESHABLE = FALSE.  /* Ingen uppdatering av browser */
+   FOR EACH multiseltemp BY NUMSEL DESCENDING:
+      dynok = rightqueh:REPOSITION-TO-ROWID(multiseltemp.SELROW) NO-ERROR.  /* Positionerar queryn */
+      IF dynok = TRUE THEN rightbrwh:SELECT-FOCUSED-ROW() NO-ERROR.    /* Markerar postitionerad post */
+   END.
+   rightbrwh:REFRESHABLE = TRUE.   /* Först nu uppdateras förändringarna */
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       gorlika_UI                
+   Syfte:      -  
+   In-data:    Nyckelfält 
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE gorlika_UI :
+   DEFINE INPUT PARAMETER fieldlistA AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER fieldlistB AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE falthA AS HANDLE NO-UNDO.
+   DEFINE VARIABLE dfalthA AS HANDLE NO-UNDO.
+   DEFINE VARIABLE falthB AS HANDLE NO-UNDO.
+   DEFINE VARIABLE dfalthB AS HANDLE NO-UNDO.
+   DEFINE VARIABLE complog AS LOGICAL NO-UNDO.
+
+   leftbufh = leftqueh:GET-BUFFER-HANDLE.
+   rightbufh = rightqueh:GET-BUFFER-HANDLE.
+   IF fieldlistA NE "" THEN DO:
+      dfalthA = rightbufh:BUFFER-FIELD(fieldlistA).
+      falthA = leftbufh:BUFFER-FIELD(fieldlistA).
+   END.
+   IF fieldlistB NE "" THEN DO:
+      dfalthB = rightbufh:BUFFER-FIELD(fieldlistB).
+      falthB = leftbufh:BUFFER-FIELD(fieldlistB).
+   END.
+   leftqueh:GET-FIRST(NO-LOCK) NO-ERROR.
+   DO WHILE leftqueh:QUERY-OFF-END = FALSE:
+      IF falthA:BUFFER-VALUE = dfalthA:BUFFER-VALUE THEN DO:
+         IF fieldlistB = "" THEN DO:
+            leftbufh:BUFFER-COPY(rightbufh).
+            RUN leftopenbrw.
+            RETURN.
+         END.
+         ELSE IF falthB:BUFFER-VALUE = dfalthB:BUFFER-VALUE THEN DO:  
+            leftbufh:BUFFER-COPY(rightbufh).
+            RUN leftopenbrw.
+            RETURN.            
+         END.
+      END.
+      leftqueh:GET-NEXT(NO-LOCK).
+   END.
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       leftopenbrw                
+   Syfte:      -  
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE leftopenbrw :
+   IF leftqueh:PREPARE-STRING = ? THEN DO:
+      kommandoprep = "FOR EACH " + leftbufh:TABLE + " NO-LOCK.".
+   END.
+   ELSE DO:
+      kommandoprep = leftqueh:PREPARE-STRING.
+   END.
+   
+   leftqueh:QUERY-PREPARE(kommandoprep).
+   leftqueh:QUERY-OPEN().    
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       rightopenbrw                
+   Syfte:      -  
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE rightopenbrw :
+   IF rightqueh:PREPARE-STRING = ? THEN DO:
+      kommandoprep = "FOR EACH " + rightbufh:TABLE + " NO-LOCK.".
+   END.
+   ELSE DO:
+      kommandoprep = rightqueh:PREPARE-STRING.
+   END.
+   rightqueh:QUERY-PREPARE(kommandoprep).
+   rightqueh:QUERY-OPEN().    
+END PROCEDURE.
+
+
+/*------------------------------------------------------------------------------
+   Namn:       changebrwh_UI                
+   Syfte:      -  
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE changebrwh_UI :
+   DEFINE INPUT PARAMETER lbrwh AS HANDLE NO-UNDO.   
+   DEFINE INPUT PARAMETER rbrwh AS HANDLE NO-UNDO.  
+   leftbrwh = lbrwh.
+   leftqueh = leftbrwh:QUERY.
+   leftbufh = leftqueh:GET-BUFFER-HANDLE.
+   rightbrwh = rbrwh.
+   rightqueh = rightbrwh:QUERY.
+   rightbufh = rightqueh:GET-BUFFER-HANDLE.
+   RUN createmenu_UI (INPUT lbrwh, INPUT TRUE).
+   RUN createmenu_UI (INPUT rbrwh, INPUT FALSE).
+   bigsize = (rightbrwh:X + rightbrwh:WIDTH-PIXELS) - leftbrwh:X.
+   bigpos = leftbrwh:X.   
+END PROCEDURE.
+
+
+/*------------------------------------------------------------------------------
+   Namn:       deleteleftbrw_UI                
+   Syfte:      -  
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE deleteleftbrw_UI :
+   DEFINE INPUT PARAMETER delbrw AS LOGICAL NO-UNDO.   
+   delleftbrwok = delbrw.
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       createmenu_UI                
+   Syfte:      -  
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE createmenu_UI :
+   DEFINE INPUT PARAMETER brwh AS HANDLE NO-UNDO.   
+   DEFINE INPUT PARAMETER leftlog AS LOGICAL NO-UNDO. 
+   IF leftlog = leftlog THEN RETURN.  
+   IF leftbrwh:NAME = brwh:NAME THEN  RETURN.
+   FIND FIRST menutemp WHERE menutemp.BRWH = brwh NO-LOCK NO-ERROR.    
+   IF NOT AVAILABLE menutemp THEN DO:
+      CREATE menutemp.
+      ASSIGN
+      menutemp.LEFTACTIVE = FALSE
+      menutemp.LEFTBRW = leftlog
+      menutemp.BRWH = brwh.
+      IF brwh:POPUP-MENU = ? THEN DO:
+         CREATE MENU menutemp.MENUH.
+         menutemp.MENUH:POPUP-ONLY = TRUE.
+         menutemp.MENUH:TITLE = "Browser egenskaper".
+         CREATE MENU-ITEM menutemp.MENUITEMH.
+         menutemp.MENUITEMH:LABEL = "Ändra storlek".
+         menutemp.MENUITEMH:PARENT = menutemp.MENUH.
+         ASSIGN brwh:POPUP-MENU = menutemp.MENUH.
+         ON CHOOSE OF menutemp.MENUITEMH PERSISTENT RUN trigsize_UI IN THIS-PROCEDURE. 
+      END.
+      ELSE DO:
+         menutemp.MENUH = brwh:POPUP-MENU.
+         CREATE MENU-ITEM temph.
+         temph:SUBTYPE = "RULE".
+         temph:PARENT = menutemp.MENUH.
+         CREATE MENU-ITEM menutemp.MENUITEMH.
+         menutemp.MENUITEMH:LABEL = "Ändra storlek".
+         menutemp.MENUITEMH:PARENT = menutemp.MENUH.
+         ON CHOOSE OF menutemp.MENUITEMH PERSISTENT RUN trigsize_UI IN THIS-PROCEDURE. 
+      END.
+   END.      
+END PROCEDURE.
+
+
+/*------------------------------------------------------------------------------
+   Namn:       addmenuitem_UI               
+   Syfte:      -  
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE addmenuitem_UI :
+   DEFINE INPUT PARAMETER brwh AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER leftlog AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER labelvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER procname AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE temphandle AS HANDLE NO-UNDO.
+   FIND FIRST menutemp WHERE menutemp.BRWH = brwh NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE menutemp THEN RUN createmenu_UI (INPUT brwh, INPUT leftlog).
+   IF AVAILABLE menutemp THEN DO:
+      CREATE MENU-ITEM temphandle.
+      temphandle:LABEL = labelvar.
+      temphandle:PARENT = menutemp.MENUH:HANDLE.
+      ON CHOOSE OF temphandle PERSISTENT RUN VALUE(procname) IN SOURCE-PROCEDURE. 
+   END.   
+END PROCEDURE.
+
+
+/******************************* Sök-fält procedurer ****************************/
+
+/*------------------------------------------------------------------------------
+   Namn:       anykey_UI                   
+   Syfte:      Vid 'RETURN' görs en sökning i browsern utifrån
+               sökfältets innehåll (FILL-IN kopplat till browser).
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  Event procedure, anropas vid ANY-KEY för ett angivet fill-in-fält.
+------------------------------------------------------------------------------*/
+PROCEDURE anykey_UI :
+   IF Guru.GlobalaVariabler:LastTimeDepa NE 0 THEN Guru.GlobalaVariabler:LastTimeDepa = TIME.
+   IF KEYFUNCTION(LASTKEY) = ("END-ERROR") THEN  RETURN NO-APPLY. 
+   IF KEYFUNCTION(LASTKEY) = ("CURSOR-RIGHT") OR KEYFUNCTION(LASTKEY) = ("CURSOR-LEFT") OR
+      KEYFUNCTION(LASTKEY) = ("CURSOR-DOWN") OR KEYFUNCTION(LASTKEY) = ("CURSOR-UP") THEN DO :
+         APPLY KEYFUNCTION(LASTKEY).
+         RETURN NO-APPLY.
+   END.
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      RUN fillincheck_UI.   
+   END.
+   IF KEYFUNCTION(LASTKEY) = ("+") THEN DO:
+      RUN sel_over_UI.            
+   END.
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       mouseseldbclic_UI                 
+   Syfte:      Se 'anykey_UI', gäller för MOUSE-SELECT-DBCLICK istället för 'RETURN'.
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  Event procedure, anropas vid MOUSE-SELECT-DBCLICK händelse.
+------------------------------------------------------------------------------*/
+PROCEDURE mouseseldbclic_UI :
+   RUN fillincheck_UI.      
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       valchange_UI                 
+   Syfte:      Tar bort '+' från fill-in fältet.
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  Event procedure, anropas vid VALUE-CHANGED händelse för FILL-IN fält.
+------------------------------------------------------------------------------*/
+PROCEDURE valchange_UI :
+   IF INDEX(SELF:SCREEN-VALUE,CHR(13)) NE 0 OR INDEX(SELF:SCREEN-VALUE,"+") NE 0 THEN DO:
+      SELF:SCREEN-VALUE = TRIM(SELF:SCREEN-VALUE,"+").
+      SELF:SCREEN-VALUE = TRIM(SELF:SCREEN-VALUE,CHR(10)).
+      SELF:SCREEN-VALUE = TRIM(SELF:SCREEN-VALUE,CHR(13)).
+      SELF:CURSOR-OFFSET = LENGTH(SELF:SCREEN-VALUE) + 1.
+   END.
+END PROCEDURE.
+
+
+/*------------------------------------------------------------------------------
+   Namn:       addfillinchar_UI                  
+   Syfte:      Kopplar samman sökfält(FILL-IN) med en column i browser, detta sker
+               med hjälp av två triggrar ANY-KEY och MOUSE-SELECT-DBLCLICK.
+   In-data:    fhandle - En handle till en FILL-IN widget.
+               colname - Kolumn namnet för den kolumn som ska kopplas till sökfältet.
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE addfillin_UI.
+   DEFINE INPUT PARAMETER fhandle AS HANDLE NO-UNDO. 
+   DEFINE INPUT PARAMETER colname AS CHARACTER NO-UNDO.
+   IF VALID-HANDLE(fhandle) THEN DO:
+      fhandle:PRIVATE-DATA = colname.
+   END.                                                    
+   ON ANY-KEY OF fhandle PERSISTENT RUN anykey_UI IN THIS-PROCEDURE.
+   ON VALUE-CHANGED OF fhandle PERSISTENT RUN valchange_UI IN THIS-PROCEDURE.
+   ON MOUSE-SELECT-DBLCLICK OF fhandle PERSISTENT RUN mouseseldbclic_UI IN THIS-PROCEDURE.
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       connectfillin                 
+   Syfte:      
+   In-data:    
+   Ut-data:    
+   Kommentar:  
+------------------------------------------------------------------------------*/
+PROCEDURE connectfillin_UI.
+   DEFINE INPUT PARAMETER fhandle AS HANDLE NO-UNDO. 
+   DEFINE INPUT PARAMETER shandle AS HANDLE NO-UNDO. 
+   CREATE fillintemp.
+   ASSIGN
+   fillintemp.FH = fhandle
+   fillintemp.SH = shandle.
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       fillincheck_UI                  
+   Syfte:      
+   In-data:    
+   Ut-data:    
+   Kommentar:  
+------------------------------------------------------------------------------*/
+PROCEDURE fillincheck_UI.
+   SESSION:DATA-ENTRY-RETURN = FALSE.
+   FIND FIRST fillintemp WHERE fillintemp.FH = SELF OR fillintemp.SH = SELF NO-LOCK NO-ERROR.
+   IF AVAILABLE fillintemp THEN DO:
+      IF fillintemp.FH = SELF THEN DO: 
+         ASSIGN
+         selfh = fillintemp.FH
+         otherh = fillintemp.SH.
+      END.
+      ELSE DO:
+         ASSIGN
+         selfh = fillintemp.SH
+         otherh = fillintemp.FH.
+      END.
+      IF selfh:SCREEN-VALUE = "" OR otherh:SCREEN-VALUE = "" THEN DO: 
+         RUN sokurvaldyn_UI (INPUT SELF:PRIVATE-DATA, INPUT SELF:SCREEN-VALUE).
+      END.
+      ELSE DO:
+         IF NUM-ENTRIES(selfh:SCREEN-VALUE,"*") = 1 THEN DO:
+            ssok = "*" + selfh:SCREEN-VALUE + "*".
+         END.
+         ELSE ssok = selfh:SCREEN-VALUE.
+         IF NUM-ENTRIES(otherh:SCREEN-VALUE,"*") = 1 THEN DO:
+            osok = "*" + otherh:SCREEN-VALUE + "*".
+         END.  
+         ELSE osok = otherh:SCREEN-VALUE.
+         ASSIGN
+         dynbuffh = dynqueh:GET-BUFFER-HANDLE 
+         sfalth = ?      
+         ofalth = ?.
+         sfalth = dynbuffh:BUFFER-FIELD(selfh:PRIVATE-DATA) NO-ERROR.
+         ofalth = dynbuffh:BUFFER-FIELD(otherh:PRIVATE-DATA) NO-ERROR.
+         IF sfalth = ? OR ofalth = ? THEN DO:                                               
+            MESSAGE "Felaktigt kolumn namn: " ofalth:PRIVATE-DATA sfalth:PRIVATE-DATA VIEW-AS ALERT-BOX.
+            RETURN.                                                             
+         END.                                                                   
+         IF dynqueh:IS-OPEN = FALSE THEN RETURN.
+         REPEAT:
+            dynqueh:GET-NEXT(NO-LOCK).
+            IF dynqueh:QUERY-OFF-END THEN LEAVE.            
+            RUN getfaltvalue_UI(INPUT sfalth, OUTPUT sfaltvalue).
+            RUN getfaltvalue_UI(INPUT ofalth, OUTPUT ofaltvalue).
+            IF sfaltvalue MATCHES ssok AND ofaltvalue MATCHES osok THEN DO:
+               brwrow = dynbuffh:ROWID.
+               lastbrwrow = brwrow.
+               RUN repodyn_UI (INPUT brwrow).
+               dynbrwh:SELECT-FOCUSED-ROW() NO-ERROR.          
+               RETURN.
+            END.            
+         END.
+         dynqueh:GET-FIRST(NO-LOCK).
+         IF dynqueh:QUERY-OFF-END THEN LEAVE.
+         REPEAT:
+            IF dynqueh:QUERY-OFF-END THEN LEAVE.            
+            RUN getfaltvalue_UI(INPUT sfalth, OUTPUT sfaltvalue).
+            RUN getfaltvalue_UI(INPUT ofalth, OUTPUT ofaltvalue).
+            IF sfaltvalue MATCHES ssok AND ofaltvalue MATCHES osok THEN DO:
+               brwrow = dynbuffh:ROWID.
+               lastbrwrow = brwrow.
+               RUN repodyn_UI (INPUT brwrow).
+               dynbrwh:SELECT-FOCUSED-ROW() NO-ERROR.          
+               RETURN.
+            END.            
+            dynqueh:GET-NEXT(NO-LOCK).
+            IF dynqueh:QUERY-OFF-END THEN LEAVE.
+         END.
+      END.
+   END. 
+   ELSE do:
+      RUN sokurvaldyn_UI (INPUT SELF:PRIVATE-DATA, INPUT SELF:SCREEN-VALUE).   
+   END.
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       getfaltvalue_UI                 
+   Syfte:      
+   In-data:    
+   Ut-data:    
+   Kommentar:  
+------------------------------------------------------------------------------*/
+PROCEDURE getfaltvalue_UI.
+   DEFINE INPUT PARAMETER tempfh AS HANDLE NO-UNDO. 
+   DEFINE OUTPUT PARAMETER tempfaltvalue AS CHARACTER NO-UNDO. 
+   
+   IF tempfh:DATA-TYPE = "LOGICAL" THEN DO:
+      colformat = tempfh:FORMAT.
+      logtrue = ENTRY (1,  colformat, "/").
+      logfalse = ENTRY (2,  colformat, "/").
+      IF tempfh:BUFFER-VALUE = TRUE THEN DO:
+         tempfaltvalue = logtrue.
+      END.
+      ELSE DO:
+         tempfaltvalue = logfalse.
+      END.
+   END.                            
+   ELSE IF tempfh:DATA-TYPE = "INTEGER"  THEN DO:     
+      sokord = REPLACE(sokord,",","").      
+      tempfaltvalue = STRING(tempfh:BUFFER-VALUE).
+   END.
+   ELSE DO:
+      tempfaltvalue = STRING(tempfh:BUFFER-VALUE).
+   END.  
+END PROCEDURE.
+
+
+/*------------------------------------------------------------------------------
+   Namn:       comparedyn_UI                  
+   Syfte:      
+   In-data:    val [INT] - (1,2) används för att jämföra innehållet i ett fält
+                  1 - Jämför med BEGINS
+                  2 - Jämför med MATCHES
+   Ut-data:    retval [BOOL] - Returnerar ett värde på hur jämförandet gick.
+                  TRUE - Har hittat ett sökt värde och markerat denna rad.
+                  FALSE - Hittade inget värde, ingen rad markerad i browsern.
+   Kommentar:  Måste känna till en hel del variabler, anropas från sokurvaldyn_UI 
+               och hittadyn_UI. Bör ej anropas separat från huvudprogram.
+------------------------------------------------------------------------------*/
+PROCEDURE comparedyn_UI :
+   DEFINE INPUT PARAMETER val AS INTEGER.
+   DEFINE OUTPUT PARAMETER retval AS LOGICAL.
+   retval = FALSE.
+   /*Hämtar en 'fält-handle' från den aktiva buffern*/
+/*    dynfalth = dynbuffh:BUFFER-FIELD(dyncurcolh:NAME). */
+   /* "colh" är en handle till en kolumn, blir satt i hittadyn_UI.*/
+   IF dynfalth:DATA-TYPE = "LOGICAL" THEN DO:
+      /*"colformat" kan exempelvis få värdet "Ja/Nej" */
+      colformat = dynfalth:FORMAT.
+      /* Plockar ut 'Ja' och 'Nej' för att kunna jämför kanpptryckningar mot
+         detta värde.*/
+      logtrue = ENTRY (1,  colformat, "/").
+      logfalse = ENTRY (2,  colformat, "/").
+      IF dynfalth:BUFFER-VALUE = TRUE THEN DO:
+         faltvalue = logtrue.
+      END.
+      ELSE DO:
+         faltvalue = logfalse.
+      END.
+   END.
+   ELSE IF dynfalth:DATA-TYPE = "DATE" AND val = 1 THEN DO:
+      trimnr = 1.
+      faltvalue = "".
+      logdate = string(dynfalth:BUFFER-VALUE).
+      DO WHILE trimnr NE 0:
+         trimnr = INDEX(logdate, "/").
+         faltvalue = faltvalue + SUBSTRING(logdate, 1, trimnr - 1).
+         logdate = TRIM(SUBSTRING(logdate, trimnr + 1)).
+      END.
+   END.                            
+   ELSE IF dynfalth:DATA-TYPE = "INTEGER"  THEN DO:     
+      sokord = REPLACE(sokord,",","").      
+      faltvalue = string(dynfalth:BUFFER-VALUE).
+   END.
+   ELSE DO:
+      faltvalue = string(dynfalth:BUFFER-VALUE).
+   END.
+   IF val = 1 THEN DO:
+      IF faltvalue BEGINS multibrwsok THEN DO:
+         brwrow = dynbuffh:ROWID.
+         lastbrwrow = brwrow.
+         RUN selectdyn_UI (INPUT brwrow).
+         retval = TRUE.
+         RETURN.
+      END.
+   END.
+   ELSE IF val = 2 THEN DO:
+      IF faltvalue MATCHES sokord THEN DO:
+         brwrow = dynbuffh:ROWID.
+         lastbrwrow = brwrow.
+         RUN repodyn_UI (INPUT brwrow).
+         dynbrwh:SELECT-FOCUSED-ROW() NO-ERROR. 
+         retval = TRUE.
+         RETURN.
+      END.
+   END.
+END PROCEDURE.
+
+
+PROCEDURE sokurvaldyn_UI :
+   DEFINE INPUT PARAMETER colnamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER sok AS CHARACTER NO-UNDO.
+   temph = dyncurcolh.
+   IF NUM-ENTRIES(sok,"*") = 1 THEN DO:
+      sok = "*" + sok + "*".
+   END.
+   sokord = sok.          
+   IF VALID-HANDLE(dynbrwh) = FALSE THEN DO: 
+      MESSAGE "Det finns ingen Urvalstabell att söka i!" VIEW-AS ALERT-BOX.
+      RETURN.
+   END.
+   IF sok = '' THEN DO:
+      MESSAGE "Sökbegreppet kan inte vara blankt." VIEW-AS ALERT-BOX.
+      RETURN NO-APPLY.
+   END.
+   ASSIGN
+   dynbuffh = dynqueh:GET-BUFFER-HANDLE 
+   dynfalth = ?      
+   dyncurcolh = dynbrwh:FIRST-COLUMN.
+   REPEAT:
+      IF dyncurcolh:NAME = colnamn THEN DO:
+         dynfalth = dynbuffh:BUFFER-FIELD(dyncurcolh:NAME).
+      END.
+      IF dynfalth NE ? THEN LEAVE.
+      dyncurcolh = dyncurcolh:NEXT-COLUMN.
+      IF NOT VALID-HANDLE(dyncurcolh) THEN LEAVE.
+   END.
+   dyncurcolh = temph.
+   IF dynfalth = ? THEN DO: 
+      tempcounter = 1.
+      DO WHILE tempcounter LE dynbuffh:NUM-FIELDS:
+         temph = dynbuffh:BUFFER-FIELD(tempcounter).
+         IF temph:NAME = colnamn THEN DO:
+            dynfalth = temph.
+            LEAVE.
+         END.
+         tempcounter = tempcounter + 1.
+      END.
+      IF dynfalth = ? THEN DO:
+         MESSAGE "Felaktigt kolumn namn: " colnamn dynfalth VIEW-AS ALERT-BOX.
+         RETURN.
+      END.      
+   END.
+   IF dynqueh:IS-OPEN = FALSE THEN RETURN.
+   REPEAT:
+      dynqueh:GET-NEXT(NO-LOCK).
+      IF dynqueh:QUERY-OFF-END THEN LEAVE.
+      RUN comparedyn_UI (INPUT 2, OUTPUT retvalue).
+      IF retvalue = TRUE THEN RETURN.
+   END.
+   dynqueh:GET-FIRST(NO-LOCK).
+   IF dynqueh:QUERY-OFF-END THEN LEAVE.
+   REPEAT:
+      RUN comparedyn_UI (INPUT 2, OUTPUT retvalue).
+      IF retvalue = TRUE THEN RETURN.
+      dynqueh:GET-NEXT(NO-LOCK).
+      IF dynqueh:QUERY-OFF-END THEN LEAVE.
+   END.
+END PROCEDURE.
+
+PROCEDURE getrownr_UI :
+    brwradnr = rightbrwh:FOCUSED-ROW. 
+END PROCEDURE.
+/*------------------------------------------------------------------------------
+   Namn:       repodyn_UI                  
+   Syfte:      Sätter browserns fokus till angiven rad.
+   In-data:    brwrow [ROWID] - Måste vara ett ROWID som finns i queryn.
+               brwhandle [HD] - En handle till den aktuella browsern.  
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE repodyne_UI :
+   RUN repodyn_UI (INPUT lastbrwrow).
+END PROCEDURE.
+PROCEDURE repodyn_UI :
+   DEFINE INPUT PARAMETER brwrow AS ROWID NO-UNDO.
+   IF brwradnr <= 0 THEN brwradnr = 35.
+   ELSE IF brwradnr = ? THEN brwradnr = 35.
+   dynbrwh:REFRESHABLE = FALSE NO-ERROR.
+   dynbrwh:SET-REPOSITIONED-ROW(brwradnr,"ALWAYS") NO-ERROR.
+   dynqueh:REPOSITION-TO-ROWID(brwrow) NO-ERROR.
+   dynbrwh:REFRESHABLE = TRUE NO-ERROR. 
+   IF brwrow NE ? THEN 
+   APPLY "VALUE-CHANGED" TO dynbrwh.
+END PROCEDURE.
+
+PROCEDURE repodynre_UI :
+   RUN repodynright_UI (INPUT lastbrwrow).
+END PROCEDURE.
+
+PROCEDURE repodynright_UI :
+   DEFINE INPUT PARAMETER brwrow AS ROWID NO-UNDO.
+   IF brwradnr <= 0 THEN brwradnr = 35.
+   ELSE IF brwradnr = ? THEN brwradnr = 35.
+   rightbrwh:REFRESHABLE = FALSE NO-ERROR.
+   rightbrwh:SET-REPOSITIONED-ROW(brwradnr,"ALWAYS") NO-ERROR.
+   rightqueh:REPOSITION-TO-ROWID(brwrow) NO-ERROR.
+   rightbrwh:REFRESHABLE = TRUE NO-ERROR. 
+    IF brwrow NE ? THEN 
+   APPLY "VALUE-CHANGED" TO rightbrwh.
+END PROCEDURE.
+
+
+/*------------------------------------------------------------------------------
+   Namn:       selectdyn_UI                  
+   Syfte:      Markerar och avmarkerar rader i browsern. Avmarkerar rader som har
+               markerats vid multiselect-knapptryckning.
+   In-data:    browrow [ROWID] - ROWID för raden som ska markeras.
+   Ut-data:    -
+   Kommentar:  Måste känna till "dynbrwh" för att proceduren ska fungera.
+------------------------------------------------------------------------------*/
+PROCEDURE selectdyn_UI :
+   DEFINE INPUT PARAMETER browrow AS ROWID NO-UNDO.
+   DEFINE VARIABLE rowsel AS LOGICAL NO-UNDO.
+   RUN repodyn_UI (INPUT browrow).
+   rowsel = dynbrwh:FOCUSED-ROW-SELECTED.
+   IF rowsel = FALSE AND multi = FALSE THEN DO: 
+      saverowid = browrow.
+      dynbrwh:SELECT-FOCUSED-ROW() NO-ERROR.
+   END.
+   ELSE IF rowsel = TRUE AND multi = FALSE THEN DO:
+      saverowid = ?.  
+      dynbrwh:SELECT-FOCUSED-ROW() NO-ERROR.
+   END.
+   ELSE IF multi = TRUE THEN DO:
+      IF saverowid NE ? THEN DO:
+         RUN repodyn_UI (INPUT saverowid).
+         dynbrwh:DESELECT-FOCUSED-ROW() NO-ERROR.
+      END.
+      RUN repodyn_UI (INPUT browrow).
+      dynbrwh:SELECT-FOCUSED-ROW() NO-ERROR.
+      IF rowsel = FALSE THEN DO:
+         saverowid = browrow.
+      END.
+   END.
+END PROCEDURE.
+
+/*------------------------------------------------------------------------------
+   Namn:       settitlenum_UI                   
+   Syfte:      -
+   In-data:    -
+   Ut-data:    -
+   Kommentar:  -
+------------------------------------------------------------------------------*/
+PROCEDURE settitlenum_UI :
+   DEFINE INPUT PARAMETER templog AS LOGICAL NO-UNDO.
+   titlelog = templog.
+END PROCEDURE.
+
+PROCEDURE selnextprevrowleft_UI :
+         /*                                  
+   leftqueh:GET-NEXT(NO-LOCK).
+    
+   IF leftqueh:QUERY-OFF-END THEN DO:
+      leftqueh:GET-PREV(NO-LOCK). 
+      leftqueh:GET-PREV(NO-LOCK).
+      IF leftqueh:QUERY-OFF-END THEN lastbrwrow = ?.
+      ELSE lastbrwrow = leftbufh:ROWID.       
+      leftqueh:GET-NEXT(NO-LOCK).
+   END.
+   ELSE DO: 
+      lastbrwrow = leftbufh:ROWID.
+      leftqueh:GET-PREV(NO-LOCK). 
+   END.   
+   */
+   lastbrwrow = ?.
+   
+   leftqueh:GET-NEXT(NO-LOCK). 
+   REPEAT:
+      IF leftbufh:AVAILABLE = TRUE THEN LEAVE.
+      IF leftqueh:QUERY-OFF-END THEN DO:
+        /* upp = TRUE.*/
+         LEAVE.
+      END.
+      leftqueh:GET-NEXT(NO-LOCK). 
+   END.
+   IF leftbufh:AVAILABLE = FALSE THEN DO:         
+      REPEAT:
+         IF leftbufh:AVAILABLE = TRUE THEN LEAVE.
+         IF leftqueh:QUERY-OFF-END THEN DO:
+            LEAVE.
+         END.
+         leftqueh:GET-PREV(NO-LOCK). 
+      END.
+   END.
+   IF leftbufh:AVAILABLE = TRUE THEN DO:         
+      lastbrwrow = leftbufh:ROWID.
+      leftqueh:GET-PREV(NO-LOCK). 
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE selnextprevrowright_UI :
+  
+   lastbrwrow = ?.
+   
+   rightqueh:GET-NEXT(NO-LOCK). 
+   REPEAT:
+      IF rightbufh:AVAILABLE = TRUE THEN LEAVE.
+      IF rightqueh:QUERY-OFF-END THEN DO:
+        /* upp = TRUE.*/
+         LEAVE.
+      END.
+      rightqueh:GET-NEXT(NO-LOCK). 
+   END.
+   IF rightbufh:AVAILABLE = FALSE THEN DO:         
+      REPEAT:
+         IF rightbufh:AVAILABLE = TRUE THEN LEAVE.
+         IF rightqueh:QUERY-OFF-END THEN DO:
+            LEAVE.
+         END.
+         rightqueh:GET-PREV(NO-LOCK). 
+      END.
+   END.
+   IF rightbufh:AVAILABLE = TRUE THEN DO:         
+      lastbrwrow = rightbufh:ROWID.
+      rightqueh:GET-PREV(NO-LOCK). 
+   END.
+  
+END PROCEDURE.
+

@@ -1,0 +1,115 @@
+/*IMPMTRLSKVN2.P*/
+DEFINE TEMP-TABLE tidin   
+   FIELD ENR                AS CHARACTER 
+   /*FIELD BENAMNING          AS CHARACTER 
+   FIELD ENHET              AS CHARACTER
+   FIELD BPRIS              AS CHARACTER
+   FIELD NPRIS              AS CHARACTER*/
+   FIELD MARK               AS CHARACTER
+   INDEX ENR IS PRIMARY ENR.
+
+DEFINE TEMP-TABLE tidin2   
+   FIELD ENR                AS CHARACTER 
+   /*FIELD BENAMNING          AS CHARACTER 
+   FIELD ENHET              AS CHARACTER
+   FIELD BPRIS              AS DECIMAL   
+   FIELD NPRIS              AS DECIMAL*/
+   FIELD MARK               AS CHARACTER
+   INDEX ENR IS PRIMARY ENR.
+
+DEFINE TEMP-TABLE felmex   
+   FIELD ENR                AS CHARACTER 
+   /*FIELD BENAMNING          AS CHARACTER 
+   FIELD ENHET              AS CHARACTER
+   FIELD BPRIS              AS DECIMAL
+   FIELD NPRIS              AS DECIMAL*/
+   INDEX ENR IS PRIMARY ENR.
+DEFINE VARIABLE hjvar AS CHARACTER NO-UNDO.
+
+DEFINE INPUT PARAMETER TABLE FOR tidin.
+DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER svar13 AS LOGICAL NO-UNDO.
+/*DEFINE INPUT PARAMETER mkat AS INTEGER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR felmex.
+DEFINE INPUT PARAMETER svar10 AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER svar12 AS LOGICAL NO-UNDO.*/
+DEFINE VARIABLE sparfilnamn AS CHARACTER NO-UNDO.
+sparfilnamn = SESSION:TEMP-DIRECTORY + "inmtrl.txt".
+
+EMPTY TEMP-TABLE felmex NO-ERROR. 
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+
+FOR EACH tidin:
+   IF FORETAG.FORETAG = "sund" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "cORBI" OR FORETAG.FORETAG = "celpa" THEN DO:
+      IF SUBSTRING(tidin.ENR,1,1) NE  "E" THEN tidin.ENR = "E" + tidin.ENR.
+   END.
+   ELSE IF SUBSTRING(tidin.ENR,1,1) = "E" THEN tidin.ENR = SUBSTRING(tidin.ENR,2).   
+   tidin.ENR = REPLACE(tidin.ENR," ","").      
+END.
+DEBUGGER:SET-BREAK().
+FOR EACH tidin:
+   CREATE tidin2.
+   ASSIGN
+   tidin2.ENR = tidin.ENR       
+   tidin2.MARK = tidin.MARK .
+
+   IF ERROR-STATUS:ERROR = TRUE THEN DO:      
+      IF AVAILABLE tidin2 THEN DO:              
+         CREATE felmex.
+         BUFFER-COPY tidin2 TO felmex.
+         DELETE tidin2.
+      END.
+      ERROR-STATUS:ERROR = FALSE.
+   END.
+END.
+IF svar13 = TRUE THEN DO:
+   OPEN QUERY mmq FOR EACH MTRL WHERE MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 AND MTRL.KPRIS = 0 AND MTRL.KUND NE FALSE USE-INDEX LEV NO-LOCK.
+   GET FIRST mmq NO-LOCK.
+   DO WHILE AVAILABLE(MTRL):
+      DO TRANSACTION:
+         GET CURRENT mmq EXCLUSIVE-LOCK.             
+         MTRL.KUND = FALSE.
+      END.
+      GET NEXT mmq NO-LOCK.
+   END.
+   CLOSE QUERY mmq.
+END.          
+FOR EACH tidin2:
+   
+   DO TRANSACTION:
+      FIND FIRST MTRL WHERE MTRL.ENR =  tidin2.ENR AND
+      MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         
+        /*KRAFTRINGEN 2 FÄRGER I SAMMA FIL 
+         Färg 1 = turkos = Onninen
+         Färg 2 = grå = Onninen*/                  
+         /*färg 1*/                                
+         IF tidin2.MARK = "Ja" THEN MTRL.KUND = TRUE.
+         ELSE IF tidin2.MARK = "?" OR tidin2.MARK = ? THEN MTRL.KUND = ?.              
+               
+               /*IF svar10 = TRUE THEN DO:
+                  /*sundsvall elnät 
+                  Färg 1 = turkos = Onninen
+                  Färg 2 = grön = Ahlsell*/                  
+                  /*färg 1*/                                
+                  IF tidin2.MARK NE "" THEN MTRL.KUND = TRUE.
+                  ELSE MTRL.KUND = FALSE.
+               END.
+               ELSE DO:
+                  /*färg2*/
+                  IF tidin2.MARK NE "" THEN MTRL.KUND = ?.
+                  ELSE MTRL.KUND = FALSE.                  
+               END.*/
+         
+         
+      END.
+   END.   
+END.
+OUTPUT TO VALUE(sparfilnamn) APPEND.
+PUT UNFORMATTED "Inläsning av mtrl klar " + STRING(TIME,"hh:mm:ss") + " " + STRING(TODAY) SKIP.
+OUTPUT CLOSE.
+   
+/*MESSAGE DUBRAK
+   VIEW-AS ALERT-BOX.*/

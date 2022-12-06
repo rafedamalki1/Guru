@@ -1,0 +1,51 @@
+
+{EXTRADATA.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+
+DEFINE VARIABLE datsok AS DATE NO-UNDO.
+DEFINE VARIABLE antalvar AS INTEGER NO-UNDO.
+RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+FOR EACH BERBEST WHERE BERBEST.LEVDATUM > 09/14/07 AND BERBEST.UTTAG = TRUE AND 
+BERBEST.DEPNR = 1 AND BERBEST.OFFERT = FALSE NO-LOCK:       
+   antalvar = BERBEST.ANTAL.
+   REPEAT WHILE antalvar > 0:                 
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "FIFO"                                  
+      inextradatatemp.HUVUDINT =  1
+      inextradatatemp.HUVUDCH =  BERBEST.ENR.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      
+      datsok = TODAY + 1.
+      FOR EACH extradatatemp:
+         IF extradatatemp.SOKDAT[1] < datsok THEN DO:
+            datsok = extradatatemp.SOKDAT[1].
+         END.
+      END.            
+      FIND FIRST extradatatemp WHERE extradatatemp.SOKDAT[1] = datsok NO-LOCK NO-ERROR.
+      IF antalvar <= extradatatemp.SOKINT[1] THEN DO:
+         extradatatemp.SOKINT[1] = extradatatemp.SOKINT[1] - antalvar.         
+         antalvar = 0.
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.  
+         CREATE inextradatatemp.
+         BUFFER-COPY extradatatemp TO inextradatatemp.
+         IF extradatatemp.SOKINT[1] = 0 THEN DO:               
+            RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).
+         END.
+         ELSE DO:                                    
+            RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).
+         END.
+      END.
+      ELSE DO:
+         antalvar = antalvar - extradatatemp.SOKINT[1].         
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR.       
+         CREATE inextradatatemp.
+         BUFFER-COPY extradatatemp TO inextradatatemp.
+         RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).
+      END.                           
+   END.   
+END.
+IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+edataapph = ?.

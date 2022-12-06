@@ -1,0 +1,240 @@
+/*KOPIBERE.P PROGRAMMET KOPIERAR EN BEREDNING KOPPLAD TILL ETT AONR från aonrm.p*/
+{STARTFORAPP.I}
+{AVTAONRTEMP.I}
+{HDKALKTEMP.I} 
+{MARKGRUPP.I}
+CREATE WIDGET-POOL "DynTableBH" NO-ERROR.
+DEFINE INPUT PARAMETER valaonr AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER valdelnr AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER tillaonr AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER tilldelnr AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER tillomrade AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR beredningtemp.
+DEFINE VARIABLE berkopptabbuffh AS HANDLE NO-UNDO.
+DEFINE VARIABLE varbernr AS INTEGER NO-UNDO.
+DEFINE VARIABLE tillbernr AS INTEGER NO-UNDO.
+DEFINE VARIABLE datvar LIKE BERMTRL.DATUM NO-UNDO.
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE BUFFER nybuff FOR BEREDNING.
+DEFINE BUFFER berbuff FOR BERVAL.
+DEFINE BUFFER ordbuff FOR BERORD.
+DEFINE BUFFER fribuff FOR FRIKORT.
+DEFINE BUFFER idbuff FOR BERID.
+DEFINE BUFFER kalkbuff FOR BERKALK.
+DEFINE BUFFER mtrlbuff FOR BERMTRL.
+DEFINE BUFFER linbuff FOR BERLINKAB.
+DEFINE BUFFER skyddbuff FOR KSKYDD.
+DEFINE BUFFER uppbuff FOR BERUPP.     
+DEFINE VARIABLE grundkloid AS INTEGER NO-UNDO.
+{EXTRATAB.I}
+DEFINE VARIABLE ekoppdataapph AS HANDLE NO-UNDO.
+
+FIND LAST BEREDNING WHERE BEREDNING.OMRADE = tillomrade
+USE-INDEX BERNR NO-LOCK NO-ERROR.   
+IF AVAILABLE BEREDNING THEN tillbernr = BEREDNING.BERNR + 1.
+ELSE tillbernr = 1. 
+
+FIND FIRST BEREDNING WHERE BEREDNING.AONR = valaonr AND
+BEREDNING.DELNR = valdelnr NO-LOCK.
+varbernr = BEREDNING.BERNR.
+DO TRANSACTION:      
+   CREATE nybuff.
+   BUFFER-COPY BEREDNING TO nybuff.
+   ASSIGN
+   nybuff.BERNR = tillbernr
+   nybuff.BERAO = STRING(tillbernr)
+   nybuff.AONR = tillaonr
+   nybuff.DELNR = tilldelnr
+   nybuff.OMRADE = tillomrade.
+   CREATE beredningtemp.
+   BUFFER-COPY BEREDNING TO beredningtemp.
+   ASSIGN 
+   beredningtemp.BERNR = tillbernr        
+   beredningtemp.BERAONR = STRING(tillbernr)
+   beredningtemp.AONR = tillaonr          
+   beredningtemp.DELNR = tilldelnr        
+   beredningtemp.OMRADE = tillomrade.     
+END.
+
+OPEN QUERY kq FOR EACH BERVAL WHERE BERVAL.AONR = STRING(varbernr) AND
+BERVAL.OMRADE = valomrade NO-LOCK.
+GET FIRST kq NO-LOCK.
+DO WHILE AVAILABLE(BERVAL):
+   DO TRANSACTION:      
+      CREATE berbuff.
+      BUFFER-COPY BERVAL TO berbuff.
+      ASSIGN
+      berbuff.AONR = STRING(tillbernr)
+      berbuff.OMRADE = tillomrade.
+   END.
+   GET NEXT kq NO-LOCK.
+END.
+CLOSE QUERY kq.  
+
+OPEN QUERY ordq FOR EACH BERORD WHERE BERORD.AONR = STRING(varbernr) AND
+BERORD.OMRADE = valomrade USE-INDEX ORD NO-LOCK.
+GET FIRST ordq NO-LOCK.
+DO WHILE AVAILABLE(BERORD):
+   DO TRANSACTION:      
+      CREATE ordbuff.
+      BUFFER-COPY BERORD TO ordbuff.
+      ASSIGN
+      ordbuff.AONR = STRING(tillbernr)
+      ordbuff.OMRADE = tillomrade.
+   END.
+   GET NEXT ordq NO-LOCK.
+END.
+CLOSE QUERY ordq.
+
+OPEN QUERY friq FOR EACH FRIKORT WHERE FRIKORT.AONR = STRING(varbernr) AND
+FRIKORT.OMRADE = valomrade USE-INDEX OMR NO-LOCK.
+GET FIRST friq NO-LOCK.
+DO WHILE AVAILABLE(FRIKORT):
+   DO TRANSACTION:      
+      CREATE fribuff.
+      BUFFER-COPY FRIKORT TO fribuff.
+      ASSIGN
+      fribuff.AONR = STRING(tillbernr)
+      fribuff.OMRADE = tillomrade.
+   END.
+   GET NEXT friq NO-LOCK.
+END.
+CLOSE QUERY friq.
+
+OPEN QUERY berqid FOR EACH BERID WHERE BERID.AONR = STRING(varbernr) AND
+BERID.OMRADE = valomrade USE-INDEX OMR NO-LOCK.
+GET FIRST berqid NO-LOCK.
+DO WHILE AVAILABLE(BERID):
+   DO TRANSACTION:      
+      CREATE idbuff.
+      BUFFER-COPY BERID TO idbuff.
+      ASSIGN
+      idbuff.AONR = STRING(tillbernr)
+      idbuff.OMRADE = tillomrade.
+   END.
+   GET NEXT berqid NO-LOCK.
+END.
+CLOSE QUERY berqid.
+/*HD HÄR*/     
+RUN BKID_UI (INPUT STRING(varbernr),INPUT valomrade,STRING(tillbernr),INPUT tillomrade).
+RUN DelPool_UI.
+/*
+OPEN QUERY berqkal FOR EACH BERKALK WHERE BERKALK.AONR = STRING(varbernr) AND
+BERKALK.OMRADE = valomrade USE-INDEX OMR NO-LOCK.
+GET FIRST berqkal NO-LOCK.
+DO WHILE AVAILABLE(BERKALK):
+   DO TRANSACTION:      
+      CREATE kalkbuff.
+      BUFFER-COPY BERKALK TO kalkbuff.
+      ASSIGN
+      kalkbuff.AONR = STRING(tillbernr)
+      kalkbuff.OMRADE = tillomrade.
+
+   END.
+   GET NEXT berqkal NO-LOCK.
+END.
+CLOSE QUERY berqkal.
+  */  
+
+FIND LAST BERMTRL WHERE BERMTRL.AONR = STRING(varbernr) AND 
+BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE 
+USE-INDEX DATUM NO-LOCK NO-ERROR.
+IF AVAILABLE BERMTRL THEN DO:      
+   ASSIGN
+   datvar = BERMTRL.DATUM.                                       
+END.   
+OPEN QUERY berqmtrl FOR EACH BERMTRL WHERE BERMTRL.AONR = STRING(varbernr) AND
+BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE AND
+BERMTRL.DATUM = datvar USE-INDEX DATUM NO-LOCK.
+GET FIRST berqmtrl NO-LOCK.
+DO WHILE AVAILABLE(BERMTRL):   
+   DO TRANSACTION:      
+      CREATE mtrlbuff.
+      BUFFER-COPY BERMTRL TO mtrlbuff.
+      ASSIGN
+      mtrlbuff.AONR = STRING(tillbernr)
+      mtrlbuff.OMRADE = tillomrade.
+   END.      
+   GET NEXT berqmtrl NO-LOCK.
+END.
+CLOSE QUERY berqmtrl.    
+   
+OPEN QUERY berqlin FOR EACH BERLINKAB WHERE BERLINKAB.AONR = STRING(varbernr) AND
+BERLINKAB.OMRADE = valomrade AND BERLINKAB.DATUM = datvar USE-INDEX DATUM NO-LOCK.
+GET FIRST berqlin NO-LOCK.
+DO WHILE AVAILABLE(BERLINKAB):   
+   DO TRANSACTION:      
+      CREATE linbuff.
+      BUFFER-COPY BERLINKAB TO linbuff.
+      ASSIGN
+      linbuff.AONR = STRING(tillbernr)
+      linbuff.OMRADE = tillomrade.
+   END.
+   GET NEXT berqlin NO-LOCK.
+END.
+CLOSE QUERY berqlin.
+
+OPEN QUERY berqskydd FOR EACH KSKYDD WHERE KSKYDD.AONR = STRING(varbernr) AND
+KSKYDD.OMRADE = valomrade AND KSKYDD.BERED = TRUE
+USE-INDEX OMR NO-LOCK.
+GET FIRST berqskydd NO-LOCK.
+DO WHILE AVAILABLE(KSKYDD):
+   DO TRANSACTION:      
+      CREATE skyddbuff.
+      BUFFER-COPY KSKYDD TO skyddbuff.
+      ASSIGN
+      skyddbuff.AONR = STRING(tillbernr)
+      skyddbuff.OMRADE = tillomrade.
+   END.
+   GET NEXT berqskydd NO-LOCK.
+END.
+CLOSE QUERY berqskydd.
+
+OPEN QUERY berqupp FOR EACH BERUPP WHERE BERUPP.AONR = STRING(varbernr) AND
+BERUPP.OMRADE = valomrade 
+USE-INDEX OMR NO-LOCK.
+GET FIRST berqupp NO-LOCK.
+DO WHILE AVAILABLE(BERUPP):
+   DO TRANSACTION:      
+      CREATE uppbuff.
+      BUFFER-COPY BERUPP TO uppbuff.
+      ASSIGN
+      uppbuff.AONR = STRING(tillbernr)
+      uppbuff.OMRADE = tillomrade.
+   END.
+   GET NEXT berqupp NO-LOCK.
+END.
+CLOSE QUERY berqupp.
+RUN EXTRATABHMT.P PERSISTENT SET ekoppdataapph.      
+EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+EMPTY TEMP-TABLE extrakopptemp NO-ERROR. 
+CREATE inextrakopptemp.          
+ASSIGN
+inextrakopptemp.PROGRAM = "MARKSTN"                   
+inextrakopptemp.KOPPLACHAR1 = STRING(varbernr)             
+inextrakopptemp.KOPPLAINT1 = ?
+inextrakopptemp.KOPPLACHAR2 = valomrade            
+inextrakopptemp.KOPPLAINT2 =  ?.
+RUN etabhamt_UI IN ekoppdataapph (INPUT TABLE inextrakopptemp, OUTPUT TABLE extrakopptemp). 
+EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+FOR EACH extrakopptemp:
+   CREATE inextrakopptemp.
+   BUFFER-COPY extrakopptemp TO inextrakopptemp.
+   ASSIGN
+   inextrakopptemp.KOPPLACHAR1 = STRING(tillbernr)     
+   inextrakopptemp.KOPPLACHAR2 = tillomrade.
+END.
+RUN extraspar_UI IN ekoppdataapph (INPUT TABLE inextrakopptemp). 
+EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+EMPTY TEMP-TABLE extrakopptemp NO-ERROR. 
+IF VALID-HANDLE(ekoppdataapph) THEN DELETE PROCEDURE ekoppdataapph.
+RUN MarkstationKopi_UI (INPUT STRING(varbernr), INPUT valomrade,INPUT STRING(tillbernr), INPUT tillomrade).
+/*HD HÄR*/
+RUN FINNSTABELL.P (INPUT "HDKALK", OUTPUT bloblog).
+IF bloblog = TRUE THEN DO:
+   RUN HDKOP.P (INPUT varbernr,INPUT valomrade,tillbernr,INPUT tillomrade).
+END.
+{BERKALKBKID.I}
+{Markstationhmt.i}
+

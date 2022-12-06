@@ -1,0 +1,86 @@
+/*SKVFIL.P INLÄSNING AV PRISFIL ELEF*/       
+DEFINE NEW SHARED VARIABLE quotervar AS CHARACTER FORMAT "X(256)" NO-UNDO.
+/*
+
+*/
+
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+
+DEFINE VARIABLE rad AS INTEGER NO-UNDO.
+DEFINE VARIABLE prognamn AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamndat AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamnque AS CHARACTER FORMAT "X(20)" NO-UNDO.                
+DEFINE VARIABLE words AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE kommandoprog AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE satsvar AS CHARACTER FORMAT "X(11)" NO-UNDO.
+DEFINE VARIABLE enrvar AS CHARACTER FORMAT "X(11)" NO-UNDO.
+DEFINE VARIABLE melvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE melvar2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE langd AS INTEGER NO-UNDO.
+DEFINE VARIABLE pos1 AS INTEGER NO-UNDO. 
+
+DEFINE BUFFER mtrlbuff FOR MTRL.
+
+DEFINE TEMP-TABLE tidineln
+   FIELD ENR                AS CHARACTER   
+   FIELD BENAMNING          AS CHARACTER      
+   FIELD ENHET              AS CHARACTER  
+   FIELD PRIS               AS DECIMAL
+   INDEX ENR IS PRIMARY ENR.
+   
+
+DEFINE TEMP-TABLE infil
+   FIELD PROGNAMN AS CHARACTER FORMAT "X(78)" 
+   INDEX PRO IS PRIMARY PROGNAMN.
+DEFINE TEMP-TABLE intid
+   FIELD TIN AS CHARACTER FORMAT "X(78)" .
+
+DEFINE BUFFER mbuff FOR mtrl.
+   
+DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.   
+DEFINE VARIABLE leverant LIKE LEVERANTOR.LEVKOD NO-UNDO.
+{AMERICANEUROPEAN.I}
+{muswait.i}      
+   EMPTY TEMP-TABLE intid NO-ERROR.
+   EMPTY TEMP-TABLE tidineln NO-ERROR.
+   leverant = "16".
+   filnamn = "\\server04\d\elpool\elpnj\VESAB\ONNINEN\transformatorerkabeldonbll.skv". 
+   /*filnamn = "e:\delad\pro9\guru\ersatt061229.skv".                     */   
+   kommando = filnamn.
+   SESSION:SET-NUMERIC-FORMAT(" ",","). 
+   INPUT FROM VALUE(kommando) CONVERT TARGET "iso8859-1" SOURCE "iso8859-1" NO-ECHO.
+   REPEAT:
+      DO TRANSACTION: 
+         CREATE tidineln.
+         ASSIGN.
+         IMPORT DELIMITER ";" tidineln   .
+      END.               
+   END.
+
+   SESSION:SET-NUMERIC-FORMAT(" ",".").
+  
+   FOR EACH tidineln WHERE tidineln.ENR = "":
+      DELETE tidineln.
+   END.  
+   
+   RUN skapaenr_UI.           
+   {EUROPEANAMERICAN.I}
+
+PROCEDURE skapaenr_UI:      
+   FOR EACH tidineln NO-LOCK: 
+      CREATE MTRL.
+      ASSIGN
+      MTRL.LEVKOD = "13"
+      MTRL.KALKNR = 0
+      MTRL.ENR = tidineln.ENR
+      MTRL.BENAMNING = tidineln.BENAMNING
+      MTRL.ENHET = tidineln.ENHET
+      MTRL.NPRIS = tidineln.PRIS
+      MTRL.BPRIS = tidineln.PRIS.
+      {MTRLCREATE.I}       
+   END.   
+END PROCEDURE.   
+
+                
+

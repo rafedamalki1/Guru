@@ -1,0 +1,83 @@
+
+/*BESTTABPRIS.P*/
+OPEN QUERY kpq FOR EACH KUNDPRISLIST NO-LOCK.
+GET FIRST kpq NO-LOCK.
+DO WHILE AVAILABLE(KUNDPRISLIST):
+   FIND FIRST DEFPRISLISTA WHERE DEFPRISLISTA.PRISID = KUNDPRISLIST.PRISID NO-LOCK NO-ERROR.
+   IF AVAILABLE DEFPRISLISTA THEN DO:
+      IF DEFPRISLISTA.STARTDATUM > KUNDPRISLIST.STARTDATUM THEN DO:
+         IF DEFPRISLISTA.STARTDATUM - 1 <= TODAY THEN DO:
+            IF DEFPRISLISTA.OVER = TRUE THEN DO:
+               FOR EACH KUNDOVER WHERE KUNDOVER.BESTID  = KUNDPRISLIST.BESTID.
+                  DELETE KUNDOVER.
+               END.
+               OPEN QUERY prisoq FOR EACH OVERPRISLIST WHERE 
+               OVERPRISLIST.PRISID = DEFPRISLISTA.PRISID NO-LOCK.
+               GET FIRST prisoq NO-LOCK.
+               DO WHILE AVAILABLE(OVERPRISLIST):
+                  DO TRANSACTION:
+                     CREATE  KUNDOVER.  
+                     ASSIGN 
+                     KUNDOVER.OTEXTID = OVERPRISLIST.OTEXTID
+                     KUNDOVER.BEFATTNING = OVERPRISLIST.BEFATTNING 
+                     KUNDOVER.BESTID = KUNDPRISLIST.BESTID 
+                     KUNDOVER.DAGTYP = OVERPRISLIST.DAGTYP 
+                     KUNDOVER.EQDAG = OVERPRISLIST.EQDAG 
+                     KUNDOVER.PRISA = OVERPRISLIST.PRISA 
+                     KUNDOVER.SLUT = OVERPRISLIST.SLUT 
+                     KUNDOVER.START = OVERPRISLIST.START.                        
+                  END.   
+                  GET NEXT prisoq NO-LOCK.                     
+               END.
+               RELEASE KUNDOVER NO-ERROR.
+            END.
+            
+            ELSE DO:
+               FOR EACH KUNDBEF WHERE KUNDBEF.BESTID  = KUNDPRISLIST.BESTID:
+                  DELETE KUNDBEF.
+               END.
+               OPEN QUERY prisq FOR EACH PRISLISTFAKT WHERE 
+               PRISLISTFAKT.PRISID = DEFPRISLISTA.PRISID NO-LOCK.
+               GET FIRST prisq NO-LOCK.
+               DO WHILE AVAILABLE(PRISLISTFAKT):
+                  DO TRANSACTION:
+                     CREATE KUNDBEF.  
+                     ASSIGN          
+                     KUNDBEF.BEFATTNING = PRISLISTFAKT.BEFATTNING 
+                     KUNDBEF.BESTID =  KUNDPRISLIST.BESTID          
+                     KUNDBEF.PRISA = PRISLISTFAKT.PRISA 
+                     KUNDBEF.PRISRES = PRISLISTFAKT.PRISRES.                        
+                  END.   
+                  GET NEXT prisq NO-LOCK.                                 
+                  RELEASE KUNDBEF NO-ERROR.
+               END.
+               DO TRANSACTION:
+                  FIND FIRST PRISLISTOVRIGT WHERE 
+                  PRISLISTOVRIGT.PRISID = DEFPRISLISTA.PRISID NO-LOCK NO-ERROR.
+                  IF AVAILABLE PRISLISTOVRIGT THEN DO:
+                     FIND FIRST KUNDREGLER WHERE KUNDREGLER.BESTID = KUNDPRISLIST.BESTID
+                     EXCLUSIVE-LOCK NO-ERROR.
+                     IF AVAILABLE KUNDREGLER THEN DO:          
+                        IF KUNDREGLER.TIMRGL = "KUNDENS EGNA" THEN DO:
+                           ASSIGN
+                           KUNDREGLER.ENTRAK = PRISLISTOVRIGT.ENTRAK 
+                           KUNDREGLER.FLERTRAK = PRISLISTOVRIGT.FLERTRAK
+                           KUNDREGLER.FRTJPA = PRISLISTOVRIGT.FRTJPA
+                           KUNDREGLER.MIL = PRISLISTOVRIGT.MIL
+                           KUNDREGLER.MTRLPA = PRISLISTOVRIGT.MTRLPA.
+                        END.   
+                     END.
+                  END.
+               END.
+            END.   
+            DO TRANSACTION:
+               GET CURRENT kpq EXCLUSIVE-LOCK.
+               KUNDPRISLIST.STARTDATUM = DEFPRISLISTA.STARTDATUM.
+            END.
+         END.
+      END.  
+   END.
+   GET NEXT kpq NO-LOCK.
+END.
+
+

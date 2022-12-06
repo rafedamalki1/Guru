@@ -1,0 +1,193 @@
+/*INUTDBTAB.P*/
+DEFINE TEMP-TABLE tabtemp NO-UNDO
+   FIELD TNAMN AS CHARACTER
+   FIELD TAREA AS CHARACTER
+   FIELD TDUMP-NAME AS CHARACTER
+   INDEX TNAMN TNAMN.
+
+DEFINE TEMP-TABLE fieldtab NO-UNDO
+   FIELD TNAMN AS CHARACTER 
+   FIELD FNMAN AS CHARACTER
+   FIELD FDATATYP AS CHARACTER
+   FIELD FFORMAT AS CHARACTER
+   FIELD FINITIAL AS CHARACTER
+   FIELD FPOSITION AS INTEGER 
+   FIELD FMAX-WIDTH AS INTEGER 
+   FIELD FORDER AS INTEGER
+   INDEX TNAMN TNAMN FORDER.
+DEFINE TEMP-TABLE indextab NO-UNDO
+   FIELD TNAMN AS CHARACTER
+   FIELD TAREA AS CHARACTER 
+   FIELD IORDER  AS INTEGER
+   FIELD INAMN AS CHARACTER
+   FIELD IPRIMARY AS LOGICAL
+   FIELD IAKTIV AS LOGICAL
+   FIELD IFNAMN AS CHARACTER EXTENT 15
+   FIELD IASCDES AS LOGICAL EXTENT 15   
+   INDEX TNAMN TNAMN IORDER.
+ DEFINE VARIABLE inr AS INTEGER NO-UNDO. 
+  /*INUTDBTAB.P*/
+SETUSERID({setuser.I},{setpwd.I}).
+
+CREATE tabtemp.
+ASSIGN
+tabtemp.TNAMN = "INKADRESS"
+tabtemp.TAREA = "beredning"
+tabtemp.TDUMP-NAME = "inkadress".
+CREATE fieldtab.
+ASSIGN
+fieldtab.TNAMN = "INKADRESS"
+fieldtab.FNMAN = "CAONRAONR"
+fieldtab.FDATATYP = "CHARACTER"
+fieldtab.FFORMAT = "x(8)"
+fieldtab.FINITIAL = ""
+fieldtab.FPOSITION = 67
+fieldtab.FMAX-WIDTH = 16
+fieldtab.FORDER = 670.
+/*
+CREATE fieldtab.
+ASSIGN
+fieldtab.TNAMN = "INKADRESS"
+fieldtab.FNMAN = "INKID"
+fieldtab.FDATATYP = "INTEGER"
+fieldtab.FFORMAT = "->>>>>>9"
+fieldtab.FINITIAL = "0"
+fieldtab.FPOSITION = 2
+fieldtab.FMAX-WIDTH = 4
+fieldtab.FORDER = 10.
+CREATE fieldtab.
+ASSIGN
+fieldtab.TNAMN = "INKADRESS"
+fieldtab.FNMAN = "AONRAONR"
+fieldtab.FDATATYP = "CHARACTER"
+fieldtab.FFORMAT = "x(8)"
+fieldtab.FINITIAL = ""
+fieldtab.FPOSITION = 3
+fieldtab.FMAX-WIDTH = 16
+fieldtab.FORDER = 20.
+CREATE indextab.
+ASSIGN
+indextab.TNAMN = "INKADRESS"
+indextab.TAREA = "beredning"
+indextab.IORDER = 1
+indextab.INAMN = "AONRAONR"
+indextab.IPRIMARY = TRUE
+indextab.IFNAMN[1] = "AONRAONR"
+indextab.IASCDES[1] = TRUE
+indextab.IFNAMN[2] = "INKID"
+indextab.IASCDES[2] = TRUE.
+*/
+FIND FIRST _Db WHERE _Db._Db-local NO-LOCK NO-ERROR.
+FOR EACH tabtemp NO-LOCK:
+   FIND FIRST _file WHERE _File._File-name = tabtemp.TNAMN NO-ERROR.
+   IF NOT AVAILABLE _file THEN DO:
+      CREATE _file.
+      ASSIGN
+      _File._Db-recid = RECID(_Db) 
+      _File._File-name = tabtemp.TNAMN
+      _File._Dump-name =tabtemp.TDUMP-NAME.
+      FIND FIRST _Area WHERE _Area._Area-name = tabtemp.TAREA NO-LOCK NO-ERROR.
+      IF AVAILABLE _Area THEN DO:
+         FIND FIRST _StorageObject WHERE 
+         _StorageObject._Db-recid = RECID(_Db) AND  
+         _StorageObject._Object-type = 1 AND 
+         _StorageObject._Area = _Area._Area-number
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE _StorageObject THEN DO: 
+            _File._File-Number = _StorageObject._Object-Number.
+         END.
+      END.
+   END.   
+    /* /*CLOBBAR*/ 
+         IF _Field._Data-type = "BLOB" OR _Field._Data-type = "CLOB" OR _Field._Data-type = "XLOB" THEN DO:       
+          FIND _storageobject WHERE _Storageobject._Db-recid = RECID(_Db)
+           AND _Storageobject._Object-type = 3
+           AND _Storageobject._Object-number = _Field._Fld-stlen
+          NO-LOCK.
+          FIND _Area WHERE _Area._Area-number = _StorageObject._Area-number NO-LOCK.
+          PUT STREAM ddl UNFORMATTED '  LOB-AREA "' _Area._Area-name '"' SKIP.   
+          PUT STREAM ddl UNFORMATTED "  LOB-BYTES " _Field._Width SKIP.
+          PUT STREAM ddl UNFORMATTED "  LOB-SIZE " _Field._Fld-Misc2[1] SKIP.
+        END.
+       
+        IF _Field._Data-type = "CLOB" THEN DO:
+        PUT STREAM ddl UNFORMATTED '  CLOB-CODEPAGE "' _Field._Charset '"' SKIP.
+        PUT STREAM ddl UNFORMATTED '  CLOB-COLLATION "' _Field._Collation '"' SKIP.
+        PUT STREAM ddl UNFORMATTED '  CLOB-TYPE ' _Field._Attributes1 SKIP.
+        END.
+        */
+        /* /*DATA FORMAT*/
+    IF _Field._Extent > 0 THEN
+      PUT STREAM ddl UNFORMATTED "  EXTENT " _Field._Extent SKIP.
+    IF _Field._Decimals <> ? AND _Field._dtype = 5 THEN
+      PUT STREAM ddl UNFORMATTED "  DECIMALS " _Field._Decimals SKIP.
+    IF _Field._Decimals <> ? AND _Field._dtype = 1 THEN
+      PUT STREAM ddl UNFORMATTED "  LENGTH " _Field._Decimals SKIP.
+      */
+   FOR EACH fieldtab WHERE fieldtab.TNAMN = tabtemp.TNAMN:
+      FIND FIRST _Field WHERE _Field._File-recid = RECID(_File) AND      
+      _Field._Field-name = fieldtab.FNMAN NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE _Field THEN DO:
+         CREATE _Field.
+         ASSIGN 
+         _Field._File-recid = RECID(_File)
+         _Field._Field-name = fieldtab.FNMAN
+         _Field._Data-type =  fieldtab.FDATATYP 
+         _Field._Format = fieldtab.FFORMAT
+         _Field._Initial = fieldtab.FINITIAL 
+         _Field._Field-rpos = fieldtab.FPOSITION
+         _Field._Width = fieldtab.FMAX-WIDTH
+         _Field._Order = fieldtab.FORDER.
+      END.
+   END.   
+   /*
+   FOR EACH indextab WHERE indextab.TNAMN = tabtemp.TNAMN:      
+      FIND FIRST _Index WHERE _Index._File-recid = RECID(_File)  NO-LOCK NO-ERROR.  
+      IF NOT AVAILABLE _Index THEN DO:                
+         CREATE _Index.
+         ASSIGN  
+         _Index._File-recid = RECID(_File) 
+         _Index._Idx-num    = ?
+         _Index._ianum      = 6        
+         _Index._active = indextab.IAKTIV
+         _Index._Index-name = indextab.INAMN.
+         IF indextab.IPRIMARY = TRUE THEN _File._Prime-Index = RECID(_Index).
+        
+         FIND FIRST _Area WHERE _Area._Area-name = tabtemp.TAREA NO-LOCK NO-ERROR.
+         IF AVAILABLE _Area THEN DO:
+            FIND FIRST _StorageObject WHERE 
+            _StorageObject._Db-recid = RECID(_Db) AND  
+            _StorageObject._Object-type = 2 AND 
+            _StorageObject._Area = _Area._Area-number
+            NO-LOCK NO-ERROR.
+            IF AVAILABLE _StorageObject THEN DO: 
+               _Index._Idx-num = _StorageObject._Object-Number.
+            END.
+         END.           
+         inr = 0.
+         REPEAT:
+            inr = inr + 1.
+            IF inr > 15 THEN LEAVE.
+            IF indextab.IFNAMN[inr] = "" THEN LEAVE.   
+            CREATE _Index-field.
+            ASSIGN
+            _Index-Field._Index-recid = RECID(_Index)
+            _Index-field._Ascending = indextab.IASCDES[inr].
+           
+             FIND FIRST _Field WHERE _Field._File-recid = RECID(_File) AND      
+             _Field._Field-name = indextab.IFNAMN[inr] NO-LOCK NO-ERROR.                                            
+             IF AVAILABLE _Field THEN DO:
+                _Index-Field._Field-recid = RECID(_Field).
+             END.
+             /*
+          ASSIGN _Index-Seq _Ascending _Abbreviate.
+           */         
+         END.                        
+      END.      
+   END.
+   */      
+END.
+   
+SETUSERID("","").   
+   
+   

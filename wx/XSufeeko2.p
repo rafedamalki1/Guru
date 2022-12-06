@@ -1,0 +1,435 @@
+/*SUFEEKO2.P*/
+DEFINE TEMP-TABLE ekoforst
+   FIELD ENY LIKE EKRAPPRESULT.ENY 
+   FIELD EPERSONALKOD LIKE EKRAPPRESULT.EPERSONALKOD 
+   FIELD EPROJEKT LIKE EKRAPPRESULT.EPROJEKT
+   FIELD DELNR LIKE AONRTAB.DELNR 
+   FIELD EORG LIKE EKRAPPRESULT.EORG     
+   FIELD EGEO LIKE EKRAPPRESULT.EGEO  
+   FIELD FELDEBKRED AS LOGICAL
+   FIELD EVERDATUM LIKE EKRAPPRESULT.EVERDATUM
+   FIELD EOVERJA LIKE EKRAPPRESULT.EOVERJA
+   FIELD ERESULTENH LIKE EKRAPPRESULT.ERESULTENH 
+   FIELD EBELOPP LIKE  EKRAPPRESULT.EBELOPP 
+   FIELD EANTAL LIKE EKRAPPRESULT.EANTAL 
+   FIELD ETIMMAR LIKE EKRAPPRESULT.EANTAL                
+   FIELD ELONTILLAGG LIKE EKRAPPRESULT.ELONTILLAGG 
+   FIELD ELONTILLANTAL LIKE EKRAPPRESULT.ELONTILLANTAL    
+   FIELD ELONBELOPP LIKE EKRAPPRESULT.ELONBELOPP         
+   INDEX PERSORG IS PRIMARY EPERSONALKOD EORG EGEO EPROJEKT DELNR ASCENDING.
+DEFINE TEMP-TABLE eko
+   FIELD EDEBKRED LIKE EKRAPPRESULT.EDEBKRED
+   FIELD ENY LIKE EKRAPPRESULT.ENY       
+   FIELD EVERDATUM LIKE EKRAPPRESULT.EVERDATUM  
+   FIELD EPROJEKT LIKE EKRAPPRESULT.EPROJEKT 
+   FIELD DELNR LIKE AONRTAB.DELNR 
+   FIELD EORG LIKE EKRAPPRESULT.EORG 
+/*   FIELD EGEO LIKE EKRAPPRESULT.EGEO       */
+   FIELD EKOSTNADSSLAG LIKE EKRAPPRESULT.EKOSTNADSSLAG    
+   FIELD EBELOPP LIKE  EKRAPPRESULT.EBELOPP 
+   FIELD EANTAL  LIKE EKRAPPRESULT.EANTAL 	       
+   FIELD ELONTILLAGG LIKE EKRAPPRESULT.ELONTILLAGG 
+   FIELD ELONTILLANTAL LIKE EKRAPPRESULT.ELONTILLANTAL    
+   FIELD ELONBELOPP LIKE EKRAPPRESULT.ELONBELOPP         
+   FIELD FELDEBKRED AS LOGICAL
+   INDEX ORG IS PRIMARY EVERDATUM EORG EPROJEKT EKOSTNADSSLAG ASCENDING.   
+DEFINE TEMP-TABLE slutut
+   FIELD DEBKRED AS LOGICAL 
+   FIELD OMRADE AS CHARACTER
+   FIELD PROJEKT AS CHARACTER 
+   FIELD DELNR LIKE AONRTAB.DELNR 
+   FIELD VERDATUM AS CHARACTER
+   FIELD KOSTNADSSLAG AS CHARACTER
+   FIELD ANTAL AS DECIMAL 
+   FIELD BELOPP AS DECIMAL       
+   FIELD K1 AS CHARACTER 
+   FIELD K2 AS CHARACTER
+   FIELD K2POS8 AS CHARACTER
+   FIELD FELDEBKRED AS LOGICAL
+   INDEX ORG IS PRIMARY DEBKRED OMRADE PROJEKT KOSTNADSSLAG K1 K2.
+DEFINE TEMP-TABLE slututK
+   FIELD DEBKRED AS LOGICAL 
+   FIELD OMRADE AS CHARACTER
+   FIELD PROJEKT AS CHARACTER 
+   FIELD DELNR LIKE AONRTAB.DELNR 
+   FIELD VERDATUM AS CHARACTER
+   FIELD KOSTNADSSLAG AS CHARACTER
+   FIELD ANTAL AS DECIMAL 
+   FIELD BELOPP AS DECIMAL       
+   FIELD K1 AS CHARACTER 
+   FIELD K2 AS CHARACTER
+   FIELD K2POS8 AS CHARACTER
+   FIELD FELDEBKRED AS LOGICAL
+   INDEX ORG IS PRIMARY DEBKRED OMRADE PROJEKT KOSTNADSSLAG K1 K2.
+DEFINE TEMP-TABLE omrkosttemp
+   FIELD OMRADE AS CHARACTER
+   FIELD KOSTNADSLAGDEB AS CHARACTER
+   FIELD KOSTNADSLAGKRED AS CHARACTER
+   FIELD PERSTYP AS CHARACTER
+   INDEX PERSTYP IS PRIMARY PERSTYP OMRADE.
+DEFINE BUFFER eko2 FOR eko.
+DEFINE BUFFER persbuff FOR PERSONALTAB.
+DEFINE INPUT PARAMETER vkdatum AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR ekoforst.
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(140)" NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE kommando2 AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE kontokod LIKE EKRAPPRESULT.EKOSTNADSSLAG NO-UNDO. 
+DEFINE VARIABLE kontokode LIKE EKRAPPRESULT.EKOSTNADSSLAG NO-UNDO. 
+DEFINE VARIABLE pkoder LIKE PERSONALTAB.PERSONALKOD NO-UNDO.  
+DEFINE VARIABLE persrec AS RECID NO-UNDO. 
+RUN omrk_UI (INPUT "1111",INPUT "970111",INPUT "931100",INPUT "PERS").
+RUN omrk_UI (INPUT "1311",INPUT "970113",INPUT "931100",INPUT "PERS").
+RUN omrk_UI (INPUT "1315",INPUT "952100",INPUT "931400",INPUT "MASKIN").
+RUN omrk_UI (INPUT "1315",INPUT "957410",INPUT "931200",INPUT "FORDON").
+RUN omrk_UI (INPUT "1411",INPUT "970114",INPUT "931100",INPUT "PERS").
+RUN omrk_UI (INPUT "1415",INPUT "957440",INPUT "931200",INPUT "MASKIN").
+RUN omrk_UI (INPUT "1415",INPUT "957410",INPUT "931200",INPUT "FORDON").
+RUN omrk_UI (INPUT "1415",INPUT "957420",INPUT "931200",INPUT "LASTBIL").
+RUN omrk_UI (INPUT "1415",INPUT "957430",INPUT "931200",INPUT "KORGBIL").
+RUN omrk_UI (INPUT "1511",INPUT "970115",INPUT "931100",INPUT "PERS").
+RUN omrk_UI (INPUT "1515",INPUT "957410",INPUT "931200",INPUT "FORDON").
+RUN omrk_UI (INPUT "1811",INPUT "970118",INPUT "931100",INPUT "PERS").
+RUN omrk_UI (INPUT "1815",INPUT "957410",INPUT "931200",INPUT "FORDON").
+RUN omrk_UI (INPUT "",INPUT "970230",INPUT "937023",INPUT "BEREDSKAP").
+PROCEDURE omrk_UI:
+   DEFINE INPUT PARAMETER omrvar AS CHARACTER.
+   DEFINE INPUT PARAMETER debvar AS CHARACTER.
+   DEFINE INPUT PARAMETER krevar AS CHARACTER.
+   DEFINE INPUT PARAMETER ptypvar AS CHARACTER.
+   CREATE omrkosttemp.
+   ASSIGN
+   omrkosttemp.OMRADE          = omrvar 
+   omrkosttemp.KOSTNADSLAGDEB  = debvar 
+   omrkosttemp.KOSTNADSLAGKRED = krevar 
+   omrkosttemp.PERSTYP         = ptypvar.
+END PROCEDURE.
+pkoder = "". 
+OPEN QUERY qeko FOR EACH ekoforst WHERE ekoforst.ENY = FALSE USE-INDEX PERSORG NO-LOCK.
+GET FIRST qeko.
+DO WHILE AVAILABLE(ekoforst):
+   IF pkoder NE ekoforst.EPERSONALKOD THEN DO:      
+      pkoder = ekoforst.EPERSONALKOD.      
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pkoder 
+      USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.        
+      persrec = RECID(PERSONALTAB).     
+   END.   
+   FIND FIRST omrkosttemp WHERE omrkosttemp.OMRADE = ekoforst.EORG AND
+   omrkosttemp.PERSTYP = "PERS" 
+   NO-LOCK NO-ERROR.
+   ASSIGN
+   kontokod =  omrkosttemp.KOSTNADSLAGDEB 
+   kontokode = omrkosttemp.KOSTNADSLAGKRED.         
+   /*TIMMAR OCH PENNGAR*/
+   IF ekoforst.EBELOPP = 0 THEN DO:
+      persrec = persrec.
+   END.                                   
+   ELSE DO:      
+      RUN kost_UI (INPUT TRUE).      
+   END.      
+   IF ekoforst.ELONTILLAGG = "" THEN DO:
+      persrec = persrec.
+   END.                                   
+   ELSE DO:
+      /*ÖVERTIDTILLÄGG*/ 
+      IF ekoforst.ERESULTENH = "OVE" THEN DO:            
+         RUN kost_UI (INPUT FALSE). 
+      END.   
+      /*BEREDSKAP*/             
+      IF ekoforst.ERESULTENH = "BER" THEN DO:     
+         FIND FIRST omrkosttemp WHERE /*"omrkosttemp.OMRADE = ekoforst.EORG AND*/
+         omrkosttemp.PERSTYP = "BEREDSKAP" 
+         NO-LOCK NO-ERROR.
+         ASSIGN
+         kontokod =  omrkosttemp.KOSTNADSLAGDEB 
+         kontokode = omrkosttemp.KOSTNADSLAGKRED.         
+         RUN kost_UI (INPUT FALSE).       
+      END.            
+      /*BILAR*/
+      IF ekoforst.ERESULTENH = "BIL" THEN DO:             
+         FIND FIRST persbuff WHERE persbuff.PERSONALKOD = ekoforst.ELONTILLAGG
+         NO-LOCK NO-ERROR.
+         FIND FIRST omrkosttemp WHERE omrkosttemp.OMRADE = persbuff.OMRADE AND
+         omrkosttemp.PERSTYP = persbuff.BEFATTNING 
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE omrkosttemp THEN DO:
+            ASSIGN
+            kontokod =  omrkosttemp.KOSTNADSLAGDEB 
+            kontokode = omrkosttemp.KOSTNADSLAGKRED.         
+            RUN bilkost_UI.   
+         END.
+      END.                           
+   END.
+   DELETE ekoforst.
+   GET NEXT qeko.   
+END.   
+OPEN QUERY qe FOR EACH eko /*WHERE eko.EDEBKRED = TRUE*/ NO-LOCK.
+GET FIRST qe.
+DO WHILE AVAILABLE(eko):
+   OPEN QUERY qa FOR EACH AONRKONTKOD WHERE AONRKONTKOD.AONR = eko.EPROJEKT AND 
+   AONRKONTKOD.DELNR = eko.DELNR NO-LOCK.
+   GET FIRST qa NO-LOCK.
+   DO WHILE AVAILABLE(AONRKONTKOD):
+      FIND FIRST slutut WHERE 
+      slutut.DEBKRED = eko.EDEBKRED AND 
+      slutut.OMRADE = eko.EORG AND 
+      slutut.PROJEKT = eko.EPROJEKT AND
+      slutut.DELNR = eko.DELNR AND
+      slutut.KOSTNADSSLAG = eko.EKOSTNADSSLAG AND        
+      slutut.K1 = AONRKONTKOD.K1 AND
+      slutut.K2 = AONRKONTKOD.K2 AND
+      slutut.FELDEBKRED = eko.FELDEBKRED
+      NO-ERROR.  
+      IF NOT AVAILABLE slutut THEN DO:
+         CREATE slutut.
+      END.    
+      ASSIGN  
+      slutut.DEBKRED = eko.EDEBKRED           
+      slutut.OMRADE = eko.EORG                   
+      slutut.PROJEKT = eko.EPROJEKT           
+      slutut.DELNR = eko.DELNR 
+      slutut.KOSTNADSSLAG = eko.EKOSTNADSSLAG 
+      slutut.K1 = AONRKONTKOD.K1               
+      slutut.K2 = AONRKONTKOD.K2        
+      slutut.FELDEBKRED = eko.FELDEBKRED
+      slutut.ANTAL = slutut.ANTAL + (eko.EANTAL * AONRKONTKOD.SATS%) / 100  
+      slutut.BELOPP = slutut.BELOPP + (eko.EBELOPP * AONRKONTKOD.SATS%) / 100.                     
+      GET NEXT qa NO-LOCK.
+   END.
+   GET NEXT qe.
+END.
+
+OPEN QUERY sq FOR EACH slutut WHERE slutut.DEBKRED = FALSE NO-LOCK.
+GET FIRST sq.
+DO WHILE AVAILABLE(slutut):
+   FIND FIRST slututK WHERE 
+   slututK.DEBKRED = slutut.DEBKRED AND 
+   slututK.OMRADE = slutut.OMRADE AND 
+   /*slututK.PROJEKT = slutut.PROJEKT AND
+   slututK.DELNR = slutut.DELNR AND  */
+   slututK.KOSTNADSSLAG = slutut.KOSTNADSSLAG AND
+   slututK.FELDEBKRED = slutut.FELDEBKRED
+   NO-ERROR.  
+   IF NOT AVAILABLE slututK THEN DO:
+      CREATE slututK.
+   END.    
+   ASSIGN  
+   slututK.DEBKRED = slutut.DEBKRED           
+   slututK.OMRADE = slutut.OMRADE                   
+   /*slututK.PROJEKT = slutut.PROJEKT
+   slututK.DELNR = slutut.DELNR      */
+   slututK.KOSTNADSSLAG = slutut.KOSTNADSSLAG 
+   slututK.FELDEBKRED = slutut.FELDEBKRED
+   slututK.ANTAL = slututK.ANTAL + ROUND(slutut.ANTAL,2) 
+   slututK.BELOPP = slututK.BELOPP + ROUND(slutut.BELOPP,2).
+   DELETE slutut.
+   GET NEXT sq.
+END.                                                         
+FOR EACH slututK:
+   CREATE slutut.
+   BUFFER-COPY slututK TO slutut.
+   DELETE slututK.
+END.
+
+FOR EACH slutut:
+    IF slutut.FELDEBKRED = FALSE THEN slutut.BELOPP = slutut.BELOPP * -1.
+    slutut.K2POS8 = slutut.K2.
+END.
+/* Tidfel i egen fil som start*/
+kommando2 = "\\BEREDNING1\DELAD\SERVER\PRO9S\BACKEXPORT\ekoF" + STRING(TODAY,"99999999"). 
+kommando = "\\BEREDNING1\DELAD\SERVER\PRO9S\EXPORT\EKONOMI\ekoF" + STRING(TODAY,"99999999"). 
+
+
+OUTPUT TO PRINTER.
+PUT "Datum " vkdatum SKIP.
+FOR EACH slutut WHERE slutut.DEBKRED = TRUE:
+   RUN ut_UI.   
+END.
+
+/*kommando = "\\BEREDNING1\DELAD\SERVER\PRO9S\EXPORT\EKONOMI\ekoF" + STRING(TODAY,"99999999"). 
+OUTPUT TO VALUE(kommando) APPEND.*/
+/*PUT "Datum " vkdatum SKIP.*/
+FOR EACH slutut WHERE slutut.DEBKRED = FALSE:
+   RUN ut_UI.   
+END.
+OUTPUT CLOSE.
+/*OS-COPY VALUE(kommando) VALUE(kommando2).*/
+
+PROCEDURE ut_UI:
+   IF LENGTH(slutut.PROJEKT) = 1 THEN slutut.PROJEKT = slutut.PROJEKT + "0000".
+   ELSE IF LENGTH(slutut.PROJEKT) = 2 THEN slutut.PROJEKT = slutut.PROJEKT + "000".
+   ELSE IF LENGTH(slutut.PROJEKT) = 3 THEN slutut.PROJEKT = slutut.PROJEKT + "00".
+   ELSE IF LENGTH(slutut.PROJEKT) = 4 THEN slutut.PROJEKT = slutut.PROJEKT + "0".
+   IF LENGTH(slutut.K2POS8) = 1 THEN slutut.K2POS8 = slutut.K2POS8 + "0000000".
+   ELSE IF LENGTH(slutut.K2) = 2 THEN slutut.K2 = slutut.K2 + "000000".
+   ELSE IF LENGTH(slutut.K2) = 3 THEN slutut.K2 = slutut.K2 + "00000".
+   ELSE IF LENGTH(slutut.K2) = 4 THEN slutut.K2 = slutut.K2 + "0000".
+   ELSE IF LENGTH(slutut.K2) = 5 THEN slutut.K2 = slutut.K2 + "000".
+   ELSE IF LENGTH(slutut.K2) = 6 THEN slutut.K2 = slutut.K2 + "00".
+   ELSE IF LENGTH(slutut.K2) = 7 THEN slutut.K2 = slutut.K2 + "0".   
+   str = "".
+   /*
+   a   a d  d o        o 1  1 2      2 k             k b             b
+   12345678901234567890123456789012345678901234567890123456789012345678901234567890                   
+   */
+   IF slutut.DEBKRED = TRUE THEN DO:
+      ASSIGN     
+      SUBSTRING(str,1,5) = STRING(slutut.PROJEKT,"99999") 
+      SUBSTRING(str,7,4) = STRING(slutut.DELNR,"9999"). 
+   END.   
+   ASSIGN
+   SUBSTRING(str,12,10) = slutut.OMRADE
+   SUBSTRING(str,23,4) = slutut.K1
+   SUBSTRING(str,28,8) = slutut.K2
+   SUBSTRING(str,37,15) = slutut.KOSTNADSSLAG  
+   SUBSTRING(str,53,15) = STRING(slutut.BELOPP,"->>>>>>>>>>>.99").
+   IF slutut.BELOPP NE 0 THEN DO:   
+      PUT UNFORMATTED str AT 1 SKIP.    
+   END.
+   DELETE slutut. 
+END PROCEDURE.
+PROCEDURE kost_UI:
+   DEFINE INPUT PARAMETER timlon AS LOGICAL NO-UNDO.
+   /*DEBET POST*/
+   FIND FIRST eko WHERE
+   eko.ENY = TRUE AND
+   eko.EORG = ekoforst.EGEO AND 
+   eko.EVERDATUM = ekoforst.EVERDATUM AND
+   eko.EPROJEKT = ekoforst.EPROJEKT AND
+   eko.DELNR = ekoforst.DELNR AND
+   eko.EKOSTNADSSLAG = kontokod AND
+   eko.EDEBKRED = TRUE AND
+   eko.FELDEBKRED = ekoforst.FELDEBKRED
+   USE-INDEX ORG EXCLUSIVE-LOCK NO-ERROR.  
+   IF NOT AVAILABLE eko THEN DO:
+      CREATE eko.
+   END.    
+   ASSIGN         
+   eko.EDEBKRED = TRUE 
+   eko.ENY = TRUE 
+   eko.EORG = ekoforst.EGEO  
+   eko.EVERDATUM = ekoforst.EVERDATUM
+   eko.EPROJEKT = ekoforst.EPROJEKT 
+   eko.DELNR = ekoforst.DELNR 
+   eko.EKOSTNADSSLAG = kontokod.
+   IF ekoforst.FELDEBKRED = TRUE THEN ASSIGN eko.FELDEBKRED = TRUE.
+   ELSE ASSIGN eko.FELDEBKRED = FALSE.   
+   IF timlon = TRUE THEN DO:
+      ASSIGN
+      eko.EANTAL = eko.EANTAL + ekoforst.EANTAL  
+      eko.EBELOPP = eko.EBELOPP + ekoforst.EBELOPP.     
+   END.
+   ELSE DO:
+      eko.EBELOPP = eko.EBELOPP + ekoforst.ELONBELOPP.     
+   END.
+   /*KREDIT POST*/          
+   IF ekoforst.FELDEBKRED = TRUE THEN DO:
+      FIND FIRST eko2 WHERE
+      eko2.ENY = TRUE AND
+      eko2.EORG = ekoforst.EORG AND 
+      eko2.EVERDATUM = ekoforst.EVERDATUM AND
+      eko2.EPROJEKT = ekoforst.EPROJEKT AND
+      eko2.EKOSTNADSSLAG = kontokode AND
+      eko2.EDEBKRED = FALSE AND
+      eko2.FELDEBKRED = FALSE      
+      USE-INDEX ORG EXCLUSIVE-LOCK NO-ERROR.  
+   END.
+   ELSE DO:
+      FIND FIRST eko2 WHERE
+      eko2.ENY = TRUE AND
+      eko2.EORG = ekoforst.EORG AND 
+      eko2.EVERDATUM = ekoforst.EVERDATUM AND
+      eko2.EPROJEKT = ekoforst.EPROJEKT AND
+      eko2.EKOSTNADSSLAG = kontokode AND
+      eko2.EDEBKRED = FALSE AND
+      eko2.FELDEBKRED = TRUE
+      USE-INDEX ORG EXCLUSIVE-LOCK NO-ERROR.  
+   END.
+   IF NOT AVAILABLE eko2 THEN DO:
+      CREATE eko2.
+   END.    
+   ASSIGN              
+   eko2.EDEBKRED = FALSE 
+   eko2.ENY = TRUE 
+   eko2.EORG = ekoforst.EORG  
+   eko2.EVERDATUM = ekoforst.EVERDATUM
+   eko2.EPROJEKT = ekoforst.EPROJEKT
+   eko2.DELNR = ekoforst.DELNR 
+   eko2.EKOSTNADSSLAG = kontokode.
+   IF ekoforst.FELDEBKRED = TRUE THEN ASSIGN eko2.FELDEBKRED = FALSE.
+   ELSE ASSIGN eko2.FELDEBKRED = TRUE.
+   IF timlon = TRUE THEN DO:
+      ASSIGN
+      eko2.EANTAL = eko2.EANTAL + ekoforst.EANTAL  
+      eko2.EBELOPP = eko2.EBELOPP + ekoforst.EBELOPP.     
+   END. 
+   ELSE DO:
+      eko2.EBELOPP = eko2.EBELOPP + ekoforst.ELONBELOPP.     
+   END.
+END PROCEDURE.
+PROCEDURE bilkost_UI:
+   /*DEBET POST*/
+   FIND FIRST eko WHERE
+   eko.ENY = TRUE AND
+   eko.EORG = ekoforst.EGEO AND 
+   eko.EVERDATUM = ekoforst.EVERDATUM AND
+   eko.EPROJEKT = ekoforst.EPROJEKT AND
+   eko.DELNR = ekoforst.DELNR AND
+   eko.EKOSTNADSSLAG = kontokod AND
+   eko.EDEBKRED = TRUE AND
+   eko.FELDEBKRED = ekoforst.FELDEBKRED
+   USE-INDEX ORG EXCLUSIVE-LOCK NO-ERROR.  
+   IF NOT AVAILABLE eko THEN DO:
+      CREATE eko.
+   END.    
+   ASSIGN         
+   eko.EDEBKRED = TRUE 
+   eko.ENY = TRUE 
+   eko.EORG = ekoforst.EGEO 
+   eko.EVERDATUM = ekoforst.EVERDATUM
+   eko.EPROJEKT = ekoforst.EPROJEKT 
+   eko.DELNR = ekoforst.DELNR 
+   eko.EKOSTNADSSLAG = kontokod.
+   eko.EBELOPP = eko.EBELOPP + ekoforst.ELONBELOPP.     
+   IF ekoforst.FELDEBKRED = TRUE THEN ASSIGN eko.FELDEBKRED = TRUE.
+   ELSE ASSIGN eko.FELDEBKRED = FALSE.   
+
+   /*KREDIT POST*/          
+   IF ekoforst.FELDEBKRED = TRUE THEN DO:
+      FIND FIRST eko2 WHERE
+      eko2.ENY = TRUE AND
+      eko2.EORG = ekoforst.EORG AND 
+      eko2.EVERDATUM = ekoforst.EVERDATUM AND
+      eko2.EPROJEKT = ekoforst.EPROJEKT AND
+      eko2.EKOSTNADSSLAG = kontokode AND
+      eko2.EDEBKRED = FALSE AND
+      eko2.FELDEBKRED = FALSE      
+      USE-INDEX ORG EXCLUSIVE-LOCK NO-ERROR.  
+   END.
+   ELSE DO:
+      FIND FIRST eko2 WHERE
+      eko2.ENY = TRUE AND
+      eko2.EORG = ekoforst.EORG AND 
+      eko2.EVERDATUM = ekoforst.EVERDATUM AND
+      eko2.EPROJEKT = ekoforst.EPROJEKT AND
+      eko2.EKOSTNADSSLAG = kontokode AND
+      eko2.EDEBKRED = FALSE AND
+      eko2.FELDEBKRED = TRUE
+      USE-INDEX ORG EXCLUSIVE-LOCK NO-ERROR.  
+   END.
+   IF NOT AVAILABLE eko2 THEN DO:
+      CREATE eko2.
+   END.    
+   ASSIGN              
+   eko2.EDEBKRED = FALSE 
+   eko2.ENY = TRUE 
+   eko2.EORG = persbuff.OMRADE  
+   eko2.EVERDATUM = ekoforst.EVERDATUM
+   eko2.EPROJEKT = ekoforst.EPROJEKT 
+   eko2.DELNR = ekoforst.DELNR 
+   eko2.EKOSTNADSSLAG = kontokode.
+   eko2.EBELOPP = eko2.EBELOPP + ekoforst.ELONBELOPP.        
+   IF ekoforst.FELDEBKRED = TRUE THEN ASSIGN eko2.FELDEBKRED = FALSE.
+   ELSE ASSIGN eko2.FELDEBKRED = TRUE.
+END PROCEDURE.
+

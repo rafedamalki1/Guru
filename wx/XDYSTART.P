@@ -1,0 +1,181 @@
+DEFINE NEW SHARED VARIABLE tth AS HANDLE NO-UNDO.
+DEFINE VARIABLE brwproc AS HANDLE NO-UNDO.
+DEFINE VARIABLE FILL-IN-BEN AS CHARACTER NO-UNDO.
+DEFINE VARIABLE conappvar AS CHARACTER NO-UNDO FORMAT "x(74)" LABEL "APPSERVER PARM".
+DEFINE TEMP-TABLE soktemp NO-UNDO
+   FIELD SOKVAL AS INTEGER 
+   FIELD SOKCHAR AS CHARACTER EXTENT 5
+   FIELD SOKDATE AS DATE EXTENT 5
+   FIELD SOKINT AS INTEGER EXTENT 5
+   FIELD SOKDECI AS DECIMAL EXTENT 5
+   FIELD SOKLOG AS LOGICAL EXTENT 5.
+
+DEFINE TEMP-TABLE valsoktemp NO-UNDO
+   FIELD SOKVAL AS INTEGER 
+   FIELD SOKCHAR AS CHARACTER EXTENT 10
+   FIELD SOKDATE AS DATE EXTENT 10
+   FIELD SOKINT AS INTEGER EXTENT 10
+   FIELD SOKDECI AS DECIMAL EXTENT 10
+   FIELD SOKLOG AS LOGICAL EXTENT 10.
+
+DEFINE NEW SHARED VARIABLE appcon AS LOGICAL NO-UNDO.
+
+
+&Scoped-define NEW   NEW 
+&Scoped-define SHARED SHARED
+    {MTRLTEMP.I}
+/*
+DEFINE new shared TEMP-TABLE mtrltemp NO-UNDO LIKE customer .
+CREATE valsoktemp.
+         ASSIGN 
+         valsoktemp.SOKCHAR[1] = "customer"     /*Skarp tabell*/
+         valsoktemp.SOKCHAR[2] = " WHERE "   /*Öppningsquery*/
+         valsoktemp.SOKCHAR[3] = "mtrltemp". /*temptabell*/
+         emea
+         */
+/*
+DEFINE NEW SHARED TEMP-TABLE mtrltemp NO-UNDO LIKE personaltab .
+CREATE valsoktemp.
+     ASSIGN 
+         valsoktemp.SOKCHAR[1] = "personaltab"     /*Skarp tabell*/
+         valsoktemp.SOKCHAR[2] = " WHERE "   /*Öppningsquery*/
+         valsoktemp.SOKCHAR[3] = "mtrltemp". /*temptabell*/    
+  */      
+DEFINE VAR WINDOW-3 AS WIDGET-HANDLE NO-UNDO.
+CREATE WINDOW WINDOW-3 ASSIGN
+         HIDDEN             = no
+         TITLE              = "Window 3"
+         HEIGHT             = 28.42
+         WIDTH              = 124.88
+         MAX-HEIGHT         = 32.42
+         MAX-WIDTH          = 128
+         VIRTUAL-HEIGHT     = 32.42
+         VIRTUAL-WIDTH      = 128
+         SCROLL-BARS        = no
+         BGCOLOR            = ?
+         FGCOLOR            = ?
+         KEEP-FRAME-Z-ORDER = yes
+         THREE-D            = yes
+         MESSAGE-AREA       = no
+         SENSITIVE          = yes.
+
+DEFINE BUTTON BTN_OVER 
+     LABEL "pusch" 
+     SIZE 7 BY 1.75.
+
+   DEFINE QUERY BRW_HLEV FOR 
+         mtrltemp SCROLLING.
+      DEFINE BROWSE BRW_HLEV
+QUERY BRW_HLEV NO-LOCK DISPLAY
+            mtrltemp.enr FORMAT "X(11)"
+         WITH NO-ROW-MARKERS NO-COLUMN-SCROLLING MULTIPLE SIZE 56.5 BY 10.33
+     TITLE "Materiel".
+DEFINE FRAME FRAME-MTRL
+    BTN_OVER  AT ROW 17 COL 35
+     BRW_HLEV AT ROW 3.08 COL 1.5
+   conappvar AT ROW 1.5 COL 15 COLON-ALIGNED
+     FILL-IN-BEN AT ROW 14.75 COL 26.63 COLON-ALIGNED
+     WITH 1 DOWN NO-BOX KEEP-TAB-ORDER OVERLAY 
+         SIDE-LABELS NO-UNDERLINE THREE-D 
+         AT COL 1 ROW 1.88
+         SIZE 124.5 BY 18.38.
+
+ON CHOOSE OF BTN_OVER IN FRAME FRAME-MTRL
+DO:    
+      RUN over_UI.           
+   
+   
+END.
+
+ON MOUSE-SELECT-DBLCLICK OF FILL-IN-BEN IN FRAME FRAME-MTRL /* Benämning */
+DO: 
+   conappvar = INPUT conappvar.
+   IF conappvar NE "" THEN DO:
+       IF Guru.Konstanter:appcon = FALSE  THEN DO:
+          CREATE SERVER Guru.Konstanter:apphand.
+          Guru.Konstanter:appcon = Guru.Konstanter:apphand:CONNECT(conappvar) . 
+       END.
+   END.
+   IF brwproc = ? THEN DO:
+       tth = TEMP-TABLE mtrltemp:HANDLE.
+      RUN xDYNLADDBRWu.P PERSISTENT SET brwproc
+      (INPUT BRW_HLEV:HANDLE IN FRAME FRAME-MTRL).       
+    /*  RUN vadtthladd_UI IN brwproc (INPUT 1).*/
+      tth = TEMP-TABLE mtrltemp:HANDLE.
+    EMPTY TEMP-TABLE valsoktemp NO-ERROR. 
+    CREATE valsoktemp.
+     ASSIGN 
+     valsoktemp.SOKCHAR[1] = "mtrl"     /*Skarp tabell*/
+     valsoktemp.SOKCHAR[2] = ""   /*Öppningsquery*/
+     valsoktemp.SOKCHAR[3] = "MTRLTEMP" /*sökfält*/
+     valsoktemp.SOKCHAR[4] = "MTRLROW"  /*temptabells faltnamn för rowid*/.
+     
+      RUN initbrw_UI IN brwproc (INPUT TABLE valsoktemp).    
+      
+   END.
+   
+   FILL-IN-BEN = INPUT FILL-IN-BEN.
+   /*
+   EMPTY TEMP-TABLE valsoktemp NO-ERROR. 
+   CREATE valsoktemp.
+   ASSIGN 
+         /*
+   valsoktemp.SOKCHAR[1] = "NAMe"
+    emea
+       */
+   valsoktemp.SOKCHAR[1] = "fornamn"
+   
+   valsoktemp.SOKCHAR[2] = FILL-IN-BEN + "*".
+   */
+   RUN initsok_UI (INPUT 1).
+   RUN sokhmt_UI IN brwproc (INPUT TABLE valsoktemp).
+   RUN tt-viewer.w.
+   IF Guru.Konstanter:appcon =  TRUE THEN DO:
+      MESSAGE "Disconnect the appserver ?" VIEW-AS ALERT-BOX QUESTION BUTTONS 
+      YES-NO UPDATE val1 AS LOGICAL.
+      CASE val1:
+         WHEN TRUE THEN DO:
+            IF Guru.Konstanter:appcon THEN Guru.Konstanter:appcon = Guru.Konstanter:apphand:DISCONNECT().
+            DELETE OBJECT Guru.Konstanter:apphand NO-ERROR.
+         END.
+         WHEN FALSE THEN DO:
+            
+         END.
+      END.
+   END.
+END.
+MAIN-BLOCK:
+DO ON ERROR   UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK
+   ON END-KEY UNDO MAIN-BLOCK, LEAVE MAIN-BLOCK:  
+   
+    DISPLAY BTN_OVER BRW_HLEV conappvar FILL-IN-BEN 
+      WITH FRAME FRAME-MTRL IN WINDOW WINDOW-3.
+  ENABLE BTN_OVER BRW_HLEV FILL-IN-BEN  conappvar
+      WITH FRAME FRAME-MTRL IN WINDOW WINDOW-3.
+
+   IF NOT THIS-PROCEDURE:PERSISTENT THEN
+   WAIT-FOR CLOSE OF THIS-PROCEDURE.
+END.
+
+
+PROCEDURE over_UI :
+    FIND FIRST mtrltemp.
+    RUN xUPPANT2V.W (INPUT ROWID(mtrltemp)).
+END PROCEDURE.
+            
+PROCEDURE initsok_UI :
+  DEFINE INPUT  PARAMETER vad AS INTEGER    NO-UNDO.
+  EMPTY TEMP-TABLE valsoktemp NO-ERROR. 
+  IF vad = 1 THEN DO:
+     CREATE valsoktemp.
+     ASSIGN 
+     valsoktemp.SOKCHAR[1] = "mtrl"     /*Skarp tabell*/
+     valsoktemp.SOKCHAR[2] = ""   /*Öppningsquery*/
+     valsoktemp.SOKCHAR[3] = "enr" /*sökfält*/
+     valsoktemp.SOKCHAR[4] = "MTRLROW"  /*temptabells faltnamn för rowid*/
+     valsoktemp.SOKCHAR[5] = FILL-IN-BEN + "*".      /*sök på*/       
+  END.
+END PROCEDURE.
+
+
+

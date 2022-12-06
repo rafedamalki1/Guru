@@ -1,0 +1,3341 @@
+/*FAKTHMT.P*/
+{DIRDEF.I}
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{EXTRADATA.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE fbestapph2 AS HANDLE NO-UNDO.
+DEFINE BUFFER aobuff FOR AONRTAB.
+DEFINE BUFFER faktplanbuff FOR FAKTPLAN.
+DEFINE BUFFER faktkollbuff FOR FAKTKOLL.
+DEFINE BUFFER exkoppbuff FOR EXTRAKOPPLINGAR.
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+FIND FIRST FAKTURADM NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+&Scoped-define NEW NEW
+{ORGPRIS.I}
+{KUNDTYP.I}
+{SOKDEF.I}
+{OMRTEMPW.I}
+{FAKTTEMP.I}
+{FAKTPLANTEMP.I}                 
+{FAKTTYPDEF.I}
+{FAKTTYPSKAP.I}
+{EXTRATAB.I}  
+{FAKTSTART.I}
+
+{TIDUTTT.I}  
+DEFINE VARIABLE valomr AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE valbest AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE varifran AS INTEGER NO-UNDO.
+DEFINE TEMP-TABLE ebeftemp
+   FIELD BEFATTNING AS CHARACTER
+   FIELD NAMN AS CHARACTER.
+DEFINE TEMP-TABLE obeftemp
+   FIELD BEFATTNING AS CHARACTER
+   FIELD OTEXT AS CHARACTER.
+{DYNHMT.I}
+
+PROCEDURE frifakt_UI :
+   DEFINE INPUT  PARAMETER startdatvar AS DATE NO-UNDO.
+   DEFINE INPUT  PARAMETER slutdatvar AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR vfaktplantemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR  faktfriatemp.
+   EMPTY TEMP-TABLE faktfriatemp NO-ERROR.    
+   FOR EACH vfaktplantemp,
+   EACH FAKTURERAD WHERE FAKTURERAD.FAKTNR = vfaktplantemp.FAKTNR AND 
+   FAKTURERAD.BOKDATUM >= startdatvar AND  FAKTURERAD.BOKDATUM <= slutdatvar NO-LOCK,
+   EACH FAKTFRIA WHERE FAKTFRIA.FAKTNR = FAKTURERAD.FAKTNR AND  FAKTFRIA.VFAKTNR = FAKTURERAD.VFAKTNR  NO-LOCK:
+      CREATE faktfriatemp.
+      BUFFER-COPY FAKTFRIA TO faktfriatemp.  
+     
+      faktfriatemp.NAMN = vfaktplantemp.NAMN.
+      faktfriatemp.BOKDATUM = FAKTURERAD.BOKDATUM.
+   END.
+   DEBUGGER:SET-BREAK().
+   RUN frifaktKred_UI (INPUT startdatvar, INPUT slutdatvar).
+   FOR EACH faktfriatemp WHERE faktfriatemp.FAKTTEXT = "Dubbel-klicka på denna rad för nyupplägg":
+      DELETE faktfriatemp.
+   END.   
+END PROCEDURE.
+
+PROCEDURE frifaktKred_UI :
+   DEFINE INPUT  PARAMETER startdatvar AS DATE NO-UNDO.
+   DEFINE INPUT  PARAMETER slutdatvar AS DATE NO-UNDO.
+       
+   FOR EACH vfaktplantemp,
+   EACH FAKTKRED WHERE FAKTKRED.FAKTNR = vfaktplantemp.FAKTNR AND 
+   FAKTKRED.BOKDATUM >= startdatvar AND  FAKTKRED.BOKDATUM <= slutdatvar NO-LOCK,
+   EACH FAKTFRIAKRED WHERE FAKTFRIAKRED.FAKTNR = FAKTKRED.FAKTNR AND FAKTFRIAKRED.VKREDIT =  FAKTKRED.VKREDIT NO-LOCK :
+      
+      CREATE faktfriatemp.
+      BUFFER-COPY FAKTFRIAKRED TO faktfriatemp.  
+      faktfriatemp.ANTAL = -1 * faktfriatemp.ANTAL.
+      faktfriatemp.TOTALT = -1 * faktfriatemp.TOTALT.
+      faktfriatemp.NAMN = vfaktplantemp.NAMN.
+      faktfriatemp.BOKDATUM = FAKTKRED.BOKDATUM.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE uppdatfaktplan_UI :
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR vfaktplantemp.
+   FOR EACH vfaktplantemp,
+   EACH FAKTPLAN WHERE FAKTPLAN.FAKTNR = vfaktplantemp.FAKTNR NO-LOCK:
+      BUFFER-COPY FAKTPLAN TO vfaktplantemp.
+   END.
+END PROCEDURE.
+
+
+/*KREDEITFAKT*/
+PROCEDURE faktkredspara_UI:
+   DEFINE INPUT PARAMETER TABLE FOR efaktkredtemp.
+   DEFINE INPUT PARAMETER TABLE FOR efaktnamntemp.
+   FIND FIRST efaktkredtemp NO-LOCK NO-ERROR.
+   FIND FIRST efaktnamntemp NO-LOCK NO-ERROR.
+   DO TRANSACTION:        
+      FIND FIRST FAKTKRED WHERE FAKTKRED.FAKTNR = efaktkredtemp.FAKTNR AND
+      FAKTKRED.FDELNR = efaktkredtemp.FDELNR
+      EXCLUSIVE-LOCK NO-ERROR.
+      BUFFER-COPY efaktkredtemp TO FAKTKRED.
+      FIND FIRST FAKTNAMNKRED WHERE FAKTNAMNKRED.FAKTURNR = efaktnamntemp.FAKTURNR AND
+      FAKTNAMNKRED.FDELNR = efaktnamntemp.FDELNR
+      EXCLUSIVE-LOCK NO-ERROR.          
+      BUFFER-COPY efaktnamntemp TO FAKTNAMNKRED.
+   END.
+END PROCEDURE.
+PROCEDURE faktkredny_UI:
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR efaktkredtemp.
+   FIND FIRST efaktkredtemp NO-LOCK NO-ERROR.
+   DO TRANSACTION:        
+      CREATE FAKTKRED.        
+      BUFFER-COPY efaktkredtemp TO FAKTKRED.
+      IF FAKTKRED.VFAKTNR NE 0 THEN DO:
+         FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = FAKTKRED.FAKTNR AND
+         FAKTURERAD.VFAKTNR = FAKTKRED.VFAKTNR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE FAKTURERAD THEN musz = musz.
+         ELSE DO:
+            ASSIGN
+            FAKTKRED.TIDIGARMOMS = FAKTURERAD.TIDIGARMOMS
+            FAKTKRED.AVGAR = FAKTURERAD.AVGAR.
+         END.
+      END.
+   END.   
+   FIND CURRENT FAKTKRED NO-LOCK NO-ERROR. 
+   IF FAKTKRED.VFAKTNR = 0 THEN RETURN.
+   OPEN QUERY friaq FOR EACH FAKTFRIA WHERE 
+   FAKTFRIA.FAKTNR = FAKTKRED.FAKTNR AND
+   FAKTFRIA.VFAKTNR = FAKTKRED.VFAKTNR NO-LOCK.                           
+   GET FIRST friaq NO-LOCK.   
+   DO WHILE AVAILABLE(FAKTFRIA):
+      DO TRANSACTION:
+         IF FAKTFRIA.FAKTTEXT = "Dubbel-klicka på denna rad för nyupplägg" THEN musz = musz.
+         ELSE DO:
+            CREATE FAKTFRIAKRED.
+            BUFFER-COPY FAKTFRIA TO FAKTFRIAKRED.
+            ASSIGN
+            FAKTFRIAKRED.FDELNR = FAKTKRED.FDELNR
+            FAKTFRIAKRED.VKREDIT = 0.                                                
+         END.                 
+         GET NEXT friaq NO-LOCK.             
+      END.      
+   END.
+   OPEN QUERY friamtrlq FOR EACH FAKTMTRL WHERE 
+   FAKTMTRL.FAKTNR = FAKTKRED.FAKTNR AND
+   FAKTMTRL.VFAKTNR = FAKTKRED.VFAKTNR NO-LOCK.                           
+   GET FIRST friamtrlq NO-LOCK.   
+   DO WHILE AVAILABLE(FAKTMTRL):
+      DO TRANSACTION:            
+         CREATE FAKTMTRLKRED.
+         BUFFER-COPY FAKTMTRL TO FAKTMTRLKRED.
+         ASSIGN
+         FAKTMTRLKRED.FDELNR = FAKTKRED.FDELNR
+         FAKTMTRLKRED.VKREDIT = 0.                        
+         
+         
+      END.
+      GET NEXT friamtrlq NO-LOCK.             
+   END.
+   OPEN QUERY fktq FOR EACH FAKTTID WHERE FAKTTID.FAKTNR = FAKTKRED.FAKTNR AND
+   FAKTTID.VFAKTNR = FAKTKRED.VFAKTNR NO-LOCK.
+   GET FIRST fktq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTTID):
+      DO TRANSACTION:            
+         CREATE FAKTTIDKRED.
+         BUFFER-COPY FAKTTID TO FAKTTIDKRED.
+         ASSIGN
+         FAKTTIDKRED.FDELNR = FAKTKRED.FDELNR
+         FAKTTIDKRED.VECKOKORD = ""
+         FAKTTIDKRED.VKREDIT = 0.
+      END.
+      GET NEXT fktq NO-LOCK.
+   END.
+   OPEN QUERY fkotq FOR EACH FAKTKOST WHERE FAKTKOST.FAKTNR = FAKTKRED.FAKTNR AND
+   FAKTKOST.VFAKTNR = FAKTKRED.VFAKTNR NO-LOCK.
+   GET FIRST fkotq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTKOST):
+      DO TRANSACTION:            
+         CREATE FAKTKOSTKRED.
+         BUFFER-COPY FAKTKOST TO FAKTKOSTKRED.
+         ASSIGN
+         FAKTKOSTKRED.FDELNR = FAKTKRED.FDELNR
+         FAKTKOSTKRED.VKREDIT = 0.
+      END.
+      GET NEXT fkotq NO-LOCK.
+   END.
+   OPEN QUERY startq FOR EACH FAKTSTART WHERE FAKTSTART.FAKTNR = FAKTKRED.FAKTNR AND
+   FAKTSTART.VFAKTNR = FAKTKRED.VFAKTNR
+   NO-LOCK.
+   GET FIRST startq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTSTART):
+      DO TRANSACTION:            
+         CREATE FAKTSTARTKRED.
+         BUFFER-COPY FAKTSTART TO FAKTSTARTKRED.
+         ASSIGN
+         FAKTSTARTKRED.FDELNR = FAKTKRED.FDELNR
+         /*FAKTSTARTKRED.FAKTURERAD = FALSE              */
+         FAKTSTARTKRED.VKREDIT = 0.
+      END.
+      GET NEXT startq NO-LOCK.
+   END.
+   
+   OPEN QUERY faktupparbq FOR EACH FAKTUPPARB WHERE FAKTUPPARB.FAKTNR = FAKTKRED.FAKTNR AND 
+   FAKTUPPARB.VFAKTNR = FAKTKRED.VFAKTNR
+   NO-LOCK.              
+   GET FIRST faktupparbq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTUPPARB):            
+      DO TRANSACTION:
+         CREATE FAKTUPPARBKRED.
+         BUFFER-COPY FAKTUPPARB TO FAKTUPPARBKRED.
+         ASSIGN
+         FAKTUPPARBKRED.FDELNR = FAKTKRED.FDELNR
+         /*FAKTUPPARBKRED.FAKTURERAD     = FALSE                */
+         FAKTUPPARBKRED.VKREDIT = 0.
+      END.      
+      GET NEXT faktupparbq NO-LOCK.         
+   END.  
+   RELEASE FAKTTIDKRED NO-ERROR. 
+   RELEASE FAKTMTRLKRED  NO-ERROR.
+   RELEASE FAKTFRIAKRED NO-ERROR.
+   RELEASE FAKTKOSTKRED NO-ERROR.
+   RELEASE FAKTSTARTKRED NO-ERROR.
+   RELEASE FAKTUPPARBKRED NO-ERROR.
+   RELEASE FAKTKRED NO-ERROR.
+END PROCEDURE.
+PROCEDURE faktkrednamn_UI:
+   DEFINE INPUT PARAMETER infakplannr           AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fdelnrvar             AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnrvar             AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER andvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR faktnamntemp.
+   EMPTY TEMP-TABLE faktnamntemp NO-ERROR. 
+   FIND FIRST FAKTNAMNKRED WHERE FAKTNAMNKRED.FAKTURNR = infakplannr AND 
+   FAKTNAMNKRED.FDELNR = fdelnrvar NO-LOCK NO-ERROR.       
+   IF AVAILABLE FAKTNAMNKRED THEN DO:
+      CREATE faktnamntemp.
+      BUFFER-COPY FAKTNAMNKRED TO faktnamntemp.
+      RETURN.
+   END.
+   FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = infakplannr NO-LOCK NO-ERROR.
+   FIND FIRST BESTTAB WHERE BESTTAB.BESTID = FAKTPLAN.BESTID 
+   USE-INDEX BEST NO-LOCK NO-ERROR.
+   IF vdelnrvar = 0 THEN DO:      
+      FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = andvar NO-LOCK NO-ERROR.
+      CREATE faktnamntemp.
+      ASSIGN
+      faktnamntemp.FAKTURNR = infakplannr
+      faktnamntemp.FAKTURADATUM = TODAY
+      faktnamntemp.FDELNR = fdelnrvar
+      faktnamntemp.BESTNAMN = BESTTAB.BESTNAMN
+      faktnamntemp.FAKADRESS = BESTTAB.FAKADRESS
+      faktnamntemp.TEL = BESTTAB.TEL
+      faktnamntemp.FAKORT = BESTTAB.FAKORT 
+      faktnamntemp.FAKPNR = BESTTAB.FAKPNR
+      faktnamntemp.VARREF = ANVANDARE.AV-NAMN
+      faktnamntemp.KONTAKT = BESTTAB.KONTAKT.
+      IF faktnamntemp.BESTALLARE = "" THEN faktnamntemp.BESTALLARE = BESTTAB.KONTAKT.            
+   END.
+   ELSE DO:
+      FIND FIRST FAKTNAMN WHERE FAKTNAMN.FAKTURNR = infakplannr AND 
+      FAKTNAMN.FDELNR = fdelnrvar NO-LOCK NO-ERROR. 
+      IF NOT AVAILABLE FAKTNAMN THEN DO:
+         FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = infakplannr AND 
+         FAKTURERAD.VFAKTNR = vdelnrvar 
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE FAKTURERAD THEN DO:
+            FIND FIRST FAKTNAMN WHERE FAKTNAMN.FAKTURNR = infakplannr AND 
+            FAKTNAMN.FDELNR = FAKTURERAD.FDELNR NO-LOCK NO-ERROR. 
+         END.   
+      END.   
+      IF NOT AVAILABLE FAKTNAMN THEN DO:                
+         FIND FIRST BESTTAB WHERE BESTTAB.BESTID = FAKTPLAN.BESTID 
+         USE-INDEX BEST NO-LOCK NO-ERROR.
+         FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = andvar NO-LOCK NO-ERROR.
+         CREATE faktnamntemp.
+         ASSIGN
+         faktnamntemp.FAKTURNR = infakplannr
+         faktnamntemp.FAKTURADATUM = TODAY
+         faktnamntemp.FDELNR = fdelnrvar
+         faktnamntemp.BESTNAMN = BESTTAB.BESTNAMN
+         faktnamntemp.FAKADRESS = BESTTAB.FAKADRESS
+         faktnamntemp.TEL = BESTTAB.TEL
+         faktnamntemp.FAKORT = BESTTAB.FAKORT 
+         faktnamntemp.FAKPNR = BESTTAB.FAKPNR
+         faktnamntemp.VARREF = ANVANDARE.AV-NAMN
+         faktnamntemp.KONTAKT = BESTTAB.KONTAKT.
+         IF faktnamntemp.BESTALLARE = "" THEN faktnamntemp.BESTALLARE = BESTTAB.KONTAKT.
+      END.
+      ELSE DO:      
+         CREATE faktnamntemp.
+         ASSIGN
+         faktnamntemp.FAKTURNR = FAKTNAMN.FAKTURNR
+         faktnamntemp.FAKTURADATUM = TODAY
+         faktnamntemp.FDELNR = fdelnrvar
+         faktnamntemp.BESTNAMN = FAKTNAMN.BESTNAMN
+         faktnamntemp.FAKADRESS = FAKTNAMN.FAKADRESS
+         faktnamntemp.TEL = FAKTNAMN.TEL
+         faktnamntemp.FAKORT = FAKTNAMN.FAKORT 
+         faktnamntemp.FAKPNR = FAKTNAMN.FAKPNR
+         faktnamntemp.VARREF = FAKTNAMN.VARREF
+         faktnamntemp.KONTAKT = FAKTNAMN.KONTAKT
+         faktnamntemp.BESTALLARE = FAKTNAMN.BESTALLARE
+         faktnamntemp.ARBOMF = FAKTNAMN.ARBOMF.         
+         IF faktnamntemp.BESTALLARE = "" THEN faktnamntemp.BESTALLARE = FAKTNAMN.KONTAKT.        
+      END.      
+   END. 
+END PROCEDURE.
+PROCEDURE faktkredhmt_UI:
+   DEFINE INPUT PARAMETER infakplannr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR faktkredtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR faktureradtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR faktdebkred.
+   EMPTY TEMP-TABLE faktkredtemp NO-ERROR. 
+   EMPTY TEMP-TABLE faktureradtemp NO-ERROR.
+   EMPTY TEMP-TABLE faktdebkred NO-ERROR. 
+   FOR EACH FAKTURERAD WHERE FAKTURERAD.FAKTNR = infakplannr NO-LOCK:
+      CREATE faktureradtemp.
+      BUFFER-COPY FAKTURERAD TO faktureradtemp.
+   END.
+   FOR EACH FAKTURERAD WHERE 
+   FAKTURERAD.FAKTNR = infakplannr AND FAKTURERAD.VFAKTNR NE 0 NO-LOCK:
+      CREATE faktkredtemp.
+      ASSIGN
+      faktkredtemp.FAKTNR = FAKTURERAD.FAKTNR
+      faktkredtemp.FDELNR = 0
+      faktkredtemp.VFAKTNR = FAKTURERAD.VFAKTNR 
+      faktkredtemp.VKREDIT = 0 
+      faktkredtemp.TOTPRIS = FAKTURERAD.TOTPRIS
+      faktkredtemp.NAMN = FAKTURERAD.NAMN
+      faktkredtemp.DATUM = FAKTURERAD.DATUM     
+      faktkredtemp.FAKTTYPID = FAKTURERAD.FAKTTYPID 
+      faktkredtemp.FAKTXT = FAKTURERAD.FAKTXT
+      faktkredtemp.DEBKRED = TRUE.         
+      
+   END.
+   FOR EACH FAKTKRED WHERE FAKTKRED.FAKTNR = infakplannr NO-LOCK:
+      CREATE faktkredtemp.
+      BUFFER-COPY FAKTKRED TO faktkredtemp.
+      ASSIGN      
+      faktkredtemp.DEBKRED = FALSE.  
+   END. 
+   FOR EACH faktkredtemp:
+      CREATE faktdebkred.
+      BUFFER-COPY faktkredtemp TO faktdebkred.
+      IF faktkredtemp.DEBKRED = TRUE THEN DO:
+         ASSIGN
+         faktdebkred.KTOTPRIS = 0
+         faktdebkred.KDATUM = ?.
+      END.
+      ELSE DO:
+         ASSIGN
+         faktdebkred.TOTPRIS = 0
+         faktdebkred.DATUM = ?
+         faktdebkred.KTOTPRIS = faktkredtemp.TOTPRIS
+         faktdebkred.KDATUM =   faktkredtemp.DATUM.
+         IF faktkredtemp.VFAKTNR NE 0 THEN DO:
+            FIND FIRST faktkredtempbuff WHERE faktkredtempbuff.FAKTNR = faktkredtemp.FAKTNR AND
+            faktkredtempbuff.VFAKTNR = faktkredtemp.VFAKTNR
+            NO-LOCK NO-ERROR.
+            ASSIGN
+            faktdebkred.TOTPRIS = faktkredtempbuff.TOTPRIS
+            faktdebkred.DATUM =   faktkredtempbuff.DATUM. 
+         END.
+      END.
+   END.
+END PROCEDURE.          
+PROCEDURE faktkredbort_UI:
+   DEFINE INPUT PARAMETER infakplannr           AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fdelnrvar             AS INTEGER NO-UNDO.
+   DEFINE VARIABLE vkreditnr AS INTEGER NO-UNDO.
+   DO TRANSACTION:                  
+      FIND FIRST FAKTKRED WHERE FAKTKRED.FAKTNR = infakplannr AND
+      FAKTKRED.FDELNR = fdelnrvar
+      EXCLUSIVE-LOCK NO-ERROR.
+      /*Bara ett aonr*/
+      FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTURERAD.FAKTNR NO-LOCK:
+         FOR EACH EXTRAKOPPLINGAR WHERE EXTRAKOPPLINGAR.PROGRAM = "FBAONR" AND
+         EXTRAKOPPLINGAR.KOPPLACHAR1 = FAKTAONR.AONR AND       
+         EXTRAKOPPLINGAR.KOPPLAINT1 = FAKTAONR.DELNR NO-LOCK:   
+            FOR EACH exkoppbuff WHERE exkoppbuff.PROGRAM = "FBKRED" AND 
+            exkoppbuff.KOPPLACHAR1 = EXTRAKOPPLINGAR.KOPPLACHAR1 AND exkoppbuff.KOPPLAINT1 = EXTRAKOPPLINGAR.KOPPLAINT1 AND
+            exkoppbuff.KOPPLACHAR2 = EXTRAKOPPLINGAR.KOPPLACHAR2 AND exkoppbuff.KOPPLAINT2 = EXTRAKOPPLINGAR.KOPPLAINT2 AND
+            exkoppbuff.SOKINT[1] = FAKTKRED.VKREDIT AND exkoppbuff.SOKINT[2] = FAKTKRED.FAKTNR EXCLUSIVE-LOCK:
+               DELETE  exkoppbuff.
+            END.           
+         END.
+      END.   
+      IF AVAILABLE FAKTKRED THEN DELETE FAKTKRED.
+      FIND FIRST FAKTNAMNKRED WHERE FAKTNAMNKRED.FAKTURNR = infakplannr AND
+      FAKTNAMNKRED.FDELNR = fdelnrvar
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE FAKTNAMNKRED THEN DELETE FAKTNAMNKRED.
+      OPEN QUERY fktq FOR EACH FAKTTIDKRED WHERE FAKTTIDKRED.FAKTNR = infakplannr AND
+      FAKTTIDKRED.FDELNR = fdelnrvar
+      NO-LOCK.
+      GET FIRST fktq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(FAKTTIDKRED):
+         DELETE FAKTTIDKRED.
+         GET NEXT fktq EXCLUSIVE-LOCK.
+      END.
+      OPEN QUERY fkotq FOR EACH FAKTKOSTKRED WHERE FAKTKOSTKRED.FAKTNR = infakplannr AND
+      FAKTKOSTKRED.FDELNR = fdelnrvar
+      NO-LOCK.
+      GET FIRST fkotq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(FAKTKOSTKRED):
+         DELETE FAKTKOSTKRED.
+         GET NEXT fkotq EXCLUSIVE-LOCK.
+      END.
+      OPEN QUERY friq FOR EACH FAKTFRIAKRED WHERE FAKTFRIAKRED.FAKTNR = infakplannr AND
+      FAKTFRIAKRED.FDELNR = fdelnrvar
+      NO-LOCK.
+      GET FIRST friq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(FAKTFRIAKRED):
+         DELETE FAKTFRIAKRED.
+         GET NEXT friq EXCLUSIVE-LOCK.
+      END.
+      OPEN QUERY mrlq FOR EACH FAKTMTRLKRED WHERE FAKTMTRLKRED.FAKTNR = infakplannr AND
+      FAKTMTRLKRED.FDELNR = fdelnrvar
+      NO-LOCK.
+      GET FIRST mrlq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(FAKTMTRLKRED):
+         DELETE FAKTMTRLKRED.
+         GET NEXT mrlq EXCLUSIVE-LOCK.
+      END.
+      OPEN QUERY startq FOR EACH FAKTSTARTKRED WHERE FAKTSTARTKRED.FAKTNR = infakplannr AND
+      FAKTSTARTKRED.FDELNR = fdelnrvar
+      NO-LOCK.
+      GET FIRST startq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(FAKTSTARTKRED):
+         DELETE FAKTSTARTKRED.
+         GET NEXT startq EXCLUSIVE-LOCK.
+      END.
+      OPEN QUERY faktupparbq FOR EACH FAKTUPPARBKRED WHERE 
+      FAKTUPPARBKRED.FAKTNR = infakplannr AND 
+      FAKTUPPARBKRED.FDELNR = fdelnrvar
+      NO-LOCK.              
+      GET FIRST faktupparbq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(FAKTUPPARBKRED):            
+         DELETE FAKTUPPARBKRED.         
+         GET NEXT faktupparbq EXCLUSIVE-LOCK.         
+      END.
+      OPEN QUERY infakq FOR EACH FAKTINTAKTKONTKRED WHERE FAKTINTAKTKONTKRED.FAKTNR = infakplannr AND
+      FAKTINTAKTKONTKRED.FDELNR = fdelnrvar
+      NO-LOCK.
+      GET FIRST infakq EXCLUSIVE-LOCK.
+      IF AVAILABLE FAKTINTAKTKONTKRED THEN vkreditnr = FAKTINTAKTKONTKRED.VKREDIT.
+      DO WHILE AVAILABLE(FAKTINTAKTKONTKRED):
+         DELETE FAKTINTAKTKONTKRED.
+         GET NEXT infakq EXCLUSIVE-LOCK.
+      END.    
+      OPEN QUERY faktkodkq FOR EACH FAKTAONRKONTOKRED WHERE 
+      FAKTAONRKONTOKRED.FAKTNR = infakplannr AND  
+      FAKTAONRKONTOKRED.VKREDIT = vkreditnr NO-LOCK.
+      GET FIRST faktkodkq EXCLUSIVE-LOCK.   
+      DO WHILE AVAILABLE(FAKTAONRKONTOKRED):
+         DELETE FAKTAONRKONTOKRED.            
+         GET NEXT faktkodkq EXCLUSIVE-LOCK.      
+      END.
+      OPEN QUERY kundq FOR EACH FAKTKUNDKONTOKRED WHERE FAKTKUNDKONTOKRED.FAKTNR = infakplannr AND
+      FAKTKUNDKONTOKRED.FDELNR = fdelnrvar
+      NO-LOCK.
+      GET FIRST kundq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(FAKTKUNDKONTOKRED):
+         DELETE FAKTKUNDKONTOKRED.
+         GET NEXT kundq EXCLUSIVE-LOCK.
+      END.  
+      OPEN QUERY momsq FOR EACH FAKTMOMSKRED WHERE FAKTMOMSKRED.FAKTNR = infakplannr AND
+      FAKTMOMSKRED.FDELNR = fdelnrvar
+      NO-LOCK.
+      GET FIRST momsq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(FAKTMOMSKRED):
+         DELETE FAKTMOMSKRED.
+         GET NEXT momsq EXCLUSIVE-LOCK.
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE fbaonrkoll_UI :
+   DEFINE INPUT PARAMETER infakplannr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp. 
+   DEFINE VARIABLE okvar AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE nivint AS INTEGER NO-UNDO.
+   okvar = FALSE.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR. 
+   EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+   RUN EXTRATABHMT.P PERSISTENT SET fbestapph2.
+   FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = infakplannr NO-LOCK,
+   EACH FAKTKOLL WHERE FAKTKOLL.FAKTNR = infakplannr AND FAKTKOLL.AONR = FAKTAONR.AONR AND
+   FAKTKOLL.DELNR = FAKTAONR.DELNR AND FAKTKOLL.SLUTFAKT = FALSE  NO-LOCK:
+      CREATE inextrakopptemp.          
+      ASSIGN
+      inextrakopptemp.PROGRAM = "FBAONR"                   
+      inextrakopptemp.KOPPLACHAR1 = FAKTAONR.AONR       
+      inextrakopptemp.KOPPLAINT1 =  FAKTAONR.DELNR      
+      inextrakopptemp.KOPPLACHAR2 = ?            
+      inextrakopptemp.KOPPLAINT2 =  ?.
+      RUN finnsextra_UI IN fbestapph2 (INPUT TABLE inextrakopptemp,OUTPUT okvar).        
+      IF okvar = FALSE THEN DO:
+         FIND FIRST felmeddtemp WHERE NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE felmeddtemp THEN DO:
+            CREATE felmeddtemp.
+            felmeddtemp.FELMEDD = "Dessa " + LC(Guru.Konstanter:gaok) + " saknar faktura beställares " + LC(Guru.Konstanter:gaok) + "!" + CHR(10).
+         END.
+         felmeddtemp.FELMEDD = felmeddtemp.FELMEDD +  FAKTAONR.AONR + " " + STRING(FAKTAONR.DELNR,Guru.Konstanter:varforetypchar[1]) + CHR(10).
+                
+      END.
+      EMPTY TEMP-TABLE inextrakopptemp NO-ERROR.          
+   END.
+   IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+      FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = infakplannr NO-LOCK,
+      EACH FAKTKOLL WHERE FAKTKOLL.FAKTNR = infakplannr AND FAKTKOLL.AONR = FAKTAONR.AONR AND
+      FAKTKOLL.DELNR = FAKTAONR.DELNR AND FAKTKOLL.SLUTFAKT = FALSE  NO-LOCK:
+         EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+         EMPTY TEMP-TABLE extrakopptemp NO-ERROR. 
+         CREATE inextrakopptemp.          
+         ASSIGN
+         inextrakopptemp.PROGRAM = "FBAONR"                   
+         inextrakopptemp.KOPPLACHAR1 = FAKTAONR.AONR       
+         inextrakopptemp.KOPPLAINT1 =  FAKTAONR.DELNR      
+         inextrakopptemp.KOPPLACHAR2 = ?            
+         inextrakopptemp.KOPPLAINT2 =  ?.
+         RUN etabhamt_UI IN fbestapph2 (INPUT TABLE inextrakopptemp,OUTPUT TABLE extrakopptemp).        
+         nivint = 0.
+         FOR EACH extrakopptemp:
+            nivint =  nivint + extrakopptemp.SOKINT[1].  
+         END.
+         IF nivint NE 100 THEN DO: 
+            FIND FIRST felmeddtemp NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE felmeddtemp THEN CREATE felmeddtemp.
+            felmeddtemp.FELMEDD = felmeddtemp.FELMEDD + CHR(10) + 
+            "Summan av andelarna til Faktura beställarenas " + LC(Guru.Konstanter:gaok) + 
+            FAKTAONR.AONR + " " + STRING(FAKTAONR.DELNR) +
+            " måste alltid bli 100%!".            
+         END.
+      END.
+   END.
+   EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+   EMPTY TEMP-TABLE extrakopptemp NO-ERROR. 
+   IF VALID-HANDLE(fbestapph2) THEN DELETE PROCEDURE fbestapph2.
+   fbestapph2 = ?.
+END PROCEDURE.
+
+/*allmänt fakturan*/
+PROCEDURE bestopp_UI:
+   DEFINE INPUT PARAMETER infakplannr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vad AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER bestvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felvar AS CHARACTER NO-UNDO.
+   felvar = "".
+   FIND FIRST BESTSTOP WHERE BESTSTOP.BESTID = bestvar NO-LOCK NO-ERROR.
+   IF AVAILABLE BESTSTOP THEN DO:
+      felvar = "All fakturering för denna kund är stoppad! Kontakta ansvarig.".
+      RETURN.
+   END.
+   FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = infakplannr NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE FAKTAONR THEN DO:
+      felvar = "Det går inte att fakturera utan att fakturaplanen innehåller minst ett " + LC(Guru.Konstanter:gaol) + ".".        
+      RETURN.    
+   END.
+   IF vad = 1 THEN DO:
+      FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = infakplannr AND
+      FAKTURERAD.DATUM = TODAY USE-INDEX FAKTNR NO-LOCK NO-ERROR.
+      IF AVAILABLE FAKTURERAD THEN DO:
+         felvar = "Denna faktura är redan fakturerad idag! " + STRING(FAKTURERAD.DATUM). 
+         RETURN.    
+      END.
+   END.
+   
+END PROCEDURE.
+PROCEDURE sparfria_UI:
+   DEFINE OUTPUT PARAMETER frirow AS ROWID NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR faktfriatemp.
+   
+   FOR EACH faktfriatemp:
+      DO TRANSACTION:
+         IF faktfriatemp.ROWFRI = ? THEN DO:
+            FIND FIRST FAKTFRIA WHERE FAKTFRIA.FAKTNR = faktfriatemp.FAKTNR AND FAKTFRIA.FDELNR = faktfriatemp.FDELNR AND 
+            FAKTFRIA.FAKTTEXT = "Dubbel-klicka på denna rad för nyupplägg" 
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF NOT AVAILABLE FAKTFRIA THEN CREATE FAKTFRIA.   
+            ASSIGN                                    
+            FAKTFRIA.FAKTNR = faktfriatemp.FAKTNR
+            FAKTFRIA.FDELNR = faktfriatemp.FDELNR
+            FAKTFRIA.FAKTURERAD = FALSE
+            FAKTFRIA.FAKTTEXT = "Dubbel-klicka på denna rad för nyupplägg".                         
+            FAKTFRIA.LOPNR = FAKTFRIA.LOPNR + 1.
+            faktfriatemp.LOPNR = FAKTFRIA.LOPNR.
+            CREATE FAKTFRIA.
+         END.
+         ELSE DO:
+            FIND FIRST FAKTFRIA WHERE ROWID(FAKTFRIA) = faktfriatemp.ROWFRI EXCLUSIVE-LOCK NO-ERROR.
+         END.
+         BUFFER-COPY faktfriatemp TO FAKTFRIA.
+         frirow = ROWID(FAKTFRIA).
+      END.  
+   END.
+   RELEASE FAKTFRIA NO-ERROR.
+END PROCEDURE.
+PROCEDURE sparfriak_UI:
+   DEFINE OUTPUT PARAMETER frirow AS ROWID NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR faktfriatemp.
+   FOR EACH faktfriatemp:
+      DO TRANSACTION:
+         IF faktfriatemp.ROWFRI = ? THEN DO:
+            FIND FIRST FAKTFRIAKRED WHERE FAKTFRIAKRED.FAKTNR = faktfriatemp.FAKTNR AND FAKTFRIAKRED.FDELNR = faktfriatemp.FDELNR AND 
+            FAKTFRIAKRED.FAKTTEXT = "Dubbel-klicka på denna rad för nyupplägg" 
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF NOT AVAILABLE FAKTFRIAKRED THEN CREATE FAKTFRIAKRED.   
+            ASSIGN                                    
+            FAKTFRIAKRED.FAKTNR = faktfriatemp.FAKTNR
+            FAKTFRIAKRED.FDELNR = faktfriatemp.FDELNR
+            FAKTFRIAKRED.FAKTURERAD = FALSE
+            FAKTFRIAKRED.FAKTTEXT = "Dubbel-klicka på denna rad för nyupplägg".                         
+            FAKTFRIAKRED.LOPNR = FAKTFRIAKRED.LOPNR + 1.
+            faktfriatemp.LOPNR = FAKTFRIAKRED.LOPNR.
+            CREATE FAKTFRIAKRED.
+         END.
+         ELSE DO:
+            FIND FIRST FAKTFRIAKRED WHERE ROWID(FAKTFRIAKRED) = faktfriatemp.ROWFRI EXCLUSIVE-LOCK NO-ERROR.
+         END.
+         BUFFER-COPY faktfriatemp TO FAKTFRIAKRED.
+         frirow = ROWID(FAKTFRIAKRED).
+      END.  
+   END.
+   RELEASE FAKTFRIAKRED NO-ERROR.
+END PROCEDURE.
+PROCEDURE sparmtrl_UI:
+   DEFINE INPUT PARAMETER infakplannr           AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fdelnrvar             AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER lopvar               AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR faktmtrltemp.
+   FOR EACH FAKTMTRL WHERE FAKTMTRL.FAKTNR = infakplannr AND
+   FAKTMTRL.FDELNR = fdelnrvar AND FAKTMTRL.LOPNR = lopvar:
+      DELETE FAKTMTRL.
+   END.
+   FOR EACH faktmtrltemp WHERE NO-LOCK:
+      DO TRANSACTION:
+         CREATE FAKTMTRL.
+         BUFFER-COPY faktmtrltemp TO FAKTMTRL.
+      END.
+   END.
+END.
+PROCEDURE sparmtrlk_UI:
+   DEFINE INPUT PARAMETER infakplannr           AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fdelnrvar             AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER lopvar               AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR faktmtrltemp.
+   FOR EACH FAKTMTRLKRED WHERE FAKTMTRLKRED.FAKTNR = infakplannr AND
+   FAKTMTRLKRED.FDELNR = fdelnrvar AND FAKTMTRLKRED.LOPNR = lopvar:
+      DELETE FAKTMTRLKRED.
+   END.
+   FOR EACH faktmtrltemp WHERE NO-LOCK:
+      DO TRANSACTION:
+         CREATE FAKTMTRLKRED.
+         BUFFER-COPY faktmtrltemp TO FAKTMTRLKRED.
+      END.
+   END.
+END.
+PROCEDURE startfriny_UI:
+   DEFINE INPUT PARAMETER infakplannr           AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fdelnrvar             AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER lopvar               AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR ebeftemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR obeftemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR faktmtrltemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkkattemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR GuruGrundPrisTT.
+   EMPTY TEMP-TABLE ebeftemp NO-ERROR.
+   EMPTY TEMP-TABLE obeftemp NO-ERROR.
+   EMPTY TEMP-TABLE kalkkattemp NO-ERROR.
+   EMPTY TEMP-TABLE faktmtrltemp NO-ERROR.
+   EMPTY TEMP-TABLE GuruGrundPrisTT NO-ERROR. 
+   OPEN QUERY befq FOR EACH BEFATTNING NO-LOCK.
+   GET FIRST befq NO-LOCK.   
+   DO WHILE AVAILABLE(BEFATTNING):
+      CREATE ebeftemp.
+      ASSIGN
+      ebeftemp.BEFATTNING = BEFATTNING.BEFATTNING
+      ebeftemp.NAMN = BEFATTNING.NAMN.
+      GET NEXT befq NO-LOCK.
+   END.
+   OPEN QUERY obefq FOR EACH OVERTEXTFAKT NO-LOCK.
+   GET FIRST obefq NO-LOCK.   
+   DO WHILE AVAILABLE(OVERTEXTFAKT):
+      CREATE obeftemp.
+      ASSIGN
+      obeftemp.BEFATTNING = OVERTEXTFAKT.BEFATTNING
+      obeftemp.OTEXT = OVERTEXTFAKT.OTEXT.
+      GET NEXT obefq NO-LOCK.
+   END.
+   FOR EACH FAKTMTRL WHERE FAKTMTRL.FAKTNR = infakplannr AND
+   FAKTMTRL.FDELNR = fdelnrvar AND FAKTMTRL.LOPNR = lopvar NO-LOCK:
+      CREATE faktmtrltemp.
+      BUFFER-COPY FAKTMTRL TO faktmtrltemp.
+   END.
+   FOR EACH KALKKATEGORI NO-LOCK:
+      IF KALKKATEGORI.TYP BEGINS "FAKT" THEN musz = musz.
+      ELSE DO:
+         CREATE kalkkattemp.
+         BUFFER-COPY KALKKATEGORI TO kalkkattemp.
+      END.     
+   END.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.
+   ASSIGN
+   inextradatatemp.PROGRAM = "FRIPRIS"                   
+   inextradatatemp.HUVUDCH = ?              
+   inextradatatemp.HUVUDINT = ?.      
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp,OUTPUT TABLE extradatatemp).
+   FOR EACH extradatatemp:
+      musz = FALSE.
+      IF extradatatemp.SOKDATE[1] > TODAY THEN musz = TRUE.
+      IF musz = FALSE THEN DO:
+         IF extradatatemp.SOKDATE[2] = ? THEN musz = musz.
+         ELSE IF extradatatemp.SOKDATE[2] < TODAY THEN musz = TRUE.
+      END.
+      IF musz = FALSE THEN DO:
+         IF  extradatatemp.SOKCHAR[6] BEGINS "GuruGrundPris" THEN DO:
+            CREATE GuruGrundPrisTT.
+            ASSIGN
+            GuruGrundPrisTT.RADNR =  extradatatemp.HUVUDINT
+            GuruGrundPrisTT.VINAMN = extradatatemp.SOKCHAR[6] 
+            GuruGrundPrisTT.NAMN = extradatatemp.SOKCHAR[10] 
+            GuruGrundPrisTT.TYP = "FAKT"
+            GuruGrundPrisTT.PRIS = extradatatemp.SOKINT[5] + extradatatemp.SOKINT[6] / 1000.
+         END.
+         ELSE DO:   
+            CREATE kalkkattemp.
+            ASSIGN
+            kalkkattemp.RADNR =  extradatatemp.HUVUDINT
+            kalkkattemp.VINAMN = extradatatemp.SOKCHAR[6] 
+            kalkkattemp.NAMN = extradatatemp.SOKCHAR[10] 
+            kalkkattemp.TYP = "FAKT"
+            kalkkattemp.PRIS = extradatatemp.SOKINT[5] + extradatatemp.SOKINT[6] / 1000.
+         END.   
+      END.     
+
+   END.
+   musz = FALSE.
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+   edataapph = ?.
+END PROCEDURE.
+PROCEDURE startlopdatf_UI:
+   DEFINE OUTPUT PARAMETER FILL-IN_VECKOKORD     AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER FILL-IN_MEDTID        AS CHARACTER NO-UNDO.  
+   FIND FIRST VECKONATT WHERE  SUBSTRING(VECKONATT.DAG_AR,1,3) = "DAG" NO-LOCK NO-ERROR.   
+   IF AVAILABLE VECKONATT THEN DO:
+      ASSIGN FILL-IN_VECKOKORD = SUBSTRING(VECKONATT.VECKOKORD,2,8)
+      FILL-IN_MEDTID = SUBSTRING(VECKONATT.DAG_AR,9,3). 
+   END.
+END PROCEDURE.
+
+PROCEDURE slutbildatum_UI:
+   DEFINE INPUT PARAMETER infakplannr           AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fdelnrvar             AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER debkred               AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER varbi                 AS CHARACTER NO-UNDO.
+   IF debkred = TRUE THEN DO TRANSACTION:
+      FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = infakplannr AND
+      FAKTURERAD.FDELNR = fdelnrvar EXCLUSIVE-LOCK NO-ERROR.   
+      FAKTURERAD.BILAGOR = varbi.        
+   END.
+   ELSE DO TRANSACTION:
+      FIND FIRST FAKTKRED WHERE FAKTKRED.FAKTNR = infakplannr AND
+      FAKTKRED.FDELNR = fdelnrvar EXCLUSIVE-LOCK NO-ERROR.   
+      FAKTKRED.BILAGOR = varbi.     
+   END.
+   RELEASE FAKTURERAD NO-ERROR.
+   RELEASE FAKTKRED NO-ERROR.
+END PROCEDURE.
+PROCEDURE startbildatum_UI:
+   DEFINE OUTPUT PARAMETER stdatum AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER sldatum AS DATE NO-UNDO.
+   FIND FIRST FAKTBOKP NO-LOCK NO-ERROR.
+   ASSIGN
+   stdatum = FAKTBOKP.FDATUM 
+   sldatum = FAKTBOKP.TDATUM.
+END PROCEDURE.
+PROCEDURE slutfatyp_UI:
+   DEFINE INPUT PARAMETER infakplannr            AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fdelnrvar              AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER typvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER tdatum AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER typvarid AS INTEGER NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = infakplannr AND
+      FAKTURERAD.FDELNR = fdelnrvar EXCLUSIVE-LOCK NO-ERROR.   
+      FIND FIRST FAKTURERINGSTYP WHERE FAKTURERINGSTYP.FAKTTYPTEXT = typvar NO-LOCK NO-ERROR.        
+      ASSIGN
+      FAKTURERAD.SENASTTID = tdatum
+      FAKTURERAD.FAKTTYPID = FAKTURERINGSTYP.FAKTTYPID
+      typvarid = FAKTURERINGSTYP.FAKTTYPID.            
+   END.
+   RELEASE FAKTURERAD NO-ERROR.
+END PROCEDURE.
+PROCEDURE startfatyp_UI:
+   DEFINE INPUT PARAMETER infakplannr            AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fdelnrvar              AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER varacont               AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR valsoktemp.
+   DEFINE VARIABLE typtidfakt AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE typtidmoms AS LOGICAL NO-UNDO.
+   
+   EMPTY TEMP-TABLE valsoktemp NO-ERROR.
+   FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = infakplannr NO-LOCK NO-ERROR.
+   FIND LAST FAKTURERAD WHERE FAKTURERAD.FAKTNR = infakplannr USE-INDEX FAKTNR NO-LOCK.
+   IF AVAILABLE FAKTURERAD THEN DO:
+      FIND FIRST FAKTURERINGSTYP WHERE FAKTURERINGSTYP.FAKTTYPID = FAKTURERAD.FAKTTYPID NO-LOCK NO-ERROR.
+      IF AVAILABLE FAKTURERINGSTYP THEN DO:
+         ASSIGN
+         typtidfakt = FAKTURERINGSTYP.TIDIGAREFAKT 
+         typtidmoms = FAKTURERINGSTYP.TIDIGAREMOMS.
+      END.
+   
+   END.      
+   /*
+   "Fastpris" "Löpande räkning" "A-contofakt." "Takprisfakt." "Avtal"
+   */
+   OPEN QUERY faktypq FOR EACH FAKTURERINGSTYP NO-LOCK.
+   GET FIRST faktypq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTURERINGSTYP):     
+      IF typtidfakt = TRUE THEN DO:
+         IF FAKTPLAN.SENASTFAK = ? THEN musz = musz.
+         ELSE IF FAKTURERINGSTYP.TIDIGAREFAKT = FALSE THEN DO:               
+            musz = TRUE.
+         END.
+      END.
+      IF varacont = TRUE THEN DO:
+         IF FAKTURERINGSTYP.TIDIGAREACONTO = FALSE THEN DO:
+            musz = TRUE.
+         END.   
+      END.
+      IF varacont = FALSE THEN DO:            
+         IF FAKTURERINGSTYP.TIDIGAREACONTO = TRUE THEN DO:
+            musz = TRUE.
+         END.
+      END.
+      IF typtidmoms = TRUE THEN DO:            
+         IF FAKTURERINGSTYP.TIDIGAREMOMS = FALSE THEN DO:
+            musz = TRUE.
+         END.
+      END.
+      IF typtidmoms = FALSE THEN DO:
+         IF FAKTURERINGSTYP.TIDIGAREMOMS = TRUE THEN DO:
+            musz = TRUE.
+         END.
+      END.      
+      IF FAKTURERINGSTYP.SLUT = TRUE THEN DO:
+         musz = TRUE. 
+      END. 
+       /*Anders Olsson Elpool i Umeå AB  3 maj 2019 08:57:52 
+         Faktura utan moms 
+         */
+         IF FAKTURERINGSTYP.FAKTTYPID = 12 THEN musz = FALSE.       
+      IF musz = FALSE THEN DO:
+         CREATE valsoktemp.
+         ASSIGN
+         valsoktemp.SOKCHAR[1] = FAKTURERINGSTYP.FAKTTYPTEXT.
+      END.
+      musz = FALSE.
+      GET NEXT faktypq NO-LOCK.
+   END.      
+   musz = FALSE.        
+END PROCEDURE.
+PROCEDURE startfakmed_UI:
+   DEFINE INPUT PARAMETER infakplannr            AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fdelnrvar              AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR faktaonrtemp.
+   EMPTY TEMP-TABLE faktaonrtemp NO-ERROR.
+   OPEN QUERY BRW_ANM FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = infakplannr NO-LOCK, 
+   EACH AONRTAB WHERE AONRTAB.AONR = FAKTAONR.AONR AND AONRTAB.DELNR = FAKTAONR.DELNR NO-LOCK.
+   GET FIRST BRW_ANM NO-LOCK.
+   DO WHILE AVAILABLE(FAKTAONR):
+      CREATE faktaonrtemp.
+      ASSIGN
+      faktaonrtemp.AONR  = AONRTAB.AONR  
+      faktaonrtemp.DELNR = AONRTAB.DELNR 
+      faktaonrtemp.ANM = AONRTAB.ANM[1].
+      {FAKTAONRSTOPP.I}
+      GET NEXT BRW_ANM NO-LOCK.
+   END.
+END PROCEDURE.
+PROCEDURE slutordehm_UI:
+   DEFINE INPUT PARAMETER infakplannr            AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fdelnrvar              AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER faktextvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER antalrader AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER slut AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER varacont AS LOGICAL NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = infakplannr AND
+      FAKTURERAD.FDELNR = fdelnrvar EXCLUSIVE-LOCK NO-ERROR.   
+      ASSIGN
+      FAKTURERAD.FAKTXT = faktextvar
+      FAKTURERAD.ANTALRADER = antalrader.
+     
+   END.
+   RELEASE FAKTURERAD NO-ERROR.
+END PROCEDURE.
+PROCEDURE slutordeh_UI:
+   DEFINE INPUT PARAMETER infakplannr            AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fdelnrvar              AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER faktextvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER antalrader AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER typvar AS CHARACTER NO-UNDO. 
+   DEFINE INPUT PARAMETER tilldatum AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER slut AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER varacont AS LOGICAL NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = infakplannr AND
+      FAKTURERAD.FDELNR = fdelnrvar EXCLUSIVE-LOCK NO-ERROR.   
+      ASSIGN
+      FAKTURERAD.SENASTTID = tilldatum
+      FAKTURERAD.FAKTXT = faktextvar
+      FAKTURERAD.ANTALRADER = antalrader.
+      IF typvar NE "" THEN DO:
+         FIND FIRST FAKTURERINGSTYP WHERE FAKTURERINGSTYP.FAKTTYPTEXT = typvar NO-LOCK NO-ERROR.        
+         IF AVAILABLE FAKTURERINGSTYP THEN DO:
+            ASSIGN
+            FAKTURERAD.FAKTTYPID = FAKTURERINGSTYP.FAKTTYPID
+            slut = FAKTURERINGSTYP.SLUT
+            varacont = FAKTURERINGSTYP.TIDIGAREACONTO.           
+         END.
+      END.
+   END.
+   RELEASE FAKTURERAD NO-ERROR.
+END PROCEDURE.
+PROCEDURE startordeh_UI:
+   DEFINE INPUT PARAMETER infakplannr            AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fdelnrvar              AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ganv                   AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER tilldatum              AS DATE NO-UNDO.
+   DEFINE OUTPUT PARAMETER FILL-IN_VECKOKORD     AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER FILL-IN_MEDTID        AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER feltexvar             AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER faktextvar            AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER FILL-IN_AVDELNINGNR   AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER FILL-IN_AVDELNINGNAMN AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER prelgodvar            AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER FILL-IN-FORSKOTTM     AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER FILL-IN-FORS          AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER FILL-IN-TIDUM         AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER FILL-IN-TIDMM         AS DECIMAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER kontber               AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR valsoktemp.
+
+   DEFINE VARIABLE gamanv AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE typfinns AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE typacontkoll AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE typtidfakt AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE typtidmoms AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE tidfaktvar AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE tidmomsvar AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE frifor AS DECIMAL NO-UNDO.
+
+   FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR =  infakplannr NO-LOCK NO-ERROR.        
+   EMPTY TEMP-TABLE valsoktemp NO-ERROR.   
+   FIND FIRST VECKONATT WHERE  SUBSTRING(VECKONATT.DAG_AR,1,3) = "DAG" NO-LOCK NO-ERROR.   
+   IF AVAILABLE VECKONATT THEN DO:
+      ASSIGN FILL-IN_VECKOKORD = SUBSTRING(VECKONATT.VECKOKORD,2,8)
+      FILL-IN_MEDTID = SUBSTRING(VECKONATT.DAG_AR,9,3). 
+   END.
+   FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = FAKTPLAN.OMRADE NO-LOCK NO-ERROR.
+   IF AVAILABLE OMRADETAB THEN DO:
+      FIND FIRST AVDELNING WHERE AVDELNING.AVDELNINGNR = OMRADETAB.AVDELNINGNR NO-LOCK NO-ERROR.
+      ASSIGN
+      FILL-IN_AVDELNINGNR  = AVDELNING.AVDELNINGNR
+      FILL-IN_AVDELNINGNAMN = AVDELNING.AVDELNINGNAMN.
+   END.
+   
+   FIND FIRST FAKTREGLER WHERE FAKTREGLER.FAKTNR = FAKTPLAN.FAKTNR 
+   USE-INDEX FAKTREGLER NO-LOCK NO-ERROR.
+   IF FAKTREGLER.KUNDID = 0 THEN DO:
+      FIND FIRST BESTTAB WHERE BESTTAB.BESTID = FAKTPLAN.BESTID 
+      USE-INDEX BEST NO-LOCK NO-ERROR.
+      FIND FIRST KUNDREGLER WHERE KUNDREGLER.BESTID = BESTTAB.BESTID 
+      USE-INDEX KUNDREGLER NO-LOCK NO-ERROR.   
+      IF KUNDREGLER.KUNDID = 0 OR KUNDREGLER.KUNDID = ?THEN DO:
+         feltexvar = "Denna saknar kundtyp och kan ej faktureras.".
+         RETURN.        
+      END.
+      ELSE DO TRANSACTION:
+         FIND CURRENT FAKTREGLER EXCLUSIVE-LOCK NO-ERROR.
+         ASSIGN
+         FAKTREGLER.KUNDID = KUNDREGLER.KUNDID.
+      END.
+   END.
+   DO TRANSACTION:
+      FIND CURRENT FAKTPLAN EXCLUSIVE-LOCK NO-ERROR.
+      gamanv = FAKTPLAN.PANVANDARE.
+      /* flyttat till fakturerad i lopfakt.*/
+      /*
+      FAKTPLAN.PANVANDARE = ganv.
+      */
+      FAKTPLAN.FDELNR = fdelnrvar.
+      FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = FAKTPLAN.FAKTNR AND
+      FAKTURERAD.FDELNR = fdelnrvar EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE FAKTURERAD THEN DO:
+         FIND LAST FAKTURERAD WHERE FAKTURERAD.FAKTNR = FAKTPLAN.FAKTNR 
+         USE-INDEX FAKTNR EXCLUSIVE-LOCK NO-ERROR.  
+         IF AVAILABLE FAKTURERAD THEN DO:
+            faktextvar = FAKTURERAD.FAKTXT.
+         END.
+         CREATE FAKTURERAD.
+         FAKTURERAD.SENASTTID = tilldatum.
+      END.
+      ELSE DO:
+          tilldatum = FAKTURERAD.SENASTTID.
+         faktextvar = FAKTURERAD.FAKTXT.
+      END.
+      ASSIGN       
+      FAKTURERAD.FAKTNR = FAKTPLAN.FAKTNR
+      FAKTURERAD.VFAKTNR = 0            
+      FAKTURERAD.FDELNR = fdelnrvar
+      FAKTURERAD.NAMN = FAKTPLAN.NAMN       
+      FAKTURERAD.DATUM = ?.            
+      IF faktextvar = "" THEN DO:
+         OPEN QUERY faq FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR NO-LOCK, 
+         EACH AONRTAB WHERE AONRTAB.AONR = FAKTAONR.AONR AND AONRTAB.DELNR = FAKTAONR.DELNR NO-LOCK.
+         GET FIRST faq NO-LOCK.
+         DO WHILE AVAILABLE(AONRTAB):
+            IF AONRTAB.ANM[1] NE "" THEN DO:
+               IF faktextvar = "" THEN faktextvar = AONRTAB.ANM[1].
+               ELSE faktextvar = faktextvar + CHR(10) + AONRTAB.ANM[1].
+            END.           
+            GET NEXT faq NO-LOCK. 
+         END.
+      END.       
+      FIND FIRST FAKTURERINGSTYP WHERE FAKTURERINGSTYP.FAKTTYPID = FAKTURERAD.FAKTTYPID NO-LOCK NO-ERROR.
+      IF AVAILABLE FAKTURERINGSTYP THEN DO:
+         ASSIGN
+         typfinns = TRUE
+         typacontkoll = FAKTURERINGSTYP.TIDIGAREACONTO 
+         typtidfakt = FAKTURERINGSTYP.TIDIGAREFAKT 
+         typtidmoms = FAKTURERINGSTYP.TIDIGAREMOMS.
+      END.
+   END.
+   prelgodvar = FAKTURERAD.PRELGOD. 
+   IF typfinns = FALSE THEN DO:
+      FIND LAST FAKTURERAD WHERE FAKTURERAD.FAKTNR = FAKTPLAN.FAKTNR AND
+      FAKTURERAD.FDELNR NE fdelnrvar
+      USE-INDEX FAKTNR NO-LOCK NO-ERROR.
+      IF AVAILABLE FAKTURERAD THEN DO:
+         FIND FIRST FAKTURERINGSTYP WHERE FAKTURERINGSTYP.FAKTTYPID = FAKTURERAD.FAKTTYPID NO-LOCK NO-ERROR.
+         IF AVAILABLE FAKTURERINGSTYP THEN DO:
+            ASSIGN
+            typfinns = TRUE
+            typacontkoll = FAKTURERINGSTYP.TIDIGAREACONTO 
+            typtidfakt = FAKTURERINGSTYP.TIDIGAREFAKT 
+            typtidmoms = FAKTURERINGSTYP.TIDIGAREMOMS.
+         END.
+      END.
+   END.      
+   IF FAKTPLAN.SENASTFAK = ? THEN typfinns = FALSE.
+   /*
+   "Fastpris" "Löpande räkning" "A-contofakt." "Takprisfakt." "Avtal"
+   */
+  
+   OPEN QUERY faktypq FOR EACH FAKTURERINGSTYP NO-LOCK BY FAKTURERINGSTYP.FAKTTYPTEXT.
+   GET FIRST faktypq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTURERINGSTYP):
+      IF typfinns = FALSE THEN DO:
+         IF FAKTPLAN.SENASTFAK = ? THEN DO:
+            IF FAKTURERINGSTYP.TIDIGAREFAKT = TRUE AND 
+               FAKTURERINGSTYP.FAKTTYPTEXT BEGINS "Slut" THEN DO:
+               musz = TRUE.
+            END.
+         END.
+      END.
+      IF typfinns = TRUE THEN DO:
+         IF typtidfakt = TRUE THEN DO:
+            IF FAKTPLAN.SENASTFAK = ? THEN DO:
+               IF FAKTURERINGSTYP.TIDIGAREFAKT = TRUE AND 
+                  FAKTURERINGSTYP.FAKTTYPTEXT BEGINS "Slut" THEN DO:
+                  musz = TRUE.
+               END.
+            END.
+            ELSE IF FAKTURERINGSTYP.TIDIGAREFAKT = FALSE THEN DO:               
+               musz = TRUE.
+            END.
+         END.
+         IF typacontkoll = TRUE THEN DO:
+            IF FAKTURERINGSTYP.TIDIGAREACONTO = FALSE THEN DO:
+               musz = TRUE.
+            END.   
+         END.
+         IF typacontkoll = FALSE THEN DO:            
+            IF FAKTURERINGSTYP.TIDIGAREACONTO = TRUE THEN DO:
+               musz = TRUE.
+            END.
+         END.
+         IF typtidmoms = TRUE THEN DO:            
+            IF FAKTURERINGSTYP.TIDIGAREMOMS = FALSE THEN DO:
+               musz = TRUE.
+            END.
+         END.
+         IF typtidmoms = FALSE THEN DO:
+            IF FAKTURERINGSTYP.TIDIGAREMOMS = TRUE THEN DO:
+               musz = TRUE.
+            END.
+         END.         
+      END.
+           
+      IF FAKTPLAN.FAKTTYP = "Fastpris" OR FAKTPLAN.FAKTTYP = "Avtal" THEN DO:
+         IF FAKTURERINGSTYP.TIDIGAREACONTO = TRUE THEN DO:
+            musz = TRUE.
+         END.
+      END.
+      IF FAKTPLAN.FAKTTYP = "A-contofakt." THEN DO:
+         IF FAKTURERINGSTYP.TIDIGAREACONTO = FALSE THEN DO:
+            musz = TRUE.
+         END.
+      END.
+      IF FAKTURERINGSTYP.FAKTTYPID = 11 THEN DO:
+         musz = TRUE.
+      END.     
+      IF FAKTPLAN.FAKTTYP = "Bokföring" THEN musz = TRUE.
+      IF FAKTURERINGSTYP.FAKTTYPID = 12 THEN DO:         
+         IF FAKTPLAN.FAKTTYP NE "Bokföring" THEN musz = TRUE.
+         ELSE musz = FALSE.
+      END.
+      /*intern utam moms*/
+      IF FAKTURERINGSTYP.FAKTTYPID = 13 THEN DO:
+         IF FAKTREGLER.KUNDID NE 2 THEN musz = TRUE.
+      END. 
+      IF FAKTURERINGSTYP.FAKTTYPID = 14 THEN DO:
+         IF FAKTREGLER.KUNDID NE 2 THEN musz = TRUE.
+      END.
+      IF Guru.Konstanter:globforetag = "ELPA" THEN DO:
+         /*Anders Olsson Elpool i Umeå AB  3 maj 2019 08:57:52 
+         Faktura utan moms 
+         */
+         IF FAKTURERINGSTYP.FAKTTYPID = 12 THEN musz = FALSE.
+         
+      END.  
+      IF musz = FALSE THEN DO:
+         FIND FIRST STYRINTAKT WHERE STYRINTAKT.FAKTTYPID = FAKTURERINGSTYP.FAKTTYPID
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE STYRINTAKT THEN DO:
+            CREATE valsoktemp.
+            ASSIGN
+            valsoktemp.SOKCHAR[1] = FAKTURERINGSTYP.FAKTTYPTEXT.
+         END.
+      END.
+      musz = FALSE.
+      GET NEXT faktypq NO-LOCK.
+   END.     
+   musz = FALSE.
+   FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = FAKTPLAN.FAKTNR AND
+   FAKTURERAD.FDELNR = fdelnrvar NO-LOCK NO-ERROR.
+   FIND FIRST FAKTURERINGSTYP WHERE FAKTURERINGSTYP.FAKTTYPID = FAKTURERAD.FAKTTYPID NO-LOCK NO-ERROR.
+   IF AVAILABLE FAKTURERINGSTYP THEN DO:
+      FIND FIRST valsoktemp WHERE valsoktemp.SOKCHAR[1] = FAKTURERINGSTYP.FAKTTYPTEXT  NO-ERROR.
+      valsoktemp.SOKVAL = 1.
+   END.
+   OPEN QUERY faktuq FOR EACH FAKTURERAD WHERE 
+   FAKTURERAD.FAKTNR = FAKTPLAN.FAKTNR USE-INDEX FAKTNR NO-LOCK.
+   GET FIRST faktuq NO-LOCK.   
+   DO WHILE AVAILABLE(FAKTURERAD):
+      IF FAKTURERAD.FDELNR NE fdelnrvar THEN
+      ASSIGN                  
+      tidmomsvar = tidmomsvar + FAKTURERAD.MOMSBELOPP
+      tidfaktvar =  tidfaktvar + FAKTURERAD.TOTPRIS. 
+      GET NEXT faktuq NO-LOCK.
+   END.
+   OPEN QUERY friq FOR EACH FAKTFRIA WHERE 
+   FAKTFRIA.FAKTNR = FAKTPLAN.FAKTNR NO-LOCK.
+   GET FIRST friq NO-LOCK.   
+   DO WHILE AVAILABLE(FAKTFRIA):
+      IF FAKTFRIA.FDELNR NE fdelnrvar THEN
+      ASSIGN                  
+      frifor = frifor + FAKTFRIA.TOTALT.      
+      GET NEXT friq NO-LOCK.
+   END.                    
+   ASSIGN
+   FILL-IN-FORSKOTTM = tidmomsvar
+   FILL-IN-FORS = frifor.
+   IF tidmomsvar = 0 THEN FILL-IN-TIDUM = tidfaktvar - frifor.
+   ELSE FILL-IN-TIDMM = tidfaktvar - frifor.
+   FIND FIRST FAKTINTAKTKONT WHERE 
+   FAKTINTAKTKONT.FAKTNR = FAKTPLAN.FAKTNR AND  
+   FAKTINTAKTKONT.FDELNR = fdelnrvar AND 
+   FAKTINTAKTKONT.VFAKTNR = 0 NO-LOCK NO-ERROR.
+   IF AVAILABLE FAKTINTAKTKONT THEN kontber = TRUE.      
+   ELSE kontber = FALSE.
+
+   RELEASE FAKTURERAD NO-ERROR.
+   RELEASE FAKTPLAN NO-ERROR.
+   RELEASE FAKTREGLER NO-ERROR.
+END PROCEDURE.
+PROCEDURE faktnamn_UI.
+   DEFINE INPUT PARAMETER vart AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER infakplannr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fdelnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR faktnamntemp.
+   DEFINE BUFFER faktnamnbuff FOR FAKTNAMN.      
+   IF vart = 1 THEN DO:
+      EMPTY TEMP-TABLE faktnamntemp NO-ERROR.
+      FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = infakplannr NO-LOCK NO-ERROR.
+      FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = infakplannr AND FAKTURERAD.FDELNR = fdelnrvar NO-LOCK NO-ERROR.
+      FIND FIRST FAKTNAMN WHERE FAKTNAMN.FAKTURNR = infakplannr AND 
+      FAKTNAMN.FDELNR = fdelnrvar NO-LOCK NO-ERROR. 
+      IF NOT AVAILABLE FAKTNAMN THEN DO:
+         FIND LAST faktnamnbuff WHERE faktnamnbuff.FAKTURNR = infakplannr 
+         USE-INDEX FAKTNR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE faktnamnbuff THEN DO:
+            FIND FIRST BESTTAB WHERE BESTTAB.BESTID = FAKTPLAN.BESTID 
+            USE-INDEX BEST NO-LOCK NO-ERROR.
+            DO TRANSACTION:      
+               FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = ganv NO-LOCK NO-ERROR.
+               CREATE FAKTNAMN.
+               ASSIGN
+               FAKTNAMN.FAKTURNR = FAKTPLAN.FAKTNR
+               FAKTNAMN.FAKTURADATUM = FAKTURERAD.DATUM
+               FAKTNAMN.FDELNR = FAKTURERAD.FDELNR
+               FAKTNAMN.BESTNAMN = BESTTAB.BESTNAMN
+               FAKTNAMN.FAKADRESS = BESTTAB.FAKADRESS
+               FAKTNAMN.TEL = BESTTAB.TEL
+               FAKTNAMN.FAKORT = BESTTAB.FAKORT 
+               FAKTNAMN.FAKPNR = BESTTAB.FAKPNR
+               FAKTNAMN.VARREF = ANVANDARE.AV-NAMN
+               FAKTNAMN.KONTAKT = BESTTAB.KONTAKT.               
+            END.
+         END.
+         ELSE DO TRANSACTION:
+            IF faktnamnbuff.FDELNR NE 0 THEN DO:       
+               CREATE FAKTNAMN.
+               ASSIGN
+               FAKTNAMN.FAKTURNR = faktnamnbuff.FAKTURNR
+               FAKTNAMN.FAKTURADATUM = FAKTURERAD.DATUM
+               FAKTNAMN.FDELNR = FAKTURERAD.FDELNR
+               FAKTNAMN.BESTNAMN = faktnamnbuff.BESTNAMN
+               FAKTNAMN.FAKADRESS = faktnamnbuff.FAKADRESS
+               FAKTNAMN.TEL = faktnamnbuff.TEL
+               FAKTNAMN.FAKORT = faktnamnbuff.FAKORT 
+               FAKTNAMN.FAKPNR = faktnamnbuff.FAKPNR
+               FAKTNAMN.VARREF = faktnamnbuff.VARREF
+               FAKTNAMN.KONTAKT = faktnamnbuff.KONTAKT
+               FAKTNAMN.BESTALLARE = faktnamnbuff.BESTALLARE
+               FAKTNAMN.ARBOMF = faktnamnbuff.ARBOMF.         
+            END.
+            ELSE DO:
+               FIND CURRENT faktnamnbuff EXCLUSIVE-LOCK. 
+               ASSIGN
+               faktnamnbuff.FAKTURADATUM = FAKTURERAD.DATUM
+               faktnamnbuff.FDELNR = FAKTURERAD.FDELNR.            
+            END.   
+         END.         
+      END.
+      RELEASE faktnamnbuff NO-ERROR.
+      RELEASE FAKTNAMN NO-ERROR.
+      FOR EACH FAKTNAMN WHERE FAKTNAMN.FAKTURNR = infakplannr NO-LOCK:
+         CREATE faktnamntemp.
+         BUFFER-COPY FAKTNAMN TO faktnamntemp.
+      END.
+   END.
+   IF vart = 2 THEN DO TRANSACTION:
+      FIND FIRST FAKTNAMN WHERE FAKTNAMN.FAKTURNR = infakplannr AND FAKTNAMN.FDELNR = fdelnrvar EXCLUSIVE-LOCK NO-ERROR. 
+      IF NOT AVAILABLE FAKTNAMN THEN CREATE FAKTNAMN.
+      FIND FIRST faktnamntemp WHERE faktnamntemp.FAKTURNR = infakplannr AND faktnamntemp.FDELNR = fdelnrvar NO-ERROR. 
+      BUFFER-COPY faktnamntemp TO FAKTNAMN.
+   END.
+   RELEASE FAKTNAMN NO-ERROR.
+END PROCEDURE.
+PROCEDURE hamtaenfakturd_UI.
+   DEFINE INPUT PARAMETER infakplannr AS INTEGER  NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR faktureradtemp.
+   EMPTY TEMP-TABLE faktureradtemp NO-ERROR.
+   FOR EACH FAKTURERAD WHERE FAKTURERAD.FAKTNR = infakplannr NO-LOCK:
+      CREATE faktureradtemp.
+      BUFFER-COPY FAKTURERAD TO faktureradtemp.
+   END.
+END PROCEDURE.
+PROCEDURE visfaktplan_UI:
+   DEFINE INPUT PARAMETER infakplannr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   DEFINE VARIABLE str AS CHARACTER FORMAT "X(92)" NO-UNDO.    
+   EMPTY TEMP-TABLE tidut NO-ERROR.
+   FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = infakplannr NO-LOCK NO-ERROR.
+   str =    
+   "========================================================================================".      
+   CREATE tidut. 
+   SUBSTRING(tidut.UT,60) = STRING(TODAY).
+   CREATE tidut.
+   CREATE tidut.                           
+   SUBSTRING(tidut.UT,20) = faktyp(FAKTPLAN.FAKTTYP).                 
+   CREATE tidut. 
+   CREATE tidut. 
+   ASSIGN                   
+   SUBSTRING(tidut.UT,1) = "NUMMER-NAMN         :"         
+   SUBSTRING(tidut.UT,23) = STRING(STRING(FAKTPLAN.FAKTNR) + " " + FAKTPLAN.NAMN,"X(30)")   
+   SUBSTRING(tidut.UT,55) = "ANSVARIG :"
+   SUBSTRING(tidut.UT,66) = FAKTPLAN.ANVANDARE. 
+   FIND FIRST BESTTAB WHERE BESTTAB.BESTID = FAKTPLAN.BESTID 
+   USE-INDEX BEST NO-LOCK NO-ERROR.   
+   CREATE tidut.           
+   ASSIGN                   
+   SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:gbestk)
+   SUBSTRING(tidut.UT,21) = ":"
+   SUBSTRING(tidut.UT,23) = BESTTAB.VIBESTID.
+   IF AVAILABLE BESTTAB THEN DO:
+      SUBSTRING(tidut.UT,37) = BESTTAB.BESTNAMN.
+   END.            
+   /*faktfor*/
+   IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "elpa" THEN DO:
+      RUN EXTRATABHMT.P PERSISTENT SET fbestapph2.      
+      CREATE tidut.
+      ASSIGN                   
+      SUBSTRING(tidut.UT,1) = "FAKTURA BESTÄLLARE  :".
+      CREATE inextrakopptemp.          
+      ASSIGN
+      inextrakopptemp.PROGRAM     = "FBFPLAN"                   
+      inextrakopptemp.KOPPLACHAR1 = ?              
+      inextrakopptemp.KOPPLAINT1  =  infakplannr      
+      inextrakopptemp.KOPPLACHAR2 = ?            
+      inextrakopptemp.KOPPLAINT2 =  ?.
+      RUN etabhamt_UI IN fbestapph2 (INPUT TABLE inextrakopptemp,OUTPUT TABLE extrakopptemp).        
+      FIND FIRST extrakopptemp NO-ERROR.
+      IF AVAILABLE extrakopptemp THEN DO:         
+         FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = extrakopptemp.KOPPLACHAR2 NO-LOCK NO-ERROR.
+         IF AVAILABLE ANVANDARE THEN DO:
+            SUBSTRING(tidut.UT,23) = ANVANDARE.AV-NAMN NO-ERROR.
+         END.      
+      END.
+      REPEAT:
+         FIND NEXT extrakopptemp NO-ERROR.
+         IF AVAILABLE extrakopptemp THEN DO:         
+            FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = extrakopptemp.KOPPLACHAR2 NO-LOCK NO-ERROR.
+            IF AVAILABLE ANVANDARE THEN DO:
+               CREATE tidut.
+               SUBSTRING(tidut.UT,23) = ANVANDARE.AV-NAMN NO-ERROR.
+            END.      
+         END.
+         ELSE LEAVE.         
+      END.          
+   END.
+   CREATE tidut.
+   ASSIGN                         
+   SUBSTRING(tidut.UT,1) = "SENAST FAKTURERAT   :".      
+   IF FAKTPLAN.SENASTFAK NE ? THEN
+   SUBSTRING(tidut.UT,23) =  STRING(FAKTPLAN.SENASTFAK).
+   ASSIGN                    
+   SUBSTRING(tidut.UT,49) = "SLUTFAKTURERAT :"
+   SUBSTRING(tidut.UT,66) = STRING(FAKTPLAN.SLUTFAKT, "JA/NEJ").            
+   CREATE tidut.
+   CREATE tidut.         
+   ASSIGN                   
+   SUBSTRING(tidut.UT,1) = "HITTILLS FAKTURERAT :".
+   IF FAKTPLAN.TOTPRIS > 0 THEN SUBSTRING(tidut.UT,23) = STRING(FAKTPLAN.TOTPRIS).   
+   FIND FIRST FAKTREGLER WHERE FAKTREGLER.FAKTNR = FAKTPLAN.FAKTNR 
+   USE-INDEX FAKTREGLER NO-LOCK NO-ERROR. 
+   CREATE tidut. 
+   CREATE tidut. 
+   ASSIGN                                                                
+   SUBSTRING(tidut.UT,25) = "REGLER FÖR FAKTURORNA".   
+   CREATE tidut.  
+   CREATE tidut.
+   ASSIGN                                                                
+   SUBSTRING(tidut.UT,1) = "TIMKOSTNAD   :"   
+   SUBSTRING(tidut.UT,16) = FAKTREGLER.TIMRGL 
+   SUBSTRING(tidut.UT,35) = "ÖVERTID           :"
+   SUBSTRING(tidut.UT,55) = FAKTREGLER.OVERTIDRGL.
+   CREATE tidut.
+   ASSIGN                                                                
+   SUBSTRING(tidut.UT,1) = "TRAKTAMENTE  :"   
+   SUBSTRING(tidut.UT,16) = FAKTREGLER.TRAKTRGL  
+   SUBSTRING(tidut.UT,35) = "LÖNETILLÄGG       :"
+   SUBSTRING(tidut.UT,55) = FAKTREGLER.LONRGL.  
+   IF FAKTREGLER.LONRGL = "ENDAST MILERSÄTTNING" THEN DO: 
+      SUBSTRING(tidut.UT,55) = "".
+      SUBSTRING(tidut.UT,55) = "Endast utvalda löne.".  
+   END.
+   
+   /*
+   CREATE tidut.
+   ASSIGN                                                                
+   SUBSTRING(tidut.UT,1) = "MATERIEL     :"   
+   SUBSTRING(tidut.UT,16) = FAKTREGLER.MTRLRGL  
+   SUBSTRING(tidut.UT,35) = "ÖVRIGA KOSTNADER  :"
+   SUBSTRING(tidut.UT,55) = FAKTREGLER.OVRKRGL . 
+   */
+   CREATE tidut.
+   ASSIGN                                                               
+   SUBSTRING(tidut.UT,1) = "KOSTNADSREG. :"   
+   SUBSTRING(tidut.UT,16) = FAKTREGLER.KOSTREGRGL 
+   SUBSTRING(tidut.UT,35) = "FAKTURA INTERVALL :"
+   SUBSTRING(tidut.UT,55) = STRING(FAKTREGLER.FAKINT).
+   CREATE tidut.
+   ASSIGN                     
+   SUBSTRING(tidut.UT,1) = "PÅSLAG MTRL. :"   
+   SUBSTRING(tidut.UT,16) = STRING(FAKTREGLER.MTRLPA) + " %"
+   SUBSTRING(tidut.UT,35) = "PÅSLAG FR.TJÄNST  :"
+   SUBSTRING(tidut.UT,55) = STRING(FAKTREGLER.FRTJPA) + " %".  
+   CREATE tidut. 
+   CREATE tidut.
+   CREATE tidut.     
+   SUBSTRING(tidut.UT,1) = str.           
+   IF FAKTREGLER.TIMRGL = "KUNDENS EGNA" THEN DO: 
+      CREATE tidut. 
+      CREATE tidut. 
+      ASSIGN                                                                
+      SUBSTRING(tidut.UT,25) = "GÄLLANDE TIMPRISER FÖR :".   
+      CREATE tidut. 
+      CREATE tidut.
+      ASSIGN 
+      SUBSTRING(tidut.UT,11) = "BEFFATNING"   
+      SUBSTRING(tidut.UT,32) = "TIMM PRIS"
+      SUBSTRING(tidut.UT,42) = "RES PRIS". 
+      CREATE tidut.             
+      ASSIGN      
+      SUBSTRING(tidut.UT,11) = "====================.=========.=========".                
+      OPEN QUERY faktbefq FOR EACH FAKTBEF WHERE FAKTBEF.FAKTNR = FAKTPLAN.FAKTNR
+      USE-INDEX FAKTBEF NO-LOCK.
+      GET FIRST faktbefq NO-LOCK.
+      DO WHILE AVAILABLE(FAKTBEF):
+         FIND FIRST BEFATTNINGSTAB WHERE 
+         BEFATTNINGSTAB.BEFATTNING = FAKTBEF.BEFATTNING
+         NO-LOCK NO-ERROR.
+         CREATE tidut.
+         IF NOT AVAILABLE BEFATTNINGSTAB THEN DO:
+            SUBSTRING(tidut.UT,11) = FAKTBEF.BEFATTNING.
+         END.
+         ELSE DO:
+            SUBSTRING(tidut.UT,11) = BEFATTNINGSTAB.NAMN.   
+         END.
+         ASSIGN                                                                
+         SUBSTRING(tidut.UT,32) = STRING(FAKTBEF.PRISA,">>>>>>>>9")
+         SUBSTRING(tidut.UT,42) = STRING(FAKTBEF.PRISRES,">>>>>>>>9").          
+         GET NEXT faktbefq NO-LOCK.
+      END.  
+      CREATE tidut. 
+      CREATE tidut.
+      CREATE tidut.     
+      SUBSTRING(tidut.UT,1) = str.       
+   END.
+   IF FAKTREGLER.OVERTIDRGL = "EGNA REGLER" THEN DO:
+      CREATE tidut. 
+      CREATE tidut. 
+      ASSIGN                                                                
+      SUBSTRING(tidut.UT,25) = "GÄLLANDE ÖVERTIDSRISER FÖR :".   
+      CREATE tidut. 
+      CREATE tidut.
+      ASSIGN 
+      SUBSTRING(tidut.UT,11) = "BEFFATNING"   
+      SUBSTRING(tidut.UT,32) = "PRIS"
+      SUBSTRING(tidut.UT,38) = "DAGAR"
+      SUBSTRING(tidut.UT,48) = "START"
+      SUBSTRING(tidut.UT,54) = "SLUT". 
+      CREATE tidut.
+      ASSIGN                           
+      SUBSTRING(tidut.UT,11) = "====================.=====.=========.=====.=====".   
+      OPEN QUERY faktoverq FOR EACH FAKTOVER WHERE FAKTOVER.FAKTNR = FAKTPLAN.FAKTNR
+      USE-INDEX FAKTOVER NO-LOCK. 
+      GET FIRST faktoverq NO-LOCK.
+      DO WHILE AVAILABLE(FAKTOVER): 
+         FIND FIRST BEFATTNINGSTAB WHERE 
+         BEFATTNINGSTAB.BEFATTNING = FAKTOVER.BEFATTNING
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE BEFATTNINGSTAB THEN DO:
+            CREATE tidut.
+            ASSIGN                                                                
+            SUBSTRING(tidut.UT,11) = BEFATTNINGSTAB.NAMN   
+            SUBSTRING(tidut.UT,32) = STRING(FAKTOVER.PRISA,">>>>9")
+            SUBSTRING(tidut.UT,38) = FAKTOVER.DAGTYP
+            SUBSTRING(tidut.UT,48) = STRING(FAKTOVER.START,">9.99")  
+            SUBSTRING(tidut.UT,54) = STRING(FAKTOVER.SLUT,">9.99").      
+         END.
+         GET NEXT faktoverq NO-LOCK.
+      END. 
+      CREATE tidut. 
+      CREATE tidut.
+      CREATE tidut.     
+      SUBSTRING(tidut.UT,1) = str.                                       
+   END.                                
+   CREATE tidut. 
+   CREATE tidut.
+   CREATE tidut.                                 
+   ASSIGN                   
+   SUBSTRING(tidut.UT,20) = "INGÅENDE " + CAPS(Guru.Konstanter:gaok). 
+   CREATE tidut.  
+   OPEN QUERY aonrq FOR EACH AONRTAB WHERE AONRTAB.FAKTNR = FAKTPLAN.FAKTNR 
+   USE-INDEX FAKTNR NO-LOCK BY AONRTAB.AONR BY AONRTAB.DELNR.
+   GET FIRST aonrq NO-LOCK.
+   IF AVAILABLE AONRTAB THEN DO:   
+      CREATE tidut.                                 
+      ASSIGN                                                                
+      SUBSTRING(tidut.UT,33)  = "TIDSKRIVNING"
+      SUBSTRING(tidut.UT,46) = "ARBETET".   
+      CREATE tidut.                                 
+      ASSIGN                   
+      SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:gaok)            
+      SUBSTRING(tidut.UT,12)  = CAPS(Guru.Konstanter:gaonamnk)  
+      SUBSTRING(tidut.UT,33)  = "STARTAD"
+      SUBSTRING(tidut.UT,46) = "AVSLUTAT".   
+       /*faktfor*/
+      IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "elpa" THEN DO: 
+         SUBSTRING(tidut.UT,56) = "FAKTURA BESTÄLLARE " + CAPS(Guru.Konstanter:gaok).   
+      END.                         
+      CREATE tidut.                                 
+      ASSIGN                                                                                          
+      tidut.UT =                                              
+      "==========.====================.============.========.=================================".
+   END.   
+   DO WHILE AVAILABLE(AONRTAB):        
+      CREATE tidut.                                 
+      ASSIGN                       
+      SUBSTRING(tidut.UT,1) = AONRTAB.AONR
+      SUBSTRING(tidut.UT,8) = STRING(AONRTAB.DELNR,Guru.Konstanter:varforetypchar[1])
+      SUBSTRING(tidut.UT,12) = SUBSTRING(AONRTAB.ORT,1,20).                                       
+      IF AONRTAB.STARTDATUM NE ? THEN 
+      SUBSTRING(tidut.UT,33) = STRING(AONRTAB.STARTDATUM).       
+      IF AONRTAB.AONRAVDATUM NE 01/01/91 THEN 
+      ASSIGN
+      SUBSTRING(tidut.UT,46) = STRING(AONRTAB.AONRAVDATUM).               
+      IF VALID-HANDLE(fbestapph2) THEN DO:
+         EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+         CREATE inextrakopptemp.          
+         ASSIGN
+         inextrakopptemp.PROGRAM = "FBAONR"                   
+         inextrakopptemp.KOPPLACHAR1 = AONRTAB.AONR       
+         inextrakopptemp.KOPPLAINT1 =  AONRTAB.DELNR      
+         inextrakopptemp.KOPPLACHAR2 = ?            
+         inextrakopptemp.KOPPLAINT2 =  ?.
+         RUN etabhamt_UI IN fbestapph2 (INPUT TABLE inextrakopptemp,OUTPUT TABLE extrakopptemp).        
+         FOR EACH extrakopptemp:
+            SUBSTRING(tidut.UT,56) = " " + STRING(extrakopptemp.SOKINT[1]) + "% " + extrakopptemp.KOPPLACHAR2 + " " + STRING(extrakopptemp.KOPPLAINT2,">99") + " " + extrakopptemp.SOKCHAR[1].
+            CREATE tidut.
+         END.
+         EMPTY TEMP-TABLE inextrakopptemp NO-ERROR.          
+      END.
+      GET NEXT aonrq NO-LOCK.
+   END.     
+   CLOSE QUERY aonrq.   
+   IF VALID-HANDLE(fbestapph2) THEN DELETE PROCEDURE fbestapph2.
+   fbestapph2 = ?.
+END PROCEDURE.
+PROCEDURE svarpris_UI:
+   DEFINE INPUT PARAMETER vart AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER infakplannr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER fprlista AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER dprlista AS CHARACTER NO-UNDO.
+   IF vart = 1 THEN DO:
+      DO TRANSACTION:
+         FIND FIRST FAKTPRISLISTA WHERE FAKTPRISLISTA.FAKTNR = infakplannr AND FAKTPRISLISTA.PRISID = fprlista EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE FAKTPRISLISTA THEN FAKTPRISLISTA.FRAGAEJ = TRUE.
+      END.
+      RELEASE FAKTPRISLISTA NO-ERROR.
+      RETURN.
+   END.
+   IF vart = 2 THEN DO: 
+      DO TRANSACTION:
+         FIND FIRST FAKTPRISLISTA WHERE FAKTPRISLISTA.FAKTNR = infakplannr AND FAKTPRISLISTA.PRISID = fprlista EXCLUSIVE-LOCK NO-ERROR. 
+         FAKTPRISLISTA.STARTDATUM = TODAY.
+      END.
+      RELEASE FAKTPRISLISTA NO-ERROR.
+      OPEN QUERY kbq FOR EACH FAKTOVER WHERE 
+      FAKTOVER.FAKTNR = infakplannr NO-LOCK.
+      GET FIRST kbq NO-LOCK.
+      DO WHILE AVAILABLE(FAKTOVER):
+         DO TRANSACTION:
+            GET CURRENT kbq EXCLUSIVE-LOCK.
+            DELETE FAKTOVER.
+         END.
+         GET NEXT kbq NO-LOCK.
+      END.    
+      OPEN QUERY oprisq FOR EACH OVERPRISLISTA WHERE 
+      OVERPRISLISTA.PRISID = dprlista NO-LOCK.
+      GET FIRST oprisq NO-LOCK.
+      DO WHILE AVAILABLE(OVERPRISLISTA):
+         DO TRANSACTION:
+            CREATE FAKTOVER.  
+            ASSIGN 
+            FAKTOVER.OTEXTID = OVERPRISLIST.OTEXTID
+            FAKTOVER.BEFATTNING = OVERPRISLIST.BEFATTNING 
+            FAKTOVER.FAKTNR = infakplannr
+            FAKTOVER.DAGTYP = OVERPRISLIST.DAGTYP 
+            FAKTOVER.EQDAG = OVERPRISLIST.EQDAG 
+            FAKTOVER.PRISA = OVERPRISLIST.PRISA 
+            FAKTOVER.SLUT = OVERPRISLIST.SLUT 
+            FAKTOVER.START = OVERPRISLIST.START.                        
+         END.   
+         GET NEXT oprisq NO-LOCK.                     
+      END.   
+      RELEASE FAKTOVER NO-ERROR.
+      RELEASE FAKTPRISLISTA NO-ERROR.
+      RETURN.
+   END.
+   IF vart = 3 THEN DO: 
+      DO TRANSACTION:
+         FIND FIRST FAKTPRISLISTA WHERE FAKTPRISLISTA.FAKTNR = infakplannr AND FAKTPRISLISTA.PRISID = fprlista EXCLUSIVE-LOCK NO-ERROR. 
+         FAKTPRISLISTA.STARTDATUM = TODAY.
+      END.   
+      OPEN QUERY fbq FOR EACH FAKTBEF WHERE 
+      FAKTBEF.FAKTNR = infakplannr NO-LOCK.
+      GET FIRST fbq NO-LOCK.
+      DO WHILE AVAILABLE(FAKTBEF):
+         DO TRANSACTION:
+            GET CURRENT fbq EXCLUSIVE-LOCK.
+            DELETE FAKTBEF.
+         END.    
+         GET NEXT fbq NO-LOCK.
+      END.
+      OPEN QUERY prisq FOR EACH PRISLISTFAKT WHERE 
+      PRISLISTFAKT.PRISID = dprlista NO-LOCK.
+      GET FIRST prisq NO-LOCK.
+      DO WHILE AVAILABLE(PRISLISTFAKT):
+         DO TRANSACTION:
+            CREATE FAKTBEF.  
+            ASSIGN          
+            FAKTBEF.BEFATTNING = PRISLISTFAKT.BEFATTNING 
+            FAKTBEF.FAKTNR = infakplannr          
+            FAKTBEF.PRISA = PRISLISTFAKT.PRISA 
+            FAKTBEF.PRISRES = PRISLISTFAKT.PRISRES.                        
+         END.   
+         GET NEXT prisq NO-LOCK.                     
+      END.     
+      FIND FIRST PRISLISTOVRIGT WHERE PRISLISTOVRIGT.PRISID = dprlista NO-LOCK NO-ERROR.
+      IF AVAILABLE PRISLISTOVRIGT THEN DO TRANSACTION:
+         FIND FIRST FAKTREGLER WHERE FAKTREGLER.FAKTNR = infakplannr EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE FAKTREGLER THEN DO:          
+            IF FAKTREGLER.TIMRGL = "KUNDENS EGNA" THEN DO:
+               ASSIGN
+               FAKTREGLER.ENTRAK = PRISLISTOVRIGT.ENTRAK 
+               FAKTREGLER.FLERTRAK = PRISLISTOVRIGT.FLERTRAK
+               FAKTREGLER.FRTJPA = PRISLISTOVRIGT.FRTJPA
+               FAKTREGLER.MIL = PRISLISTOVRIGT.MIL
+               FAKTREGLER.MTRLPA = PRISLISTOVRIGT.MTRLPA.
+            END.   
+         END.
+      END.
+      RELEASE FAKTBEF NO-ERROR.
+      RELEASE FAKTREGLER NO-ERROR.
+      RELEASE FAKTPRISLISTA NO-ERROR.
+      RETURN.
+   END.     
+END PROCEDURE.
+PROCEDURE faktbort_UI:
+   DEFINE INPUT PARAMETER plannr AS INTEGER NO-UNDO. 
+   DEFINE INPUT PARAMETER vnr AS INTEGER NO-UNDO. 
+   FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = plannr AND FAKTURERAD.VFAKTNR = vnr NO-LOCK NO-ERROR. 
+   FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = FAKTURERAD.FAKTNR NO-LOCK NO-ERROR.
+   OPEN QUERY faktstartq
+   FOR EACH FAKTSTART WHERE FAKTSTART.FAKTNR = FAKTPLAN.FAKTNR AND 
+   FAKTSTART.VFAKTNR = FAKTURERAD.VFAKTNR NO-LOCK.        
+   DO TRANSACTION:
+      GET FIRST faktstartq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(FAKTSTART):            
+         FAKTSTART.VFAKTNR = 0.         
+         GET NEXT faktstartq EXCLUSIVE-LOCK.
+      END.
+   END.   
+   OPEN QUERY fakkostq FOR EACH FAKTKOST WHERE 
+   FAKTKOST.FAKTNR = FAKTPLAN.FAKTNR AND 
+   FAKTKOST.VFAKTNR = FAKTURERAD.VFAKTNR
+   NO-LOCK.  
+   GET FIRST fakkostq NO-LOCK.   
+   DO WHILE AVAILABLE(FAKTKOST):
+      DO TRANSACTION:
+         GET CURRENT fakkostq EXCLUSIVE-LOCK.   
+         FIND KOSTREG WHERE KOSTREG.AONR = FAKTKOST.AONR AND  
+         KOSTREG.DELNR = FAKTKOST.DELNR AND KOSTREG.RADNR = FAKTKOST.RADNR
+         USE-INDEX KOST EXCLUSIVE-LOCK NO-ERROR.  
+         IF AVAILABLE KOSTREG THEN ASSIGN KOSTREG.FAKTURERAD = ?.            
+         FAKTKOST.VFAKTNR = 0.   
+      END.
+      GET NEXT fakkostq NO-LOCK.   
+   END.   
+   OPEN QUERY faktidq FOR EACH FAKTTID WHERE FAKTTID.FAKTNR = FAKTPLAN.FAKTNR AND  
+   FAKTTID.VFAKTNR = FAKTURERAD.VFAKTNR NO-LOCK.
+   GET FIRST faktidq NO-LOCK.   
+   DO WHILE AVAILABLE(FAKTTID):
+      DO TRANSACTION:
+         GET CURRENT faktidq EXCLUSIVE-LOCK.   
+         ASSIGN
+      /*   FAKTTID.VECKOKORD = ""*/
+         FAKTTID.VFAKTNR = 0.                          
+      END.
+      GET NEXT faktidq NO-LOCK.   
+   END.
+   OPEN QUERY fakfriaq FOR EACH FAKTFRIA WHERE FAKTFRIA.FAKTNR = FAKTPLAN.FAKTNR AND  
+   FAKTFRIA.VFAKTNR = FAKTURERAD.VFAKTNR 
+   NO-LOCK.
+   GET FIRST fakfriaq NO-LOCK.   
+   DO WHILE AVAILABLE(FAKTFRIA):
+      DO TRANSACTION:
+         GET CURRENT fakfriaq EXCLUSIVE-LOCK.   
+         FAKTFRIA.VFAKTNR = 0.                 
+      END.   
+      GET NEXT fakfriaq NO-LOCK.   
+   END.         
+   OPEN QUERY faktmtrlq FOR EACH FAKTMTRL WHERE FAKTMTRL.FAKTNR = FAKTPLAN.FAKTNR AND
+   FAKTMTRL.VFAKTNR = FAKTURERAD.VFAKTNR NO-LOCK.  
+   GET FIRST faktmtrlq NO-LOCK.   
+   DO WHILE AVAILABLE(FAKTMTRL):
+      DO TRANSACTION:
+         GET CURRENT faktmtrlq EXCLUSIVE-LOCK.   
+         FAKTMTRL.VFAKTNR = 0.                 
+      END.   
+      GET NEXT faktmtrlq NO-LOCK.   
+   END.
+   OPEN QUERY faktkontq FOR EACH FAKTINTAKTKONT WHERE 
+   FAKTINTAKTKONT.FAKTNR = FAKTPLAN.FAKTNR AND  
+   FAKTINTAKTKONT.VFAKTNR = FAKTURERAD.VFAKTNR NO-LOCK.
+   GET FIRST faktkontq NO-LOCK.   
+   DO WHILE AVAILABLE(FAKTINTAKTKONT):
+      DO TRANSACTION:
+         GET CURRENT faktkontq EXCLUSIVE-LOCK.   
+         FAKTINTAKTKONT.VFAKTNR = 0.            
+      END.
+      GET NEXT faktkontq NO-LOCK.      .
+   END.
+   OPEN QUERY faktkodq FOR EACH FAKTAONRKONTO WHERE 
+   FAKTAONRKONTO.FAKTNR = FAKTPLAN.FAKTNR AND  
+   FAKTAONRKONTO.VFAKTNR = FAKTURERAD.VFAKTNR NO-LOCK.
+   GET FIRST faktkodq NO-LOCK.   
+   DO WHILE AVAILABLE(FAKTAONRKONTO):
+      DO TRANSACTION:
+         GET CURRENT faktkodq EXCLUSIVE-LOCK.   
+         DELETE FAKTAONRKONTO.            
+      END.
+      GET NEXT faktkodq NO-LOCK.      
+   END.
+   
+   OPEN QUERY faktkundq FOR EACH FAKTKUNDKONTO WHERE 
+   FAKTKUNDKONTO.FAKTNR = FAKTPLAN.FAKTNR AND  
+   FAKTKUNDKONTO.VFAKTNR = FAKTURERAD.VFAKTNR NO-LOCK.
+   GET FIRST faktkundq NO-LOCK.   
+   DO WHILE AVAILABLE(FAKTKUNDKONTO):
+      DO TRANSACTION:
+         GET CURRENT faktkundq EXCLUSIVE-LOCK.   
+         FAKTKUNDKONTO.VFAKTNR = 0.            
+      END.
+      GET NEXT faktkundq NO-LOCK.      
+   END.
+   OPEN QUERY faktmomsq FOR EACH FAKTMOMS WHERE 
+   FAKTMOMS.FAKTNR = FAKTPLAN.FAKTNR AND  
+   FAKTMOMS.VFAKTNR = FAKTURERAD.VFAKTNR NO-LOCK.
+   GET FIRST faktmomsq NO-LOCK.   
+   DO WHILE AVAILABLE(FAKTMOMS):
+      DO TRANSACTION:
+         GET CURRENT faktmomsq EXCLUSIVE-LOCK.   
+         FAKTMOMS.VFAKTNR = 0.            
+      END.
+      GET NEXT faktmomsq NO-LOCK.      
+   END.  
+          
+   OPEN QUERY fakkollq FOR EACH FAKTKOLL WHERE FAKTKOLL.FAKTNR = FAKTPLAN.FAKTNR AND FAKTKOLL.SLUTFAKT = FALSE
+   USE-INDEX FAKTNR NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST fakkollq EXCLUSIVE-LOCK.   
+      DO WHILE AVAILABLE(FAKTKOLL):       
+         /*
+         REPEAT:
+            FIND LAST FAKTTID WHERE FAKTTID.FAKTNR = FAKTKOLL.FAKTNR AND           
+            FAKTTID.AONR = FAKTKOLL.AONR  AND
+            FAKTTID.DELNR = FAKTKOLL.DELNR AND FAKTTID.VFAKTNR NE 0 AND FAKTTID.MED NE ?
+            USE-INDEX FAKTTID NO-LOCK NO-ERROR. 
+            IF NOT AVAILABLE FAKTTID THEN LEAVE.
+            IF SUBSTRING(FAKTTID.VECKOKORD,30,2) = "" THEN LEAVE.
+         END.
+         */
+         DEFINE VARIABLE hj2 AS CHARACTER  NO-UNDO.
+         DEFINE VARIABLE hjrow AS ROWID NO-UNDO.
+         hjrow = ?.
+         hj2 = "".
+         FOR EACH FAKTTID WHERE FAKTTID.FAKTNR = FAKTKOLL.FAKTNR AND           
+            FAKTTID.AONR = FAKTKOLL.AONR AND
+            FAKTTID.DELNR = FAKTKOLL.DELNR AND FAKTTID.VFAKTNR NE 0 AND FAKTTID.MED NE ?
+            USE-INDEX FAKTTID NO-LOCK . 
+            IF hj2 < SUBSTRING(FAKTTID.VECKOKORD,1,15)  THEN DO:
+               hjrow = ROWID(FAKTTID).
+               hj2 = SUBSTRING(FAKTTID.VECKOKORD,1,15).
+            END.
+         END.
+         
+         FIND FIRST FAKTTID WHERE ROWID(FAKTTID) = hjrow NO-LOCK NO-ERROR. 
+         IF AVAILABLE FAKTTID THEN DO: 
+            ASSIGN         
+            FAKTKOLL.SENASTFAK = FAKTTID.SENASTFAK
+            FAKTKOLL.SENASTTID = FAKTTID.SENASTTID
+            FAKTKOLL.SLUTFAKT = FALSE
+            FAKTKOLL.VECKOKORD = FAKTTID.VECKOKORD.         
+         END.
+         ELSE DO:
+            ASSIGN         
+            FAKTKOLL.SENASTFAK = ?
+            FAKTKOLL.SENASTTID = ?
+            FAKTKOLL.SLUTFAKT = FALSE
+            FAKTKOLL.VECKOKORD = "".         
+         END.
+         GET NEXT fakkollq EXCLUSIVE-LOCK.
+      END.
+   END. 
+   OPEN QUERY fakuppaq FOR EACH FAKTUPPARB WHERE 
+   FAKTUPPARB.FAKTNR = FAKTPLAN.FAKTNR AND
+   FAKTUPPARB.VFAKTNR = FAKTURERAD.VFAKTNR NO-LOCK.
+   GET FIRST fakuppaq NO-LOCK.   
+   DO WHILE AVAILABLE(FAKTUPPARB):         
+      DO TRANSACTION:
+         GET CURRENT fakuppaq EXCLUSIVE-LOCK.
+         ASSIGN
+         FAKTUPPARB.VFAKTNR = 0.
+        /* FAKTUPPARB.FAKTURERAD = FALSE
+         FAKTUPPARB.FAKTURADATUM = ?.*/
+      END.
+      GET NEXT fakuppaq NO-LOCK.
+   END.
+   /*Bara ett aonr*/
+   FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTURERAD.FAKTNR NO-LOCK:
+      FOR EACH EXTRAKOPPLINGAR WHERE EXTRAKOPPLINGAR.PROGRAM = "FBAONR" AND
+      EXTRAKOPPLINGAR.KOPPLACHAR1 = FAKTAONR.AONR AND       
+      EXTRAKOPPLINGAR.KOPPLAINT1 = FAKTAONR.DELNR NO-LOCK:  
+         FOR EACH exkoppbuff WHERE exkoppbuff.PROGRAM = "FBDEB" AND 
+         exkoppbuff.KOPPLACHAR1 = EXTRAKOPPLINGAR.KOPPLACHAR1 AND exkoppbuff.KOPPLAINT1 = EXTRAKOPPLINGAR.KOPPLAINT1 AND
+         exkoppbuff.KOPPLACHAR2 = EXTRAKOPPLINGAR.KOPPLACHAR2 AND exkoppbuff.KOPPLAINT2 = EXTRAKOPPLINGAR.KOPPLAINT2 AND
+         exkoppbuff.SOKINT[1] = FAKTURERAD.VFAKTNR AND exkoppbuff.SOKINT[2] = FAKTURERAD.FAKTNR EXCLUSIVE-LOCK:
+            DELETE  exkoppbuff.
+         END.
+      END.
+   END.   
+   DO TRANSACTION:
+      FIND CURRENT FAKTURERAD EXCLUSIVE-LOCK NO-ERROR.    
+      ASSIGN
+      FAKTURERAD.DATUM = ?
+      FAKTURERAD.VFAKTNR = 0.            
+      FIND CURRENT FAKTPLAN EXCLUSIVE-LOCK NO-ERROR.
+      FAKTPLAN.TOTPRIS = 0.
+      ASSIGN
+      FAKTPLAN.FDELNR = FAKTURERAD.FDELNR.             
+      FIND LAST FAKTURERAD WHERE FAKTURERAD.FAKTNR = FAKTPLAN.FAKTNR AND
+      FAKTURERAD.VFAKTNR NE 0
+      USE-INDEX FAKTNR NO-LOCK NO-ERROR. 
+      IF AVAILABLE FAKTURERAD THEN DO:             
+         ASSIGN            
+         FAKTPLAN.SENASTFAK = FAKTURERAD.DATUM
+         FAKTPLAN.SENASTTID = FAKTURERAD.SENASTTID.                            
+      END.
+      ELSE DO:
+         ASSIGN
+         FAKTPLAN.SLUTFAK = FALSE
+         FAKTPLAN.SENASTTID = ?
+         FAKTPLAN.SENASTFAK = ?. 
+      END.                
+      FOR EACH FAKTURERAD WHERE FAKTURERAD.FAKTNR = FAKTPLAN.FAKTNR AND
+      FAKTURERAD.VFAKTNR NE 0
+      USE-INDEX FAKTNR NO-LOCK:                   
+          FAKTPLAN.TOTPRIS = FAKTPLAN.TOTPRIS + FAKTURERAD.TOTPRIS. 
+      END. 
+   END.
+   
+   RELEASE FAKTURERAD NO-ERROR.
+   RELEASE FAKTPLAN NO-ERROR.
+END PROCEDURE.
+PROCEDURE planfinns_UI:
+   DEFINE INPUT PARAMETER plannr AS INTEGER NO-UNDO. 
+   DEFINE OUTPUT PARAMETER ejvar AS LOGICAL NO-UNDO. 
+   FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = plannr NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE FAKTAONR THEN ejvar = TRUE.
+   ELSE ejvar = FALSE.
+END PROCEDURE.
+PROCEDURE skapfplanextra_UI :
+   DEFINE INPUT PARAMETER planraknare AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER bestvar AS CHARACTER NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = planraknare EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE FAKTPLAN THEN DO:
+         FAKTPLAN.BESTID = bestvar.
+      END.   
+   END.
+   RELEASE FAKTPLAN NO-ERROR.
+END PROCEDURE.
+PROCEDURE skapfplan_UI:
+   DEFINE INPUT PARAMETER globanv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER globniv AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN_EAONR AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN_DELNR AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER felvar AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER planraknare AS INTEGER NO-UNDO.
+   DEFINE VARIABLE ejok AS LOGICAL NO-UNDO.
+   DEBUGGER:SET-BREAK().
+   felvar = FALSE.
+   FIND FIRST FAKTURADM NO-LOCK NO-ERROR.       
+   IF NOT AVAILABLE FAKTURADM THEN DO:
+      felvar = TRUE.
+      RETURN.
+   END.
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = FILL-IN_EAONR AND AONRTAB.DELNR = FILL-IN_DELNR NO-LOCK NO-ERROR.     
+   IF NOT AVAILABLE AONRTAB THEN DO:
+      felvar = TRUE.
+      RETURN.
+   END.
+   IF Guru.Konstanter:globniv = 0 OR FAKTURADM.ANVANDARE = globanv OR AONRTAB.ANVANDARE = globanv THEN DO:   
+      felvar = FALSE.
+   END.
+   ELSE DO:   
+      felvar = TRUE.
+      IF FILL-IN_DELNR NE 0 THEN DO:
+         FIND FIRST aobuff WHERE aobuff.AONR = FILL-IN_EAONR AND aobuff.DELNR = FILL-IN_DELNR NO-LOCK NO-ERROR.
+         IF AVAILABLE aobuff THEN DO:
+            IF aobuff.ANVANDARE = globanv THEN felvar = FALSE.
+         END.
+      END.
+      IF felvar = TRUE THEN DO:
+         FIND FIRST OMRSEK WHERE OMRSEK.ANVANDARE = globanv AND OMRSEK.PANDRA = TRUE AND
+         OMRSEK.OMRADE = AONRTAB.OMRADE NO-LOCK NO-ERROR.
+         IF AVAILABLE OMRSEK THEN DO:
+            felvar = FALSE.
+         END.
+      END.
+   END.
+   IF felvar = TRUE THEN RETURN.
+   FIND LAST FAKTPLAN USE-INDEX FAKTNR NO-LOCK NO-ERROR.
+   IF AVAILABLE FAKTPLAN THEN planraknare = FAKTPLAN.FAKTNR + 1.
+   ELSE planraknare = 1. 
+   DO TRANSACTION:
+      CREATE FAKTPLAN.
+      ASSIGN 
+      FAKTPLAN.SENASTFAK = ? 
+      FAKTPLAN.FAKTNR = planraknare
+      FAKTPLAN.PANVANDARE = globanv
+      FAKTPLAN.ANVANDARE = globanv
+      FAKTPLAN.NAMN = AONRTAB.ORT
+      FAKTPLAN.OMRADE = AONRTAB.OMRADE
+      FAKTPLAN.BESTID = AONRTAB.BESTID
+      FAKTPLAN.FAKTTYP = AONRTAB.FAKTTYP.
+      /*SNATFAKT*/
+      IF AONRTAB.FAKTNR NE 0 THEN DO:
+         RUN aonrfplankoll_UI (INPUT AONRTAB.AONR,INPUT AONRTAB.DELNR,OUTPUT ejok).
+         IF ejok = TRUE THEN FAKTPLAN.FAKTTYP = "Fri fakturering".      
+      END.      
+   END.
+   RELEASE FAKTPLAN.
+END PROCEDURE.
+PROCEDURE hamtaprisdef_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR defpristemp.
+   EMPTY TEMP-TABLE defpristemp NO-ERROR.
+   OPEN QUERY dfpq FOR EACH DEFPRISLIST NO-LOCK.
+   GET FIRST dfpq NO-LOCK.
+   DO WHILE AVAILABLE(DEFPRISLIST):
+      CREATE defpristemp.
+      BUFFER-COPY DEFPRISLIST TO defpristemp.
+      GET NEXT dfpq NO-LOCK.
+   END.
+END PROCEDURE.
+PROCEDURE hamtaprisf_UI:
+   DEFINE INPUT PARAMETER FILL-IN_FAKTNR AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR faktpristemp.
+   EMPTY TEMP-TABLE faktpristemp NO-ERROR.
+   OPEN QUERY fpq FOR EACH FAKTPRISLISTA WHERE FAKTPRISLISTA.FAKTNR = FILL-IN_FAKTNR NO-LOCK.
+   GET FIRST fpq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTPRISLISTA):
+      CREATE faktpristemp.
+      BUFFER-COPY FAKTPRISLISTA TO faktpristemp.
+      GET NEXT fpq NO-LOCK.
+   END.
+END PROCEDURE.
+
+PROCEDURE hamtaffakturd_UI.
+   DEFINE INPUT PARAMETER TABLE FOR vfaktplantemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR faktureradtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR faktkredtemp.
+   EMPTY TEMP-TABLE faktureradtemp NO-ERROR.
+   EMPTY TEMP-TABLE faktkredtemp NO-ERROR.
+   FOR EACH vfaktplantemp,
+   EACH FAKTURERAD WHERE FAKTURERAD.FAKTNR = vfaktplantemp.FAKTNR AND FAKTURERAD.VFAKTNR NE 0 NO-LOCK:
+      CREATE faktureradtemp.
+      BUFFER-COPY FAKTURERAD TO faktureradtemp.
+   END.
+   FOR EACH vfaktplantemp,
+   EACH FAKTKRED WHERE FAKTKRED.FAKTNR = vfaktplantemp.FAKTNR AND FAKTKRED.VKREDIT NE 0 NO-LOCK:
+      CREATE faktkredtemp.
+      BUFFER-COPY FAKTKRED TO faktkredtemp.
+      ASSIGN
+      faktkredtemp.DEBKRED = FALSE.  
+   END. 
+END PROCEDURE.
+PROCEDURE hamtaffaktnr_UI:
+   DEFINE INPUT PARAMETER globanv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER globniv AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN_EFAKUNR AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR extravfaktplantemp.
+   EMPTY TEMP-TABLE extravfaktplantemp NO-ERROR.
+   FIND FIRST FAKTURERAD WHERE FAKTURERAD.VFAKTNR = FILL-IN_EFAKUNR NO-LOCK NO-ERROR.
+   FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = FAKTURERAD.FAKTNR NO-LOCK NO-ERROR.
+   RUN omrsek_UI (INPUT Guru.Konstanter:globanv,INPUT globniv).
+END PROCEDURE.
+PROCEDURE hamtafplan_UI:
+   DEFINE INPUT PARAMETER globanv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER globniv AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN_EFAKTNR AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR extravfaktplantemp.
+   EMPTY TEMP-TABLE extravfaktplantemp NO-ERROR.
+   FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = FILL-IN_EFAKTNR NO-LOCK NO-ERROR.
+   RUN omrsek_UI (INPUT Guru.Konstanter:globanv,INPUT globniv).
+END PROCEDURE.
+
+PROCEDURE hamtafaonr_UI:
+   DEFINE INPUT PARAMETER globanv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER globniv AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN_EAONR AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER FILL-IN_DELNR AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR extravfaktplantemp.
+   DEBUGGER:SET-BREAK().
+   EMPTY TEMP-TABLE extravfaktplantemp NO-ERROR.
+   FOR EACH FAKTAONR WHERE FAKTAONR.AONR = FILL-IN_EAONR AND
+   FAKTAONR.DELNR = FILL-IN_DELNR NO-LOCK:
+      /*
+      FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = FAKTAONR.FAKTNR NO-LOCK NO-ERROR.
+      */
+      FOR EACH FAKTPLAN WHERE FAKTPLAN.FAKTNR = FAKTAONR.FAKTNR NO-LOCK:
+         RUN omrsek_UI (INPUT Guru.Konstanter:globanv,INPUT globniv).
+      END.                        
+           
+   END.
+END PROCEDURE.
+PROCEDURE eskap_UI:
+   CREATE extravfaktplantemp.
+   BUFFER-COPY FAKTPLAN TO extravfaktplantemp.
+   FIND FIRST BESTTAB WHERE BESTTAB.BESTID = extravfaktplantemp.BESTID NO-LOCK NO-ERROR.
+   IF AVAILABLE BESTTAB THEN extravfaktplantemp.VIBESTID = BESTTAB.VIBESTID.
+END PROCEDURE.
+PROCEDURE omrsek_UI:
+   DEFINE INPUT PARAMETER globanv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER globniv AS INTEGER NO-UNDO.
+   FIND FIRST FAKTURADM NO-LOCK NO-ERROR.  
+   IF AVAILABLE FAKTPLAN THEN DO:
+      IF FAKTURADM.ANVANDARE = globanv OR Guru.Konstanter:globniv = 0 THEN DO:
+         RUN eskap_UI.         
+         RETURN.
+      END.
+      FIND FIRST OMRSEK WHERE OMRSEK.ANVANDARE = globanv AND OMRSEK.PANDRA = TRUE AND
+      OMRSEK.OMRADE = FAKTPLAN.OMRADE NO-LOCK NO-ERROR.
+      IF AVAILABLE OMRSEK THEN DO:
+         RUN eskap_UI.
+         RETURN.
+      END.
+      IF FAKTPLAN.ANVANDARE = globanv OR FAKTPLAN.HANVANDARE = globanv THEN DO:
+         RUN eskap_UI.
+         RETURN.
+      END.                   
+      orginaltab = "EXTRAKOPPLINGAR". 
+      
+      RUN EXTRATABHMT.P PERSISTENT SET fbestapph2.      
+      FIND FIRST XGURU WHERE XGURU.AV-LEVEL = Guru.Konstanter:globniv AND XGURU.MENYVART = "FAKT" AND XGURU.MENY = "FAKTURA BESTÄLLARE" AND XGURU.MENYOK = TRUE NO-LOCK NO-ERROR.
+      IF AVAILABLE XGURU THEN DO:
+         EMPTY TEMP-TABLE inextrakopptemp NO-ERROR.
+         CREATE inextrakopptemp.          
+         ASSIGN
+         inextrakopptemp.PROGRAM = "FBFPLAN"                   
+         inextrakopptemp.KOPPLACHAR1 = ?
+         inextrakopptemp.KOPPLAINT1 =  FAKTPLAN.FAKTNR      
+         inextrakopptemp.KOPPLACHAR2 = ?            
+         inextrakopptemp.KOPPLAINT2 =  ?.
+         RUN etabhamt_UI IN fbestapph2 (INPUT TABLE inextrakopptemp,OUTPUT TABLE extrakopptemp).        
+         FIND FIRST extrakopptemp NO-ERROR.
+         IF AVAILABLE extrakopptemp THEN DO:      
+            IF extrakopptemp.KOPPLACHAR2 = globanv THEN DO:
+               IF VALID-HANDLE(fbestapph2) THEN DELETE PROCEDURE fbestapph2.      
+               RUN eskap_UI.
+               RETURN.
+            END.
+         END.
+      END.
+      IF VALID-HANDLE(fbestapph2) THEN DELETE PROCEDURE fbestapph2.
+      fbestapph2 = ?.
+      
+   END.
+END PROCEDURE.
+PROCEDURE skapomr_UI: 
+   DEFINE INPUT PARAMETER globanv AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR omrtemp.
+   EMPTY TEMP-TABLE omrtemp NO-ERROR.
+   OPEN QUERY omrq FOR EACH OMRSEK WHERE OMRSEK.ANVANDARE = globanv AND OMRSEK.PANDRA = TRUE,
+   EACH OMRADETAB WHERE OMRADETAB.ELVOMRKOD = 0 AND OMRADETAB.OMRADE = OMRSEK.OMRADE NO-LOCK.
+   GET FIRST omrq NO-LOCK.
+   DO WHILE AVAILABLE(OMRADETAB):
+      CREATE omrtemp.
+      ASSIGN
+      omrtemp.OMRADE = OMRADETAB.OMRADE
+      omrtemp.NAMN = OMRADETAB.NAMN.
+      GET NEXT omrq NO-LOCK.
+   END.   
+END PROCEDURE.
+
+PROCEDURE skapvalda5_UI :
+   DEFINE INPUT PARAMETER vartin AS INTEGER NO-UNDO.
+   varifran = vartin.
+END PROCEDURE.
+PROCEDURE skapvaldastart_UI:
+   EMPTY TEMP-TABLE valsoktemp NO-ERROR. 
+END PROCEDURE.
+
+PROCEDURE skapvalda_UI:
+   DEFINE INPUT PARAMETER globanv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER globniv AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR faktplantemp.
+   DEFINE VARIABLE tabort AS LOGICAL NO-UNDO.
+   FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.   
+   FIND FIRST valsoktemp NO-ERROR.
+   kommandoquery = " ".
+   EMPTY TEMP-TABLE faktplantemp NO-ERROR.
+   IF NOT AVAILABLE valsoktemp THEN RETURN.
+   IF valsoktemp.SOKCHAR[2] NE "" THEN DO:
+      ASSIGN
+      valomr = "ALLA".
+      IF valsoktemp.SOKCHAR[2] NE "ALLA" THEN DO:
+         FIND FIRST OMRADETAB WHERE OMRADETAB.NAMN = valsoktemp.SOKCHAR[2] NO-LOCK NO-ERROR. 
+         valomr = OMRADETAB.OMRADE.    
+      END.
+      IF valomr NE "ALLA" THEN DO:
+         
+         IF varifran = 5 THEN DO:            
+            RUN and_UI.
+            kommandoquery = kommandoquery + " (FAKTPLAN.OMRADE = " +  "'" + valomr + "'".
+            kommandoquery = kommandoquery + " OR FAKTPLAN.OMRADE = " +  "'" + "')".
+         END.
+         ELSE DO:
+            RUN and_UI.
+            kommandoquery = kommandoquery + " FAKTPLAN.OMRADE = " +  "'" + valomr + "'".
+         END.
+      END.
+   END.
+   valbest = "ALLA".
+   IF valsoktemp.SOKCHAR[3] NE "ALLA" THEN DO:
+      FIND FIRST BESTTAB WHERE BESTTAB.BESTNAMN = valsoktemp.SOKCHAR[3] NO-LOCK NO-ERROR. 
+      valbest = BESTTAB.BESTID.
+   END.
+   IF valbest NE "ALLA" THEN DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + " FAKTPLAN.BESTID = " + "'" + valbest + "'".
+   END.  
+   IF valsoktemp.SOKLOG[1] = TRUE THEN DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + " FAKTPLAN.ANVANDARE = " + "'" + valsoktemp.SOKCHAR[1] + "'".
+   END.
+   IF valsoktemp.SOKLOG[5] = TRUE THEN DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + " FAKTPLAN.HANVANDARE = " + "'" + valsoktemp.SOKCHAR[1] + "'".
+   END.
+   IF valsoktemp.SOKCHAR[4] = "Alla" OR valsoktemp.SOKCHAR[4] = "Saknas" THEN valsoktemp.SOKCHAR[4] = valsoktemp.SOKCHAR[4].
+   ELSE DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + " FAKTPLAN.FAKTTYP = " + "'" + valsoktemp.SOKCHAR[4] + "'".
+   END.
+   IF valsoktemp.SOKCHAR[5] = "" THEN valsoktemp.SOKCHAR[5] = valsoktemp.SOKCHAR[5].
+   ELSE DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + " FAKTPLAN.PROJEKTKOD = " + "'" + valsoktemp.SOKCHAR[5] + "'".
+   END.
+   IF valsoktemp.SOKLOG[2] = TRUE THEN DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + " FAKTPLAN.SLUTFAKT = TRUE".
+      RUN and_UI.
+      kommandoquery = kommandoquery + " FAKTPLAN.SENASTFAK >= " + STRING(valsoktemp.SOKDATE[1]).     
+      RUN and_UI.
+      kommandoquery = kommandoquery + " FAKTPLAN.SENASTFAK <= " + STRING(valsoktemp.SOKDATE[2]).
+   END.
+   IF valsoktemp.SOKLOG[4] = TRUE THEN DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + " FAKTPLAN.FDELNR NE 0".
+   END.
+   
+   ASSIGN
+   utvaltab   = "FOR EACH valsoktemp"
+   nytab      = "faktplantemp"
+   orginaltab = "FAKTPLAN".
+   ASSIGN
+   kommandoquery = "FOR EACH " + orginaltab + " WHERE " + kommandoquery + " NO-LOCK".
+               
+   /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE faktplantemp:DEFAULT-BUFFER-HANDLE.
+   ASSIGN extratemptabh2 = TEMP-TABLE valsoktemp:DEFAULT-BUFFER-HANDLE.   
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN egenkoll_UI.   
+   RUN EXTRATABHMT.P PERSISTENT SET fbestapph2.      
+   FOR EACH faktplantemp:      
+      RUN omrsekall_UI (INPUT Guru.Konstanter:globanv,INPUT globniv,OUTPUT tabort).
+      IF tabort = TRUE THEN DELETE faktplantemp.
+   END.
+   IF VALID-HANDLE(fbestapph2) THEN DELETE PROCEDURE fbestapph2.      
+   fbestapph2 = ?.
+   RUN objdelete_UI.
+END PROCEDURE.
+PROCEDURE omrsekall_UI:
+   DEFINE INPUT PARAMETER globanv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER globniv AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER tabort AS LOGICAL NO-UNDO.
+   tabort = FALSE.
+   FIND FIRST FAKTURADM NO-LOCK NO-ERROR.  
+   IF FAKTURADM.ANVANDARE = globanv OR Guru.Konstanter:globniv = 0 THEN DO:
+      RETURN.
+   END.
+   FIND FIRST OMRSEK WHERE OMRSEK.ANVANDARE = globanv AND OMRSEK.PANDRA = TRUE AND
+   OMRSEK.OMRADE = faktplantemp.OMRADE NO-LOCK NO-ERROR.
+   IF AVAILABLE OMRSEK THEN DO:
+      RETURN.
+   END.
+   IF faktplantemp.ANVANDARE = globanv OR faktplantemp.HANVANDARE = globanv THEN DO:
+      RETURN.   
+   END.
+   orginaltab = "EXTRAKOPPLINGAR". 
+   tabort = TRUE.
+  
+   tabort = FALSE.
+   FIND FIRST XGURU WHERE XGURU.AV-LEVEL = Guru.Konstanter:globniv AND XGURU.MENYVART = "FAKT" AND XGURU.MENY = "FAKTURA BESTÄLLARE" AND XGURU.MENYOK = TRUE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE XGURU THEN DO:
+      tabort = TRUE.
+      RETURN.
+   END.
+   EMPTY TEMP-TABLE inextrakopptemp NO-ERROR.
+   CREATE inextrakopptemp.          
+   ASSIGN
+   inextrakopptemp.PROGRAM = "FBFPLAN"                   
+   inextrakopptemp.KOPPLACHAR1 = ?
+   inextrakopptemp.KOPPLAINT1 =  faktplantemp.FAKTNR      
+   inextrakopptemp.KOPPLACHAR2 = ?            
+   inextrakopptemp.KOPPLAINT2 =  ?.
+   RUN etabhamt_UI IN fbestapph2 (INPUT TABLE inextrakopptemp,OUTPUT TABLE extrakopptemp).        
+   FIND FIRST extrakopptemp NO-ERROR.
+   IF AVAILABLE extrakopptemp THEN DO:      
+      IF extrakopptemp.KOPPLACHAR2 = globanv THEN DO:
+         RETURN.
+      END.
+   END.       
+   tabort = TRUE.
+END PROCEDURE.
+PROCEDURE egenkoll_UI:  
+   IF valsoktemp.SOKLOG[3] = TRUE THEN DO:
+      FOR EACH faktplantemp:
+         FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = faktplantemp.FAKTNR AND 
+         FAKTURERAD.PRELGOD = TRUE NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE FAKTURERAD THEN DELETE faktplantemp.
+      END.
+   END.
+   
+   OPEN QUERY fq FOR EACH faktplantemp,
+   EACH BESTTAB WHERE BESTTAB.BESTID = faktplantemp.BESTID NO-LOCK.
+   GET FIRST fq NO-LOCK.
+   DO WHILE AVAILABLE(faktplantemp):
+      faktplantemp.VIBESTID = BESTTAB.VIBESTID.
+      IF valsoktemp.SOKLOG[2] = FALSE THEN DO:
+         IF faktplantemp.SLUTFAKT = TRUE THEN DELETE faktplantemp.
+      END.
+      GET NEXT fq NO-LOCK.
+   END.
+END PROCEDURE. 
+
+PROCEDURE dynstartkoll_UI:  
+   musz = FALSE.
+END PROCEDURE. 
+   
+PROCEDURE startkoll_UI:  
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR vfaktplantemp.
+   OPEN QUERY vq FOR EACH vfaktplantemp,
+   EACH BESTTAB WHERE BESTTAB.BESTID = vfaktplantemp.BESTID NO-LOCK.
+   GET FIRST vq NO-LOCK.
+   DO WHILE AVAILABLE(vfaktplantemp):
+      vfaktplantemp.VIBESTID = BESTTAB.VIBESTID.     
+      GET NEXT vq NO-LOCK.
+   END.
+END PROCEDURE. 
+
+PROCEDURE vaohmt_UI :
+   DEFINE INPUT PARAMETER TABLE FOR vfaktplantemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR evaldaao.
+   EMPTY TEMP-TABLE evaldaao NO-ERROR. 
+   FOR EACH vfaktplantemp,
+   EACH FAKTAONR WHERE FAKTAONR.FAKTNR = vfaktplantemp.FAKTNR NO-LOCK,
+   EACH AONRTAB WHERE AONRTAB.AONR = FAKTAONR.AONR AND AONRTAB.DELNR = FAKTAONR.DELNR NO-LOCK:
+      CREATE evaldaao.
+      BUFFER-COPY AONRTAB TO evaldaao.
+   END.
+   FOR EACH evaldaao,
+   EACH OMRADETAB WHERE OMRADETAB.OMRADE = evaldaao.OMRADE:
+      evaldaao.AVDELNINGNR = OMRADETAB.AVDELNINGNR.
+   END.
+END PROCEDURE.
+PROCEDURE faohmt_UI:  
+   DEFINE INPUT PARAMETER faktnrvar AS INTEGER  NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR faktaonrtemp.
+   EMPTY TEMP-TABLE faktaonrtemp NO-ERROR.
+   FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = faktnrvar NO-LOCK NO-ERROR.
+   IF FAKTPLAN.FAKTTYP = "Fri fakturering" OR FAKTPLAN.FAKTTYP = "Bokföring" THEN DO:
+      OPEN QUERY ftq FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR,
+      EACH AONRTAB WHERE AONRTAB.AONR = FAKTAONR.AONR AND 
+      AONRTAB.DELNR = FAKTAONR.DELNR NO-LOCK.
+      GET FIRST ftq.
+      DO WHILE AVAILABLE(FAKTAONR):
+         RUN fskap_UI (INPUT FAKTPLAN.FAKTNR,INPUT FALSE).           
+         GET NEXT ftq.
+      END.
+      CLOSE QUERY ftq.
+   END.
+   ELSE DO:
+      /*SNATFAKT*/
+      /*
+      OPEN QUERY aonrq FOR EACH AONRTAB WHERE AONRTAB.FAKTNR = faktnrvar 
+      USE-INDEX FAKTNR NO-LOCK.
+      GET FIRST aonrq NO-LOCK.   
+      DO WHILE AVAILABLE(AONRTAB):
+         RUN fskap_UI (INPUT AONRTAB.FAKTNR,INPUT FALSE).           
+         GET NEXT aonrq NO-LOCK.
+      END.   
+      CLOSE QUERY aonrq.
+      */
+       OPEN QUERY ftq FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR,
+      EACH AONRTAB WHERE AONRTAB.AONR = FAKTAONR.AONR AND 
+      AONRTAB.DELNR = FAKTAONR.DELNR NO-LOCK.
+      GET FIRST ftq.
+      DO WHILE AVAILABLE(FAKTAONR):
+         RUN fskap_UI (INPUT FAKTPLAN.FAKTNR,INPUT FALSE).           
+         GET NEXT ftq.
+      END.
+      CLOSE QUERY ftq.
+   END.         
+   OPEN QUERY faoq FOR EACH faktaonrtemp,
+   EACH FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR AND FAKTAONR.AONR = faktaonrtemp.AONR AND 
+   FAKTAONR.DELNR = faktaonrtemp.DELNR NO-LOCK.
+   GET FIRST faoq.
+   DO WHILE AVAILABLE(faktaonrtemp):
+      faktaonrtemp.OPRIS = FAKTAONR.OPRIS.
+      GET NEXT faoq.
+   END.
+           
+END PROCEDURE.
+PROCEDURE faktrgl_UI:
+   DEFINE INPUT PARAMETER faktnrvar AS INTEGER  NO-UNDO.
+   DEFINE INPUT PARAMETER bestvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER  TOG_EGNA AS LOGICAL NO-UNDO.
+   RUN EXTRATABHMT.P PERSISTENT SET fbestapph2.
+   FIND FIRST KUNDREGLER WHERE KUNDREGLER.BESTID = bestvar 
+   USE-INDEX KUNDREGLER NO-LOCK NO-ERROR.   
+   FIND FIRST FAKTREGLER WHERE FAKTREGLER.FAKTNR = faktnrvar 
+   USE-INDEX FAKTREGLER NO-LOCK NO-ERROR.      
+   
+   IF NOT AVAILABLE FAKTREGLER THEN DO TRANSACTION:
+      CREATE FAKTREGLER. 
+      BUFFER-COPY KUNDREGLER TO FAKTREGLER.      
+      ASSIGN       
+      FAKTREGLER.FAKTNR = faktnrvar.    
+   END.          
+   IF FAKTREGLER.OVERTIDRGL = "EGNA REGLER" THEN TOG_EGNA = TRUE.   
+   RELEASE FAKTREGLER NO-ERROR.
+   EMPTY TEMP-TABLE inextrakopptemp NO-ERROR.
+   CREATE inextrakopptemp.          
+   ASSIGN
+   inextrakopptemp.PROGRAM = "FBFPLAN"                   
+   inextrakopptemp.KOPPLACHAR1 = ?
+   inextrakopptemp.KOPPLAINT1 =  faktnrvar      
+   inextrakopptemp.KOPPLACHAR2 = ?            
+   inextrakopptemp.KOPPLAINT2 =  ?.
+   RUN finnsextra_UI IN fbestapph2 (INPUT TABLE inextrakopptemp,OUTPUT musz).        
+   IF musz = TRUE THEN musz = FALSE.
+   ELSE DO:
+      EMPTY TEMP-TABLE inextrakopptemp NO-ERROR.
+      CREATE inextrakopptemp.          
+      ASSIGN
+      inextrakopptemp.PROGRAM = "FBBESID"                   
+      inextrakopptemp.KOPPLACHAR1 = bestvar              
+      inextrakopptemp.KOPPLAINT1 =  ?      
+      inextrakopptemp.KOPPLACHAR2 = ?            
+      inextrakopptemp.KOPPLAINT2 =  ?.   
+      RUN etabhamt_UI IN fbestapph2 (INPUT TABLE inextrakopptemp,OUTPUT TABLE extrakopptemp).
+      EMPTY TEMP-TABLE inextrakopptemp NO-ERROR.
+      FIND FIRST extrakopptemp NO-ERROR.
+      IF AVAILABLE extrakopptemp THEN DO:
+         CREATE inextrakopptemp.
+         BUFFER-COPY extrakopptemp TO inextrakopptemp.
+         ASSIGN
+         inextrakopptemp.PROGRAM = "FBFPLAN"                   
+         inextrakopptemp.KOPPLACHAR1 = ?
+         inextrakopptemp.KOPPLAINT1 =  faktnrvar      
+         inextrakopptemp.KOPPLAINT2 =  ?.
+         RUN sparaextra_UI IN fbestapph2 (INPUT TABLE inextrakopptemp).
+      END.
+   END.              
+   IF VALID-HANDLE(fbestapph2) THEN DELETE PROCEDURE fbestapph2.      
+   fbestapph2 = ?.
+END PROCEDURE.
+PROCEDURE fovrighmt_UI:
+   DEFINE INPUT PARAMETER faktnrvar AS INTEGER  NO-UNDO.   
+   DEFINE INPUT PARAMETER bestvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER nyvar AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR faktstarttemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR faktuppplantemp.
+   EMPTY TEMP-TABLE faktstarttemp NO-ERROR.
+   EMPTY TEMP-TABLE faktuppplantemp NO-ERROR.
+   IF nyvar = TRUE THEN DO:
+      FIND FIRST KUNDREGLER WHERE KUNDREGLER.BESTID = bestvar NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KUNDREGLER THEN RETURN.
+      FIND FIRST FAKTSTART WHERE FAKTSTART.FAKTNR = faktnrvar NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE FAKTSTART THEN DO TRANSACTION:
+         CREATE FAKTSTART.             
+         ASSIGN
+         FAKTSTART.BELOPP = 0 
+         FAKTSTART.FAKTNR = faktnrvar
+         FAKTSTART.ORDNING = 1
+         FAKTSTART.PLAN% = KUNDREGLER.START%       
+         FAKTSTART.START = "START".      
+         CREATE FAKTSTART.             
+         ASSIGN
+         FAKTSTART.BELOPP = 0 
+         FAKTSTART.FAKTNR = faktnrvar
+         FAKTSTART.ORDNING = 3
+         FAKTSTART.PLAN% = KUNDREGLER.SLUT%       
+         FAKTSTART.START = "SLUT".      
+         /*RUN avtalao_UI.*/
+      END.   
+      FIND FIRST FAKTUPPPLAN WHERE FAKTUPPPLAN.FAKTNR = faktnrvar NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE FAKTUPPPLAN THEN DO TRANSACTION:
+         CREATE FAKTUPPPLAN.             
+         ASSIGN
+         FAKTUPPPLAN.FAKT% = KUNDREGLER.START%
+         FAKTUPPPLAN.FAKTNR = faktnrvar
+         FAKTUPPPLAN.FAKTURERAD = FALSE
+         FAKTUPPPLAN.KRITERIUM = "START"
+         FAKTUPPPLAN.ORDNING = 1
+         FAKTUPPPLAN.UPLAN% = 0.      
+         CREATE FAKTUPPPLAN.             
+         ASSIGN
+         FAKTUPPPLAN.FAKT% = KUNDREGLER.SLUT%
+         FAKTUPPPLAN.FAKTNR = faktnrvar
+         FAKTUPPPLAN.FAKTURERAD = FALSE
+         FAKTUPPPLAN.KRITERIUM = "SLUT"
+         FAKTUPPPLAN.ORDNING = 2
+         FAKTUPPPLAN.UPLAN% = 100.
+      END. 
+   END.
+   FOR EACH FAKTUPPPLAN WHERE FAKTUPPPLAN.FAKTNR = faktnrvar NO-LOCK:
+      CREATE faktuppplantemp.
+      BUFFER-COPY FAKTUPPPLAN TO faktuppplantemp.
+   END.
+   FOR EACH FAKTSTART WHERE FAKTSTART.FAKTNR = faktnrvar NO-LOCK:
+      CREATE faktstarttemp.
+      BUFFER-COPY FAKTSTART TO faktstarttemp.
+      faktstarttemp.FROW = ROWID(FAKTSTART). 
+   END.
+END PROCEDURE.
+
+PROCEDURE sparfakturerad_UI:
+   DEFINE INPUT PARAMETER TABLE FOR allafaktureradtemp.
+   FIND FIRST allafaktureradtemp NO-LOCK NO-ERROR.
+   DO TRANSACTION:
+      FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = allafaktureradtemp.FAKTNR AND FAKTURERAD.FDELNR = allafaktureradtemp.FDELNR
+      EXCLUSIVE-LOCK NO-ERROR.
+      BUFFER-COPY allafaktureradtemp TO FAKTURERAD.
+   END.     
+   FIND CURRENT FAKTURERAD NO-LOCK NO-ERROR.
+END.
+
+PROCEDURE fupparbkoll_UI:
+   DEFINE INPUT PARAMETER faktnrvar AS INTEGER  NO-UNDO.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER svar AS LOGICAL NO-UNDO.
+   FIND FIRST FAKTUPPARB WHERE 
+   FAKTUPPARB.FAKTNR = faktnrvar AND
+   FAKTUPPARB.AONR   = aonrvar  AND 
+   FAKTUPPARB.DELNR  = delnrvar 
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE FAKTUPPARB THEN svar = TRUE.
+   ELSE svar = FALSE.
+   
+END PROCEDURE.
+PROCEDURE bortaonr_UI:
+   DEFINE INPUT PARAMETER faktnrvar AS INTEGER  NO-UNDO.
+   DEFINE INPUT PARAMETER typvar AS INTEGER  NO-UNDO.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER fel AS LOGICAL NO-UNDO.
+   fel = FALSE.
+   FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = faktnrvar NO-LOCK NO-ERROR.
+   FIND FIRST FAKTINTAKTKONT WHERE FAKTINTAKTKONT.FAKTNR = FAKTPLAN.FAKTNR AND
+   FAKTINTAKTKONT.AONR = aonrvar AND FAKTINTAKTKONT.DELNR = delnrvar
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE FAKTINTAKTKONT THEN DO:
+      fel = TRUE.
+      RETURN.      
+   END.     
+   FIND FIRST FAKTINTAKTKONTKRED WHERE FAKTINTAKTKONTKRED.FAKTNR = FAKTPLAN.FAKTNR AND
+   FAKTINTAKTKONTKRED.AONR = aonrvar AND FAKTINTAKTKONTKRED.DELNR = delnrvar
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE FAKTINTAKTKONTKRED THEN DO:
+      fel = TRUE.
+      RETURN.      
+   END.    
+   IF typvar = 6 OR typvar = 7 THEN DO:
+      RETURN.
+   END.
+   ELSE DO TRANSACTION:
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+      AONRTAB.DELNR = delnrvar USE-INDEX AONR EXCLUSIVE-LOCK NO-ERROR.
+      ASSIGN AONRTAB.FAKTNR = 0.      
+   END.
+   RELEASE AONRTAB NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE tilleaonr_UI:
+   DEFINE INPUT PARAMETER globanv AS CHARACTER  NO-UNDO.
+   DEFINE INPUT PARAMETER globniv AS INTEGER  NO-UNDO.
+   DEFINE INPUT PARAMETER faktnrvar AS INTEGER  NO-UNDO.
+   DEFINE INPUT PARAMETER typvar AS INTEGER  NO-UNDO.
+   DEFINE INPUT PARAMETER bestidvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR omrtemp.
+   DEFINE OUTPUT PARAMETER svar AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER svarchr AS CHARACTER NO-UNDO.
+    
+   FIND FIRST faktyptemp WHERE faktyptemp.TYP = typvar NO-ERROR.
+   IF typvar = 6 OR typvar = 7 THEN DO:      
+      FIND FIRST AONRTAB WHERE 
+      AONRTAB.AONR = aonrvar AND AONRTAB.DELNR = delnrvar      
+      NO-LOCK NO-ERROR.                       
+   END.
+   ELSE DO:
+      
+      FIND FIRST AONRTAB WHERE  
+      AONRTAB.BESTID = bestidvar AND AONRTAB.FAKTTYP = faktyptemp.FAKTTYP AND 
+      AONRTAB.AONR = aonrvar AND AONRTAB.DELNR = delnrvar      
+      NO-LOCK NO-ERROR. 
+      IF NOT AVAILABLE AONRTAB THEN DO:
+          /*SNATFAKT*/
+          IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+             FIND FIRST AONRTAB WHERE  
+             AONRTAB.FAKTTYP = faktyptemp.FAKTTYP AND 
+             AONRTAB.AONR = aonrvar AND AONRTAB.DELNR = delnrvar      
+             NO-LOCK NO-ERROR. 
+         END.   
+      END.            
+   END.
+   svar = TRUE.
+   IF AVAILABLE AONRTAB THEN DO:          
+      FIND FIRST FAKTURADM NO-LOCK NO-ERROR.
+      IF Guru.Konstanter:globanv = FAKTURADM.ANVANDARE OR Guru.Konstanter:globniv = 0 THEN DO:      
+         svar = FALSE. 
+      END.
+      IF svar = TRUE THEN DO:      
+         FIND FIRST omrtemp WHERE omrtemp.OMRADE = AONRTAB.OMRADE 
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE omrtemp THEN DO:            
+            svar = FALSE.                     
+         END.
+      END.
+      IF svar = TRUE THEN DO:    
+         IF faktyptemp.TYP = 6 OR faktyptemp.TYP = 7 THEN DO:
+            IF AONRTAB.ANVANDARE = globanv THEN DO:
+               svar = FALSE. 
+            END.
+         END.
+         ELSE DO:  
+            FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = faktnrvar NO-LOCK NO-ERROR.
+            IF FAKTPLAN.ANVANDARE = globanv THEN DO:
+               svar = FALSE. 
+            END.
+            IF svar = TRUE THEN DO:
+               IF FAKTPLAN.HANVANDARE = globanv THEN DO:
+                  svar = FALSE.
+               END. 
+            END.                                                            
+         END.
+      END.          
+   END.
+   IF svar = TRUE THEN DO:
+      svarchr = Guru.Konstanter:gaok + " " + aonrvar + " " + STRING(delnrvar,Guru.Konstanter:varforetypchar[1]) + " finns ej eller saknar du berhörighet att koppla detta nummer till en fakturaplan.". 
+      RETURN.
+   END.
+      
+   IF AONRTAB.FAKTNR NE 0 THEN DO:
+      IF typvar = 6 OR typvar = 7 THEN RETURN. 
+      FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = AONRTAB.FAKTNR NO-LOCK NO-ERROR.
+      IF FAKTPLAN.FDELNR NE 0 THEN DO:
+         svarchr = "Detta " + LC(Guru.Konstanter:gaok) + " ingår i en fakturaplan som har en preliminärfaktura". 
+         svar = TRUE.
+         RETURN.
+      END.
+      FIND FIRST FAKTKRED WHERE FAKTKRED.FAKTNR = AONRTAB.FAKTNR NO-LOCK NO-ERROR.
+      IF AVAILABLE FAKTKRED THEN DO:
+         IF FAKTKRED.VKREDIT = 0 THEN DO:
+            svarchr = "Detta " + LC(Guru.Konstanter:gaok) + " ingår i fakturaplan som kreditfaktura". 
+            svar = TRUE.
+            RETURN.
+         END.   
+      END.
+      /*SNATFAKT*/
+      IF FAKTPLAN.SLUTFAKT = FALSE THEN DO:
+         svarchr = "Detta " + LC(Guru.Konstanter:gaok) + " ingår i fakturaplan " + STRING(AONRTAB.FAKTNR). 
+         svar = TRUE.
+         RETURN.
+      END.
+      IF FAKTPLAN.SENASTFAK = ? THEN DO:
+         svarchr = "Detta " + LC(Guru.Konstanter:gaok) + " ingår i fakturaplan " + STRING(AONRTAB.FAKTNR) + "Vill du ta bort kopplingen ? ".        
+         svar = ?.
+         RETURN.         
+      END.      
+   END.
+END PROCEDURE.
+PROCEDURE bortkop_UI:
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   FIND FIRST AONRTAB WHERE 
+   AONRTAB.AONR = aonrvar AND AONRTAB.DELNR = delnrvar      
+   NO-LOCK NO-ERROR.                       
+   FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = AONRTAB.FAKTNR NO-LOCK NO-ERROR.
+   IF FAKTPLAN.VISAONR = "Sammfakt." THEN DO: 
+      DO TRANSACTION:
+         FIND CURRENT AONRTAB EXCLUSIVE-LOCK.
+         AONRTAB.FAKTNR = 0.
+         FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR AND
+         FAKTAONR.AONR = AONRTAB.AONR AND FAKTAONR.DELNR = AONRTAB.DELNR 
+         EXCLUSIVE-LOCK:   
+            DELETE FAKTAONR.         
+         END.   
+         FOR EACH FAKTKOLL WHERE FAKTKOLL.FAKTNR = FAKTPLAN.FAKTNR AND
+         FAKTKOLL.AONR = AONRTAB.AONR AND FAKTKOLL.DELNR = AONRTAB.DELNR
+         EXCLUSIVE-LOCK:
+            DELETE FAKTKOLL.                  
+         END.
+         FOR EACH FAKTAVTALAONR WHERE FAKTAVTALAONR.FAKTNR = FAKTPLAN.FAKTNR AND
+         FAKTAVTALAONR.AONR = AONRTAB.AONR AND FAKTAVTALAONR.DELNR = AONRTAB.DELNR
+         EXCLUSIVE-LOCK:
+            DELETE FAKTAVTALAONR.                  
+         END.
+         FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR                
+         NO-LOCK NO-ERROR.
+         FIND NEXT FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR                
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE FAKTAONR THEN DO:
+            FIND CURRENT FAKTPLAN EXCLUSIVE-LOCK.      
+            FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR                
+            NO-LOCK NO-ERROR.
+            FAKTPLAN.VISAONR = FAKTAONR.AONR + STRING(FAKTAONR.DELNR,Guru.Konstanter:varforetypchar[1]).
+         END.       
+      END.
+      FIND CURRENT FAKTPLAN NO-LOCK.
+      FIND CURRENT AONRTAB NO-LOCK.
+   END.
+   ELSE DO:
+      RUN BORTFAK.P (INPUT FAKTPLAN.FAKTNR).                  
+     
+   END.
+
+END PROCEDURE.
+PROCEDURE addaonr_UI:
+   DEFINE INPUT PARAMETER faktnrvar AS INTEGER  NO-UNDO.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR faktaonrtemp.
+   EMPTY TEMP-TABLE faktaonrtemp NO-ERROR.
+   FIND FIRST AONRTAB WHERE 
+   AONRTAB.AONR = aonrvar AND AONRTAB.DELNR = delnrvar      
+   NO-LOCK NO-ERROR.                       
+   IF AVAILABLE AONRTAB THEN DO:
+      RUN fskap_UI (INPUT faktnrvar,INPUT TRUE).           
+   END.
+END PROCEDURE.
+PROCEDURE fskap_UI:
+   DEFINE INPUT PARAMETER fnr AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER nya AS LOGICAL NO-UNDO.
+   CREATE faktaonrtemp.
+   ASSIGN     
+   faktaonrtemp.FAKTNR = fnr
+   faktaonrtemp.AONR = AONRTAB.AONR
+   faktaonrtemp.DELNR = AONRTAB.DELNR
+   faktaonrtemp.ORT = AONRTAB.ORT
+   faktaonrtemp.OMRADE = AONRTAB.OMRADE
+   faktaonrtemp.AONRAVDATUM = AONRTAB.AONRAVDATUM
+   faktaonrtemp.STARTDATUM = AONRTAB.STARTDATUM
+   faktaonrtemp.GDATUM = AONRTAB.ELVOMRKOD
+   faktaonrtemp.OPRIS = AONRTAB.BETNR
+   faktaonrtemp.NY = nya.
+   {FAKTAONRSTOPP.I}
+END PROCEDURE.
+PROCEDURE bortupparb_UI:
+   DEFINE INPUT PARAMETER TABLE FOR efaktuppplantemp.
+   FOR EACH efaktuppplantemp:
+      OPEN QUERY faktupparbq FOR EACH FAKTUPPARB WHERE 
+      FAKTUPPARB.FAKTNR = efaktuppplantemp.FAKTNR AND 
+      FAKTUPPARB.ORDNING = efaktuppplantemp.ORDNING      
+      NO-LOCK.        
+      GET FIRST faktupparbq NO-LOCK.
+      DO WHILE AVAILABLE(FAKTUPPARB):            
+         DO TRANSACTION:
+            GET CURRENT faktupparbq EXCLUSIVE-LOCK.
+            DELETE FAKTUPPARB.                    
+         END.         
+         GET NEXT faktupparbq NO-LOCK.
+      END.
+      OPEN QUERY faktuppplanq FOR EACH FAKTUPPPLAN WHERE 
+      FAKTUPPPLAN.FAKTNR = efaktuppplantemp.FAKTNR AND 
+      FAKTUPPPLAN.ORDNING = efaktuppplantemp.ORDNING      
+      NO-LOCK.        
+      GET FIRST faktuppplanq NO-LOCK.
+      DO WHILE AVAILABLE(FAKTUPPPLAN):            
+         DO TRANSACTION:
+            GET CURRENT faktupparbq EXCLUSIVE-LOCK.
+            DELETE FAKTUPPPLAN.                    
+         END.         
+         GET NEXT faktuppplanq NO-LOCK.
+      END.      
+   END.
+END PROCEDURE.
+PROCEDURE bortfast_UI:
+   DEFINE INPUT PARAMETER TABLE FOR efaktstarttemp.
+   FIND FIRST efaktstarttemp NO-LOCK NO-ERROR.
+   FIND FAKTSTART WHERE ROWID(FAKTSTART) = efaktstarttemp.FROW NO-LOCK.
+   IF FAKTSTART.START NE "" THEN DO:
+      OPEN QUERY faktavtq FOR EACH FAKTAVTALAONR WHERE 
+      FAKTAVTALAONR.FAKTNR = FAKTSTART.FAKTNR AND 
+      FAKTAVTALAONR.START = FAKTSTART.START 
+      NO-LOCK.
+   END.
+   ELSE DO:
+      OPEN QUERY faktavtq FOR EACH FAKTAVTALAONR WHERE 
+      FAKTAVTALAONR.FAKTNR = FAKTSTART.FAKTNR AND 
+      FAKTAVTALAONR.PLANDATUM = FAKTSTART.PLANDATUM 
+      NO-LOCK.
+   END.
+   DO TRANSACTION:
+      GET FIRST faktavtq EXCLUSIVE-LOCK.
+      IF AVAILABLE FAKTAVTALAONR THEN DO: 
+         DELETE FAKTAVTALAONR.         
+      END.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT faktavtq EXCLUSIVE-LOCK.
+         IF AVAILABLE FAKTAVTALAONR THEN DO: 
+            DELETE FAKTAVTALAONR.
+         END.
+         ELSE LEAVE.
+      END.
+   END.
+   DO TRANSACTION:
+      FIND CURRENT FAKTSTART EXCLUSIVE-LOCK.
+      DELETE FAKTSTART.
+   END.
+END PROCEDURE.
+PROCEDURE spartfaktstart_UI: 
+   DEFINE INPUT PARAMETER TABLE FOR faktstarttemp  .
+   FIND FIRST faktstarttemp WHERE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE faktstarttemp THEN RETURN.
+   FOR EACH FAKTSTART WHERE FAKTSTART.FAKTNR = faktstarttemp.FAKTNR EXCLUSIVE-LOCK:
+      DELETE FAKTSTART.
+   END.
+   FOR EACH faktstarttemp:
+      CREATE FAKTSTART.
+      BUFFER-COPY faktstarttemp TO FAKTSTART.
+   END.
+END PROCEDURE.
+
+PROCEDURE avb_UI :
+   DEFINE INPUT PARAMETER planr AS INTEGER NO-UNDO.
+   FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = planr 
+   USE-INDEX FAKTA NO-LOCK.
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = FAKTAONR.AONR AND 
+      AONRTAB.DELNR = FAKTAONR.DELNR USE-INDEX AONR EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE AONRTAB THEN  ASSIGN AONRTAB.FAKTNR = planr.               
+   END.
+END PROCEDURE.
+PROCEDURE klar_UI: 
+   DEFINE INPUT PARAMETER TABLE FOR evfaktplantemp.
+   DEFINE INPUT PARAMETER TABLE FOR faktaonrtemp.
+   DEFINE INPUT PARAMETER TABLE FOR faktstarttemp.
+   DEFINE INPUT PARAMETER TABLE FOR faktuppplantemp.
+   DEFINE INPUT PARAMETER TABLE FOR faktkolltemp.
+   DEFINE OUTPUT PARAMETER svar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER musz AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE varsenfak AS DATE NO-UNDO. 
+   DEFINE VARIABLE varsentid AS DATE NO-UNDO.
+   DEFINE VARIABLE varsenvecko AS CHARACTER NO-UNDO.
+   FIND FIRST evfaktplantemp NO-LOCK NO-ERROR.
+   FIND FIRST faktyptemp WHERE faktyptemp.FAKTTYP = evfaktplantemp.FAKTTYP NO-ERROR.
+   DO TRANSACTION:
+      FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = evfaktplantemp.FAKTNR EXCLUSIVE-LOCK NO-ERROR.
+      BUFFER-COPY evfaktplantemp TO FAKTPLAN.
+   END.
+   FIND CURRENT FAKTPLAN NO-LOCK NO-ERROR.
+   FIND FIRST FAKTKOLL WHERE FAKTKOLL.FAKTNR = evfaktplantemp.FAKTNR AND FAKTKOLL.SENASTFAK =  FAKTPLAN.SENASTFAK 
+   AND FAKTKOLL.SLUTFAKT = FALSE
+   USE-INDEX FAKTNR NO-LOCK NO-ERROR.          
+   IF NOT AVAILABLE FAKTKOLL THEN DO:
+      /*
+      svar = "Det är något fel på denna faktura! Kontakta ansvarig! Det kanske inte finns några " + LC(Guru.Konstanter:gaok) + " kopplade till fakturan.".
+      musz = TRUE.
+      RETURN.               
+      */
+   END.
+   ELSE DO:         
+      ASSIGN 
+      varsenfak = FAKTKOLL.SENASTFAK
+      varsentid = FAKTKOLL.SENASTTID 
+      varsenvecko = FAKTKOLL.VECKOKORD.        
+   END.           
+   DO TRANSACTION:
+      FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = evfaktplantemp.FAKTNR EXCLUSIVE-LOCK NO-ERROR.
+      BUFFER-COPY evfaktplantemp TO FAKTPLAN.
+   END.
+   FIND CURRENT FAKTPLAN NO-LOCK NO-ERROR.
+   FOR EACH faktaonrtemp WHERE faktaonrtemp.FAKTNR = FAKTPLAN.FAKTNR NO-LOCK:
+      FIND FIRST AONRKONTKOD WHERE 
+      AONRKONTKOD.AONR = faktaonrtemp.AONR AND AONRKONTKOD.DELNR = faktaonrtemp.DELNR
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE AONRKONTKOD THEN DO:
+         svar = faktaonrtemp.AONR + " " + STRING(faktaonrtemp.DELNR, ">99") +
+         " saknar kontosträng och kan inte kopplas till faktura".
+         musz = TRUE.         
+         RETURN.
+      END.      
+      IF Guru.Konstanter:globforetag = "GRAN" THEN DO:
+         IF AONRKONTKOD.K2 = "" THEN DO:
+            svar = faktaonrtemp.AONR  + " " + STRING(faktaonrtemp.DELNR, ">99") 
+            + " har en felaktig kontosträng och kan inte kopplas till faktura".
+            musz = TRUE.         
+            RETURN.
+         END.
+      END.
+   END.
+   
+   FOR EACH faktaonrtemp WHERE faktaonrtemp.FAKTNR = FAKTPLAN.FAKTNR NO-LOCK:
+      FIND FIRST FAKTKOLL WHERE FAKTKOLL.FAKTNR = faktaonrtemp.FAKTNR AND FAKTKOLL.AONR = faktaonrtemp.AONR AND
+      FAKTKOLL.DELNR = faktaonrtemp.DELNR
+      EXCLUSIVE-LOCK NO-ERROR.
+      FIND FIRST faktkolltemp WHERE  faktkolltemp.FAKTNR = faktaonrtemp.FAKTNR AND faktkolltemp.AONR = faktaonrtemp.AONR AND
+      faktkolltemp.DELNR = faktaonrtemp.DELNR NO-LOCK NO-ERROR.
+      IF AVAILABLE FAKTKOLL THEN DO:
+         
+         IF AVAILABLE faktkolltemp THEN DO:
+            BUFFER-COPY faktkolltemp TO FAKTKOLL.
+         END.  
+         FAKTKOLL.SLUTFAKT = faktaonrtemp.STOPP. 
+      END.
+      ELSE DO:
+         IF AVAILABLE faktkolltemp THEN DO:
+            CREATE FAKTKOLL.
+            BUFFER-COPY faktkolltemp TO FAKTKOLL.
+         END.   
+      END.   
+   END.
+   FIND FIRST FAKTPRISLISTA WHERE FAKTPRISLISTA.FAKTNR = FAKTPLAN.FAKTNR AND FAKTPRISLISTA.OVER = TRUE
+   NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE FAKTPRISLISTA THEN DO:
+      svar = "Faktura planen saknar övertidsprislista".
+      musz = TRUE.         
+      RETURN.
+   END.
+   FIND FIRST FAKTPRISLISTA WHERE FAKTPRISLISTA.FAKTNR = FAKTPLAN.FAKTNR AND FAKTPRISLISTA.OVER = FALSE
+   NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE FAKTPRISLISTA THEN DO:
+      svar = "Faktura planen saknar normalprislista".
+      musz = TRUE.         
+      RETURN.
+   END.     
+   
+   OPEN QUERY faktaonrq FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR 
+   USE-INDEX FAKTA NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST faktaonrq EXCLUSIVE-LOCK.   
+      DO WHILE AVAILABLE(FAKTAONR):
+         /*VILKA FAKTAONR FINNS REDAN*/
+         FIND FIRST faktaonrtemp WHERE faktaonrtemp.FAKTNR = FAKTAONR.FAKTNR AND
+         faktaonrtemp.AONR = FAKTAONR.AONR AND faktaonrtemp.DELNR = FAKTAONR.DELNR 
+         USE-INDEX AONR NO-LOCK NO-ERROR.
+         IF faktyptemp.TYP = 6 OR faktyptemp.TYP = 7 THEN DO:
+            IF NOT AVAILABLE faktaonrtemp THEN DO:               
+               DELETE FAKTAONR.   
+            END.
+            ELSE DO:                      
+               BUFFER-COPY faktaonrtemp TO FAKTAONR.
+               DELETE faktaonrtemp.               
+            END.
+         END.
+         ELSE DO:
+            IF NOT AVAILABLE faktaonrtemp THEN DO:
+               FIND FIRST AONRTAB WHERE AONRTAB.AONR = FAKTAONR.AONR AND 
+               AONRTAB.DELNR = FAKTAONR.DELNR USE-INDEX AONR EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE AONRTAB THEN  ASSIGN AONRTAB.FAKTNR = 0.
+               FOR EACH FAKTUPPARB WHERE FAKTUPPARB.FAKTNR = FAKTAONR.FAKTNR AND FAKTUPPARB.AONR = FAKTAONR.AONR AND
+               FAKTUPPARB.DELNR = FAKTAONR.DELNR AND FAKTUPPARB.VFAKTNR = 0 EXCLUSIVE-LOCK:
+                  DELETE FAKTUPPARB.
+               END.
+               DELETE FAKTAONR.   
+               
+            END.
+            ELSE DO:       
+               BUFFER-COPY faktaonrtemp TO FAKTAONR.
+               DELETE faktaonrtemp.
+               FIND FIRST AONRTAB WHERE AONRTAB.AONR = FAKTAONR.AONR AND 
+               AONRTAB.DELNR = FAKTAONR.DELNR USE-INDEX AONR EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE AONRTAB THEN ASSIGN AONRTAB.FAKTNR = FAKTAONR.FAKTNR.                           
+            END.
+         END.         
+         GET NEXT faktaonrq EXCLUSIVE-LOCK.
+      END.         
+   END.
+   
+   RELEASE AONRTAB NO-ERROR.
+   RELEASE FAKTAONR NO-ERROR. 
+  
+   {FAOKLAR.I}
+   
+   FOR EACH FAKTSTART WHERE FAKTSTART.FAKTNR = FAKTPLAN.FAKTNR EXCLUSIVE-LOCK:
+      DELETE FAKTSTART.
+   END.
+   FOR EACH faktstarttemp:
+      CREATE FAKTSTART.
+      BUFFER-COPY faktstarttemp TO FAKTSTART.
+   END.
+   FOR EACH FAKTUPPPLAN WHERE FAKTUPPPLAN.FAKTNR = FAKTPLAN.FAKTNR EXCLUSIVE-LOCK:
+      DELETE FAKTUPPPLAN.
+   END.
+   FOR EACH faktuppplantemp:
+      CREATE FAKTUPPPLAN.
+      BUFFER-COPY faktuppplantemp TO FAKTUPPPLAN.
+   END.
+   RELEASE FAKTSTART NO-ERROR.
+   RELEASE FAKTUPPPLAN NO-ERROR.
+   RELEASE FAKTKOLL NO-ERROR.
+   RELEASE FAKTAONR NO-ERROR.            
+   OPEN QUERY faktkollq
+   FOR EACH FAKTKOLL WHERE FAKTKOLL.FAKTNR = FAKTPLAN.FAKTNR 
+   USE-INDEX FAKTNR NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST faktkollq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(FAKTKOLL): 
+         FIND FIRST FAKTAONR WHERE 
+         FAKTAONR.AONR = FAKTKOLL.AONR AND
+         FAKTAONR.DELNR = FAKTKOLL.DELNR USE-INDEX FAKTA NO-LOCK NO-ERROR.           
+         IF NOT AVAILABLE FAKTAONR THEN DO:
+            IF FAKTKOLL.SENASTFAK = ? THEN DELETE FAKTKOLL.         
+         END.
+         GET NEXT faktkollq EXCLUSIVE-LOCK.        
+      END.         
+   END.   
+   CLOSE QUERY faktkollq.          
+   IF FAKTPLAN.HANVANDARE = "" THEN DO:
+      FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR NO-LOCK NO-ERROR.
+      IF AVAILABLE FAKTAONR THEN DO TRANSACTION:       
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = FAKTAONR.AONR AND
+         AONRTAB.DELNR = FAKTAONR.DELNR NO-LOCK NO-ERROR.
+         FIND CURRENT FAKTPLAN EXCLUSIVE-LOCK. 
+         ASSIGN 
+         FAKTPLAN.HANVANDARE = AONRTAB.ANVANDARE.
+         IF ( Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" ) THEN FAKTPLAN.ANVANDARE = AONRTAB.ANVANDARE.
+         IF AONRTAB.DELNR NE 0 THEN DO:
+            FIND FIRST AONRTAB WHERE AONRTAB.AONR = FAKTAONR.AONR AND
+            AONRTAB.DELNR = 0 NO-LOCK NO-ERROR.
+            IF AVAILABLE AONRTAB THEN DO:
+               ASSIGN 
+               FAKTPLAN.HANVANDARE = AONRTAB.ANVANDARE.               
+            END.
+         END.
+      END.
+   END.
+   IF faktyptemp.TYP = 2 THEN DO:
+      OPEN QUERY faktavtq FOR EACH FAKTAVTALAONR WHERE 
+      FAKTAVTALAONR.FAKTNR = FAKTPLAN.FAKTNR AND FAKTAVTALAONR.BELOPP = 0      
+      NO-LOCK.
+      DO TRANSACTION:
+         GET FIRST faktavtq EXCLUSIVE-LOCK.          
+         DO WHILE AVAILABLE(FAKTAVTALAONR):
+            DELETE FAKTAVTALAONR.
+            GET NEXT faktavtq EXCLUSIVE-LOCK.
+         END.
+      END.
+   END.   
+   CLOSE QUERY faktaonrq.                     
+END PROCEDURE.
+/*SNATFAKT*/
+PROCEDURE stopflerplaner_UI :
+   DEFINE INPUT  PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER nplanr AS INTEGER NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST faktkollbuff WHERE faktkollbuff.FAKTNR = nplanr EXCLUSIVE-LOCK NO-ERROR.
+      FOR EACH FAKTKOLL WHERE FAKTKOLL.SLUTFAKT = TRUE AND FAKTKOLL.AONR = faktkollbuff.AONR AND FAKTKOLL.DELNR = faktkollbuff.DELNR NO-LOCK:
+         IF faktkollbuff.SENASTFAK = ? OR faktkollbuff.SENASTFAK <= FAKTKOLL.SENASTFAK THEN DO:
+            ASSIGN 
+            faktkollbuff.SENASTFAK = FAKTKOLL.SENASTFAK
+            faktkollbuff.SENASTTID = FAKTKOLL.SENASTTID            
+            faktkollbuff.VECKOKORD = FAKTKOLL.VECKOKORD.
+         END.  
+      END.       
+   END. 
+   RELEASE faktkollbuff NO-ERROR.
+END PROCEDURE.
+/*SNATFAKT*/
+PROCEDURE aonrfplankoll_UI :
+   DEFINE INPUT  PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER ejok AS LOGICAL NO-UNDO.
+   FOR EACH FAKTKOLL WHERE FAKTKOLL.AONR = aonrvar AND FAKTKOLL.DELNR = delnrvar NO-LOCK:
+      IF FAKTKOLL.SLUTFAKT = FALSE THEN DO:
+         ejok = TRUE.
+         RETURN.
+      END.          
+   END.
+   
+END PROCEDURE.
+PROCEDURE senastf_UI :
+   DEFINE INPUT PARAMETER varsenfak AS DATE NO-UNDO. 
+   DEFINE INPUT PARAMETER varsentid AS DATE NO-UNDO.
+   DEFINE INPUT PARAMETER varsenvecko AS CHARACTER NO-UNDO.
+   
+   IF faktaonrtemp.ALLT = TRUE THEN musz = musz.                          
+   ELSE DO TRANSACTION:               
+      ASSIGN
+      FAKTKOLL.SENASTFAK = varsenfak
+      FAKTKOLL.SENASTTID = varsentid            
+      FAKTKOLL.VECKOKORD = varsenvecko.                  
+      FOR EACH faktkollbuff WHERE faktkollbuff.AONR =  FAKTKOLL.AONR AND
+      faktkollbuff.DELNR =  FAKTKOLL.DELNR NO-LOCK:
+         IF faktkollbuff.FAKTNR NE FAKTKOLL.FAKTNR  THEN DO:
+            FIND FIRST faktplanbuff WHERE faktplanbuff.FAKTNR = faktkollbuff.FAKTNR
+            NO-LOCK NO-ERROR.
+            IF faktyptemp.FAKTTYP = faktplanbuff.FAKTTYP THEN DO:
+               IF faktkollbuff.SENASTFAK > FAKTKOLL.SENASTFAK THEN DO:
+                  ASSIGN
+                  FAKTKOLL.SENASTFAK = faktkollbuff.SENASTFAK
+                  FAKTKOLL.SENASTTID = faktkollbuff.SENASTTID            
+                  FAKTKOLL.VECKOKORD = faktkollbuff.VECKOKORD.       
+               END.
+            END.
+         END.
+      END.
+      IF faktyptemp.TYP = 6 OR faktyptemp.TYP = 7 THEN musz = musz.                       
+      ELSE DO:            
+         IF varsenvecko NE "" THEN DO:
+            OPEN QUERY kostq FOR EACH KOSTREG WHERE KOSTREG.AONR = FAKTAONR.AONR AND
+            KOSTREG.DELNR = FAKTAONR.DELNR AND KOSTREG.FAKTURERAD = ? AND 
+            KOSTREG.REGDATUM <= varsentid USE-INDEX KOST NO-LOCK.         
+            GET FIRST kostq NO-LOCK.                            
+            DO WHILE AVAILABLE(KOSTREG):
+               GET CURRENT kostq EXCLUSIVE-LOCK.
+               KOSTREG.FAKTURERAD = FALSE.                              
+               GET NEXT kostq NO-LOCK.            
+            END.
+         END.
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE fakupphmt_UI :
+   DEFINE INPUT PARAMETER faktnrvar AS INTEGER  NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR kundtyptemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR kundregeltemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR kundbeftemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR defpristemp.  
+   DEFINE OUTPUT PARAMETER TABLE FOR kundovertemp.   
+   DEFINE OUTPUT PARAMETER TABLE FOR kundprislisttemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.      
+   EMPTY TEMP-TABLE kundtyptemp NO-ERROR.
+   EMPTY TEMP-TABLE kundregeltemp NO-ERROR.
+   EMPTY TEMP-TABLE kundbeftemp NO-ERROR.
+   EMPTY TEMP-TABLE defpristemp NO-ERROR.
+   EMPTY TEMP-TABLE kundovertemp NO-ERROR.
+   EMPTY TEMP-TABLE kundprislisttemp NO-ERROR.
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.
+   CREATE WIDGET-POOL "fdynTemp" NO-ERROR. 
+   
+   /*finns prislistor*/
+   FIND FIRST DEFPRISLISTA WHERE DEFPRISLISTA.OVER = FALSE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE DEFPRISLISTA THEN DO:
+      CREATE felmeddtemp.
+      ASSIGN
+      felmeddtemp.FELMEDD = "Det finns inga prislistor upplaggda i systemet". 
+      RETURN.
+   END.
+   /*finns prislistor*/
+   FIND FIRST DEFPRISLISTA WHERE DEFPRISLISTA.OVER = TRUE NO-LOCK NO-ERROR.      
+   IF NOT AVAILABLE DEFPRISLISTA THEN DO:
+      CREATE felmeddtemp.
+      ASSIGN
+      felmeddtemp.FELMEDD = "Det finns inga övertidsprislistor upplaggda i systemet". 
+      RETURN.
+   END.
+   
+   /*KUNDTYPR*/
+   EMPTY TEMP-TABLE kundtyptemp NO-ERROR.
+   ASSIGN
+   nytab      = "kundtyptemp"
+   orginaltab = "KUNDTYP".
+   kommandoquery = "FOR EACH " +  orginaltab + " NO-LOCK".       
+      /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE kundtyptemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   
+   /*REGLER*/
+   EMPTY TEMP-TABLE kundregeltemp NO-ERROR.
+   ASSIGN
+   nytab      = "kundregeltemp"
+   orginaltab = "FAKTREGLER".
+   
+   kommandoquery = "FAKTREGLER.FAKTNR = " + STRING(faktnrvar).
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+   /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE kundregeltemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).            
+   /*NAMN PÅ PRISLISTOR*/
+   EMPTY TEMP-TABLE defpristemp NO-ERROR.
+   ASSIGN
+   nytab      = "defpristemp"
+   orginaltab = "DEFPRISLISTA".
+   kommandoquery = "FOR EACH " +  orginaltab + " NO-LOCK".       
+      /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE defpristemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+
+   /*KUNDPRISLISTOR*/
+   EMPTY TEMP-TABLE kundprislisttemp NO-ERROR.
+   ASSIGN
+   nytab      = "kundprislisttemp"
+   orginaltab = "FAKTPRISLISTA"
+   kommandoquery = "FAKTPRISLISTA.FAKTNR = " + STRING(faktnrvar).
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+      /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE kundprislisttemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+        
+   
+   FOR EACH BEFATTNINGSTAB NO-LOCK,
+   EACH FAKTBEF WHERE FAKTBEF.FAKTNR = faktnrvar AND 
+   FAKTBEF.BEFATTNING = BEFATTNINGSTAB.BEFATTNING NO-LOCK. 
+      CREATE kundbeftemp.
+      BUFFER-COPY BEFATTNINGSTAB TO kundbeftemp.
+      BUFFER-COPY FAKTBEF TO kundbeftemp.
+   END.
+
+   /*POSTERNA TILL ÖVERTIDS PRISLITOR*/
+   EMPTY TEMP-TABLE kundovertemp NO-ERROR.
+   ASSIGN
+   jointab    = "FAKTOVER"
+   orginaltab = "OVERTEXTFAKT"
+   nytab      = "kundovertemp". 
+   ASSIGN
+   kommandoquery = "FOR EACH FAKTOVER WHERE FAKTOVER.FAKTNR = " + STRING(faktnrvar) + " NO-LOCK,".
+   kommandoquery = kommandoquery + " EACH OVERTEXTFAKT WHERE " +
+   "OVERTEXTFAKT.OTEXTID = FAKTOVER.OTEXTID NO-LOCK". 
+   
+   
+   /*BUGG 9.1c FIX*/
+   ASSIGN 
+   extratemptabh = TEMP-TABLE kundovertemp:DEFAULT-BUFFER-HANDLE.
+   CREATE BUFFER extrajointemptabh FOR TABLE "FAKTOVER" IN WIDGET-POOL "fdynTemp".
+   RUN dynquery_UI (INPUT FALSE,INPUT TRUE).   
+   RUN objdelete_UI.
+   DELETE WIDGET-POOL "fdynTemp" NO-ERROR.
+  
+END PROCEDURE.
+PROCEDURE regprispara_UI :                         
+   DEFINE INPUT PARAMETER faktnrvar AS INTEGER  NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR kundregeltemp.            
+   DEFINE INPUT PARAMETER TABLE FOR kundbeftemp.              
+   DEFINE INPUT PARAMETER TABLE FOR kundovertemp.             
+   DEFINE INPUT PARAMETER TABLE FOR kundprislisttemp.         
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.             
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.
+   DO TRANSACTION:
+      FIND FIRST kundregeltemp WHERE kundregeltemp.FAKTNR = faktnrvar NO-ERROR. 
+      FIND FIRST FAKTREGLER WHERE FAKTREGLER.FAKTNR = faktnrvar EXCLUSIVE-LOCK NO-ERROR.    
+      IF NOT AVAILABLE FAKTREGLER THEN CREATE FAKTREGLER.
+      BUFFER-COPY kundregeltemp TO FAKTREGLER.
+   END. 
+   DO TRANSACTION:
+      FOR EACH FAKTBEF WHERE FAKTBEF.FAKTNR = faktnrvar:
+         DELETE FAKTBEF.
+      END.
+   END.  
+   FOR EACH kundbeftemp WHERE kundbeftemp.FAKTNR = faktnrvar:
+      DO TRANSACTION:
+         CREATE FAKTBEF.
+         BUFFER-COPY kundbeftemp TO FAKTBEF.
+      END.
+   END. 
+   DO TRANSACTION:
+      FOR EACH FAKTOVER WHERE FAKTOVER.FAKTNR = faktnrvar.
+         DELETE FAKTOVER.
+      END.
+   END.  
+   FOR EACH kundovertemp WHERE kundovertemp.FAKTNR = faktnrvar:
+      DO TRANSACTION:
+         CREATE FAKTOVER.
+         BUFFER-COPY kundovertemp TO FAKTOVER.
+      END.
+   END.
+   DO TRANSACTION:
+      FOR EACH FAKTPRISLISTA WHERE FAKTPRISLISTA.FAKTNR = faktnrvar.
+         DELETE FAKTPRISLISTA.
+      END.
+   END.  
+   FOR EACH kundprislisttemp WHERE kundprislisttemp.FAKTNR = faktnrvar:
+      DO TRANSACTION:
+         CREATE FAKTPRISLISTA.
+         BUFFER-COPY kundprislisttemp TO FAKTPRISLISTA.
+      END.
+   END.
+   RELEASE FAKTREGLER NO-ERROR.
+   RELEASE FAKTPRISLISTA NO-ERROR.
+   RELEASE FAKTOVER NO-ERROR.
+   RELEASE FAKTBEF NO-ERROR.
+   RELEASE FAKTOVER NO-ERROR.
+   
+END PROCEDURE.
+PROCEDURE nypris_UI :                         
+   DEFINE INPUT PARAMETER faktnrvar AS INTEGER  NO-UNDO.
+   DEFINE INPUT PARAMETER vadpris AS CHARACTER NO-UNDO.           
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR kundregeltemp.   
+   DEFINE OUTPUT PARAMETER TABLE FOR kundbeftemp.
+   EMPTY TEMP-TABLE kundbeftemp NO-ERROR.
+   OPEN QUERY prisq FOR EACH PRISLISTFAKT WHERE PRISLISTFAKT.PRISID = vadpris NO-LOCK.
+   GET FIRST prisq NO-LOCK.
+   DO WHILE AVAILABLE(PRISLISTFAKT):
+      CREATE kundbeftemp.  
+      ASSIGN          
+      kundbeftemp.BEFATTNING = PRISLISTFAKT.BEFATTNING 
+      kundbeftemp.FAKTNR = faktnrvar           
+      kundbeftemp.PRISA = PRISLISTFAKT.PRISA 
+      kundbeftemp.PRISRES = PRISLISTFAKT.PRISRES.                        
+      GET NEXT prisq NO-LOCK.                     
+   END.
+   OPEN QUERY bkq FOR EACH kundbeftemp,
+   EACH BEFATTNINGSTAB WHERE BEFATTNINGSTAB.BEFATTNING = kundbeftemp.BEFATTNING NO-LOCK.
+   GET FIRST bkq NO-LOCK.
+   DO WHILE AVAILABLE(kundbeftemp):
+      kundbeftemp.NAMN = BEFATTNINGSTAB.NAMN.      
+      GET NEXT bkq NO-LOCK.
+   END.       
+   FIND FIRST PRISLISTOVRIGT WHERE 
+   PRISLISTOVRIGT.PRISID = vadpris NO-LOCK NO-ERROR.
+   IF AVAILABLE PRISLISTOVRIGT THEN DO:
+      FIND FIRST kundregeltemp WHERE kundregeltemp.FAKTNR = faktnrvar
+      NO-ERROR.
+      IF AVAILABLE kundregeltemp THEN DO:          
+         IF kundregeltemp.TIMRGL = "KUNDENS EGNA" THEN DO:
+            ASSIGN
+            kundregeltemp.ENTRAK = PRISLISTOVRIGT.ENTRAK 
+            kundregeltemp.FLERTRAK = PRISLISTOVRIGT.FLERTRAK
+            kundregeltemp.FRTJPA = PRISLISTOVRIGT.FRTJPA
+            kundregeltemp.MIL = PRISLISTOVRIGT.MIL
+            kundregeltemp.MTRLPA = PRISLISTOVRIGT.MTRLPA.
+         END.         
+      END.
+   END.        
+END PROCEDURE.
+PROCEDURE nypriso_UI :                         
+   DEFINE INPUT PARAMETER faktnrvar AS INTEGER  NO-UNDO.
+   DEFINE INPUT PARAMETER vadpris AS CHARACTER NO-UNDO.               
+   DEFINE OUTPUT PARAMETER TABLE FOR kundovertemp.
+   EMPTY TEMP-TABLE kundovertemp NO-ERROR.
+   OPEN QUERY prisq FOR EACH OVERPRISLIST WHERE OVERPRISLIST.PRISID = vadpris NO-LOCK.
+   GET FIRST prisq NO-LOCK.
+   DO WHILE AVAILABLE(OVERPRISLIST):
+      DO TRANSACTION:
+         CREATE  kundovertemp.  
+         ASSIGN 
+         kundovertemp.OTEXTID = OVERPRISLIST.OTEXTID
+         kundovertemp.BEFATTNING = OVERPRISLIST.BEFATTNING 
+         kundovertemp.FAKTNR = faktnrvar
+         kundovertemp.DAGTYP = OVERPRISLIST.DAGTYP 
+         kundovertemp.EQDAG = OVERPRISLIST.EQDAG 
+         kundovertemp.PRISA = OVERPRISLIST.PRISA 
+         kundovertemp.SLUT = OVERPRISLIST.SLUT 
+         kundovertemp.START = OVERPRISLIST.START.                        
+      END.   
+      GET NEXT prisq NO-LOCK.                     
+   END.
+   OPEN QUERY bkoq FOR EACH kundovertemp,
+   EACH OVERTEXTFAKT WHERE OVERTEXTFAKT.OTEXTID = kundovertemp.OTEXTID NO-LOCK.
+   GET FIRST bkoq NO-LOCK.
+   DO WHILE AVAILABLE(kundovertemp):
+      kundovertemp.OTEXT = OVERTEXTFAKT.OTEXT.
+      GET NEXT bkoq NO-LOCK.
+   END.   
+END PROCEDURE.
+
+PROCEDURE aokop_UI :   
+   DEFINE INPUT PARAMETER vaonr  AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vdelnr AS INTEGER NO-UNDO.
+
+   DEFINE VARIABLE varsenfak AS DATE NO-UNDO. 
+   DEFINE VARIABLE varsentid AS DATE NO-UNDO.
+   DEFINE VARIABLE varsenvecko AS CHARACTER NO-UNDO.
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = vaonr AND AONRTAB.DELNR = vdelnr NO-LOCK NO-ERROR.
+   IF AONRTAB.DELNR = 0 THEN DO:
+      FIND FIRST aobuff WHERE aobuff.BESTID = AONRTAB.BESTID AND
+      aobuff.AONR BEGINS SUBSTRING(vaonr,1,2) AND aobuff.OMRADE = AONRTAB.OMRADE AND
+      aobuff.FAKTTYP = AONRTAB.FAKTTYP AND aobuff.ARBARTKOD = AONRTAB.ARBARTKOD AND aobuff.FAKTNR NE 0 NO-LOCK NO-ERROR.
+   END.
+   ELSE DO:
+      FIND FIRST aobuff WHERE aobuff.BESTID = AONRTAB.BESTID AND 
+      aobuff.AONR = vaonr AND aobuff.DELNR = 0 AND aobuff.OMRADE = AONRTAB.OMRADE AND
+      aobuff.FAKTTYP = AONRTAB.FAKTTYP AND aobuff.ARBARTKOD = AONRTAB.ARBARTKOD AND aobuff.FAKTNR NE 0 NO-LOCK NO-ERROR.
+   END.
+   IF NOT AVAILABLE aobuff THEN RETURN.
+   
+   FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = aobuff.FAKTNR NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE FAKTPLAN THEN RETURN.
+   FIND FIRST FAKTKOLL WHERE FAKTKOLL.FAKTNR = FAKTPLAN.FAKTNR AND FAKTKOLL.SENASTFAK =  FAKTPLAN.SENASTFAK NO-LOCK NO-ERROR.
+   FIND FIRST faktyptemp WHERE faktyptemp.FAKTTYP = FAKTPLAN.FAKTTYP NO-ERROR.
+   ASSIGN                             
+   varsenfak = FAKTKOLL.SENASTFAK     
+   varsentid = FAKTKOLL.SENASTTID     
+   varsenvecko = FAKTKOLL.VECKOKORD.  
+   EMPTY TEMP-TABLE faktaonrtemp NO-ERROR. 
+   CREATE faktaonrtemp.                                         
+   ASSIGN               
+   faktaonrtemp.ALLT = TRUE
+   faktaonrtemp.NY = TRUE                                       
+   faktaonrtemp.FAKTNR = FAKTPLAN.FAKTNR                         
+   faktaonrtemp.AONR = AONRTAB.AONR                            
+   faktaonrtemp.DELNR = AONRTAB.DELNR                          
+   faktaonrtemp.ORT = AONRTAB.ORT                              
+   faktaonrtemp.OMRADE = AONRTAB.OMRADE                        
+   faktaonrtemp.AONRAVDATUM = AONRTAB.AONRAVDATUM              
+   faktaonrtemp.STARTDATUM = AONRTAB.STARTDATUM                
+   faktaonrtemp.GDATUM = AONRTAB.ELVOMRKOD.
+   {FAKTAONRSTOPP.I}
+   {FAOKLAR.I}
+   
+   FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR NO-LOCK:
+      FIND FIRST FAKTKOLL WHERE FAKTKOLL.FAKTNR = FAKTAONR.FAKTNR AND
+      FAKTKOLL.AONR = FAKTAONR.AONR  AND
+      FAKTKOLL.DELNR = FAKTAONR.DELNR USE-INDEX FAKTNR NO-LOCK NO-ERROR.          
+      IF NOT AVAILABLE FAKTKOLL THEN DO TRANSACTION:
+         CREATE FAKTKOLL.
+         ASSIGN
+         FAKTKOLL.FAKTNR = FAKTAONR.FAKTNR
+         FAKTKOLL.AONR = FAKTAONR.AONR
+         FAKTKOLL.DELNR = FAKTAONR.DELNR
+         FAKTKOLL.SLUTFAKT = FALSE.
+         RUN senastf_UI (INPUT varsenfak,INPUT varsentid, INPUT varsenvecko).                      
+      END.
+   END.
+
+END PROCEDURE.

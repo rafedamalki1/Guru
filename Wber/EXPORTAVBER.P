@@ -1,0 +1,601 @@
+
+/*------------------------------------------------------------------------
+    File        : EXPORTAVBER.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Tue Apr 25 16:04:00 CEST 2017
+    Notes       :
+  ----------------------------------------------------------------------*/
+  DEFINE TEMP-TABLE xmltabelfile NO-UNDO
+   FIELD BufferH AS HANDLE
+   FIELD TempttH AS HANDLE
+   FIELD TableName AS CHARACTER
+   FIELD TempName AS CHARACTER
+   FIELD NodtabName AS CHARACTER
+   FIELD ORDNING AS INTEGER
+   INDEX ORDNING ORDNING.   
+{SparaDynDSstar.I}
+DEFINE INPUT  PARAMETER globunikdb AS CHARACTER NO-UNDO.
+DEFINE INPUT  PARAMETER bernrv AS INTEGER NO-UNDO.
+DEFINE INPUT  PARAMETER omrv  AS CHARACTER NO-UNDO.
+DEFINE INPUT  PARAMETER prisvar AS LOGICAL NO-UNDO.
+DEFINE OUTPUT PARAMETER DATASET-HANDLE BerKalkDS.
+DEFINE OUTPUT PARAMETER utschemalong AS LONGCHAR NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR xmltabelfile. 
+DEFINE VARIABLE MarkstGlobbloblog AS LOGICAL NO-UNDO.
+RUN FINNSTABELL.P (INPUT "MARKSTATIONIBEREDNING", OUTPUT MarkstGlobbloblog).
+
+&Scoped-define PUBLIC
+
+
+{EXTRADATA.I}
+{EXTRATAB.I}
+{KALKYLKAT.I}
+{KALKYLKATH.i}
+{KALKYLKATTTH.i}
+{MARKGRUPP.I}
+{TTEXPIMPHD.I}
+{BEREDNINGTEMP.I}
+DEFINE VARIABLE beredningbuffTTh AS HANDLE NO-UNDO.
+beredningbuffTTh = TEMP-TABLE beredningtemp:HANDLE:DEFAULT-BUFFER-HANDLE.
+
+   
+
+   
+DEFINE VARIABLE knr AS INTEGER NO-UNDO.
+
+
+FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+FUNCTION TempOldBer RETURNS HANDLE (INPUT Bertabtab AS CHARACTER):
+   FIND FIRST xmltabelfile WHERE xmltabelfile.TableName = Bertabtab NO-LOCK NO-ERROR.
+   
+         
+   RETURN xmltabelfile.BufferH.
+END FUNCTION. /* detachDataSet */
+
+RUN Export_UI.
+
+       
+PROCEDURE Export_UI :
+   RUN Tnamn_UI.
+   FIND FIRST BERKALKOPPLA WHERE BERKALKOPPLA.BERNR = bernrv AND BERKALKOPPLA.OMRADE = omrv NO-LOCK NO-ERROR.
+   IF AVAILABLE BERKALKOPPLA THEN knr = BERKALKOPPLA.KALKNR.
+   IF bernrv = ? THEN  knr = ?.
+   RUN laddaBerKalkDS_UI (INPUT bernrv, INPUT knr, INPUT omrv).
+   IF bernrv = ? THEN.
+   ELSE RUN skapaexport_UI (INPUT bernrv, INPUT knr, INPUT omrv).
+   BerKalkDS:WRITE-XMLSCHEMA ( "LONGCHAR",utschemalong,TRUE,"UTF-8",FALSE,FALSE). 
+  
+END PROCEDURE.
+ 
+
+PROCEDURE laddaBerKalkDS_UI :
+   DEFINE INPUT  PARAMETER bernrvad AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER kalknrvad AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER omrnrvad AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE brtbnr AS INTEGER NO-UNDO.
+   brtbnr = 0.
+   RUN BerKalkylCreate_UI.
+   RUN GetDatasetDeftt_UI ("BerKalkDS").
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "tempglobforetag".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).
+   DatasetDeftt.pcSources[brtbnr] = "FORETAG".        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "FORETAG".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".FORETAG = " + QUOTER(Guru.Konstanter:globforetag).
+   brtbnr =  brtbnr +  1.
+   
+   DatasetDeftt.pcSources[brtbnr] = "BEREDNING".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(beredningbuffTTh).
+   DatasetDeftt.pcSourceKeys[brtbnr] = "BERNR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".BERNR = " + STRING(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "BERVAL".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).
+   DatasetDeftt.pcSourceKeys[brtbnr] = "AONR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".AONR = " + QUOTER(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.                                              
+   DatasetDeftt.pcSources[brtbnr] = "BERORD".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "AONR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".AONR = " + QUOTER(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "FRIKORT".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "AONR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".AONR = " + QUOTER(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "BERID".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "AONR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".AONR = " + QUOTER(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "BERMTRL".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "AONR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".AONR = " + QUOTER(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "BERLINKAB".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "AONR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".AONR = " + QUOTER(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "BERUPP".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "AONR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".AONR = " + QUOTER(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "BERID2".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "AONR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".AONR = " + QUOTER(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "BERPUNKT".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).
+   DatasetDeftt.pcSourceKeys[brtbnr] = "AONR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".AONR = " + QUOTER(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).        
+  
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "HDPUNKT".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "BERNR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".BERNR = " + STRING(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "HDSCHAKTFOR".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "BERNR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".BERNR = " + STRING(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "HDSCHAKT".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "BERNR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".BERNR = " + STRING(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "HDSCHSTOPP".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "BERNR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".BERNR = " + STRING(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "HDKABELLINJE".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "BERNR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".BERNR = " + STRING(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "HDFORLKAB".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "BERNR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".BERNR = " + STRING(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "HDFORLSAM".   
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "BERNR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".BERNR = " + STRING(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "HDPROTKOPPBER".                 
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "BERNR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".BERNR = " + STRING(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "HDSCHAKTKALKSPEC".                 
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "BERNR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".BERNR = " + STRING(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "HDSCHAKTPROT".                 
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).
+   DatasetDeftt.pcSourceKeys[brtbnr] = "BERNR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".BERNR = " + STRING(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).        
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "HDSCHAKTPROTHAND".                 
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "BERNR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".BERNR = " + STRING(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   DatasetDeftt.pcSources[brtbnr] = "MARKSTN".   
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSources[brtbnr] = "EXTRAKOPPLINGAR". 
+   DatasetDeftt.pcSourceKeys[brtbnr] = "PROGRAM,KOPPLACHAR1,KOPPLACHAR2".
+   DatasetDeftt.pcKeyValue[brtbnr] = "EXTRAKOPPLINGAR.PROGRAM = " + QUOTER('MARKSTN') + " AND EXTRAKOPPLINGAR.KOPPLACHAR1 = " + QUOTER(bernrvad) +  
+   " AND EXTRAKOPPLINGAR.KOPPLACHAR2 =  "  + QUOTER(omrnrvad).
+   IF MarkstGlobbloblog = TRUE THEN DO:
+      brtbnr =  brtbnr +  1.
+      DatasetDeftt.pcSources[brtbnr] = "MARKSTATIONIBEREDNING".   
+      DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+      DatasetDeftt.pcSources[brtbnr] = "MARKSTATIONIBEREDNING". 
+      DatasetDeftt.pcSourceKeys[brtbnr] = "AONR,OMRADE,NUM,KABNR".
+      DatasetDeftt.pcKeyValue[brtbnr] = "MARKSTATIONIBEREDNING.AONR = " + QUOTER(bernrvad) +  " AND MARKSTATIONIBEREDNING.OMRADE = " +  QUOTER(omrnrvad).  
+   END.
+   
+   IF kalknrvad = 0 THEN.
+   ELSE DO: 
+      brtbnr =  brtbnr +  1.
+      DatasetDeftt.pcBuffers[brtbnr] = STRING(BerKalkkopplabuffh).
+      DatasetDeftt.pcSources[brtbnr] = "BERKALKOPPLA".
+      DatasetDeftt.pcSourceKeys[brtbnr] = "KALKNR,OMRADE".
+      DatasetDeftt.pcKeyValue[brtbnr] = "BERKALKOPPLA.KALKNR = " + STRING(kalknrvad) + " AND BERKALKOPPLA.OMRADE = "  + QUOTER(omrnrvad).
+      
+      brtbnr =  brtbnr +  1.
+      DatasetDeftt.pcBuffers[brtbnr] = STRING(kalkaonrTTh).
+      DatasetDeftt.pcSources[brtbnr] = "KALKAONR".
+      DatasetDeftt.pcSourceKeys[brtbnr] = "KALKNR,OMRADE".
+      DatasetDeftt.pcKeyValue[brtbnr] = "KALKAONR.KALKNR = " + STRING(kalknrvad) + " AND KALKAONR.OMRADE = "  + QUOTER(omrnrvad).
+      brtbnr =  brtbnr +  1.
+      DatasetDeftt.pcBuffers[brtbnr] = STRING(HuvudTTh).
+      DatasetDeftt.pcSources[brtbnr] = "KALKHUV".
+      DatasetDeftt.pcSourceKeys[brtbnr] = "KALKNR,OMRADE".
+      DatasetDeftt.pcKeyValue[brtbnr] = "KALKHUV.KALKNR = " + STRING(kalknrvad) + " AND KALKHUV.OMRADE = "  + QUOTER(omrnrvad).
+      brtbnr =  brtbnr +  1.
+      DatasetDeftt.pcBuffers[brtbnr] = STRING(KoderTTh).
+      DatasetDeftt.pcSources[brtbnr] = "KALKNUM".
+      DatasetDeftt.pcSourceKeys[brtbnr] = "KALKNR,OMRADE".
+      DatasetDeftt.pcKeyValue[brtbnr] = "KALKNUM.KALKNR = " + STRING(kalknrvad) + " AND KALKNUM.OMRADE = "  + QUOTER(omrnrvad).
+      brtbnr =  brtbnr +  1.
+      DatasetDeftt.pcBuffers[brtbnr] = STRING(ValdaPriserTTh).
+      DatasetDeftt.pcSources[brtbnr] = "KALKNUMSUB".
+      DatasetDeftt.pcSourceKeys[brtbnr] = "KALKNR,OMRADE".
+      DatasetDeftt.pcKeyValue[brtbnr] = "KALKNUMSUB.KALKNR = " + STRING(kalknrvad) + " AND KALKNUMSUB.OMRADE = "  + QUOTER(omrnrvad).
+      brtbnr =  brtbnr +  1.
+      DatasetDeftt.pcBuffers[brtbnr] = STRING(FaktorerTTh).
+      DatasetDeftt.pcSources[brtbnr] = "KALKFAKTORER".
+      DatasetDeftt.pcSourceKeys[brtbnr] = "KALKNR,OMRADE".
+      DatasetDeftt.pcKeyValue[brtbnr] = "KALKFAKTORER.KALKNR = " + STRING(kalknrvad) + " AND KALKFAKTORER.OMRADE = "  + QUOTER(omrnrvad).
+      brtbnr =  brtbnr +  1.
+      DatasetDeftt.pcBuffers[brtbnr] = STRING(EgnaPriserTTh).
+      DatasetDeftt.pcSources[brtbnr] = "KALKEGNAPRISER".
+      DatasetDeftt.pcSourceKeys[brtbnr] = "KALKNR,OMRADE".
+      DatasetDeftt.pcKeyValue[brtbnr] = "KALKEGNAPRISER.KALKNR = " + STRING(kalknrvad) + " AND KALKEGNAPRISER.OMRADE = "  + QUOTER(omrnrvad).
+      brtbnr =  brtbnr +  1.
+      DatasetDeftt.pcBuffers[brtbnr] = STRING(kalktmtrlTTh).
+      DatasetDeftt.pcSources[brtbnr] = "KALKMTRL".
+      DatasetDeftt.pcSourceKeys[brtbnr] = "KALKNR,OMRADE".
+      DatasetDeftt.pcKeyValue[brtbnr] = "KALKMTRL.KALKNR = " + STRING(kalknrvad) + " AND KALKMTRL.OMRADE = "  + QUOTER(omrnrvad).
+      brtbnr =  brtbnr +  1.
+      DatasetDeftt.pcBuffers[brtbnr] = STRING(kalkttidlageTTh).
+      DatasetDeftt.pcSources[brtbnr] = "KALKYLTIDLAGE".
+      DatasetDeftt.pcSourceKeys[brtbnr] = "KALKNR,OMRADE".
+      DatasetDeftt.pcKeyValue[brtbnr] = "KALKYLTIDLAGE.KALKNR = " + STRING(kalknrvad) + " AND KALKYLTIDLAGE.OMRADE = "  + QUOTER(omrnrvad).
+   END.   
+   DatasetDeftt.antaltab = brtbnr.
+ 
+   IF bernrvad = ? THEN RUN JustDefAndDs_UI IN dyndamicDSh   ({DataSetInput.I} OUTPUT DATASET-HANDLE BerKalkDS BIND).
+   ELSE RUN DefAndLoadDs_UI IN dyndamicDSh   ({DataSetInput.I} OUTPUT DATASET-HANDLE BerKalkDS BIND).
+   
+   /*
+   sundsvals kalkber går ej att exportera
+   DatasetDeftt.pcSources[brtbnr] = "KALKBER".
+   DatasetDeftt.pcBuffers[brtbnr] = STRING(TempOldBer(DatasetDeftt.pcSources[brtbnr])).        
+   DatasetDeftt.pcSourceKeys[brtbnr] = "BERNR,OMRADE".
+   DatasetDeftt.pcKeyValue[brtbnr] = DatasetDeftt.pcSources[brtbnr] + ".BERNR = " + STRING(bernrvad) + " AND " + DatasetDeftt.pcSources[brtbnr] + ".OMRADE = "  + QUOTER(omrnrvad).
+   brtbnr =  brtbnr +  1.
+   */
+   
+  
+     
+END PROCEDURE.
+
+PROCEDURE skapaexport_UI :
+   DEFINE INPUT  PARAMETER bernrvad AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER kalknrvad AS INTEGER NO-UNDO.
+   DEFINE INPUT  PARAMETER omrnrvad AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+   DEFINE VARIABLE ekoppdataapph AS HANDLE NO-UNDO.
+   DEFINE VARIABLE lnamnex AS CHARACTER NO-UNDO.
+   RUN hamtlev_UI (INPUT omrnrvad,INPUT STRING(bernrvad),OUTPUT lnamnex).
+   RUN EXTRATABHMT.P PERSISTENT SET ekoppdataapph.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "BERFORE"  
+   inextradatatemp.HUVUDCH  = omrnrvad
+   inextradatatemp.HUVUDINT = bernrvad.
+   
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+   
+   FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+   FOR EACH tempglobforetag WHERE NO-LOCK:
+      ASSIGN 
+      tempglobforetag.OMRADE = omrnrvad       
+      tempglobforetag.BERNR  = bernrvad
+      tempglobforetag.GFORETAGUNIK = globunikdb
+      tempglobforetag.GFORETAG = tempglobforetag.FORETAG.
+      tempglobforetag.LEVNAMNEX = lnamnex. 
+      IF AVAILABLE extradatatemp THEN DO:
+         tempglobforetag.GFORETAG = extradatatemp.SOKCHAR[1]. 
+      END.
+   END.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR.  
+   
+   EMPTY TEMP-TABLE inextrakopptemp NO-ERROR.
+   EMPTY TEMP-TABLE extrakopptemp NO-ERROR. 
+   CREATE inextrakopptemp.          
+   ASSIGN
+   inextrakopptemp.PROGRAM = "MARKSTN"                   
+   inextrakopptemp.KOPPLACHAR1 = STRING(bernrvad)               
+   inextrakopptemp.KOPPLAINT1 = ?
+   inextrakopptemp.KOPPLACHAR2 = omrnrvad            
+   inextrakopptemp.KOPPLAINT2 =  ?.
+   RUN etabhamt_UI IN ekoppdataapph (INPUT TABLE inextrakopptemp, OUTPUT TABLE extrakopptemp). 
+   FOR EACH extrakopptemp:
+      FIND FIRST tempextramarkstn WHERE tempextramarkstn.SOKINT1  = 0 NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE tempextramarkstn THEN CREATE tempextramarkstn.
+      ASSIGN
+      tempextramarkstn.KOPPLACHAR1      = extrakopptemp.KOPPLACHAR1
+      tempextramarkstn.KOPPLACHAR2      = extrakopptemp.KOPPLACHAR2
+      tempextramarkstn.SOKINT1          = extrakopptemp.SOKINT[1]
+      tempextramarkstn.SOKINT2          = extrakopptemp.SOKINT[2]
+      tempextramarkstn.SOKCHAR1         = extrakopptemp.SOKCHAR[1].
+   END.
+   EMPTY TEMP-TABLE inextrakopptemp NO-ERROR. 
+   EMPTY TEMP-TABLE extrakopptemp NO-ERROR. 
+   IF prisvar = TRUE THEN.
+   ELSE DO:
+      FOR EACH tempbermtrl  WHERE NO-LOCK:
+         tempbermtrl.PRIS = 0. 
+      END.
+   END.
+   IF VALID-HANDLE(ekoppdataapph) THEN DELETE PROCEDURE ekoppdataapph.
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.
+   RUN Markstationhmt_UI (INPUT STRING(bernrvad), INPUT omrnrvad).
+END PROCEDURE.
+{Markstationhmt.i}
+PROCEDURE hamtlev_UI :
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valbernr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER levnamnex AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE lkod AS CHARACTER NO-UNDO.   
+   FIND FIRST BETFRIA WHERE BETFRIA.FAKTTEXT = valomrade AND
+   BETFRIA.BETNR = valbernr NO-LOCK NO-ERROR. 
+   IF AVAILABLE BETFRIA THEN lkod = BETFRIA.TYP.         
+   ELSE lkod = "".
+   
+   IF lkod = "" THEN DO:
+      FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+      IF AVAILABLE HUVUDLEV THEN DO:
+         ASSIGN  lkod = HUVUDLEV.LEVKOD.
+      END.
+      ELSE DO:
+         FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD NE "0" AND LEVERANTOR.LEVKOD NE "99"
+         AND LEVERANTOR.BORTTAG = FALSE NO-LOCK NO-ERROR.
+         ASSIGN  lkod = LEVERANTOR.LEVKOD.
+      END.                     
+   END.      
+   FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = lkod NO-LOCK NO-ERROR.
+   levnamnex = LEVERANTOR.LEVNAMN.
+END PROCEDURE.
+
+PROCEDURE Tnamn_UI :
+   
+      CREATE xmltabelfile.
+      xmltabelfile.BufferH = BUFFER tempberval:HANDLE.
+      xmltabelfile.TempttH = TEMP-TABLE tempberval:HANDLE.
+      xmltabelfile.TableName = "BERVAL".
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER tempberord:HANDLE.   
+      xmltabelfile.TempttH = TEMP-TABLE tempberord:HANDLE.
+      xmltabelfile.TableName = "BERORD".
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER tempfrikort:HANDLE.  
+      xmltabelfile.TempttH = TEMP-TABLE tempfrikort:HANDLE.
+      xmltabelfile.TableName = "FRIKORT".
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER tempberid:HANDLE.    
+      xmltabelfile.TempttH = TEMP-TABLE tempberid:HANDLE.
+      xmltabelfile.TableName = "BERID".
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      /*
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER tempberkalk:HANDLE.  
+      xmltabelfile.TempttH = TEMP-TABLE tempberkalk:HANDLE.
+      xmltabelfile.TableName = "BERKALK".
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      */
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER tempbermtrl:HANDLE.
+      xmltabelfile.TempttH = TEMP-TABLE tempbermtrl:HANDLE.
+      xmltabelfile.TableName = "BERMTRL".
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER tempberlinkab:HANDLE.
+      xmltabelfile.TempttH = TEMP-TABLE tempberlinkab:HANDLE.
+      xmltabelfile.TableName = "BERLINKAB".
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+     
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER tempberupp:HANDLE.  
+      xmltabelfile.TempttH = TEMP-TABLE tempberupp:HANDLE.
+      xmltabelfile.TableName = "BERUPP".
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER tempberid2:HANDLE.    
+      xmltabelfile.TempttH = TEMP-TABLE tempberid2:HANDLE.
+      xmltabelfile.TableName = "BERID2".
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER tempglobforetag:HANDLE.
+      xmltabelfile.TempttH = TEMP-TABLE tempglobforetag:HANDLE.
+      xmltabelfile.TableName = "tempglobforetag".
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER tempberpunkt:HANDLE.  
+      xmltabelfile.TempttH = TEMP-TABLE tempberpunkt:HANDLE.
+      xmltabelfile.TableName = "BERPUNKT".
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      
+      
+      
+      /*HD HÄR*/
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER hdschakttemp:HANDLE. 
+      xmltabelfile.TempttH = TEMP-TABLE hdschakttemp:HANDLE.
+      xmltabelfile.TableName = "HDSCHAKT".
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+     
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER hdschstopptemp:HANDLE. 
+      xmltabelfile.TempttH = TEMP-TABLE hdschstopptemp:HANDLE.
+      xmltabelfile.TableName = "HDSCHSTOPP".
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER hdpunkttemp:HANDLE.
+      xmltabelfile.TempttH = TEMP-TABLE hdpunkttemp:HANDLE.
+      xmltabelfile.TableName = "HDPUNKT".
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER hdschaktfortemp:HANDLE.
+      xmltabelfile.TempttH = TEMP-TABLE hdschaktfortemp:HANDLE.
+      xmltabelfile.TableName = "HDSCHAKTFOR".
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER hdkabellinjetemp:HANDLE. 
+      xmltabelfile.TempttH = TEMP-TABLE hdkabellinjetemp:HANDLE.
+      xmltabelfile.TableName = "HDKABELLINJE".
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER hdforlkabtemp:HANDLE.
+      xmltabelfile.TempttH = TEMP-TABLE hdforlkabtemp:HANDLE.
+      xmltabelfile.TableName = "HDFORLKAB".
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER hdforlsamtemp:HANDLE.
+      xmltabelfile.TempttH = TEMP-TABLE hdforlsamtemp:HANDLE.
+      xmltabelfile.TableName = "HDFORLSAM".   
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER hdprotkopbertemp:HANDLE.
+      xmltabelfile.TempttH = TEMP-TABLE hdprotkopbertemp:HANDLE.
+      xmltabelfile.TableName = "HDPROTKOPPBER".         
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.        
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER hdschaktkalkspectemp:HANDLE.
+      xmltabelfile.TempttH = TEMP-TABLE hdschaktkalkspectemp:HANDLE.
+      xmltabelfile.TableName = "HDSCHAKTKALKSPEC".      
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.          
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName. 
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER hdschakprottemp:HANDLE.
+      xmltabelfile.TempttH = TEMP-TABLE hdschakprottemp:HANDLE.
+      xmltabelfile.TableName = "HDSCHAKTPROT".          
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.       
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER hdschakprothandtemp:HANDLE.
+      xmltabelfile.TempttH = TEMP-TABLE hdschakprothandtemp:HANDLE.
+      xmltabelfile.TableName = "HDSCHAKTPROTHAND".  
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      
+      
+      CREATE xmltabelfile.
+      xmltabelfile.BufferH = BUFFER tempextramarkstn:HANDLE.
+      xmltabelfile.TempttH = TEMP-TABLE tempextramarkstn:HANDLE.
+      xmltabelfile.TableName = "MARKSTN".   
+      xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.              
+      IF MarkstGlobbloblog = TRUE THEN DO:
+         CREATE xmltabelfile.
+         xmltabelfile.BufferH = BUFFER markgrupp:HANDLE.
+         xmltabelfile.TempttH = TEMP-TABLE markgrupp:HANDLE.
+         xmltabelfile.TableName = "MARKSTATIONIBEREDNING".   
+         xmltabelfile.TempName = xmltabelfile.TempttH:NAME.
+         xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      END. 
+        /*
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER tempkskydd:HANDLE.   
+      xmltabelfile.TempttH = TEMP-TABLE tempkskydd:HANDLE.
+      xmltabelfile.TableName = "KSKYDD".
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      */
+       
+      /*
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER hdkalkbefbtemp:HANDLE.
+      xmltabelfile.TempttH = TEMP-TABLE hdkalkbefbtemp:HANDLE.
+      xmltabelfile.TableName = "KALKBEFB".                 
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER hdkalktemp:HANDLE.
+      xmltabelfile.TempttH = TEMP-TABLE hdkalktemp:HANDLE.
+      xmltabelfile.TableName = "HDKALK".   
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      */
+      
+      /*KALKYL-BEREDNING SUNDSVALL*/
+     /*
+      CREATE xmltabelfile.        
+      xmltabelfile.BufferH = BUFFER tempextrakalkber:HANDLE.
+      xmltabelfile.TempttH = TEMP-TABLE tempextrakalkber:HANDLE.
+      xmltabelfile.TableName = "KALKBER".
+      xmltabelfile.BufferH:XML-NODE-NAME = xmltabelfile.TableName.
+      */
+END PROCEDURE.
+
+/*BerKalkylDS*/
+PROCEDURE BerKalkylCreate_UI :
+   CREATE TEMP-TABLE BerKalkkopplatth.
+   BerKalkkopplatth:CREATE-LIKE("BERKALKOPPLA").
+   BerKalkkopplatth:ADD-NEW-FIELD("TTRECID","RECID").
+   BerKalkkopplatth:TEMP-TABLE-PREPARE("Berkalkkopptt").
+   BerKalkkopplabuffh = BerKalkkopplatth:DEFAULT-BUFFER-HANDLE.
+   CREATE TEMP-TABLE Bervalltth.
+   Bervalltth:CREATE-LIKE("BERVAL").
+   Bervalltth:ADD-NEW-FIELD("TTRECID","RECID").
+   Bervalltth:ADD-NEW-FIELD("ID2","CHARACTER").
+   Bervalltth:ADD-NEW-FIELD("EXTRA1","CHARACTER").
+   Bervalltth:ADD-NEW-FIELD("F1","CHARACTER").
+   Bervalltth:ADD-NEW-FIELD("ORD","INTEGER").
+   Bervalltth:ADD-NEW-INDEX("NUM").
+   Bervalltth:ADD-INDEX-FIELD("NUM","NUM").
+   Bervalltth:ADD-NEW-INDEX("ID2").
+   Bervalltth:ADD-INDEX-FIELD("ID2","ID2").
+   Bervalltth:TEMP-TABLE-PREPARE("Bervaltt").
+   Bervallbuffh = Bervalltth:DEFAULT-BUFFER-HANDLE.
+   CREATE TEMP-TABLE HdSchakttth.
+   HdSchakttth:CREATE-LIKE("HDSCHAKT").
+   HdSchakttth:ADD-NEW-FIELD("TTRECID","RECID").
+   HdSchakttth:TEMP-TABLE-PREPARE("Schakttt").
+   HdSchaktbuffh = HdSchakttth:DEFAULT-BUFFER-HANDLE.
+   
+END PROCEDURE.
+
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh.
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.

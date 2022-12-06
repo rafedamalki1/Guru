@@ -1,0 +1,432 @@
+
+/*------------------------------------------------------------------------
+    File        : FRANEXCELTILLGURUTAB.P
+    Purpose     : SKAPA XML AV EXCELL SKAPA POSTER I GURU 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Fri Oct 14 10:06:49 CEST 2022
+    Notes       :
+  ----------------------------------------------------------------------*/
+/*
+EXCEL-XML
+1  Excelfilen BE KUND OM DENNA EXCELFIL ANVÄNDARE OCH AV-LEVEL SKA DE INTE ANGE 
+INITIALER  ANVANDARE   AV-LEVEL FORNAMN  EFTERNAMN   EPOST
+AMO                             Abbas    Mohammadi   afg.sweden23@hotmail.com
+OBS TA BORT KANTLINJER!
+2. DEFINERA EN TEMP-TABLE I PROGRESS. EFTER DE KOLUMNER DU HAR I EXCEL
+3. DEFINERA ETT PRODATASET.
+4. SKAPA EN XSD FIL AV PRODASET ELLER EN XML FIL
+5. UTVECKLARE KÄLLA XML-KÄLLA XML-MAPPNING LÄGG TILL DROPPA DIN XSD ELLER XML FIL
+6. KOLUMN MOT RUBRIK OBS LÄGG RUBRIKEN PÅ FÖRSTA RADEN SOM SKA VARA TOM
+7. TRYCK PÅ EXPORTERA-- UTVECKLARE EXPORTERA LÄNGS TILL HÖGER  PERS.XML
+8. sätt spärrdatum manuellt
+SKAPA ETT XML SCHEMA 
+*/
+/*Anders Olsson Elpool i Umeå AB  25 okt 2022 10:13:58 
+KAN KÖRAS VIA STARTDBMELLAN.P 
+*/
+DEFINE INPUT  PARAMETER vad AS CHARACTER NO-UNDO.
+FUNCTION tabortblanka RETURNS CHARACTER
+  (  INPUT namnblanka AS CHARACTER ) :
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+  namnblanka = REPLACE(namnblanka," ","").
+  RETURN   namnblanka.   /* Function return value. */
+END FUNCTION.
+{GURUSKEKMENY.I}
+{PHMT.I}
+{ANVTEMPS.I}
+{PERSTEMP.I}
+DEFINE TEMP-TABLE exanvandartemp NO-UNDO LIKE anvandartemp.
+{SOKDEF.I}
+&Scoped-define NEW NEW
+{FELMEDTEMP.I} 
+DEFINE TEMP-TABLE valperskolltemp NO-UNDO LIKE valperstemp. 
+DEFINE TEMP-TABLE perstt NO-UNDO
+  FIELD INITIALER AS CHARACTER
+  FIELD ANVANDARE AS CHARACTER
+  FIELD AV-LEVEL AS INTEGER
+  FIELD FORNAMN AS CHARACTER
+  FIELD EFTERNAMN AS CHARACTER
+  FIELD EPOST AS CHARACTER
+  FIELD TELEFON AS CHARACTER
+  FIELD SPARRAD AS LOGICAL
+  FIELD SPARR-DATUMTID AS DATETIME
+  FIELD SPARRAD-AV AS CHARACTER FORMAT "X(12)"
+  FIELD SKAPAD-AV AS CHARACTER
+  FIELD SKAPAD-DATUMTID AS DATETIME
+  INDEX PKOD INITIALER.
+DEFINE BUFFER persttbuff FOR perstt.  
+DEFINE TEMP-TABLE felperstt NO-UNDO 
+  FIELD PKOD AS CHARACTER
+  FIELD ANVANDARE AS CHARACTER
+  FIELD AV-LEVEL AS INTEGER
+  FIELD FELPKOD AS CHARACTER
+  FIELD FELANV AS CHARACTER
+  FIELD FELAV-LEVEL AS INTEGER
+  FIELD FELTEXT AS CHARACTER
+  INDEX PKOD PKOD. 
+DEFINE VARIABLE persDSh AS HANDLE NO-UNDO.
+DEFINE DATASET PERSDS FOR perstt. 
+persDSh = DATASET PERSDS:HANDLE.
+
+DEFINE VARIABLE cTargetType     AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cFile           AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lFormatted      AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE cEncoding       AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cSchemaLocation AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lWriteSchema    AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE lMinSchema      AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE lRetOK          AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE temptabHandle AS HANDLE NO-UNDO.
+DEFINE VARIABLE anvapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE vMessage        AS CHARACTER NO-UNDO. /*meddelande i klartext hur sändninge gick*/
+RUN ANVDYNAPP.P PERSISTENT SET anvapph.  
+RUN TEMPTABELLERAPP.P PERSISTENT SET temptabHandle (INPUT TRUE). 
+RUN hamta_UI IN anvapph (INPUT FALSE,OUTPUT TABLE anvandartemp).
+RUN allxguru_UI IN anvapph (OUTPUT TABLE xgurutemp).  
+RUN perstemp_UI IN temptabHandle (OUTPUT TABLE personaltemp).
+
+IF vad = "PXSD" THEN DO:
+   MESSAGE "Vill Du skapa PERS.XSD ?" VIEW-AS ALERT-BOX
+   QUESTION BUTTONS YES-NO UPDATE fragval1 AS LOGICAL.
+   IF fragval1 = TRUE THEN DO:
+      RUN Skapa_XSD_UI (INPUT persDSh).
+   END.   
+END.   
+IF vad = "PERS" THEN DO:
+
+   MESSAGE "Vill Du skapa Personer och Avändare ?" VIEW-AS ALERT-BOX
+   QUESTION BUTTONS YES-NO UPDATE fragval2 AS LOGICAL.
+   IF fragval2 = TRUE THEN DO:
+      MESSAGE "Filen ska var  " SESSION:TEMP-DIRECTORY + "PERS.XML"
+      VIEW-AS ALERT-BOX. 
+      RUN readxml_UI (INPUT-OUTPUT persDSh,INPUT "FILE",INPUT SESSION:TEMP-DIRECTORY + "PERS.XML",INPUT "EMPTY",INPUT "",INPUT NO,OUTPUT lRetOK).
+      RUN perskoll_UI.
+      FIND FIRST felperstt  WHERE NO-LOCK NO-ERROR.
+      IF AVAILABLE felperstt THEN DO:
+         MESSAGE "Det är fel i filen. Går ej att läsa in!"
+         VIEW-AS ALERT-BOX.
+         RETURN.
+      END.   
+      RUN PersAnvIn_UI.
+   END.   
+END.   
+ /*WRITE-XMLSCHEMA*/
+PROCEDURE Skapa_XSD_UI :
+   
+        
+   
+   DEFINE INPUT PARAMETER hPDS AS HANDLE NO-UNDO.
+   ASSIGN 
+   cTargetType    =  "FILE"
+   cFile           = SESSION:TEMP-DIRECTORY + "PERS.XSD"
+   lFormatted      = TRUE
+   cEncoding       = "iso8859-1"
+   lWriteSchema = TRUE 
+   lMinSchema = TRUE.
+   lRetOK = hPDS:WRITE-XMLSCHEMA(cTargetType, cFile, lFormatted,  cEncoding, lMinSchema).
+   MESSAGE "Schemat finns i " SESSION:TEMP-DIRECTORY + "PERS.XSD"
+   VIEW-AS ALERT-BOX.
+END PROCEDURE.
+PROCEDURE PersAnvIn_UI :
+   
+   EMPTY TEMP-TABLE valperskolltemp NO-ERROR. 
+   FIND FIRST OMRADETAB WHERE  OMRADETAB.ELVOMRKOD = 0 NO-LOCK NO-ERROR.
+   FOR EACH perstt WHERE NO-LOCK:
+      CREATE valperskolltemp.
+      ASSIGN 
+      valperskolltemp.PERSONALKOD = perstt.INITIALER
+      valperskolltemp.FORNAMN = perstt.FORNAMN
+      valperskolltemp.EFTERNAMN = perstt.EFTERNAMN
+      SUBSTRING(valperskolltemp.PERSONSOK,20) = perstt.EPOST
+      valperskolltemp.OMRADE = OMRADETAB.OMRADE 
+      valperskolltemp.MOBILTEL = tabortblanka(perstt.TELEFON).
+     
+      IF perstt.ANVANDARE = "" OR perstt.ANVANDARE = ? THEN DO:
+         valperskolltemp.ANVANDARE = perstt.INITIALER.
+         perstt.ANVANDARE = valperskolltemp.ANVANDARE.
+      END.    
+      ELSE valperskolltemp.ANVANDARE = perstt.ANVANDARE.
+   END.
+   REPEAT:
+      FIND FIRST valperskolltemp  WHERE NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE valperskolltemp THEN LEAVE.
+      RUN PERSUPP.P (INPUT 2,INPUT "",INPUT TABLE valperskolltemp,INPUT-OUTPUT TABLE valsoktemp,OUTPUT TABLE felmeddtemp).
+      FIND FIRST felmeddtemp  WHERE NO-LOCK NO-ERROR.
+      FOR EACH felmeddtemp:
+         MESSAGE felmeddtemp.FELMEDD + " I Personalregistret!" VIEW-AS ALERT-BOX.
+         DELETE felmeddtemp.
+      END.    
+      EMPTY TEMP-TABLE exanvandartemp NO-ERROR. 
+      CREATE exanvandartemp.
+      BUFFER-COPY valperskolltemp TO exanvandartemp.
+      FIND FIRST perstt WHERE perstt.ANVANDARE = valperskolltemp.ANVANDARE NO-LOCK NO-ERROR.
+      ASSIGN 
+      exanvandartemp.AV-LEVEL = perstt.AV-LEVEL
+      exanvandartemp.AV-LOSEN = CHR(66) + CHR(89) + CHR(84) + CHR(65) + CHR(46) + CHR(78) + CHR(85) /*"BYTA.NU"*/
+      exanvandartemp.AV-NAMN = perstt.FORNAMN + " " + perstt.EFTERNAMN 
+      exanvandartemp.SKAPAD-AV = CAPS(Guru.Konstanter:globanv)
+      exanvandartemp.SKAPAD-DATUMTID = NOW.
+      IF Guru.GlobalaVariabler:Kryptonit = TRUE THEN DO:
+         exanvandartemp.AV-LOSEN = Guru.Konstanter:SaltRetur(exanvandartemp.AV-LOSEN).
+      END.   
+       
+      RUN sparpers_UI IN anvapph (INPUT Guru.Konstanter:globanv,INPUT "", INPUT "",INPUT TABLE exanvandartemp,INPUT TABLE perstemp). 
+    
+      RUN Mail_UI.
+ 
+         
+      DELETE valperskolltemp.
+   END.
+   
+END PROCEDURE.
+PROCEDURE perskoll_UI :
+   FOR EACH perstt WHERE NO-LOCK:
+      FIND FIRST persttbuff WHERE persttbuff.INITIALER = perstt.INITIALER AND RECID(persttbuff) NE RECID(perstt)  NO-LOCK NO-ERROR.
+      IF AVAILABLE persttbuff THEN DO:
+         FIND FIRST felperstt WHERE felperstt.PKOD = perstt.INITIALER NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE felperstt THEN CREATE felperstt.
+         ASSIGN
+         felperstt.PKOD = perstt.INITIALER
+         felperstt.FELPKOD = perstt.INITIALER 
+         felperstt.FELTEXT = felperstt.FELTEXT + "PKOD DUBBLETTER FINNS I FILEN ".
+      END.    
+   END.
+   FOR EACH perstt:
+      FIND FIRST personaltemp  WHERE personaltemp.PERSONALKOD = perstt.INITIALER NO-LOCK NO-ERROR.
+      IF AVAILABLE personaltemp THEN DO:
+         FIND FIRST felperstt WHERE felperstt.PKOD = perstt.INITIALER NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE felperstt THEN CREATE felperstt.
+         ASSIGN
+         felperstt.PKOD = perstt.INITIALER
+         felperstt.FELPKOD = perstt.INITIALER 
+         felperstt.FELTEXT = felperstt.FELTEXT + "PKOD FINNS REDAN ". 
+      END.
+      IF perstt.ANVANDARE = "" THEN perstt.ANVANDARE = perstt.INITIALER. 
+      FIND FIRST anvandartemp WHERE anvandartemp.ANVANDARE = perstt.ANVANDARE NO-LOCK NO-ERROR.
+      IF AVAILABLE anvandartemp THEN DO:  
+         FIND FIRST felperstt WHERE felperstt.PKOD = perstt.INITIALER NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE felperstt THEN CREATE felperstt.
+         ASSIGN
+         felperstt.PKOD = perstt.INITIALER
+         felperstt.FELANV = perstt.ANVANDARE 
+         felperstt.FELTEXT = felperstt.FELTEXT + "ANVANDARE FINNS REDAN ".
+      END.
+      IF perstt.AV-LEVEL = 0 OR perstt.AV-LEVEL = ? THEN DO:
+         FIND FIRST felperstt WHERE felperstt.PKOD = perstt.INITIALER NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE felperstt THEN CREATE felperstt.
+         ASSIGN
+         felperstt.PKOD = perstt.INITIALER
+         felperstt.FELAV-LEVEL = perstt.AV-LEVEL 
+         felperstt.FELTEXT = felperstt.FELTEXT + "OGILTIG AV-LEVEL".
+      END.   
+      ELSE DO:
+         FIND FIRST xgurutemp WHERE xgurutemp.AV-LEVEL = perstt.AV-LEVEL NO-LOCK NO-ERROR. 
+         IF NOT AVAILABLE xgurutemp THEN DO: 
+            FIND FIRST felperstt WHERE felperstt.PKOD = perstt.INITIALER NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE felperstt THEN CREATE felperstt.
+            ASSIGN
+            felperstt.PKOD = perstt.INITIALER
+            felperstt.FELAV-LEVEL = perstt.AV-LEVEL 
+            felperstt.FELTEXT = felperstt.FELTEXT + "AV-LEVEL FINNS INTE".
+         END.
+      END.  
+   END.       
+   FOR EACH felperstt WHERE NO-LOCK:
+      MESSAGE felperstt.PKOD  felperstt.FELANV felperstt.FELAV-LEVEL SKIP
+      felperstt.FELTEXT 
+      VIEW-AS ALERT-BOX.
+   END.  
+END PROCEDURE.
+
+
+PROCEDURE Mail_UI :
+   DEFINE VARIABLE skick AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE efel AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE TextPtr AS MEMPTR NO-UNDO.
+   DEFINE VARIABLE epostadd AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE alltok AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE anvmedd AS CHARACTER NO-UNDO
+   VIEW-AS EDITOR INNER-CHARS 78 INNER-LINES 3.
+   
+   epostadd = TRIM(SUBSTRING(valperskolltemp.PERSONSOK,20)).
+   anvmedd =
+       "Hej!" + CHR(10) + "Kul att du ska gå beredarkurs. Du behöver installera Beredarprogrammet Guru! " + CHR(10) + " " 
+       + CHR(10) + 
+       "Innan du installerar Guru! " + CHR(10) + " " 
+       + CHR(10) + 
+       "Du behöver C ++ 2010 x64 " + CHR(10) + 
+       "och " + CHR(10) + 
+       "Du behöver C ++ 2015-2019 x64 " + CHR(10) + " " 
+       + CHR(10) + 
+       "Kör denna länk " + CHR(10) + 
+       "http://www2.guruonweb.se/Guru117sign.msi " + CHR(10) + " " 
+       + CHR(10) + 
+       "Du får en blå Icon, GuruOnWeb med ett P på ditt skrivbord. " + CHR(10) + "Dubbelklicka på den " + CHR(10) + 
+       "Ange GURUUNI " + CHR(10) + 
+       "Logga in med " + valperskolltemp.ANVANDARE + " och lösen " + CHR(66) + CHR(89) + CHR(84) + CHR(65) + CHR(46) + CHR(78) + CHR(85) + "." 
+       + CHR(10) + 
+       "Tryck på Byt lösenord och ange ett eget. " + CHR(10) + 
+       "Vid problem Ring mig 090-184544 " + CHR(10) + " " + CHR(10) + 
+       "Hälsningar " + CHR(10) + 
+       "Elpool I Umeå AB " + CHR(10) + 
+       "Anders Olsson".
+ 
+   /*epostadd = "anders@elpool.se".  SMTP */
+   MESSAGE "Vill du skicka mail till " epostadd "?" VIEW-AS ALERT-BOX
+   QUESTION BUTTONS YES-NO UPDATE fragval AS LOGICAL.
+   IF fragval = TRUE THEN DO:
+      RUN ReturSmtp_UI (INPUT epostadd,INPUT anvmedd,OUTPUT alltok).
+   END.
+   IF alltok = FALSE THEN DO:
+      MESSAGE "Det gick inte att skicka till " valperskolltemp.ANVANDARE " för användare " valperskolltemp.ANVANDARE  skip
+      vMessage
+      VIEW-AS ALERT-BOX.
+   END.   
+   
+   
+END PROCEDURE.
+
+PROCEDURE ReturSmtp_UI :
+   DEFINE INPUT  PARAMETER emailretur AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER smtpmedd AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER oSuccessfulvar AS LOGICAL NO-UNDO.
+/* ********************  Preprocessor Definitions  ******************** */
+   DEFINE VARIABLE mailhub         AS CHARACTER NO-UNDO. /*smtpserver*/                                                                                                                                                  
+   DEFINE VARIABLE EmailTo         AS CHARACTER NO-UNDO. /*till en eller flera ,*/                                                                                                                                       
+   DEFINE VARIABLE EmailFrom       AS CHARACTER NO-UNDO. /*från en eller flera ,*/                                                                                                                                       
+   DEFINE VARIABLE EmailCC         AS CHARACTER NO-UNDO. /*copia till 0 eller flera ,*/                                                                                                                                  
+   DEFINE VARIABLE Attachmentstyp     AS CHARACTER NO-UNDO. 
+   DEFINE VARIABLE LocalFiles      AS CHARACTER NO-UNDO. /*filer 0 eller flera ,*/                                                                                                                                       
+   DEFINE VARIABLE Subject         AS CHARACTER NO-UNDO. /*ämne*/                                                                                                                                                        
+   DEFINE VARIABLE Bodysmtp        AS CHARACTER NO-UNDO. /*body*/                                                                                                                                                        
+   DEFINE VARIABLE MIMEHeader      AS CHARACTER NO-UNDO. /*MIMEHeader  CHARACTER - [type=<mimetype>][:CHARACTERset=<chrset>][:filetype=<type>]*/                                                       
+   DEFINE VARIABLE BodyType        AS CHARACTER NO-UNDO. /*BodyType text om du skapar html direkt i bodyn eller file om du skapar en htmlfil först*/                                                                  
+   DEFINE VARIABLE Importance      AS INTEGER NO-UNDO.   /*INT - Importance flag for the mail header,of the message sent. Valid values include 0 to 3, 1 = HIGH; 3 = Low */
+   DEFINE VARIABLE L_DoAUTH        AS LOGICAL NO-UNDO.   /*LOGICAL - yes if authentication is requiered*/                     
+   DEFINE VARIABLE C_AuthType      AS CHARACTER NO-UNDO. /*CHAR - Type of authentication. Currently supported types:base64 */ 
+   DEFINE VARIABLE C_User          AS CHARACTER NO-UNDO. /*CHAR - The name of the SMTP server user*/                          
+   DEFINE VARIABLE C_Password      AS CHARACTER NO-UNDO. /*CHAR - The password of the SMTP server user*/                      
+   DEFINE VARIABLE oSuccessful     AS LOGICAL NO-UNDO.   /*Om true är allt ok*/                                                                                                                                                            
+   DEFINE VARIABLE franvar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE servervar AS CHARACTER NO-UNDO.
+      ASSIGN
+      /*guru@elpool.se*/
+      franvar = CHR(103) + CHR(117) + CHR(114) + CHR(117) + CHR(64) + CHR(101) + CHR(108) + CHR(112) + CHR(111) + CHR(111) + CHR(108) + CHR(46) + CHR(115) + CHR(101).
+      servervar = CHR(115) + CHR(109) + CHR(116) + CHR(112) + CHR(46) + CHR(116) + CHR(101) + CHR(108) + CHR(101) + CHR(99) + CHR(111) + CHR(109) + CHR(51) + CHR(46) + CHR(110) + CHR(101) + CHR(116) .
+      C_Password = CHR(122) + CHR(120) + CHR(61) + CHR(98) + CHR(112) + CHR(48) + CHR(113) + CHR(114).
+      /*elpool.ume@elpool.se*/
+      C_User = CHR(101) + CHR(108) + CHR(112) + CHR(111) + CHR(111) + CHR(108) + CHR(46) + CHR(117) + CHR(109) + CHR(101) + CHR(64) + CHR(101) + CHR(108) + CHR(112) + CHR(111) + CHR(111) + CHR(108) + CHR(46) + CHR(115) + CHR(101) .
+      L_DoAUTH = TRUE.
+      C_AuthType = "base64".
+  
+   ASSIGN 
+      mailhub             = servervar     
+      EmailTo             = emailretur
+      EmailFrom           = franvar
+      EmailCC             = " " 
+      Attachmentstyp      = ""
+      LocalFiles          = ""
+      Subject             = "Guru beredarprogram" 
+      Bodysmtp            =  smtpmedd
+      MIMEHeader          = "type=text/html:charset=iso-8859-1:filetype=ascii"
+      BodyType            = "".     
+          
+     {AMERICANEUROPEAN.I}
+  
+   
+      RUN SMTPMAIL3.P  
+      (INPUT mailhub,        /*smtpserver*/                                                                                    
+      INPUT EmailTo,        /*till en eller flera ,*/                                                                         
+      INPUT EmailFrom,      /*från en eller flera ,*/                                                                         
+      INPUT EmailCC,        /*copia till 0 eller flera ,*/                                                                    
+      INPUT Attachmentstyp, /*[type=<mimetype>][:CHARACTERset=<chrset>][:filetype=<type>]*/                                   
+      INPUT LocalFiles,     /*filer 0 eller flera ,*/                                                                         
+      INPUT Subject,        /*ämne*/                                                                                          
+      INPUT Bodysmtp,       /*body*/                                                                                          
+      INPUT MIMEHeader,     /*[type=<mimetype>][:CHARACTERset=<chrset>][:filetype=<type>]*/                                                                                          
+      INPUT BodyType,       /*text om du skapar html direkt i bodyn eller file om du skapar en htmlfil först*/                
+      INPUT Importance,     /*INT - Importance flag for the mail header,of the message sent. Valid values include 0 to 3, 1 = HIGH; 3 = Low */
+      INPUT L_DoAUTH,       /*LOGICAL - yes if authentication is requiered*/
+      INPUT C_AuthType,     /*CHAR - Type of authentication. Currently supported types:base64 */
+      INPUT C_User,         /*CHAR - The name of the SMTP server user*/
+      INPUT C_Password,     /*CHAR - The password of the SMTP server user*/
+      OUTPUT oSuccessful,   /*Om true är allt ok*/                                                                            
+      OUTPUT vMessage).     /*meddelande i klartext hur sändninge gick*/
+   
+      {EUROPEANAMERICAN.I}
+      oSuccessfulvar = oSuccessful.
+
+  
+END PROCEDURE.
+
+
+
+PROCEDURE readxml_UI :
+
+   DEFINE INPUT-OUTPUT PARAMETER hPDS AS HANDLE NO-UNDO.
+   DEFINE INPUT  PARAMETER cSourceType AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER cFile AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER cReadMode AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER cSchemaLocation AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER lOverrideDefaultMapping AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER lReturn AS LOGICAL NO-UNDO.
+   
+   lReturn = hPDS:READ-XML (cSourceType, cFile, cReadMode,cSchemaLocation, lOverrideDefaultMapping).
+END PROCEDURE.   
+
+
+/*
+   SET-SIZE(TextPtr) =  60000.
+   PUT-STRING(TextPtr,1) = "Hej!" + CHR(10) + "Kul att du ska gå beredarkurs. Du behöver installera Beredarprogrammet Guru! " + CHR(10) + "
+   " + CHR(10) + "
+Innan du installerar Guru! " + CHR(10) + "
+" + CHR(10) + "
+Du behöver C ++ 2010 x64 " + CHR(10) + "
+och " + CHR(10) + "
+Du behöver C ++ 2015-2019 x64 " + CHR(10) + "
+" + CHR(10) + "
+Kör denna länk " + CHR(10) + "
+http://www2.guruonweb.se/Guru117sign.msi " + CHR(10) + "
+ " + CHR(10) + "
+Du får en blå Icon, GuruOnWeb med ett P på ditt skrivbord. " + CHR(10) + "Dubbelklicka på den " + CHR(10) + "
+Ange GURUUNI " + CHR(10) + "
+Logga in med " + valperskolltemp.ANVANDARE + " och lösen " + CHR(66) + CHR(89) + CHR(84) + CHR(65) + CHR(46) + CHR(78) + CHR(85) + "." + CHR(10) + "
+Tryck på Byt lösenord och ange ett eget. " + CHR(10) + "
+
+Vid problem Ring mig 090-184544 " + CHR(10) + "
+" + CHR(10) + "
+Hälsningar " + CHR(10) + "
+Elpool I Umeå AB " + CHR(10) + "
+Anders Olsson".
+ 
+   /*epostadd = "anders@elpool.se".  SMTP */
+   MESSAGE "Vill du skicka mail till " epostadd "?" VIEW-AS ALERT-BOX
+   QUESTION BUTTONS YES-NO UPDATE fragval AS LOGICAL.
+   IF fragval = TRUE THEN DO:
+      ReturSmtp_UI (INPUT epostadd,  )
+   END.
+   IF fragval = TRUE THEN DO: 
+      RUN EPOSTMAPI.P (INPUT  epostadd,
+                    INPUT  "",
+                    INPUT  "",
+                    INPUT  "Guru beredarprogram",
+                    INPUT  TextPtr,                 
+                    INPUT  "",
+                    INPUT  "support@elpool.se",
+                    OUTPUT skick,
+                    OUTPUT efel
+                    ).
+      SET-SIZE(TextPtr) = 0. 
+      IF efel NE "" THEN MESSAGE efel VIEW-AS ALERT-BOX.
+   END.
+   */
+
+

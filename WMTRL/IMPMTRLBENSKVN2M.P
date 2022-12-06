@@ -1,0 +1,82 @@
+/*IMPMTRLSKVN2.P*/
+DEFINE TEMP-TABLE tidin   
+   FIELD ENR                AS CHARACTER 
+   FIELD BENAMNING          AS CHARACTER 
+   /*FIELD ENHET              AS CHARACTER
+   FIELD BPRIS              AS CHARACTER
+   FIELD NPRIS              AS CHARACTER
+   FIELD MARK               AS CHARACTER*/
+   INDEX ENR IS PRIMARY ENR.
+
+DEFINE TEMP-TABLE tidin2   
+   FIELD ENR                AS CHARACTER 
+   FIELD BENAMNING          AS CHARACTER 
+   /*FIELD ENHET              AS CHARACTER
+   FIELD BPRIS              AS DECIMAL   
+   FIELD NPRIS              AS DECIMAL
+   FIELD MARK               AS CHARACTER*/
+   INDEX ENR IS PRIMARY ENR.
+
+DEFINE TEMP-TABLE felmex   
+   FIELD ENR                AS CHARACTER 
+   FIELD BENAMNING          AS CHARACTER 
+   /*FIELD ENHET              AS CHARACTER
+   FIELD BPRIS              AS DECIMAL
+   FIELD NPRIS              AS DECIMAL*/
+   INDEX ENR IS PRIMARY ENR.
+DEFINE VARIABLE hjvar AS CHARACTER NO-UNDO.
+
+DEFINE INPUT PARAMETER TABLE FOR tidin.
+DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.
+
+/*DEFINE INPUT PARAMETER mkat AS INTEGER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR felmex.
+DEFINE INPUT PARAMETER svar10 AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER svar12 AS LOGICAL NO-UNDO.*/
+DEFINE VARIABLE sparfilnamn AS CHARACTER NO-UNDO.
+sparfilnamn = SESSION:TEMP-DIRECTORY + "inmtrl.txt".
+
+EMPTY TEMP-TABLE felmex NO-ERROR. 
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+
+FOR EACH tidin:
+   IF FORETAG.FORETAG = "sund" OR FORETAG.FORETAG = "SNAT" OR FORETAG.FORETAG = "cORBI" OR FORETAG.FORETAG = "celpa" THEN DO:
+      IF SUBSTRING(tidin.ENR,1,1) NE  "E" THEN tidin.ENR = "E" + tidin.ENR.
+   END.
+   ELSE IF SUBSTRING(tidin.ENR,1,1) = "E" THEN tidin.ENR = SUBSTRING(tidin.ENR,2).   
+   tidin.ENR = REPLACE(tidin.ENR," ","").      
+END.
+DEBUGGER:SET-BREAK().
+FOR EACH tidin:
+   CREATE tidin2.
+   ASSIGN
+   tidin2.ENR = tidin.ENR       
+   tidin2.BENAMNING = tidin.BENAMNING .
+
+   IF ERROR-STATUS:ERROR = TRUE THEN DO:      
+      IF AVAILABLE tidin2 THEN DO:              
+         CREATE felmex.
+         BUFFER-COPY tidin2 TO felmex.
+         DELETE tidin2.
+      END.
+      ERROR-STATUS:ERROR = FALSE.
+   END.
+END.
+          
+FOR EACH tidin2 WHERE tidin2.BENAMNING NE "":
+   
+   DO TRANSACTION:
+      FIND FIRST MTRL WHERE MTRL.ENR =  tidin2.ENR AND
+      MTRL.LEVKOD = leverant AND MTRL.KALKNR = 0 USE-INDEX LEV
+      EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         MTRL.Benamning = tidin2.BENAMNING.                               
+         
+      END.
+   END.   
+END.
+OUTPUT TO VALUE(sparfilnamn) APPEND.
+PUT UNFORMATTED "Inläsning av mtrl benämningar är klar " + STRING(TIME,"hh:mm:ss") + " " + STRING(TODAY) SKIP.
+OUTPUT CLOSE.
+   
+

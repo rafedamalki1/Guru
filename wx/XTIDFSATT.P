@@ -1,0 +1,65 @@
+/*XTIDFSATT.P*/
+{LESAMMAN.I}  
+DEFINE INPUT PARAMETER globforetag LIKE FORETAG.FORETAG NO-UNDO.
+DEFINE INPUT PARAMETER gvisatidpermanad AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER vkdatum AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER vknummer AS CHARACTER FORMAT "X(4)" NO-UNDO.
+
+RUN sammut_UI (INPUT 1).
+/*DO TRANSACTION:
+   CREATE INTERNFAKTKOLL.
+   ASSIGN
+   INTERNFAKTKOLL.VECKOK = FALSE  
+   INTERNFAKTKOLL.VDATUM = vkdatum 
+   INTERNFAKTKOLL.VECKOKORD = vknummer.
+END.        
+IF gvisatidpermanad = TRUE THEN DO:
+   OPEN QUERY vsatt FOR EACH TIDREGITAB WHERE TIDREGITAB.DATUM <= vkdatum AND
+   TIDREGITAB.VECKOKORD = " "  NO-LOCK.
+END.
+ELSE DO:
+   OPEN QUERY vsatt FOR EACH TIDREGITAB WHERE TIDREGITAB.DATUM <= regdatum AND
+   TIDREGITAB.VECKOKORD = " "  USE-INDEX KOLL NO-LOCK.
+END.
+GET FIRST vsatt NO-LOCK.
+DO WHILE AVAILABLE(TIDREGITAB):
+   DO TRANSACTION:   
+      GET CURRENT vsatt EXCLUSIVE-LOCK.
+      /*forfärdig*/
+      IF globforetag = "VATT" AND TIDREGITAB.GODKAND = "F" THEN regdatum = regdatum.
+      ELSE IF globforetag = "ESMA" AND TIDREGITAB.GODKAND = "F" THEN regdatum = regdatum.
+      ELSE IF globforetag = "ESAN" AND TIDREGITAB.GODKAND = "F" THEN regdatum = regdatum.
+      ELSE IF globforetag = "SUND" AND TIDREGITAB.GODKAND = "F" THEN regdatum = regdatum.
+      ELSE IF globforetag = "GKAL" AND TIDREGITAB.GODKAND = "F" THEN regdatum = regdatum.
+      ELSE IF globforetag = "GRAN" AND TIDREGITAB.GODKAND = "F" THEN regdatum = regdatum.
+      ELSE IF globforetag = "GRIT" AND TIDREGITAB.GODKAND = "F" THEN regdatum = regdatum.
+      ELSE IF globforetag = "GADM" AND TIDREGITAB.GODKAND = "F" THEN regdatum = regdatum.
+      ELSE IF globforetag = "GKRVA" AND TIDREGITAB.GODKAND = "F" THEN regdatum = regdatum.
+      ELSE IF TIDREGITAB.GODKAND = " " THEN regdatum = regdatum.
+      ELSE ASSIGN TIDREGITAB.VECKOKORD = vknummer.
+   END.
+   GET NEXT vsatt NO-LOCK.
+END.
+CLOSE QUERY vsatt.*/
+IF globforetag = "SUND" OR globforetag = "ETA" OR globforetag = "ESMA" OR 
+   globforetag = "cELPA" 
+OR globforetag = "GRAN"  OR globforetag = "GADM" OR globforetag = "GKAL"
+ THEN DO:
+   OPEN QUERY fsatt FOR EACH TIDFEL WHERE TIDFEL.DATUM <= vkdatum AND
+   TIDFEL.FELKORD = " "  NO-LOCK.
+   GET FIRST fsatt NO-LOCK.
+   DO WHILE AVAILABLE(TIDFEL):
+      DO TRANSACTION:
+         GET CURRENT fsatt EXCLUSIVE-LOCK.
+         IF TIDFEL.SKICKA = FALSE THEN .
+         ELSE DO:
+            ASSIGN 
+            TIDFEL.SKICKA = FALSE
+            TIDFEL.FELKORD = vknummer.
+         END.   
+      END.
+      GET NEXT fsatt NO-LOCK.
+   END.               
+END.          
+CLOSE QUERY fsatt.
+RUN sammut_UI (INPUT 2).

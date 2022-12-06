@@ -1,0 +1,402 @@
+/*
+               KSV Editor
+    Copyright: (C) 2000-2001 Serguey Klimoff (bulkl0DD)
+     Filename: ESAONRworkorder.P
+      Comment: <comment>
+   Parameters:
+         Uses:
+            
+      Used by:
+      Created: 2009.11.02 11:13 ELPAO   
+     Modified: 2009.11.30 16:20 ELPAO    
+     Modified: 2009.12.10 10:24 ELPAO    
+     Modified: 2010.07.09 11:27 ELPAO    
+     Modified: 
+*/
+DEFINE INPUT PARAMETER prognamnque AS CHARACTER NO-UNDO.
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+  
+DEFINE NEW SHARED VARIABLE quotervar AS CHARACTER FORMAT "X(256)" NO-UNDO.
+
+
+
+
+DEFINE VARIABLE dirnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE dirspar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE filnamnuppxml AS CHARACTER NO-UNDO.
+DEFINE BUFFER abuff FOR ANVANDARE.
+DEFINE STREAM dirstrom.
+
+
+
+DEFINE TEMP-TABLE imptemp NO-UNDO
+   FIELD INVAR AS CHARACTER
+   FIELD INDIR AS CHARACTER
+   INDEX INVAR INVAR.
+DEFINE TEMP-TABLE anvt NO-UNDO
+   FIELD ANVANDARE AS CHARACTER
+   FIELD OMRADE AS CHARACTER
+   FIELD PERSONALKOD AS CHARACTER
+   INDEX OMRADE OMRADE.
+
+FUNCTION omrade RETURNS CHARACTER
+  ( INPUT projomr AS CHARACTER):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+   DEFINE VARIABLE projomri AS INTEGER NO-UNDO.
+   projomri = INTEGER(projomr) NO-ERROR.
+   
+   IF projomri = 0 THEN RETURN "ÖVE". 
+   IF projomri = ? THEN RETURN "ÖVE".
+   IF projomri = 01	 THEN RETURN "SNÖ".       /*  Stockholmslän        Stockholm Norrköping Örebro          */
+   IF projomri = 03	 THEN RETURN "SNÖ".       /*  Uppsalalän           Stockholm Norrköping Örebro          */
+   IF projomri = 04	 THEN RETURN "SNÖ".       /*  Södermanlandslän     Stockholm Norrköping Örebro          */
+   IF projomri = 05	 THEN RETURN "SNÖ".       /*  Östergötlandslän     Stockholm Norrköping Örebro          */
+   IF projomri = 0581 THEN RETURN "SNÖ". 	     /*  Norrköpingskommun    Stockholm Norrköping Örebro          */
+   IF projomri = 06	 THEN RETURN "KBS".       /*  Jönköpingslän        Kalmar Blekinge Östra Småland        */
+   IF projomri = 07	 THEN RETURN "KrHa".      /*  Kronobergslän        Kronoberg Halland                    */
+   IF projomri = 08	 THEN RETURN "KBS".       /*  Kalmarlän            Kalmar Blekinge Östra Småland        */
+   IF projomri = 09	 THEN RETURN "ÖVE".       /*  Gotlandslän          Övrigt                               */
+   IF projomri = 10	 THEN RETURN "KBS".       /*  Blekingelän          Kalmar Blekinge Östra Småland        */
+   IF projomri = 12	 THEN RETURN "SKÅ".       /*  Skånelän             Skåne                                */
+   IF projomri = 1280 THEN RETURN "MA".	     /*  Malmö Kommun         Malmö                                */
+   IF projomri = 1233 THEN RETURN "MA".	     /*  Vellinge Kommun      Malmö                                */
+   IF projomri = 13	 THEN RETURN "KrHa".      /*  Hallandslän          Kronoberg Halland                    */
+   IF projomri = 14	 THEN RETURN "ÖVE".       /*  VästraGötalandslän   Övrigt                               */
+   IF projomri = 17	 THEN RETURN "ÖVE".       /*  Värmlandslän         Övrigt                               */
+   IF projomri = 18	 THEN RETURN "SNÖ".       /*  Örebrolän            Stockholm Norrköping Örebro          */
+   IF projomri = 19	 THEN RETURN "SNÖ".       /*  Västmanlandslän      Stockholm Norrköping Örebro          */
+   IF projomri = 20	 THEN RETURN "SNÖ".       /*  Dalarnaslän          Stockholm Norrköping Örebro          */
+   IF projomri = 21	 THEN RETURN "SNÖ".       /*  Gävleborgslän        Stockholm Norrköping Örebro          */
+   IF projomri = 22	 THEN RETURN "NoNo".      /*  Västernorrlandslän   Norra Nord                           */
+   IF projomri = 2283 THEN RETURN "NoNo". 	  /*  Sollefteåkommun      Norra Nord                           */
+   IF projomri = 2281 THEN RETURN "SöNo". 	  /*  Sundsvallkommun      Södra Nord                           */
+   IF projomri = 23	 THEN RETURN "NoNo".      /*  Jämtlandslän         Norra Nord                           */
+   IF projomri = 24	 THEN RETURN "NoNo".      /*  Västerbottenslän     Norra Nord                           */
+   IF projomri = 25	 THEN RETURN "ÖVE".       /*  Norrbottenslän       Övrigt                               */
+   IF projomri = 90	 THEN RETURN "ÖVE".       /*  Övergripande Nationalitet SE  Övrigt                      */
+   RETURN "ÖVE".                  
+  
+END FUNCTION.  
+DEFINE TEMP-TABLE WorkOrder NO-UNDO
+   FIELD CompanyID AS INTEGER
+   FIELD ID AS CHARACTER
+   FIELD NAME AS CHARACTER
+   FIELD ValidFromDate AS DATETIME 
+   FIELD ValidToDate AS DATETIME
+   FIELD StatusID AS CHARACTER
+   FIELD CostCenterID AS CHARACTER
+   FIELD CategoryID AS CHARACTER
+   FIELD AccountingType AS INTEGER
+   FIELD ProjectManagerID AS CHARACTER
+   FIELD ProjectManagerName AS CHARACTER
+   FIELD FrameworkAgreementID AS CHARACTER
+   FIELD ScopeOfWork AS CHARACTER
+   FIELD ForecastStatusID AS INTEGER
+   FIELD BusinessID AS INTEGER
+   FIELD ActivityID AS INTEGER
+   FIELD ActivityName AS CHARACTER
+   FIELD GeographicalAreaID AS CHARACTER
+   FIELD GeographicalAreaName AS CHARACTER.
+
+DEFINE TEMP-TABLE Customer NO-UNDO 
+   FIELD ID AS INTEGER 
+   FIELD Name AS CHARACTER
+   FIELD ContactName AS CHARACTER
+   FIELD PartyID AS INTEGER
+   FIELD Reference AS CHARACTER.
+
+
+DEFINE DATASET Workorders FOR WorkOrder,Customer.
+
+   
+
+RUN textut_UI ("Start in").
+RUN PROVAG.P.
+RUN start_UI.
+PROCEDURE start_UI :
+   ASSIGN
+   dirnamn = "d:\elpool\delad\pro9s\import\aonrin\"
+   dirspar = "d:\elpool\delad\pro9s\importkopia\aonrin\".
+   
+   OS-CREATE-DIR VALUE(dirnamn) NO-ERROR. 
+   OS-CREATE-DIR VALUE(dirspar) NO-ERROR. 
+   dirspar = dirspar + STRING(YEAR(TODAY)).   
+   RUN textut_UI ("Start xml").
+   RUN inxml_UI.
+   
+   FIND FIRST imptemp NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE imptemp THEN DO:
+      RETURN.
+   END.
+   
+   FOR EACH imptemp:
+      filnamnuppxml = imptemp.INDIR + imptemp.INVAR.
+      RUN xmlinstart_UI (filnamnuppxml).
+   END.
+   FOR EACH Customer WHERE NO-LOCK:
+      DELETE Customer.
+   END.
+   
+   
+   RUN anvt_UI.
+   RUN aonr_UI.
+   
+   FOR EACH imptemp:
+      RUN textut_UI ("Filer bort " + imptemp.INDIR + imptemp.INVAR).
+      OS-DELETE VALUE(imptemp.INDIR + imptemp.INVAR) NO-ERROR.
+   END. 
+END PROCEDURE.
+    
+PROCEDURE textut_UI:
+   DEFINE INPUT PARAMETER meddvar AS CHARACTER NO-UNDO.
+   OUTPUT TO VALUE(prognamnque) APPEND.
+   PUT UNFORMATTED meddvar " " TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+   OUTPUT CLOSE.
+END PROCEDURE.
+
+PROCEDURE xmlinstart_UI :
+   DEFINE INPUT  PARAMETER filnamnuppxml AS CHARACTER NO-UNDO.
+   DATASET Workorders:READ-XML("FILE", filnamnuppxml, "MERGE", ?,FALSE). 
+   
+END PROCEDURE.
+
+PROCEDURE anvt_UI :
+   FOR EACH XSEK WHERE XSEK.MENYVART = "REG" AND XSEK.SEK[1] = TRUE NO-LOCK:
+      IF XSEK.AV-LEVEL = 0 THEN.
+      ELSE DO:
+         FOR EACH ANVANDARE WHERE ANVANDARE.AV-LEVEL = XSEK.AV-LEVEL NO-LOCK:
+            IF ANVANDARE.PERSONALKOD = "" THEN .
+            ELSE DO:
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALTAB THEN DO:
+                  CREATE anvt.
+                  ASSIGN
+                  anvt.ANVANDARE = ANVANDARE.ANVANDARE
+                  anvt.OMRADE = PERSONALTAB.OMRADE
+                  anvt.PERSONALKOD = PERSONALTAB.PERSONALKOD.
+               END.
+            END.            
+         END.
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE beredare_UI :
+   FIND FIRST anvt WHERE anvt.OMRADE = AONRTAB.OMRADE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE anvt THEN DO:
+      FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.AONR = "" AND OFFERT.OMRADE =  AONRTAB.OMRADE NO-LOCK NO-ERROR. 
+      IF AVAILABLE OFFERT THEN DO:
+         FIND FIRST abuff WHERE abuff.ANVANDARE = OFFERT.OFFANV NO-LOCK NO-ERROR.
+         IF AVAILABLE abuff THEN DO:
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = abuff.PERSONALKOD NO-LOCK NO-ERROR.
+         END.
+         IF AVAILABLE PERSONALTAB THEN DO:
+            ASSIGN       
+            AONRTAB.STARTDAG = PERSONALTAB.PERSONALKOD
+            AONRTAB.BEREDARE   = PERSONALTAB.PERSONALKOD
+            AONRTAB.ARBANSVARIG = PERSONALTAB.PERSONALKOD. 
+            RETURN.
+         END.
+      END.
+      FIND FIRST anvt NO-LOCK NO-ERROR.
+   END.
+   IF AVAILABLE anvt THEN DO:
+      ASSIGN       
+      AONRTAB.STARTDAG = anvt.PERSONALKOD
+      AONRTAB.BEREDARE   = anvt.PERSONALKOD
+      AONRTAB.ARBANSVARIG = anvt.PERSONALKOD. 
+   END.
+END PROCEDURE.
+
+
+
+
+
+PROCEDURE aonr_UI :
+   DEFINE VARIABLE aa AS INTEGER NO-UNDO.
+   FOR EACH WorkOrder:
+      /*42 tillaggt 20110427 lena efter samtal med Mats J*/
+      /*40 tillaggt 20120619 lena efter samtal med Kent som pratat med Mats J
+      10,79,120 tillagt 20201007 efter samtal med Mats J  Dock bara aonr med ValidFromDate större än 2019/01/01*/
+      IF WorkOrder.ActivityID = 6 OR
+         WorkOrder.ActivityID = 10 OR 
+         WorkOrder.ActivityID = 30 OR 
+         WorkOrder.ActivityID = 31 OR
+         WorkOrder.ActivityID = 32 OR
+         WorkOrder.ActivityID = 36 OR
+         WorkOrder.ActivityID = 40 OR
+         WorkOrder.ActivityID = 42 OR
+         WorkOrder.ActivityID = 79 OR
+         WorkOrder.ActivityID = 86 OR
+         WorkOrder.ActivityID = 120 OR 
+         WorkOrder.ActivityID = 127 OR
+         WorkOrder.ActivityID = 150 OR
+         WorkOrder.ActivityID = 151 OR
+         WorkOrder.ActivityID = 152 OR 
+         WorkOrder.ActivityID = 201 OR          
+         WorkOrder.ActivityID = 250 THEN.
+      ELSE DELETE WorkOrder.
+      
+      IF WorkOrder.ActivityID = 10 OR
+         WorkOrder.ActivityID = 79 OR
+         WorkOrder.ActivityID = 120  THEN DO:
+            IF DATE(WorkOrder.ValidFromDate) < 07/01/2018 THEN DELETE WorkOrder.
+
+      END.
+   END.                                                             
+   FOR EACH WorkOrder:
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = SUBSTRING(STRING(WorkOrder.ID),1,6) AND 
+      AONRTAB.DELNR = INTEGER(SUBSTRING(STRING(WorkOrder.ID),7)) EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE AONRTAB THEN DO: 
+         CREATE AONRTAB.
+         ASSIGN
+         AONRTAB.AONR          = SUBSTRING(STRING(WorkOrder.ID),1,6) 
+         AONRTAB.DELNR         = INTEGER(SUBSTRING(STRING(WorkOrder.ID),7))
+         AONRTAB.OMRADE        = omrade(WorkOrder.GeographicalAreaID).
+         AONRTAB.BESTID        = AONRTAB.OMRADE.
+         RUN beredare_UI.
+      END. 
+      WorkOrder.Name = REPLACE(WorkOrder.Name,"\","").
+      WorkOrder.Name = REPLACE(WorkOrder.Name,"/","").
+      WorkOrder.Name = REPLACE(WorkOrder.Name,":","").
+      WorkOrder.Name = REPLACE(WorkOrder.Name,"*","x").
+      WorkOrder.Name = REPLACE(WorkOrder.Name,">","").
+      WorkOrder.Name = REPLACE(WorkOrder.Name,"<","").
+      WorkOrder.Name = REPLACE(WorkOrder.Name,"|","").
+      ASSIGN
+      AONRTAB.ORT           = WorkOrder.Name
+      AONRTAB.UTFARDAT      = WorkOrder.ProjectManagerName.
+      AONRTAB.OMRADE        = omrade(WorkOrder.GeographicalAreaID).
+      AONRTAB.BESTID        = AONRTAB.OMRADE.
+      IF DATE(WorkOrder.ValidToDate) = 12/31/25 THEN DO:
+         IF AONRTAB.AONRAVDATUM NE 01/01/91 THEN DO:
+            RUN ejavslut_UI (INPUT TRUE).
+         END.
+         AONRTAB.AONRAVDATUM = 01/01/91.
+         FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.AONR = AONRTAB.AONR AND 
+         AONRTIDLAGE.DELNR = AONRTAB.DELNR AND AONRTIDLAGE.IDTIDLAG = "EKAVSLDATUM" EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE AONRTIDLAGE THEN DELETE AONRTIDLAGE.
+         FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.AONR = AONRTAB.AONR AND 
+         AONRTIDLAGE.DELNR = AONRTAB.DELNR AND AONRTIDLAGE.IDTIDLAG = "AONRAVSL" EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE AONRTIDLAGE THEN DELETE AONRTIDLAGE.
+      END.
+      ELSE DO:
+         AONRTAB.AONRAVDATUM = DATE(WorkOrder.ValidToDate).
+         RUN TLAGAUTO.P (INPUT "AUTOMATISKT", INPUT RECID(AONRTAB), INPUT "EKAVSLUT").                  
+         FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.AONR = AONRTAB.AONR AND 
+         AONRTIDLAGE.DELNR = AONRTAB.DELNR AND AONRTIDLAGE.IDTIDLAG = "EKAVSLUT" EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE AONRTIDLAGE THEN DO:
+            AONRTIDLAGE.DATUM1 = DATE(WorkOrder.ValidToDate).
+         END.
+         RUN ejavslut_UI (INPUT FALSE).
+      END.
+      /*
+      RUN TLAGAUTO.P (INPUT "AUTOMATISKT", INPUT RECID(AONRTAB), INPUT "AONRAVSL").
+      IF tempaonrin.TEKNAVSLDATUM = "" THEN DO:
+         FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.AONR = AONRTAB.AONR AND 
+         AONRTIDLAGE.DELNR = AONRTAB.DELNR AND AONRTIDLAGE.IDTIDLAG = "TEKNAVSLDATUM" EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE AONRTIDLAGE THEN DELETE AONRTIDLAGE.
+      END.
+      ELSE DO:
+         RUN TLAGAUTO.P (INPUT "AUTOMATISKT", INPUT RECID(AONRTAB), INPUT "TEKNAVSLDATUM").                  
+         FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.AONR = AONRTAB.AONR AND 
+         AONRTIDLAGE.DELNR = AONRTAB.DELNR AND AONRTIDLAGE.IDTIDLAG = "TEKNAVSLDATUM" EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE AONRTIDLAGE THEN DO:
+            AONRTIDLAGE.DATUM1 = DATE(INTEGER(SUBSTRING(tempaonrin.TEKNAVSLDATUM,5,2)),INTEGER(SUBSTRING(tempaonrin.TEKNAVSLDATUM,7,2)),INTEGER(SUBSTRING(tempaonrin.TEKNAVSLDATUM,1,4))).
+         END.
+      END.
+      */
+   END. 
+     
+END PROCEDURE.
+
+
+PROCEDURE ejavslut_UI : 
+   DEFINE INPUT PARAMETER aktivvar AS LOGICAL NO-UNDO.
+   FOR EACH KALKAONR WHERE KALKAONR.AONR = AONRTAB.AONR AND KALKAONR.DELNR = AONRTAB.DELNR NO-LOCK,
+   EACH FASTSPEC WHERE FASTSPEC.KALKNR = KALKAONR.KALKNR EXCLUSIVE-LOCK.
+      FASTSPEC.AKTIV = aktivvar.         
+   END.
+   FOR EACH KALKSPEC WHERE KALKSPEC.AONR = AONRTAB.AONR AND KALKSPEC.DELNR = AONRTAB.DELNR USE-INDEX AONR EXCLUSIVE-LOCK.
+      KALKSPEC.AKTIV = aktivvar.         
+   END.
+   FOR EACH KALKAONR WHERE KALKAONR.AONR = AONRTAB.AONR AND KALKAONR.DELNR = AONRTAB.DELNR USE-INDEX AONR EXCLUSIVE-LOCK.
+      KALKAONR.AKTIV = aktivvar.
+   END.
+   DO TRANSACTION:
+      FIND FIRST BEREDNING WHERE BEREDNING.AONR = AONRTAB.AONR AND BEREDNING.DELNR = AONRTAB.DELNR 
+      USE-INDEX AONR EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE BEREDNING THEN BEREDNING.AKTIV = aktivvar.  
+      FIND FIRST AOVARD WHERE AOVARD.AONR = AONRTAB.AONR AND AOVARD.DELNR = AONRTAB.DELNR
+      USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF AVAILABLE AOVARD THEN DO:
+         IF AOVARD.VARDNR = ? THEN musz = musz.
+         ELSE DO:
+            FIND FIRST VARDERING WHERE VARDERING.VARDNR = AOVARD.VARDNR USE-INDEX VARDNR
+            EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE VARDERING THEN DO:
+               ASSIGN VARDERING.AKTIV = aktivvar.
+            END.
+         END.
+      END.            
+   END.
+   RELEASE KALKSPEC NO-ERROR.
+   RELEASE FASTSPEC NO-ERROR.
+   RELEASE KALKAONR NO-ERROR.
+   RELEASE BEREDNING NO-ERROR.
+   RELEASE VARDERING NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE inxml_UI :
+   DEFINE VARIABLE mvar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE tmpfilnamn AS CHARACTER FORMAT "X(78)" NO-UNDO.
+   DEFINE VARIABLE tmpdirlist AS CHARACTER FORMAT "X(78)" NO-UNDO.
+   DEFINE VARIABLE tmpattrlist AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE kommando AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE imptemp NO-ERROR. 
+   mvar = "workorder*".
+   ASSIGN
+   tmpfilnamn = ""
+   tmpattrlist = ""
+   tmpdirlist = "".
+   IF dirnamn = "" THEN RETURN.
+   INPUT STREAM dirstrom FROM OS-DIR(dirnamn) NO-ECHO.
+   REPEAT:
+      /*Hämtar filnamn, hela sökvägen och vilken typ av fil det är*/
+      SET STREAM dirstrom tmpfilnamn tmpdirlist tmpattrlist.
+      IF tmpfilnamn MATCHES mvar THEN DO:
+         
+         FIND FIRST imptemp WHERE imptemp.INVAR = tmpfilnamn NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE imptemp THEN DO:
+            CREATE imptemp.
+            ASSIGN
+            imptemp.INDIR = dirnamn
+            imptemp.INVAR = tmpfilnamn.
+         END.
+      END.   
+   END.
+   INPUT STREAM dirstrom CLOSE. 
+   FIND FIRST imptemp NO-LOCK NO-ERROR.
+   IF AVAILABLE imptemp THEN DO:
+      OUTPUT TO VALUE(dirspar + "workorder.txt") APPEND.
+      PUT " " AT 1 SKIP .
+      PUT TODAY AT 1  STRING(TIME,"hh:mm:ss") AT 12 SKIP.
+      OUTPUT CLOSE.
+      FOR EACH imptemp:
+         kommando = "".
+         kommando = "COPY " + dirspar + "workorder.txt + " + imptemp.INDIR + imptemp.INVAR + " " + dirspar + "workorder.txt".  
+         OS-COMMAND SILENT VALUE(kommando).
+         OUTPUT TO VALUE(dirspar + "workorder.txt") APPEND.
+         PUT " " AT 1 SKIP .
+         OUTPUT CLOSE.
+      END.
+   END.   
+
+   
+END PROCEDURE.

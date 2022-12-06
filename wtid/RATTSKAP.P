@@ -1,0 +1,92 @@
+/*RATTSKAP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{TIDALLT.I}
+DEFINE TEMP-TABLE orginaltemp NO-UNDO LIKE extratidallt.
+{GLOBVAR2DEL1.I}
+{REGVAR.I}
+DEFINE INPUT PARAMETER anvdvar AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR extratidallt.
+DEFINE INPUT PARAMETER TABLE FOR orginaltemp.
+DEFINE BUFFER aonrbuff FOR AONRTAB.
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+FOR EACH extratidallt:
+   DO TRANSACTION:
+      CREATE TIDFEL.            
+      BUFFER-COPY extratidallt TO TIDFEL.
+      ASSIGN
+      TIDFEL.DEBET = TRUE
+      TIDFEL.SKICKA = TRUE
+      TIDFEL.FELANVAND = Guru.Konstanter:globanv
+      TIDFEL.FELDATUM = TODAY.
+      sekunder = TIME.
+      RUN SEKTIM.P.
+      TIDFEL.FELKLOCKA = nytid.
+      IF Guru.Konstanter:globforetag = "GRAN" OR Guru.Konstanter:globforetag = "cELPA" THEN DO:
+         FIND FIRST AONRTAB WHERE AONRTAB.AONR = TIDFEL.AONR AND AONRTAB.DELNR = TIDFEL.DELNR
+         NO-LOCK NO-ERROR.
+         FIND TIDREGITAB WHERE RECID(TIDREGITAB) = extratidallt.RECTIDVIS NO-LOCK NO-ERROR.
+         FIND FIRST aonrbuff WHERE aonrbuff.AONR = TIDREGITAB.AONR AND aonrbuff.DELNR = TIDREGITAB.DELNR
+         NO-LOCK NO-ERROR.
+         IF AONRTAB.FAKTNR NE 0 OR aonrbuff.FAKTNR NE 0 THEN DO:           
+            IF Guru.Konstanter:globforetag = "GRAN" THEN DO: 
+               FIND FIRST MEDDELANDE WHERE  MEDDELANDE.MOTTAGARE = "EVAH" AND 
+               MEDDELANDE.SANDARE = "RÄTTNING" AND LENGTH(MEDDELANDE.MEDD,"CHARACTER") < 30000
+               USE-INDEX MEDD EXCLUSIVE-LOCK NO-ERROR.
+               IF NOT AVAILABLE  MEDDELANDE THEN DO:
+                  CREATE MEDDELANDE. 
+                  ASSIGN             
+                  MEDDELANDE.MEDD = "Rättningar på " + Guru.Konstanter:gaok + " som ingår i faktuaplaner". 
+                  ASSIGN
+                  MEDDELANDE.MOTTAGARE = "EVAH".
+               END.
+            END.            
+            ELSE DO: 
+               FIND FIRST MEDDELANDE WHERE  MEDDELANDE.MOTTAGARE = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79) AND 
+               MEDDELANDE.SANDARE = "RÄTTNING" AND LENGTH(MEDDELANDE.MEDD,"CHARACTER") < 30000
+               USE-INDEX MEDD EXCLUSIVE-LOCK NO-ERROR.
+               IF NOT AVAILABLE  MEDDELANDE THEN DO:
+                  CREATE MEDDELANDE. 
+                  ASSIGN             
+                  MEDDELANDE.MEDD = "Rättningar på " + Guru.Konstanter:gaok + " som ingår i faktuaplaner".                        
+                  ASSIGN
+                  MEDDELANDE.MOTTAGARE = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79).
+               END.
+            END.     
+            ASSIGN 
+            MEDDELANDE.SDATUM = TODAY
+            MEDDELANDE.EMOTAGET = FALSE                                      
+            MEDDELANDE.SANDARE = "RÄTTNING". 
+
+            ASSIGN             
+            MEDDELANDE.MEDD = MEDDELANDE.MEDD + CHR(10) + CHR(10) + Guru.Konstanter:gaok + ": " + TIDFEL.AONR +  " " + STRING(TIDFEL.DELNR) + " "  + " har DEBITERATS " + CHR(10) + STRING(TIDFEL.TOTALT,">9.99") + " timmar för person " + TIDFEL.PERSONALKOD + " " + STRING(TIDFEL.DATUM,"99/99/99") + " " + CHR(10) + CHR(10).
+            MEDDELANDE.MEDD = MEDDELANDE.MEDD + Guru.Konstanter:gaok + ": " + TIDREGITAB.AONR + " " + STRING(TIDREGITAB.DELNR) +  " "  + " har KREDITERATS " + CHR(10) + STRING(TIDREGITAB.TOTALT,">9.99") + " timmar för person " + TIDREGITAB.PERSONALKOD + " " + " " + STRING(TIDFEL.DATUM,"99/99/99")+ " " + CHR(10) + CHR(10).
+            IF AONRTAB.FAKTNR NE 0 THEN DO:                        
+               ASSIGN             
+               MEDDELANDE.MEDD = MEDDELANDE.MEDD + Guru.Konstanter:gaok + ": " + TIDFEL.AONR + " " + STRING(TIDFEL.DELNR) + " "  + " ingår i fakturaplan: " + STRING(AONRTAB.FAKTNR) + " " + CHR(10).
+            END.
+            IF aonrbuff.FAKTNR NE 0 THEN DO:
+               MEDDELANDE.MEDD = MEDDELANDE.MEDD + Guru.Konstanter:gaok + ": " + TIDREGITAB.AONR + " " + STRING(TIDREGITAB.DELNR) + " "  + " ingår i fakturaplan: " + STRING(aonrbuff.FAKTNR) + " " + CHR(10).
+            END.
+            MEDDELANDE.MEDD = MEDDELANDE.MEDD + "Rättningen är gjord av: " + TIDFEL.FELANVAND + " " + STRING(TIDFEL.FELDATUM,"99/99/99") + " " + CHR(10).       
+         END.
+      END.
+   END.                           
+END.
+FOR EACH orginaltemp:
+   FIND TIDREGITAB WHERE RECID(TIDREGITAB) = orginaltemp.RECTIDVIS NO-LOCK NO-ERROR.
+   DO TRANSACTION:
+      CREATE TIDFEL.            
+      BUFFER-COPY TIDREGITAB TO TIDFEL.
+      ASSIGN
+      TIDFEL.DEBET = FALSE
+      TIDFEL.SKICKA = TRUE
+      TIDFEL.FELANVAND = Guru.Konstanter:globanv
+      TIDFEL.FELDATUM = TODAY.
+      sekunder = TIME.
+      RUN SEKTIM.P.
+      TIDFEL.FELKLOCKA = nytid.
+   END.
+END.

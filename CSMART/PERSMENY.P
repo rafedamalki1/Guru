@@ -1,0 +1,983 @@
+      /*PERSMENY.P*/
+ FUNCTION brwval RETURNS LOGICAL
+  ( /* parameter-definitions */ )  FORWARD.     
+{ALLDEF.I}
+{GLOBVAR2DEL1.I}
+{PERSWID.I}
+{SOKDEF.I}
+{FORETEMP.I}
+&Scoped-define NEW 
+&Scoped-define SHARED SHARED
+{PHMT.I}
+DEFINE {&NEW} {&SHARED} TEMP-TABLE pmpersonaltemp NO-UNDO LIKE personaltemp.
+{UPPGHMT.I}                  
+{OMRTEMPW.I}
+{REGVAR.I}
+{AVDTEMP.I}
+{ANVTEMPS.I}
+{SEKXGURUTEMP.I}
+{RHMT.I}
+{VHMT.I}
+{DHMT.I}
+{PHMTA.I}
+{HOPPSEK2W.I}
+DEFINE VARIABLE outanvanv AS CHARACTER NO-UNDO.
+DEFINE VARIABLE outdatornamn AS CHARACTER NO-UNDO.
+DEFINE SHARED VARIABLE persproch AS HANDLE NO-UNDO.     /* PERSONALAPP.P */
+DEFINE SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE SHARED VARIABLE persrec2 AS RECID NO-UNDO.
+DEFINE SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE vartpro AS CHARACTER FORMAT "X(3)" NO-UNDO.
+DEFINE SHARED VARIABLE vart AS CHARACTER FORMAT "X(3)" NO-UNDO.
+
+DEFINE VARIABLE vemanvandare AS CHARACTER NO-UNDO.
+DEFINE VARIABLE pkod AS CHARACTER  NO-UNDO. 
+DEFINE VARIABLE gampers AS CHARACTER  NO-UNDO. 
+DEFINE VARIABLE status-ok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE antal_valda AS INTEGER NO-UNDO.
+DEFINE VARIABLE antal_raknare AS INTEGER NO-UNDO.
+DEFINE VARIABLE pnrf AS CHARACTER NO-UNDO.
+DEFINE VARIABLE medvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE medvarchar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE valpersh AS HANDLE NO-UNDO.
+DEFINE VARIABLE persapph AS HANDLE NO-UNDO.                     /* PHMTAPP.P */      
+framesizeh = framesizeextrah.
+valpersh = TEMP-TABLE valperstemp:DEFAULT-BUFFER-HANDLE. 
+ON 'CHOOSE':U OF BTN_AVB PERSISTENT RUN avb_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_AOF PERSISTENT RUN sparaaofavoriter_UI IN THIS-PROCEDURE.
+ON 'MOUSE-SELECT-DBLCLICK':U OF BRW_VPERS PERSISTENT RUN mdbrwvpers_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_BORT PERSISTENT RUN btnbort_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_HAMT PERSISTENT RUN btnhmt_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_NY PERSISTENT RUN ny_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF CMB_JURP PERSISTENT RUN cmbjurp_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF CMB_AVD PERSISTENT RUN cmbavd_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF CMB_OMR PERSISTENT RUN cmbomr_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF CMB_TIDSGODK PERSISTENT RUN cmbtidg_UI IN THIS-PROCEDURE.
+ON 'VALUE-CHANGED':U OF BRW_VPERS PERSISTENT RUN selectfoc_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_ARB PERSISTENT RUN fbtnarb_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_DEBPR PERSISTENT RUN fbtndebpr_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_OT PERSISTENT RUN fbtnot_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_SCH PERSISTENT RUN fbtnsch_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_SEK PERSISTENT RUN fbtnsek_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_UPP PERSISTENT RUN fbtnupp_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF FBTN_VISAP PERSISTENT RUN fbtnvisap_UI IN THIS-PROCEDURE.
+ON 'ANY-KEY':U OF FILL-IN_EPERSONALKOD PERSISTENT RUN akpkod_UI IN THIS-PROCEDURE.
+ON 'ANY-KEY':U OF FILL-IN_EPNR PERSISTENT RUN akpnr_UI IN THIS-PROCEDURE.
+ON 'MOUSE-SELECT-DBLCLICK':U OF FILL-IN_EPERSONALKOD PERSISTENT RUN mdpkod_UI IN THIS-PROCEDURE.
+ON 'MOUSE-SELECT-DBLCLICK':U OF FILL-IN_EPNR PERSISTENT RUN mdpnr_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_HAOF PERSISTENT RUN hmtfavoriter_UI IN THIS-PROCEDURE.
+ON 'CHOOSE':U OF BTN_TELEFONLISTA PERSISTENT RUN telelista_UI IN THIS-PROCEDURE.
+
+
+PROCEDURE telelista_UI :
+   RUN TELELISTA.W.
+END PROCEDURE.
+PROCEDURE autofavo_UI :
+   FIND FIRST valperstemp NO-LOCK NO-ERROR.
+   IF AVAILABLE valperstemp THEN DO:
+      RUN sparaaofavoriter_UI.
+   END.
+END PROCEDURE.
+PROCEDURE hmtfavoriter_UI :
+   DEFINE VARIABLE ttbuffh AS HANDLE NO-UNDO.
+   tthandle = TEMP-TABLE valperstemp:HANDLE.
+   ttbuffh = tthandle:DEFAULT-BUFFER-HANDLE.
+   RUN ttcopy_UI IN huvprogh (INPUT TABLE-HANDLE tthandle).
+   ttbuffh:EMPTY-TEMP-TABLE() NO-ERROR.
+   FIND FIRST sparaladdatemp NO-ERROR.
+   IF NOT AVAILABLE sparaladdatemp THEN CREATE sparaladdatemp.  
+   ASSIGN
+   sparaladdatemp.GLOBANV = Guru.Konstanter:globanv /*Användare, i detta fall ELPAO*/
+   sparaladdatemp.BENAMNING = "PERS" /*Benämnings sufix, i detta fall ELPAO$STOR*/
+   sparaladdatemp.TABVAL = "PERSONALTAB" /*Tabellnamn*/
+   sparaladdatemp.FALTVALAO = "PERSONALKOD" /*CHARACTER  field*/
+   sparaladdatemp.FALTVALDEL = "" /*Integer field*/
+   sparaladdatemp.FALTVALDATE = "".   /*DATE field*/
+   EMPTY TEMP-TABLE valperstemp NO-ERROR. 
+   RUN laddabrw_UI IN brwproc[{&RIGHT-BROWSE}] 
+      (INPUT TABLE-HANDLE tthandle, INPUT TABLE sparaladdatemp).                     
+   IF VALID-HANDLE(persapph) THEN RUN recidset_UI IN persapph (INPUT-OUTPUT TABLE valperstemp).
+   RUN ttjmf_UI IN huvprogh (INPUT-OUTPUT ttbuffh).
+   RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").  
+END PROCEDURE.
+{OMSTARTAVGURUH.I}
+RUN main_UI.
+{musarrow.i}
+
+PROCEDURE mdpkod_UI :
+   {OMSTARTAVGURUH.I}
+   IF FILL-IN_EPERSONALKOD:SCREEN-VALUE = "" THEN DO:
+      MESSAGE "Sökbegreppet kan inte vara blankt." VIEW-AS ALERT-BOX.
+      RETURN NO-APPLY.
+   END.
+   FIND FIRST valperstemp WHERE valperstemp.PERSONALKOD = FILL-IN_EPERSONALKOD:SCREEN-VALUE     
+   NO-LOCK NO-ERROR. 
+   IF NOT AVAILABLE valperstemp THEN DO:  
+      RUN psek_UI (INPUT FILL-IN_EPERSONALKOD:SCREEN-VALUE).
+      IF musz = TRUE THEN DO:
+         musz = FALSE.
+         medvar = FALSE.
+         MESSAGE medvarchar VIEW-AS ALERT-BOX TITLE "Meddelande".
+         RETURN NO-APPLY.
+      END.      
+      IF Guru.Konstanter:appcon THEN DO:                         
+         RUN PHMTAEN.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+         (INPUT FILL-IN_EPERSONALKOD:SCREEN-VALUE,OUTPUT TABLE valperstemp APPEND).
+      END.
+      ELSE DO:
+         RUN PHMTAEN.P  
+         (INPUT FILL-IN_EPERSONALKOD:SCREEN-VALUE,OUTPUT TABLE valperstemp APPEND).
+      END.   
+            
+      FIND FIRST valperstemp WHERE valperstemp.PERSONALKOD = FILL-IN_EPERSONALKOD:SCREEN-VALUE     
+      NO-LOCK NO-ERROR.             
+   END.
+   IF NOT AVAILABLE valperstemp THEN DO:
+      MESSAGE FILL-IN_EPERSONALKOD:SCREEN-VALUE + " finns inte!" VIEW-AS ALERT-BOX.
+      RETURN NO-APPLY.
+   END.
+   RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(valperstemp)).              
+   RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+   RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].     
+   RUN goma_UI.
+   {musarrow.i}
+END PROCEDURE.
+
+PROCEDURE mdpnr_UI :
+   {OMSTARTAVGURUH.I}
+   pnrf = SUBSTRING(FILL-IN_EPNR:SCREEN-VALUE,1,6) + SUBSTRING(FILL-IN_EPNR:SCREEN-VALUE,8,4).
+   IF pnrf = "" THEN DO:
+      MESSAGE "Sökbegreppet kan inte vara blankt." VIEW-AS ALERT-BOX.
+      RETURN NO-APPLY.
+   END.
+   IF LENGTH(pnrf) < 10 THEN DO:   
+      MESSAGE "Fyll i hela personnumret." VIEW-AS ALERT-BOX.            
+      RETURN NO-APPLY.   
+   END.   
+   FIND FIRST valperstemp WHERE valperstemp.PERSONNUMMER = pnrf     
+   NO-LOCK NO-ERROR. 
+   IF NOT AVAILABLE valperstemp THEN DO:  
+      RUN pnrsek_UI (INPUT pnrf).
+      IF musz = TRUE THEN DO:
+         musz = FALSE.
+         medvar = FALSE.
+         MESSAGE medvarchar VIEW-AS ALERT-BOX TITLE "Meddelande".
+         RETURN NO-APPLY.
+      END.               
+      IF VALID-HANDLE(persapph) THEN RUN hmtpnren_UI IN persapph (INPUT pnrf,OUTPUT TABLE valperstemp APPEND).      
+      FIND FIRST valperstemp WHERE valperstemp.PERSONNUMMER = pnrf     
+      NO-LOCK NO-ERROR.             
+   END.
+   IF NOT AVAILABLE valperstemp THEN DO:
+      MESSAGE FILL-IN_EPNR:SCREEN-VALUE + " finns inte!" VIEW-AS ALERT-BOX.
+      RETURN NO-APPLY.
+   END.
+   RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(valperstemp)).              
+   RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+   RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].     
+   RUN goma_UI.
+   {musarrow.i}
+END PROCEDURE.
+
+PROCEDURE akpkod_UI :
+   {TRYCKS.I}
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      APPLY "MOUSE-SELECT-DBLCLICK" TO FILL-IN_EPERSONALKOD.
+   END.
+END PROCEDURE.
+PROCEDURE akpnr_UI :
+   {TRYCKS.I}
+   IF KEYFUNCTION(LASTKEY) = ("RETURN") THEN DO:
+      APPLY "MOUSE-SELECT-DBLCLICK" TO FILL-IN_EPNR.
+   END.
+END PROCEDURE.
+PROCEDURE psek_UI :
+   DEFINE INPUT PARAMETER pkodvar AS CHARACTER NO-UNDO.
+   {SOKSTART.I}
+   ASSIGN
+   soktemp.SOKVAL = 60
+   soktemp.SOKINT[1] = Guru.Konstanter:globniv
+   soktemp.SOKCHAR[1] = pkodvar
+   soktemp.SOKCHAR[2] = Guru.Konstanter:globanv
+   soktemp.SOKLOG[1] = FALSE
+   soktemp.SOKLOG[2] = FALSE.
+   IF Guru.Konstanter:varforetypval[27] = 1 THEN DO:
+      RUN psek_UI IN persapph (INPUT-OUTPUT TABLE soktemp). 
+      FIND FIRST soktemp NO-ERROR.
+   END.
+   ELSE DO:   
+      {SOKANROP.I} 
+   END.        
+   ASSIGN
+   medvarchar = soktemp.SOKCHAR[3]
+   musz   = soktemp.SOKLOG[1]
+   medvar = soktemp.SOKLOG[2].
+END PROCEDURE.
+
+PROCEDURE pnrsek_UI :
+   DEFINE INPUT PARAMETER pnrf AS CHARACTER NO-UNDO.
+   {SOKSTART.I}
+   ASSIGN
+   soktemp.SOKVAL = 101
+   soktemp.SOKINT[1] = Guru.Konstanter:globniv
+   soktemp.SOKCHAR[1] = pnrf
+   soktemp.SOKCHAR[2] = Guru.Konstanter:globanv
+   soktemp.SOKLOG[1] = FALSE
+   soktemp.SOKLOG[2] = FALSE.
+   IF Guru.Konstanter:varforetypval[27] = 1 THEN DO:
+      RUN pnrsek_UI IN persapph (INPUT-OUTPUT TABLE soktemp). 
+      FIND FIRST soktemp NO-ERROR.
+   END.
+   ELSE DO:
+      {SOKANROP.I}  
+   END.       
+   ASSIGN
+   medvarchar = soktemp.SOKCHAR[3]
+   musz   = soktemp.SOKLOG[1]
+   medvar = soktemp.SOKLOG[2].
+END PROCEDURE.
+PROCEDURE fbtnvisap_UI :   
+   IF brwval() = TRUE THEN RETURN NO-APPLY.
+   FIND FIRST valperstemp NO-LOCK NO-ERROR.
+   persrec = valperstemp.PERSRECID.
+   {OMSTARTAVGURUH.I}
+   {AVBGOM2.I}   
+   RUN PERSSVAL.W (INPUT TABLE valperstemp). 
+   {AVBFRAM2.I}
+   IF musz =  TRUE THEN musz = FALSE.      
+   {musarrow.i} 
+END PROCEDURE.
+PROCEDURE fbtnupp_UI :    
+    IF brwval() = TRUE THEN RETURN NO-APPLY.
+    RUN and_UI.
+END PROCEDURE.
+PROCEDURE selectfoc_UI :
+   DEFINE VARIABLE brwrowid AS ROWID NO-UNDO.
+   DEFINE VARIABLE brwrecid AS RECID NO-UNDO.
+   IF NOT VALID-HANDLE(valpersh) THEN DO:
+      valpersh = TEMP-TABLE valperstemp:DEFAULT-BUFFER-HANDLE.
+   END.
+   RUN selectrowid_UI IN brwproc[{&RIGHT-BROWSE}] (OUTPUT brwrowid).
+   RUN selectrecid_UI IN brwproc[{&RIGHT-BROWSE}] (OUTPUT brwrecid).
+   FIND FIRST valperstemp WHERE ROWID(valperstemp) = brwrowid NO-LOCK NO-ERROR.     
+END PROCEDURE.
+PROCEDURE and_UI :
+   DEFINE VARIABLE status-mus2 AS LOGICAL NO-UNDO.
+   RUN selectfoc_UI.   
+   {OMSTARTAVGURUH.I}
+   ASSIGN
+   pkod = valperstemp.PERSONALKOD
+   persrec2 = RECID(valperstemp)
+   persrec = valperstemp.PERSRECID
+   gampers = valperstemp.PERSONALKOD. 
+   IF musz =  TRUE THEN musz = FALSE.
+   ELSE DO:          
+      IF Guru.Konstanter:persekvar[2] = TRUE THEN DO:                 
+         {AVBGOM2.I}
+         IF Guru.Konstanter:globanv = "celpao" THEN RUN PERSALLTN.W (INPUT 2,INPUT-OUTPUT gampers).
+          ELSE RUN PERSALLTN.W (INPUT 2,INPUT-OUTPUT gampers).
+          {AVBFRAM2.I}
+       END.   
+      ELSE DO:
+         {AVBGOM2.I}
+         IF Guru.Konstanter:globanv = "celpao" THEN RUN PERSALLTN.W (INPUT 0,INPUT-OUTPUT gampers).
+         ELSE RUN PERSALLTN.W (INPUT 0,INPUT-OUTPUT gampers).
+         {AVBFRAM2.I}
+      END.   
+      IF musz = TRUE THEN DO:
+         musz = FALSE.
+         status-mus2 = SESSION:SET-WAIT-STATE("").
+         RETURN.
+      END.           
+      RUN pkopia_UI (INPUT 1,INPUT pkod).
+      RUN gorlika_UI IN brwproc[{&ARROWS}] (INPUT "PERSONALKOD", INPUT "").
+      RUN openbdyn_UI IN brwproc[{&LEFT-BROWSE}] (INPUT "").
+      {musarrow.i} 
+      IF VALID-HANDLE(persproch) THEN RUN hamtagodk_UI IN persproch (OUTPUT TABLE godkannartemp).
+      DO WHILE CMB_TIDSGODK:DELETE(1) = TRUE: END.
+      FOR EACH godkannartemp:
+         status-ok = CMB_TIDSGODK:ADD-LAST(godkannartemp.NAMN).
+      END.
+      status-ok = CMB_TIDSGODK:ADD-LAST("Alla").
+      CMB_TIDSGODK:SCREEN-VALUE = "Alla".
+   END.   
+END PROCEDURE.
+
+PROCEDURE fbtnsek_UI :
+   IF brwval() = TRUE THEN RETURN NO-APPLY.
+   ASSIGN
+   vemanvandare = valperstemp.PERSONALKOD.
+   
+   RUN ANVMELLAN.P (INPUT-OUTPUT vemanvandare).
+   IF VALID-HANDLE(Guru.SharedVariable:btnsekh) THEN DO:
+      RUN anvkoll_UI IN Guru.SharedVariable:btnsekh.
+   END.   
+   IF musz = TRUE THEN musz = FALSE.
+END PROCEDURE.
+PROCEDURE fbtnsch_UI :
+   {OMSTARTAVGURUH.I}      
+   RUN SCHEMAMENY.W.
+   IF Guru.Konstanter:appcon THEN DO:                           
+      RUN AVTAPP.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+      (OUTPUT TABLE aavtaltemp).
+   END.
+   ELSE DO:
+      RUN AVTAPP.P
+      (OUTPUT TABLE aavtaltemp).
+   END.
+   DO WHILE CMB_VECKO:DELETE(1) = TRUE: 
+   END.
+   status-ok = CMB_VECKO:ADD-LAST("Alla").
+   FOR EACH aavtaltemp WHERE aavtaltemp.TYP = "VEC":
+      status-ok = CMB_VECKO:ADD-LAST(aavtaltemp.AVTALNAMN).            
+   END.                            
+   CMB_VECKO:SCREEN-VALUE = "Alla".
+   
+   IF musz = TRUE THEN musz = FALSE.
+   {musarrow.i}     
+END PROCEDURE.
+PROCEDURE fbtnot_UI :
+    {AVBGOM2.I}    
+   RUN OVERTIDBRD.W.  
+   {AVBFRAM2.I}    
+   IF musz =  TRUE THEN musz = FALSE.   
+END PROCEDURE.
+PROCEDURE fbtndebpr_UI :
+   IF Guru.Konstanter:varforetypval[4] = 1  THEN DO:
+      FIND FIRST valperstemp NO-ERROR.
+      IF NOT AVAILABLE valperstemp THEN RETURN NO-APPLY.
+      {AVBGOM2.I}
+      RUN PERSPRIS.W.
+      {AVBFRAM2.I}
+   END.
+   ELSE IF ( Guru.Konstanter:globforetag = "sund" OR Guru.Konstanter:globforetag = "SNAT") AND Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79) THEN DO:
+      FIND FIRST valperstemp NO-ERROR.
+      IF NOT AVAILABLE valperstemp THEN RETURN NO-APPLY.
+      {AVBGOM2.I}
+      RUN PERSPRIS.W.
+      {AVBFRAM2.I}
+   END.
+   ELSE DO:      
+      RUN DEBPRIS.W.      
+   END.
+   IF musz =  TRUE THEN musz = FALSE.     
+   {musarrow.i}     
+END PROCEDURE.
+PROCEDURE fbtnarb_UI :
+   RUN selectfoc_UI.
+   IF BRW_VPERS:NUM-ITERATIONS NE 0 THEN DO:
+      IF musz = TRUE THEN musz = FALSE.
+      {AVBGOM2.I}
+      RUN INLOAPI.P (OUTPUT outanvanv, OUTPUT outdatornamn).     
+      IF AVAILABLE valperstemp THEN RUN ARBETSTID2.W (INPUT valperstemp.PERSONALKOD).
+      ELSE RUN ARBETSTID2.W (INPUT ?).
+      {AVBFRAM2.I}     
+      IF musz = TRUE THEN musz = FALSE.
+      {musarrow.i}
+   END.
+   ELSE DO:
+      MESSAGE "Ingen personal tillgänglig, gör ett nytt urval och försök igen!" 
+         VIEW-AS ALERT-BOX TITLE "Meddelande!".
+   END.
+END PROCEDURE.
+PROCEDURE cmbtidg_UI :
+   FIND FIRST godkannartemp WHERE godkannartemp.NAMN = CMB_TIDSGODK:SCREEN-VALUE
+   USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+END PROCEDURE.
+PROCEDURE cmbomr_UI :
+   FIND FIRST omrtemp WHERE omrtemp.NAMN = CMB_OMR:SCREEN-VALUE
+   USE-INDEX OMRNAMN NO-LOCK NO-ERROR.    
+END PROCEDURE.
+PROCEDURE cmbavd_UI :
+   {CMB_AVD11.I}  
+END PROCEDURE.
+PROCEDURE cmbjurp_UI :
+   {CMB_JURP2.I}   
+END PROCEDURE.
+PROCEDURE pkopia_UI :
+   DEFINE INPUT PARAMETER vadgora AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER pkodvar AS CHARACTER NO-UNDO.
+   IF vadgora = 1 THEN DO:
+      FIND FIRST valperstemp WHERE valperstemp.PERSONALKOD = pkodvar
+      NO-ERROR.
+      IF AVAILABLE valperstemp THEN DELETE valperstemp.
+      IF Guru.Konstanter:appcon THEN DO:      
+         RUN PHMTAEN.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+         (INPUT pkodvar ,OUTPUT TABLE valperstemp APPEND).
+      END.
+      ELSE DO:
+         RUN PHMTAEN.P  
+         (INPUT pkodvar ,OUTPUT TABLE valperstemp APPEND).
+      END.            
+      FIND FIRST valperstemp WHERE valperstemp.PERSONALKOD = pkodvar     
+      NO-LOCK NO-ERROR.             
+      RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(valperstemp)).              
+      RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+      RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].     
+      FIND FIRST pmpersonaltemp WHERE pmpersonaltemp.PERSONALKOD = pkodvar
+      NO-ERROR.
+      IF AVAILABLE pmpersonaltemp THEN DO:
+         BUFFER-COPY valperstemp TO pmpersonaltemp.
+         RUN refreshbrw_UI IN brwproc[{&LEFT-BROWSE}].
+      END.
+   END.
+END PROCEDURE.
+
+PROCEDURE ny_UI :
+   DEFINE VARIABLE status-mus2 AS LOGICAL NO-UNDO.
+   {OMSTARTAVGURUH.I}
+   IF musz =  TRUE THEN musz = FALSE.
+   ELSE DO:
+      gampers = "".
+      IF Guru.Konstanter:globanv = "Celpao" THEN RUN PERSALLTN.W (INPUT 1,INPUT-OUTPUT gampers).
+      ELSE RUN PERSALLTN.W (INPUT 1, INPUT-OUTPUT gampers).
+      
+      FIND FIRST valperstemp WHERE valperstemp.PERSONALKOD = gampers NO-ERROR.
+      IF AVAILABLE valperstemp THEN DELETE valperstemp.
+      IF musz = TRUE THEN DO:
+         status-mus2 = SESSION:SET-WAIT-STATE("").
+         musz = FALSE.
+         RETURN.
+      END.                    
+      IF Guru.Konstanter:appcon THEN DO:                           
+         RUN PHMTAEN.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+         (INPUT gampers,OUTPUT TABLE valperstemp APPEND).
+      END.
+      ELSE DO:
+         RUN PHMTAEN.P  
+         (INPUT gampers,OUTPUT TABLE valperstemp APPEND).
+      END.
+      FIND FIRST valperstemp WHERE valperstemp.PERSONALKOD = gampers     
+      NO-LOCK NO-ERROR.             
+      RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(valperstemp)).              
+      RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+      RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].     
+      {musarrow.i} 
+   END.   
+   musz = FALSE.
+END PROCEDURE.
+
+PROCEDURE btnhmt_UI :
+   BTN_HAMT:LOAD-IMAGE("BILDER\xbtn_hamt_over.gif") NO-ERROR.
+   RUN utvald_UI.   
+   RUN hamta_UI (INPUT 1,INPUT "").  
+   BTN_HAMT:LOAD-IMAGE("BILDER\xbtn_hamt.gif") NO-ERROR.
+   /*Dummy */
+   status-ok = BRW_PERS:SELECT-FOCUSED-ROW() NO-ERROR.
+   status-ok = BRW_PERS:DESELECT-FOCUSED-ROW() NO-ERROR.   
+END PROCEDURE.
+PROCEDURE btnbort_UI :
+   IF brwval() = TRUE THEN RETURN NO-APPLY.
+   RUN bort_UI.
+END PROCEDURE.
+PROCEDURE mdbrwvpers_UI :
+   IF FBTN_UPP:HIDDEN = FALSE THEN DO:
+      APPLY "CHOOSE" TO FBTN_UPP.
+   END.   
+END PROCEDURE.
+PROCEDURE avb_UI :   
+   MESSAGE "Du avslutar nu " + SUBSTRING(foretemp.VERSION,1,10)
+   VIEW-AS ALERT-BOX QUESTION BUTTONS OK-CANCEL UPDATE val AS LOGICAL.   
+   IF val = FALSE THEN RETURN NO-APPLY.
+   RUN avb_UI IN huvprogh.   
+END PROCEDURE.
+
+PROCEDURE hamta_UI :
+   DEFINE INPUT PARAMETER vadgora AS INTEGER NO-UNDO. 
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO. 
+   {OMSTARTAVGURUH.I}
+   EMPTY TEMP-TABLE valsoktemp NO-ERROR.
+   EMPTY TEMP-TABLE pmpersonaltemp NO-ERROR. 
+   CREATE valsoktemp.
+   ASSIGN
+   valsoktemp.SOKVAL = 1
+   valsoktemp.SOKINT[1]  =  Guru.Konstanter:globniv 
+   valsoktemp.SOKCHAR[1] =  Guru.Konstanter:globanv.  
+   /*phmt.p*/         
+   IF VALID-HANDLE(persapph) THEN RUN phamta_UI IN persapph (INPUT FALSE,INPUT TRUE,INPUT TABLE uppvalPerstemp,OUTPUT TABLE pmpersonaltemp,INPUT TABLE valsoktemp).
+   IF vem = "" THEN DO:
+     RUN openbdyn_UI IN brwproc[{&LEFT-BROWSE}] (INPUT "").
+     RUN fetchselrowid_UI IN brwproc[{&LEFT-BROWSE}].
+   END.
+   ELSE DO:
+      RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+      RUN fetchselrowid_UI IN brwproc[{&RIGHT-BROWSE}].      
+   END.
+   RUN title_UI IN brwproc[{&LEFT-BROWSE}].
+   RUN goma_UI.
+   {musarrow.i}
+END PROCEDURE.
+PROCEDURE goma_UI :
+   FIND FIRST pmpersonaltemp NO-LOCK NO-ERROR.
+   IF AVAILABLE pmpersonaltemp THEN DO:
+      ASSIGN                      
+      BTN_ALLBACK:HIDDEN = FALSE 
+      BTN_ALLOVER:HIDDEN = FALSE 
+      BTN_OVER:HIDDEN = FALSE
+      BTN_BACK:HIDDEN = FALSE
+      BRW_PERS:HIDDEN = FALSE.
+   END.    
+   FIND FIRST uppvalPerstemp NO-ERROR.
+   IF NOT AVAILABLE valperstemp THEN DO:
+      FIND FIRST valperstemp NO-ERROR.
+   END.
+   IF AVAILABLE valperstemp THEN DO:
+      ASSIGN
+      BTN_ALLBACK:HIDDEN = FALSE 
+      BTN_BACK:HIDDEN = FALSE.
+   END.
+
+END PROCEDURE.
+
+PROCEDURE utvald_UI :
+   FIND FIRST uppvalPerstemp NO-ERROR.
+   FIND FIRST godkannartemp WHERE godkannartemp.NAMN = CMB_TIDSGODK:SCREEN-VALUE NO-LOCK NO-ERROR.   
+   FIND FIRST omrtemp WHERE omrtemp.NAMN = CMB_OMR:SCREEN-VALUE NO-LOCK NO-ERROR.
+   IF AVAILABLE omrtemp THEN uppvalPerstemp.OMRADE = omrtemp.OMRADE.
+   ELSE uppvalPerstemp.OMRADE = "ALLA".
+   FIND FIRST aavtaltemp WHERE aavtaltemp.AVTALNAMN = CMB_VECKO:SCREEN-VALUE AND            
+   aavtaltemp.TYP = "VEC" NO-LOCK NO-ERROR.
+   IF AVAILABLE aavtaltemp THEN uppvalPerstemp.VECKOSCHEMA = aavtaltemp.AVTALTYP.   
+   ELSE uppvalPerstemp.VECKOSCHEMA = "ALLA".
+   FIND FIRST aavtaltemp WHERE aavtaltemp.AVTALNAMN = CMB_BER:SCREEN-VALUE AND            
+   aavtaltemp.TYP = "BER" NO-LOCK NO-ERROR.
+   IF AVAILABLE aavtaltemp THEN uppvalPerstemp.BEREDSKAPSAVTAL = aavtaltemp.AVTALTYP.
+   ELSE uppvalPerstemp.BEREDSKAPSAVTAL = "ALLA".
+   FIND FIRST aavtaltemp WHERE aavtaltemp.AVTALNAMN = CMB_BEFATTNING:SCREEN-VALUE AND            
+   aavtaltemp.TYP = "BEF" NO-LOCK NO-ERROR.
+   IF AVAILABLE aavtaltemp THEN uppvalPerstemp.BEFATTNING = aavtaltemp.AVTALTYP.
+   ELSE uppvalPerstemp.BEFATTNING = "ALLA".
+   FIND FIRST aavtaltemp WHERE aavtaltemp.AVTALNAMN = CMB_ANST:SCREEN-VALUE AND            
+   aavtaltemp.TYP = "ANS" NO-LOCK NO-ERROR.
+   IF AVAILABLE aavtaltemp THEN uppvalPerstemp.ANSTALLNING = aavtaltemp.AVTALTYP.
+   ELSE uppvalPerstemp.ANSTALLNING = "ALLA".
+   FIND FIRST aavtaltemp WHERE aavtaltemp.AVTALNAMN = CMB_TRA:SCREEN-VALUE AND            
+   aavtaltemp.TYP = "TRA" NO-LOCK NO-ERROR.
+   IF AVAILABLE aavtaltemp THEN uppvalPerstemp.TRAAVTAL = aavtaltemp.AVTALTYP.
+   ELSE uppvalPerstemp.TRAAVTAL = "ALLA".
+   IF CMB_TIDSGODK:SCREEN-VALUE NE "Alla" THEN uppvalPerstemp.TIDSGODK = godkannartemp.PERSONALKOD.
+   ELSE uppvalPerstemp.TIDSGODK = "Alla".
+   uppvalPerstemp.JUDID = "ALLA".
+   FIND FIRST jurperstemp WHERE jurperstemp.NAMN = CMB_JURP:SCREEN-VALUE NO-LOCK NO-ERROR.        
+   IF AVAILABLE jurperstemp THEN uppvalPerstemp.JUDID = jurperstemp.JUDID.   
+   FIND FIRST avdtemp WHERE avdtemp.AVDELNINGNAMN = CMB_AVD:SCREEN-VALUE NO-LOCK NO-ERROR.   
+   IF AVAILABLE avdtemp THEN uppvalPerstemp.AVDNR = STRING(avdtemp.AVDELNINGNR).
+   ELSE uppvalPerstemp.AVDNR = "ALLA".
+   FIND FIRST aavtaltemp WHERE aavtaltemp.AVTALNAMN = CMB_RULL:SCREEN-VALUE AND            
+   aavtaltemp.TYP = "RUL" NO-LOCK NO-ERROR.
+   IF AVAILABLE aavtaltemp THEN uppvalPerstemp.RULLID = aavtaltemp.AVTALTYP.   
+   ELSE uppvalPerstemp.RULLID = "ALLA".
+   ASSIGN 
+   uppvalPerstemp.AKTIV = CMB_AKTIV:SCREEN-VALUE
+   uppvalPerstemp.EFTERNAMN = FILL-IN_EFTERNAMN:SCREEN-VALUE
+   uppvalPerstemp.FORNAMN = FILL-IN_FORNAMN:SCREEN-VALUE
+   uppvalPerstemp.SEMFOR = CMB_SEMFOR:SCREEN-VALUE
+   uppvalPerstemp.FLX = CMB_FLEX:SCREEN-VALUE
+   uppvalPerstemp.DTID = CMB_DELTID:SCREEN-VALUE.   
+END PROCEDURE.
+
+PROCEDURE sparaaofavoriter_UI:
+   tthandle = TEMP-TABLE valperstemp:HANDLE.
+   FIND FIRST sparaladdatemp NO-ERROR.
+   IF NOT AVAILABLE sparaladdatemp THEN CREATE sparaladdatemp.
+   ASSIGN
+   sparaladdatemp.GLOBANV = Guru.Konstanter:globanv /*Användare, i detta fall ELPAO*/
+   sparaladdatemp.BENAMNING = "PERS" /*Benämnings sufix, i detta fall ELPAO$STOR*/
+   sparaladdatemp.TABVAL = "PERSONALTAB" /*Tabellnamn*/
+   sparaladdatemp.FALTVALAO = "PERSONALKOD" /*Integer field*/
+   sparaladdatemp.FALTVALDEL = "" /*Integer field*/
+   sparaladdatemp.FALTVALDATE = "".  /*DATE field*/
+   RUN sparabrw_UI IN brwproc[{&RIGHT-BROWSE}] 
+      (INPUT TABLE-HANDLE tthandle, INPUT TABLE sparaladdatemp).
+   
+END PROCEDURE.
+PROCEDURE PlaceraKnapp_UI :
+   Guru.GlobalaVariabler:StartRadForKnappar = BRW_VPERS:ROW.
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_VISA).
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_UPP).
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_SCH).
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_ARB).
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_DEBPR).             
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_VISAP).  
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_SEK).  
+   Guru.Konstanter:PlaceraKnapparLodratt(FBTN_OT).
+   Guru.Konstanter:PlaceraKnapparLodratt(BTN_TELEFONLISTA).   
+   Guru.Konstanter:PlaceraKnapparLodratt(BTN_HAOF).
+   Guru.Konstanter:PlaceraKnapparLodratt(BTN_AOF).
+   RUN placeraCmb_UI.
+END PROCEDURE.
+
+PROCEDURE placeraCmb_UI :
+    
+   Guru.GlobalaVariabler:StartRadForKnappar = CMB_JURP:ROW.
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_JURP). 
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_AVD).
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_OMR).
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_TIDSGODK).
+   Guru.Konstanter:PlaceraKnapparLodratt(FILL-IN_FORNAMN).
+   Guru.Konstanter:PlaceraKnapparLodratt(FILL-IN_EFTERNAMN).
+   Guru.GlobalaVariabler:StartRadForKnappar = CMB_JURP:ROW.
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_AKTIV).
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_VECKO).
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_BEFATTNING). 
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_TRA).
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_BER).
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_ANST).
+   Guru.GlobalaVariabler:StartRadForKnappar = CMB_JURP:ROW.
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_SEMFOR).
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_DELTID).
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_FLEX).
+   Guru.Konstanter:PlaceraKnapparLodratt(CMB_RULL).      
+END PROCEDURE.
+
+PROCEDURE buttplac_UI :
+   Guru.GlobalaVariabler:collefth = ?.
+   FBTN_VISA:HIDDEN = TRUE.  
+   Guru.GlobalaVariabler:collefth = FBTN_UPP:HANDLE.
+   IF Guru.Konstanter:persekvar[2] = TRUE THEN DO:
+      FBTN_UPP:HIDDEN = FALSE.
+      Guru.GlobalaVariabler:collefth = FBTN_UPP:HANDLE.                   
+   END.
+   ELSE FBTN_UPP:HIDDEN = TRUE.
+   IF Guru.Konstanter:persekvar[5] = TRUE AND Guru.Konstanter:varforetypval[2] = 0 THEN DO:
+      FBTN_SCH:HIDDEN = FALSE.
+      Guru.GlobalaVariabler:colrighth = FBTN_SCH:HANDLE.           
+      RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   END.
+   ELSE FBTN_SCH:HIDDEN = TRUE.
+   IF Guru.Konstanter:persekvar[7] = TRUE AND Guru.Konstanter:varforetypval[2] = 0 THEN DO:
+       FBTN_ARB:HIDDEN = FALSE.
+      Guru.GlobalaVariabler:colrighth = FBTN_ARB:HANDLE.           
+      RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   END.
+   ELSE FBTN_ARB:HIDDEN = TRUE.
+   IF Guru.Konstanter:persekvar[10] = TRUE AND Guru.Konstanter:varforetypval[2] = 0 THEN DO:
+      FBTN_DEBPR:HIDDEN = FALSE.             
+      Guru.GlobalaVariabler:colrighth = FBTN_DEBPR:HANDLE.           
+      RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   END.
+   ELSE FBTN_DEBPR:HIDDEN = TRUE.
+   IF Guru.Konstanter:persekvar[4] = TRUE  THEN DO:
+       FBTN_VISAP:HIDDEN = FALSE.  
+      Guru.GlobalaVariabler:colrighth = FBTN_VISAP:HANDLE.           
+      RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   END.
+   ELSE FBTN_VISAP:HIDDEN = TRUE.
+   IF Guru.Konstanter:hoppsekvar[8] = TRUE THEN DO:        
+       FBTN_SEK:HIDDEN = FALSE.  
+      Guru.GlobalaVariabler:colrighth = FBTN_SEK:HANDLE.           
+      RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+   END.   
+   ELSE FBTN_SEK:HIDDEN = TRUE.
+   FBTN_OT:HIDDEN = TRUE.
+   IF Guru.Konstanter:varforetypval[2] = 0 THEN DO:
+      IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:      
+         IF Guru.Konstanter:globniv = 15  OR Guru.Konstanter:globniv = 17 OR Guru.Konstanter:globniv = 1  OR Guru.Konstanter:globniv = 0 THEN DO:   
+            FBTN_OT:HIDDEN = FALSE.
+            Guru.GlobalaVariabler:colrighth = FBTN_OT:HANDLE.
+            RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+         END.   
+      END.
+      IF Guru.Konstanter:globforetag = "SNAT" AND Guru.Konstanter:globniv = 1 THEN FBTN_OT:HIDDEN = TRUE.
+   END.     
+   /*släck telefonlista PUL 20171128 Lena*/
+   /*
+   BTN_TELEFONLISTA:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = BTN_TELEFONLISTA:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).*/  
+   BTN_TELEFONLISTA:HIDDEN = TRUE.   
+   BTN_HAOF:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = BTN_HAOF:HANDLE.           
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).      
+   BTN_AOF:HIDDEN = FALSE.
+   Guru.GlobalaVariabler:colrighth = BTN_AOF:HANDLE.
+   RUN buttrow_UI IN framesizeh (INPUT Guru.GlobalaVariabler:collefth,INPUT Guru.GlobalaVariabler:colrighth,OUTPUT OPcollefth).
+END PROCEDURE.
+PROCEDURE main_UI :
+   c-win:TITLE = "Personaladministration" + "-" + "Systemsupport 090/184540    elpool.ume@elpool.se  " + foretemp.ATRHOME.
+   {ALLSTARTDYN.I}   
+   RUN VISMEDDU.W.  
+   IF Guru.Konstanter:persekvar[1] = TRUE THEN  BTN_NY:HIDDEN = FALSE. 
+   ELSE BTN_NY:HIDDEN = TRUE.
+   IF Guru.Konstanter:persekvar[3] = TRUE THEN  BTN_BORT:HIDDEN = FALSE. 
+   ELSE BTN_BORT:HIDDEN = TRUE.
+   IF Guru.Konstanter:varforetypval[2] = 1 THEN DO:
+      RUN gomfalt_UI IN huvprogh (INPUT "PERS",INPUT 1).
+      ASSIGN
+      CMB_TIDSGODK:HIDDEN = TRUE 
+      CMB_BEFATTNING:HIDDEN = TRUE 
+      CMB_ANST:HIDDEN = TRUE 
+      CMB_AKTIV:HIDDEN = TRUE 
+      CMB_TRA:HIDDEN = TRUE
+      CMB_BER:HIDDEN = TRUE
+      CMB_VECKO:HIDDEN = TRUE      
+      CMB_FLEX:HIDDEN = TRUE
+      CMB_DELTID:HIDDEN = TRUE
+      CMB_SEMFOR:HIDDEN = TRUE
+      CMB_RULL:HIDDEN = TRUE.      
+   END.                    
+  
+END PROCEDURE.
+
+PROCEDURE allstartbrw_UI :
+   DEFINE VARIABLE korextra AS LOGICAL NO-UNDO.
+   korextra = FALSE.
+   IF NOT VALID-HANDLE(brwproc[{&LEFT-BROWSE}]) THEN RUN DYNBRW.P PERSISTENT SET brwproc[{&LEFT-BROWSE}] (INPUT BRW_PERS).
+   IF NOT VALID-HANDLE(brwproc[{&RIGHT-BROWSE}]) THEN RUN DYNBRW.P PERSISTENT SET brwproc[{&RIGHT-BROWSE}] (INPUT BRW_VPERS).
+   IF NOT VALID-HANDLE(brwproc[{&ARROWS}]) THEN DO: 
+      RUN DYNARROW.P PERSISTENT SET brwproc[{&ARROWS}] 
+      (INPUT BRW_PERS:HANDLE, INPUT BRW_VPERS:HANDLE,
+       INPUT BTN_OVER:HANDLE, INPUT BTN_ALLOVER:HANDLE,
+       INPUT BTN_ALLBACK:HANDLE, INPUT BTN_BACK:HANDLE).  
+      RUN addfillin_UI IN brwproc[{&ARROWS}] 
+      (INPUT FILL-IN_SPERSONALKOD, INPUT "PERSONALKOD").  
+      RUN addfillin_UI IN brwproc[{&ARROWS}] 
+      (INPUT FILL-IN_SFORNAMN, INPUT "FORNAMN").
+      RUN addfillin_UI IN brwproc[{&ARROWS}] 
+      (INPUT FILL-IN_SEFTERNAMN, INPUT "EFTERNAMN").
+   END.
+   IF NOT VALID-HANDLE(persproch) THEN korextra = TRUE.
+   IF NOT VALID-HANDLE(persproch) THEN DO:
+      FIND FIRST valsoktemp NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE valsoktemp THEN CREATE valsoktemp.
+      FIND FIRST uppvalPerstemp NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE uppvalPerstemp THEN CREATE uppvalPerstemp.
+      IF Guru.Konstanter:appcon THEN DO:
+         IF Guru.Konstanter:varforetypval[27] = 0 THEN RUN PERSONALAPP.P PERSISTENT SET persproch ON Guru.Konstanter:apphand TRANSACTION DISTINCT.   
+         IF Guru.Konstanter:varforetypval[27] = 0 THEN RUN PHMTAPP.P PERSISTENT SET persapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT.
+         IF Guru.Konstanter:varforetypval[27] = 1 THEN RUN PHMTAPP2.P PERSISTENT SET persapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+         RUN AVSKAP.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT (OUTPUT TABLE avdtemp).
+      END.
+      ELSE DO:
+         IF Guru.Konstanter:varforetypval[27] = 0 THEN RUN PERSONALAPP.P PERSISTENT SET persproch.      
+         IF Guru.Konstanter:varforetypval[27] = 0 THEN RUN PHMTAPP.P PERSISTENT SET persapph.
+         IF Guru.Konstanter:varforetypval[27] = 1 THEN RUN PHMTAPP2.P PERSISTENT SET persapph.
+         RUN AVSKAP.P (OUTPUT TABLE avdtemp).                  
+      END.
+      RUN hmtfavoriter_UI.
+   END.
+   IF korextra = TRUE THEN DO:
+      korextra = FALSE.
+      RUN korextra_UI.
+      RUN buttplac_UI.
+   END.
+    
+END PROCEDURE.
+
+PROCEDURE korextra_UI :
+   medvar = FALSE.
+   DEFINE VARIABLE juidraknare AS INTEGER NO-UNDO.
+   DEFINE VARIABLE omrraknare AS INTEGER NO-UNDO.
+   DEFINE VARIABLE avdraknare AS INTEGER NO-UNDO.  
+   IF VALID-HANDLE(persproch) THEN RUN jurp_UI IN persproch (INPUT Guru.Konstanter:globanv,OUTPUT TABLE jurperstemp,OUTPUT TABLE judavdtemp).
+            /*visa bara eget bolags områden*/
+   {OMRHMT.I}     
+   CMB_OMR:LIST-ITEMS = "". 
+   status-ok = CMB_OMR:ADD-FIRST("Alla").
+   omrraknare = 0.
+   FOR EACH judavdtemp,         
+   EACH omrtemp WHERE omrtemp.AVDELNINGNR = judavdtemp.AVDELNINGNR.
+      status-ok = CMB_OMR:ADD-LAST(omrtemp.NAMN).
+      omrraknare = omrraknare + 1.                        
+   END.
+   IF omrraknare < 2 THEN DO:
+      CMB_OMR:SCREEN-VALUE = "Alla".
+      CMB_OMR:HIDDEN = TRUE.
+   END.   
+   CMB_JURP:LIST-ITEMS = "". 
+   status-ok = CMB_JURP:ADD-FIRST("Alla").
+   juidraknare = 0.
+   FOR EACH jurperstemp:
+     status-ok = CMB_JURP:ADD-LAST(jurperstemp.NAMN).
+     juidraknare = juidraknare + 1.
+   END.         
+   IF Guru.Konstanter:globjid = "" THEN DO:
+      CMB_JURP:SCREEN-VALUE = "Alla".   
+   END.    
+   ELSE DO:  
+      FIND FIRST jurperstemp WHERE jurperstemp.JUDID = Guru.Konstanter:globjid NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE jurperstemp THEN DO:
+         FIND FIRST jurperstemp NO-LOCK NO-ERROR.
+      END.
+      IF AVAILABLE jurperstemp THEN DO:
+         CMB_JURP:SCREEN-VALUE = jurperstemp.NAMN.
+      END.    
+      ELSE DO:
+         CMB_JURP:SCREEN-VALUE = "".     
+      END.
+   END.   
+   IF juidraknare < 2 THEN CMB_JURP:HIDDEN = TRUE.
+   avdraknare = 0.
+   CMB_AVD:LIST-ITEMS = "".
+   status-ok = CMB_AVD:ADD-FIRST("Alla").
+   FOR EACH judavdtemp:
+      status-ok = CMB_AVD:ADD-LAST(judavdtemp.AVDELNINGNAMN).
+      avdraknare = avdraknare + 1.
+   END.
+   CMB_AVD:SCREEN-VALUE = "Alla".
+   IF avdraknare < 2 THEN CMB_AVD:HIDDEN = TRUE.     
+   /*phmt.p*/
+   IF VALID-HANDLE(persapph) THEN  RUN godk_UI IN persapph (INPUT "",OUTPUT TABLE godkannartemp).    
+   IF Guru.Konstanter:appcon THEN DO:                           
+      IF Guru.Konstanter:varforetypval[27] = 0 THEN RUN AVTAPP.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+      (OUTPUT TABLE aavtaltemp).
+   END.
+   ELSE DO:
+      IF Guru.Konstanter:varforetypval[27] = 0 THEN RUN AVTAPP.P
+      (OUTPUT TABLE aavtaltemp).
+   END.    
+   CMB_TIDSGODK:LIST-ITEMS = "". 
+   status-ok = CMB_TIDSGODK:ADD-LAST("Alla").   
+   FOR EACH godkannartemp:
+      status-ok = CMB_TIDSGODK:ADD-LAST(godkannartemp.NAMN).
+   END.   
+   CMB_BEFATTNING:LIST-ITEMS = "". 
+   status-ok = CMB_BEFATTNING:ADD-LAST("Alla").
+   CMB_BER:LIST-ITEMS = "". 
+   status-ok = CMB_BER:ADD-LAST("Alla").
+   CMB_TRA:LIST-ITEMS = "". 
+   status-ok = CMB_TRA:ADD-LAST("Alla").
+   CMB_ANST:LIST-ITEMS = "". 
+   status-ok = CMB_ANST:ADD-LAST("Alla").
+   CMB_VECKO:LIST-ITEMS = "". 
+   status-ok = CMB_VECKO:ADD-LAST("Alla").
+   CMB_RULL:LIST-ITEMS = "". 
+   status-ok = CMB_RULL:ADD-LAST("Alla").   
+   FOR EACH aavtaltemp :
+      IF aavtaltemp.TYP = "BEF" THEN DO:
+         status-ok = CMB_BEFATTNING:ADD-LAST(aavtaltemp.AVTALNAMN).      
+      END.
+      IF aavtaltemp.TYP = "BER" THEN DO:
+         status-ok = CMB_BER:ADD-LAST(aavtaltemp.AVTALNAMN).      
+      END.
+      IF aavtaltemp.TYP = "TRA" THEN DO:
+         status-ok = CMB_TRA:ADD-LAST(aavtaltemp.AVTALNAMN).
+      END.
+      IF aavtaltemp.TYP = "ANS" THEN DO:
+         status-ok = CMB_ANST:ADD-LAST(aavtaltemp.AVTALNAMN).         
+      END.
+      IF aavtaltemp.TYP = "VEC" THEN DO:
+         status-ok = CMB_VECKO:ADD-LAST(aavtaltemp.AVTALNAMN).      
+      END.
+      IF aavtaltemp.TYP = "RUL" THEN DO:
+         status-ok = CMB_RULL:ADD-LAST(aavtaltemp.AVTALNAMN).      
+      END.
+   END.
+   FIND FIRST omrtemp WHERE omrtemp.OMRADE = Guru.Konstanter:globomr 
+   USE-INDEX OMR NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE omrtemp THEN DO:
+      FIND FIRST omrtemp USE-INDEX OMR NO-LOCK NO-ERROR.
+   END.
+   IF NOT AVAILABLE omrtemp THEN ASSIGN CMB_OMR:SCREEN-VALUE = "Alla".
+   ELSE ASSIGN CMB_OMR:SCREEN-VALUE = omrtemp.NAMN.     
+   IF Guru.Konstanter:globomr = "" OR Guru.Konstanter:globallpers = TRUE THEN DO:
+      ASSIGN 
+      CMB_OMR:SCREEN-VALUE = Guru.Konstanter:gomrk + " : alla".
+   END.      
+   ASSIGN
+   CMB_JURP:LABEL = Guru.Konstanter:gjuk
+   CMB_AVD:LABEL= Guru.Konstanter:gavdk
+   CMB_AKTIV:SCREEN-VALUE = "Aktiv"
+   CMB_TIDSGODK:SCREEN-VALUE = "Alla"
+   CMB_BEFATTNING:SCREEN-VALUE = "Alla"          
+   CMB_ANST:SCREEN-VALUE = "Alla"
+   CMB_TRA:SCREEN-VALUE = "Alla"
+   CMB_BER:SCREEN-VALUE = "Alla"
+   CMB_VECKO:SCREEN-VALUE = "Alla"
+   CMB_RULL:SCREEN-VALUE = "Alla".
+   IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "MISV" OR Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "LULE" OR Guru.Konstanter:globforetag = "elpa" THEN DO:   
+      CMB_SEMFOR:LABEL = "Spärr arbförk".     
+   END.
+   CREATE uppvalPerstemp.
+   ASSIGN 
+   uppvalPerstemp.OMRADE = Guru.Konstanter:gomrk + " : alla"
+   uppvalPerstemp.TIDSGODK = "ALLA"
+   uppvalPerstemp.AKTIV = "AKTIV ELLER INAKTIV"
+   uppvalPerstemp.VECKOSCHEMA = "ALLA"
+   uppvalPerstemp.BEREDSKAPSAVTAL = "ALLA"
+   uppvalPerstemp.EFTERNAMN = ""
+   uppvalPerstemp.FORNAMN = ""
+   uppvalPerstemp.BEFATTNING = "ALLA"
+   uppvalPerstemp.ANSTALLNING = "ALLA"
+   uppvalPerstemp.TRAAVTAL = "ALLA"
+   uppvalPerstemp.SEMFOR = "Ja eller Nej"
+   uppvalPerstemp.DTID = "Ja eller Nej"
+   uppvalPerstemp.FLX = "Ja eller Nej".
+   RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").
+   RUN openbdyn_UI IN brwproc[{&LEFT-BROWSE}] (INPUT "").
+END PROCEDURE.
+PROCEDURE bort_UI :
+   {OMSTARTAVGURUH.I}
+   RUN selectfoc_UI.   
+   APPLY "VALUE-CHANGED" TO BRW_VPERS.
+   IF NOT AVAILABLE valperstemp THEN DO:
+      RETURN.
+   END.
+   ELSE DO:
+      ASSIGN
+      persrec2 = RECID(valperstemp)
+      persrec = valperstemp.PERSRECID
+      pkod = valperstemp.PERSONALKOD.
+      IF musz =  TRUE THEN musz = FALSE.
+      ELSE DO:    
+         RUN BORTPERS.W (INPUT valperstemp.PERSONALKOD).         
+         persrec = persrec2.
+         IF musz = FALSE THEN DO:               
+            FIND FIRST valperstemp WHERE ROWID(valperstemp) = valpersh:ROWID NO-LOCK NO-ERROR.
+            IF status-ok = TRUE THEN persrec2 = RECID(valperstemp).
+            ELSE DO:          
+               status-ok = BRW_VPERS:SELECT-PREV-ROW().          
+               FIND FIRST valperstemp WHERE ROWID(valperstemp) = valpersh:ROWID NO-LOCK NO-ERROR.
+               IF status-ok = TRUE THEN persrec2 = RECID(valperstemp).          
+               ELSE persrec2 = persrec.
+            END.   
+            FIND valperstemp WHERE RECID(valperstemp) = persrec NO-ERROR.
+            FIND FIRST pmpersonaltemp WHERE pmpersonaltemp.PERSONALKOD = valperstemp.PERSONALKOD
+            NO-ERROR.
+            IF AVAILABLE pmpersonaltemp THEN DO:
+               DELETE pmpersonaltemp.
+               RUN refreshbrw_UI IN brwproc[{&LEFT-BROWSE}].
+            END.
+            RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(valperstemp)). 
+            RUN selnextprevrow_UI IN brwproc[{&RIGHT-BROWSE}].
+            DELETE valperstemp.                                  
+            RUN refreshbrw_UI IN brwproc[{&RIGHT-BROWSE}].
+            RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].                 
+         END.
+         {musarrow.i} 
+         musz = FALSE.
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE borthand_UI :
+   valpersh:EMPTY-TEMP-TABLE() NO-ERROR.    
+   IF VALID-HANDLE(valpersh) THEN   DELETE OBJECT valpersh NO-ERROR.
+   valpersh = ?.
+   {BORTBRWPROC.I}   
+   IF VALID-HANDLE(persproch) THEN DELETE PROCEDURE persproch NO-ERROR.
+   IF VALID-HANDLE(persapph) THEN DELETE PROCEDURE persapph NO-ERROR.
+END PROCEDURE.  
+FUNCTION brwval RETURNS LOGICAL
+  ( /* parameter-definitions */ ) :
+   DEFINE VARIABLE leftbrwakt AS LOGICAL NO-UNDO.
+   RUN urvalaktiv_UI IN brwproc[{&ARROWS}] (OUTPUT leftbrwakt).
+   IF leftbrwakt = TRUE THEN 
+      antal_valda = BRW_PERS:NUM-SELECTED-ROWS.
+   ELSE antal_valda = BRW_VPERS:NUM-SELECTED-ROWS. 
+   IF antal_valda = 0 THEN DO:      
+      MESSAGE "Ingen personal är vald!" VIEW-AS ALERT-BOX.
+      RETURN TRUE.                
+   END.
+   IF leftbrwakt = TRUE THEN DO:
+      EMPTY TEMP-TABLE valperstemp NO-ERROR.       
+      RUN sel_over_UI IN brwproc[{&ARROWS}].
+      RUN setlastrowid_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT ROWID(valperstemp)).
+      RUN openbdyn_UI IN brwproc[{&RIGHT-BROWSE}] (INPUT "").  
+      RUN lastselectdyn_UI IN brwproc[{&RIGHT-BROWSE}].
+   END.
+   ELSE DO:
+      RUN selectfoc_UI.      
+   END.
+   RETURN FALSE.   /* Function return value. */
+END FUNCTION.
+

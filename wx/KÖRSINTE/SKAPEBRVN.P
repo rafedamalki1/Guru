@@ -1,0 +1,649 @@
+   /*SKAPEBRV.P*/   
+DEFINE VARIABLE arbvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lopvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE kabmsk AS LOGICAL NO-UNDO.
+DEFINE VARIABLE msk123 AS INTEGER NO-UNDO.
+DEFINE VARIABLE mskpris AS INTEGER NO-UNDO.
+   DEFINE TEMP-TABLE tidin
+      FIELD ARBKOD                 AS CHARACTER 
+      FIELD LOPNR                  AS CHARACTER
+      FIELD BENAMNING              AS CHARACTER 
+      FIELD ENHET                  AS CHARACTER
+      FIELD F1                     AS DECIMAL
+      FIELD F2                     AS DECIMAL
+      FIELD F3                     AS DECIMAL
+      FIELD EA                     AS DECIMAL
+      FIELD ARB                    AS DECIMAL
+      FIELD MTRL                   AS DECIMAL
+      FIELD MASK                   AS DECIMAL
+      FIELD OVRIGT                 AS DECIMAL
+      FIELD TOTALT                 AS DECIMAL
+      FIELD KOMMENTAR              AS CHARACTER.
+
+   DEFINE TEMP-TABLE tidin2
+      FIELD ARBKOD                 AS CHARACTER
+      FIELD LOPNR                  AS CHARACTER 
+      FIELD BENAMNING              AS CHARACTER 
+      FIELD ENHET                  AS CHARACTER
+      FIELD F1                     AS DECIMAL
+      FIELD F2                     AS DECIMAL
+      FIELD F3                     AS DECIMAL
+      FIELD UTRUST                 AS DECIMAL
+      FIELD EA                     AS DECIMAL
+      FIELD ARB                    AS DECIMAL
+      FIELD MTRL                   AS DECIMAL
+      FIELD MASK                   AS DECIMAL
+      FIELD UTRUSTKOST             AS DECIMAL
+      FIELD OVRIGT                 AS DECIMAL
+      FIELD SUMMA                  AS DECIMAL
+      FIELD KOMMENTAR              AS CHARACTER.
+
+DEFINE INPUT PARAMETER TABLE FOR tidin.
+DEFINE INPUT PARAMETER TABLE FOR tidin2.
+DEFINE INPUT PARAMETER arvar AS INTEGER NO-UNDO.   
+DEFINE INPUT PARAMETER vitkatalog AS LOGICAL NO-UNDO.   
+DEFINE INPUT PARAMETER typvar AS INTEGER NO-UNDO.   
+DEFINE INPUT PARAMETER ebrmont AS DECIMAL NO-UNDO.   
+DEFINE INPUT PARAMETER ebrmask1 AS DECIMAL NO-UNDO.   
+DEFINE INPUT PARAMETER ebrmask2 AS DECIMAL NO-UNDO.
+DEFINE INPUT PARAMETER ebrmask3 AS DECIMAL NO-UNDO.   
+DEFINE INPUT PARAMETER rorlig AS DECIMAL NO-UNDO.   
+
+IF vitkatalog = FALSE THEN DO:
+   RUN skapasats_UI.           
+END.
+ELSE DO:
+   RUN skapasats2_UI.
+END.
+
+
+PROCEDURE skapasats_UI:   
+
+   FOR EACH tidin NO-LOCK:                                
+      DO TRANSACTION:         
+         IF typvar = 1 THEN DO:
+            IF INTEGER(tidin.LOPNR) = 0 THEN DO:
+            /*IF INTEGER(SUBSTRING(tidin.ARBKOD,5,2)) = 0 THEN DO:*/
+               FIND FIRST P1 WHERE P1.ARBKOD = SUBSTRING(tidin.ARBKOD,1,4) AND
+               P1.KATAR = arvar NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE P1 THEN DO:               
+                  CREATE P1.
+                  ASSIGN
+                  P1.ARBKOD = SUBSTRING(tidin.ARBKOD,1,4)
+                  P1.BENAMNING = tidin.BENAMNING
+                  P1.KATAR = arvar.
+               END.
+            END.
+            ELSE DO:
+               FIND FIRST LOP1 WHERE LOP1.KATAR = arvar AND 
+               LOP1.ARBKOD = SUBSTRING(tidin.ARBKOD,1,4) AND 
+               LOP1.LOPNR = INTEGER(tidin.LOPNR) 
+               NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE LOP1 THEN DO:
+                  CREATE LOP1.
+                  ASSIGN
+                  LOP1.ARBKOD = SUBSTRING(tidin.ARBKOD,1,4)
+                  LOP1.LOPNR = INTEGER(tidin.LOPNR)
+                  arbvar = SUBSTRING(tidin.ARBKOD,2,3)
+                  lopvar = INTEGER(tidin.LOPNR)
+                  LOP1.BENAMNING = SUBSTRING(tidin.BENAMNING,1,59)
+                  LOP1.ENHET = tidin.ENHET
+                  LOP1.F1 = tidin.F1 / 100
+                  LOP1.F2 = tidin.F2 / 100
+                  LOP1.EA = tidin.EA  / 10000
+                  LOP1.ARBETE = tidin.ARB / 100
+                  LOP1.MATERIEL = tidin.MTRL / 100
+                  LOP1.MASKINKOST = tidin.MASK / 100
+                  LOP1.OVRIGT = tidin.OVRIGT / 100
+                  LOP1.FAST = FALSE
+                  LOP1.KATAR = arvar
+                  LOP1.F9 = 1 /*FÖR ATT VI NU ANVÄNDER FLER ÄN TVÅ DECIMALER*/
+                  SUBSTRING(LOP1.BENAMNING,60) = tidin.KOMMENTAR.                  
+                  RUN kollmsk_UI.
+                  IF kabmsk = FALSE THEN DO:
+                     LOP1.F3 = tidin.F3 / 100.
+                  END.
+                  ELSE IF kabmsk = ? THEN DO:
+                     LOP1.F7 = tidin.F3 / 100.
+                  END.
+                  ELSE DO:
+                     LOP1.F4 = tidin.F3 / 100.
+                  END.               
+                  IF (LOP1.F2 / 100) + (LOP1.MASKINKOST / rorlig) NE LOP1.EA THEN DO:
+                     IF LOP1.EA - ((LOP1.F2 / 100) + (LOP1.MASKINKOST / rorlig)) > 0.3 OR LOP1.EA - ((LOP1.F2 / 100) + (LOP1.MASKINKOST / rorlig)) < -0.3
+                     THEN DO:
+                        /*IF INTEGER((LOP1.EA - ((LOP1.F2 / 100) + (LOP1.MASKINKOST / rorlig))) * rorlig) = INTEGER(LOP1.OVRIGT) THEN DO:
+                           /* Om skillnaden i EA är likamed OVRIG behöver EJ UTRUSTKOST användas lena 20110228*/
+                           /*funkar INTE. Det är EA mängd på UTRUSTKOST men ej på OVRIGT*/
+                        END.
+                        ELSE DO:                           */
+                           ASSIGN
+                           LOP1.FAST = TRUE
+                           LOP1.UTRUSTKOST = INTEGER((LOP1.EA - ((LOP1.F2 / 100) + (LOP1.MASKINKOST / rorlig))) * rorlig)
+                           LOP1.OVRIGT = LOP1.OVRIGT - LOP1.UTRUSTKOST.
+                           IF LOP1.OVRIGT < 2 THEN DO:
+                              ASSIGN                        
+                              LOP1.OVRIGT = 0.
+                           END.
+                       /* END.*/
+                     END.                     
+                  END.                  
+               END.
+            END.            
+         END.
+         ELSE IF typvar = 2 THEN DO:             
+            IF SUBSTRING(tidin.ARBKOD,1,4) = "Tkod" THEN DO:
+               IF INTEGER(tidin.LOPNR) = 0 THEN DO:
+                  FIND FIRST P2 WHERE P2.ARBKOD = SUBSTRING(tidin.ARBKOD,1,4) AND
+                  P2.KATAR = arvar NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE P2 THEN DO:               
+                     CREATE P2.
+                     ASSIGN
+                     P2.ARBKOD = SUBSTRING(tidin.ARBKOD,1,4)
+                     P2.BENAMNING = tidin.BENAMNING
+                     P2.KATAR = arvar.
+                  END.
+               END.
+               ELSE DO:                     
+                  FIND FIRST LOP2 WHERE LOP2.KATAR = arvar AND 
+                  LOP2.ARBKOD = SUBSTRING(tidin.ARBKOD,1,4) AND 
+                  LOP2.LOPNR = INTEGER(tidin.LOPNR) 
+                  NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE LOP2 THEN DO:
+                     CREATE LOP2.
+                     ASSIGN
+                     LOP2.ARBKOD = SUBSTRING(tidin.ARBKOD,1,4)
+                     LOP2.LOPNR = INTEGER(tidin.LOPNR)
+                     arbvar = SUBSTRING(tidin.ARBKOD,1,4)
+                     lopvar = INTEGER(tidin.LOPNR)
+                     LOP2.BENAMNING = SUBSTRING(tidin.BENAMNING,1,59)
+                     LOP2.ENHET = tidin.ENHET
+                     LOP2.F1 = tidin.F1 / 100
+                     LOP2.F2 = tidin.F2 / 100
+                     LOP2.EA = tidin.EA  / 10000
+                     LOP2.ARBETE = tidin.ARB / 100
+                     LOP2.MATERIEL = tidin.MTRL / 100
+                     LOP2.MASKINKOST = tidin.MASK / 100
+                     LOP2.OVRIGT = tidin.OVRIGT / 100
+                     LOP2.FAST = FALSE
+                     LOP2.KATAR = arvar
+                     LOP2.F9 = 1 /*FÖR ATT VI NU ANVÄNDER FLER ÄN TVÅ DECIMALER*/.
+                     RUN kollmsk_UI.
+                     IF kabmsk = FALSE THEN DO:
+                        LOP2.F3 = tidin.F3 / 100.
+                     END.
+                     ELSE IF kabmsk = ? THEN DO:
+                        LOP2.F7 = tidin.F3 / 100.
+                     END.   
+                     ELSE DO:
+                        LOP2.F4 = tidin.F3 / 100.
+                     END.
+                     
+                     IF (LOP2.F2 / 100) + (LOP2.MASKINKOST / rorlig) NE LOP2.EA THEN DO:
+                        IF LOP2.EA - ((LOP2.F2 / 100) + (LOP2.MASKINKOST / rorlig)) > 0.3 OR LOP2.EA - ((LOP2.F2 / 100) + (LOP2.MASKINKOST / rorlig)) < -0.3
+                        THEN DO:
+                           /*IF INTEGER((LOP2.EA - ((LOP2.F2 / 100) + (LOP2.MASKINKOST / rorlig))) * rorlig) = INTEGER(LOP2.OVRIGT) THEN DO:
+                              /* Om skillnaden i EA är likamed OVRIG behöver EJ UTRUSTKOST användas lena 20110228*/
+                              /*funkar INTE. Det är EA mängd på UTRUSTKOST men ej på OVRIGT*/
+                           END.
+                           ELSE DO:                           */
+                              ASSIGN
+                              LOP2.FAST = TRUE
+                              LOP2.UTRUSTKOST = INTEGER((LOP2.EA - ((LOP2.F2 / 100) + (LOP2.MASKINKOST / rorlig))) * rorlig)
+                              LOP2.OVRIGT = LOP2.OVRIGT - LOP2.UTRUSTKOST.
+                              IF LOP2.OVRIGT < 2 THEN DO:
+                                 ASSIGN                        
+                                 LOP2.OVRIGT = 0.
+                              END.
+                           /*END.*/
+                        END.                     
+                     END.                  
+                  END.
+               END.
+            END.            
+            ELSE IF SUBSTRING(tidin.ARBKOD,1,3) = "EJK" OR SUBSTRING(tidin.ARBKOD,1,3) = "ELL" OR SUBSTRING(tidin.ARBKOD,1,3) = "EUH" OR SUBSTRING(tidin.ARBKOD,1,3) = "EAF" THEN DO:
+               IF INTEGER(tidin.LOPNR) = 0 THEN DO:
+                  FIND FIRST P2 WHERE P2.ARBKOD = SUBSTRING(tidin.ARBKOD,1,3) AND
+                  P2.KATAR = arvar NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE P2 THEN DO:               
+                     CREATE P2.
+                     ASSIGN
+                     P2.ARBKOD = SUBSTRING(tidin.ARBKOD,1,3)
+                     P2.BENAMNING = tidin.BENAMNING
+                     P2.KATAR = arvar.
+                  END.
+               END.
+               ELSE DO:                     
+                  FIND FIRST LOP2 WHERE LOP2.KATAR = arvar AND 
+                  LOP2.ARBKOD = SUBSTRING(tidin.ARBKOD,1,3) AND 
+                  LOP2.LOPNR = INTEGER(tidin.LOPNR) 
+                  NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE LOP2 THEN DO:
+                     CREATE LOP2.
+                     ASSIGN
+                     LOP2.ARBKOD = SUBSTRING(tidin.ARBKOD,1,3)
+                     LOP2.LOPNR = INTEGER(tidin.LOPNR)
+                     arbvar = SUBSTRING(tidin.ARBKOD,1,3)
+                     lopvar = INTEGER(tidin.LOPNR)
+                     LOP2.BENAMNING = SUBSTRING(tidin.BENAMNING,1,59)
+                     LOP2.ENHET = tidin.ENHET
+                     LOP2.F1 = tidin.F1 / 100
+                     LOP2.F2 = tidin.F2 / 100
+                     LOP2.EA = tidin.EA  / 10000
+                     LOP2.ARBETE = tidin.ARB / 100
+                     LOP2.MATERIEL = tidin.MTRL / 100
+                     LOP2.MASKINKOST = tidin.MASK / 100
+                     LOP2.OVRIGT = tidin.OVRIGT / 100
+                     LOP2.FAST = FALSE
+                     LOP2.KATAR = arvar
+                     LOP2.F9 = 1 /*FÖR ATT VI NU ANVÄNDER FLER ÄN TVÅ DECIMALER*/.
+                     RUN kollmsk_UI.
+                     IF kabmsk = FALSE THEN DO:
+                        LOP2.F3 = tidin.F3 / 100.
+                     END.
+                     ELSE IF kabmsk = ? THEN DO:
+                        LOP2.F7 = tidin.F3 / 100.
+                     END.
+                     ELSE DO:
+                        LOP2.F4 = tidin.F3 / 100.
+                     END.
+                     
+                     /* Ingen ea-mängd
+                     IF (LOP2.F2 / 100) + (LOP2.MASKINKOST / rorlig) NE LOP2.EA THEN DO:
+                        IF LOP2.EA - ((LOP2.F2 / 100) + (LOP2.MASKINKOST / rorlig)) > 0.3 OR LOP2.EA - ((LOP2.F2 / 100) + (LOP2.MASKINKOST / rorlig)) < -0.3
+                        THEN DO:
+                           /*IF INTEGER((LOP2.EA - ((LOP2.F2 / 100) + (LOP2.MASKINKOST / rorlig))) * rorlig) = INTEGER(LOP2.OVRIGT) THEN DO:
+                              /* Om skillnaden i EA är likamed OVRIG behöver EJ UTRUSTKOST användas lena 20110228*/
+                              /*funkar INTE. Det är EA mängd på UTRUSTKOST men ej på OVRIGT*/
+                           END.
+                           ELSE DO:                           */
+                              ASSIGN
+                              LOP2.FAST = TRUE
+                              LOP2.UTRUSTKOST = INTEGER((LOP2.EA - ((LOP2.F2 / 100) + (LOP2.MASKINKOST / rorlig))) * rorlig)
+                              LOP2.OVRIGT = LOP2.OVRIGT - LOP2.UTRUSTKOST.
+                              IF LOP2.OVRIGT < 2 THEN DO:
+                                 ASSIGN                        
+                                 LOP2.OVRIGT = 0.
+                              END.
+                           /*END.*/
+                        END.                     
+                     END.*/                  
+                  END.
+               END.
+            END.
+            ELSE DO:            
+               IF INTEGER(tidin.LOPNR) = 0 THEN DO:
+                  FIND FIRST P2 WHERE P2.ARBKOD = SUBSTRING(tidin.ARBKOD,1,3) AND
+                  P2.KATAR = arvar NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE P2 THEN DO:               
+                     CREATE P2.
+                     ASSIGN
+                     P2.ARBKOD = SUBSTRING(tidin.ARBKOD,1,3)
+                     P2.BENAMNING = tidin.BENAMNING
+                     P2.KATAR = arvar.
+                  END.
+               END.
+               ELSE DO:
+                  
+                  FIND FIRST LOP2 WHERE LOP2.KATAR = arvar AND 
+                  LOP2.ARBKOD = SUBSTRING(tidin.ARBKOD,1,3) AND 
+                  LOP2.LOPNR = INTEGER(tidin.LOPNR) 
+                  NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE LOP2 THEN DO:
+                     CREATE LOP2.
+                     ASSIGN
+                     LOP2.ARBKOD = SUBSTRING(tidin.ARBKOD,1,3)
+                     LOP2.LOPNR = INTEGER(tidin.LOPNR)
+                     arbvar = SUBSTRING(tidin.ARBKOD,1,3)
+                     lopvar = INTEGER(tidin.LOPNR)
+                     LOP2.BENAMNING = SUBSTRING(tidin.BENAMNING,1,59)
+                     LOP2.ENHET = tidin.ENHET
+                     LOP2.F1 = tidin.F1 / 100
+                     LOP2.F2 = tidin.F2 / 100
+                     LOP2.EA = tidin.EA  / 10000
+                     LOP2.ARBETE = tidin.ARB / 100
+                     LOP2.MATERIEL = tidin.MTRL / 100
+                     LOP2.MASKINKOST = tidin.MASK / 100
+                     LOP2.OVRIGT = tidin.OVRIGT / 100
+                     LOP2.FAST = FALSE
+                     LOP2.KATAR = arvar
+                     LOP2.F9 = 1 /*FÖR ATT VI NU ANVÄNDER FLER ÄN TVÅ DECIMALER*/.
+                     RUN kollmsk_UI.
+                     IF kabmsk = FALSE THEN DO:
+                        LOP2.F3 = tidin.F3 / 100.
+                     END.
+                     ELSE IF kabmsk = ? THEN DO:
+                        LOP2.F7 = tidin.F3 / 100.
+                     END.
+                     ELSE DO:
+                        LOP2.F4 = tidin.F3 / 100.
+                     END.
+                       
+                     IF (LOP2.F2 / 100) + (LOP2.MASKINKOST / rorlig) NE LOP2.EA THEN DO:
+                        IF LOP2.EA - ((LOP2.F2 / 100) + (LOP2.MASKINKOST / rorlig)) > 0.3 OR LOP2.EA - ((LOP2.F2 / 100) + (LOP2.MASKINKOST / rorlig)) < -0.3
+                        THEN DO:
+                           /*IF INTEGER((LOP2.EA - ((LOP2.F2 / 100) + (LOP2.MASKINKOST / rorlig))) * rorlig) = INTEGER(LOP2.OVRIGT) THEN DO:
+                              /* Om skillnaden i EA är likamed OVRIG behöver EJ UTRUSTKOST användas lena 20110228*/
+                              /*funkar INTE. Det är EA mängd på UTRUSTKOST men ej på OVRIGT*/
+                           END.
+                           ELSE DO:                           */
+                              ASSIGN
+                              LOP2.FAST = TRUE
+                              LOP2.UTRUSTKOST = INTEGER((LOP2.EA - ((LOP2.F2 / 100) + (LOP2.MASKINKOST / rorlig))) * rorlig)
+                              LOP2.OVRIGT = LOP2.OVRIGT - LOP2.UTRUSTKOST.
+                              IF LOP2.OVRIGT < 2 THEN DO:
+                                 ASSIGN                        
+                                 LOP2.OVRIGT = 0.
+                              END.
+                           /*END.*/
+                        END.                     
+                     END.                  
+                  END.
+               END.
+            END.
+         END.
+         ELSE DO:
+            IF INTEGER(tidin.LOPNR) = 0 THEN DO:               
+               FIND FIRST P3 WHERE P3.ARBKOD = SUBSTRING(tidin.ARBKOD,1,3) AND
+               P3.KATAR = arvar NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE P3 THEN DO:               
+                  CREATE P3.
+                  ASSIGN
+                  P3.ARBKOD = SUBSTRING(tidin.ARBKOD,1,3)
+                  P3.BENAMNING = tidin.BENAMNING
+                  P3.KATAR = arvar.
+               END.
+            END.
+            ELSE DO:
+               FIND FIRST LOP3 WHERE LOP3.KATAR = arvar AND 
+               LOP3.ARBKOD = SUBSTRING(tidin.ARBKOD,1,3) AND 
+               LOP3.LOPNR = INTEGER(tidin.LOPNR) 
+               NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE LOP3 THEN DO:
+                  CREATE LOP3.
+                  ASSIGN
+                  LOP3.ARBKOD = SUBSTRING(tidin.ARBKOD,1,3)
+                  LOP3.LOPNR = INTEGER(tidin.LOPNR)
+                  arbvar = SUBSTRING(tidin.ARBKOD,1,3)
+                  lopvar = INTEGER(tidin.LOPNR)
+                  LOP3.BENAMNING = SUBSTRING(tidin.BENAMNING,1,59)
+                  LOP3.ENHET = tidin.ENHET
+                  LOP3.F1 = tidin.F1 / 100
+                  LOP3.F2 = tidin.F2 / 100
+                  LOP3.EA = tidin.EA  / 10000
+                  LOP3.ARBETE = (tidin.F2 / 10000) * ebrmont
+                  LOP3.MATERIEL = tidin.MTRL / 100
+                  LOP3.MASKINKOST = tidin.MASK / 100
+                  LOP3.OVRIGT = tidin.OVRIGT / 100
+                  LOP3.FAST = FALSE
+                  LOP3.KATAR = arvar
+                  SUBSTRING(LOP3.BENAMNING,60) = tidin.KOMMENTAR
+                  LOP3.F9 = 1 /*FÖR ATT VI NU ANVÄNDER FLER ÄN TVÅ DECIMALER*/. 
+                  IF tidin.F3 = 0 THEN DO:
+                  END.
+                  ELSE DO:              
+                     mskpris = (((LOP3.EA - (LOP3.F2 / 100)) * rorlig) / (tidin.F3 / 10000)).
+      
+                     IF mskpris < ebrmask1 - 5 THEN DO:
+                        ASSIGN
+                        LOP3.F4 = tidin.F3 / 100
+                        LOP3.MASKINKOST = (tidin.F3 / 10000) * ebrmask2.
+                     END.
+                     ELSE DO:
+                        ASSIGN
+                        LOP3.F3 = tidin.F3 / 100
+                        LOP3.MASKINKOST = (tidin.F3 / 10000) * ebrmask1.
+                     END.                                                  
+                  END.
+                  IF (LOP3.F2 / 100) + (LOP3.MASKINKOST / rorlig) NE LOP3.EA THEN DO:
+                     IF LOP3.EA - ((LOP3.F2 / 100) + (LOP3.MASKINKOST / rorlig)) > 0.01 OR LOP3.EA - ((LOP3.F2 / 100) + (LOP3.MASKINKOST / rorlig)) < -0.01
+                     THEN DO:
+                        ASSIGN
+                        LOP3.FAST = TRUE
+                        LOP3.UTRUSTKOST = INTEGER((LOP3.EA - ((LOP3.F2 / 100) + (LOP3.MASKINKOST / rorlig))) * rorlig).
+                     END.                     
+                  END.                  
+               END.
+            END.
+         END.                                                      
+      END.                           
+   END.   
+END PROCEDURE.   
+
+PROCEDURE kollmsk_UI:   
+   
+   /*2013          2014 
+   ebrmask1 = 716  ebrmask1 = 723
+   ebrmask2 = 647  ebrmask2 = 712 
+   ebrmask3 = 676  ebrmask3 = 744*/ 
+   
+   kabmsk = FALSE.
+     
+   IF ((tidin.MASK / 100) / (tidin.F3 / 10000)) >= (ebrmask1 + ((ebrmask3 - ebrmask1) / 2)) THEN kabmsk = ?.
+   ELSE IF ((tidin.MASK / 100) / (tidin.F3 / 10000)) >= (ebrmask2 + ((ebrmask1 - ebrmask2) / 2)) THEN kabmsk = FALSE.
+   ELSE kabmsk = TRUE.
+   
+   /*kabmsk = FALSE.
+   gamla
+   IF ((tidin.MASK / 100) / (tidin.F3 / 10000)) >= (ebrmask2 + 10) THEN kabmsk = FALSE.
+   ELSE kabmsk = TRUE.
+   2013
+   IF ((tidin.MASK / 100) / (tidin.F3 / 10000)) >= (ebrmask3 + ((ebrmask1 - ebrmask3) / 2)) THEN kabmsk = FALSE.
+   ELSE IF ((tidin.MASK / 100) / (tidin.F3 / 10000)) >= (ebrmask2 + ((ebrmask3 - ebrmask2) / 2)) THEN kabmsk = ?.
+   ELSE kabmsk = TRUE.*/
+   
+   
+END PROCEDURE.   
+
+PROCEDURE skapasats2_UI:   
+   FOR EACH tidin2 NO-LOCK:                                
+      DO TRANSACTION:         
+         IF typvar = 1 THEN DO:
+            IF INTEGER(tidin2.LOPNR) = 0 THEN DO:
+            /*IF INTEGER(SUBSTRING(tidin2.ARBKOD,4,2)) = 0 THEN DO:*/
+               FIND FIRST P1 WHERE P1.KATAR = arvar AND 
+               P1.ARBKOD = SUBSTRING(tidin2.ARBKOD,1,3) NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE P1 THEN DO:
+                  CREATE P1.
+                  ASSIGN
+                  P1.ARBKOD = SUBSTRING(tidin2.ARBKOD,1,1) + " " + SUBSTRING(tidin2.ARBKOD,2,2)
+                  P1.BENAMNING = tidin2.BENAMNING
+                  P1.KATAR = arvar.
+               END.
+            END.
+            ELSE DO:
+               FIND FIRST LOP1 WHERE LOP1.KATAR = arvar AND 
+               LOP1.ARBKOD = SUBSTRING(tidin2.ARBKOD,1,3) AND 
+               LOP1.LOPNR = INTEGER(tidin2.LOPNR) 
+               NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE LOP1 THEN DO:
+                  CREATE LOP1.
+                  ASSIGN
+                  LOP1.ARBKOD = SUBSTRING(tidin2.ARBKOD,1,1) + " " + SUBSTRING(tidin2.ARBKOD,2,2)
+                  LOP1.LOPNR = INTEGER(tidin2.LOPNR)               
+                  LOP1.BENAMNING = SUBSTRING(tidin2.BENAMNING,1,59)
+                  LOP1.ENHET = tidin2.ENHET
+                  LOP1.F1 = tidin2.F1 / 100
+                  LOP1.F2 = tidin2.F2 / 100
+                  LOP1.F3 = tidin2.F3 / 100
+                  LOP1.UTRUST = tidin2.UTRUST / 100
+                  LOP1.EA = tidin2.EA  / 10000
+                  LOP1.ARBETE = tidin2.ARB / 100
+                  LOP1.MATERIEL = tidin2.MTRL / 100
+                  LOP1.MASKINKOST = tidin2.MASK / 100
+                  LOP1.UTRUSTKOST = tidin2.UTRUSTKOST / 100
+                  LOP1.OVRIGT = tidin2.OVRIGT / 100
+                  LOP1.FAST = TRUE
+                  LOP1.KATAR = arvar
+                  SUBSTRING(LOP1.BENAMNING,60) = tidin2.KOMMENTAR
+                  LOP1.F9 = 1 /*FÖR ATT VI NU ANVÄNDER FLER ÄN TVÅ DECIMALER*/.         
+               END.
+            END.            
+         END.
+         ELSE IF typvar = 2 THEN DO:      
+            IF INTEGER(tidin2.LOPNR) = 0 THEN DO:                            
+            /*IF INTEGER(SUBSTRING(tidin2.ARBKOD,3,2)) = 0 THEN DO:*/
+               FIND FIRST P2 WHERE P2.KATAR = arvar AND 
+               P2.ARBKOD = SUBSTRING(tidin2.ARBKOD,1,2) NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE P2 THEN DO:
+                  CREATE P2.
+                  ASSIGN
+                  P2.ARBKOD = " " + SUBSTRING(tidin2.ARBKOD,1,2)
+                  P2.BENAMNING = tidin2.BENAMNING
+                  P2.KATAR = arvar.
+               END.
+            END.
+            ELSE DO:
+               FIND FIRST LOP2 WHERE LOP2.KATAR = arvar AND 
+               LOP2.ARBKOD = SUBSTRING(tidin2.ARBKOD,1,2) AND 
+               LOP2.LOPNR = INTEGER(tidin2.LOPNR) 
+               NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE LOP2 THEN DO:
+                  CREATE LOP2.
+                  ASSIGN
+                  LOP2.ARBKOD = " " + SUBSTRING(tidin2.ARBKOD,1,2)
+                  LOP2.LOPNR = INTEGER(tidin2.LOPNR)               
+                  LOP2.BENAMNING = SUBSTRING(tidin2.BENAMNING,1,59)
+                  LOP2.ENHET = tidin2.ENHET
+                  LOP2.F1 = tidin2.F1 / 100
+                  LOP2.F2 = tidin2.F2 / 100
+                  LOP2.F3 = tidin2.F3 / 100
+                  LOP2.UTRUST = tidin2.UTRUST / 100
+                  LOP2.EA = tidin2.EA  / 10000
+                  LOP2.ARBETE = tidin2.ARB / 100
+                  LOP2.MATERIEL = tidin2.MTRL / 100
+                  LOP2.MASKINKOST = tidin2.MASK / 100
+                  LOP2.UTRUSTKOST = tidin2.UTRUSTKOST / 100
+                  LOP2.OVRIGT = tidin2.OVRIGT / 100
+                  LOP2.FAST = TRUE
+                  LOP2.KATAR = arvar
+                  LOP2.F9 = 1 /*FÖR ATT VI NU ANVÄNDER FLER ÄN TVÅ DECIMALER*/.  
+               END.
+            END.
+         END.
+         ELSE DO:
+            IF SUBSTRING(tidin2.ARBKOD,1,1) = "R" THEN DO:
+               IF INTEGER(tidin2.LOPNR) = 0 THEN DO:
+               /*IF INTEGER(SUBSTRING(tidin2.ARBKOD,5,2)) = 0 THEN DO:*/
+                  FIND FIRST P3 WHERE P3.KATAR = arvar AND 
+                  P3.ARBKOD = SUBSTRING(tidin2.ARBKOD,1,4) NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE P3 THEN DO:               
+                     CREATE P3.
+                     ASSIGN
+                     P3.ARBKOD = SUBSTRING(tidin2.ARBKOD,1,4)
+                     P3.BENAMNING = tidin2.BENAMNING
+                     P3.KATAR = arvar.
+                  END.               
+               END.
+               ELSE DO:               
+                  FIND FIRST LOP3 WHERE LOP3.KATAR = arvar AND 
+                  LOP3.ARBKOD = SUBSTRING(tidin2.ARBKOD,1,4) AND 
+                  LOP3.LOPNR = INTEGER(tidin2.LOPNR) 
+                  NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE LOP3 THEN DO:
+                     CREATE LOP3.
+                     ASSIGN
+                     LOP3.ARBKOD = SUBSTRING(tidin2.ARBKOD,1,4)
+                     LOP3.LOPNR = INTEGER(tidin2.LOPNR)
+                     arbvar = SUBSTRING(tidin2.ARBKOD,1,4)
+                     lopvar = INTEGER(tidin2.LOPNR)
+                     LOP3.BENAMNING = SUBSTRING(tidin2.BENAMNING,1,59)
+                     LOP3.ENHET = tidin2.ENHET               
+                     LOP3.F1 = tidin2.F1 / 100
+                     LOP3.F2 = tidin2.F2 / 100
+                     LOP3.F3 = tidin2.F3 / 100
+                     LOP3.UTRUST = tidin2.UTRUST / 100
+                     LOP3.EA = tidin2.EA  / 10000               
+                     LOP3.ARBETE = (tidin2.F2 / 10000) * ebrmont
+                     LOP3.MATERIEL = tidin2.MTRL / 100
+                     LOP3.MASKINKOST = tidin2.MASK / 100
+                     LOP3.UTRUSTKOST = tidin2.UTRUSTKOST / 100
+                     LOP3.OVRIGT = tidin2.OVRIGT / 100
+                     LOP3.FAST = TRUE
+                     LOP3.KATAR = arvar
+                     SUBSTRING(LOP3.BENAMNING,60) = tidin2.KOMMENTAR
+                     LOP3.F9 = 1 /*FÖR ATT VI NU ANVÄNDER FLER ÄN TVÅ DECIMALER*/. 
+                     IF tidin2.F3 = 0 THEN DO:
+                        IF tidin2.UTRUST = 0 THEN .
+                        ELSE DO:
+                           LOP3.UTRUSTKOST = (LOP3.EA - (LOP3.F2 / 100)) * rorlig.
+                        END.
+                     END.
+                     ELSE DO: 
+                        IF tidin2.UTRUST = 0 THEN DO:
+                           LOP3.MASKINKOST = (LOP3.EA - (LOP3.F2 / 100)) * rorlig.
+                        END.
+                        ELSE DO:
+                           ASSIGN
+                           LOP3.MASKINKOST = (LOP3.F3 / 100) * ebrmask2
+                           LOP3.UTRUSTKOST = (LOP3.EA - ((LOP3.F2 / 100) + (LOP3.MASKINKOST / rorlig))) * rorlig.
+                        END.                                    
+                     END.               
+                  END.               
+               END.
+            END.
+            ELSE DO:
+               IF INTEGER(tidin2.LOPNR) = 0 THEN DO:
+               /*IF INTEGER(SUBSTRING(tidin2.ARBKOD,4,2)) = 0 THEN DO:*/
+                  FIND FIRST P3 WHERE P3.KATAR = arvar AND 
+                  P3.ARBKOD = SUBSTRING(tidin2.ARBKOD,1,3) NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE P3 THEN DO:               
+                     CREATE P3.
+                     ASSIGN
+                     P3.ARBKOD = SUBSTRING(tidin2.ARBKOD,1,3)
+                     P3.BENAMNING = tidin2.BENAMNING
+                     P3.KATAR = arvar.
+                  END.               
+               END.
+               ELSE DO:               
+                  FIND FIRST LOP3 WHERE LOP3.KATAR = arvar AND 
+                  LOP3.ARBKOD = SUBSTRING(tidin2.ARBKOD,1,3) AND 
+                  LOP3.LOPNR = INTEGER(tidin2.LOPNR) 
+                  NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE LOP3 THEN DO:
+                     CREATE LOP3.
+                     ASSIGN
+                     LOP3.ARBKOD = SUBSTRING(tidin2.ARBKOD,1,3)
+                     LOP3.LOPNR = INTEGER(tidin2.LOPNR)
+                     arbvar = SUBSTRING(tidin2.ARBKOD,1,3)
+                     lopvar = INTEGER(tidin2.LOPNR)
+                     LOP3.BENAMNING = SUBSTRING(tidin2.BENAMNING,1,59)
+                     LOP3.ENHET = tidin2.ENHET               
+                     LOP3.F1 = tidin2.F1 / 100
+                     LOP3.F2 = tidin2.F2 / 100
+                     LOP3.F3 = tidin2.F3 / 100
+                     LOP3.UTRUST = tidin2.UTRUST / 100
+                     LOP3.EA = tidin2.EA  / 10000               
+                     LOP3.ARBETE = (tidin2.F2 / 10000) * ebrmont
+                     LOP3.MATERIEL = tidin2.MTRL / 100
+                     LOP3.MASKINKOST = tidin2.MASK / 100
+                     LOP3.UTRUSTKOST = tidin2.UTRUSTKOST / 100
+                     LOP3.OVRIGT = tidin2.OVRIGT / 100
+                     LOP3.FAST = TRUE
+                     LOP3.KATAR = arvar
+                     SUBSTRING(LOP3.BENAMNING,60) = tidin2.KOMMENTAR
+                     LOP3.F9 = 1 /*FÖR ATT VI NU ANVÄNDER FLER ÄN TVÅ DECIMALER*/. 
+                     IF tidin2.F3 = 0 THEN DO:
+                        IF tidin2.UTRUST = 0 THEN .
+                        ELSE DO:
+                           LOP3.UTRUSTKOST = (LOP3.EA - (LOP3.F2 / 100)) * rorlig.
+                        END.
+                     END.
+                     ELSE DO: 
+                        IF tidin2.UTRUST = 0 THEN DO:
+                           LOP3.MASKINKOST = (LOP3.EA - (LOP3.F2 / 100)) * rorlig.
+                        END.
+                        ELSE DO:
+                           ASSIGN
+                           LOP3.MASKINKOST = (LOP3.F3 / 100) * ebrmask2
+                           LOP3.UTRUSTKOST = (LOP3.EA - ((LOP3.F2 / 100) + (LOP3.MASKINKOST / rorlig))) * rorlig.
+                        END.                                    
+                     END.               
+                  END.               
+               END.
+            END.            
+         END.                                                      
+      END.                           
+   END.   
+END PROCEDURE.                   
+

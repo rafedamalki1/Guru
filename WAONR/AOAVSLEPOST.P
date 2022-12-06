@@ -1,0 +1,186 @@
+/*AOAVSLEPOST.P  Nattkörning mycket övertid epost till berörda*/
+{STARTFORAPP.I}
+
+DEFINE TEMP-TABLE eposttemp NO-UNDO
+   FIELD EPOST AS CHARACTER
+   FIELD GEPOST AS CHARACTER
+   FIELD BOLAG AS CHARACTER
+   FIELD MEDD AS CHARACTER
+   INDEX EPOST EPOST.
+
+
+DEFINE TEMP-TABLE aoavsltemp
+   FIELD AONR AS CHARACTER
+   FIELD DELNR AS INTEGER
+   FIELD ARBANSVARIG AS CHARACTER   
+   FIELD ORT AS CHARACTER  
+   FIELD ETEXT AS CHARACTER
+   FIELD GEPOST AS CHARACTER    
+   INDEX ARBANSVARIG  IS PRIMARY ARBANSVARIG AONR DELNR. 
+      
+
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE VARIABLE aonrrec AS RECID NO-UNDO.
+DEFINE VARIABLE skick AS LOGICAL NO-UNDO.
+DEFINE VARIABLE efel AS CHARACTER FORMAT "X(30)" NO-UNDO.
+DEFINE VARIABLE servervar AS CHARACTER LABEL "Smtp Server" NO-UNDO.
+DEFINE VARIABLE franvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE hjdat AS DATE NO-UNDO.
+DEFINE VARIABLE bolag AS CHARACTER NO-UNDO.
+DEFINE VARIABLE okbol AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kolldatum AS DATE NO-UNDO.
+DEFINE BUFFER persbuff FOR PERSONALTAB.
+DEFINE VARIABLE dispens AS LOGICAL NO-UNDO.
+DEFINE VARIABLE ovar AS DECIMAL NO-UNDO.
+DEFINE VARIABLE ctillvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE grans AS INTEGER NO-UNDO.
+
+{SMTPDEF3.I}
+{EXTRADATA.I}
+RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT FORETAG.FORETAG).
+IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "MISV" THEN DO:
+   ASSIGN
+   franvar = "NOREPLY"
+   servervar = CHR(49) + CHR(55) + CHR(50) + CHR(46) + CHR(49) + CHR(54) + CHR(46) + CHR(50) + CHR(53) + CHR(52) + CHR(46) + CHR(50) + CHR(50) + CHR(50).
+   /*servervar = "130.1.27.253".
+   servervar = "172.16.79.249".*/
+END.
+ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+   {SMTPFRANELPOOL.I}
+END.
+ELSE DO:
+   ASSIGN
+   franvar = "elpool.ume@elpool.se"
+   servervar = CHR(115) + CHR(109) + CHR(116) + CHR(112) + CHR(46) + CHR(116) + CHR(101) + CHR(108) + CHR(101) + CHR(99) + CHR(111) + CHR(109) + CHR(51) + CHR(46) + CHR(110) + CHR(101) + CHR(116) .
+END.
+
+
+regdatum = TODAY - 3.      
+kolldatum = TODAY - 3.      
+ 
+RUN REGVEC.P.    
+ASSIGN
+regar = YEAR(regdatum)
+regmnr = MONTH(regdatum).
+EMPTY TEMP-TABLE aoavsltemp NO-ERROR. 
+
+FOR EACH AONRTAB WHERE AONRTAB.AONRAVDATUM = 01/01/91 AND AONRTAB.OMRADE NE "" NO-LOCK:
+   IF AONRTAB.AONR BEGINS "3" OR AONRTAB.AONR BEGINS "6" THEN DO:
+      IF AONRTAB.DELNR = 0 THEN DO:
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.AONR = AONRTAB.AONR 
+         AND TIDREGITAB.DATUM GE (TODAY - 62) NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE TIDREGITAB THEN DO:
+            CREATE aoavsltemp.
+            ASSIGN aoavsltemp.AONR = AONRTAB.AONR
+            aoavsltemp.DELNR = AONRTAB.DELNR
+            aoavsltemp.ORT = AONRTAB.ORT
+            aoavsltemp.ARBANSVARIG = AONRTAB.ARBANSVARIG
+            aoavsltemp.ETEXT = "Även undernummer".
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = aoavsltemp.ARBANSVARIG NO-LOCK NO-ERROR.
+            IF AVAILABLE PERSONALTAB THEN DO:
+               aoavsltemp.GEPOST = SUBSTRING(PERSONALTAB.PERSONSOK,20).
+            END.  
+         END.
+      END.
+      ELSE DO:    
+         FIND FIRST TIDREGITAB WHERE TIDREGITAB.AONR = AONRTAB.AONR AND TIDREGITAB.DELNR = AONRTAB.DELNR
+         AND TIDREGITAB.DATUM GE (TODAY - 62) NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE TIDREGITAB THEN DO:
+            FIND FIRST aoavsltemp WHERE aoavsltemp.AONR = AONRTAB.AONR AND aoavsltemp.DELNR = 0 NO-ERROR.
+            IF NOT AVAILABLE aoavsltemp THEN DO:            
+               CREATE aoavsltemp.
+               ASSIGN aoavsltemp.AONR = AONRTAB.AONR
+               aoavsltemp.DELNR = AONRTAB.DELNR
+               aoavsltemp.ORT = AONRTAB.ORT
+               aoavsltemp.ARBANSVARIG = AONRTAB.ARBANSVARIG
+               aoavsltemp.ETEXT = "".
+               FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = aoavsltemp.ARBANSVARIG NO-LOCK NO-ERROR.
+               IF AVAILABLE PERSONALTAB THEN DO:
+                  aoavsltemp.GEPOST = SUBSTRING(PERSONALTAB.PERSONSOK,20).
+               END.
+            END.     
+         END.
+      END.          
+   END.
+END.      
+EMPTY TEMP-TABLE eposttemp NO-ERROR. 
+FOR EACH aoavsltemp WHERE aoavsltemp.GEPOST NE "" NO-LOCK:
+   FIND FIRST eposttemp WHERE eposttemp.EPOST = aoavsltemp.GEPOST AND 
+   LENGTH(eposttemp.MEDD,"CHARACTER") < 30000 EXCLUSIVE-LOCK NO-ERROR.
+   IF NOT AVAILABLE eposttemp THEN DO:
+      CREATE eposttemp.
+      ASSIGN     
+      eposttemp.EPOST = aoavsltemp.GEPOST
+      eposttemp.MEDD =  "Följande projekt har ej någon tidskrivt på de senaste två månaderna. Är de dags att avsluta?" + CHR(10)
+                      + "=========================================================================================== " + CHR(10) + CHR(10). 
+      
+                           
+   END.
+   eposttemp.MEDD = eposttemp.MEDD + aoavsltemp.AONR + " " + STRING(aoavsltemp.DELNR) + " " + aoavsltemp.ORT + " " + aoavsltemp.ETEXT + CHR(10).      
+             
+END.       
+ 
+RUN emedd_UI.
+
+PROCEDURE emedd_UI.
+   DEFINE VARIABLE ctillvar AS CHARACTER LABEL "Kopia" NO-UNDO.
+   ctillvar = "".
+   
+   FOR EACH eposttemp:  
+      ASSIGN 
+      mailhub             = servervar     
+      EmailTo             = eposttemp.EPOST 
+      EmailFrom           = franvar
+      EmailCC             = ""
+      Attachmentstyp      = ""
+      LocalFiles          = ""
+      Subject             = "Kontroll om projekt skall avslutas" 
+      Bodysmtp            = eposttemp.MEDD
+      MIMEHeader          = "type=text/html:charset=iso-8859-1:filetype=ascii"
+      BodyType            = "".
+      IF Guru.Konstanter:globforetag = "sund" THEN EmailFrom = "webguru@sundsvallenergi.se".
+      IF Guru.Konstanter:globforetag = "SNAT" THEN EmailFrom = "@guru.sundsvallelnat.se".
+      IF Guru.Konstanter:globforetag = "MISV" THEN EmailFrom = "webguru@mittsverigevatten.se". 
+      RUN smtpmail_UI (INPUT FALSE).
+      
+      IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+         /*SNATBERGET*/
+             OUTPUT TO D:\DELAD\PRO10S\mailrappaoav.txt APPEND.
+             PUT UNFORMATTED TODAY " " oSuccessful " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+             OUTPUT CLOSE.
+                 
+       END.
+      
+      IF oSuccessful = TRUE THEN DO TRANSACTION:
+         oSuccessful = FALSE.               
+      END.      
+      ELSE DO:
+         IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+            /*SNATBERGET*/
+            OUTPUT TO D:\DELAD\pro10s\aoavslfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " franvar SKIP.
+         END.                  
+         OUTPUT CLOSE.    
+      END.
+   END.     
+END PROCEDURE.  
+
+ 
+   
+

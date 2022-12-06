@@ -1,0 +1,54 @@
+/*SCHAKTADM.I*/
+
+DEFINE {&NEW} {&SHARED} TEMP-TABLE forlaggtemp NO-UNDO
+   FIELD FORLAGG    AS CHARACTER FORMAT "X(10)" LABEL "Förläggningssätt" 
+   FIELD BENAMNING  AS CHARACTER FORMAT "X(30)" LABEL "Benämning"        
+   FIELD DJUP       AS INTEGER FORMAT ">>9" INITIAL 0 LABEL "Djup"             
+   FIELD SAM        AS LOGICAL FORMAT "Ja/Nej" INITIAL NO LABEL "Samförläggning"   
+   FIELD ROR        AS LOGICAL FORMAT "Ja/Nej" INITIAL NO LABEL "Rör"              
+   FIELD MARK       AS LOGICAL FORMAT "Ja/Nej" INITIAL NO LABEL "Mark"             
+   FIELD FAKTOR     AS DECIMAL FORMAT 9.99 INITIAL 0 LABEL "Faktor"           
+   FIELD TILLAGG    AS INTEGER FORMAT ">>9" INITIAL 0 LABEL "Tillägg"
+   FIELD FORLAGGROW AS ROWID
+   INDEX KOD IS PRIMARY FORLAGG.
+DEFINE {&NEW} {&SHARED} TEMP-TABLE eforlaggtemp NO-UNDO LIKE forlaggtemp.
+
+DEFINE {&NEW} {&SHARED} TEMP-TABLE samforlaggtemp NO-UNDO
+   FIELD KOD AS CHARACTER FORMAT "X(11)" LABEL "Kod"       
+   FIELD BENAMNING AS CHARACTER FORMAT "x(40)" LABEL "Benämning" 
+   FIELD DIAMETER  AS INTEGER FORMAT ">>9" INITIAL 0 LABEL "Diameter"
+   FIELD SAMFORROW AS ROWID
+   INDEX KOD IS PRIMARY KOD.
+DEFINE {&NEW} {&SHARED} TEMP-TABLE esamforlaggtemp NO-UNDO LIKE samforlaggtemp.
+
+DEFINE {&NEW} {&SHARED} TEMP-TABLE kskyddtemp NO-UNDO
+  FIELD ENR       AS CHARACTER FORMAT "X(11)"                 LABEL "Enr"                
+  FIELD BENAMNING AS CHARACTER FORMAT "x(40)"                 LABEL "Benämning"          
+  FIELD ENHET     AS CHARACTER FORMAT "x(5)"                  LABEL "Enhet"              
+  FIELD PRIS      AS DECIMAL   FORMAT ">>>>99.99" INITIAL 0   LABEL "Pris"               
+  FIELD LEVKOD    AS CHARACTER FORMAT "x(4)"                  LABEL "LEV-ID"             
+  FIELD DIAMETER  AS INTEGER   FORMAT ">>9"       INITIAL 0   LABEL "Diameter"           
+  FIELD BERED     AS LOGICAL   FORMAT "Ja/Nej"    INITIAL YES LABEL "Kopplad till bered."
+  FIELD AONR      AS CHARACTER FORMAT "X(6)"                  LABEL "AONR"               
+  FIELD DELNR     AS INTEGER   FORMAT 999         INITIAL 0   LABEL "DELNR"              
+  FIELD PUNKT1    AS INTEGER   FORMAT ">>>9"      INITIAL 0   LABEL "?"                  
+  FIELD PUNKT2    AS INTEGER   FORMAT ">>>9"      INITIAL 0   LABEL "?"                  
+  FIELD DATUM     AS DATE      FORMAT "99/99/99"  INITIAL "?" LABEL "Datum"              
+  FIELD METER     AS INTEGER   FORMAT ">>>>>9"   INITIAL 0   LABEL "Meter"              
+  FIELD ANTAL     AS INTEGER   FORMAT 9           INITIAL 0   LABEL "Antal"              
+  FIELD ROR       AS LOGICAL   FORMAT "Ja/Nej"    INITIAL NO  LABEL "Rör"                
+  FIELD UPPLAG    AS INTEGER   FORMAT ">>"        INITIAL "?" LABEL "Upplag"             
+  FIELD OMRADE    AS CHARACTER FORMAT "x(6)"                  LABEL "Område"
+  FIELD KSKYDDROW AS ROWID
+  FIELD KLAR       AS LOGICAL
+  INDEX BER BERED              
+  INDEX ENR BERED ENR LEVKOD   
+  INDEX OMR IS PRIMARY OMRADE AONR BERED DATUM.
+DEFINE {&NEW} {&SHARED} TEMP-TABLE ekskyddtemp NO-UNDO LIKE kskyddtemp.
+
+DEFINE {&NEW} {&SHARED} TEMP-TABLE ytbelaggtemp NO-UNDO
+   FIELD YTBELAGG AS CHARACTER FORMAT "X(20)" LABEL "Ytbeläggning"
+   FIELD YTBELROW AS ROWID
+   INDEX YTB IS PRIMARY YTBELAGG.
+DEFINE {&NEW} {&SHARED} TEMP-TABLE eytbelaggtemp NO-UNDO LIKE ytbelaggtemp.
+

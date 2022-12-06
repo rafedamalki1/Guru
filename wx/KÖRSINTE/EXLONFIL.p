@@ -1,0 +1,172 @@
+/*EXlonfil.P*/
+{TIDUTTTNEW.I}
+DEFINE INPUT PARAMETER excellista AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER globforetagIN AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR tidut.
+DEFINE INPUT PARAMETER sidpers AS LOGICAL NO-UNDO.
+DEFINE NEW SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE bladvar2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE protvar AS INTEGER NO-UNDO.
+{GLOBVAR2DEL1.I}
+globforetag = globforetagIN.
+{EXECLIN.I}
+/*Vilka kolumner*/
+ASSIGN
+startc = "A"
+slutc = "G"
+slutbredd = 20
+utnr[1] = 1
+utnr[2] = 8
+utnr[3] = 20
+utnr[4] = 34
+utnr[5] = 46
+utnr[6] = 52        
+utnr[7] = 58.
+ASSIGN
+allachar[1] = TRUE    /*vilka kolumner skall vara character*/
+allachar[2] = TRUE  
+allachar[3] = TRUE    
+allachar[4] = TRUE
+allachar[5] = TRUE   /* för att få ut 2 decimaler på antal*/
+allachar[6] = TRUE   /* för att få ut 3 decimaler på omfattning*/
+allachar[7] = TRUE.
+RUN satestat_UI. 
+RUN startexcel_UI.
+FIND FIRST tidut NO-LOCK NO-ERROR.
+/*Kolumnbredd*/
+raknare = 1.
+bladvar = 0.   
+RUN kolumnexcel_UI.
+IF sidpers = FALSE THEN RUN allapers_UI.
+IF sidpers = TRUE THEN DO:
+   bladvar = bladvar + 1.
+   REPEAT:
+      IF NOT AVAILABLE tidut THEN LEAVE.
+      iRad = 1.
+      RUN enpers_UI. 
+      bladvar = bladvar + 1.
+   END.
+   RUN slutexcel_UI.
+END.
+
+PROCEDURE allapers_UI:  
+   bladvar = 1.   
+   chWorkSheet:Name = "Lönefil" NO-ERROR.   
+   /*Rubriker*/
+
+   REPEAT:
+      RUN rubrikerexcel_UI (INPUT SUBSTRING(tidut.UT,1,55) , INPUT "COURIER",INPUT 14,INPUT TRUE,INPUT 15,INPUT 11).
+      RUN posterexcel_UI (INPUT "",INPUT "COURIER",INPUT 14,INPUT FALSE,INPUT 15,INPUT 0,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).
+      {EXCELFEL.I}
+      FIND NEXT tidut NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE tidut THEN DO:
+         LEAVE.
+      END.      
+      IF SUBSTRING(tidut.UT,utnr[1],8) NE "-" THEN DO:    /*Rubrikslut FÖRSTA */         
+         RUN posterexcel_UI (INPUT SUBSTRING(tidut.UT,1,57),INPUT "COURIER",INPUT 14,INPUT FALSE,INPUT 15,INPUT 0,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).
+         RUN posterexcel_UI (INPUT "",INPUT "COURIER",INPUT 14,INPUT FALSE,INPUT 15,INPUT 0,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).
+         LEAVE.
+      END.
+   END.   
+   /*Poster*/
+   FIND NEXT tidut NO-LOCK NO-ERROR.
+   raknare = 1.
+   REPEAT:
+      {EXCELFEL.I}
+      IF SUBSTRING(tidut.UT,1,2) = "==" THEN DO:
+         RUN understryk_UI (INPUT 4,INPUT 2). 
+         musz = musz.
+      END.
+      ELSE IF SUBSTRING(tidut.UT,8,1) = "-----" THEN DO:
+         rubrikvar = TRUE.
+         RUN understryk_UI (INPUT 4,INPUT 2). 
+         musz = musz.
+      END.
+      ELSE IF SUBSTRING(tidut.UT,utnr[2],6) = "TIMMAR" THEN DO:    /*Rubrikslut ANDRA */         
+         RUN posterexcel_UI (INPUT SUBSTRING(tidut.UT,1,57) ,INPUT "COURIER",INPUT 14,INPUT FALSE,INPUT 15,INPUT 0,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).
+         RUN posterexcel_UI (INPUT "",INPUT "COURIER",INPUT 14,INPUT FALSE,INPUT 15,INPUT 0,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).
+      END.
+      ELSE DO:
+         IF SUBSTRING(tidut.UT,8,1) = "-" THEN DO:
+            RUN rubrikerexcel_UI (INPUT SUBSTRING(tidut.UT,1,55) ,INPUT "COURIER",INPUT 14,INPUT TRUE,INPUT 15,INPUT 11).
+            RUN posterexcel_UI (INPUT "",INPUT "COURIER",INPUT 14,INPUT FALSE,INPUT 15,INPUT 0,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).
+         END.
+         ELSE DO:  
+            RUN posterexcel_UI (INPUT SUBSTRING(tidut.UT,1,57) ,INPUT "COURIER",INPUT 14,INPUT FALSE,INPUT 15,INPUT 0,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).        
+            RUN posterexcel_UI (INPUT "",INPUT "COURIER",INPUT 14,INPUT FALSE,INPUT 15,INPUT 0,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).
+         END.
+      END.   
+      FIND NEXT tidut NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE tidut THEN DO:
+         LEAVE.
+      END.
+   END.
+   RUN slutexcel_UI.
+END PROCEDURE.
+
+PROCEDURE enpers_UI:  
+   IF AVAILABLE tidut  THEN DO:   
+      RUN nyttbladexcel_UI.      
+      chWorkSheet:Name = SUBSTRING(tidut.UT,2,6) NO-ERROR.      
+      raknare = 1.
+      RUN kolumnexcel_UI.
+   END.   
+   {EXCELFEL.I}
+   /*Rubriker*/
+   REPEAT:
+      RUN rubrikerexcel_UI (INPUT SUBSTRING(tidut.UT,1,55) ,INPUT "COURIER",INPUT 14,INPUT TRUE,INPUT 15,INPUT 11).
+      RUN posterexcel_UI (INPUT "",INPUT "COURIER",INPUT 14,INPUT FALSE,INPUT 15,INPUT 0,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).
+      {EXCELFEL.I}
+      FIND NEXT tidut NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE tidut THEN DO:
+         LEAVE.
+      END.      
+      IF SUBSTRING(tidut.UT,132) = "$" THEN LEAVE.
+      IF SUBSTRING(tidut.UT,utnr[1],8) NE "-" THEN DO:    /*Rubrikslut FÖRSTA */         
+         RUN posterexcel_UI (INPUT SUBSTRING(tidut.UT,1,57) ,INPUT "COURIER",INPUT 14,INPUT FALSE,INPUT 15,INPUT 0,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).
+         RUN posterexcel_UI (INPUT "",INPUT "COURIER",INPUT 14,INPUT FALSE,INPUT 15,INPUT 0,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).
+         LEAVE.
+      END.
+   END.   
+   /*Poster*/
+   IF AVAILABLE tidut AND SUBSTRING(tidut.UT,132) = "$" THEN musz = musz.
+   ELSE DO:
+   
+       FIND NEXT tidut NO-LOCK NO-ERROR.
+       raknare = 1.
+       IF AVAILABLE tidut THEN DO:
+       
+          REPEAT:
+             IF SUBSTRING(tidut.UT,1,2) = "==" THEN DO:
+                RUN understryk_UI (INPUT 4,INPUT 2). 
+                musz = musz.
+             END.
+             ELSE IF SUBSTRING(tidut.UT,8,1) = "-----" THEN DO:
+                rubrikvar = TRUE.
+                RUN understryk_UI (INPUT 4,INPUT 2). 
+                musz = musz.
+             END.
+             ELSE IF SUBSTRING(tidut.UT,utnr[2],6) = "TIMMAR" THEN DO:    /*Rubrikslut ANDRA */         
+                RUN posterexcel_UI (INPUT SUBSTRING(tidut.UT,1,57),INPUT "COURIER",INPUT 14,INPUT FALSE,INPUT 15,INPUT 0,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).
+                RUN posterexcel_UI (INPUT "",INPUT "COURIER",INPUT 14,INPUT FALSE,INPUT 15,INPUT 0,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).
+             END.
+             ELSE DO:
+                /*IF SUBSTRING(tidut.UT,132) = "$" THEN LEAVE.*/
+                IF SUBSTRING(tidut.UT,132) = "$" THEN DO: 
+                   FIND NEXT tidut NO-LOCK NO-ERROR.
+                   LEAVE.
+                END.            
+                RUN posterexcel_UI (INPUT SUBSTRING(tidut.UT,1,57),INPUT "COURIER",INPUT 14,INPUT FALSE,INPUT 15,INPUT 0,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).                     
+                RUN posterexcel_UI (INPUT "",INPUT "COURIER",INPUT 14,INPUT FALSE,INPUT 15,INPUT 0,INPUT FALSE,INPUT FALSE,INPUT 0,INPUT 0).
+             END. 
+             {EXCELFEL.I}
+             FIND NEXT tidut NO-LOCK NO-ERROR.
+             IF NOT AVAILABLE tidut THEN DO:
+                LEAVE.
+             END.
+          END.
+       END.
+   END.
+   
+END PROCEDURE.

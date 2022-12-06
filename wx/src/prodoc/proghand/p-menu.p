@@ -1,0 +1,59 @@
+/* p-menu.p */
+
+DEFINE VARIABLE mywin AS WIDGET-HANDLE.
+
+DEFINE SUB-MENU myfile
+   MENU-ITEM m1  LABEL "Save"
+   MENU-ITEM m2  LABEL "Save &As"
+   MENU-ITEM m3  LABEL "E&xit".
+
+
+DEFINE SUB-MENU mycolors
+   MENU-ITEM m1  LABEL "Red"
+   MENU-ITEM m2  LABEL "Green"
+   MENU-ITEM m3  LABEL "Blue"
+   MENU-ITEM m4  LABEL "Black".
+
+
+DEFINE SUB-MENU myedit
+   SUB-MENU mycolors  LABEL "Add"
+   MENU-ITEM e1       LABEL "Delete"
+   MENU-ITEM e2       LABEL "Copy".
+
+
+DEFINE MENU mybar  MENUBAR
+   SUB-MENU myfile LABEL "File"
+   SUB-MENU myedit LABEL "Edit".
+
+DEFINE BUTTON b1 LABEL "Text Mode".
+DEFINE BUTTON b2 LABEL "Graphics Mode".
+
+FORM 
+   b1 at X 10  Y 120 
+   b2 at x 120	Y 120
+   WITH FRAME x.
+
+ON CHOOSE OF b1 IN FRAME x DO:
+   MENU-ITEM m1:SENSITIVE IN MENU mycolors = NO.  
+   MENU-ITEM m2:SENSITIVE IN MENU mycolors = NO.
+   MENU-ITEM m3:SENSITIVE IN MENU mycolors = NO.
+   MENU-ITEM m4:SENSITIVE IN MENU mycolors = YES.    
+END.
+
+ON CHOOSE OF b2 IN FRAME x DO:	
+   MENU-ITEM m1:SENSITIVE IN MENU mycolors = YES.  
+   MENU-ITEM m2:SENSITIVE IN MENU mycolors = YES.
+   MENU-ITEM m3:SENSITIVE IN MENU mycolors = YES.   
+   MENU-ITEM m4:SENSITIVE IN MENU mycolors = NO.  
+END. 
+
+CREATE WINDOW mywin
+   ASSIGN MENUBAR = MENU mybar:HANDLE.
+CURRENT-WINDOW = mywin.
+
+ENABLE b1 b2 WITH FRAME x.
+APPLY "CHOOSE" TO b1.
+
+WAIT-FOR CHOOSE OF MENU-ITEM m3 IN MENU myfile. 
+
+DELETE WIDGET mywin.

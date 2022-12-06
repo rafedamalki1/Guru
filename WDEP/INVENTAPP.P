@@ -1,0 +1,262 @@
+/*INVENTAPP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{DEPATEMP.I}
+
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{ANVTEMPS.I}
+{MTRLTEMP.I}
+{SPECMTRLTEMP.I}
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(86)" NO-UNDO.    
+DEFINE VARIABLE str1 AS CHARACTER FORMAT "X(86)" NO-UNDO.
+
+{TIDUTTTNEW.I}  
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+{DYNHMT.I}
+DEFINE VARIABLE best_nr_koll AS INTEGER NO-UNDO.
+DEFINE VARIABLE lev_nr_koll  AS INTEGER NO-UNDO.
+DEFINE VARIABLE invdat AS DATE NO-UNDO. 
+DEFINE VARIABLE datvar AS DATE NO-UNDO.
+DEFINE BUFFER mdepbuff FOR  MTRLDEP .
+DEFINE TEMP-TABLE ejmottemp NO-UNDO
+    FIELD ENR AS CHARACTER 
+    FIELD SALDO AS INTEGER
+    INDEX ENR ENR.                                  
+
+PROCEDURE Kontakt:
+   RUN GuruAppserverKontakt.p.
+END PROCEDURE.
+
+
+PROCEDURE kollinv_UI:                         
+DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+DEFINE OUTPUT PARAMETER datvar AS DATE NO-UNDO.
+   
+   datvar = ?.
+   FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa 
+   AND MTRLDEP.IBDATUM NE ? AND MTRLDEP.INVDATUM = ? NO-LOCK:    
+      /*kolla att ej inventera enr ej är borttagen. Om borttaget- starta ny inventering*/
+      FIND FIRST mdepbuff WHERE mdepbuff.ENR = MTRLDEP.ENR AND mdepbuff.DEPNR =  MTRLDEP.DEPNR 
+      AND mdepbuff.IBDATUM = ?  NO-LOCK NO-ERROR.
+      IF AVAILABLE mdepbuff THEN DO:         
+         datvar = MTRLDEP.IBDATUM.
+      END.      
+   END.            
+END PROCEDURE.
+
+PROCEDURE mtrlhmt_UI:                         
+DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR spec_mtrl.
+
+   IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "ELPA" OR 
+   Guru.Konstanter:globforetag = "LULE"  OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "BORL" OR Guru.Konstanter:globforetag = "BODE" OR Guru.Konstanter:globforetag = "KRAF" THEN DO:
+      datvar = ?.
+      FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa 
+      AND MTRLDEP.IBDATUM NE ? AND MTRLDEP.INVDATUM = ? NO-LOCK:    
+         /*kolla att ej inventera enr ej är borttagen. Om borttaget- starta ny inventering*/
+         FIND FIRST mdepbuff WHERE mdepbuff.ENR = MTRLDEP.ENR AND mdepbuff.DEPNR =  MTRLDEP.DEPNR 
+         AND mdepbuff.IBDATUM = ?  NO-LOCK NO-ERROR.
+         IF AVAILABLE mdepbuff THEN DO:         
+            datvar = MTRLDEP.IBDATUM.
+         END.      
+      END.            
+      
+      IF datvar NE ? THEN DO:      
+         OPEN QUERY mtrlq FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa 
+         AND MTRLDEP.IBDATUM = datvar NO-LOCK. 
+         GET FIRST mtrlq NO-LOCK.
+         DO WHILE AVAILABLE(MTRLDEP): 
+            CREATE spec_mtrl.
+            ASSIGN      
+            spec_mtrl.ENR = MTRLDEP.ENR
+            spec_mtrl.BENAMNING = MTRLDEP.BENAMNING
+            spec_mtrl.FACKID = MTRLDEP.FACKID
+            spec_mtrl.ENHET = MTRLDEP.ENHET
+            spec_mtrl.INVANT = MTRLDEP.INVANT
+            spec_mtrl.SALDO = MTRLDEP.SALDO
+            spec_mtrl.INVDATUM = MTRLDEP.INVDATUM       
+            spec_mtrl.NPRIS = MTRLDEP.NPRIS
+            spec_mtrl.BPRIS = MTRLDEP.BPRIS     
+            spec_mtrl.IB = MTRLDEP.IB 
+            spec_mtrl.IBDATUM = MTRLDEP.IBDATUM                     
+            spec_mtrl.LEVKOD = MTRLDEP.LEVKOD
+            spec_mtrl.SUMMA = spec_mtrl.INVANT * spec_mtrl.NPRIS.         
+            GET NEXT mtrlq NO-LOCK. 
+         END.
+         CLOSE QUERY mtrlq.     
+         OPEN QUERY mtrlq FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa 
+         AND MTRLDEP.IBDATUM = ? USE-INDEX DEPNR NO-LOCK. 
+         GET FIRST mtrlq NO-LOCK.
+         DO WHILE AVAILABLE(MTRLDEP): 
+            FIND FIRST spec_mtrl WHERE spec_mtrl.ENR = MTRLDEP.ENR NO-LOCK NO-ERROR.
+            IF AVAILABLE spec_mtrl THEN DO:
+               IF spec_mtrl.INVDATUM = ? THEN DO:
+                  ASSIGN
+                  spec_mtrl.SALDO = MTRLDEP.SALDO
+                  spec_mtrl.IB = MTRLDEP.SALDO
+                  spec_mtrl.NPRIS = MTRLDEP.NPRIS
+                  spec_mtrl.BPRIS = MTRLDEP.BPRIS
+                  spec_mtrl.SUMMA = spec_mtrl.INVANT * spec_mtrl.NPRIS.
+               END.
+            END.
+            ELSE DO:
+               /* om det finns en pågående inventering så skapas nya inventeringsposter för allt materiel som är nytt eller bytt
+               efter det att inventeringen påbörjades*/
+               CREATE spec_mtrl.
+               ASSIGN      
+               spec_mtrl.ENR = MTRLDEP.ENR
+               spec_mtrl.BENAMNING = MTRLDEP.BENAMNING
+               spec_mtrl.FACKID = MTRLDEP.FACKID
+               spec_mtrl.ENHET = MTRLDEP.ENHET
+               spec_mtrl.INVANT = 0
+               spec_mtrl.SALDO = MTRLDEP.SALDO
+               spec_mtrl.INVDATUM = ?
+               spec_mtrl.NPRIS = MTRLDEP.NPRIS
+               spec_mtrl.BPRIS = MTRLDEP.BPRIS     
+               spec_mtrl.IB = MTRLDEP.SALDO 
+               spec_mtrl.IBDATUM = datvar
+               spec_mtrl.LEVKOD = MTRLDEP.LEVKOD.         
+            END.         
+            GET NEXT mtrlq NO-LOCK. 
+         END.
+         CLOSE QUERY mtrlq. 
+         FOR EACH spec_mtrl:
+            IF spec_mtrl.INVDATUM NE ? THEN DELETE spec_mtrl.
+            ELSE DO:
+               spec_mtrl.KLAR = FALSE.
+               FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa 
+               AND MTRLDEP.IBDATUM = ? AND MTRLDEP.ENR = spec_mtrl.ENR NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE MTRLDEP THEN DELETE spec_mtrl.
+            END.
+         END.
+      END.
+      ELSE DO:
+         OPEN QUERY mtrlq FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa 
+         AND MTRLDEP.IBDATUM = ? USE-INDEX DEPNR NO-LOCK. 
+         GET FIRST mtrlq NO-LOCK.
+         DO WHILE AVAILABLE(MTRLDEP):             
+            CREATE spec_mtrl.
+            ASSIGN      
+            spec_mtrl.ENR = MTRLDEP.ENR
+            spec_mtrl.BENAMNING = MTRLDEP.BENAMNING
+            spec_mtrl.FACKID = MTRLDEP.FACKID
+            spec_mtrl.ENHET = MTRLDEP.ENHET
+            spec_mtrl.INVANT = 0
+            spec_mtrl.SALDO = MTRLDEP.SALDO
+            spec_mtrl.INVDATUM = ?
+            spec_mtrl.NPRIS = MTRLDEP.NPRIS
+            spec_mtrl.BPRIS = MTRLDEP.BPRIS     
+            spec_mtrl.IB = MTRLDEP.SALDO 
+            spec_mtrl.IBDATUM = TODAY
+            spec_mtrl.LEVKOD = MTRLDEP.LEVKOD
+            spec_mtrl.KLAR = FALSE.                     
+            GET NEXT mtrlq NO-LOCK. 
+         END.
+         CLOSE QUERY mtrlq.   
+      END.
+   END.
+   ELSE DO:
+      OPEN QUERY mtrlq FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa 
+      AND MTRLDEP.IBDATUM = ? USE-INDEX DEPNR NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLDEP): 
+         CREATE spec_mtrl.
+         ASSIGN      
+         spec_mtrl.ENR = MTRLDEP.ENR
+         spec_mtrl.BENAMNING = MTRLDEP.BENAMNING
+         spec_mtrl.FACKID = MTRLDEP.FACKID
+         spec_mtrl.ENHET = MTRLDEP.ENHET
+         spec_mtrl.INVANT = MTRLDEP.INVANT
+         spec_mtrl.SALDO = MTRLDEP.SALDO
+         spec_mtrl.INVDATUM = MTRLDEP.INVDATUM       
+         spec_mtrl.NPRIS = MTRLDEP.NPRIS
+         spec_mtrl.BPRIS = MTRLDEP.BPRIS     
+         spec_mtrl.BESTKVANT = MTRLDEP.BESTKVANT 
+         spec_mtrl.BESTPUNKT = MTRLDEP.BESTPUNKT            
+         spec_mtrl.OMSATT = MTRLDEP.OMSATT
+         spec_mtrl.LEVKOD = MTRLDEP.LEVKOD      
+         spec_mtrl.LAGER = MTRLDEP.LAGER
+         spec_mtrl.SUMMA = spec_mtrl.INVANT * spec_mtrl.NPRIS.     
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.     
+   END.   
+   IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+      EMPTY TEMP-TABLE ejmottemp NO-ERROR. 
+      FOR EACH BESTDEPAO  WHERE BESTDEPAO.DEPNR = vald_depa AND BESTDEPAO.BESTNR NE ? AND BESTDEPAO.LEVDATUM = ?   NO-LOCK:
+         FIND FIRST ejmottemp WHERE ejmottemp.ENR = BESTDEPAO.ENR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE ejmottemp THEN DO:
+            CREATE ejmottemp.            
+            ejmottemp.ENR = BESTDEPAO.ENR.
+         END.    
+         ejmottemp.SALDO = ejmottemp.SALDO + BESTDEPAO.ANTAL.         
+      END.
+      
+      
+      FOR EACH spec_mtrl :
+         FIND FIRST ejmottemp WHERE ejmottemp.ENR = spec_mtrl.ENR NO-LOCK NO-ERROR.
+         IF AVAILABLE ejmottemp THEN DO:
+            spec_mtrl.EJMOT = ejmottemp.SALDO.
+         END.            
+      END.
+      
+   END.   
+   
+      
+END PROCEDURE.         
+
+PROCEDURE dathmt_UI:
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER datvar AS DATE NO-UNDO.
+   IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "ELPA" OR 
+   Guru.Konstanter:globforetag = "LULE"  OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "BORL" OR Guru.Konstanter:globforetag = "BODE" OR Guru.Konstanter:globforetag = "KRAF" THEN DO:
+      /*FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa 
+      AND MTRLDEP.IBDATUM NE ? AND MTRLDEP.INVDATUM = ? NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRLDEP THEN datvar = MTRLDEP.IBDATUM.
+      ELSE datvar = TODAY.*/
+               
+      /*omgjort 20131203  inventeringen pågår inte om artikeln är borttagen eller bytt Lena*/
+      datvar = TODAY.
+      FOR EACH MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa 
+      AND MTRLDEP.IBDATUM NE ? AND MTRLDEP.INVDATUM = ? EXCLUSIVE-LOCK:    
+         /*kolla att ej inventera enr ej är borttagen. Om borttaget- starta ny inventering*/
+         FIND FIRST mdepbuff WHERE mdepbuff.ENR = MTRLDEP.ENR AND mdepbuff.DEPNR =  MTRLDEP.DEPNR 
+         AND mdepbuff.IBDATUM = ?  NO-LOCK NO-ERROR.
+         IF AVAILABLE mdepbuff THEN DO:         
+            datvar = MTRLDEP.IBDATUM.            
+         END.      
+         ELSE DO:
+            /*borde ta bort inventeringsposter som ej längre finns i lager lena 20131209*/
+            DELETE MTRLDEP.
+         END.   
+      END.      
+   END.   
+END PROCEDURE.
+
+PROCEDURE redaninv_UI:
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER redaninv AS LOGICAL NO-UNDO.
+   redaninv = FALSE.
+   IF Guru.Konstanter:globforetag = "GKAL" OR Guru.Konstanter:globforetag = "ELPA" OR 
+   Guru.Konstanter:globforetag = "LULE"  OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "BORL" OR Guru.Konstanter:globforetag = "BODE" OR Guru.Konstanter:globforetag = "KRAF" THEN DO:
+      FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa 
+      AND MTRLDEP.IBDATUM NE ? AND MTRLDEP.INVDATUM = ? NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRLDEP THEN DO:
+         /* inventering är pågående*/
+      END.
+      ELSE DO:
+         /*inventering är INTE pågående. Har det gjorts en inventering tidigare idag?*/
+         FIND FIRST MTRLDEP WHERE MTRLDEP.DEPNR = vald_depa 
+         AND MTRLDEP.IBDATUM = TODAY AND MTRLDEP.INVDATUM = TODAY NO-LOCK NO-ERROR.
+         IF AVAILABLE MTRLDEP THEN DO:
+            /*det får INTE startas 2 inventeringar samma dag*/
+            redaninv = TRUE.            
+         END.                   
+      END.      
+   END.   
+END PROCEDURE.

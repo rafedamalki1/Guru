@@ -1,0 +1,342 @@
+/*ANDUTOVA.P*/
+&Scoped-define NEW     
+&Scoped-define SHARED 
+{FLEXTAB.I}
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+
+{REGVAR.I}
+{SOKDEF.I}
+{TIDAPPDEF.I}
+DEFINE INPUT PARAMETER vart AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER inregdatum AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER CMB_KNAPP AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER varaonr AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER vardelnr AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER FILL-IN_TID AS DECIMAL NO-UNDO.
+DEFINE INPUT PARAMETER FILL-IN_ORSAK AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER flexkvst AS DECIMAL NO-UNDO.
+DEFINE INPUT PARAMETER flexkvsl AS DECIMAL NO-UNDO.
+DEFINE INPUT PARAMETER inglobanv AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER sregstart AS DECIMAL NO-UNDO.
+DEFINE INPUT PARAMETER sregslut AS DECIMAL NO-UNDO.
+DEFINE INPUT PARAMETER sregdagnamn AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER sregvnr AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER ovut AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR extratemp.
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE NEW SHARED VARIABLE tidtabrec AS RECID NO-UNDO.
+DEFINE VARIABLE flrec AS RECID NO-UNDO. 
+DEFINE VARIABLE fldrec AS RECID NO-UNDO. 
+DEFINE VARIABLE flexut AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE status-ok AS LOGICAL NO-UNDO.
+DEFINE VARIABLE sparomrade AS CHARACTER NO-UNDO.
+DEFINE VARIABLE flexmost AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE flexmosl AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE seku AS INTEGER NO-UNDO.
+DEFINE VARIABLE fstart AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE fslut AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE flkoll AS DECIMAL NO-UNDO.     
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE dagplus AS DECIMAL NO-UNDO.
+DEFINE VARIABLE tid2 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE nyovtid AS DECIMAL NO-UNDO.
+DEFINE BUFFER flexbuff FOR FLEXTID.
+DEFINE BUFFER tidbuff FOR TIDREGITAB.
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+FUNCTION klock60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ):
+/*------------------------------------------------------------------------------
+  Purpose:  
+    Notes:  
+------------------------------------------------------------------------------*/
+
+  RETURN  TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) * 60 / 100 ).
+
+END FUNCTION.
+ASSIGN
+globanv = inglobanv
+regdatum = inregdatum
+regstart = sregstart
+regslut = sregslut
+regdagnamn = sregdagnamn
+regvnr = sregvnr. 
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+persrec = RECID(PERSONALTAB).
+FIND FIRST extratemp NO-ERROR.
+FIND FIRST FLEXAVT WHERE FLEXAVT.PERSONALKOD = PERSONALTAB.PERSONALKOD NO-LOCK NO-ERROR.
+FIND FIRST ANSTFORMTAB WHERE ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+USE-INDEX ANSTF NO-LOCK NO-ERROR.  
+FIND FIRST UTRYCKNING WHERE  UTRYCKNING.KOD = ANSTFORMTAB.KOD
+USE-INDEX UT NO-LOCK NO-ERROR.  
+FIND FIRST FLEXREG WHERE FLEXREG.KOD = FLEXAVT.FLEXKOD USE-INDEX FLEX NO-LOCK 
+NO-ERROR.  
+FIND FIRST AONRTAB WHERE AONRTAB.AONR = varaonr AND AONRTAB.DELNR = vardelnr
+NO-LOCK NO-ERROR.
+
+FIND FIRST FLEXTID WHERE FLEXTID.PERSONALKOD = extratemp.PERSONALKOD AND 
+FLEXTID.DATUM = extratemp.DATUM AND FLEXTID.TID = extratemp.TID AND 
+FLEXTID.KNAPP = extratemp.KNAPP NO-LOCK NO-ERROR. 
+flrec = RECID(FLEXTID).      
+flexut = FLEXTID.TID.       
+FIND FIRST TIDREGITAB WHERE TIDREGITAB.PERSONALKOD = extratemp.PERSONALKOD AND
+TIDREGITAB.DATUM = extratemp.DATUM AND TIDREGITAB.START GE flexut AND TIDREGITAB.START 
+< FILL-IN_TID NO-LOCK NO-ERROR.
+IF AVAILABLE TIDREGITAB THEN DO:
+   CREATE felmeddtemp.
+   felmeddtemp.FELMEDD = "Det finns redan en övertids-registrering med start : " + STRING(TIDREGITAB.START).
+   RETURN.
+END.
+
+RUN btnreg_UI.
+EMPTY TEMP-TABLE extratemp NO-ERROR. 
+FIND FLEXTID WHERE RECID(FLEXTID) = flrec NO-LOCK NO-ERROR.
+IF AVAILABLE FLEXTID THEN DO:
+   CREATE extratemp.
+   BUFFER-COPY FLEXTID TO extratemp.      
+END.
+PROCEDURE btnreg_UI :
+   DO TRANSACTION:
+                  
+      FIND FLEXTID WHERE RECID(FLEXTID) = flrec EXCLUSIVE-LOCK NO-ERROR.                   
+      ASSIGN         
+      FLEXTID.KNAPP = CMB_KNAPP  
+      FLEXTID.TID = FILL-IN_TID
+      FLEXTID.ORSAK = "Manuellt klockslag och ändrad från ut till övertid ut"
+      /*FLEXTID.AONR = varaonr
+      FLEXTID.DELNR = vardelnr
+      FLEXTID.ORSAK = FILL-IN_ORSAK*/
+      FLEXTID.AUTO = "Korr"
+      nyovtid = FLEXTID.TID. 
+      FIND FIRST FLEXDAG WHERE FLEXDAG.PERSONALKOD = PERSONALTAB.PERSONALKOD AND
+      FLEXDAG.DATUM = FLEXTID.DATUM USE-INDEX FLEX EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE FLEXDAG THEN DO:
+         CREATE FLEXDAG.
+         ASSIGN FLEXDAG.PERSONALKOD = PERSONALTAB.PERSONALKOD
+         FLEXDAG.DATUM = FLEXTID.DATUM
+         FLEXDAG.KONTROLL = "Ejkontroll"
+         FLEXDAG.START = regstart
+         FLEXDAG.SLUT = regslut
+         FLEXDAG.FELOK = FALSE.         
+      END.     
+      ASSIGN
+      fldrec = RECID(FLEXDAG)
+      regdatum = FLEXDAG.DATUM.
+      IF FLEXDAG.KONTROLL = "Kontroll" THEN DO:
+         ASSIGN 
+         FLEXDAG.KONTROLL = "Ejkontroll" 
+         FLEXDAG.FELOK = FALSE.
+      END.   
+      
+      IF FLEXTID.KNAPP = "Övertid Ut" THEN DO:      
+         RUN overuttolk_UI.
+                        
+      END.
+      RUN SLUTARB.P.
+   END.   
+END PROCEDURE.
+
+PROCEDURE andtid_UI :
+   ASSIGN
+   TIDREGITAB.PROGRAM = 'ANDFLEX' + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv
+   nytid = TIDREGITAB.START.
+   RUN TIMSEK.P.
+   regstartsek = sekunder.
+   nytid = TIDREGITAB.SLUT.
+   RUN TIMSEK.P.
+   regslutsek = sekunder.
+   regdatum = TIDREGITAB.DATUM.                  
+   RUN TOTTID.P.
+   ASSIGN TIDREGITAB.TOTALT = nytid.
+   VALIDATE TIDREGITAB.
+END PROCEDURE.
+
+PROCEDURE nytid_UI :
+   {SOKSTART.I}
+   ASSIGN
+   soktemp.SOKVAL = 1
+   soktemp.SOKINT[1] = Guru.Konstanter:varforetypval[4]
+   soktemp.SOKCHAR[2] = PERSONALTAB.PERSONALKOD
+   soktemp.SOKCHAR[3] = AONRTAB.PRISTYP
+   soktemp.SOKCHAR[4] = PERSONALTAB.BEFATTNING 
+   soktemp.SOKDATE[1] = regdatum.
+   {SOKANROP.I}
+   CREATE TIDREGITAB.
+   ASSIGN TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+   TIDREGITAB.START = fstart     
+   TIDREGITAB.SLUT = fslut   
+   TIDREGITAB.PROGRAM = 'ANDFLEX' + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv
+   TIDREGITAB.DATUM = regdatum
+   TIDREGITAB.DAG = regdagnamn
+   TIDREGITAB.VECKONUMMER = regvnr
+   TIDREGITAB.TRAKTAMENTE = AONRTAB.TRAKTAMENTE
+   TIDREGITAB.OVERTIDUTTAG = 'F'
+   TIDREGITAB.AONR = AONRTAB.AONR
+   TIDREGITAB.DELNR = AONRTAB.DELNR
+   TIDREGITAB.PRISTYP = AONRTAB.PRISTYP
+   TIDREGITAB.OVERTIDTILL = PERSONALTAB.BEFATTNING
+   TIDREGITAB.PRIS = soktemp.SOKDECI[1]                         
+   TIDREGITAB.OVERTIDUTTAG = ovut               
+   TIDREGITAB.RESMAL = FILL-IN_ORSAK.  
+   ASSIGN            
+   nytid = TIDREGITAB.START.
+   RUN TIMSEK.P.
+   regstartsek = sekunder.
+   nytid = TIDREGITAB.SLUT.
+   RUN TIMSEK.P.
+   regslutsek = sekunder.
+   regdatum = TIDREGITAB.DATUM.               
+   RUN TOTTID.P.
+   ASSIGN TIDREGITAB.TOTALT = nytid.
+   tidtabrec = RECID(TIDREGITAB).
+   VALIDATE TIDREGITAB.
+   /*för att tolka övertiden*/
+   EMPTY TEMP-TABLE tidapptemp NO-ERROR.                   
+   CREATE tidapptemp.
+   ASSIGN
+   tidapptemp.FORETAG = globforetag
+   tidapptemp.ANVANDARE = globanv
+   tidapptemp.RECPERS = persrec
+   tidapptemp.RECTID = tidtabrec
+   tidapptemp.DATUM = regdatum.            
+   RUN TIDUPPDE.P (INPUT TABLE tidapptemp).                  
+   musz = FALSE.   
+   RUN TRAKTBER.P.
+END PROCEDURE.
+
+PROCEDURE overuttolk_UI :
+   /*Kolla om full arbetstid uppnådd vid ordinarie arbetstids slut*/
+   dagplus = klock60( klock100(FLEXDAG.PLUS) + klock100(FLEXDAG.FLARB) + klock100(FLEXDAG.OVUTPLUS)).
+   IF FLEXREG.FULLARB = TRUE  THEN DO:        
+      IF dagplus < 0 THEN DO:
+          /*  dagplus - vad som saknas till full arbetstid vid flexdag slut (regslut)*/               
+          tid2 = klock60(klock100(FLEXDAG.SLUT) - klock100(FLEXDAG.PLUS) - klock100(FLEXDAG.FLARB)).
+          /* tid2 - när full arbetstid är uppnådd*/
+          IF tid2 < nyovtid THEN DO:             
+             /*dela upp i flex och övertid*/
+             FLEXDAG.SLUT  = tid2.     
+             FIND LAST TIDREGITAB WHERE 
+             TIDREGITAB.TIDLOG = TRUE AND TIDREGITAB.DATUM = regdatum  AND
+             TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND TIDREGITAB.OVERTIDUTTAG = 'F' AND
+             TIDREGITAB.SLUT = flexut USE-INDEX PSTART EXCLUSIVE-LOCK NO-ERROR.
+             IF AVAILABLE TIDREGITAB THEN DO: 
+               ASSIGN TIDREGITAB.SLUT = tid2.
+               nytid = TIDREGITAB.TOTALT.
+               RUN TIMSEK.P.
+               ASSIGN
+               nytid = TIDREGITAB.START.
+               RUN TIMSEK.P.
+               ASSIGN
+               regstartsek = sekunder
+               nytid = TIDREGITAB.SLUT.
+               RUN TIMSEK.P.
+               ASSIGN
+               regslutsek = sekunder
+               regdatum = TIDREGITAB.DATUM
+               regvnr = TIDREGITAB.VECKONUMMER.
+               RUN TOTTID.P.
+               ASSIGN TIDREGITAB.TOTALT = nytid.                                         
+               FIND FIRST AONRTAB WHERE AONRTAB.AONR = TIDREGITAB.AONR AND AONRTAB.DELNR = TIDREGITAB.DELNR NO-LOCK NO-ERROR.
+
+               VALIDATE TIDREGITAB. 
+
+               ASSIGN
+               fstart = tid2
+               fslut = FLEXTID.TID.
+               RUN nytid_UI.                                                                                                                                                 
+            END.
+          END.
+          ELSE DO:
+             /*full arbetstid ej uppnådd - allt är flex*/
+             FLEXDAG.SLUT  = FLEXTID.TID.
+             FIND LAST TIDREGITAB WHERE 
+             TIDREGITAB.TIDLOG = TRUE AND TIDREGITAB.DATUM = regdatum  AND
+             TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND TIDREGITAB.OVERTIDUTTAG = 'F' AND
+             TIDREGITAB.SLUT = flexut USE-INDEX PSTART EXCLUSIVE-LOCK NO-ERROR.
+             IF AVAILABLE TIDREGITAB THEN DO: 
+               ASSIGN TIDREGITAB.SLUT = FLEXTID.TID.
+               nytid = TIDREGITAB.TOTALT.
+               RUN TIMSEK.P.
+               ASSIGN
+               
+               nytid = TIDREGITAB.START.
+               RUN TIMSEK.P.
+               ASSIGN
+               regstartsek = sekunder
+               nytid = TIDREGITAB.SLUT.
+               RUN TIMSEK.P.
+               ASSIGN
+               regslutsek = sekunder
+               regdatum = TIDREGITAB.DATUM
+               regvnr = TIDREGITAB.VECKONUMMER.
+               RUN TOTTID.P.
+               ASSIGN TIDREGITAB.TOTALT = nytid.                                         
+               VALIDATE TIDREGITAB. 
+             END.
+          END.
+      END.
+      ELSE DO: 
+         IF flexut > regslut THEN DO:         
+            /* ut-reg efter ordinarie tid, full arbetstid*/
+            tid2 = klock60(klock100(FLEXDAG.SLUT) - klock100(FLEXDAG.PLUS) - klock100(FLEXDAG.FLARB)).
+            /* tid2 - när full arbetstid är uppnådd*/
+     
+
+            FIND LAST TIDREGITAB WHERE 
+            TIDREGITAB.TIDLOG = TRUE AND TIDREGITAB.DATUM = regdatum  AND
+            TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND TIDREGITAB.OVERTIDUTTAG = 'F' AND
+            TIDREGITAB.SLUT = flexut USE-INDEX PSTART EXCLUSIVE-LOCK NO-ERROR.
+            FIND FIRST AONRTAB WHERE AONRTAB.AONR = TIDREGITAB.AONR AND AONRTAB.DELNR = TIDREGITAB.DELNR NO-LOCK NO-ERROR.
+            IF tid2 GE regslut AND tid2 < TIDREGITAB.SLUT THEN DO:
+               ASSIGN 
+               FLEXDAG.SLUT  = tid2
+               TIDREGITAB.SLUT = tid2.
+               RUN andtid_UI.
+               ASSIGN
+               fstart = tid2
+               fslut = FLEXTID.TID.
+               RUN nytid_UI.                  
+            END.
+            ELSE DO:            
+               ASSIGN
+               fstart = flexut
+               fslut = FLEXTID.TID.
+               RUN nytid_UI.                  
+            END.
+         END.
+         ELSE DO:
+            /*ut-reg innan ordinarie tid, full arbetstid*/
+            FLEXDAG.SLUT  = regslut.
+            FIND LAST TIDREGITAB WHERE 
+            TIDREGITAB.TIDLOG = TRUE AND TIDREGITAB.DATUM = regdatum  AND
+            TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD AND TIDREGITAB.OVERTIDUTTAG = 'F' AND
+            TIDREGITAB.SLUT = flexut USE-INDEX PSTART EXCLUSIVE-LOCK NO-ERROR.
+            FIND FIRST AONRTAB WHERE AONRTAB.AONR = TIDREGITAB.AONR AND AONRTAB.DELNR = TIDREGITAB.DELNR NO-LOCK NO-ERROR.
+            ASSIGN 
+            TIDREGITAB.SLUT = regslut.
+            RUN andtid_UI.
+
+            ASSIGN
+            fstart = regslut
+            fslut = FLEXTID.TID.
+            RUN nytid_UI.       
+
+         END.
+      END.            
+   END.
+END PROCEDURE.
+

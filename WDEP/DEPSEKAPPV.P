@@ -1,0 +1,106 @@
+/*DEPSEKAPPV.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{DEPATEMP.I}
+
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{ANVTEMPS.I}
+{MTRLTEMP.I}
+{SPECMTRLTEMP.I}
+
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{DEPSEKTEMP.I}
+
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(86)" NO-UNDO.    
+DEFINE VARIABLE str1 AS CHARACTER FORMAT "X(86)" NO-UNDO.
+
+{TIDUTTTNEW.I} 
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+{DYNHMT.I}
+
+PROCEDURE depsekhmt_UI:   
+   DEFINE OUTPUT PARAMETER TABLE FOR depsektemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR anvandartemp.
+   EMPTY TEMP-TABLE depsektemp  NO-ERROR. 
+   EMPTY TEMP-TABLE anvandartemp NO-ERROR. 
+   OPEN QUERY persq FOR EACH DEPSEK NO-LOCK.
+   GET FIRST persq NO-LOCK.
+   DO WHILE AVAILABLE(DEPSEK):      
+      FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = DEPSEK.ANVANDARE NO-LOCK NO-ERROR.
+      IF AVAILABLE ANVANDARE THEN DO:
+         IF ANVANDARE.AV-LEVEL > 0 THEN DO:       
+            CREATE depsektemp.
+            ASSIGN          
+            depsektemp.ANVANDARE = DEPSEK.ANVANDARE
+            depsektemp.DEP-NR = DEPSEK.DEPNR.           
+            depsektemp.NAMN =  ANVANDARE.AV-NAMN.
+         END.   
+      END.
+      ELSE DO TRANSACTION:
+         GET CURRENT persq EXCLUSIVE-LOCK.
+         DELETE  DEPSEK.  
+      END.                                  
+      GET NEXT persq NO-LOCK.     
+   END.
+   OPEN QUERY anvqq FOR EACH ANVANDARE NO-LOCK.
+   GET FIRST anvqq NO-LOCK.
+   DO WHILE AVAILABLE(ANVANDARE):
+      DO TRANSACTION:     
+         IF ANVANDARE.AV-LEVEL > 0 AND ANVANDARE.PERSONALKOD NE "" THEN DO:
+            CREATE anvandartemp.
+            ASSIGN          
+            anvandartemp.ANVANDARE = ANVANDARE.ANVANDARE
+            anvandartemp.PERSONALKOD = ANVANDARE.PERSONALKOD
+            anvandartemp.AV-NAMN = ANVANDARE.AV-NAMN.  
+         END.
+         
+      END.
+      GET NEXT anvqq NO-LOCK.     
+   END.  
+   FOR EACH depsektemp: 
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + depsektemp.ANVANDARE.
+   END.  
+   {GDPRLOGGCLIENT.I}
+   FOR EACH anvandartemp: 
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + anvandartemp.PERSONALKOD.
+   END.  
+   {GDPRLOGGCLIENT.I} 
+END PROCEDURE.
+
+
+PROCEDURE sparpers_UI:
+   DEFINE INPUT PARAMETER vald_depa AS INTEGER NO-UNDO.   
+   DEFINE INPUT PARAMETER TABLE FOR depsektemp.   
+   
+   OPEN QUERY persq3 FOR EACH DEPSEK WHERE DEPSEK.DEPNR = vald_depa NO-LOCK.   
+   GET FIRST persq3 NO-LOCK.
+   DO WHILE AVAILABLE(DEPSEK):
+      FIND FIRST depsektemp WHERE depsektemp.DEP-NR = DEPSEK.DEPNR AND depsektemp.ANVANDARE = DEPSEK.ANVANDARE 
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE depsektemp THEN DO TRANSACTION:
+         GET CURRENT persq3 EXCLUSIVE-LOCK.
+         DELETE DEPSEK.            
+      END.   
+      GET NEXT persq3 NO-LOCK.
+   END.     
+   CLOSE QUERY persq3.
+   FOR EACH depsektemp:
+      DO TRANSACTION:
+         FIND FIRST DEPSEK WHERE DEPSEK.DEPNR = depsektemp.DEP-NR AND DEPSEK.ANVANDARE = depsektemp.ANVANDARE 
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE DEPSEK THEN CREATE DEPSEK.
+         ASSIGN
+         DEPSEK.ANVANDARE = depsektemp.ANVANDARE         
+         DEPSEK.DEPNR = depsektemp.DEP-NR.         
+      END.     
+      DELETE depsektemp.
+   END.
+   RELEASE DEPSEK NO-ERROR.
+   
+END PROCEDURE.

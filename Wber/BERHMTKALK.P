@@ -1,0 +1,199 @@
+/*BERHMTKALK.P PROGRAMMET HÄMTAR kalkylkoder i beredningen DÄR EJ NÅGON KOMBINATION AV FÄLT ÄR UPPLAGD*/
+ 
+DEFINE VARIABLE forsta AS LOGICAL NO-UNDO.
+
+{KONVALTEMP.I}
+{KALKTEMP2.I}
+ {KALKKAT20G.I}
+/*Anders Olsson Elpool i Umeå AB  19 jan 2018 16:14:10*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+&Scoped-define NEW 
+
+/*DEFINE INPUT PARAMETER kon_recid AS RECID NO-UNDO.*/
+DEFINE INPUT  PARAMETER classerkollin AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER valaonr LIKE AONRTAB.AONR NO-UNDO.
+DEFINE INPUT PARAMETER valomrade LIKE AONRTAB.OMRADE NO-UNDO.
+DEFINE INPUT PARAMETER valnum LIKE BERVAL.NUM NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR kon_val.
+DEFINE OUTPUT PARAMETER TABLE FOR kalk_temp. 
+EMPTY TEMP-TABLE kalk_temp NO-ERROR. 
+{STARTFORAPPC.I}
+   
+DEFINE QUERY mtrlq FOR KALKBER.
+DEFINE VARIABLE LocalKalknumHandle AS HANDLE NO-UNDO.
+DEFINE VARIABLE kalkiberfinns AS LOGICAL NO-UNDO.
+
+ RUN KalkyliBerAnd.P PERSISTENT SET LocalKalknumHandle.
+ kalkiberfinns = TRUE.
+
+
+
+/*HUVUDPROGRAM*/   
+forsta = TRUE.
+FIND FIRST kon_val WHERE kon_val.NUM = valnum AND kon_val.KSKAP = FALSE NO-LOCK NO-ERROR.
+
+
+/*Anders Olsson Elpool i Umeå AB  29 feb 2016 12:02:22 
+ÄR KAKLYLEN SKAPAD OM INTE SÅ FINNS INTE HELLER BERKALKAR DÅ KÖRS GRUND UPPLÄGG IAF.*/
+
+RUN kalkgammval_UI IN LocalKalknumHandle (INPUT INTEGER(valaonr),INPUT valomrade,INPUT valnum,INPUT TABLE kon_val, OUTPUT TABLE kalk_temp APPEND).
+IF VALID-HANDLE(LocalKalknumHandle) THEN DO:
+   RUN avs_UI IN LocalKalknumHandle.
+   DELETE PROCEDURE LocalKalknumHandle NO-ERROR.
+END.      
+/*
+IF kalkiberfinns = TRUE THEN DO:
+   RUN kalkgammval_UI IN LocalKalknumHandle (INPUT INTEGER(valaonr),INPUT valomrade,INPUT valnum, 
+   INPUT TABLE kon_val, OUTPUT TABLE kalk_temp APPEND).
+ 
+   FIND FIRST kalk_temp WHERE NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE kalk_temp THEN DO:
+      FOR EACH kon_val WHERE kon_val.NUM = valnum USE-INDEX NUM:
+         RUN val_UI.
+      END.
+   
+   END.
+END.   
+   
+ELSE DO:
+   FIND FIRST BERKALK WHERE BERKALK.AONR = valaonr AND  BERKALK.OMRADE = valomrade AND BERKALK.NUM = valnum NO-LOCK NO-ERROR.
+   IF AVAILABLE BERKALK THEN DO:
+      RUN gammval_UI.
+   END.
+   ELSE DO:      
+      FIND FIRST BEREDNING WHERE BEREDNING.BERNR = INTEGER(valaonr) AND
+      BEREDNING.OMRADE = valomrade NO-LOCK NO-ERROR.
+      FOR EACH kon_val WHERE kon_val.NUM = valnum USE-INDEX NUM:
+         RUN val_UI.
+      END.
+        
+   END.      
+END.
+*/
+ 
+   
+/*SLUT HUVUDPROGRAM*/   
+/*   
+PROCEDURE val_UI.
+   FIND FIRST BEREDNING WHERE BEREDNING.BERAONR = valaonr AND 
+   BEREDNING.OMRADE = valomrade NO-LOCK NO-ERROR.
+   
+   FIND FIRST BERVAL WHERE BERVAL.AONR = BEREDNING.BERAONR AND BERVAL.OMRADE = BEREDNING.OMRADE AND BERVAL.NUM = kon_val.NUM AND BERVAL.KSKAP = FALSE 
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE BERVAL THEN DO:
+      IF BERVAL.ORT = "STOPP" THEN RETURN.  
+   END. 
+   ELSE IF BEREDNING.KALKYL = FALSE THEN RETURN.
+   IF AVAILABLE BERVAL THEN DO:
+      IF BERVAL.ORT = "LAGGAUPP" THEN.  
+      ELSE IF BEREDNING.KALKYL = FALSE THEN RETURN. 
+   END. 
+   
+     
+   IF forsta = TRUE THEN DO:      
+      /*HÄMTA KODER SOM LIGGER DIREKT PÅ KONSTRUKTIONEN ENDAST EN GÅNG*/
+      OPEN QUERY mtrlq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F1 = "" AND KALKBER.F2 = " " AND KALKBER.F3 = " " AND
+      KALKBER.F4 = " " AND KALKBER.F5 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.
+      forsta = FALSE.      
+   END.      
+   IF kon_val.F2 NE "" THEN DO: 
+      OPEN QUERY mtrlq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F1 = kon_val.F2 AND KALKBER.F2 = " " AND KALKBER.F3 = " " AND
+      KALKBER.F4 = " " AND KALKBER.F5 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.     
+   IF kon_val.F3 NE "" THEN DO: 
+      OPEN QUERY mtrlq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F2 = kon_val.F3 AND KALKBER.F1 = " " AND KALKBER.F3 = " " AND
+      KALKBER.F4 = " " AND KALKBER.F5 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.   
+   IF kon_val.F4 NE "" THEN DO: 
+      OPEN QUERY mtrlq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F3 = kon_val.F4 AND KALKBER.F1 = " " AND KALKBER.F2 = " " AND
+      KALKBER.F4 = " " AND KALKBER.F5 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.   
+   IF kon_val.F5 NE "" THEN DO: 
+      OPEN QUERY mtrlq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F4 = kon_val.F5 AND KALKBER.F1 = " " AND KALKBER.F2 = " " AND
+      KALKBER.F3 = " " AND KALKBER.F5 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.   
+   IF kon_val.F6 NE "" THEN DO: 
+      OPEN QUERY mtrlq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = kon_val.F1 AND
+      KALKBER.F5 = kon_val.F6 AND KALKBER.F1 = " " AND KALKBER.F2 = " " AND
+      KALKBER.F3 = " " AND KALKBER.F4 = " " USE-INDEX AR NO-LOCK. 
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         RUN skapa_UI.
+         GET NEXT mtrlq NO-LOCK. 
+      END.
+      CLOSE QUERY mtrlq.      
+   END.      
+END PROCEDURE.  
+   
+PROCEDURE ladda_UI :
+  
+   
+END PROCEDURE.
+
+
+PROCEDURE skapa_UI : 
+  
+   FIND FIRST kalk_temp WHERE kalk_temp.NUM = kon_val.NUM AND 
+   kalk_temp.ARBKOD = KALKBER.ARBKOD AND kalk_temp.LOPNR = KALKBER.LOPNR
+   NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE kalk_temp THEN DO:
+      CREATE kalk_temp.
+      ASSIGN 
+      kalk_temp.NUM = kon_val.NUM
+      kalk_temp.ARBKOD = KALKBER.ARBKOD
+      kalk_temp.LOPNR = KALKBER.LOPNR      
+      kalk_temp.BENAMNING = KALKBER.BENAMNING
+      kalk_temp.ENHET = KALKBER.ENHET      
+      kalk_temp.ANTAL = KALKBER.ANTAL.
+   END.
+   ELSE DO:
+      kalk_temp.ANTAL = kalk_temp.ANTAL + KALKBER.ANTAL.
+   END.        
+END PROCEDURE.
+*/      
+/*
+PROCEDURE gammval_UI :
+   
+   FOR EACH BERKALK WHERE BERKALK.AONR = valaonr AND
+   BERKALK.OMRADE = valomrade AND BERKALK.NUM = valnum NO-LOCK:
+      CREATE kalk_temp.
+      BUFFER-COPY BERKALK TO kalk_temp.      
+   END.      
+END PROCEDURE.
+*/  

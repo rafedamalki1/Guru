@@ -1,0 +1,9 @@
+/*RAKMTRL.P*/
+DEF VAR A AS INTEGER.
+A = 0.
+FOR EACH MTRL WHERE KALKNR = 0 AND LEVKOD = "3":
+   A = A + 1.
+END.
+OUTPUT TO d:\delad\klient\pro9\kalle.txt.
+PUT A.
+OUTPUT CLOSE.

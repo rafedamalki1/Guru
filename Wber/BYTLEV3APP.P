@@ -1,0 +1,57 @@
+/*BYTLEV3APP.P.*/
+
+FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{JMFLEVTEP.I}
+PROCEDURE skapalista_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR jmflev_temp. 
+   DEFINE OUTPUT PARAMETER vald_kundlev AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE jmflev_temp NO-ERROR. 
+   FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+   IF AVAILABLE HUVUDLEV THEN DO:  
+      vald_kundlev = HUVUDLEV.LEVKOD.
+   END.                              
+   ELSE DO:
+      FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD NE "0" 
+      AND LEVERANTOR.LEVKOD NE "99" AND LEVERANTOR.BORTTAG = FALSE NO-LOCK NO-ERROR.
+      vald_kundlev = LEVERANTOR.LEVKOD.
+   END.   
+   FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = vald_kundlev
+   USE-INDEX LEV NO-LOCK NO-ERROR.
+   CREATE jmflev_temp.
+   ASSIGN   
+   jmflev_temp.LEVKOD = LEVERANTOR.LEVKOD
+   jmflev_temp.LEVNAMN = LEVERANTOR.LEVNAMN.
+   /*jmflev_temp.LEVNAMN = LEVERANTOR.LEVKOD + " " + LEVERANTOR.LEVNAMN.*/
+  
+   FOR EACH LEVERANTOR WHERE LEVERANTOR.LEVKOD NE vald_kundlev AND 
+   LEVERANTOR.LEVKOD NE "0" AND LEVERANTOR.LEVKOD NE "99" 
+   AND LEVERANTOR.BORTTAG = FALSE USE-INDEX LEV NO-LOCK:
+      
+      CREATE jmflev_temp.
+      ASSIGN
+      jmflev_temp.LEVKOD = LEVERANTOR.LEVKOD
+      jmflev_temp.LEVNAMN = LEVERANTOR.LEVNAMN.
+      /*jmflev_temp.LEVNAMN = LEVERANTOR.LEVKOD + " " + LEVERANTOR.LEVNAMN.*/
+         
+   END.
+   FOR EACH jmflev_temp WHERE NO-LOCK:
+      jmflev_temp.FAKTOR = 1.
+      IF Guru.Konstanter:globforetag = "GRAN" OR Guru.Konstanter:globforetag = "ELPA"  THEN DO:  
+         IF jmflev_temp.LEVNAMN BEGINS "Onninen" THEN jmflev_temp.FAKTOR = 0.8.
+         ELSE IF jmflev_temp.LEVNAMN BEGINS "Elektroskandia" THEN jmflev_temp.FAKTOR = 0.8.
+         ELSE IF jmflev_temp.LEVNAMN BEGINS "Selga" THEN jmflev_temp.FAKTOR = 0.75.
+      END.
+   END.        
+END PROCEDURE.
+
+PROCEDURE hamtlev_UI :
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valbernr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER vald_lev AS CHARACTER NO-UNDO.   
+   FIND FIRST BETFRIA WHERE BETFRIA.FAKTTEXT = valomrade AND
+   BETFRIA.BETNR = valbernr NO-LOCK NO-ERROR. 
+   IF AVAILABLE BETFRIA THEN vald_lev = BETFRIA.TYP.         
+   ELSE vald_lev = "".
+END PROCEDURE.
+

@@ -1,0 +1,20 @@
+   /*DELINKOLL.P*/
+   
+   
+&Scoped-define NEW NEW              
+{delvaltemp.i}
+   
+DEFINE INPUT PARAMETER valaonr LIKE AONRTAB.AONR NO-UNDO.
+DEFINE INPUT PARAMETER valomrade LIKE AONRTAB.OMRADE NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR del_val.
+
+FOR EACH BERVAL WHERE BERVAL.AONR = valaonr AND BERVAL.OMRADE = valomrade AND 
+BERVAL.KSKAP = FALSE AND BERVAL.ORT NE "" NO-LOCK:
+   CREATE del_val.
+   ASSIGN
+   del_val.NUM = BERVAL.NUM
+   del_val.DELNR = BERVAL.DELNR
+   del_val.ORT = BERVAL.ORT.
+ 
+END.          
+

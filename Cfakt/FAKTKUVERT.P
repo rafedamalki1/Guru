@@ -1,0 +1,314 @@
+
+/*------------------------------------------------------------------------
+    File        : FAKTKUVERT.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Mon Aug 10 14:16:55 CEST 2015
+    Notes       :
+  ----------------------------------------------------------------------*/
+DEFINE INPUT PARAMETER startdatum AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER slutdatum AS DATE NO-UNDO.
+DEFINE STREAM dirstrom.
+DEFINE VARIABLE path AS CHARACTER NO-UNDO.
+DEFINE VARIABLE body AS CHARACTER NO-UNDO.
+
+{ExcelDS.i}
+{FAKTBILAG.I}  
+{ALLDEF.I}
+&Scoped-define NEW
+{FAKTTEMP.I}
+{GLOBVAR2DEL1.I}                 
+{FAKTPLANTEMP.I} 
+{EXECLIN.I}
+DEFINE VARIABLE answ AS CHARACTER NO-UNDO.
+DEFINE VARIABLE answsub AS CHARACTER NO-UNDO.
+
+IF Guru.Konstanter:appcon THEN DO:
+   RUN FAKTKUVERTAPP.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT
+   (INPUT startdatum,INPUT slutdatum,INPUT TABLE vfaktplantemp,OUTPUT TABLE faktnamntemp,OUTPUT TABLE faktmail,OUTPUT TABLE Epeppol).
+END.
+ELSE DO:    
+   RUN FAKTKUVERTAPP.P 
+   (INPUT startdatum,INPUT slutdatum,INPUT TABLE vfaktplantemp,OUTPUT TABLE faktnamntemp,OUTPUT TABLE faktmail,OUTPUT TABLE Epeppol).
+END.     
+RUN mail_UI.
+RUN Kuvert_UI.
+RUN Efakt_UI.
+
+PROCEDURE mail_UI :
+   MESSAGE "Vill du skicka FAKTUROR via E-post?" VIEW-AS ALERT-BOX
+   QUESTION BUTTONS YES-NO TITLE "Epost" UPDATE svar2 AS LOGICAL.         
+   IF svar2 THEN.
+   ELSE RETURN.
+   
+   FOR EACH faktmail WHERE faktmail.VFAKTNR > 0 USE-INDEX VFAKTNR NO-LOCK:
+      /*
+      MESSAGE 
+      faktmail.VFAKTNR
+      faktmail.FAKTNR 
+      faktmail.EPOST 
+      faktmail.BESTNAMN 
+      faktmail.EGETNAMN 
+      VIEW-AS ALERT-BOX.
+      */
+      body = "Hälsningar Elpool i Umeå AB Tel 090-184540".
+      IF faktmail.FAKTNR = 94 THEN body = "".
+      IF faktmail.BESKRIVNING = "xSweco" THEN DO:
+        
+          
+         RUN SWECORAKNA_UI (INPUT FALSE,OUTPUT answ).
+         answsub = REPLACE(answ, STRING(faktmail.VFAKTNR),";0000" + ";" ).
+         RUN SPECIALMAPITO.P (INPUT faktmail.EPOST, INPUT answsub, INPUT body,INPUT "D:\FAKTURORGURU\efakt\" + answ).
+      END.
+      ELSE DO: /* jasminka.sovdat@stamford.se*/
+        RUN SPECIALMAPITO.P (INPUT faktmail.EPOST, INPUT "Faktura från Elpool Faktnr-" + STRING(faktmail.VFAKTNR) , INPUT body, INPUT "D:\FAKTURORGURU\efakt\" + faktmail.EGETNAMN + STRING(faktmail.VFAKTNR) + ".pdf").
+      END.
+   END.
+   FOR EACH faktmail WHERE faktmail.VKREDIT > 0 USE-INDEX VFAKTNR NO-LOCK:
+      /*
+      MESSAGE 
+      faktmail.VFAKTNR
+      faktmail.FAKTNR 
+      faktmail.EPOST 
+      faktmail.BESTNAMN 
+      faktmail.EGETNAMN 
+      VIEW-AS ALERT-BOX.
+      */
+      body = "Hälsningar Elpool i Umeå AB Tel 090-184540".
+      IF faktmail.FAKTNR = 94 THEN body = "".
+      IF faktmail.BESKRIVNING = "Sweco" THEN DO:
+        
+          
+         RUN SWECORAKNA_UI (INPUT TRUE,OUTPUT answ).
+         answsub = REPLACE(answ, STRING(faktmail.VKREDIT),";0000" + ";" ).
+         RUN SPECIALMAPITO.P (INPUT faktmail.EPOST, INPUT answsub, INPUT body,INPUT "D:\FAKTURORGURU\efakt\" + answ).
+      END.
+      ELSE DO:
+        RUN SPECIALMAPITO.P (INPUT faktmail.EPOST, INPUT "Faktura från Elpool Faktnr-" + STRING(faktmail.VKREDIT) , INPUT body, INPUT "D:\FAKTURORGURU\efakt\" + faktmail.EGETNAMN + STRING(faktmail.VKREDIT) + ".pdf").
+      END.
+   END.
+   
+END PROCEDURE.
+
+
+PROCEDURE Efakt_UI :
+   DEFINE VARIABLE oshelp AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE lankst AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE utskriv AS LOGICAL NO-UNDO.
+   
+   MESSAGE "Vill du skicka E-FAKTUROR " VIEW-AS ALERT-BOX
+   QUESTION BUTTONS YES-NO TITLE "E-FAKT" UPDATE svarEFAKT AS LOGICAL.  
+   IF svarEFAKT THEN. 
+   ELSE RETURN.   
+   
+   
+   
+   MESSAGE "BYT StandardSKRIVARE till Scancloud VP" SKIP 
+   "I Scancloud VP dubbelklicka på Elpool" SKIP 
+   "Testa med filen TestaStandarSkrivare.txt" SKIP 
+   "KAN TA LITE TID :)" SKIP 
+   "SC Startar nu! Kryssa bort det svarta cmd"
+   VIEW-AS ALERT-BOX.
+  
+   oshelp = 'C:\"Program Files (x86)"\Scancloud\"Virtual Printer"\AIV_settings.exe /win'.
+   OS-COMMAND  VALUE(oshelp) NO-ERROR.
+ 
+   FOR EACH Epeppol WHERE Epeppol.VFAKTNR > 0 USE-INDEX VFAKTNR NO-LOCK:
+      lankst = "D:\FAKTURORGURU\faktE\" + Epeppol.EGETNAMN + STRING(Epeppol.VFAKTNR) + ".pdf".
+      RUN OPENDOC.P (lankst,"","",YES). 
+   END.
+   FOR EACH Epeppol WHERE Epeppol.VKREDIT > 0 USE-INDEX VFAKTNR NO-LOCK:
+      lankst = "D:\FAKTURORGURU\faktE\" + Epeppol.EGETNAMN + STRING(Epeppol.VKREDIT) + ".pdf".
+      RUN OPENDOC.P (lankst,"","",YES).
+   END.
+   MESSAGE "Markera alla och skicka iväg den i Scancloud VP"  SKIP "BYT tillbaka till rätt standardskrivare"  
+   VIEW-AS ALERT-BOX 
+   QUESTION BUTTONS OK-CANCEL UPDATE scanprint AS LOGICAL.       
+   CASE scanprint:
+      WHEN TRUE THEN DO:
+      END.
+      WHEN FALSE THEN DO:
+         RETURN NO-APPLY.  
+      END.  
+   END.    
+/*
+
+dEFINE VARIABLE lankst AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE utskriv AS LOGICAL NO-UNDO.
+    IF System.Environment:OSVersion:Version:Major <= 5 THEN SYSTEM-DIALOG PRINTER-SETUP NUM-COPIES 1 PORTRAIT  UPDATE utskriv.
+   ELSE SYSTEM-DIALOG PRINTER-SETUP NUM-COPIES 1 PORTRAIT UPDATE utskriv.
+   MESSAGE "22" SESSION:PRINTER-NAME
+VIEW-AS ALERT-BOX.
+   
+   lankst = "copy  D:\FAKTURORGURU\faktE\skickade\Kraftringen4924.pdf   " + string(SESSION:PRINTER-NAME).
+   
+   OS-COMMAND  value(lankst)   
+   
+  
+   
+   SESSION:PRINTER-CONTROL-HANDLE = 0.
+
+
+   SESSION:PRINTER-CONTROL-HANDLE = 0.
+  */ 
+  
+  
+   
+END PROCEDURE.
+
+   
+PROCEDURE Kuvert_UI :
+
+   MESSAGE "KUVERT?" SKIP 
+   "Efter att excel filerna visats Välj Kuvert Skrivaren!"
+   VIEW-AS ALERT-BOX  QUESTION BUTTONS YES-NO TITLE "KUVERT" UPDATE svKT AS LOGICAL.   
+   
+   IF svKT = FALSE THEN RETURN.
+   DEFINE VARIABLE utskriv AS LOGICAL NO-UNDO.
+   EMPTY TEMP-TABLE fakbilag NO-ERROR. 
+   CREATE fakbilag.
+   ASSIGN
+   fakbilag.FRI = TRUE.
+   FOR EACH faktnamntemp WHERE faktnamntemp.VFAKTNR > 0 NO-LOCK BY faktnamntemp.VFAKTNR  :
+      FIND FIRST faktmail WHERE faktmail.VFAKTNR = faktnamntemp.VFAKTNR  NO-LOCK NO-ERROR.
+      IF AVAILABLE faktmail THEN.
+      ELSE RUN KuvertFaktura_UI.
+      EMPTY TEMP-TABLE fakturaexcelTT NO-ERROR. 
+      EMPTY TEMP-TABLE faktposterexcelTT NO-ERROR. 
+   END.
+   FOR EACH faktnamntemp WHERE faktnamntemp.VKREDIT > 0 NO-LOCK BY faktnamntemp.VKREDIT  :
+      FIND FIRST faktmail WHERE faktmail.VKREDIT = faktnamntemp.VKREDIT  NO-LOCK NO-ERROR.
+      IF AVAILABLE faktmail THEN.
+      ELSE RUN KuvertFakturaK_UI.
+      EMPTY TEMP-TABLE fakturaexcelTT NO-ERROR. 
+      EMPTY TEMP-TABLE faktposterexcelTT NO-ERROR. 
+   END.
+   EMPTY TEMP-TABLE fakbilag NO-ERROR.
+   IF System.Environment:OSVersion:Version:Major <= 5 THEN SYSTEM-DIALOG PRINTER-SETUP NUM-COPIES 1 LANDSCAPE UPDATE utskriv.
+   ELSE SYSTEM-DIALOG PRINTER-SETUP NUM-COPIES 1 LANDSCAPE UPDATE utskriv.
+   IF utskriv = FALSE THEN RETURN.
+   FOR EACH faktnamntemp WHERE faktnamntemp.VFAKTNR > 0 NO-LOCK BY faktnamntemp.VFAKTNR  :
+      /*
+      MESSAGE faktnamntemp.VFAKTNR faktnamntemp.BESTNAMN SUBSTRING(faktnamntemp.FAKADRESS,1,25) SUBSTRING(faktnamntemp.FAKADRESS,27,25)
+      faktnamntemp.FAKPNR faktnamntemp.FAKORT
+      VIEW-AS ALERT-BOX.
+     */
+     
+      FIND FIRST faktmail WHERE faktmail.VFAKTNR = faktnamntemp.VFAKTNR  NO-LOCK NO-ERROR.
+      IF AVAILABLE faktmail THEN.
+      ELSE RUN Kuverthuvud_UI.
+      
+   END.
+   FOR EACH faktnamntemp WHERE faktnamntemp.VKREDIT > 0 NO-LOCK BY faktnamntemp.VKREDIT  :
+      FIND FIRST faktmail WHERE faktmail.VKREDIT = faktnamntemp.VKREDIT  NO-LOCK NO-ERROR.
+      IF AVAILABLE faktmail THEN.
+      ELSE RUN Kuverthuvud_UI.
+     
+   END.
+   SESSION:PRINTER-CONTROL-HANDLE = 0.
+   
+END PROCEDURE.      
+PROCEDURE KuvertFaktura_UI :
+  
+   IF Guru.Konstanter:appcon THEN DO:
+      RUN VIFAPPEXCEL.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT
+      (INPUT faktnamntemp.FAKTURNR,INPUT faktnamntemp.VFAKTNR, INPUT FALSE, INPUT FALSE , INPUT FALSE, 
+      INPUT TABLE fakbilag, INPUT TABLE sumtidtemp, OUTPUT TABLE fakturaexcelTT, OUTPUT TABLE faktposterexcelTT). 
+   END.
+   ELSE DO:            
+      RUN VIFAPPEXCEL.P 
+      (INPUT faktnamntemp.FAKTURNR,INPUT faktnamntemp.VFAKTNR, INPUT FALSE, INPUT FALSE , INPUT FALSE, 
+      INPUT TABLE fakbilag, INPUT TABLE sumtidtemp, OUTPUT TABLE fakturaexcelTT, OUTPUT TABLE faktposterexcelTT). 
+   END.
+  
+   RUN FAKTEXCEL.P (INPUT TRUE,INPUT FALSE,INPUT TABLE fakturaexcelTT, INPUT TABLE faktposterexcelTT).
+   EMPTY TEMP-TABLE fakturaexcelTT NO-ERROR. 
+   EMPTY TEMP-TABLE faktposterexcelTT NO-ERROR.
+END PROCEDURE.
+PROCEDURE KuvertFakturaK_UI :
+  
+    IF Guru.Konstanter:appcon THEN DO:
+      RUN VIFAPPEXCELKREDIT.p ON Guru.Konstanter:apphand TRANSACTION DISTINCT
+      (INPUT faktnamntemp.FAKTURNR,INPUT faktnamntemp.VKREDIT, INPUT FALSE, INPUT FALSE, INPUT FALSE, 
+      INPUT TABLE fakbilag, INPUT TABLE sumtidtemp, OUTPUT TABLE fakturaexcelTT, OUTPUT TABLE faktposterexcelTT). 
+   END.
+   ELSE DO:            
+      RUN VIFAPPEXCELKREDIT.p
+      (INPUT faktnamntemp.FAKTURNR,INPUT faktnamntemp.VKREDIT, INPUT FALSE, INPUT FALSE, INPUT FALSE, 
+      INPUT TABLE fakbilag, INPUT TABLE sumtidtemp, OUTPUT TABLE fakturaexcelTT, OUTPUT TABLE faktposterexcelTT). 
+   END.
+   RUN FAKTEXCEL.P(INPUT TRUE,INPUT TRUE,INPUT TABLE fakturaexcelTT, INPUT TABLE faktposterexcelTT).
+   
+END PROCEDURE.
+PROCEDURE Kuverthuvud_UI:
+   DEFINE VARIABLE kommando2 AS CHARACTER NO-UNDO.
+   kommando2 = SESSION:TEMP-DIRECTORY + Guru.Konstanter:globanv + "\".
+   {SESSIONTEMPDIR.I}
+   IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN kommando2 = webclienttempdir.
+   OS-CREATE-DIR VALUE(kommando2) NO-ERROR.
+   kommando2 = kommando2 + "elpkuvert.xlsx".
+   path = SEARCH("elpkuvert.xlsx").
+   OS-COPY VALUE(path) VALUE(kommando2).
+   path = kommando2.
+  
+   CREATE "Excel.Application" chExcelApplication.
+   chExcelApplication:Visible = FALSE NO-ERROR.
+    
+   ASSIGN chWorkbook = chExcelApplication:Workbooks:OPEN(path) NO-ERROR.
+   chWorkSheet = chExcelApplication:Sheets:Item(1) NO-ERROR.
+          
+   /*Huvud*/  
+   chWorkSheet:Range("N19"):Value =  faktnamntemp.BESTNAMN NO-ERROR.
+   chWorkSheet:Range("N20"):Value = SUBSTRING(faktnamntemp.FAKADRESS,1,25) NO-ERROR.
+   chWorkSheet:Range("N21"):Value = SUBSTRING(faktnamntemp.FAKADRESS,26,25) NO-ERROR.
+   chWorkSheet:Range("N22"):Value = STRING(faktnamntemp.FAKPNR ,"999 99") + " " + SUBSTRING(faktnamntemp.FAKORT,1,25) NO-ERROR.
+   chWorkSheet:Range("N23"):Value = SUBSTRING(faktnamntemp.FAKORT,26,25) NO-ERROR.
+   RUN screenexcel_UI.
+   /*
+   MESSAGE SESSION:PRINTER-NAME
+   VIEW-AS ALERT-BOX.
+   */
+   RUN slutmedprint_UI (INPUT 1).
+   
+   
+END PROCEDURE.
+
+PROCEDURE SWECORAKNA_UI :
+   DEFINE INPUT  PARAMETER kredit AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER antalsweco AS CHARACTER NO-UNDO. 
+ 
+   DEFINE VARIABLE dirnamn AS CHARACTER  NO-UNDO.
+   DEFINE VARIABLE mvar AS CHARACTER NO-UNDO.
+   
+   DEFINE VARIABLE mvardat AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE tmpfilnamn AS CHARACTER FORMAT "X(77)" NO-UNDO.
+   DEFINE VARIABLE tmpdirlist AS CHARACTER  NO-UNDO
+   VIEW-AS EDITOR INNER-CHARS 78 INNER-LINES 3. 
+   DEFINE VARIABLE tmpattrlist AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE iord AS INTEGER NO-UNDO.
+   dirnamn = "D:\FAKTURORGURU\efakt\".
+   IF kredit = FALSE THEN  mvar = faktmail.BESKRIVNING + STRING(faktmail.VFAKTNR) + faktmail.EGETNAMN + "*".
+   ELSE mvar = faktmail.BESKRIVNING + STRING(faktmail.VKREDIT) + faktmail.EGETNAMN + "*". 
+   mvardat = "*" + STRING(TODAY, "999999") + "*".
+   ASSIGN
+   tmpfilnamn = ""
+   tmpattrlist = ""
+   tmpdirlist = "".
+   IF dirnamn = "" THEN RETURN.
+   INPUT STREAM dirstrom FROM OS-DIR(dirnamn) NO-ECHO.
+   REPEAT:
+      SET STREAM dirstrom tmpfilnamn tmpdirlist tmpattrlist.
+      IF tmpfilnamn MATCHES mvar THEN DO:
+         antalsweco = tmpfilnamn.
+         INPUT STREAM dirstrom CLOSE.  
+         RETURN.
+      END.
+   END.
+   INPUT STREAM dirstrom CLOSE.    
+     
+END PROCEDURE.

@@ -1,0 +1,331 @@
+
+/*------------------------------------------------------------------------
+    File        : DARWINRAPPSAIDI.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Tue Aug 22 08:57:47 CEST 2017
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+{DarwinPlusExportImport.I}
+
+DEFINE VARIABLE kommandoquery AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE totkunder AS INTEGER NO-UNDO.
+DEFINE VARIABLE timmar100 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE timmar60 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE radrakn AS INTEGER NO-UNDO.
+DEFINE VARIABLE valar AS INTEGER NO-UNDO.
+
+DEFINE TEMP-TABLE Saidirapptt NO-UNDO 
+   FIELD StDriftId AS INTEGER 
+   FIELD StDriftNamn AS CHARACTER
+   FIELD StDriftIdSort AS INTEGER 
+   FIELD FranspanId AS INTEGER
+   FIELD FranspanIdSort AS INTEGER 
+   FIELD FranspanNamn AS CHARACTER 
+   FIELD Artal AS INTEGER 
+   FIELD AntalHSP AS INTEGER
+   FIELD AntalLSP  AS INTEGER
+   FIELD AntalKunderTotalt AS INTEGER
+   FIELD KundAvbrottsTid AS DECIMAL
+   FIELD BortKW AS INTEGER
+   FIELD BortKWAntal AS INTEGER 
+   FIELD Raknad AS LOGICAL  
+   FIELD Radrakn AS INTEGER
+   FIELD kol1 AS CHARACTER
+   FIELD kol2 AS DECIMAL
+   FIELD kol3 AS DECIMAL
+   FIELD kol4 AS DECIMAL
+   FIELD kol5 AS DECIMAL
+   FIELD kol6 AS INTEGER
+   FIELD kol7 AS INTEGER
+   FIELD kol8 AS INTEGER  
+   INDEX Radrakn Radrakn.
+   
+/*DEFINE TEMP-TABLE Distriktstemp NO-UNDO 
+   FIELD DistriktsId AS INTEGER 
+   FIELD Artal AS INTEGER
+   INDEX DistriktsId DistriktsId.*/
+   
+DEFINE TEMP-TABLE stforetemp NO-UNDO 
+   FIELD IdentifikationsnrForetag AS INTEGER
+   FIELD DistriktsId AS INTEGER 
+   FIELD Artal AS INTEGER
+   INDEX DistriktsId DistriktsId .   
+   
+CREATE WIDGET-POOL "DynTable" NO-ERROR.
+DEFINE VARIABLE kundDarwinh AS HANDLE NO-UNDO.   
+CREATE BUFFER kundDarwinh FOR TABLE "KundDarwin" IN WIDGET-POOL "DynTable".   
+
+   
+RUN hamta_UI.
+
+FOR EACH StorningData WHERE  BREAK BY StorningData.DistriktsId :
+   ACCUMULATE StorningData.ANTALHSP (TOTAL BY StorningData.DistriktsId).    
+   IF LAST-OF(StorningData.DistriktsId) THEN DO:           
+      CREATE stforetemp.
+      ASSIGN
+      stforetemp.IdentifikationsnrForetag = StorningData.IdentifikationsnrForetag
+      stforetemp.DistriktsId = StorningData.DistriktsId      
+      stforetemp.Artal = StorningData.Artal.            
+   END.
+END.  
+/*OUTPUT TO C:\A\Störning\stkundDISTRIKT.txt.
+for each stforetemp BY stforetemp.DistriktsId:
+   disp stforetemp.IdentifikationsnrForetag stforetemp.DistriktsId stforetemp.Artal.
+end.
+output close.*/
+
+FIND FIRST stforetemp NO-LOCK NO-ERROR.
+valar = stforetemp.Artal.
+kommandoquery = "FOR EACH " + kundDarwinh:TABLE + " WHERE KundDarwin.Artal = " + STRING(valar)   + " NO-LOCK". 
+   RUN CreateCustomQuery(INPUT kundDarwinh,INPUT kommandoquery,OUTPUT kqh).
+   kqH:GET-FIRST().
+   DO WHILE kqH:QUERY-OFF-END = FALSE:
+      RUN KunddataUt_UI.
+      kqH:GET-NEXT().
+   END.
+
+
+         
+OUTPUT TO C:\A\Störning\KUNDATA2009.txt.         
+FOR EACH KundData BY KundData.DistriktsId :
+   DISP KundData.IdentifikationsnrForetag  KundData.DistriktsId  KundData.SpanNivId KundData.SpanNamn  KundData.AntalKunderTotalt.      
+END.    
+OUTPUT CLOSE.
+     
+FOR EACH KundData  :
+   totkunder = totkunder + KundData.ANTALKUNDERTOTALT.   
+END.
+
+FIND FIRST KundData WHERE NO-LOCK NO-ERROR.
+RUN TIDBER.P (INPUT DATE(01,01,KundData.ARTAL), INPUT DATE(12,31,KundData.ARTAL), INPUT 00.00,
+   INPUT 24.00, OUTPUT timmar100, OUTPUT timmar60).
+
+
+FOR EACH StorningData WHERE StorningData.FRANSPANID = 5 :
+   ASSIGN StorningData.FRANSPANID = 6. 
+END.
+
+FOR EACH StorningData WHERE StorningData.MER3MIN = 1 and StorningData.StDriftId = 2 AND StorningData.KundAvbrottsTid > 0 BREAK BY StorningData.FRANSPANID :
+   ACCUMULATE StorningData.ANTALHSP (TOTAL BY StorningData.FranspanId). 
+   ACCUMULATE StorningData.ANTALLSP (TOTAL BY StorningData.FranspanId).
+   ACCUMULATE StorningData.KundAvbrottsTid (TOTAL BY StorningData.FranspanId).
+   ACCUMULATE StorningData.BORTKW (TOTAL BY StorningData.FranspanId).
+   ACCUMULATE StorningData.BORTKW (COUNT BY StorningData.FranspanId).
+   IF LAST-OF(StorningData.FRANSPANID) THEN DO:
+           
+      CREATE Saidirapptt.
+      ASSIGN
+      Saidirapptt.FranspanId = StorningData.FranspanId
+      Saidirapptt.FranspanNamn = StorningData.FranspanNamn
+      Saidirapptt.Raknad =  FALSE. 
+            
+      IF Saidirapptt.FranspanId = 10      THEN Saidirapptt.FranspanIdSort = 1.
+      ELSE IF Saidirapptt.FranspanId = 1 THEN Saidirapptt.FranspanIdSort = 3.
+      ELSE IF Saidirapptt.FranspanId = 2 THEN Saidirapptt.FranspanIdSort = 4.
+      ELSE IF Saidirapptt.FranspanId = 3 THEN Saidirapptt.FranspanIdSort = 5.
+      ELSE IF Saidirapptt.FranspanId = 4 THEN Saidirapptt.FranspanIdSort = 6.
+      ELSE IF Saidirapptt.FranspanId = 5 THEN Saidirapptt.FranspanIdSort = 2.
+      ELSE IF Saidirapptt.FranspanId = 6 THEN Saidirapptt.FranspanIdSort = 7.
+      ELSE IF Saidirapptt.FranspanId = 7 THEN Saidirapptt.FranspanIdSort = 8.
+      ELSE IF Saidirapptt.FranspanId = 8 THEN Saidirapptt.FranspanIdSort = 9.
+      ELSE IF Saidirapptt.FranspanId = 9 THEN Saidirapptt.FranspanIdSort = 10.
+      ELSE Saidirapptt.FranspanIdSort = 11.
+      assign                 
+      Saidirapptt.ANTALHSP =         (ACCUM TOTAL BY StorningData.FranspanId StorningData.ANTALHSP) 
+      Saidirapptt.ANTALLSP =         (ACCUM TOTAL BY StorningData.FranspanId StorningData.ANTALLSP)
+      Saidirapptt.KundAvbrottsTid =  (ACCUM TOTAL BY StorningData.FranspanId StorningData.KundAvbrottsTid)
+      Saidirapptt.BortKW =           (ACCUM TOTAL BY StorningData.FranspanId StorningData.BortKW)         
+      Saidirapptt.BortKWAntal =      (ACCUM COUNT BY StorningData.FranspanId StorningData.BortKW).
+   END.
+END.
+radrakn = 0.  
+ FOR EACH Saidirapptt BY Saidirapptt.FranspanIdSort:
+    radrakn = radrakn + 1.
+    ASSIGN
+    Saidirapptt.Radrakn = radrakn
+    Saidirapptt.kol1 = Saidirapptt.FranspanNamn
+    Saidirapptt.kol2 = ( Saidirapptt.ANTALHSP  + Saidirapptt.ANTALLSP ) / totkunder
+    Saidirapptt.kol3 = ( Saidirapptt.KundAvbrottsTid / totkunder ) * 60
+    Saidirapptt.kol4 = ( Saidirapptt.KundAvbrottsTid  / (Saidirapptt.ANTALHSP  + Saidirapptt.ANTALLSP ) ) * 60
+    Saidirapptt.kol5 = ( timmar100 - (Saidirapptt.KundAvbrottsTid  / totkunder ) )/ timmar100
+    Saidirapptt.kol6 =  Saidirapptt.BortKWAntal
+    Saidirapptt.kol7 = ( Saidirapptt.ANTALHSP  + Saidirapptt.ANTALLSP ) 
+    Saidirapptt.kol8 =  Saidirapptt.BortKW
+    Saidirapptt.Raknad =  TRUE.              
+END.
+
+
+
+/*OUTPUT TO C:\A\Störning\ingåendevärdnu.txt. 
+FOR EACH Saidirapptt BY Saidirapptt.FranspanId :
+   DISP Saidirapptt.FranspanId Saidirapptt.FranspanNamn Saidirapptt.ANTALHSP Saidirapptt.ANTALLSP Saidirapptt.KundAvbrottsTid FORMAT ">>>>>>>9.99" Saidirapptt.BortKW  "totkunder" totkunder. 
+END.
+OUTPUT CLOSE.*/
+
+
+FOR EACH StorningData WHERE StorningData.MER3MIN = 1 AND StorningData.KundAvbrottsTid > 0 BREAK BY StorningData.StDriftId :
+   ACCUMULATE StorningData.ANTALHSP (TOTAL BY StorningData.StDriftId). 
+   ACCUMULATE StorningData.ANTALLSP (TOTAL BY StorningData.StDriftId).
+   ACCUMULATE StorningData.KundAvbrottsTid (TOTAL BY StorningData.StDriftId).
+   ACCUMULATE StorningData.BORTKW (TOTAL BY StorningData.StDriftId).
+   ACCUMULATE StorningData.BORTKW (COUNT BY StorningData.StDriftId).
+   IF LAST-OF(StorningData.StDriftId) THEN DO:
+      /*radrakn = radrakn + 1.*/     
+      CREATE Saidirapptt.
+      ASSIGN      
+      Saidirapptt.StDriftId = StorningData.StDriftId
+      Saidirapptt.StDriftNamn = StorningData.StDriftNamn
+      Saidirapptt.Raknad =  FALSE.
+      /*Saidirapptt.Radrakn = radrakn*/
+      IF Saidirapptt.StDriftId = 0      THEN Saidirapptt.StDriftIdSort = 6.
+      ELSE IF Saidirapptt.StDriftId = 1 THEN Saidirapptt.StDriftIdSort = 2.
+      ELSE IF Saidirapptt.StDriftId = 2 THEN Saidirapptt.StDriftIdSort = 1.
+      ELSE IF Saidirapptt.StDriftId = 3 THEN Saidirapptt.StDriftIdSort = 3.
+      ELSE IF Saidirapptt.StDriftId = 4 THEN Saidirapptt.StDriftIdSort = 4.
+      ELSE IF Saidirapptt.StDriftId = 5 THEN Saidirapptt.StDriftIdSort = 5.
+      ELSE Saidirapptt.StDriftIdSort = 6.
+      assign         
+      Saidirapptt.ANTALHSP =         (ACCUM TOTAL BY StorningData.StDriftId StorningData.ANTALHSP) 
+      Saidirapptt.ANTALLSP =         (ACCUM TOTAL BY StorningData.StDriftId StorningData.ANTALLSP)
+      Saidirapptt.KundAvbrottsTid =  (ACCUM TOTAL BY StorningData.StDriftId StorningData.KundAvbrottsTid)
+      Saidirapptt.BortKW =           (ACCUM TOTAL BY StorningData.StDriftId StorningData.BortKW)         
+      Saidirapptt.BortKWAntal =      (ACCUM COUNT BY StorningData.StDriftId StorningData.BortKW).
+   END.
+END.  
+ FOR EACH Saidirapptt WHERE Saidirapptt.Raknad =  FALSE BY Saidirapptt.StDriftIdSort:
+    radrakn = radrakn + 1.
+    ASSIGN
+    Saidirapptt.Radrakn = radrakn    
+    Saidirapptt.kol1 = Saidirapptt.StDriftNamn
+    Saidirapptt.kol2 = ( Saidirapptt.ANTALHSP  + Saidirapptt.ANTALLSP ) / totkunder
+    Saidirapptt.kol3 = ( Saidirapptt.KundAvbrottsTid / totkunder ) * 60
+    Saidirapptt.kol4 = ( Saidirapptt.KundAvbrottsTid  / (Saidirapptt.ANTALHSP  + Saidirapptt.ANTALLSP ) ) * 60
+    Saidirapptt.kol5 = ( timmar100 - (Saidirapptt.KundAvbrottsTid  / totkunder ) ) / timmar100
+    Saidirapptt.kol6 =  Saidirapptt.BortKWAntal
+    Saidirapptt.kol7 = ( Saidirapptt.ANTALHSP  + Saidirapptt.ANTALLSP ) 
+    Saidirapptt.kol8 =  Saidirapptt.BortKW.
+    Saidirapptt.Raknad =  TRUE.          
+END.
+
+
+
+FOR EACH StorningData WHERE StorningData.MER3MIN = 1 AND StorningData.KundAvbrottsTid > 0 :
+   ACCUMULATE StorningData.ANTALHSP (TOTAL ). 
+   ACCUMULATE StorningData.ANTALLSP (TOTAL ).
+   ACCUMULATE StorningData.KundAvbrottsTid (TOTAL).
+   ACCUMULATE StorningData.BORTKW (TOTAL).
+   ACCUMULATE StorningData.BORTKW (COUNT).
+END.   
+radrakn = radrakn + 1.     
+CREATE Saidirapptt.
+ASSIGN
+Saidirapptt.kol1 = "Total"
+/*Saidirapptt.FranspanId = StorningData.FranspanId
+Saidirapptt.FranspanNamn = StorningData.FranspanNamn
+Saidirapptt.StDriftId = StorningData.StDriftId
+Saidirapptt.StDriftNamn = StorningData.StDriftNamn*/
+Saidirapptt.Raknad =  FALSE 
+Saidirapptt.Radrakn = radrakn          
+Saidirapptt.ANTALHSP =         (ACCUM TOTAL StorningData.ANTALHSP) 
+Saidirapptt.ANTALLSP =         (ACCUM TOTAL StorningData.ANTALLSP)
+Saidirapptt.KundAvbrottsTid =  (ACCUM TOTAL StorningData.KundAvbrottsTid)
+Saidirapptt.BortKW =           (ACCUM TOTAL StorningData.BortKW)         
+Saidirapptt.BortKWAntal =      (ACCUM COUNT StorningData.BortKW).
+   
+  
+ FIND FIRST Saidirapptt WHERE Saidirapptt.kol1 = "Total" NO-ERROR.
+ IF AVAILABLE Saidirapptt THEN DO:
+    ASSIGN
+    Saidirapptt.kol1 = "Total"
+    Saidirapptt.kol2 = ( Saidirapptt.ANTALHSP  + Saidirapptt.ANTALLSP ) / totkunder
+    Saidirapptt.kol3 = ( Saidirapptt.KundAvbrottsTid / totkunder ) * 60
+    Saidirapptt.kol4 = ( Saidirapptt.KundAvbrottsTid  / (Saidirapptt.ANTALHSP  + Saidirapptt.ANTALLSP ) ) * 60
+    Saidirapptt.kol5 = ( timmar100 - (Saidirapptt.KundAvbrottsTid  / totkunder )) / timmar100
+    Saidirapptt.kol6 =  Saidirapptt.BortKWAntal
+    Saidirapptt.kol7 = ( Saidirapptt.ANTALHSP  + Saidirapptt.ANTALLSP ) 
+    Saidirapptt.kol8 =  Saidirapptt.BortKW.
+    Saidirapptt.Raknad =  TRUE.          
+END.
+OUTPUT TO C:\A\Störning\saiditest3.txt.
+FOR EACH Saidirapptt USE-INDEX Radrakn  NO-LOCK:
+   DISP Saidirapptt.kol1 FORMAT "x(15)" Saidirapptt.kol2 FORMAT ">>>>9.9999" Saidirapptt.kol3 FORMAT ">>>>9.9999" Saidirapptt.kol4 FORMAT ">>>>9.9999" Saidirapptt.kol5 FORMAT ">>>>>>9.999999"
+    Saidirapptt.kol6 FORMAT ">>>>>>>9" Saidirapptt.kol7 FORMAT ">>>>>>>9" Saidirapptt.kol8 FORMAT ">>>>>>>>>9".
+END.
+     
+DELETE WIDGET-POOL "DynTable" NO-ERROR.
+kundDarwinh = ?.     
+     
+PROCEDURE KundDataUt_UI :
+   DEFINE VARIABLE forid AS INTEGER NO-UNDO.
+   forid = kundDarwinh:BUFFER-FIELD("IdentifikationsnrForetag"):BUFFER-VALUE.
+   DO TRANSACTION:
+      FIND FIRST stforetemp  WHERE stforetemp.DistriktsId = kundDarwinh:BUFFER-FIELD("DistriktsId"):BUFFER-VALUE  NO-LOCK NO-ERROR.    
+      IF AVAILABLE stforetemp  THEN DO:
+         CREATE KundData.
+         ASSIGN
+         KundData.IdentifikationsnrForetag    = kundDarwinh:BUFFER-FIELD("IdentifikationsnrForetag"):BUFFER-VALUE
+         KundData.DistriktsId                 = kundDarwinh:BUFFER-FIELD("DistriktsId"):BUFFER-VALUE     
+         KundData.Artal                       = kundDarwinh:BUFFER-FIELD("ARTAL"):BUFFER-VALUE          
+         KundData.SpanNivId                   = kundDarwinh:BUFFER-FIELD("SpanNivId"):BUFFER-VALUE
+         KundData.SpanNamn                   = kundDarwinh:BUFFER-FIELD("SpanNamn"):BUFFER-VALUE 
+         KundData.AntalKunderTotalt           = kundDarwinh:BUFFER-FIELD("AntalKunderTotalt"):BUFFER-VALUE.   
+       END.
+   END.   
+END PROCEDURE.
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh .
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+   
+
+PROCEDURE hamta_UI : 
+   EMPTY TEMP-TABLE KundData NO-ERROR.
+   EMPTY TEMP-TABLE StorningData NO-ERROR. 
+   /*FOR EACH KUNDDARWIN WHERE KUNDDARWIN.ARTAL = 2011 /*AND KUNDDARWIN.SPANNIVID = 6*/ NO-LOCK:
+      CREATE KundData.
+      BUFFER-COPY KUNDDARWIN TO KundData.    
+   END.
+   *   
+   FOR EACH StorningDarwin WHERE STORNINGDARWIN.ARTAL = 2011 AND STORNINGDARWIN.MER3MIN = 1 /*AND  STORNINGDARWIN.FRANSPANID = 6  and STORNINGDARWIN.StDriftId = 2*/ NO-LOCK:
+   
+      CREATE StorningData .
+      BUFFER-COPY StorningDarwin TO StorningData.
+   END.
+   
+END PROCEDURE.
+
+
+ /*
+ FOR EACH ForetagDarwin:
+   DELETE ForetagDarwin.
+END.
+FOR EACH DistriktDarwin:
+  DELETE DistriktDarwin.
+END. 
+FOR EACH KundDarwin:
+   DELETE KundDarwin.
+END.    
+FOR EACH LedningDarwin:
+  DELETE LedningDarwin.
+END.
+FOR EACH StorningDarwin:
+   DELETE StorningDarwin.
+END.
+FOR EACH StorningFelMtrlDarwin:
+   DELETE StorningFelMtrlDarwin.
+END.
+*/ 
+      

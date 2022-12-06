@@ -1,0 +1,805 @@
+/*XOMKONT.P*/
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT globforetag).
+
+{FAKTTEMP.I}
+{FAKTTYPDEF.I}
+{FAKTTYPSKAP.I}
+{VISKONTAB.I}
+DEFINE INPUT PARAMETER vad AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER infakplannr  AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER fdelnrvar   AS INTEGER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR viskonttemp.
+/*
+DEFINE VARIABLE vad AS INTEGER NO-UNDO.
+DEFINE VARIABLE infakplannr  AS INTEGER NO-UNDO.
+DEFINE VARIABLE fdelnrvar   AS INTEGER NO-UNDO.
+vad = 1.
+infakplannr = 7.
+fdelnrvar   = 040520.
+*/
+   {FAKTFRIT.I}
+{EXTRADATA.I}  
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE intaktvarhj  AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kundvarhj    AS LOGICAL NO-UNDO.
+DEFINE VARIABLE motpartvarhj AS LOGICAL NO-UNDO.
+RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+DEFINE VARIABLE vartyp AS INTEGER NO-UNDO.
+DEFINE VARIABLE frinr AS INTEGER NO-UNDO.
+DEFINE VARIABLE faoff AS DECIMAL NO-UNDO.
+DEFINE VARIABLE nyfakttotal AS DECIMAL NO-UNDO.
+DEFINE VARIABLE nymomstotal AS DECIMAL NO-UNDO.
+DEFINE VARIABLE totkoll AS DECIMAL NO-UNDO.
+DEFINE VARIABLE nyber AS DECIMAL NO-UNDO.
+DEFINE VARIABLE delfakt AS DECIMAL  NO-UNDO.
+DEFINE VARIABLE extrasumma AS DECIMAL  NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE TEMP-TABLE artemp NO-UNDO
+   FIELD ARTAL AS INTEGER
+   INDEX ARTAL ARTAL.
+
+DEFINE TEMP-TABLE frikolltemp NO-UNDO  
+   FIELD AONR AS CHARACTER
+   FIELD DELNR AS INTEGER 
+   FIELD TOTBELOPP AS DECIMAL 
+   FIELD TOTFAKT AS DECIMAL
+   FIELD FRIBELOPP AS DECIMAL
+   FIELD FORDELNING AS LOGICAL
+   INDEX AONR IS PRIMARY AONR DELNR.
+DEFINE TEMP-TABLE fktemp NO-UNDO  LIKE FAKTKUNDKONTO
+   FIELD TYP AS INTEGER
+   FIELD K1 AS CHARACTER
+   FIELD K2 AS CHARACTER
+   FIELD K3 AS CHARACTER
+   FIELD K4 AS CHARACTER
+   FIELD K5 AS CHARACTER
+   INDEX TYP TYP.
+DEFINE VARIABLE varaonr LIKE AONRTAB.AONR NO-UNDO.
+DEFINE VARIABLE vardelnr LIKE AONRTAB.DELNR NO-UNDO.
+DEFINE VARIABLE varomr LIKE AONRTAB.OMRADE NO-UNDO.
+DEFINE VARIABLE orevar AS LOGICAL NO-UNDO.   
+DEFINE VARIABLE k1var AS CHARACTER NO-UNDO.
+DEFINE VARIABLE k2var AS CHARACTER NO-UNDO.
+DEFINE VARIABLE k3var AS CHARACTER NO-UNDO.
+DEFINE VARIABLE k4var AS CHARACTER NO-UNDO.
+DEFINE VARIABLE k5var AS CHARACTER NO-UNDO.
+EMPTY TEMP-TABLE viskonttemp NO-ERROR. 
+
+FIND FIRST FAKTPLAN WHERE FAKTPLAN.FAKTNR = infakplannr NO-LOCK NO-ERROR.
+FIND FIRST faktyptemp WHERE faktyptemp.FAKTTYP = FAKTPLAN.FAKTTYP NO-ERROR.
+   vartyp = faktyptemp.TYP. 
+IF vad = 1 THEN DO:
+   FIND FIRST FAKTURERAD WHERE FAKTURERAD.FAKTNR = infakplannr AND FAKTURERAD.FDELNR = fdelnrvar  NO-LOCK NO-ERROR.   
+   FIND FIRST FAKTREGLER WHERE FAKTREGLER.FAKTNR = infakplannr 
+   USE-INDEX FAKTREGLER NO-LOCK NO-ERROR.
+   OPEN QUERY faktaonrq FOR EACH FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR 
+   USE-INDEX FAKTA NO-LOCK.  
+   EMPTY TEMP-TABLE fktemp NO-ERROR. 
+   IF vartyp = 1 THEN DO:            /*FASTPRIS*/
+      RUN inaktfast_UI.
+      RUN inaktfria_UI.      
+   END.
+   ELSE IF vartyp = 2 THEN DO:    /*AVTAL*/        
+      RUN inaktfast_UI.
+      RUN inaktfria_UI.      
+   END.   
+   ELSE IF vartyp = 3 THEN DO:           /*ACONTO*/
+      IF FAKTPLAN.SLUTFAKT = FALSE THEN DO:
+         RUN inaktfast_UI.
+         RUN inaktfria_UI.
+      END.
+      ELSE DO:        
+         RUN tid_UI.
+         RUN kostreg_UI.
+         RUN inakttid_UI.
+         RUN inaktkost_UI.
+         RUN inaktfria_UI.         
+         /*AVRÄKNING*/            
+      END. 
+   END.
+   ELSE IF vartyp = 4 OR vartyp = 8 THEN DO:                /*LÖPANDE*/      
+      RUN tid_UI.
+      RUN kostreg_UI.
+      RUN inakttid_UI.
+      RUN inaktkost_UI.       
+      RUN inaktfria_UI.             
+   END.
+   ELSE IF vartyp = 5 THEN DO:       /*TAKPRIS*/
+      RUN tid_UI.
+      RUN kostreg_UI.
+      RUN inakttid_UI.     
+      RUN inaktkost_UI.
+      RUN inaktfria_UI.      
+   END.
+   ELSE IF vartyp = 52 THEN DO:            /*TAKPRIS UPPARB*/
+      RUN inaktupp_UI.
+      RUN inaktfria_UI.      
+   END.
+   ELSE IF vartyp = 6 THEN DO:       /*FRI FAKT*/
+      RUN inaktfria_UI.      
+   END.
+   ELSE IF vartyp = 7 THEN DO:       /*BOKFÖRING*/
+      RUN inaktfria_UI.
+   END.
+   
+
+   RUN visk_UI.
+END.
+
+IF vad = 2 THEN DO:
+END.
+
+PROCEDURE visk_UI :
+   FOR EACH fktemp,
+   EACH KUNDFODRAN WHERE KUNDFODRAN.KUNDKONTOID = fktemp.KUNDKONTOID NO-LOCK, 
+   EACH MOTPART WHERE MOTPART.MOTPARTID = fktemp.MOTPARTID NO-LOCK:
+     /*har man inga aonr får man inte moms på kundkonto*/
+      /*
+      IF varforetypval[15] = 1 THEN DO:
+         FIND FIRST viskonttemp WHERE viskonttemp.ORDNING = 1 AND 
+         viskonttemp.KONTO = KUNDFODRAN.KUNDKONTO AND viskonttemp.MOTPART = MOTPART.MOTPART
+         NO-LOCK NO-ERROR.
+
+      END.
+      ELSE DO:
+         FIND FIRST viskonttemp WHERE viskonttemp.ORDNING = 1 AND 
+         viskonttemp.AONR = FAKTKUNDKONTO.AONR AND viskonttemp.DELNR = FAKTKUNDKONTO.DELNR AND
+         viskonttemp.KONTO = KUNDFODRAN.KUNDKONTO AND viskonttemp.MOTPART = MOTPART.MOTPART
+         NO-LOCK NO-ERROR.
+      END.
+      */
+      FIND FIRST viskonttemp WHERE viskonttemp.ORDNING = 1 AND 
+      viskonttemp.AONR = fktemp.AONR AND viskonttemp.DELNR = fktemp.DELNR AND               
+      viskonttemp.KONTO = KUNDFODRAN.KUNDKONTO AND viskonttemp.MOTPART = MOTPART.MOTPART AND 
+      viskonttemp.TYP = fktemp.TYP
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE viskonttemp THEN DO:
+         CREATE viskonttemp.
+
+         IF varaonr = fktemp.AONR AND vardelnr = fktemp.DELNR THEN musz = musz.
+         ELSE DO:
+
+            FIND FIRST AONRTAB WHERE AONRTAB.AONR = fktemp.AONR AND 
+            AONRTAB.DELNR = fktemp.DELNR NO-LOCK NO-ERROR.
+            /*har man inga aonr får man inte moms på kundkonto*/
+            ASSIGN 
+            k1var = ""
+            k2var = ""
+            k3var = ""
+            k4var = ""
+            k5var = ""
+            varomr = AONRTAB.OMRADE
+            varaonr = AONRTAB.AONR          
+            vardelnr = AONRTAB.DELNR.     
+            FIND FIRST FAKTAONRKONTO WHERE 
+            FAKTAONRKONTO.FDELNR = 0 AND
+            FAKTAONRKONTO.FAKTNR = fktemp.FAKTNR AND
+            FAKTAONRKONTO.VFAKTNR = fktemp.VFAKTNR AND 
+            FAKTAONRKONTO.AONR = fktemp.AONR AND 
+            FAKTAONRKONTO.DELNR = fktemp.DELNR
+            NO-LOCK NO-ERROR.
+            IF AVAILABLE FAKTAONRKONTO THEN DO:
+               ASSIGN
+               k1var = FAKTAONRKONTO.K1  
+               k2var = FAKTAONRKONTO.K2  
+               k3var = FAKTAONRKONTO.K3  
+               k4var = FAKTAONRKONTO.K4  
+               k5var = FAKTAONRKONTO.K5.  
+            END.
+            ELSE DO:
+               FIND FIRST AONRKONTKOD WHERE 
+               AONRKONTKOD.AONR = fktemp.AONR AND 
+               AONRKONTKOD.DELNR = fktemp.DELNR
+               NO-LOCK NO-ERROR.
+               IF AVAILABLE FAKTAONRKONTO THEN DO:
+                  ASSIGN
+                  k1var = AONRKONTKOD.K1   
+                  k2var = AONRKONTKOD.K2   
+                  k3var = AONRKONTKOD.K3   
+                  k4var = AONRKONTKOD.K4   
+                  k5var = AONRKONTKOD.K5.  
+               END.
+            END.
+         END.
+         ASSIGN
+         viskonttemp.OMRADE = varomr.
+         IF orevar = FALSE THEN DO:
+            orevar = TRUE.
+            viskonttemp.DEBET = FAKTURERAD.ORESUTJ.
+         END.   
+         ASSIGN
+         viskonttemp.K1 = fktemp.K1
+         viskonttemp.K2 = fktemp.K2
+         viskonttemp.K3 = fktemp.K3
+         viskonttemp.K4 = fktemp.K4
+         viskonttemp.K5 = fktemp.K5.
+         IF viskonttemp.K1 = "" THEN viskonttemp.K1 = k1var.
+         IF viskonttemp.K2 = "" THEN viskonttemp.K2 = k2var.
+         IF viskonttemp.K3 = "" THEN viskonttemp.K3 = k3var.
+         IF viskonttemp.K4 = "" THEN viskonttemp.K4 = k4var.
+         IF viskonttemp.K5 = "" THEN viskonttemp.K5 = k5var.
+      END.
+      ASSIGN 
+      viskonttemp.ORDNING = 1
+      viskonttemp.TYP = fktemp.TYP
+      viskonttemp.AONR = fktemp.AONR      
+      viskonttemp.DELNR = fktemp.DELNR 
+      viskonttemp.VDELNR = STRING(fktemp.DELNR,Guru.Konstanter:varforetypchar[1])      
+      viskonttemp.KONTO = KUNDFODRAN.KUNDKONTO      
+      viskonttemp.MOTPART = MOTPART.MOTPART      
+      viskonttemp.DEBET = viskonttemp.DEBET + fktemp.BELOPP
+      viskonttemp.KREDIT = 0.      
+      /*
+      IF varforetypval[15] = 1 THEN DO:
+         ASSIGN
+         viskonttemp.VDELNR = ""
+         viskonttemp.AONR = ""
+         viskonttemp.DELNR = 0.
+      END.
+      */   
+   END.
+END PROCEDURE.
+PROCEDURE inaktfast_UI :  
+   GET FIRST faktaonrq NO-LOCK.
+   DO WHILE AVAILABLE(FAKTAONR):
+       /*ALLA INGÅENDE AONR PRIS*/
+      faoff = faoff + FAKTAONR.OPRIS.
+      CREATE frikolltemp.
+      ASSIGN
+      frikolltemp.AONR  = FAKTAONR.AONR
+      frikolltemp.DELNR = FAKTAONR.DELNR
+      frikolltemp.TOTBELOPP = FAKTAONR.OPRIS.
+      GET NEXT faktaonrq NO-LOCK.  
+   END.
+   FOR EACH FAKTSTART WHERE FAKTSTART.FAKTNR = FAKTPLAN.FAKTNR AND                     
+   FAKTSTART.VFAKTNR = FAKTURERAD.VFAKTNR AND FAKTSTART.FAKTURERAD = TRUE NO-LOCK BREAK 
+   BY FAKTSTART.FAKTURERAD:              
+      ACCUMULATE FAKTSTART.BELOPP (TOTAL BY FAKTSTART.FAKTURERAD).            
+      IF LAST-OF(FAKTSTART.FAKTURERAD) THEN DO:
+         nyfakttotal = nyfakttotal + (ACCUM TOTAL BY FAKTSTART.FAKTURERAD FAKTSTART.BELOPP).
+      END.   
+   END.   
+   FOR EACH FAKTSTART WHERE FAKTSTART.FAKTNR = FAKTPLAN.FAKTNR AND
+   FAKTSTART.VFAKTNR = FAKTURERAD.VFAKTNR AND FAKTSTART.FAKTURERAD = TRUE NO-LOCK.
+      IF FAKTSTART.PLANDATUM = ? THEN DO:
+         FIND FIRST artemp WHERE artemp.ARTAL = YEAR(TODAY) NO-ERROR.  
+      END.
+      ELSE FIND FIRST artemp WHERE artemp.ARTAL = YEAR(FAKTSTART.PLANDATUM) NO-ERROR.
+      IF NOT AVAILABLE artemp THEN DO:
+         CREATE artemp.
+         artemp.ARTAL = YEAR(FAKTSTART.PLANDATUM).
+         IF artemp.ARTAL = ? THEN artemp.ARTAL = YEAR(TODAY).
+      END.      
+   END.
+   
+   FOR EACH FAKTSTART WHERE FAKTSTART.FAKTNR = FAKTPLAN.FAKTNR NO-LOCK:
+      IF FAKTSTART.VFAKTNR = FAKTURERAD.VFAKTNR AND FAKTSTART.FAKTURERAD = TRUE THEN DO:
+         musz = musz.
+      END.
+      ELSE DO:
+         FIND FIRST artemp WHERE artemp.ARTAL = YEAR(FAKTSTART.PLANDATUM) NO-ERROR.
+         IF AVAILABLE artemp THEN musz = musz.
+         ELSE extrasumma = extrasumma + FAKTSTART.BELOPP.
+      END.
+   END.   
+   IF FAKTPLAN.OFFERTPRIS > 0 THEN DO:
+      delfakt = nyfakttotal / FAKTPLAN.OFFERTPRIS.     
+      IF vartyp = 1 THEN RUN nyproc_UI.      
+   END.     
+   GET FIRST faktaonrq NO-LOCK.   
+   IF vartyp = 1 OR vartyp = 3 THEN DO: 
+      GET FIRST faktaonrq NO-LOCK.      
+      IF faoff = FAKTPLAN.OFFERTPRIS AND faoff > 0 THEN DO:
+         DO WHILE AVAILABLE(FAKTAONR) TRANSACTION:      
+            FIND FIRST frikolltemp WHERE frikolltemp.AONR = FAKTAONR.AONR AND 
+            frikolltemp.DELNR = FAKTAONR.DELNR NO-ERROR.             
+            IF frikolltemp.FORDELNING = TRUE THEN DO:           
+               FIND FIRST fktemp WHERE 
+               fktemp.FAKTNR = FAKTPLAN.FAKTNR AND  
+               fktemp.FDELNR = FAKTURERAD.FDELNR AND 
+               fktemp.VFAKTNR = FAKTURERAD.VFAKTNR AND
+               fktemp.AONR = FAKTAONR.AONR AND
+               fktemp.DELNR = FAKTAONR.DELNR EXCLUSIVE-LOCK NO-ERROR.
+               IF NOT AVAILABLE fktemp THEN CREATE fktemp.
+               ASSIGN 
+               fktemp.FAKTNR = FAKTPLAN.FAKTNR   
+               fktemp.FDELNR = FAKTURERAD.FDELNR  
+               fktemp.VFAKTNR = FAKTURERAD.VFAKTNR            
+               fktemp.AONR = FAKTAONR.AONR
+               fktemp.DELNR = FAKTAONR.DELNR                         
+               fktemp.KUNDKONTOID = FAKTREGLER.KUNDKONTOID 
+               fktemp.MOTPARTID = FAKTREGLER.MOTPARTID            
+               fktemp.FDATUM = TODAY + FAKTREGLER.FDAGAR
+               fktemp.FAKTDATUM = TODAY         
+               fktemp.BELOPP = fktemp.BELOPP + delfakt * FAKTAONR.OPRIS.         
+               RUN styrintakt_UI (INPUT TRUE,INPUT TRUE,INPUT TRUE).
+            END.
+            GET NEXT faktaonrq NO-LOCK.
+         END.
+      END.      
+      ELSE DO TRANSACTION:
+         FIND FIRST fktemp WHERE 
+         fktemp.FAKTNR = FAKTPLAN.FAKTNR AND  
+         fktemp.FDELNR = FAKTURERAD.FDELNR AND 
+         fktemp.VFAKTNR = FAKTURERAD.VFAKTNR AND
+         fktemp.AONR = FAKTAONR.AONR AND
+         fktemp.DELNR = FAKTAONR.DELNR EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE fktemp THEN CREATE fktemp.
+         ASSIGN 
+         fktemp.FAKTNR = FAKTPLAN.FAKTNR   
+         fktemp.FDELNR = FAKTURERAD.FDELNR  
+         fktemp.VFAKTNR = FAKTURERAD.VFAKTNR            
+         fktemp.AONR = FAKTAONR.AONR
+         fktemp.DELNR = FAKTAONR.DELNR                         
+         fktemp.KUNDKONTOID = FAKTREGLER.KUNDKONTOID 
+         fktemp.MOTPARTID = FAKTREGLER.MOTPARTID            
+         fktemp.FDATUM = TODAY + FAKTREGLER.FDAGAR
+         fktemp.FAKTDATUM = TODAY
+         fktemp.BELOPP = fktemp.BELOPP + nyfakttotal.         
+         RUN styrintakt_UI (INPUT TRUE,INPUT TRUE,INPUT TRUE).
+      END.
+   END.
+   ELSE DO:
+      OPEN QUERY BRW_PLAN FOR EACH FAKTSTART WHERE 
+      FAKTSTART.FAKTNR = FAKTPLAN.FAKTNR NO-LOCK.
+      GET FIRST BRW_PLAN NO-LOCK.      
+      DO WHILE AVAILABLE(FAKTSTART):
+         IF FAKTSTART.FAKTURERAD = TRUE AND FAKTSTART.VFAKTNR = FAKTURERAD.VFAKTNR THEN DO:
+            IF FAKTSTART.START NE "" THEN DO:
+               OPEN QUERY faktavtq FOR EACH FAKTAVTALAONR WHERE 
+               FAKTAVTALAONR.FAKTNR = FAKTPLAN.FAKTNR AND 
+               FAKTAVTALAONR.START = FAKTSTART.START 
+               NO-LOCK.
+            END.
+            ELSE DO:
+               OPEN QUERY faktavtq FOR EACH FAKTAVTALAONR WHERE 
+               FAKTAVTALAONR.FAKTNR = FAKTPLAN.FAKTNR AND 
+               FAKTAVTALAONR.PLANDATUM = FAKTSTART.PLANDATUM 
+               NO-LOCK.
+            END.
+            GET FIRST faktavtq NO-LOCK.
+            DO WHILE AVAILABLE(FAKTAVTALAONR) TRANSACTION: 
+               FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR AND
+               FAKTAONR.AONR = FAKTAVTALAONR.AONR AND FAKTAONR.DELNR = FAKTAVTALAONR.DELNR
+               NO-LOCK NO-ERROR.     
+               FIND FIRST fktemp WHERE 
+               fktemp.FAKTNR = FAKTPLAN.FAKTNR AND  
+               fktemp.FDELNR = FAKTURERAD.FDELNR AND 
+               fktemp.VFAKTNR = FAKTURERAD.VFAKTNR AND
+               fktemp.AONR = FAKTAONR.AONR AND
+               fktemp.DELNR = FAKTAONR.DELNR EXCLUSIVE-LOCK NO-ERROR.
+               IF NOT AVAILABLE fktemp THEN CREATE fktemp.
+               ASSIGN 
+               fktemp.FAKTNR = FAKTPLAN.FAKTNR   
+               fktemp.FDELNR = FAKTURERAD.FDELNR  
+               fktemp.VFAKTNR = FAKTURERAD.VFAKTNR            
+               fktemp.AONR = FAKTAONR.AONR
+               fktemp.DELNR = FAKTAONR.DELNR                         
+               fktemp.KUNDKONTOID = FAKTREGLER.KUNDKONTOID 
+               fktemp.MOTPARTID = FAKTREGLER.MOTPARTID            
+               fktemp.FDATUM = TODAY + FAKTREGLER.FDAGAR
+               fktemp.FAKTDATUM = TODAY         
+               fktemp.BELOPP = fktemp.BELOPP + FAKTAVTALAONR.BELOPP.         
+               RUN styrintakt_UI (INPUT TRUE,INPUT TRUE,INPUT TRUE).
+               GET NEXT faktavtq NO-LOCK.
+            END.
+         END.
+         GET NEXT BRW_PLAN NO-LOCK.
+      END.      
+   END.  
+END PROCEDURE.
+
+PROCEDURE inaktupp_UI :  
+   FOR EACH FAKTUPPARB WHERE FAKTUPPARB.FAKTNR = FAKTPLAN.FAKTNR AND                     
+   FAKTUPPARB.VFAKTNR = FAKTURERAD.VFAKTNR AND FAKTUPPARB.FAKTURERAD = TRUE NO-LOCK BREAK 
+   BY FAKTUPPARB.FAKTURERAD:              
+      ACCUMULATE FAKTUPPARB.FAKTBELOPP (TOTAL BY FAKTUPPARB.FAKTURERAD).            
+      IF LAST-OF(FAKTUPPARB.FAKTURERAD) THEN DO:
+         nyfakttotal = nyfakttotal + (ACCUM TOTAL BY FAKTUPPARB.FAKTURERAD FAKTUPPARB.FAKTBELOPP).
+      END.   
+   END.   
+   IF FAKTPLAN.OFFERTPRIS > 0 THEN DO:
+      delfakt = nyfakttotal / FAKTPLAN.OFFERTPRIS.      
+   END.
+   OPEN QUERY BRW_UPP FOR EACH FAKTUPPARB WHERE 
+   FAKTUPPARB.FAKTNR = FAKTPLAN.FAKTNR AND FAKTUPPARB.FAKTURERAD = TRUE AND                     
+   FAKTUPPARB.VFAKTNR = FAKTURERAD.VFAKTNR
+   NO-LOCK BY FAKTUPPARB.UPLAN%.
+   GET FIRST BRW_UPP NO-LOCK.
+   DO WHILE AVAILABLE(FAKTUPPARB):  
+      FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR AND
+      FAKTAONR.AONR = FAKTUPPARB.AONR AND FAKTAONR.DELNR = FAKTUPPARB.DELNR
+      NO-LOCK NO-ERROR.     
+      FIND FIRST fktemp WHERE 
+      fktemp.FAKTNR = FAKTPLAN.FAKTNR AND  
+      fktemp.FDELNR = FAKTURERAD.FDELNR AND 
+      fktemp.VFAKTNR = FAKTURERAD.VFAKTNR AND
+      fktemp.AONR = FAKTUPPARB.AONR AND
+      fktemp.DELNR = FAKTUPPARB.DELNR EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE fktemp THEN CREATE fktemp.
+      ASSIGN 
+      fktemp.FAKTNR = FAKTPLAN.FAKTNR   
+      fktemp.FDELNR = FAKTURERAD.FDELNR  
+      fktemp.VFAKTNR = FAKTURERAD.VFAKTNR            
+      fktemp.AONR = FAKTUPPARB.AONR
+      fktemp.DELNR = FAKTUPPARB.DELNR                         
+      fktemp.KUNDKONTOID = FAKTREGLER.KUNDKONTOID 
+      fktemp.MOTPARTID = FAKTREGLER.MOTPARTID            
+      fktemp.FDATUM = TODAY + FAKTREGLER.FDAGAR
+      fktemp.FAKTDATUM = TODAY         
+      fktemp.BELOPP = fktemp.BELOPP + FAKTUPPARB.FAKTBELOPP.         
+      RUN styrintakt_UI (INPUT TRUE,INPUT TRUE,INPUT TRUE).     
+      GET NEXT BRW_UPP NO-LOCK.
+   END.   
+END PROCEDURE.
+
+PROCEDURE inaktfria_UI :
+   EMPTY TEMP-TABLE efaktfriatemp NO-ERROR. 
+   EMPTY TEMP-TABLE faktfriatemp NO-ERROR. 
+   FOR EACH FAKTFRIA WHERE FAKTFRIA.FAKTNR = FAKTPLAN.FAKTNR AND
+   FAKTFRIA.FDELNR = FAKTURERAD.FDELNR AND FAKTFRIA.FAKTURERAD = TRUE NO-LOCK:      
+      IF FAKTFRIA.TYP BEGINS "FAKT" THEN DO:
+         CREATE efaktfriatemp.
+         BUFFER-COPY FAKTFRIA TO efaktfriatemp.
+         efaktfriatemp.TYP = SUBSTRING(efaktfriatemp.TYP,5).
+      END.
+      ELSE DO:
+         CREATE faktfriatemp.                     
+         BUFFER-COPY FAKTFRIA TO faktfriatemp.
+      END.            
+   END.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.
+   ASSIGN
+   inextradatatemp.PROGRAM = "FRIPRIS"                   
+   inextradatatemp.HUVUDCH = ?              
+   inextradatatemp.HUVUDINT = ?.      
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp,OUTPUT TABLE extradatatemp).
+   FOR EACH efaktfriatemp:
+      FIND FIRST extradatatemp WHERE extradatatemp.HUVUDINT = INTEGER(efaktfriatemp.TYP)
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE extradatatemp THEN DO:
+         CREATE faktfriatemp.                     
+         BUFFER-COPY efaktfriatemp TO faktfriatemp.
+         DELETE efaktfriatemp.
+         NEXT.
+      END.
+      FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR AND
+      FAKTAONR.AONR = efaktfriatemp.AONR AND
+      FAKTAONR.DELNR = efaktfriatemp.DELNR NO-LOCK NO-ERROR.                  
+      IF NOT AVAILABLE FAKTAONR THEN DO:
+         FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR AND
+         FAKTAONR.AONR = efaktfriatemp.AONR NO-LOCK NO-ERROR.
+      END.
+      nyfakttotal = nyfakttotal + efaktfriatemp.TOTALT.
+      FIND FIRST fktemp WHERE fktemp.TYP = extradatatemp.HUVUDINT NO-ERROR.
+      IF NOT AVAILABLE fktemp THEN DO:
+         CREATE fktemp.
+         ASSIGN
+         fktemp.TYP = extradatatemp.HUVUDINT
+         fktemp.KUNDKONTOID = extradatatemp.SOKINT[1]  
+         fktemp.MOTPARTID = extradatatemp.SOKINT[3] 
+         fktemp.K1 = extradatatemp.SOKCHAR[1]
+         fktemp.K2 = extradatatemp.SOKCHAR[2]
+         fktemp.K3 = extradatatemp.SOKCHAR[3]
+         fktemp.K4 = extradatatemp.SOKCHAR[4]
+         fktemp.K5 = extradatatemp.SOKCHAR[5].
+      END.
+      ASSIGN
+      fktemp.FAKTNR = FAKTPLAN.FAKTNR   
+      fktemp.FDELNR = FAKTURERAD.FDELNR  
+      fktemp.VFAKTNR = FAKTURERAD.VFAKTNR            
+      fktemp.AONR = FAKTAONR.AONR
+      fktemp.DELNR = FAKTAONR.DELNR                                        
+      fktemp.FDATUM = TODAY + FAKTREGLER.FDAGAR
+      fktemp.FAKTDATUM = TODAY           
+      fktemp.BELOPP = fktemp.BELOPP + efaktfriatemp.TOTALT.                                   
+      ASSIGN
+      intaktvarhj = TRUE
+      kundvarhj   = TRUE
+      motpartvarhj = TRUE.
+      IF extradatatemp.SOKINT[1] = 0 THEN fktemp.KUNDKONTOID = FAKTREGLER.KUNDKONTOID. 
+      ELSE DO:
+         ASSIGN
+         kundvarhj   = FALSE
+         fktemp.KUNDKONTOID = extradatatemp.SOKINT[1]. 
+      END.
+      IF extradatatemp.SOKINT[3] = 0 THEN fktemp.MOTPARTID = FAKTREGLER.MOTPARTID.
+      ELSE DO:
+         ASSIGN
+         motpartvarhj   = FALSE
+         fktemp.MOTPARTID = extradatatemp.SOKINT[3].
+      END.           
+      RUN styrintakt_UI (INPUT intaktvarhj,INPUT kundvarhj,INPUT motpartvarhj).
+   END.
+   FOR EACH faktfriatemp WHERE faktfriatemp.FAKTNR = FAKTPLAN.FAKTNR AND
+   faktfriatemp.FDELNR = FAKTURERAD.FDELNR AND faktfriatemp.FAKTURERAD = TRUE NO-LOCK BREAK 
+   BY faktfriatemp.AONR BY faktfriatemp.DELNR BY faktfriatemp.MOMSID:              
+      ACCUMULATE 
+      faktfriatemp.TOTALT (TOTAL BY faktfriatemp.AONR BY faktfriatemp.DELNR BY faktfriatemp.MOMSID).            
+      IF LAST-OF(faktfriatemp.MOMSID) THEN DO TRANSACTION:
+         FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR AND
+         FAKTAONR.AONR = faktfriatemp.AONR AND
+         FAKTAONR.DELNR = faktfriatemp.DELNR NO-LOCK NO-ERROR.                  
+         IF NOT AVAILABLE FAKTAONR THEN DO:
+            FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR AND
+            FAKTAONR.AONR = faktfriatemp.AONR NO-LOCK NO-ERROR.
+         END.
+         nyfakttotal = nyfakttotal + (ACCUM TOTAL BY faktfriatemp.MOMSID faktfriatemp.TOTALT).
+         FIND FIRST fktemp WHERE 
+         fktemp.FAKTNR = FAKTPLAN.FAKTNR AND  
+         fktemp.FDELNR = FAKTURERAD.FDELNR AND 
+         fktemp.VFAKTNR = FAKTURERAD.VFAKTNR AND
+         fktemp.AONR = FAKTAONR.AONR AND
+         fktemp.DELNR = FAKTAONR.DELNR EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE fktemp THEN CREATE fktemp.
+         ASSIGN
+         fktemp.FAKTNR = FAKTPLAN.FAKTNR   
+         fktemp.FDELNR = FAKTURERAD.FDELNR  
+         fktemp.VFAKTNR = FAKTURERAD.VFAKTNR            
+         fktemp.AONR = FAKTAONR.AONR
+         fktemp.DELNR = FAKTAONR.DELNR                         
+         fktemp.KUNDKONTOID = FAKTREGLER.KUNDKONTOID 
+         fktemp.MOTPARTID = FAKTREGLER.MOTPARTID            
+         fktemp.FDATUM = TODAY + FAKTREGLER.FDAGAR
+         fktemp.FAKTDATUM = TODAY           
+         fktemp.BELOPP = fktemp.BELOPP + 
+         (ACCUM TOTAL BY faktfriatemp.MOMSID faktfriatemp.TOTALT).                                   
+         RUN styrintakt_UI (INPUT TRUE,INPUT TRUE,INPUT TRUE).
+      END.
+   END.
+     
+END PROCEDURE.
+
+PROCEDURE inaktkost_UI :    
+   FOR EACH kosttemp WHERE kosttemp.MED = TRUE BREAK 
+   BY kosttemp.AONR BY kosttemp.DELNR BY kosttemp.MOMSID:         
+      ACCUMULATE 
+      kosttemp.PERSKOST (TOTAL BY kosttemp.AONR BY kosttemp.DELNR BY kosttemp.MOMSID).
+      ACCUMULATE 
+      kosttemp.TRAKTKOST (TOTAL BY kosttemp.AONR BY kosttemp.DELNR BY kosttemp.MOMSID).
+      ACCUMULATE 
+      kosttemp.FRTJPAKR (TOTAL BY kosttemp.AONR BY kosttemp.DELNR BY kosttemp.MOMSID). 
+      ACCUMULATE 
+      kosttemp.MTRLPAKR (TOTAL BY kosttemp.AONR BY kosttemp.DELNR BY kosttemp.MOMSID).
+      ACCUMULATE 
+      kosttemp.MASKKOST (TOTAL BY kosttemp.AONR BY kosttemp.DELNR BY kosttemp.MOMSID). 
+      ACCUMULATE 
+      kosttemp.MTRL (TOTAL BY kosttemp.AONR BY kosttemp.DELNR BY kosttemp.MOMSID).
+      ACCUMULATE             
+      kosttemp.OVRKR (TOTAL BY kosttemp.AONR BY kosttemp.DELNR BY kosttemp.MOMSID).      
+      IF LAST-OF(kosttemp.MOMSID) THEN DO TRANSACTION:
+         FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR AND
+         FAKTAONR.AONR = kosttemp.AONR AND
+         FAKTAONR.DELNR = kosttemp.DELNR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE FAKTAONR THEN DO:
+            FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR AND
+            FAKTAONR.AONR = kosttemp.AONR NO-LOCK NO-ERROR.
+         END.
+         nyfakttotal = nyfakttotal + (ACCUM TOTAL BY kosttemp.MOMSID kosttemp.PERSKOST) +            
+         (ACCUM TOTAL BY kosttemp.MOMSID kosttemp.TRAKTKOST) +           
+         (ACCUM TOTAL BY kosttemp.MOMSID kosttemp.FRTJPAKR) +            
+         (ACCUM TOTAL BY kosttemp.MOMSID kosttemp.MTRLPAKR) +                          
+         (ACCUM TOTAL BY kosttemp.MOMSID kosttemp.MASKKOST) +
+         (ACCUM TOTAL BY kosttemp.MOMSID kosttemp.MTRL) +
+         (ACCUM TOTAL BY kosttemp.MOMSID kosttemp.OVRKR).
+         FIND FIRST fktemp WHERE 
+         fktemp.FAKTNR = FAKTPLAN.FAKTNR AND  
+         fktemp.FDELNR = FAKTURERAD.FDELNR AND 
+         fktemp.VFAKTNR = FAKTURERAD.VFAKTNR AND
+         fktemp.AONR = FAKTAONR.AONR AND
+         fktemp.DELNR = FAKTAONR.DELNR EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE fktemp THEN CREATE fktemp.
+         ASSIGN 
+         fktemp.FAKTNR = FAKTPLAN.FAKTNR   
+         fktemp.FDELNR = FAKTURERAD.FDELNR  
+         fktemp.VFAKTNR = FAKTURERAD.VFAKTNR            
+         fktemp.AONR = FAKTAONR.AONR
+         fktemp.DELNR = FAKTAONR.DELNR                         
+         fktemp.KUNDKONTOID = FAKTREGLER.KUNDKONTOID 
+         fktemp.MOTPARTID = FAKTREGLER.MOTPARTID            
+         fktemp.FDATUM = TODAY + FAKTREGLER.FDAGAR
+         fktemp.FAKTDATUM = TODAY            
+         fktemp.BELOPP = fktemp.BELOPP +
+         (ACCUM TOTAL BY kosttemp.MOMSID kosttemp.PERSKOST) +            
+         (ACCUM TOTAL BY kosttemp.MOMSID kosttemp.TRAKTKOST) +           
+         (ACCUM TOTAL BY kosttemp.MOMSID kosttemp.FRTJPAKR) +            
+         (ACCUM TOTAL BY kosttemp.MOMSID kosttemp.MTRLPAKR) +                          
+         (ACCUM TOTAL BY kosttemp.MOMSID kosttemp.MASKKOST) +
+         (ACCUM TOTAL BY kosttemp.MOMSID kosttemp.MTRL) +
+         (ACCUM TOTAL BY kosttemp.MOMSID kosttemp.OVRKR).               
+         RUN styrintakt_UI (INPUT TRUE,INPUT TRUE,INPUT TRUE).
+      END.
+   END.  
+END PROCEDURE.
+
+PROCEDURE inakttid_UI :    
+   FOR EACH sumtidtemp WHERE sumtidtemp.MED = TRUE BREAK 
+   BY sumtidtemp.AONR BY sumtidtemp.DELNR:         
+      ACCUMULATE 
+      sumtidtemp.BELOPP (TOTAL BY sumtidtemp.AONR BY sumtidtemp.DELNR).
+      ACCUMULATE 
+      sumtidtemp.OBELOPP (TOTAL BY sumtidtemp.AONR BY sumtidtemp.DELNR).
+      ACCUMULATE 
+      sumtidtemp.LONKOST (TOTAL BY sumtidtemp.AONR BY sumtidtemp.DELNR). 
+      ACCUMULATE 
+      sumtidtemp.TBELOPP (TOTAL BY sumtidtemp.AONR BY sumtidtemp.DELNR).
+      ACCUMULATE 
+      sumtidtemp.RESKOSTDEC (TOTAL BY sumtidtemp.AONR BY sumtidtemp.DELNR).
+      IF LAST-OF(sumtidtemp.DELNR) THEN DO TRANSACTION:         
+         FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR AND
+         FAKTAONR.AONR = sumtidtemp.AONR AND
+         FAKTAONR.DELNR = sumtidtemp.DELNR NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE FAKTAONR THEN DO:
+            FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR AND
+            FAKTAONR.AONR = sumtidtemp.AONR NO-LOCK NO-ERROR.
+         END.
+         nyfakttotal = nyfakttotal + (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.BELOPP) +            
+         (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.LONKOST) +           
+         (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.OBELOPP) +            
+         (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.TBELOPP) +                          
+         (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.RESKOSTDEC).
+         FIND FIRST fktemp WHERE 
+         fktemp.FAKTNR = FAKTPLAN.FAKTNR AND  
+         fktemp.FDELNR = FAKTURERAD.FDELNR AND 
+         fktemp.VFAKTNR = FAKTURERAD.VFAKTNR AND
+         fktemp.AONR = FAKTAONR.AONR AND
+         fktemp.DELNR = FAKTAONR.DELNR EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE fktemp THEN CREATE fktemp.
+         CREATE fktemp.
+         ASSIGN 
+         fktemp.FAKTNR = FAKTPLAN.FAKTNR   
+         fktemp.FDELNR = FAKTURERAD.FDELNR  
+         fktemp.VFAKTNR = FAKTURERAD.VFAKTNR            
+         fktemp.AONR = FAKTAONR.AONR
+         fktemp.DELNR = FAKTAONR.DELNR                         
+         fktemp.KUNDKONTOID = FAKTREGLER.KUNDKONTOID 
+         fktemp.MOTPARTID = FAKTREGLER.MOTPARTID            
+         fktemp.FDATUM = TODAY + FAKTREGLER.FDAGAR
+         fktemp.FAKTDATUM = TODAY            
+         fktemp.BELOPP = fktemp.BELOPP +
+         (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.BELOPP) +            
+         (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.LONKOST) +           
+         (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.OBELOPP) +            
+         (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.TBELOPP) +                          
+         (ACCUM TOTAL BY sumtidtemp.DELNR sumtidtemp.RESKOSTDEC).                        
+         RUN styrintakt_UI (INPUT TRUE,INPUT TRUE,INPUT TRUE).
+      END.
+   END.  
+END PROCEDURE.
+PROCEDURE styrintakt_UI :    
+   DEFINE INPUT PARAMETER intaktvar  AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER kundvar    AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER motpartvar AS LOGICAL NO-UNDO.
+   IF motpartvar = TRUE THEN DO:
+      FIND FIRST STYRMOT WHERE STYRMOT.KUNDID = FAKTREGLER.KUNDID NO-LOCK NO-ERROR.
+      IF AVAILABLE STYRMOT THEN DO:
+         ASSIGN
+         fktemp.MOTPARTID = STYRMOT.MOTPARTID.         
+      END.      
+      ELSE DO:
+         MESSAGE "Det är något fel på motpartsupplägget. Kontakta ansvarig!" 
+         VIEW-AS ALERT-BOX.
+      END.
+   END.
+   IF kundvar = TRUE THEN DO:
+      FIND FIRST STYRKUND WHERE STYRKUND.KUNDID = FAKTREGLER.KUNDID NO-LOCK NO-ERROR.
+      IF AVAILABLE STYRKUND THEN DO:
+         fktemp.KUNDKONTOID = STYRKUND.KUNDKONTOID.
+      END.              
+      ELSE DO:
+         MESSAGE "Det är något fel på kundfodransupplägget. Kontakta ansvarig!" 
+         VIEW-AS ALERT-BOX.
+      END.
+   END.
+         
+END PROCEDURE.
+PROCEDURE tid_UI:
+   FOR EACH FAKTTID WHERE FAKTTID.FAKTNR = infakplannr AND FAKTTID.FDELNR = fdelnrvar AND FAKTTID.MED = TRUE NO-LOCK:  
+      CREATE sumtidtemp.  
+      BUFFER-COPY FAKTTID EXCEPT FAKTTID.DECRESTID FAKTTID.RESTIM TO sumtidtemp ASSIGN FAKTTID.DECRESTID    = sumtidtemp.RESTIM. 
+      
+   END.                                                /*
+         
+         ASSIGN     
+         FAKTTID.PERSONALKOD  = sumtidtemp.PERSONALKOD
+         FAKTTID.NAMN         = sumtidtemp.NAMN 
+         FAKTTID.AONR         = sumtidtemp.AONR
+         FAKTTID.DELNR        = sumtidtemp.DELNR
+         FAKTTID.TIMMAR       = sumtidtemp.TIMMAR
+         FAKTTID.BELOPP       = sumtidtemp.BELOPP        
+         FAKTTID.OBELOPP      = sumtidtemp.OBELOPP 
+         FAKTTID.TBELOPP      = sumtidtemp.TBELOPP             
+         FAKTTID.OTIMMAR      = sumtidtemp.OTIMMAR 
+         FAKTTID.RESPRIS      = sumtidtemp.RESPRIS
+         FAKTTID.OPRIS        = sumtidtemp.OPRIS
+         FAKTTID.LONKOST      = sumtidtemp.LONKOST
+         FAKTTID.BEFATTNING   = sumtidtemp.BEFATTNING 
+         FAKTTID.PERSMASK     = sumtidtemp.PERSMASK
+         FAKTTID.TRAKTKOD     = sumtidtemp.TRAKTKOD
+         FAKTTID.TRAKTANTAL   = sumtidtemp.TRAKTANTAL  
+         FAKTTID.LONTILLAGG   = sumtidtemp.LONTILLAGG      
+         FAKTTID.LONTILLANTAL = sumtidtemp.LONTILLANTAL 
+         FAKTTID.PRISA        = sumtidtemp.PRISA 
+         FAKTTID.ENDAGS       = sumtidtemp.ENDAGS       
+         FAKTTID.MED          = sumtidtemp.MED      
+         FAKTTID.PRISTYP      = sumtidtemp.PRISTYP
+         FAKTTID.DECRESTID    = sumtidtemp.RESTIM
+         FAKTTID.RESKOSTDEC   = sumtidtemp.RESKOSTDEC
+         FAKTTID.OTEXTID      = sumtidtemp.OTEXTID
+         FAKTTID.DATUM        = sumtidtemp.DATUM
+         FAKTTID.START        = sumtidtemp.START 
+         FAKTTID.SLUT         = sumtidtemp.SLUT
+         FAKTTID.GSTART       = sumtidtemp.GSTART 
+         FAKTTID.GSLUT        = sumtidtemp.GSLUT
+         FAKTTID.LUNCH        = sumtidtemp.LUNCH          
+         FAKTTID.OANT1        = sumtidtemp.OANT1.       
+         */
+      
+END PROCEDURE.
+PROCEDURE kostreg_UI:
+   FOR EACH FAKTKOST WHERE FAKTKOST.FAKTNR = infakplannr AND FAKTKOST.FDELNR = fdelnrvar AND FAKTKOST.MED = TRUE NO-LOCK:
+      CREATE kosttemp.               
+      ASSIGN         
+      kosttemp.FAKTNR      =    FAKTKOST.VERNR         
+      kosttemp.MED         =    FAKTKOST.MED           
+      kosttemp.AONR        =    FAKTKOST.AONR          
+      kosttemp.DELNR       =    FAKTKOST.DELNR                    
+      kosttemp.RADNR       =    FAKTKOST.RADNR         
+      kosttemp.MASKKOST    =    FAKTKOST.MASKKOST      
+      kosttemp.PERSKOST    =    FAKTKOST.PERSKOST      
+      kosttemp.TRAKTKOST   =    FAKTKOST.TRAKTKOST     
+      kosttemp.MTRL        =    FAKTKOST.MTRL          
+      kosttemp.OVRKR       =    FAKTKOST.OVRKR                                         
+      kosttemp.BENAMNING   =    FAKTKOST.BENAMNING     
+      kosttemp.RADNR       =    FAKTKOST.RADNR         
+      kosttemp.MOMSEXTERNT =    FAKTKOST.MOMSEXTERNT    
+      kosttemp.MOMSID     =    FAKTKOST.MOMSID.               
+   END.
+END PROCEDURE.
+PROCEDURE nyproc_UI :
+   DEFINE VARIABLE delbelopp AS DECIMAL NO-UNDO.
+   FIND FIRST FAKTAONR WHERE FAKTAONR.FAKTNR = FAKTPLAN.FAKTNR AND      
+   FAKTAONR.EXTRAPRIS NE 0 NO-LOCK NO-ERROR.
+   IF AVAILABLE FAKTAONR THEN DO:
+      FOR EACH frikolltemp:
+         frikolltemp.FORDELNING = TRUE.              
+      END.
+      ASSIGN
+      extrasumma = 0
+      delbelopp = 0.   
+   END.
+   ELSE DO:
+      FOR EACH frikolltemp:
+         FOR EACH FAKTFRIA WHERE FAKTFRIA.FAKTNR = FAKTPLAN.FAKTNR AND      
+         FAKTFRIA.AONR = frikolltemp.AONR AND FAKTFRIA.DELNR = frikolltemp.DELNR AND FAKTFRIA.FAKTURERAD = TRUE AND 
+         FAKTFRIA.VFAKTNR NE FAKTURERAD.VFAKTNR NO-LOCK:
+            frikolltemp.FRIBELOPP = frikolltemp.FRIBELOPP + FAKTFRIA.TOTALT.
+         END.     
+         FOR EACH FAKTINTAKTKONT WHERE FAKTINTAKTKONT.FAKTNR = FAKTPLAN.FAKTNR AND      
+         FAKTINTAKTKONT.AONR = frikolltemp.AONR AND FAKTINTAKTKONT.DELNR = frikolltemp.DELNR AND
+         FAKTINTAKTKONT.VFAKTNR NE FAKTURERAD.VFAKTNR NO-LOCK:
+            frikolltemp.TOTFAKT = frikolltemp.TOTFAKT + FAKTINTAKTKONT.BELOPP.
+         END.      
+         IF frikolltemp.TOTBELOPP >= ROUND((frikolltemp.TOTFAKT - frikolltemp.FRIBELOPP),0) THEN DO:
+            frikolltemp.FORDELNING = TRUE.
+         END.      
+         ELSE DO:
+            frikolltemp.FORDELNING = FALSE.
+            delbelopp = delbelopp + frikolltemp.TOTBELOPP.
+         END.      
+      END.
+   END.
+   
+   delfakt = nyfakttotal / (FAKTPLAN.OFFERTPRIS - (extrasumma + delbelopp)). 
+   IF delfakt = ? THEN delfakt = 0.
+   /*
+   CCC
+   FIND FAKTSTART WHERE FAKTSTART.FAKTNR = FAKTPLAN.FAKTNR AND FAKTSTART.START = "START" NO-ERROR.
+   delfakt = nyfakttotal / (FAKTPLAN.OFFERTPRIS - (delbelopp + FAKTSTART.BELOPP)).
+   */   
+END PROCEDURE.

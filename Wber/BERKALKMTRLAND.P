@@ -1,0 +1,68 @@
+
+/*------------------------------------------------------------------------
+    File        : BERKALKMTRLAND.P
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Mon Dec 21 15:34:51 CET 2020
+    Notes       :
+  ----------------------------------------------------------------------*/
+{INKSUMBERTEMP.I}
+DEFINE INPUT  PARAMETER bernumvar AS INTEGER NO-UNDO.
+DEFINE INPUT  PARAMETER omrvar    AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR berkalkmtrlandTT.
+DEFINE VARIABLE numbervar AS INTEGER NO-UNDO.
+numbervar = 0.
+/*de som är ändrade*/
+REPEAT:  
+   FIND FIRST berkalkmtrlandTT WHERE berkalkmtrlandTT.NUM > numbervar NO-LOCK NO-ERROR.
+   IF AVAILABLE berkalkmtrlandTT THEN DO: 
+      /*hittar första posten*/
+      numbervar = berkalkmtrlandTT.NUM.
+      /*tar bort allt mtrl föt ändrad num*/
+      FOR EACH BERMTRL WHERE BERMTRL.AONR = STRING(bernumvar) AND BERMTRL.OMRADE = omrvar AND BERMTRL.NUM  = numbervar EXCLUSIVE-LOCK:
+         DELETE BERMTRL.
+      END.
+      /*lägger upp allt mtrl för ändrad num*/
+      FOR EACH berkalkmtrlandTT WHERE berkalkmtrlandTT.NUM = numbervar NO-LOCK:
+         RUN CreateBermtrl_UI.
+      END.
+   END.
+   ELSE LEAVE.
+END.
+
+
+PROCEDURE CreateBermtrl_UI :
+   DEFINE VARIABLE datvar AS DATE NO-UNDO.
+   FIND LAST BERMTRL WHERE BERMTRL.AONR = STRING(bernumvar) AND 
+   BERMTRL.OMRADE = omrvar AND BERMTRL.INKOP = FALSE 
+   USE-INDEX DATUM NO-LOCK NO-ERROR.
+   IF AVAILABLE BERMTRL THEN DO:
+      datvar = BERMTRL.DATUM.
+   END.
+   ELSE datvar = TODAY.
+   DO TRANSACTION:
+      
+      CREATE BERMTRL.
+      ASSIGN 
+      BERMTRL.AONR = STRING(bernumvar) 
+      BERMTRL.OMRADE = omrvar
+      BERMTRL.DATUM = datvar.
+      BUFFER-COPY berkalkmtrlandTT TO BERMTRL.
+      DELETE berkalkmtrlandTT.
+      FIND FIRST MTRL WHERE MTRL.LEVKOD = BERMTRL.LEVKOD AND MTRL.ENR = BERMTRL.ENR AND
+      MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+      IF AVAILABLE MTRL THEN DO:
+         ASSIGN
+         BERMTRL.BENAMNING = MTRL.BENAMNING
+         BERMTRL.ENHET = MTRL.ENHET
+         BERMTRL.PRIS = MTRL.NPRIS.
+      END.
+   END.
+
+END PROCEDURE.       
+     

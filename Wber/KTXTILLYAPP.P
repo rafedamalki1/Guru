@@ -1,0 +1,657 @@
+/*KTXTILLYAPP.P*/
+
+{KONSTRMTRL.I}
+/*{SMTRL.I} 
+{BMTRL.I}  
+{MTRLTEMP.I}*/
+{LOPTEMP.I}
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+DEFINE VARIABLE valgrupp AS INTEGER NO-UNDO.
+DEFINE TEMP-TABLE grupp_temp NO-UNDO
+   FIELD KONSKOD AS INTEGER
+   FIELD BENAMNING AS CHARACTER.
+
+DEFINE VARIABLE kabelskapup AS LOGICAL NO-UNDO.
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+DEFINE QUERY mtrlq FOR MTRLBER.
+DEFINE QUERY mskapq FOR BERSKAP.
+DEFINE QUERY mstolpq FOR BERSTOLP.
+   
+DEFINE BUFFER mtrlberbuff FOR MTRLBER. 
+DEFINE BUFFER berskapbuff FOR BERSKAP. 
+DEFINE BUFFER berstolpbuff FOR BERSTOLP.
+DEFINE BUFFER kalkberbuff FOR KALKBER. 
+   
+  
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+/*PROCEDURE laggtill_UI :
+   DEFINE INPUT PARAMETER TABLE FOR spec_mtrl.
+   DEFINE INPUT PARAMETER TABLE FOR byt_mtrl.
+   DEFINE INPUT PARAMETER TABLE FOR grupp_temp.
+   DEFINE INPUT PARAMETER valla AS LOGICAL NO-UNDO.
+   FIND FIRST byt_mtrl NO-LOCK NO-ERROR.        
+   FIND FIRST spec_mtrl NO-LOCK NO-ERROR.    
+     
+   FOR EACH grupp_temp:
+      valgrupp = grupp_temp.KONSKOD.  
+      IF valgrupp = 0 THEN kabelskapup = TRUE.
+      FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = valgrupp NO-LOCK:
+         IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+            IF spec_mtrl.LEVKOD = "1" OR spec_mtrl.LEVKOD = "11" THEN DO:
+               OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+               MTRLBER.ENR = spec_mtrl.ENR AND
+               (MTRLBER.LEVKOD = "1" OR MTRLBER.LEVKOD = "11") NO-LOCK.
+            END.
+            ELSE DO:
+               OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+               MTRLBER.ENR = spec_mtrl.ENR AND
+               MTRLBER.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.
+            END.
+         END.
+         ELSE DO:
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+            MTRLBER.ENR = spec_mtrl.ENR AND MTRLBER.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.
+         END.    
+         RUN mtill_UI.
+         
+      END.         
+   END.
+   /*skåpupp*/
+   IF kabelskapup = TRUE THEN DO:
+      IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+         IF spec_mtrl.LEVKOD = "1" OR spec_mtrl.LEVKOD = "11" THEN DO:
+            OPEN QUERY mskapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND
+            (BERSKAP.LEVKOD = "1" OR BERSKAP.LEVKOD = "11") NO-LOCK.         
+         END.
+         ELSE DO:
+            OPEN QUERY mskapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND
+            BERSKAP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+         END.
+      END.
+      ELSE DO:
+         OPEN QUERY mskapq FOR EACH BERSKAP WHERE BERSKAP.ENR = spec_mtrl.ENR AND
+         BERSKAP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+      END.         
+      
+      RUN ktill_UI.
+   END.
+   /*stolpar trafo*/
+   IF kabelskapup = TRUE THEN DO:
+      IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+         IF spec_mtrl.LEVKOD = "1" OR spec_mtrl.LEVKOD = "11" THEN DO:
+            OPEN QUERY mstolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND
+            (BERSTOLP.LEVKOD = "1" OR BERSTOLP.LEVKOD = "11") NO-LOCK.         
+         END.
+         ELSE DO:
+            OPEN QUERY mstolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND
+            BERSTOLP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+         END.
+      END.
+      ELSE DO:
+         OPEN QUERY mstolpq FOR EACH BERSTOLP WHERE BERSTOLP.ENR = spec_mtrl.ENR AND
+         BERSTOLP.LEVKOD = spec_mtrl.LEVKOD NO-LOCK.         
+      END.         
+      
+      RUN still_UI.
+   END.
+END PROCEDURE.
+
+PROCEDURE ktill_UI :
+   GET FIRST mskapq NO-LOCK.
+   DO WHILE AVAILABLE(BERSKAP):
+      DO TRANSACTION:
+         
+         CREATE berskapbuff.
+         BUFFER-COPY BERSKAP TO berskapbuff.
+         ASSIGN
+         berskapbuff.ENR = byt_mtrl.ENR
+         berskapbuff.BENAMNING = byt_mtrl.BENAMNING
+         berskapbuff.ENHET = byt_mtrl.ENHET
+         berskapbuff.PRIS = byt_mtrl.NPRIS
+         berskapbuff.LEVKOD = byt_mtrl.LEVKOD
+         berskapbuff.ANTAL = byt_mtrl.BERKVANT.
+         IF BERSKAP.ANTAL = 0 THEN berskapbuff.ANTAL = 0.
+      END.
+      GET NEXT mskapq NO-LOCK.
+   END.      
+    
+   RELEASE berskapbuff NO-ERROR. 
+   
+END PROCEDURE.
+
+PROCEDURE still_UI :
+   GET FIRST mstolpq NO-LOCK.
+   DO WHILE AVAILABLE(BERSTOLP):
+      DO TRANSACTION:
+         
+         CREATE berskapbuff.
+         BUFFER-COPY BERSTOLP TO berstolpbuff.
+         ASSIGN
+         berstolpbuff.ENR = byt_mtrl.ENR
+         berstolpbuff.BENAMNING = byt_mtrl.BENAMNING
+         berstolpbuff.ENHET = byt_mtrl.ENHET
+         berstolpbuff.PRIS = byt_mtrl.NPRIS
+         berstolpbuff.LEVKOD = byt_mtrl.LEVKOD
+         berstolpbuff.ANTAL = byt_mtrl.BERKVANT.
+         IF BERSTOLP.ANTAL = 0 THEN berstolpbuff.ANTAL = 0.
+      END.
+      GET NEXT mstolpq NO-LOCK.
+   END.      
+    
+   RELEASE berskapbuff NO-ERROR. 
+   
+END PROCEDURE.
+
+
+PROCEDURE mtill_UI :
+   GET FIRST mtrlq NO-LOCK.
+   DO WHILE AVAILABLE(MTRLBER):
+      DO TRANSACTION:
+         /*??????
+         IF Guru.Konstanter:globforetag = "ELPA" {GLOBVES.I} THEN DO:
+            IF byt_mtrl.LEVKOD = "1" OR byt_mtrl.LEVKOD = "11" THEN DO:
+               FIND FIRST mtrlberbuff WHERE mtrlberbuff.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+               mtrlberbuff.ENR = byt_mtrl.ENR AND 
+               mtrlberbuff.F1 = MTRLBER.F1 AND 
+               mtrlberbuff.F2 = MTRLBER.F2 AND 
+               mtrlberbuff.F3 = MTRLBER.F3 AND 
+               mtrlberbuff.F4 = MTRLBER.F4 AND 
+               mtrlberbuff.F5 = MTRLBER.F5 AND 
+               (mtrlberbuff.LEVKOD = "1" OR mtrlberbuff.LEVKOD = "11")
+               EXCLUSIVE-LOCK NO-ERROR.
+            END.
+            ELSE DO:
+               FIND FIRST mtrlberbuff WHERE mtrlberbuff.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+               mtrlberbuff.ENR = byt_mtrl.ENR AND mtrlberbuff.LEVKOD = byt_mtrl.LEVKOD AND
+               mtrlberbuff.F1 = MTRLBER.F1 AND 
+               mtrlberbuff.F2 = MTRLBER.F2 AND 
+               mtrlberbuff.F3 = MTRLBER.F3 AND 
+               mtrlberbuff.F4 = MTRLBER.F4 AND 
+               mtrlberbuff.F5 = MTRLBER.F5  
+               EXCLUSIVE-LOCK NO-ERROR.
+            END.
+         END.
+         ELSE DO:
+            FIND FIRST mtrlberbuff WHERE mtrlberbuff.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+            mtrlberbuff.ENR = byt_mtrl.ENR AND mtrlberbuff.LEVKOD = byt_mtrl.LEVKOD AND
+            mtrlberbuff.F1 = MTRLBER.F1 AND 
+            mtrlberbuff.F2 = MTRLBER.F2 AND 
+            mtrlberbuff.F3 = MTRLBER.F3 AND 
+            mtrlberbuff.F4 = MTRLBER.F4 AND 
+            mtrlberbuff.F5 = MTRLBER.F5  
+            EXCLUSIVE-LOCK NO-ERROR.
+         END.
+         
+         IF NOT AVAILABLE mtrlberbuff THEN DO:
+            CREATE mtrlberbuff.
+         END.
+         */
+         /*Om materielet redan finns ska det inte läggas till. Lena 20100407*/
+         FIND FIRST mtrlberbuff WHERE mtrlberbuff.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+         mtrlberbuff.ENR = byt_mtrl.ENR AND mtrlberbuff.LEVKOD = byt_mtrl.LEVKOD AND
+         mtrlberbuff.F1 = MTRLBER.F1 AND 
+         mtrlberbuff.F2 = MTRLBER.F2 AND 
+         mtrlberbuff.F3 = MTRLBER.F3 AND 
+         mtrlberbuff.F4 = MTRLBER.F4 AND 
+         mtrlberbuff.F5 = MTRLBER.F5 EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE mtrlberbuff THEN DO:
+            CREATE mtrlberbuff.
+         END.
+         
+         BUFFER-COPY MTRLBER TO mtrlberbuff.
+         ASSIGN
+         mtrlberbuff.ENR = byt_mtrl.ENR
+         mtrlberbuff.BENAMNING = byt_mtrl.BENAMNING
+         mtrlberbuff.ENHET = byt_mtrl.ENHET
+         mtrlberbuff.PRIS = byt_mtrl.NPRIS
+         mtrlberbuff.SATS = byt_mtrl.SATS
+         mtrlberbuff.LEVKOD = byt_mtrl.LEVKOD
+         mtrlberbuff.ANTAL = byt_mtrl.BERKVANT.
+         IF MTRLBER.ANTAL = 0 THEN mtrlberbuff.ANTAL = 0.
+      END.
+      GET NEXT mtrlq NO-LOCK.
+   END.      
+   CLOSE QUERY mtrlq.   
+   RELEASE mtrlberbuff NO-ERROR. 
+   
+END PROCEDURE.*/
+
+PROCEDURE laddakalkber_UI :   
+
+   DEFINE INPUT PARAMETER TABLE FOR grupp_temp.
+   DEFINE OUTPUT PARAMETER TABLE FOR kalkbertemp.
+   DEFINE INPUT PARAMETER valla AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER rsch AS INTEGER NO-UNDO.
+   EMPTY TEMP-TABLE kalkbertemp NO-ERROR. 
+   IF rsch = 2 THEN.
+   ELSE DO:   
+      FOR EACH grupp_temp:
+         valgrupp = grupp_temp.KONSKOD. 
+         IF valgrupp = 0 THEN kabelskapup = TRUE.
+         FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = valgrupp NO-LOCK:
+            FOR EACH KALKBER WHERE KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD NO-LOCK :
+               FIND FIRST kalkbertemp WHERE kalkbertemp.ARBKOD = KALKBER.ARBKOD AND kalkbertemp.LOPNR = KALKBER.LOPNR  NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE kalkbertemp THEN DO:
+                  CREATE kalkbertemp.
+                  BUFFER-COPY KALKBER TO kalkbertemp.
+                  /*ASSIGN kalkbertemp.MTRLROW = ROWID(KALKBER).*/
+               END.
+            END.
+         END.
+         
+      END.
+   END.
+   IF rsch = 2 OR rsch = 3  THEN DO:      
+      FOR EACH HDKKOPP  NO-LOCK:         
+         IF HDKKOPP.TYP = "F" OR HDKKOPP.TYP = "Y" OR HDKKOPP.TYP = "FH" OR HDKKOPP.TYP = "PH" THEN DO:         
+            FIND FIRST kalkbertemp WHERE kalkbertemp.ARBKOD = HDKKOPP.ARBKOD AND kalkbertemp.LOPNR = HDKKOPP.LOPNR  NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE kalkbertemp THEN DO:            
+               CREATE kalkbertemp.
+               BUFFER-COPY HDKKOPP TO kalkbertemp.
+               FIND LAST KALKYLLOPPOSTER WHERE KALKYLLOPPOSTER.ARBKOD = kalkbertemp.ARBKOD AND KALKYLLOPPOSTER.LOPNR = kalkbertemp.LOPNR USE-INDEX LOPNR NO-LOCK NO-ERROR.
+               IF AVAILABLE KALKYLLOPPOSTER THEN DO:
+                  ASSIGN kalkbertemp.BENAMNING = KALKYLLOPPOSTER.BENAMNING
+                  kalkbertemp.ENHET = KALKYLLOPPOSTER.ENHET.
+               END.
+               
+               
+               /*FIND LAST LOP2 WHERE LOP2.ARBKOD = kalkbertemp.ARBKOD AND LOP2.LOPNR = kalkbertemp.LOPNR USE-INDEX AR NO-LOCK NO-ERROR.
+               IF AVAILABLE LOP2 THEN DO: 
+                  ASSIGN kalkbertemp.BENAMNING = LOP2.BENAMNING
+                  kalkbertemp.ENHET = LOP2.ENHET.
+               END.
+               IF NOT AVAILABLE LOP2 THEN DO:
+                  FIND LAST LOP3 WHERE LOP3.ARBKOD = kalkbertemp.ARBKOD AND LOP3.LOPNR = kalkbertemp.LOPNR USE-INDEX AR NO-LOCK NO-ERROR.
+                  IF AVAILABLE LOP3 THEN DO:
+                     ASSIGN kalkbertemp.BENAMNING = LOP3.BENAMNING
+                     kalkbertemp.ENHET = LOP3.ENHET.
+                  END.
+               END.*/      
+               
+            END.         
+         END.
+      END.
+   END.
+
+   
+   RETURN.
+END PROCEDURE.
+
+              
+
+PROCEDURE viskalkber_UI :
+   DEFINE INPUT PARAMETER TABLE FOR grupp_temp.
+   DEFINE INPUT PARAMETER TABLE FOR ekalkbertemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR vkalkbertemp.
+   DEFINE INPUT PARAMETER valla AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER rsch AS INTEGER NO-UNDO.
+   
+   FIND FIRST vkalkbertemp NO-LOCK NO-ERROR.        
+   FIND FIRST ekalkbertemp NO-LOCK NO-ERROR.
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   Guru.Konstanter:globforetag = FORETAG.FORETAG.
+     
+   IF rsch = 2 THEN.
+   ELSE DO:   
+      FOR EACH grupp_temp:
+         valgrupp = grupp_temp.KONSKOD.        
+         OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = valgrupp NO-LOCK.
+         GET FIRST kq NO-LOCK.
+         DO WHILE AVAILABLE(KONSTRUKTION):
+            
+            OPEN QUERY kaq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+            KALKBER.ARBKOD = ekalkbertemp.ARBKOD AND
+            KALKBER.LOPNR = ekalkbertemp.LOPNR NO-LOCK.                  
+            GET FIRST kaq NO-LOCK.
+            DO WHILE AVAILABLE(KALKBER):
+               CREATE vkalkbertemp.
+               BUFFER-COPY KALKBER TO vkalkbertemp.            
+               
+               GET NEXT kaq NO-LOCK.
+            END.
+            CLOSE QUERY kaq.
+            GET NEXT kq NO-LOCK.
+         END.
+         CLOSE QUERY kq.
+      
+      END.
+      FOR EACH vkalkbertemp:
+         FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = vkalkbertemp.KTYPKOD
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE KONSTRUKTION THEN DO:
+            FIND FIRST KONSTGRUPP WHERE KONSTGRUPP.KONSKOD = KONSTRUKTION.KONSKOD
+            NO-LOCK NO-ERROR.
+            IF AVAILABLE KONSTGRUPP THEN DO:
+               ASSIGN
+               /*vkalkbertemp.KONSKOD = KONSTGRUPP.KONSKOD*/
+               vkalkbertemp.BENAMNING = KONSTGRUPP.BENAMNING.
+               vkalkbertemp.KTYPKOD = vkalkbertemp.KTYPKOD + " " + KONSTRUKTION.BENAMNING.
+            END.       
+         END.   
+      END.
+   END.
+   IF rsch = 2 OR rsch = 3 THEN DO:      
+      OPEN QUERY haq FOR EACH HDKKOPP WHERE 
+      HDKKOPP.ARBKOD = ekalkbertemp.ARBKOD AND
+      HDKKOPP.LOPNR = ekalkbertemp.LOPNR NO-LOCK.                  
+      GET FIRST haq NO-LOCK.
+      DO WHILE AVAILABLE(HDKKOPP):
+         CREATE vkalkbertemp.
+         BUFFER-COPY HDKKOPP TO vkalkbertemp.            
+         IF HDKKOPP.TYP = "F" THEN DO:
+            FIND FIRST FORLAGG WHERE FORLAGG.ID = HDKKOPP.ID NO-LOCK NO-ERROR.
+            IF AVAILABLE FORLAGG THEN DO:
+               vkalkbertemp.BENAMNING = "FÖRLÄGGNING".
+               vkalkbertemp.KTYPKOD = FORLAGG.BENAMNING.
+            END.
+         END.
+         ELSE IF HDKKOPP.TYP = "Y" THEN DO:
+            FIND FIRST YTBELAGG WHERE YTBELAGG.ID = HDKKOPP.ID NO-LOCK NO-ERROR.
+            IF AVAILABLE YTBELAGG THEN DO:
+               vkalkbertemp.BENAMNING = "YTBELÄGGNING".
+               vkalkbertemp.KTYPKOD = YTBELAGG.YTBELAGG.
+            END.
+         END.
+         ELSE IF HDKKOPP.TYP = "FH"  THEN DO:
+            FIND FIRST HDHANDELSE WHERE HDHANDELSE.ID = HDKKOPP.ID NO-LOCK NO-ERROR.
+            IF AVAILABLE HDHANDELSE THEN DO:
+               vkalkbertemp.BENAMNING = "FÖRLÄGGNINGSHÄNDELSE".
+               vkalkbertemp.KTYPKOD = HDHANDELSE.BENAMNING.
+            END.
+         END.
+         ELSE IF HDKKOPP.TYP = "PH" THEN DO:
+            FIND FIRST HDHANDELSE WHERE HDHANDELSE.ID = HDKKOPP.ID NO-LOCK NO-ERROR.
+            IF AVAILABLE HDHANDELSE THEN DO:
+               vkalkbertemp.BENAMNING = "PUNKTHÄNDELSE".
+               vkalkbertemp.KTYPKOD = HDHANDELSE.BENAMNING.
+            END.
+         END.
+         ELSE DO:
+            DELETE vkalkbertemp.
+         END.
+         
+         GET NEXT haq NO-LOCK.
+      END.
+      CLOSE QUERY haq.
+
+   END.
+   
+END PROCEDURE.
+           
+              
+PROCEDURE ersattkalkber_UI :
+   DEFINE INPUT PARAMETER valgrupp AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR ekalkbertemp.
+   DEFINE INPUT PARAMETER TABLE FOR extraloptemp.
+   DEFINE INPUT PARAMETER TABLE FOR grupp_temp.   
+   DEFINE INPUT PARAMETER valla AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER rsch AS INTEGER NO-UNDO.
+   
+   FIND FIRST ekalkbertemp NO-LOCK NO-ERROR.        
+   FIND FIRST extraloptemp NO-LOCK NO-ERROR.
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   Guru.Konstanter:globforetag = FORETAG.FORETAG.
+   IF rsch = 2 THEN.
+   ELSE DO:   
+      IF valgrupp = ? THEN DO:      
+         OPEN QUERY kalkq FOR EACH KALKBER WHERE 
+         KALKBER.ARBKOD = ekalkbertemp.ARBKOD AND
+         KALKBER.LOPNR = ekalkbertemp.LOPNR NO-LOCK.         
+         DO TRANSACTION:
+            GET FIRST kalkq EXCLUSIVE-LOCK.
+            IF AVAILABLE KALKBER THEN DO:
+               ASSIGN
+               KALKBER.ARBKOD = extraloptemp.ARBKOD
+               KALKBER.LOPNR = extraloptemp.LOPNR
+               KALKBER.BENAMNING = extraloptemp.BENAMNING
+               KALKBER.ENHET = extraloptemp.ENHET.
+            END.
+         END.         
+         REPEAT:                                              
+            DO TRANSACTION:
+               GET NEXT kalkq EXCLUSIVE-LOCK.
+               IF AVAILABLE KALKBER THEN DO:
+                  ASSIGN
+                  KALKBER.ARBKOD = extraloptemp.ARBKOD
+                  KALKBER.LOPNR = extraloptemp.LOPNR
+                  KALKBER.BENAMNING = extraloptemp.BENAMNING
+                  KALKBER.ENHET = extraloptemp.ENHET.
+               END.
+               ELSE LEAVE.
+            END.                       
+         END.
+         CLOSE QUERY kalkq.
+      END.
+      ELSE DO:
+         FOR EACH grupp_temp:
+            valgrupp = grupp_temp.KONSKOD.      
+            OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = valgrupp NO-LOCK.
+            GET FIRST kq NO-LOCK.
+            DO WHILE AVAILABLE(KONSTRUKTION):         
+               OPEN QUERY kalkq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+               KALKBER.ARBKOD = ekalkbertemp.ARBKOD AND
+               KALKBER.LOPNR = ekalkbertemp.LOPNR NO-LOCK.         
+               DO TRANSACTION:
+                  GET FIRST kalkq EXCLUSIVE-LOCK.
+                  IF AVAILABLE KALKBER THEN DO:
+                     ASSIGN
+                     KALKBER.ARBKOD = extraloptemp.ARBKOD
+                     KALKBER.LOPNR = extraloptemp.LOPNR
+                     KALKBER.BENAMNING = extraloptemp.BENAMNING
+                     KALKBER.ENHET = extraloptemp.ENHET.
+                  END.
+               END.         
+               REPEAT:                                              
+                  DO TRANSACTION:
+                     GET NEXT kalkq EXCLUSIVE-LOCK.
+                     IF AVAILABLE KALKBER THEN DO:
+                        ASSIGN
+                        KALKBER.ARBKOD = extraloptemp.ARBKOD
+                        KALKBER.LOPNR = extraloptemp.LOPNR
+                        KALKBER.BENAMNING = extraloptemp.BENAMNING
+                        KALKBER.ENHET = extraloptemp.ENHET.
+                     END.
+                     ELSE LEAVE.
+                  END.                       
+               END.
+               CLOSE QUERY kalkq.
+               GET NEXT kq NO-LOCK.
+            END.
+            CLOSE QUERY kq.
+         END.
+      END.
+   END.
+   IF rsch = 2 OR rsch = 3 THEN DO:      
+      OPEN QUERY haq FOR EACH HDKKOPP WHERE 
+      HDKKOPP.ARBKOD = ekalkbertemp.ARBKOD AND
+      HDKKOPP.LOPNR = ekalkbertemp.LOPNR NO-LOCK.                  
+      DO TRANSACTION:      
+         GET FIRST haq EXCLUSIVE-LOCK.
+         DO WHILE AVAILABLE(HDKKOPP):                     
+            ASSIGN
+            HDKKOPP.ARBKOD = extraloptemp.ARBKOD
+            HDKKOPP.LOPNR = extraloptemp.LOPNR.
+            GET NEXT haq EXCLUSIVE-LOCK.
+         END.
+      END.
+      CLOSE QUERY haq.
+   END.
+
+   
+END PROCEDURE.
+
+PROCEDURE laggtillkalkber_UI :
+   DEFINE INPUT PARAMETER valgrupp AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR ekalkbertemp.
+   DEFINE INPUT PARAMETER TABLE FOR extraloptemp.
+   DEFINE INPUT PARAMETER TABLE FOR grupp_temp.   
+   DEFINE INPUT PARAMETER valla AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER rsch AS INTEGER NO-UNDO.
+   
+   FIND FIRST ekalkbertemp NO-LOCK NO-ERROR.        
+   FIND FIRST extraloptemp NO-LOCK NO-ERROR.
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+   /*gör inte lägg till för schakt Lena 20201217*/
+   IF valgrupp = ? THEN DO:      
+      OPEN QUERY kalkq FOR EACH KALKBER WHERE 
+      KALKBER.ARBKOD = ekalkbertemp.ARBKOD AND
+      KALKBER.LOPNR = ekalkbertemp.LOPNR NO-LOCK.         
+      DO TRANSACTION:
+         GET FIRST kalkq EXCLUSIVE-LOCK.
+         DO WHILE AVAILABLE(KALKBER):         
+            FIND FIRST kalkberbuff WHERE kalkberbuff.ARBKOD = extraloptemp.ARBKOD AND kalkberbuff.LOPNR = extraloptemp.LOPNR AND 
+            kalkberbuff.KTYPKOD = KALKBER.KTYPKOD AND kalkberbuff.F1 = KALKBER.F1 AND kalkberbuff.F2 = KALKBER.F2 AND
+            kalkberbuff.F3 = KALKBER.F3 AND kalkberbuff.F4 = KALKBER.F4 AND kalkberbuff.F5 = KALKBER.F5 NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE kalkberbuff  THEN DO:
+               CREATE kalkberbuff.
+               BUFFER-COPY KALKBER TO kalkberbuff.
+        
+               ASSIGN
+               kalkberbuff.ARBKOD = extraloptemp.ARBKOD
+               kalkberbuff.LOPNR = extraloptemp.LOPNR
+               kalkberbuff.BENAMNING = extraloptemp.BENAMNING
+               kalkberbuff.ENHET = extraloptemp.ENHET
+               kalkberbuff.ANTAL = extraloptemp.ANTAL.
+            END.
+            GET NEXT kalkq EXCLUSIVE-LOCK.   
+         END.
+         CLOSE QUERY kalkq.
+      END.         
+      
+   END.
+   ELSE DO:
+      FOR EACH grupp_temp:
+         valgrupp = grupp_temp.KONSKOD.      
+         OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = valgrupp NO-LOCK.
+         GET FIRST kq NO-LOCK.
+         DO WHILE AVAILABLE(KONSTRUKTION):         
+            OPEN QUERY kalkq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+            KALKBER.ARBKOD = ekalkbertemp.ARBKOD AND
+            KALKBER.LOPNR = ekalkbertemp.LOPNR NO-LOCK.         
+            DO TRANSACTION:
+               GET FIRST kalkq EXCLUSIVE-LOCK.               
+               DO WHILE AVAILABLE(KALKBER):         
+                  FIND FIRST kalkberbuff WHERE kalkberbuff.ARBKOD = extraloptemp.ARBKOD AND kalkberbuff.LOPNR = extraloptemp.LOPNR AND 
+                  kalkberbuff.KTYPKOD = KALKBER.KTYPKOD AND kalkberbuff.F1 = KALKBER.F1 AND kalkberbuff.F2 = KALKBER.F2 AND
+                  kalkberbuff.F3 = KALKBER.F3 AND kalkberbuff.F4 = KALKBER.F4 AND kalkberbuff.F5 = KALKBER.F5 NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE kalkberbuff  THEN DO:
+                     CREATE kalkberbuff.
+                     BUFFER-COPY KALKBER TO kalkberbuff.
+              
+                     ASSIGN
+                     kalkberbuff.ARBKOD = extraloptemp.ARBKOD
+                     kalkberbuff.LOPNR = extraloptemp.LOPNR
+                     kalkberbuff.BENAMNING = extraloptemp.BENAMNING
+                     kalkberbuff.ENHET = extraloptemp.ENHET
+                     kalkberbuff.ANTAL = extraloptemp.ANTAL.
+                  END.
+                  GET NEXT kalkq NO-LOCK.   
+               END.
+               CLOSE QUERY kalkq.
+            END.                     
+            
+            GET NEXT kq NO-LOCK.
+         END.
+         CLOSE QUERY kq.
+      END.
+   END.
+   
+   /*IF rsch = 2 OR rsch = 3 THEN DO:      
+      OPEN QUERY haq FOR EACH HDKKOPP WHERE 
+      HDKKOPP.ARBKOD = ekalkbertemp.ARBKOD AND
+      HDKKOPP.LOPNR = ekalkbertemp.LOPNR NO-LOCK.                  
+      DO TRANSACTION:      
+         GET FIRST haq EXCLUSIVE-LOCK.
+         DO WHILE AVAILABLE(HDKKOPP):                     
+            ASSIGN
+            HDKKOPP.ARBKOD = extraloptemp.ARBKOD
+            HDKKOPP.LOPNR = extraloptemp.LOPNR.
+            GET NEXT haq EXCLUSIVE-LOCK.
+         END.
+      END.
+      CLOSE QUERY haq.
+   END.*/
+
+   
+END PROCEDURE.
+
+
+
+PROCEDURE bortkalkber_UI :
+   DEFINE INPUT PARAMETER valgrupp AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR ekalkbertemp.   
+   DEFINE INPUT PARAMETER TABLE FOR grupp_temp.   
+   DEFINE INPUT PARAMETER valla AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER rsch AS INTEGER NO-UNDO.
+   
+   FIND FIRST ekalkbertemp NO-LOCK NO-ERROR.           
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   Guru.Konstanter:globforetag = FORETAG.FORETAG.
+   IF rsch = 2 THEN.
+   ELSE DO:   
+      IF valgrupp = ? THEN DO:      
+         OPEN QUERY kalkq FOR EACH KALKBER WHERE 
+         KALKBER.ARBKOD = ekalkbertemp.ARBKOD AND
+         KALKBER.LOPNR = ekalkbertemp.LOPNR NO-LOCK.         
+         DO TRANSACTION:
+            GET FIRST kalkq EXCLUSIVE-LOCK.
+            IF AVAILABLE KALKBER THEN DELETE KALKBER.
+         END.         
+         REPEAT:                                              
+            DO TRANSACTION:
+               GET NEXT kalkq EXCLUSIVE-LOCK.
+               IF AVAILABLE KALKBER THEN DELETE KALKBER.                  
+               ELSE LEAVE.
+            END.                       
+         END.
+         CLOSE QUERY kalkq.
+      END.
+      ELSE DO:
+         FOR EACH grupp_temp:
+            valgrupp = grupp_temp.KONSKOD.      
+            OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = valgrupp NO-LOCK.
+            GET FIRST kq NO-LOCK.
+            DO WHILE AVAILABLE(KONSTRUKTION):         
+               OPEN QUERY kalkq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND
+               KALKBER.ARBKOD = ekalkbertemp.ARBKOD AND
+               KALKBER.LOPNR = ekalkbertemp.LOPNR NO-LOCK.         
+               DO TRANSACTION:
+                  GET FIRST kalkq EXCLUSIVE-LOCK.
+                  IF AVAILABLE KALKBER THEN DELETE KALKBER.                                    
+               END.         
+               REPEAT:                                              
+                  DO TRANSACTION:
+                     GET NEXT kalkq EXCLUSIVE-LOCK.
+                     IF AVAILABLE KALKBER THEN DELETE KALKBER.                                          
+                     ELSE LEAVE.
+                  END.                       
+               END.
+               CLOSE QUERY kalkq.
+               GET NEXT kq NO-LOCK.
+            END.
+            CLOSE QUERY kq.
+         END.
+      END.
+   END.
+   IF rsch = 2 OR rsch = 3 THEN DO:      
+      OPEN QUERY haq FOR EACH HDKKOPP WHERE 
+      HDKKOPP.ARBKOD = ekalkbertemp.ARBKOD AND
+      HDKKOPP.LOPNR = ekalkbertemp.LOPNR NO-LOCK.                  
+      DO TRANSACTION:      
+         GET FIRST haq EXCLUSIVE-LOCK.
+         DO WHILE AVAILABLE(HDKKOPP):                     
+            DELETE HDKKOPP.            
+            GET NEXT haq EXCLUSIVE-LOCK.
+         END.
+      END.
+      CLOSE QUERY haq.
+   END.
+
+   
+END PROCEDURE.
+
+

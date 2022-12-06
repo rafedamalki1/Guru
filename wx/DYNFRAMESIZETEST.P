@@ -1,0 +1,145 @@
+/*   Filename: DYNFRAMESIZETEST.P
+      Created: 03.04.0022 10:46ELPAO     
+     Modified: 
+*/
+&Scoped-define NEW 
+{FORETEMP.I}
+DEFINE SHARED VARIABLE globanv AS CHARACTER NO-UNDO.
+
+
+DEFINE SHARED VARIABLE alltidmax AS LOGICAL NO-UNDO.
+/*DEFINE SHARED VARIABLE hpApi AS HANDLE NO-UNDO.*/
+DEFINE VARIABLE titlevar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE litenvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE goringet AS LOGICAL NO-UNDO.
+DEFINE VARIABLE ph_frame AS HANDLE  NO-UNDO.
+DEFINE VARIABLE winh AS HANDLE NO-UNDO.
+DEFINE VARIABLE applyvc AS HANDLE  NO-UNDO.
+DEFINE INPUT PARAMETER winhandle AS HANDLE NO-UNDO.
+DEFINE INPUT PARAMETER framehandle AS HANDLE NO-UNDO.
+ASSIGN
+winh = winhandle
+ph_frame = framehandle.
+/* THIS-PROCEDURE:PRIVATE-DATA = STRING(SOURCE-PROCEDURE:CURRENT-WINDOW). */
+
+FIND FIRST foretemp NO-LOCK NO-ERROR.
+titlevar = winh:TITLE.
+winh:TITLE = titlevar + "-" + foretemp.ATRHOME.
+IF foretemp.GRAFTECK = TRUE THEN DO:
+   IF Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79) THEN DO:
+      IF INDEX(PROGRAM-NAME(2),".W") NE ? THEN winh:TITLE = titlevar + "-" + foretemp.ATRHOME + "-" + PROGRAM-NAME(2) .
+      ELSE winh:TITLE = titlevar + "-" + foretemp.ATRHOME + "-" + PROGRAM-NAME(1).
+   END.
+END.
+/*startvärdeb*/
+
+ASSIGN
+winh:MIN-HEIGHT-PIXELS = winh:HEIGHT-PIXELS 
+winh:MIN-WIDTH-PIXELS = winh:WIDTH-PIXELS
+winh:MAX-HEIGHT-PIXELS = globstorh
+winh:MAX-WIDTH-PIXELS = globstorb.
+/*föregåend stor ?*/
+IF alltidmax = TRUE THEN DO:
+   SESSION:SET-WAIT-STATE("").
+   CURRENT-WINDOW:WINDOW-STATE = 1.   
+   winh:HEIGHT-PIXELS = winh:MAX-HEIGHT-PIXELS.
+   winh:WIDTH-PIXELS = winh:MAX-WIDTH-PIXELS.      
+   RUN FRM-SIZETEST.P (INPUT ph_frame,INPUT winh:MAX-HEIGHT-PIXELS,INPUT winh:MAX-WIDTH-PIXELS ).        
+   RUN CenterWindow IN Guru.Konstanter:hpApi (INPUT CURRENT-WINDOW).
+   SESSION:SET-WAIT-STATE("GENERAL").
+END.
+
+/******************************** Triggers *****************************************/
+ON WINDOW-MINIMIZED OF winh PERSISTENT RUN winmin IN THIS-PROCEDURE.
+ON WINDOW-MAXIMIZED OF winh PERSISTENT RUN winmax IN THIS-PROCEDURE.
+ON WINDOW-RESTORED OF winh PERSISTENT RUN winrest IN THIS-PROCEDURE.
+ON WINDOW-RESIZED OF winh PERSISTENT RUN winresized IN THIS-PROCEDURE.
+ON MOUSE-MENU-DBLCLICK OF winh PERSISTENT RUN fileinfo_UI IN THIS-PROCEDURE.
+ON MOUSE-MENU-DBLCLICK OF ph_frame PERSISTENT RUN fileinfo_UI IN THIS-PROCEDURE.
+/* ON CLOSE OF SOURCE-PROCEDURE PERSISTENT RUN closeproc_UI IN THIS-PROCEDURE. */
+RETURN.
+
+PROCEDURE closeproc_UI :
+   DEFINE VARIABLE temph AS HANDLE NO-UNDO.
+   DEFINE VARIABLE nexth AS HANDLE NO-UNDO.
+   DEFINE VARIABLE counter AS INTEGER NO-UNDO.
+   temph = SESSION:FIRST-PROCEDURE.
+   DO WHILE VALID-HANDLE(temph):
+      counter = counter + 1.
+      nexth = temph:NEXT-SIBLING.
+      IF STRING(winh) = temph:PRIVATE-DATA THEN DO:
+         DELETE PROCEDURE temph.         
+      END.            
+      temph = nexth.
+   END.
+   MESSAGE counter SOURCE-PROCEDURE:FILE-NAME.
+   RUN disable_ui IN SOURCE-PROCEDURE.
+END PROCEDURE.
+
+PROCEDURE winmin :
+   goringet = TRUE. 
+END PROCEDURE.
+
+PROCEDURE winmax :
+   IF winh:HEIGHT-PIXELS = winh:MAX-HEIGHT-PIXELS AND 
+      winh:WIDTH-PIXELS = winh:MAX-WIDTH-PIXELS THEN DO:
+      alltidmax = TRUE.
+   END.
+   ELSE DO:
+      alltidmax = FALSE.
+   END.
+   IF VALID-HANDLE(applyvc) THEN APPLY "VALUE-CHANGED" TO applyvc.
+END PROCEDURE.
+
+PROCEDURE winrest :
+   IF goringet = TRUE THEN goringet = FALSE.
+   ELSE DO:
+      winh:HEIGHT-PIXELS = winh:MIN-HEIGHT-PIXELS.
+      winh:WIDTH-PIXELS = winh:MIN-WIDTH-PIXELS.
+      RUN FRM-SIZETEST.P (INPUT ph_frame,INPUT winh:HEIGHT-PIXELS,INPUT winh:WIDTH-PIXELS ).      
+      RUN CenterWindow IN Guru.Konstanter:hpApi (INPUT CURRENT-WINDOW).  
+      alltidmax = FALSE.
+      IF VALID-HANDLE(applyvc) THEN APPLY "VALUE-CHANGED" TO applyvc.
+   END.
+END PROCEDURE.
+
+PROCEDURE winresized :
+   IF litenvar = TRUE THEN litenvar = FALSE.
+   ELSE DO:
+      IF alltidmax = TRUE THEN DO:
+         RUN FRM-SIZETEST.P (INPUT ph_frame,INPUT winh:MAX-HEIGHT-PIXELS,INPUT winh:MAX-WIDTH-PIXELS ).   
+         RUN CenterWindow IN Guru.Konstanter:hpApi (INPUT CURRENT-WINDOW).
+      END.
+      ELSE DO:
+         RUN FRM-SIZETEST.P (INPUT ph_frame,INPUT winh:HEIGHT-PIXELS,INPUT winh:WIDTH-PIXELS ).         
+         RUN CenterWindow IN Guru.Konstanter:hpApi (INPUT CURRENT-WINDOW).
+      END.         
+   END.
+   IF winh:HEIGHT-CHARS = winh:MAX-HEIGHT-CHARS AND 
+      winh:WIDTH-CHARS = winh:MAX-WIDTH-CHARS THEN DO:
+      alltidmax = TRUE. 
+      CURRENT-WINDOW:WINDOW-STATE = 1.   
+   END.
+   ELSE DO:
+      alltidmax = FALSE.
+   END.
+   IF VALID-HANDLE(applyvc) THEN APPLY "VALUE-CHANGED" TO applyvc.
+END PROCEDURE.
+
+/* Denna procedure behövs ej längre. */
+PROCEDURE setapplyvc :
+   DEFINE INPUT PARAMETER applyvch AS HANDLE NO-UNDO.
+   applyvc = applyvch.
+END PROCEDURE.
+
+PROCEDURE fileinfo_UI :
+   DEFINE VARIABLE tempfilinfo AS CHARACTER NO-UNDO.
+   FILE-INFO:FILE-NAME = PROGRAM-NAME(2).
+   tempfilinfo = "Filnamn: " + 
+      SUBSTRING(FILE-INFO:FILE-NAME,(R-INDEX(FILE-INFO:FILE-NAME,"\") + 1)) + CHR(10).             
+   tempfilinfo = tempfilinfo + "Storlek: " + STRING((FILE-INFO:FILE-SIZE) / 1000) + " kB" + CHR(10).
+   tempfilinfo = tempfilinfo + "Senast ändrad: " + STRING(FILE-INFO:FILE-MOD-DATE) + " " +
+      STRING(FILE-INFO:FILE-MOD-TIME,"HH:MM:SS").
+   MESSAGE tempfilinfo VIEW-AS ALERT-BOX TITLE "Fil information".  
+END PROCEDURE.
+

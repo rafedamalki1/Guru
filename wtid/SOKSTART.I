@@ -1,0 +1,3 @@
+/*SOKSTART.I*/
+EMPTY TEMP-TABLE soktemp NO-ERROR. 
+CREATE soktemp.

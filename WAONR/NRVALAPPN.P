@@ -1,0 +1,155 @@
+/*NRVALAPPN.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+{SOKDEF.I}
+{OMRTEMPW.I}
+{NRSERIETEMPN.I}
+{BOLAGSEKSTART.I}
+&Scoped-define NEW 
+{EXTRATAB.I}  
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+{EXTRADATA.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT Guru.Konstanter:globforetag).
+
+PROCEDURE nrseriehmt.
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR nrprefistemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR nrstyrtemp.
+   EMPTY TEMP-TABLE nrprefistemp  NO-ERROR. 
+   OPEN QUERY nrpq FOR EACH NRPREFISERIE NO-LOCK.
+   GET FIRST nrpq NO-LOCK.
+   DO WHILE AVAILABLE(NRPREFISERIE):
+      CREATE nrprefistemp.
+      BUFFER-COPY NRPREFISERIE TO nrprefistemp.
+      GET NEXT nrpq NO-LOCK.
+   END.
+   CLOSE QUERY nrpq.
+   EMPTY TEMP-TABLE nrstyrtemp NO-ERROR.    
+   OPEN QUERY nrsq FOR EACH NRSTYRSERIE NO-LOCK.
+   GET FIRST nrsq NO-LOCK.
+   DO WHILE AVAILABLE(NRSTYRSERIE):
+      CREATE nrstyrtemp.
+      BUFFER-COPY NRSTYRSERIE TO nrstyrtemp.
+      nrstyrtemp.ORGINALNRTEXT = nrstyrtemp.NRTEXT.
+      GET NEXT nrsq NO-LOCK.
+   END.
+   CLOSE QUERY nrsq.   
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+   FOR EACH nrprefistemp NO-LOCK:   
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "JURPERSNRSERIE"                   
+      inextradatatemp.HUVUDINT = nrprefistemp.IDNRP.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO:
+         nrprefistemp.JUDID = extradatatemp.SOKCHAR[1].         
+         FIND FIRST JURPERS WHERE JURPERS.JUDID = nrprefistemp.JUDID  NO-LOCK NO-ERROR.
+         IF AVAILABLE JURPERS THEN DO:
+            nrprefistemp.VIJUDID = JURPERS.VIJUDID.
+         END. 
+         IF Guru.Konstanter:varforetypval[18] = 0 OR ganv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79) THEN .
+         ELSE DO:  
+            FIND FIRST BOLAGSEK WHERE BOLAGSEK.ANVANDARE = ganv AND BOLAGSEK.OMRADE = extradatatemp.SOKCHAR[1] NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE BOLAGSEK THEN DO:            
+               DELETE nrprefistemp.
+            END.
+         END.    
+      END.         
+   END.
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+      edataapph = ?.
+   /*
+   IF Guru.Konstanter:varforetypval[18] = 1 THEN DO: 
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+      FOR EACH nrprefistemp NO-LOCK:   
+         EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+         EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+         CREATE inextradatatemp.          
+         ASSIGN
+         inextradatatemp.PROGRAM = "JURPERSNRSERIE"                   
+         inextradatatemp.HUVUDINT = nrprefistemp.IDNRP.                    
+         RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+         FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+         IF AVAILABLE extradatatemp THEN DO:   
+            nrprefistemp.JUDID = extradatatemp.SOKCHAR[1].         
+            FIND FIRST JURPERS WHERE JURPERS.JUDID = nrprefistemp.JUDID  NO-LOCK NO-ERROR.
+            IF AVAILABLE JURPERS THEN DO:
+               nrprefistemp.VIJUDID = JURPERS.VIJUDID.
+            END.         
+         END.  
+      END.
+      IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+      edataapph = ?.
+   END.
+   */
+END PROCEDURE.
+
+PROCEDURE nrseriejurhmt.
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR nrprefistemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR nrstyrtemp.
+   DEFINE VARIABLE jid AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE nrprefistemp  NO-ERROR. 
+   
+   OPEN QUERY nrpq FOR EACH NRPREFISERIE NO-LOCK.
+   GET FIRST nrpq NO-LOCK.
+   DO WHILE AVAILABLE(NRPREFISERIE):
+      CREATE nrprefistemp.
+      BUFFER-COPY NRPREFISERIE TO nrprefistemp.
+      GET NEXT nrpq NO-LOCK.
+   END.
+
+   CLOSE QUERY nrpq.
+   EMPTY TEMP-TABLE nrstyrtemp  NO-ERROR. 
+   
+   OPEN QUERY nrsq FOR EACH NRSTYRSERIE NO-LOCK.
+   GET FIRST nrsq NO-LOCK.
+   DO WHILE AVAILABLE(NRSTYRSERIE):
+      CREATE nrstyrtemp.
+      BUFFER-COPY NRSTYRSERIE TO nrstyrtemp.
+      nrstyrtemp.ORGINALNRTEXT = nrstyrtemp.NRTEXT.
+      GET NEXT nrsq NO-LOCK.
+   END.
+   CLOSE QUERY nrsq.  
+   jid = "".
+   /*SUND*/
+   IF Guru.Konstanter:varforetypval[18] = 0 OR ganv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79) THEN RETURN.
+   
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+   FOR EACH nrprefistemp NO-LOCK:   
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "JURPERSNRSERIE"                   
+      inextradatatemp.HUVUDINT = nrprefistemp.IDNRP.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO:   
+         FIND FIRST BOLAGSEK WHERE BOLAGSEK.ANVANDARE = ganv AND BOLAGSEK.OMRADE = extradatatemp.SOKCHAR[1] NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE BOLAGSEK THEN DO:
+            DELETE nrprefistemp.
+         END. 
+         ELSE DO:
+            nrprefistemp.JUDID = extradatatemp.SOKCHAR[1].         
+            FIND FIRST JURPERS WHERE JURPERS.JUDID = nrprefistemp.JUDID  NO-LOCK NO-ERROR.
+            IF AVAILABLE JURPERS THEN DO:
+               nrprefistemp.VIJUDID = JURPERS.VIJUDID.
+            END.                  
+         END.  
+      END.
+      
+   END.
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph.      
+   edataapph = ?.
+   
+END PROCEDURE.
+

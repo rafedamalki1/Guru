@@ -1,0 +1,549 @@
+/*****************************************************
+Program: mapiMailer
+BaseCode: www.global-shared.com
+Enhancements: Arun Kumar arun@support.com.au
+Software provided an "AS IS" basis,
+WITHOUT WARRANTY OF ANY KIND,
+either express or implied.
+******************************************************/
+
+DEFINE INPUT PARAMETER pcRecipient AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER pcCc AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER pcBcc AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER pcSubject AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER pcMailTxt AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER pcAttachName AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER pcAttach AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER pcSender AS CHARACTER NO-UNDO.
+
+
+DEFINE VAR pcProfile AS CHARACTER INITIAL "Arun Kumar":U NO-UNDO.
+DEFINE VAR iREGION AS INTEGER NO-UNDO INITIAL 1.
+
+DEF TEMP-TABLE tt_EmailList NO-UNDO
+FIELD cEMail AS CHARACTER
+FIELD iType AS INTEGER
+FIELD lProcessed AS LOGICAL.
+
+DEF TEMP-TABLE tt_IniList NO-UNDO LIKE tt_EmailList.
+
+DEF TEMP-TABLE tt_FileList NO-UNDO
+FIELD cName AS CHARACTER
+FIELD cFileName AS CHARACTER
+FIELD cPath AS CHARACTER
+FIELD iSize AS INTEGER.
+
+&SCOPED-DEFINE COMMA ",":U
+&SCOPED-DEFINE SEMI-COLON ";":U
+&SCOPED-DEFINE TYPE "CHARACTER":U
+DEF STREAM MAPILOG.
+
+
+{windows.i}
+
+/************** M A I N B L O C K *******************/
+
+IF OPSYS = "WIN32":U THEN DO:
+IF pcSender = "" THEN RETURN. /* NEED MAPI LOGON NAME */
+pcProfile = pcSender.
+
+/* REPLACE COMMA DELIMTER WITH SEMI-COLON */
+pcRecipient = REPLACE(pcRecipient,{&COMMA},{&SEMI-COLON}).
+pcCC = REPLACE(pcCC,{&COMMA},{&SEMI-COLON}).
+pcBCC = REPLACE(pcBCC,{&COMMA},{&SEMI-COLON}).
+pcAttachName = REPLACE(pcAttachName,{&COMMA},{&SEMI-COLON}).
+pcAttach = REPLACE(pcAttach,{&COMMA},{&SEMI-COLON}).
+
+IF (NUM-ENTRIES(pcRecipient ,{&SEMI-COLON}) +
+   NUM-ENTRIES(pcCC ,{&SEMI-COLON}) +
+   NUM-ENTRIES(pcBCC ,{&SEMI-COLON})) <= 20 THEN DO:
+
+      RUN MAPI (pcRecipient, /* To */
+      pcCC, /* CC */
+      pcBCC, /* BCC */
+      pcSubject, /* Subject */
+      pcMailTxt, /* Body */
+      pcAttachName, /* AttachName */
+      pcAttach, /* Attachment */
+      pcSender /* From */
+      ).
+   END.
+   ELSE DO:
+      RUN BatchProcess(pcRecipient,pcCC,pcBcc).
+   END.
+END.
+ELSE RUN logMessageHeader(OPSYS + " MAPI not supported.":U,"","").
+
+/************** E N D OF M A I N B L O C K *******************/
+
+
+/*
+==========================================================================
+*/
+
+
+FUNCTION INC RETURNS INTEGER (iNumber AS INTEGER, iCount AS INTEGER):
+DEF VAR iResult AS INTEGER NO-UNDO.
+
+iResult = iNumber + iCount.
+RETURN iResult.
+END.
+
+PROCEDURE MAPI :
+   DEFINE INPUT PARAMETER RecipName AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER CarbonCopy AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER BlindCopy AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER Subject AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER Bodytext AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER FileNameList AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER FilePathName AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER OriginName AS CHARACTER NO-UNDO.
+   
+   DEFINE VAR NoOfRecipients AS INT NO-UNDO.
+   
+   DEFINE VARIABLE SubjPtr AS MEMPTR NO-UNDO.
+   
+   RUN PopulateTable(RecipName, 1).
+   RUN PopulateTable(CarbonCopy, 2).
+   RUN PopulateTable(BlindCopy, 3).
+   
+   NoOfRecipients = NUM-ENTRIES(RecipName ,{&SEMI-COLON}) +
+   NUM-ENTRIES(CarbonCopy,{&SEMI-COLON}) +
+   NUM-ENTRIES(BlindCopy ,{&SEMI-COLON}).
+   
+   SET-SIZE(SubjPtr) = LENGTH(Subject ,{&TYPE}) + 1. /* maximum = 255 */
+   PUT-STRING(SubjPtr,1) = Subject.
+   DEFINE VARIABLE TextPtr AS MEMPTR NO-UNDO.
+   SET-SIZE(TextPtr) = 16000.
+   PUT-STRING(TextPtr,1) = Bodytext + (IF FilePathName = "":U
+   THEN "":U
+   ELSE CHR(10) + CHR(10) + " ":U).
+   /* if file attached place at end of Bodytext with line skip */
+   
+   /* ---------------- Build Originator details ------------------------ */
+   
+   DEFINE VARIABLE OriginNamePtr AS MEMPTR NO-UNDO.
+   SET-SIZE(OriginNamePtr) = LENGTH(OriginName ,{&TYPE}) + 1. /* maximum =
+   255 */
+   PUT-STRING(OriginNamePtr,1) = OriginName. /* Originator name */
+   
+   DEFINE VARIABLE OriginDescPtr AS MEMPTR NO-UNDO.
+   SET-SIZE(OriginDescPtr) = 24.
+   PUT-LONG(OriginDescPtr,1) = 0. /* Reserved */
+   PUT-LONG(OriginDescPtr,5) = 0. /* RecipClass 0 = MAPI_ORIG */
+   PUT-LONG(OriginDescPtr,9) = GET-POINTER-VALUE(OriginNamePtr). /* Name */
+   PUT-LONG(OriginDescPtr,13) = 0. /* Address */
+   PUT-LONG(OriginDescPtr,17) = 0. /* EID Size */
+   PUT-LONG(OriginDescPtr,21) = 0. /* Entry ID */
+   
+   
+   /* ----------------Build Recipient details -------------------------- */
+   
+   DEFINE VARIABLE RecipNamePtr AS MEMPTR EXTENT 21 NO-UNDO.
+   DEFINE VARIABLE RecipDescPtr AS MEMPTR NO-UNDO.
+   DEFINE VAR X AS INTEGER NO-UNDO INITIAL 0.
+   
+   SET-SIZE(RecipDescPtr) = 24 * NoOfRecipients.
+   iRegion = 1.
+   FOR EACH tt_EmailList WHERE lProcessed = FALSE BREAK BY iType :
+      X = X + 1.
+      SET-SIZE(RecipNamePtr[x]) = LENGTH(tt_EmailList.cEmail ,{&TYPE}) +
+      1. /* maximum = 255 */
+      PUT-STRING(RecipNamePtr[x],1) = tt_EmailList.cEmail. /*
+      Recipient name */
+      
+      PUT-LONG(RecipDescPtr,iRegion) = 0. /*
+      Reserved */
+      iRegion = INC(iRegion,4).
+      PUT-LONG(RecipDescPtr,iRegion) = tt_EmailList.iType. /*
+      RecipClass 1 = MAPI_TO */
+      iRegion = INC(iRegion,4).
+      PUT-LONG(RecipDescPtr,iRegion) = GET-POINTER-VALUE(RecipNamePtr[x]). /*
+      Name */
+      iRegion = INC(iRegion,4).
+      PUT-LONG(RecipDescPtr,iRegion) = 0. /*
+      Address */
+      iRegion = INC(iRegion,4).
+      PUT-LONG(RecipDescPtr,iRegion) = 0. /*
+      EID Size */
+      iRegion = INC(iRegion,4).
+      PUT-LONG(RecipDescPtr,iRegion) = 0. /*
+      Entry ID */
+      iRegion = INC(iRegion,4).
+      lProcessed = TRUE.
+   END.
+   
+   
+   
+   
+   /* --------------- Build File Details ------------------- */
+   
+   IF FilePathName <> "":U THEN DO:
+      DEFINE VARIABLE FilePathNamePtr AS MEMPTR EXTENT 21 NO-UNDO.
+      DEFINE VARIABLE FileNamePtr AS MEMPTR EXTENT 21 NO-UNDO.
+      DEFINE VARIABLE FileDescPtr AS MEMPTR NO-UNDO.
+      DEFINE VAR I AS INTEGER NO-UNDO.
+      DEFINE VAR iFilePosition AS INTEGER NO-UNDO INITIAL 2.
+      
+      
+      iRegion = 1.
+      SET-SIZE(FileDescPtr) = 24 * NUM-ENTRIES(FilePathName,{&SEMI-COLON}).
+      RUN PopulateFileList(FilePathName,FileNameList).
+      
+      iFilePosition = 2.
+      I = 1.
+      FOR EACH tt_FileList:
+         SET-SIZE(FilePathNamePtr[I]) = LENGTH(cFileName ,{&TYPE}) + 1. /*
+         maximum = 255 */
+         PUT-STRING(FilePathNamePtr[I],1) = cFileName. /* File
+         pathname */
+         
+         SET-SIZE(FileNamePtr[I]) = LENGTH(cName ,{&TYPE}) + 1. /* maximum = 255
+         */
+         PUT-STRING(FileNamePtr[I],1) = cName. /* File name */
+         
+         PUT-LONG(FileDescPtr,iRegion) = 0. /* Reserved */
+         iRegion = INC(iRegion,4).
+         PUT-LONG(FileDescPtr,iRegion) = 0. /* Flags 0 = data file */
+         iRegion = INC(iRegion,4).
+         PUT-LONG(FileDescPtr,iRegion) = -1. /* LENGTH(Bodytext) +
+         iFilePosition. */ /* Position */
+         iRegion = INC(iRegion,4).
+         PUT-LONG(FileDescPtr,iRegion) = GET-POINTER-VALUE(FilePathNamePtr[I]).
+         /* PathName */
+         iRegion = INC(iRegion,4).
+         PUT-LONG(FileDescPtr,iRegion) = GET-POINTER-VALUE(FileNamePtr[I]). /*
+         FileName */
+         iRegion = INC(iRegion,4).
+         PUT-LONG(FileDescPtr,iRegion) = 0. /* FileType */
+         iRegion = INC(iRegion,4).
+         I = I + 1.
+      END.
+   END.
+   
+   /* ---------- Build Message Details ------------------- */
+   DEFINE VARIABLE MessageDescPtr AS MEMPTR NO-UNDO.
+   SET-SIZE(MessageDescPtr) = 48.
+   PUT-LONG(MessageDescPtr,1) = 0. /* Reserved */
+   PUT-LONG(MessageDescPtr,5) = GET-POINTER-VALUE(SubjPtr). /* Subject */
+   PUT-LONG(MessageDescPtr,9) = GET-POINTER-VALUE(TextPtr). /* Text */
+   PUT-LONG(MessageDescPtr,13) = 0. /* MessageType */
+   PUT-LONG(MessageDescPtr,17) = 0. /* DateReceived */
+   PUT-LONG(MessageDescPtr,21) = 0. /* ConversationID */
+   PUT-LONG(MessageDescPtr,25) = 1. /* Flags */
+   PUT-LONG(MessageDescPtr,29) = GET-POINTER-VALUE(OriginDescPtr). /*
+   Originator */
+   PUT-LONG(MessageDescPtr,33) = NoOfRecipients. /* RecipCount */
+   PUT-LONG(MessageDescPtr,37) = GET-POINTER-VALUE(RecipDescPtr). /* Recips */
+   PUT-LONG(MessageDescPtr,41) = NUM-ENTRIES(FilePathName,{&SEMI-COLON}).
+   /* FileCount */
+   PUT-LONG(MessageDescPtr,45) = (IF FilePathName = "":U
+   THEN 0
+   ELSE GET-POINTER-VALUE(FileDescPtr)). /*
+   Files */
+   /* EO Build Message Details */
+   
+   /* -------- Send Message ------------ */
+   DEFINE VARIABLE ResultInt AS INTEGER NO-UNDO.
+   DEFINE VARIABLE lSession AS INTEGER NO-UNDO.
+   
+   
+   
+   
+   RUN MAPILogon IN Guru.Konstanter:hpApi (0
+   ,pcProfile
+   ,""
+   ,0
+   ,0
+   ,OUTPUT lSession
+   ,OUTPUT ResultInt).
+   RUN MAPISendMail IN Guru.Konstanter:hpApi
+   (INPUT lSession,
+   INPUT 0,
+   INPUT GET-POINTER-VALUE(MessageDescPtr),
+   INPUT 0, /* 1 = MAPI_LOGON_UI + 2 = MAPI_NEW_SESSION + 8 = MAPI_DIALOG */
+   INPUT 0,
+   OUTPUT ResultInt).
+   
+   RUN MapiReturnCode (ResultInt) NO-ERROR.
+   
+   RUN MAPILogoff IN Guru.Konstanter:hpApi (lSession
+   ,0
+   ,0
+   ,0
+   ,OUTPUT ResultInt).
+   
+   
+   /* ------- Free memory ------------ */
+   
+   /* IF VALID-HANDLE(hpApi) THEN ASSIGN hpAPi = ?. */
+   SET-SIZE(SubjPtr) = 0.
+   SET-SIZE(TextPtr) = 0.
+   SET-SIZE(OriginNamePtr) = 0.
+   SET-SIZE(OriginDescPtr) = 0.
+   
+   DO X = 1 TO 21:
+   SET-SIZE(RecipNamePtr[x]) = 0 NO-ERROR.
+   END.
+   
+   
+   SET-SIZE(RecipDescPtr) = 0.
+   
+   DO X = 1 TO 21:
+   SET-SIZE(FilePathNamePtr[X]) = 0 NO-ERROR.
+   END.
+   
+   DO X = 1 TO 21:
+   SET-SIZE(FileNamePtr[X]) = 0 NO-ERROR.
+   END.
+   
+   
+END PROCEDURE.
+
+
+PROCEDURE MapiReturnCode :
+
+   DEFINE INPUT PARAMETER ResultInt AS INTEGER NO-UNDO. /* result from
+   MAPISendMail */
+   DEFINE VARIABLE RESULT AS CHARACTER NO-UNDO.
+   
+   IF ResultInt <> 0 THEN DO: /* 0 = Success */
+      CASE ResultInt:
+      WHEN 1 THEN RESULT = "User Abort":U.
+      WHEN 2 THEN RESULT = "Failure":U.
+      WHEN 3 THEN RESULT = "Login Failure":U.
+      WHEN 4 THEN RESULT = "Disk Full":U.
+      WHEN 5 THEN RESULT = "Insufficient Memory":U.
+      WHEN 6 THEN RESULT = "Blk Too Small":U.
+      WHEN 8 THEN RESULT = "Too Many Sessions":U.
+      WHEN 9 THEN RESULT = "Too Many Files":U.
+      WHEN 10 THEN RESULT = "Too Many Recipients":U.
+      WHEN 11 THEN RESULT = "Attachment Not Found":U.
+      WHEN 12 THEN RESULT = "Attachment Open Failure":U.
+      WHEN 13 THEN RESULT = "Attachment Write Failure":U.
+      WHEN 14 THEN RESULT = "Unknown Recipient":U.
+      WHEN 15 THEN RESULT = "Bad Recipient type":U.
+      WHEN 16 THEN RESULT = "No Messages":U.
+      WHEN 17 THEN RESULT = "Invalid Message":U.
+      WHEN 18 THEN RESULT = "Bodytext Too Large":U.
+      WHEN 19 THEN RESULT = "Invalid Session":U.
+      WHEN 20 THEN RESULT = "Type Not Supported":U.
+      WHEN 21 THEN RESULT = "Ambiguous Recipient":U.
+      WHEN 22 THEN RESULT = "Message in use":U.
+      WHEN 23 THEN RESULT = "Network failure":U.
+      WHEN 24 THEN RESULT = "Invalid edit fields":U.
+      WHEN 25 THEN RESULT = "Invalid recipients":U.
+      WHEN 26 THEN RESULT = "Feature not supported":U.
+      OTHERWISE RESULT = "Unknown error":U.
+   END CASE.
+
+   DO ON ENDKEY UNDO, LEAVE:
+      IF NOT SESSION:BATCH-MODE THEN
+         MESSAGE ResultInt RESULT VIEW-AS ALERT-BOX.
+      ELSE RUN logMessageHeader("Mapi Error":U,Result,"").
+
+      END.
+   END.
+END.
+
+
+PROCEDURE PopulateTable:
+   DEFINE INPUT PARAMETER piList AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER piType AS INTEGER NO-UNDO.
+   DEFINE VAR I AS INTEGER NO-UNDO.
+
+   DO I = 1 to NUM-ENTRIES(piList,{&SEMI-COLON}):
+      IF ENTRY(I,piList,{&SEMI-COLON}) <> "" THEN DO:
+         CREATE tt_EmailList.
+         ASSIGN
+         cEmail = ENTRY(I,piList,{&SEMI-COLON})
+         iType = piType.
+      END.
+   END.
+END.
+
+PROCEDURE PopulateFileList:
+   DEFINE INPUT PARAMETER piList AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER piName AS CHARACTER NO-UNDO.
+   DEFINE VAR I AS INTEGER NO-UNDO.
+   
+   DO I = 1 to NUM-ENTRIES(piList,{&SEMI-COLON}):
+      FILE-INFO:FILE-NAME = ENTRY(I,piList,{&SEMI-COLON}).
+      CREATE tt_FileList.
+      ASSIGN
+      cName = ENTRY(I,piName,{&SEMI-COLON})
+      cFileName = FILE-INFO:FILE-NAME
+      cPath = FILE-INFO:FULL-PATHNAME
+      iSize = FILE-INFO:FILE-SIZE.
+   END.
+END.
+
+PROCEDURE logMessageHeader:
+   DEF INPUT PARAMETER cSubject AS CHARACTER NO-UNDO FORMAT "x(20)":U.
+   DEF INPUT PARAMETER cRecipient AS CHARACTER NO-UNDO FORMAT "x(20)":U.
+   DEF INPUT PARAMETER cAddress AS CHARACTER NO-UNDO FORMAT "x(20)":U.
+   
+   
+   IF SESSION:BATCH-MODE AND (NOT ERROR-STATUS:ERROR) THEN DO:
+      OUTPUT STREAM MAPILOG TO mapimailer.log APPEND.
+      PUT STREAM MAPILOG UNFORMATTED STRING(TODAY,"99/99/99":U) SPACE(2)
+      STRING(TIME,"HH:MM":U) SPACE (2)
+      cSubject SPACE(2)
+      cRecipient SPACE(2)
+      cAddress " [OK]":U SKIP.
+      OUTPUT STREAM MAPILOG CLOSE.
+   END.
+   
+   IF ERROR-STATUS:ERROR THEN DO:
+      OUTPUT STREAM MAPILOG TO mapimailer.log APPEND.
+      PUT STREAM MAPILOG UNFORMATTED STRING(TODAY,"99/99/99":U) SPACE(2)
+      STRING(TIME,"HH:MM":U) SPACE (2)
+      cSubject SPACE(2)
+      cRecipient SPACE(2)
+      cAddress "" SKIP.
+      OUTPUT STREAM MAPILOG CLOSE.
+   END.
+END.
+
+PROCEDURE BatchProcess:
+   DEF INPUT PARAMETER pcTO AS CHARACTER NO-UNDO.
+   DEF INPUT PARAMETER cCC AS CHARACTER NO-UNDO.
+   DEF INPUT PARAMETER cBCC AS CHARACTER NO-UNDO.
+   
+   DEF VAR cListTO AS CHARACTER NO-UNDO.
+   DEF VAR cListCC AS CHARACTER NO-UNDO.
+   DEF VAR cListBCC AS CHARACTER NO-UNDO.
+   
+   DEF VAR iListSum AS INTEGER NO-UNDO.
+   DEF VAR iBatchRuns AS INTEGER NO-UNDO.
+   DEF VAR iRemainder AS INTEGER NO-UNDO.
+   DEF VAR iRecordNumber AS INTEGER NO-UNDO.
+   DEF VAR iSegmentNo AS INTEGER NO-UNDO.
+   
+   /* Load Email to Temp-Table */
+   
+   RUN InitializeTable (pcTO,1).
+   RUN InitializeTable (cCC,2).
+   RUN InitializeTable (cBCC,3).
+   
+   
+   iListSum = (NUM-ENTRIES(pcTO,{&SEMI-COLON}) +
+   NUM-ENTRIES(cCC,{&SEMI-COLON}) + NUM-ENTRIES(cBCC,{&SEMI-COLON})).
+   iBatchRuns = iListSum / 20.
+   iRemainder = iListSum MODULO 20.
+   
+   
+   iRecordNumber = 1.
+   iSegmentNo = 1.
+   
+   FOR EACH tt_IniList:
+      display tt_IniList.
+   END.
+
+   FOR EACH tt_IniList BREAK BY cEMAIL:
+      IF iSegmentNo = 20 THEN DO:
+         ASSIGN
+         cListTo = IF iType = 1 THEN cListTo + cEmail ELSE cListTo
+         cListCC = IF iType = 2 THEN cListCC + cEmail ELSE cListCC
+         cListBCC = IF iType = 3 THEN cListBCC + cEmail ELSE cListBCC
+         lProcessed = TRUE.
+      
+         /* MAKE THE MAPI CALL */
+         IF cListTo NE "" THEN IF INDEX(cListTo ,{&SEMI-COLON}
+         ,LENGTH(cListTo ,{&TYPE})) > 0 THEN SUBSTRING(cListTo, LENGTH(cListTo
+         ,{&TYPE}),1) = "".
+         IF cListCC NE "" THEN IF INDEX(cListCC ,{&SEMI-COLON}
+         ,LENGTH(cListCC ,{&TYPE})) > 0 THEN SUBSTRING(cListCC, LENGTH(cListCC
+         ,{&TYPE}),1) = "".
+         IF cListBCC NE "" THEN IF INDEX(cListBCC ,{&SEMI-COLON}
+         ,LENGTH(cListBCC ,{&TYPE})) > 0 THEN SUBSTRING(cListBCC,
+         LENGTH(cListBCC,{&TYPE}),1) = "".
+      
+         RUN MAPI ( cListTo /* To */
+         ,cListCC /* CC */
+         ,cListBCC /* BCC */
+         ,pcSubject /* Subject */
+         ,pcMailTxt /* Body */
+         ,pcAttachName /* AttachName */
+         ,pcAttach /* Attachment */
+         ,pcSender /* From */
+         ).
+         
+         ASSIGN
+         cListTo = ""
+         cListCC = ""
+         cListBCC = "".
+      
+         iSegmentNo = 1.
+      END.
+      ELSE DO:
+         ASSIGN
+         cListTo = IF iType = 1 THEN cListTo + cEmail + {&SEMI-COLON} ELSE
+         cListTo
+         cListCC = IF iType = 2 THEN cListCC + cEmail + {&SEMI-COLON} ELSE
+         cListCC
+         cListBCC = IF iType = 3 THEN cListBCC + cEmail + {&SEMI-COLON} ELSE
+         cListBCC
+         lProcessed = TRUE.
+      
+         iSegmentNo = iSegmentNo + 1.
+      END.
+      
+      /* Last Run Record */
+      
+      IF ((iListSum - iRemainder) = iRecordNumber) THEN DO:
+         ASSIGN
+         cListTo = IF iType = 1 THEN cListTo + cEmail + {&SEMI-COLON} ELSE
+         cListTo
+         cListCC = IF iType = 2 THEN cListCC + cEmail + {&SEMI-COLON} ELSE
+         cListCC
+         cListBCC = IF iType = 3 THEN cListBCC + cEmail + {&SEMI-COLON} ELSE
+         cListBCC
+         lProcessed = TRUE.
+      
+         IF cListTo NE "" THEN IF INDEX(cListTo ,{&SEMI-COLON} ,LENGTH(cListTo
+         ,{&TYPE})) > 0 THEN SUBSTRING(cListTo, LENGTH(cListTo ,{&TYPE}),1) =
+         "".
+         IF cListCC NE "" THEN IF INDEX(cListCC ,{&SEMI-COLON} ,LENGTH(cListCC
+         ,{&TYPE})) > 0 THEN SUBSTRING(cListCC, LENGTH(cListCC ,{&TYPE}),1) =
+         "".
+         IF cListBCC NE "" THEN IF INDEX(cListBCC ,{&SEMI-COLON} ,LENGTH(cListBCC
+         ,{&TYPE})) > 0 THEN SUBSTRING(cListBCC, LENGTH(cListBCC ,{&TYPE}),1) = "".
+      
+         RUN MAPI ( cListTo /* To */
+         ,cListCC /* CC */
+         ,cListBCC /* BCC */
+         ,pcSubject /* Subject */
+         ,pcMailTxt /* Body */
+         ,pcAttachName /* AttachName */
+         ,pcAttach /* Attachment */
+         ,pcSender /* From */
+         ).
+         ASSIGN
+         cListTo = ""
+         cListCC = ""
+         cListBCC = "".
+      
+         LEAVE.
+      END.
+      iRecordNumber = iRecordNumber + 1.
+   END.
+   
+   FOR EACH tt_IniList WHERE NOT lProcessed:
+      DISPLAY tt_IniList.
+   END.
+END.
+
+PROCEDURE InitializeTable:
+DEFINE INPUT PARAMETER piList AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER piType AS INTEGER NO-UNDO.
+DEFINE VAR I AS INTEGER NO-UNDO.
+
+DO I = 1 to NUM-ENTRIES(piList,{&SEMI-COLON}):
+   CREATE tt_IniList.
+   ASSIGN
+   cEmail = ENTRY(I,piList,{&SEMI-COLON})
+   iType = piType.
+   END.
+END.
+

@@ -1,0 +1,109 @@
+
+/*    File        : ENRKONSTUP.P*/
+{ALLDEF.I}
+&Scoped-define NEW 
+{GLOBVAR2DEL1.I}
+&Scoped-define SHARED SHARED 
+{BMTRL.I}
+&Scoped-define SHARED SHARED
+{SMTRL.I}
+DEFINE VARIABLE ordnr         AS INTEGER NO-UNDO.
+DEFINE VARIABLE C-WIN         AS HANDLE NO-UNDO.
+DEFINE VARIABLE DEFAULT-FRAME AS HANDLE NO-UNDO.
+DEFINE VARIABLE BTN_OK AS HANDLE NO-UNDO.
+DEFINE VARIABLE BTN_AVB AS HANDLE NO-UNDO.
+DEFINE VARIABLE enrberh AS HANDLE NO-UNDO.
+DEFINE VARIABLE brwh AS HANDLE NO-UNDO EXTENT 50.
+{WHANDLTEMP.I}
+DEFINE SHARED VARIABLE varalla AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE erslev AS LOGICAL NO-UNDO.
+DEFINE SHARED TEMP-TABLE grupp_temp NO-UNDO
+   FIELD KONSKOD AS INTEGER
+   FIELD BENAMNING AS CHARACTER.      
+DEFINE INPUT PARAMETER huvprogh      AS HANDLE NO-UNDO.
+DEFINE INPUT PARAMETER frmsh AS HANDLE NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR whandltemp.
+
+framesizeh = frmsh.
+FIND FIRST whandltemp NO-LOCK NO-ERROR.
+IF AVAILABLE whandltemp THEN DO:
+   ordnr = 1.
+   RUN whout_UI (OUTPUT C-Win).
+   RUN whout_UI (OUTPUT DEFAULT-FRAME).
+   RUN whout_UI (OUTPUT BTN_OK).
+   RUN whout_UI (OUTPUT BTN_AVB).
+END.
+PROCEDURE whout_UI :
+   DEFINE OUTPUT PARAMETER wih AS HANDLE NO-UNDO.
+   wih = whandltemp.WF[ordnr].
+   ordnr = ordnr + 1.
+END PROCEDURE.
+
+PROCEDURE startclient_UI :
+   RUN main_UI.
+END PROCEDURE. 
+PROCEDURE main_UI :
+   
+  IF Guru.Konstanter:appcon THEN DO:
+      RUN HENRAPP.P PERSISTENT SET enrberh ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+   END.
+   ELSE DO:
+      RUN HENRAPP.P PERSISTENT SET enrberh.
+   END.   
+   RUN henr_UI IN enrberh (INPUT TABLE grupp_temp, INPUT TABLE spec_mtrl, OUTPUT TABLE byt_mtrl,INPUT varalla,INPUT erslev).            
+   RUN skapabrw_UI (INPUT 1, TEMP-TABLE byt_mtrl:DEFAULT-BUFFER-HANDLE).     
+   RUN openbdynspec_UI IN brwproc[1].   
+   DEFAULT-FRAME:HIDDEN = FALSE.      
+END PROCEDURE.    
+
+PROCEDURE skapabrw_UI : 
+   DEFINE INPUT  PARAMETER brvnr AS INTEGER NO-UNDO.  
+   DEFINE INPUT  PARAMETER tthandlez AS HANDLE NO-UNDO.
+   DEFINE VARIABLE brwantal AS INTEGER NO-UNDO.
+   DEFINE VARIABLE x-multi AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE y-multi AS DECIMAL NO-UNDO. 
+   DEFINE VARIABLE radvar AS DECIMAL NO-UNDO.
+   DEFINE VARIABLE colvar AS DECIMAL NO-UNDO.
+   IF VALID-HANDLE(huvprogh) THEN RUN musw IN huvprogh.
+    
+   RUN DYNBRWINIT.P PERSISTENT SET brwproc[brvnr].
+   RUN newbrw_UI IN brwproc[brvnr] (INPUT THIS-PROCEDURE).
+   RUN brw_UI IN brwproc[brvnr] (OUTPUT brwh[brvnr]).
+   /*FRAME-MTRL*/
+   IF brvnr = 1 THEN DO:
+      FIND FIRST byt_mtrl NO-ERROR.
+      FIND FIRST spec_mtrl NO-ERROR.
+      RUN brwegenskap_UI IN brwproc[brvnr] (INPUT tthandlez,INPUT "BRW_UENR", INPUT 124, INPUT 10, INPUT TRUE, INPUT FALSE, INPUT "Enr: " + byt_mtrl.ENR + " " + spec_mtrl.BENAMNING + "  Uppdatera antalet genom att klicka i fältet.", INPUT DEFAULT-FRAME).
+      
+      RUN getsizf_UI IN framesizeh (OUTPUT x-multi, OUTPUT y-multi).
+      /*                                     bredd     höjd     kol      rad*/
+      RUN brwstorlek_UI IN brwproc[brvnr](INPUT 160, INPUT 25, INPUT 1.5, INPUT 1.9, INPUT x-multi, INPUT y-multi).           
+      RUN fieldinit_UI IN brwproc[brvnr].      
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "ENR", INPUT "ENR", INPUT 10, INPUT "x(256)", INPUT TRUE).       
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "ANTAL", INPUT "Antal", INPUT 3, INPUT ">>9", INPUT FALSE).              
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "BENAMNING", INPUT "Konstruktionsgrupp", INPUT 18, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "KTYPKOD", INPUT "Konstruktion", INPUT 10, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "KBEN", INPUT "Konst.ben.", INPUT 20, INPUT "x(256)", INPUT TRUE).     
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "F1", INPUT "Fält 1", INPUT 10, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "F2", INPUT "Fält 2", INPUT 10, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "F3", INPUT "Fält 3", INPUT 10, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "F4", INPUT "Fält 4", INPUT 10, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "F5", INPUT "Fält 5", INPUT 10, INPUT "x(256)", INPUT TRUE).
+      RUN createfields_UI IN brwproc[brvnr] (INPUT "LEVNAMN", INPUT "Leverantör", INPUT 10, INPUT "x(256)", INPUT TRUE).      
+   END.                        
+   RUN fieldslut_UI IN brwproc[brvnr].
+   IF VALID-HANDLE(huvprogh) THEN  RUN musa IN huvprogh.
+END PROCEDURE.
+   
+PROCEDURE infoes_UI :
+   DEFINE INPUT  PARAMETER valenr AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER brwname AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER dynbrwph AS HANDLE NO-UNDO.  
+   DEFINE VARIABLE levnamnvar AS CHARACTER NO-UNDO.
+   
+   RUN cellvalue_UI IN dynbrwph (INPUT "LEVNAMN", OUTPUT levnamnvar).
+   IF levnamnvar = ? OR levnamnvar = "" THEN DO:
+      IF brwname = "BRW_MTRL" OR brwname = "BRW_BESLEVMTRL" THEN RUN cellvalue_UI IN brwproc[15] (INPUT "LEVNAMN", OUTPUT levnamnvar). 
+   END.   
+   {LEVLANK.I}       
+END PROCEDURE. 

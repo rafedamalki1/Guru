@@ -1,0 +1,289 @@
+ /*xladdmark.p*/
+/* &Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}*/
+DEFINE VARIABLE GLOBFORETAG AS CHARACTER NO-UNDO.
+DEFINE VARIABLE prognamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE prognamn2 AS CHARACTER NO-UNDO.
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN globforetag = FORETAG.FORETAG.
+
+IF globforetag = "TECT" THEN DO:       
+   prognamn = "C:\DELAD\PRO10\GURU\WTID\". 
+END.
+IF globforetag = "SNAT" THEN DO:       
+   prognamn = "D:\DELAD\KLIENT\PRO10\GURU\". 
+END.
+IF globforetag = "vall" THEN DO:       
+   prognamn = "C:\DELAD\PRO10\GURU\". 
+END.
+IF globforetag = "lule" THEN DO:       
+   prognamn = "C:\DELAD\". 
+END.
+
+/*prognamn2 = prognamn + "kindex.d".      
+INPUT FROM VALUE(prognamn2) convert target "iso8859-1" source "iso8859-1".
+FOR EACH kindex :
+   DELETE kindex.
+END.
+REPEAT:
+   CREATE kindex.
+   ASSIGN.
+   IMPORT kindex.           
+END.
+INPUT CLOSE.
+
+prognamn2 = prognamn + "markdiv.d".      
+INPUT FROM VALUE(prognamn2) convert target "iso8859-1" source "iso8859-1".
+FOR EACH markdiv :
+   DELETE markdiv.
+END.
+REPEAT:
+   CREATE markdiv.
+   ASSIGN.
+   IMPORT markdiv.           
+END.
+INPUT CLOSE.
+*/
+      
+   
+
+prognamn2 = prognamn + "pakerreg.d".
+INPUT FROM VALUE(prognamn2) convert target "iso8859-1" source "iso8859-1".
+FOR EACH pakerreg :
+   DELETE pakerreg.
+END.
+REPEAT:
+   CREATE pakerreg.
+   ASSIGN.
+   IMPORT pakerreg.           
+END.
+INPUT CLOSE.
+prognamn2 = prognamn + "prodaker.d".
+INPUT FROM VALUE(prognamn2) convert target "iso8859-1" source "iso8859-1".
+FOR EACH prodaker :
+   DELETE prodaker .
+END.
+REPEAT:
+   CREATE prodaker.
+   ASSIGN.
+   IMPORT prodaker.           
+END.
+INPUT CLOSE.
+
+prognamn2 = prognamn + "vardskog.d".
+INPUT FROM VALUE(prognamn2) convert target "iso8859-1" source "iso8859-1".
+FOR EACH vardskog :
+   DELETE vardskog.
+END.
+REPEAT:
+   CREATE vardskog.
+   ASSIGN.
+   IMPORT vardskog.           
+END.
+INPUT CLOSE.
+
+/*prognamn2 = prognamn + "volkr.d".
+INPUT FROM VALUE(prognamn2) convert target "iso8859-1" source "iso8859-1".
+FOR EACH volkr WHERE NO-LOCK:
+   DELETE volkr.
+END.
+REPEAT:
+   CREATE volkr.
+   ASSIGN.
+   IMPORT volkr.           
+END.
+INPUT CLOSE.*/
+
+prognamn2 = prognamn + "volymber.d".
+INPUT FROM VALUE(prognamn2) convert target "iso8859-1" source "iso8859-1".
+FOR EACH VOLYMBER:
+   DELETE volymber.
+END.
+REPEAT:
+   CREATE volymber.
+   ASSIGN.
+   IMPORT volymber.           
+END.
+INPUT CLOSE.
+
+prognamn2 = prognamn + "vskogreg.d".
+INPUT FROM VALUE(prognamn2) convert target "iso8859-1" source "iso8859-1".
+FOR EACH vskogreg:
+   DELETE vskogreg.
+END.
+REPEAT:
+   CREATE vskogreg.
+   ASSIGN.
+   IMPORT vskogreg.           
+END.
+INPUT CLOSE.
+
+prognamn2 = prognamn + "akerproc.d".
+INPUT FROM VALUE(prognamn2) convert target "iso8859-1" source "iso8859-1".
+FOR EACH akerproc:
+   DELETE akerproc.
+END.
+REPEAT:
+   CREATE akerproc.
+   ASSIGN.
+   IMPORT akerproc.           
+END.
+INPUT CLOSE.
+
+
+
+/*
+/*ta bort registrerat om det finns*/
+OPEN QUERY VQ FOR EACH FASTVARD NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST VQ EXCLUSIVE-LOCK.
+      IF AVAILABLE FASTVARD THEN DELETE FASTVARD.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT VQ EXCLUSIVE-LOCK.
+         IF AVAILABLE FASTVARD THEN DELETE FASTVARD.
+         ELSE LEAVE.
+      END.
+   END.
+   CLOSE QUERY VQ.
+   OPEN QUERY MQ FOR EACH MARKOVR NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST MQ EXCLUSIVE-LOCK.
+      IF AVAILABLE MARKOVR THEN DELETE MARKOVR.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT MQ EXCLUSIVE-LOCK.
+         IF AVAILABLE MARKOVR THEN DELETE MARKOVR.
+         ELSE LEAVE.
+      END.
+   END.   
+   CLOSE QUERY MQ.
+   OPEN QUERY VARDQ FOR EACH VARDERING NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST VARDQ EXCLUSIVE-LOCK.
+      IF AVAILABLE VARDERING THEN DELETE VARDERING.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT VARDQ EXCLUSIVE-LOCK.
+         IF AVAILABLE VARDERING THEN DELETE VARDERING.
+         ELSE LEAVE.
+      END.
+   END.      
+   CLOSE QUERY VARDQ.
+   
+   OPEN QUERY aQ FOR EACH AOVARD NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST AQ EXCLUSIVE-LOCK.
+      IF AVAILABLE AOVARD THEN DELETE AOVARD.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT AQ EXCLUSIVE-LOCK.
+         IF AVAILABLE AOVARD THEN DELETE AOVARD.
+         ELSE LEAVE.
+      END.
+   END.
+   CLOSE QUERY AQ.
+   OPEN QUERY SKQ FOR EACH SKOGVARD NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST SKQ EXCLUSIVE-LOCK.
+      IF AVAILABLE SKOGVARD THEN DELETE SKOGVARD.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT SKQ EXCLUSIVE-LOCK.
+         IF AVAILABLE SKOGVARD THEN DELETE SKOGVARD.
+         ELSE LEAVE.
+      END.
+   END.
+   CLOSE QUERY SKQ.
+   OPEN QUERY VOQ FOR EACH VOLSKOG NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST VOQ EXCLUSIVE-LOCK.
+      IF AVAILABLE VOLSKOG THEN DELETE VOLSKOG.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT VOQ EXCLUSIVE-LOCK.
+         IF AVAILABLE VOLSKOG THEN DELETE VOLSKOG.
+         ELSE LEAVE.
+      END.
+   END.
+   CLOSE QUERY VOQ.
+   OPEN QUERY AKQ FOR EACH AKERVARD NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST AKQ EXCLUSIVE-LOCK.
+      IF AVAILABLE AKERVARD THEN DELETE AKERVARD.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT AKQ EXCLUSIVE-LOCK.
+         IF AVAILABLE AKERVARD THEN DELETE AKERVARD.
+         ELSE LEAVE.
+      END.
+   END.
+   CLOSE QUERY AKQ.
+   OPEN QUERY AKAQ FOR EACH AKERKAB NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST AKAQ EXCLUSIVE-LOCK.
+      IF AVAILABLE AKERKAB THEN DELETE AKERKAB.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT AKAQ EXCLUSIVE-LOCK.
+         IF AVAILABLE AKERKAB THEN DELETE AKERKAB.
+         ELSE LEAVE.
+      END.
+   END.
+   CLOSE QUERY AKAQ.
+   OPEN QUERY FAQ FOR EACH FASTIGHET NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST FAQ EXCLUSIVE-LOCK.
+      IF AVAILABLE FASTIGHET THEN DELETE FASTIGHET.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT FAQ EXCLUSIVE-LOCK.
+         IF AVAILABLE FASTIGHET THEN DELETE FASTIGHET.
+         ELSE LEAVE.
+      END.
+   END.
+   CLOSE QUERY FAQ.
+   OPEN QUERY MAQ FOR EACH MARKAGARE NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST MAQ EXCLUSIVE-LOCK.
+      IF AVAILABLE MARKAGARE THEN DELETE MARKAGARE.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT MAQ EXCLUSIVE-LOCK.
+         IF AVAILABLE MARKAGARE THEN DELETE MARKAGARE.
+         ELSE LEAVE.
+      END.
+   END.
+   CLOSE QUERY MAQ.
+   OPEN QUERY MFQ FOR EACH MARKFAST NO-LOCK.
+   DO TRANSACTION:
+      GET FIRST MFQ EXCLUSIVE-LOCK.
+      IF AVAILABLE MARKFAST THEN DELETE MARKFAST.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT MFQ EXCLUSIVE-LOCK.
+         IF AVAILABLE MARKFAST THEN DELETE MARKFAST.
+         ELSE LEAVE.
+      END.
+   END.
+   CLOSE QUERY MFQ.
+   
+/*ta bort avtal*/
+
+
+FOR EACH markovr WHERE NO-LOCK:
+   DELETE markovr.
+END.
+*/

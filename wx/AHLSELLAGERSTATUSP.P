@@ -1,0 +1,125 @@
+
+/*------------------------------------------------------------------------
+    File        : AHLSELLAGERSTATUSp.P
+    Purpose     : 
+
+    Syntax      :LAGERSALDO
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Tue Sep 05 09:45:17 CEST 2017
+    Notes       :
+  ----------------------------------------------------------------------*/
+
+/* ***************************  Definitions  ************************** */
+
+USING OpenEdge.Core.*.
+USING OpenEdge.Net.HTTP.*.
+USING OpenEdge.Net.HTTP.Lib.ClientLibraryBuilder.
+USING OpenEdge.Net.URI.
+
+
+DEFINE TEMP-TABLE eslagersatatustt NO-UNDO
+   FIELD ENR AS CHARACTER
+   FIELD UTANEENR AS CHARACTER 
+   FIELD LEVKOD AS CHARACTER
+   FIELD BENAMNING AS CHARACTER
+   FIELD ANTAL AS DECIMAL
+   FIELD SVAR AS CHARACTER
+   FIELD ANTALILAGER AS DECIMAL 
+   FIELD SVARMTRL AS CHARACTER
+  
+   FIELD TTRECID AS RECID
+   INDEX ENR ENR.
+CREATE eslagersatatustt.
+eslagersatatustt.UTANEENR = "0702014".
+
+DEFINE TEMP-TABLE Ahlsell NO-UNDO
+   FIELD ArticleNo AS CHARACTER 
+   FIELD InStockQuantity AS CHARACTER 
+   FIELD EnoughQuantity AS CHARACTER.
+DEFINE VARIABLE lRetOK AS LOGICAL   NO-UNDO.
+DEFINE VARIABLE oRequest     AS IHttpRequest         NO-UNDO.
+DEFINE VARIABLE oResponse    AS IHttpResponse        NO-UNDO.
+DEFINE VARIABLE oURI         AS URI                  NO-UNDO.
+DEFINE VARIABLE oRequestBody AS OpenEdge.Core.String NO-UNDO.
+DEFINE VARIABLE hXMLHandle   AS HANDLE               NO-UNDO.
+DEFINE VARIABLE lcXML        AS LONGCHAR             NO-UNDO.
+DEFINE VARIABLE chelp AS CHARACTER NO-UNDO FORMAT "x(64)".
+DEFINE VARIABLE chelpi AS INTEGER NO-UNDO.
+DEFINE VARIABLE chelpislut AS INTEGER NO-UNDO.
+FOR EACH eslagersatatustt WHERE NO-LOCK:
+ 
+   EMPTY TEMP-TABLE Ahlsell NO-ERROR. 
+   oRequestBody =  NEW OpenEdge.Core.String(
+                   '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+                    <soap:Body>
+                    <GetQuantity xmlns="http://tempuri.org/">
+                    <articleNo>' + eslagersatatustt.UTANEENR + '</articleNo>
+                    </GetQuantity>
+                    </soap:Body>
+                    </soap:Envelope>'  ).
+   oURI = URI:Parse("http://perimeter2.ahlsell.com/inbound/soap/stockrequest").
+   oRequest = RequestBuilder:Post(oUri, oRequestBody)
+                         :ContentType('text/xml;charset=UTF-8')
+                         :AcceptAll()
+                         :AddHeader('SOAPAction', 'http://tempuri.org/Add';)
+                         :Request.
+ MESSAGE "TEST  WITH WEBCLIENT 1"
+   VIEW-AS ALERT-BOX.
+   oResponse = ClientBuilder:Build()
+   :Client:Execute(oRequest).
+   MESSAGE "ERROR WITH WEBCLIENT END"
+   VIEW-AS ALERT-BOX.
+ 
+   IF oResponse:StatusCode <> 200 THEN DO:
+      MESSAGE "http error: " oResponse:StatusCode VIEW-AS ALERT-BOX. 
+      RETURN ERROR "Request Error: " + STRING(oResponse:StatusCode).
+   END.
+   ELSE DO:
+      hXMLHandle = CAST(oResponse:Entity,WidgetHandle):Value.
+      hXMLHandle:SAVE('LONGCHAR',lcXML).
+      chelp = SUBSTRING(STRING(lcXML),15 + INDEX(STRING(lcXML),"EnoughQuantity"),1).
+      IF chelp = "J" THEN DO:
+         chelpi = INDEX(STRING(lcXML),"InStockQuantity").
+         chelpislut = INDEX(STRING(lcXML),"</InStockQuantity",chelpi) - 1. 
+         chelp = SUBSTRING(STRING(lcXML),16 + chelpi,chelpislut - (15 + chelpi)).
+         eslagersatatustt.ANTALILAGER = DECIMAL(chelp).
+         IF eslagersatatustt.ANTALILAGER >= eslagersatatustt.ANTAL THEN eslagersatatustt.SVAR = "OK".
+         ELSE eslagersatatustt.SVAR = "För få i lager".
+     
+       
+      END.
+      ELSE DO:
+         eslagersatatustt.SVAR = "Lagerförs inte!".
+      END.
+   END.  
+END.
+FIND FIRST eslagersatatustt  WHERE NO-LOCK NO-ERROR.
+MESSAGE eslagersatatustt.SVAR
+VIEW-AS ALERT-BOX. 
+
+/*
+http://perimeter2.ahlsell.com/inbound/soap/stockrequest
+posta en fil enligt detta exempel
+ 
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+                    <soap:Body>
+                        <GetQuantity xmlns="http://tempuri.org/">
+                            <articleNo>100078</articleNo>
+                        </GetQuantity>
+                   </soap:Body>
+</soap:Envelope>
+ 
+
+*/
+       
+  
+ 
+                                
+

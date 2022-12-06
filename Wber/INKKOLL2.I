@@ -1,0 +1,2 @@
+/*INKKOLL2.I*/
+   RUN FINNSTABELL.P (INPUT "INKBER", OUTPUT inkopkollvar).

@@ -1,0 +1,377 @@
+/*
+               KSV Editor
+    Copyright: (C) 2000-2001 Serguey Klimoff (bulkl0DD)
+     Filename: ALLMANBYT.P   
+      Comment: <comment>
+   Parameters:RUN ALLMANBYT.P (INPUT "LEVKOD", INPUT "LEVORT",INPUT "LEVERANTOR",TRUE).
+         Uses:
+      Used by:
+         
+      Created: 2011.05.19 15:16 ELPAO   
+     Modified: 2011.05.19 18:14 ELPAO    
+     Modified: 
+*/
+DEFINE TEMP-TABLE bytatb NO-UNDO
+   FIELD pg AS CHARACTER
+   FIELD PERSONALKOD AS CHARACTER.
+
+
+DEFINE INPUT PARAMETER gfalt AS CHARACTER NO-UNDO.   /*fält för gamla värden*/
+DEFINE INPUT PARAMETER nyfalt AS CHARACTER NO-UNDO.   /*fält för nya värden*/
+DEFINE INPUT PARAMETER styrtab AS CHARACTER NO-UNDO.  /*tabell som inne håller gamla och nya värden*/
+DEFINE INPUT  PARAMETER updateorgtab AS LOGICAL NO-UNDO. /*om även styrtabellen ska uppdateras*/ 
+DEFINE VAR DynWp AS CHARACTER NO-UNDO.
+DynWp = "DynTableU" + STRING(TIME).
+CREATE WIDGET-POOL STRING(DynWp) NO-ERROR.
+DEFINE VARIABLE okstarta AS LOGICAL NO-UNDO.
+/*
+DEFINE VARIABLE  gfalt AS CHARACTER NO-UNDO.   /*fält för gamla värden*/
+DEFINE VARIABLE nyfalt AS CHARACTER NO-UNDO.   /*fält för nya värden*/
+DEFINE VARIABLE styrtab AS CHARACTER NO-UNDO.  /*tabell som inne håller gamla och nya värden*/
+DEFINE VARIABLE updateorgtab AS LOGICAL NO-UNDO. /*om även styrtabellen ska uppdateras*/
+
+
+
+gfalt = "LEVKOD" .  /*fält för gamla värden*/
+nyfalt = "LEVORT".   /*fält för nya värden*/
+styrtab = "LEVERANTOR".  /*tabell som inne håller gamla och nya värden*/
+updateorgtab = TRUE.
+
+gfalt = "OMRADE" .  /*fält för gamla värden*/
+nyfalt = "TELJOUR".   /*fält för nya värden*/
+styrtab = "OMRADETAB".  /*tabell som inne håller gamla och nya värden*/
+
+
+gfalt = "PERSONALKOD" .  /*fält för gamla värden*/
+nyfalt = "ANSTNR".   /*fält för nya värden*/
+styrtab = "PERSONALTAB".  /*tabell som inne håller gamla och nya värden*/
+
+
+updateorgtab = TRUE.
+*/
+DEFINE VARIABLE styrkommando AS CHARACTER NO-UNDO.
+DEFINE VARIABLE orgtabh AS HANDLE NO-UNDO.
+DEFINE VARIABLE orgtabqh AS HANDLE NO-UNDO.
+DEFINE VARIABLE gfalth AS HANDLE NO-UNDO.
+DEFINE VARIABLE nyfalth AS HANDLE NO-UNDO.
+styrkommando = "FOR EACH " + styrtab.
+
+      
+CREATE BUFFER orgtabh FOR TABLE styrtab NO-ERROR.
+gfalth = orgtabh:BUFFER-FIELD(gfalt).
+nyfalth = orgtabh:BUFFER-FIELD(nyfalt).   
+   CREATE QUERY orgtabqh.   
+   orgtabqh:SET-BUFFERS(orgtabh).
+   orgtabqh:QUERY-PREPARE(styrkommando).
+   orgtabqh:QUERY-OPEN.
+   orgtabqh:GET-FIRST(NO-LOCK).
+   
+   DO WHILE orgtabqh:QUERY-OFF-END = FALSE: 
+      IF  orgtabh:BUFFER-FIELD(nyfalt):BUFFER-VALUE = "" THEN.
+      ELSE IF orgtabh:BUFFER-FIELD(nyfalt):BUFFER-VALUE = orgtabh:BUFFER-FIELD(gfalt):BUFFER-VALUE THEN. 
+      ELSE DO:
+         okstarta = TRUE.
+         IF styrtab = "LEVERANTOR" THEN DO:  /*spec oneutbi*/
+            IF  ASC(SUBSTRING(orgtabh:BUFFER-FIELD(nyfalt):BUFFER-VALUE,1,1))  >= 48 AND ASC(SUBSTRING(orgtabh:BUFFER-FIELD(nyfalt):BUFFER-VALUE,1,1))  <= 57 THEN okstarta = TRUE.
+            ELSE okstarta = FALSE.
+         END.
+         IF okstarta = TRUE THEN DO:
+            RUN allmanbyt_UI. 
+            IF updateorgtab = TRUE THEN DO TRANSACTION:
+               orgtabqh:GET-CURRENT(EXCLUSIVE-LOCK).
+               gfalth:BUFFER-VALUE = nyfalth:BUFFER-VALUE.  
+            END.
+         END.
+      END.
+      orgtabqh:GET-NEXT(NO-LOCK).
+   END.
+   
+PROCEDURE allmanbyt_UI :
+   FOR EACH _File:
+      IF SUBSTRING(_File._File-name,1,1) = "_" THEN.
+      ELSE DO:
+          RUN spec_UI.
+         
+         IF _File._File-name =  styrtab THEN.
+         ELSE DO:
+            FIND FIRST _Field OF _File WHERE _Field._Field-name = gfalt NO-ERROR.  
+            IF AVAILABLE _Field THEN DO:
+               RUN byt_UI.
+            END.
+         END.
+      END.   
+      
+   END. 
+
+END PROCEDURE.
+
+PROCEDURE byt_UI :
+   DEFINE VARIABLE borgtabh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE borgtabqh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE bfalth AS HANDLE NO-UNDO.
+   DEFINE VARIABLE bstyrkommando AS CHARACTER NO-UNDO.
+   bstyrkommando = "FOR EACH " + _File._File-name + " WHERE " + _File-name + "." + gfalt + " = '" + gfalth:BUFFER-VALUE + "'".  
+   
+   CREATE BUFFER Borgtabh FOR TABLE _File._File-name NO-ERROR.
+   bfalth = borgtabh:BUFFER-FIELD(gfalt).
+   IF bfalth:EXTENT > 0 THEN DO:
+      MESSAGE _File._File-name  bfalth:NAME " har EXTENTS Du måstee lösa denna tabell i spec_UI" 
+      VIEW-AS ALERT-BOX.
+      RETURN.
+   END.   
+   
+   CREATE QUERY borgtabqh.   
+
+   borgtabqh:SET-BUFFERS(borgtabh).
+   borgtabqh:QUERY-PREPARE(bstyrkommando).
+   borgtabqh:QUERY-OPEN.
+   borgtabqh:GET-FIRST(NO-LOCK).
+   DO WHILE borgtabqh:QUERY-OFF-END = FALSE:
+      DO TRANSACTION:  
+         borgtabqh:GET-CURRENT(EXCLUSIVE-LOCK).
+         bfalth:BUFFER-VALUE = nyfalth:BUFFER-VALUE.  
+      END.
+      borgtabqh:GET-NEXT(NO-LOCK).
+   END.
+  borgtabqh:BUFFER-RELEASE( ) NO-ERROR. 
+  
+END PROCEDURE.
+
+PROCEDURE spec_UI :
+   DEFINE VARIABLE allbytkom AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE allbytqh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE allbytbuffh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE raknare AS INTEGER NO-UNDO.
+   DEFINE VARIABLE Nyvarde AS CHARACTER NO-UNDO.   /*fält för nya värden*/
+   IF orgtabh:NAME = "PERSONALTAB" THEN DO:
+      Nyvarde = nyfalth:BUFFER-VALUE.
+      {PKODBYT.I}
+   END.
+   
+   IF orgtabh:NAME = "PERSONALTAB" THEN DO:
+      
+      IF _File._File-name = "AONRTAB" THEN DO:
+         
+         FOR EACH AONRTAB  WHERE AONRTAB.STARTDAG = gfalth:BUFFER-VALUE  EXCLUSIVE-LOCK:
+            AONRTAB.STARTDAG = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH AONRTAB  WHERE AONRTAB.BEREDARE  = gfalth:BUFFER-VALUE  EXCLUSIVE-LOCK:
+            AONRTAB.BEREDARE  = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH AONRTAB  WHERE AONRTAB.ARBANSVARIG = gfalth:BUFFER-VALUE  EXCLUSIVE-LOCK:
+            AONRTAB.ARBANSVARIG = nyfalth:BUFFER-VALUE.
+         END.
+      END.
+      IF _File._File-name = "PERSONALTAB" THEN DO:
+         FOR EACH PERSONALTAB WHERE PERSONALTAB.ANSVARIGTIDR = gfalth:BUFFER-VALUE  EXCLUSIVE-LOCK:
+            PERSONALTAB.ANSVARIGTIDR = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH PERSONALTAB WHERE PERSONALTAB.TIDSGODK = gfalth:BUFFER-VALUE  EXCLUSIVE-LOCK:
+            PERSONALTAB.TIDSGODK = nyfalth:BUFFER-VALUE.
+         END.
+          
+         
+      END.      
+      IF _File._File-name = "EXTRADATA" THEN DO:
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "AOPROJ" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "OTBEORD" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "PFAKTOR" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "DISPENSÖ" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "DISPENSÖM" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "DISPENSLÄ" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "AVAFOR" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "SPFRISK" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END.
+         
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "LONVAXLINGATK" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END. 
+         
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "SPAVAAR" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END.
+         
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "SPFRISKAR" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END.
+         
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "ATKFRISK" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "SUPPERS" AND EXTRADATA.SOKCHAR[1] = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.SOKCHAR[1] = nyfalth:BUFFER-VALUE.
+         END.
+                 
+      END.
+      
+      IF _File._File-name = "EXTRAKOPPLINGAR" THEN DO:
+         FOR EACH EXTRAKOPPLINGAR WHERE EXTRAKOPPLINGAR.PROGRAM = "AOTIDPERS" AND EXTRAKOPPLINGAR.KOPPLACHAR2= gfalth:BUFFER-VALUE EXCLUSIVE-LOCK :
+             EXTRAKOPPLINGAR.KOPPLACHAR2= nyfalth:BUFFER-VALUE.
+         END.
+      END.    
+            
+   END.   
+   IF orgtabh:NAME = "FORETAG" THEN DO:
+      IF _File._File-name = "XLABEL" THEN DO TRANSACTION:
+         FOR EACH XLABEL  WHERE EXCLUSIVE-LOCK:
+            raknare = 1.
+            DO WHILE raknare <= 50: 
+               IF XLABEL.FORETAG[raknare] = gfalth:BUFFER-VALUE THEN  XLABEL.FORETAG[1] = nyfalth:BUFFER-VALUE.
+               raknare = raknare  + 1.
+            END.
+         END.
+      END.   
+   END.   
+   IF orgtabh:NAME = "LEVERANTOR" THEN DO: 
+     
+      IF _File._File-name = "EXTRADATA" THEN DO TRANSACTION:
+         FIND FIRST EXTRADATA WHERE EXTRADATA.PROGRAM = "INLKAT" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE  EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE EXTRADATA THEN  EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+              /*    BETPLAN    niklas Översättningstabell för materiel mellan olika leverantörer
+            byt från enr  byt till lev    byt från lev  byt till enr
+            ANVÄNDARE     BEST-ID         NAMN          Område   
+            06681092        8             1             0668132
+            */
+      END.
+      
+      IF _File._File-name = "BETFRIA" THEN DO TRANSACTION: 
+         FOR EACH BETFRIA WHERE BETFRIA.TYP =  gfalth:BUFFER-VALUE  EXCLUSIVE-LOCK:
+            BETFRIA.TYP =  nyfalth:BUFFER-VALUE.
+         END.
+      END.
+       
+      IF _File._File-name = "INKMTRL" THEN DO:
+         FOR EACH INKMTRL WHERE INKMTRL.LEVKODINK = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            INKMTRL.LEVKODINK = nyfalth:BUFFER-VALUE.
+         END.
+      END.   
+      IF _File._File-name = "INKADRESS" THEN DO:
+         
+         FOR EACH INKADRESS WHERE INKADRESS.LEVKODINK = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            INKADRESS.LEVKODINK = nyfalth:BUFFER-VALUE.
+         END.
+      END.  
+      IF _File._File-name = "UTBYTESLISTA" THEN DO:
+        
+         FOR EACH UTBYTESLISTA WHERE UTBYTESLISTA.ORGLEVKOD =  gfalth:BUFFER-VALUE  EXCLUSIVE-LOCK:
+            UTBYTESLISTA.ORGLEVKOD =  nyfalth:BUFFER-VALUE.
+         END. 
+         FOR EACH UTBYTESLISTA WHERE UTBYTESLISTA.BYTTILLLEVKOD =  gfalth:BUFFER-VALUE  EXCLUSIVE-LOCK:
+            UTBYTESLISTA.BYTTILLLEVKOD =  nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      
+   END. 
+   IF orgtabh:NAME = "OMRADETAB" THEN DO:
+      IF _File._File-name = "AONRTAB" THEN DO:
+         FOR EACH AONRTAB WHERE AONRTAB.BESTID =  gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            AONRTAB.BESTID =  nyfalth:BUFFER-VALUE.
+         END.
+
+      END.
+      IF _File._File-name = "EXTRADATA" THEN DO:
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = 'DOKALKYL' AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END.
+
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = 'ANLOMR' AND EXTRADATA.SOKCHAR[1] = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.SOKCHAR[1] = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = 'BERFORE' AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      IF _File._File-name = "EXTRAKOPPLINGAR" THEN DO:
+         FOR EACH EXTRAKOPPLINGAR WHERE EXTRAKOPPLINGAR.PROGRAM = 'KALKBER' AND EXTRAKOPPLINGAR.KOPPLACHAR1 = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRAKOPPLINGAR.KOPPLACHAR1 = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH EXTRAKOPPLINGAR WHERE EXTRAKOPPLINGAR.PROGRAM = 'KALKBER' AND EXTRAKOPPLINGAR.KOPPLACHAR2 = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRAKOPPLINGAR.KOPPLACHAR2 = nyfalth:BUFFER-VALUE.
+         END.
+         FOR EACH EXTRAKOPPLINGAR WHERE EXTRAKOPPLINGAR.PROGRAM = 'MARKSTN' AND EXTRAKOPPLINGAR.KOPPLACHAR2 = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRAKOPPLINGAR.KOPPLACHAR2 = nyfalth:BUFFER-VALUE.
+         END.
+      END.
+      IF _File._File-name = "BYTAONR" THEN DO:
+         FOR EACH BYTAONR WHERE BYTAONR.NOMRADE = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            BYTAONR.NOMRADE = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      IF _File._File-name = "KALKPASLAG" THEN DO:
+         FOR EACH KALKPASLAG WHERE KALKPASLAG.GEOMRADE = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            KALKPASLAG.GEOMRADE = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      IF _File._File-name = "SUMTID" THEN DO:
+         FOR EACH SUMTID WHERE SUMTID.GEOMRADE = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            SUMTID.GEOMRADE = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      IF _File._File-name = "SUMTIDDAG" THEN DO:
+         FOR EACH SUMTIDDAG WHERE SUMTIDDAG.GEOMRADE = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            SUMTIDDAG.GEOMRADE = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      IF _File._File-name = "ANVAOTAB" THEN DO:
+         FOR EACH ANVAOTAB WHERE ANVAOTAB.ANVANDARE MATCHES "*KALK" AND ANVAOTAB.AONR = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            ANVAOTAB.AONR = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      IF _File._File-name = "ANVAOTAB" THEN DO:
+         FOR EACH ANVAOTAB WHERE ANVAOTAB.ANVANDARE MATCHES "*PLAN" AND ANVAOTAB.AONR = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            ANVAOTAB.AONR = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      IF _File._File-name = "ANVAOTAB" THEN DO:
+         FOR EACH ANVAOTAB WHERE ANVAOTAB.ANVANDARE MATCHES "*MARK" AND ANVAOTAB.AONR = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            ANVAOTAB.AONR = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+      IF _File._File-name = "ANVAOTAB" THEN DO:
+         FOR EACH ANVAOTAB WHERE ANVAOTAB.ANVANDARE MATCHES "*BER" AND ANVAOTAB.AONR = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            ANVAOTAB.AONR = nyfalth:BUFFER-VALUE.
+         END.
+         
+      END.
+   END.
+ 
+END PROCEDURE.
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh IN WIDGET-POOL STRING(DynWp).
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+
+
+        
+      
+      
+      

@@ -1,0 +1,757 @@
+/*EXKSKMAES.P */   
+
+DEFINE SHARED VARIABLE valaonr AS CHARACTER NO-UNDO.
+DEFINE SHARED VARIABLE valdelnr AS INTEGER NO-UNDO.
+DEFINE SHARED VARIABLE valort AS CHARACTER NO-UNDO.
+DEFINE SHARED VARIABLE lin_rowid AS ROWID NO-UNDO.
+DEFINE SHARED VARIABLE valomrade AS CHARACTER NO-UNDO.
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 0.
+DEFINE VARIABLE cColumn                 AS CHARACTER.
+DEFINE VARIABLE hjRange                  AS CHARACTER.  
+DEFINE VARIABLE hjtext AS CHARACTER NO-UNDO.
+DEFINE VARIABLE delrak AS INTEGER NO-UNDO.
+DEFINE VARIABLE numskylt AS INTEGER NO-UNDO.
+DEFINE VARIABLE esskyapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE ejmed AS LOGICAL NO-UNDO.
+DEFINE VARIABLE mkskrub AS LOGICAL NO-UNDO.
+DEFINE VARIABLE skyltlev AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER mall AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER skyltvar AS INTEGER NO-UNDO.
+&Scoped-define NEW 
+&Scoped-define SHARED 
+{GLOBVAR2DEL1.I}
+&Scoped-define SHARED SHARED
+{LISTMTRL.I}
+{KONSTRMTRL.I}
+{KONVALTEMP.I}
+{KONID.I} 
+{FRITEMP.I}
+{VISAMTRL.I} 
+{BBENAMNTEMP.I}
+
+{EXECLIN.I}
+DEFINE BUFFER kon_valbuff FOR kon_val.
+DEFINE TEMP-TABLE kon_valsk LIKE kon_val.   
+   IF Guru.Konstanter:appcon THEN DO:
+      RUN ESSKY.P PERSISTENT SET esskyapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+   END.
+   ELSE DO:
+      RUN ESSKY.P PERSISTENT SET esskyapph.
+   END.
+   
+   EMPTY TEMP-TABLE ekon_val NO-ERROR.
+   EMPTY TEMP-TABLE elist_mtrl NO-ERROR.
+   EMPTY TEMP-TABLE sklist_mtrl NO-ERROR.  
+   EMPTY TEMP-TABLE visamtrl NO-ERROR.
+   EMPTY TEMP-TABLE konstgrptemp NO-ERROR.
+   EMPTY TEMP-TABLE bbenamntemp NO-ERROR.
+   /*hämta skylt levkod*/
+   RUN skyltlt_UI IN esskyapph (OUTPUT skyltlev).
+             
+   RUN startupp_UI IN esskyapph (OUTPUT TABLE konstgrptemp, OUTPUT TABLE bbenamntemp).
+   RUN elnatskylt_UI IN esskyapph (INPUT skyltvar,INPUT valaonr, INPUT valomrade, OUTPUT TABLE ekon_val,OUTPUT TABLE elist_mtrl,OUTPUT TABLE ekon_id).
+   RUN skyltant_UI IN esskyapph (INPUT skyltvar,INPUT valaonr, INPUT valomrade,OUTPUT TABLE sklist_mtrl).   
+   RUN ejelnatskylt_UI IN esskyapph (OUTPUT TABLE visamtrl).
+   
+   CREATE "Excel.Application" chExcelApplication.
+   chExcelApplication:Visible = TRUE NO-ERROR.
+   chWorkbook = chExcelApplication:Workbooks:Add() NO-ERROR.
+   chWorkSheet = chExcelApplication:Sheets:Item(1) NO-ERROR.
+   chWorkSheet:Columns("A"):ColumnWidth = 15 NO-ERROR.
+   chWorkSheet:Columns("B"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("C"):ColumnWidth = 10 NO-ERROR.    
+   RUN center_UI (INPUT 3, INPUT "C").
+   chWorkSheet:Columns("D"):ColumnWidth = 40 NO-ERROR.
+   /*TEST*/
+  /* chWorkSheet:Columns("E"):ColumnWidth = 40 NO-ERROR.*/     
+   iColumn =  3.
+   cColumn = STRING(iColumn).
+   cRange = "B" + cColumn.
+   hjtext = "SKYLTBESTÄLLNING".   
+   chWorkSheet:Range(cRange):Font:Underline = TRUE NO-ERROR.    
+   chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.                                
+   RUN utexcel_UI (INPUT "ARIAL",INPUT 14,INPUT hjtext).   
+   iColumn = iColumn + 2 .
+   cColumn = STRING(iColumn).
+   cRange = "A" + cColumn.   
+   IF Guru.GlobalaVariabler:plusaonr = "" OR Guru.GlobalaVariabler:plusaonr = ? THEN DO:
+      hjtext = "Beredning nr: " + STRING(valaonr).     
+      chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR. 
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+      iColumn = iColumn + 1 .
+      cColumn = STRING(iColumn).
+      cRange = "A" + cColumn.
+      hjtext = valort.     
+      chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).            
+      iColumn = iColumn + 1 .
+      cColumn = STRING(iColumn).
+      cRange = "A" + cColumn.
+      /*kovändning av Mats och Kent alla skyltar ska visas -ingen utsortering 20101112*/
+      IF skyltvar = 1 THEN hjtext = "Enbart elnätsskyltar".
+      ELSE IF skyltvar = 2 THEN hjtext = "Enbart övriga skyltar".
+      ELSE IF skyltvar = 3 THEN hjtext = "Alla skyltar".     
+      chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).                 
+   END.
+   ELSE DO:
+      hjtext = Guru.Konstanter:gaok + ": " + Guru.GlobalaVariabler:plusaonr + " " + STRING(Guru.GlobalaVariabler:plusdnr,Guru.Konstanter:varforetypchar[1]).
+      chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.      
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+      iColumn = iColumn + 1 .
+      cColumn = STRING(iColumn).
+      cRange = "A" + cColumn.
+      hjtext = valort.
+      chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.     
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+      iColumn = iColumn + 1 .
+      cColumn = STRING(iColumn).
+      cRange = "A" + cColumn.
+      chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+      hjtext = "Beredning nr: " + STRING(valaonr).     
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+      iColumn = iColumn + 1 .
+      cColumn = STRING(iColumn).
+      cRange = "A" + cColumn.
+      IF skyltvar = 1 THEN hjtext = "Enbart elnätsskyltar".
+      ELSE IF skyltvar = 2 THEN hjtext = "Enbart övriga skyltar".
+      ELSE IF skyltvar = 3 THEN hjtext = "Alla skyltar".     
+      chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).      
+   END.
+   /*rubrik*/
+   iColumn = iColumn + 2 .
+   cColumn = STRING(iColumn).
+   cRange = "A" + cColumn.   
+   hjtext = "Skyltnr".
+   hjrange = cRange + ":" + "D" + cColumn.      
+   chWorkSheet:Range(hjrange):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range(hjrange):Font:Underline = TRUE NO-ERROR.     
+   RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+   cRange = "B" + cColumn.
+   hjtext = "Art.nr".        
+   RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+   cRange = "C" + cColumn.
+   hjtext = "Antal".        
+   RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+   cRange = "D" + cColumn.
+   hjtext = "Skylttext".        
+   RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).                               
+   {EXCELFEL.I}
+   chWorkSheet:Range("A1:A300"):NumberFormat = "@".
+   chWorkSheet:Range("B1:B300"):NumberFormat = "@".   
+   chWorkSheet:Range("D1:D300"):NumberFormat = "@".   
+   ASSIGN   
+   numskylt = 0.
+   IF mall = 1 THEN DO:
+      IF skyltvar = 2 THEN.
+      ELSE DO:         
+         FOR EACH kon_val WHERE kon_val.KSKAP = FALSE USE-INDEX ORD:      
+            FIND FIRST kon_id WHERE kon_id.NUM = kon_val.NUM NO-LOCK NO-ERROR.         
+            IF AVAILABLE kon_id THEN DO:
+               {EXCELFEL.I}      
+               RUN rubrikmarkes_UI.
+               IF mkskrub = TRUE THEN DO: 
+                  FIND FIRST ekon_val WHERE ekon_val.NUM = kon_val.NUM and ekon_val.KSKAP = FALSE NO-ERROR.
+                  IF AVAILABLE ekon_val THEN DO:
+                     RUN elskylt_UI.
+                     FOR EACH ekon_val WHERE ekon_val.NUM = kon_val.NUM :
+                        DELETE ekon_val. 
+                     END.
+                  END.
+               END.      
+            END.
+            ELSE FIND FIRST kon_id NO-LOCK NO-ERROR.         
+         END.
+      END.   
+      FIND FIRST kon_val NO-ERROR.
+      FIND FIRST ekon_val NO-ERROR.
+      FOR EACH ekon_val WHERE ekon_val.KSKAP = FALSE USE-INDEX ORD:      
+         {EXCELFEL.I}   
+         RUN elskyltr_UI.   
+         RUN elskylt_UI.
+      END.      
+   END.
+   ELSE IF mall = 2 THEN DO:
+      FIND FIRST kon_id WHERE ROWID(kon_id) = lin_rowid NO-LOCK NO-ERROR.   
+      FIND FIRST kon_val WHERE kon_val.NUM = kon_id.NUM AND kon_val.KSKAP = FALSE NO-LOCK NO-ERROR.   
+      IF AVAILABLE kon_val THEN DO:
+         {EXCELFEL.I}      
+         RUN rubrikmarkes_UI.
+         IF mkskrub = TRUE THEN DO: 
+            FIND FIRST ekon_val WHERE ekon_val.NUM = kon_val.NUM and ekon_val.KSKAP = FALSE NO-ERROR.
+            IF AVAILABLE ekon_val THEN DO:
+               RUN elskylt_UI.               
+            END.
+         END.               
+      END.         
+   END.       
+   RELEASE OBJECT chWorksheetRange NO-ERROR.   
+   RELEASE OBJECT chExcelApplication NO-ERROR.      
+   RELEASE OBJECT chWorkbook NO-ERROR.
+   RELEASE OBJECT chWorksheet NO-ERROR.   
+   IF VALID-HANDLE(esskyapph) THEN DELETE PROCEDURE esskyapph.
+    
+PROCEDURE rubrikmarkes_UI :   
+   mkskrub = FALSE.   
+   FIND FIRST konstgrptemp WHERE konstgrptemp.KONSKOD = kon_val.GRUPP NO-ERROR.  
+   {MARKKABGRP.I}        
+   IF enval = TRUE THEN DO:
+      IF kon_val.GRUPP = 0 THEN DO:
+         FIND FIRST kon_id WHERE kon_id.NUM = kon_val.NUM NO-LOCK NO-ERROR.         
+         FIND FIRST fri_temp WHERE fri_temp.NUM = kon_val.NUM  NO-ERROR.
+         IF AVAILABLE fri_temp THEN DO:
+            mkskrub = true.
+            RUN id_UI.                     
+            FOR EACH fri_temp WHERE fri_temp.NUM = kon_val.NUM USE-INDEX NUM:
+               FIND FIRST  kon_valbuff WHERE  kon_valbuff.NUM = fri_temp.NUM  AND
+               kon_valbuff.SKAPNUM = fri_temp.KABNR  NO-LOCK NO-ERROR.
+               IF AVAILABLE  kon_valbuff THEN DO:
+                  iColumn = iColumn + 1.
+                  numskylt = numskylt + 1.
+                  cColumn = STRING(iColumn).
+                  cRange = "A" + cColumn.
+                  hjtext = "Skylt " + STRING(numskylt).
+                  RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).                 
+                  cRange = "B" + cColumn.
+                  IF Guru.Konstanter:globforetag = "fors" THEN hjtext = "Art.nr 203".
+                  ELSE hjtext = "Art.nr 107".
+                  RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                  IF Guru.Konstanter:globforetag = "fors" THEN DO:
+                     FIND FIRST sklist_mtrl WHERE sklist_mtrl.NUM = fri_temp.NUM AND 
+                     sklist_mtrl.SKAPNUM = fri_temp.KABNR AND sklist_mtrl.ENR = "A203" AND 
+                     sklist_mtrl.LEVKOD = skyltlev NO-ERROR.
+                  END.
+                  ELSE DO:   
+                     FIND FIRST sklist_mtrl WHERE sklist_mtrl.NUM = fri_temp.NUM AND 
+                     sklist_mtrl.SKAPNUM = fri_temp.KABNR AND sklist_mtrl.ENR = "A107" AND 
+                     sklist_mtrl.LEVKOD = skyltlev NO-ERROR.
+                  END.   
+                  IF AVAILABLE sklist_mtrl THEN  DO:
+                     cColumn = STRING(iColumn).
+                     cRange = "C" + cColumn.
+                     chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.                     
+                     RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT STRING(sklist_mtrl.ANTAL)).   
+                  END.                    
+                  cColumn = STRING(iColumn).
+                  cRange = "D" + cColumn.
+                  chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+                  hjtext = fri_temp.KABADR.
+                  chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.
+                  RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                  IF fri_temp.SAKR > 0 THEN DO:
+                     iColumn = iColumn + 1.
+                     cColumn = STRING(iColumn).
+                     cRange = "D" + cColumn.
+                     hjtext = STRING(fri_temp.SAKR) + "A".
+                     chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+                     chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.
+                     RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                  END.
+                  /*/*test*/
+                  cColumn = STRING(iColumn).
+                  cRange = "E" + cColumn.                     
+                  /*chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+                  chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.*/
+                  RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT STRING(fri_temp.GRUPPNR)).*/
+               END.   
+                                                    
+            END.   
+         END.
+         
+      END.
+      ELSE DO:
+         FIND FIRST kon_id WHERE kon_id.NUM = kon_val.NUM NO-LOCK NO-ERROR.                  
+         /*station*/   
+         EMPTY TEMP-TABLE fri_tempm  NO-ERROR. 
+         FOR EACH fri_temp WHERE fri_temp.NUM = kon_val.NUM:
+            CREATE fri_tempm.
+            BUFFER-COPY fri_temp TO fri_tempm.
+         END.         
+         FOR EACH fri_tempm :
+            mkskrub = true.        
+            /*markera lsp hsp för sej spara ktypkod dvs förkortning på kabeln*/
+            FIND FIRST kon_valbuff WHERE kon_valbuff.NUM = fri_tempm.NUM AND kon_valbuff.SKAPNUM = fri_tempm.KABNR NO-LOCK NO-ERROR.
+            IF AVAILABLE kon_valbuff  THEN DO:
+               fri_tempm.KTYPKOD =  kon_valbuff.F5.            
+               FIND FIRST konsttemp WHERE konsttemp.KONSKOD = 14 AND
+               konsttemp.KTYPKOD =  LEFT-TRIM(kon_valbuff.F5) NO-LOCK NO-ERROR.
+               IF AVAILABLE konsttemp THEN fri_tempm.LSP = 1.         
+               ELSE DO:
+                  FIND FIRST konsttemp WHERE konsttemp.KONSKOD = 25 AND
+                  konsttemp.KTYPKOD =  LEFT-TRIM(kon_valbuff.F5) NO-LOCK NO-ERROR.
+                  IF AVAILABLE konsttemp THEN fri_tempm.LSP = 10.            
+                  ELSE DO:
+                     FIND FIRST konsttemp WHERE konsttemp.KONSKOD = 27 AND
+                     konsttemp.KTYPKOD =  LEFT-TRIM(kon_valbuff.F5) NO-LOCK NO-ERROR.
+                     IF AVAILABLE konsttemp THEN fri_tempm.LSP = 20.
+                     ELSE DO:        
+                        IF Guru.Konstanter:globforetag = "fors" THEN DO:
+                           FIND FIRST konsttemp WHERE konsttemp.KONSKOD = 36 AND
+                           konsttemp.KTYPKOD =  LEFT-TRIM(kon_val.F5) NO-LOCK NO-ERROR.
+                           IF AVAILABLE konsttemp THEN fri_tempm.LSP = 20.
+                           ELSE DO:
+                              FIND FIRST konsttemp WHERE konsttemp.KONSKOD = 35 AND
+                              konsttemp.KTYPKOD =  LEFT-TRIM(kon_val.F5) NO-LOCK NO-ERROR.
+                              IF AVAILABLE konsttemp THEN fri_tempm.LSP = 10.
+                              ELSE DO:
+                                 FIND FIRST konsttemp WHERE konsttemp.KONSKOD = 41 AND
+                                 konsttemp.KTYPKOD =  LEFT-TRIM(kon_val.F5) NO-LOCK NO-ERROR.
+                                 IF AVAILABLE konsttemp THEN fri_tempm.LSP = 20.
+                              END.
+                           END.   
+                        END.
+                     END.          
+                  END.
+               END.
+            END.        
+         END.
+         FIND FIRST fri_tempm  NO-ERROR.
+         IF AVAILABLE fri_tempm  THEN DO:
+            RUN  id_UI.
+            IF AVAILABLE kon_id THEN DO:
+               IF kon_id.FRI3 NE ""  THEN DO:                  
+                  delrak = INDEX(kon_id.FRI3, " " , 1).
+                  IF delrak > 0 THEN DO:                     
+                     iColumn = iColumn + 1.
+                     numskylt = numskylt + 1.
+                     cColumn = STRING(iColumn).
+                     cRange = "A" + cColumn.
+                     hjtext = "Skylt " + STRING(numskylt).
+                     RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                     cRange = "B" + cColumn.
+                     IF Guru.Konstanter:globforetag = "fors" THEN hjtext = "Art.nr 200".
+                     ELSE hjtext = "Art.nr 101".
+                     RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                     IF Guru.Konstanter:globforetag = "fors" THEN DO:
+                        FIND FIRST sklist_mtrl WHERE sklist_mtrl.NUM = fri_tempm.NUM AND 
+                        sklist_mtrl.ENR = "A200" AND sklist_mtrl.LEVKOD = skyltlev  NO-ERROR.
+                     END.
+                     ELSE DO:   
+                        FIND FIRST sklist_mtrl WHERE sklist_mtrl.NUM = fri_tempm.NUM AND 
+                        sklist_mtrl.ENR = "A101" AND sklist_mtrl.LEVKOD = skyltlev  NO-ERROR.
+                     END.   
+                     IF AVAILABLE sklist_mtrl THEN  DO:
+                        cColumn = STRING(iColumn).
+                        cRange = "C" + cColumn.
+                        chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.                     
+                        RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT STRING(sklist_mtrl.ANTAL)).   
+                     END.
+                     cColumn = STRING(iColumn).
+                     cRange = "D" + cColumn.
+                     hjtext =    SUBSTRING(kon_id.FRI3,1,delrak).
+                     chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+                     chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.
+                     RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                     iColumn = iColumn + 1.
+                     cColumn = STRING(iColumn).
+                     cRange = "D" + cColumn.
+                     hjtext =   SUBSTRING(kon_id.FRI3,delrak).
+                     chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+                     chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.
+                     RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                     
+                  END.
+                  ELSE DO:                     
+                     iColumn = iColumn + 1.
+                     numskylt = numskylt + 1.
+                     cColumn = STRING(iColumn).
+                     cRange = "A" + cColumn.
+                     hjtext = "Skylt " + STRING(numskylt).
+                     RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                     cRange = "B" + cColumn.
+                     IF Guru.Konstanter:globforetag = "fors" THEN hjtext = "Art.nr 200".
+                     ELSE hjtext = "Art.nr 101".
+                     RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                     IF Guru.Konstanter:globforetag = "fors" THEN DO:
+                        FIND FIRST sklist_mtrl WHERE sklist_mtrl.NUM = fri_tempm.NUM AND 
+                        sklist_mtrl.ENR = "A200" AND sklist_mtrl.LEVKOD = skyltlev  NO-ERROR.
+                     END.
+                     ELSE DO:   
+                        FIND FIRST sklist_mtrl WHERE sklist_mtrl.NUM = fri_tempm.NUM AND 
+                        sklist_mtrl.ENR = "A101" AND sklist_mtrl.LEVKOD = skyltlev  NO-ERROR.
+                     END.   
+                     IF AVAILABLE sklist_mtrl THEN  DO:
+                        cColumn = STRING(iColumn).
+                        cRange = "C" + cColumn.
+                        chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.                     
+                        RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT STRING(sklist_mtrl.ANTAL)).   
+                     END.
+                     cColumn = STRING(iColumn).
+                     cRange = "D" + cColumn.
+                     hjtext =   kon_id.FRI3.       
+                     chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.          
+                     chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.
+                     RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                  END.
+                  IF Guru.Konstanter:globforetag = "fors" THEN DO:
+                     /*A102*/
+                     FIND FIRST sklist_mtrl WHERE sklist_mtrl.NUM = fri_tempm.NUM AND sklist_mtrl.ENR = "A201" AND 
+                     sklist_mtrl.LEVKOD = skyltlev NO-ERROR.
+                  END.
+                  ELSE DO:   
+                     /*A102*/
+                     FIND FIRST sklist_mtrl WHERE sklist_mtrl.NUM = fri_tempm.NUM AND sklist_mtrl.ENR = "A102" AND 
+                     sklist_mtrl.LEVKOD = skyltlev NO-ERROR.
+                  END.                                          
+                  delrak = INDEX(kon_id.FRI3, " " , 1).
+                  IF delrak > 0 THEN DO:                     
+                     iColumn = iColumn + 1.
+                     numskylt = numskylt + 1.
+                     cColumn = STRING(iColumn).
+                     cRange = "A" + cColumn.
+                     hjtext = "Skylt " + STRING(numskylt).
+                     RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                     cRange = "B" + cColumn.
+                     IF Guru.Konstanter:globforetag = "fors" THEN hjtext = "Art.nr 201". 
+                     ELSE hjtext = "Art.nr 102".
+                     RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                     IF AVAILABLE sklist_mtrl  THEN DO:                        
+                        cColumn = STRING(iColumn).
+                        cRange = "C" + cColumn.
+                        chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.                     
+                        RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT STRING(sklist_mtrl.ANTAL)).                           
+                     END.
+                     cColumn = STRING(iColumn).
+                     cRange = "D" + cColumn.
+                     hjtext =    SUBSTRING(kon_id.FRI3,1,delrak).
+                     chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+                     chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.
+                     RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                     iColumn = iColumn + 1.
+                     cColumn = STRING(iColumn).
+                     cRange = "D" + cColumn.
+                     hjtext =   SUBSTRING(kon_id.FRI3,delrak).
+                     chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+                     chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.
+                     RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                  END.
+                  ELSE DO:                     
+                     iColumn = iColumn + 1.
+                     numskylt = numskylt + 1.
+                     cColumn = STRING(iColumn).
+                     cRange = "A" + cColumn.
+                     hjtext = "Skylt " + STRING(numskylt).
+                     RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                     cRange = "B" + cColumn.
+                     IF Guru.Konstanter:globforetag = "fors" THEN hjtext = "Art.nr 201".
+                     ELSE hjtext = "Art.nr 102".
+                     RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                     IF AVAILABLE sklist_mtrl  THEN DO:                        
+                        cColumn = STRING(iColumn).
+                        cRange = "C" + cColumn.
+                        chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.                     
+                        RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT STRING(sklist_mtrl.ANTAL)).   
+                     END.
+                     cColumn = STRING(iColumn).
+                     cRange = "D" + cColumn.
+                     hjtext =   kon_id.FRI3.       
+                     chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+                     chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.
+                     RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                  END.                  
+               END.   
+               FIND FIRST fri_tempm WHERE fri_tempm.NUM = kon_val.NUM AND fri_tempm.LSP > 1 NO-ERROR.
+               IF AVAILABLE fri_tempm THEN DO:                                   
+                  FOR EACH fri_tempm WHERE fri_tempm.NUM = kon_val.NUM AND fri_tempm.LSP > 1 USE-INDEX NUM:
+                     IF Guru.Konstanter:globforetag = "fors" THEN DO:
+                        FIND FIRST sklist_mtrl WHERE sklist_mtrl.NUM = fri_tempm.NUM AND 
+                        sklist_mtrl.SKAPNUM = fri_tempm.KABNR AND sklist_mtrl.ENR = "A202" AND 
+                        sklist_mtrl.ANTAL > 0 AND sklist_mtrl.LEVKOD = skyltlev NO-ERROR.
+                     END.
+                     ELSE DO:   
+                        FIND FIRST sklist_mtrl WHERE sklist_mtrl.NUM = fri_tempm.NUM AND 
+                        sklist_mtrl.SKAPNUM = fri_tempm.KABNR AND sklist_mtrl.ENR = "A104" AND 
+                        sklist_mtrl.ANTAL > 0 AND sklist_mtrl.LEVKOD = skyltlev NO-ERROR.
+                     END.                                                                                                                                
+                     FIND FIRST  kon_valbuff WHERE  kon_valbuff.NUM = fri_tempm.NUM  AND
+                     kon_valbuff.SKAPNUM = fri_tempm.KABNR  NO-LOCK NO-ERROR.
+                     IF AVAILABLE  kon_valbuff THEN DO:                                            
+                        iColumn = iColumn + 1.
+                        numskylt = numskylt + 1.
+                        cColumn = STRING(iColumn).
+                        cRange = "A" + cColumn.
+                        hjtext = "Skylt " + STRING(numskylt).
+                        RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                        cRange = "B" + cColumn.
+                        IF Guru.Konstanter:globforetag = "fors" THEN hjtext = "Art.nr 202".
+                        ELSE hjtext = "Art.nr 104".
+                        RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                        IF AVAILABLE sklist_mtrl THEN  DO:                           
+                           cColumn = STRING(iColumn).
+                           cRange = "C" + cColumn.
+                           chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.                     
+                           RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT STRING(sklist_mtrl.ANTAL)).
+                        END.                                
+                        cColumn = STRING(iColumn).
+                        cRange = "D" + cColumn.                          
+                        hjtext =  STRING(fri_tempm.LSP) + " KV".  
+                        chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+                        chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.
+                        RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).                        
+                        iColumn = iColumn + 1.
+                        cColumn = STRING(iColumn).
+                        cRange = "D" + cColumn.
+                        hjtext = fri_tempm.KABADR.    
+                        chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+                        chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.
+                        RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).                                                   
+                     END.                     
+                  END.
+               END.
+               FIND FIRST fri_tempm WHERE fri_tempm.NUM = kon_val.NUM AND fri_tempm.LSP > 1 NO-ERROR.
+               IF AVAILABLE fri_tempm THEN DO:      
+                  IF Guru.Konstanter:globforetag = "fors" THEN DO:
+                     /*trafo*/     
+                     FIND FIRST sklist_mtrl WHERE sklist_mtrl.NUM = fri_tempm.NUM AND 
+                     sklist_mtrl.ENR = "A204" AND 
+                     sklist_mtrl.ANTAL > 0 AND sklist_mtrl.LEVKOD = skyltlev  NO-ERROR.
+                  END.
+                  ELSE DO:   
+                     /*trafo*/     
+                     FIND FIRST sklist_mtrl WHERE sklist_mtrl.NUM = fri_tempm.NUM AND 
+                     sklist_mtrl.ENR = "A105" AND 
+                     sklist_mtrl.ANTAL > 0 AND sklist_mtrl.LEVKOD = skyltlev  NO-ERROR.
+                  END.                        
+                  IF AVAILABLE sklist_mtrl THEN  DO:                                   
+                     FOR EACH fri_tempm WHERE fri_tempm.NUM = kon_val.NUM AND fri_tempm.LSP > 1 USE-INDEX NUM:
+                        IF Guru.Konstanter:globforetag = "fors" THEN DO:
+                           FIND FIRST sklist_mtrl WHERE sklist_mtrl.NUM = fri_tempm.NUM AND 
+                           sklist_mtrl.SKAPNUM = fri_tempm.KABNR AND sklist_mtrl.ENR = "A204" AND 
+                           sklist_mtrl.ANTAL > 0 AND sklist_mtrl.LEVKOD = skyltlev NO-ERROR.
+                        END.
+                        ELSE DO:   
+                           FIND FIRST sklist_mtrl WHERE sklist_mtrl.NUM = fri_tempm.NUM AND 
+                           sklist_mtrl.SKAPNUM = fri_tempm.KABNR AND sklist_mtrl.ENR = "A105" AND 
+                           sklist_mtrl.ANTAL > 0 AND sklist_mtrl.LEVKOD = skyltlev NO-ERROR.
+                        END.                        
+                        IF AVAILABLE sklist_mtrl THEN  DO:                             
+                           FIND FIRST  kon_valbuff WHERE  kon_valbuff.NUM = fri_tempm.NUM  AND
+                           kon_valbuff.SKAPNUM = fri_tempm.KABNR  NO-LOCK NO-ERROR.
+                           IF AVAILABLE  kon_valbuff THEN DO:                                         
+                              iColumn = iColumn + 1.
+                              numskylt = numskylt + 1.
+                              cColumn = STRING(iColumn).
+                              cRange = "A" + cColumn.
+                              hjtext = "Skylt " + STRING(numskylt).
+                              RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                              cRange = "B" + cColumn.
+                              IF Guru.Konstanter:globforetag = "fors" THEN hjtext = "Art.nr 204". 
+                              ELSE hjtext = "Art.nr 105".
+                              RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).                           
+                              cColumn = STRING(iColumn).
+                              cRange = "C" + cColumn.
+                              chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.                     
+                              RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT STRING(sklist_mtrl.ANTAL)).                             
+                              cColumn = STRING(iColumn).
+                              cRange = "D" + cColumn.                          
+                              hjtext =  STRING(fri_tempm.LSP) + " KV".  
+                              chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+                              chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.
+                              RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).                        
+                              iColumn = iColumn + 1.
+                              cColumn = STRING(iColumn).
+                              cRange = "D" + cColumn.
+                              hjtext = fri_tempm.KABADR.    
+                              chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+                              chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.
+                              RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).                                                   
+                           END.
+                        END.
+                     END.               
+                  END.
+                  ELSE DO:
+                     /*dummy*/
+                     FIND FIRST sklist_mtrl NO-ERROR.
+                  END.      
+               END.
+               
+               
+               FIND FIRST fri_tempm WHERE fri_tempm.NUM = kon_val.NUM AND fri_tempm.LSP = 1 NO-ERROR.            
+               IF AVAILABLE fri_tempm THEN DO:                  
+                  FOR EACH fri_tempm WHERE fri_tempm.NUM = kon_val.NUM AND fri_tempm.LSP = 1 USE-INDEX NUM:                                   
+                     FIND FIRST  kon_valbuff WHERE  kon_valbuff.NUM = fri_tempm.NUM  AND
+                     kon_valbuff.SKAPNUM = fri_tempm.KABNR  NO-LOCK NO-ERROR.
+                     IF AVAILABLE  kon_valbuff THEN DO:                     
+                        iColumn = iColumn + 1.
+                        numskylt = numskylt + 1.
+                        cColumn = STRING(iColumn).
+                        cRange = "A" + cColumn.
+                        hjtext = "Skylt " + STRING(numskylt).
+                        RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                        cRange = "B" + cColumn.
+                        IF Guru.Konstanter:globforetag = "fors" THEN hjtext = "Art.nr 203".
+                        ELSE hjtext = "Art.nr 107".
+                        RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                        IF Guru.Konstanter:globforetag = "fors" THEN DO:
+                           FIND FIRST sklist_mtrl WHERE sklist_mtrl.NUM = fri_tempm.NUM AND 
+                           sklist_mtrl.SKAPNUM = fri_tempm.KABNR AND sklist_mtrl.ENR = "A203" AND 
+                           sklist_mtrl.LEVKOD = skyltlev NO-ERROR.
+                        END.
+                        ELSE DO:
+                           FIND FIRST sklist_mtrl WHERE sklist_mtrl.NUM = fri_tempm.NUM AND 
+                           sklist_mtrl.SKAPNUM = fri_tempm.KABNR AND sklist_mtrl.ENR = "A107" AND 
+                           sklist_mtrl.LEVKOD = skyltlev NO-ERROR.
+                        END.      
+                        IF AVAILABLE sklist_mtrl THEN  DO:
+                           cColumn = STRING(iColumn).
+                           cRange = "C" + cColumn.
+                           chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.                     
+                           RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT STRING(sklist_mtrl.ANTAL)).   
+                        END.
+                        cColumn = STRING(iColumn).
+                        cRange = "D" + cColumn.
+                        hjtext = fri_tempm.KABADR.
+                        chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+                        chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.
+                        RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                        IF fri_tempm.SAKR > 0 THEN DO:
+                           iColumn = iColumn + 1.                        
+                           cColumn = STRING(iColumn).
+                           cRange = "D" + cColumn.
+                           hjtext = STRING(fri_tempm.SAKR) + "A".
+                           chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+                           chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.
+                           RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+                        END.
+                        /*/*test*/
+                        cColumn = STRING(iColumn).
+                        cRange = "E" + cColumn.                     
+                        /*chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+                        chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.*/
+                        RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT STRING(fri_tempm.GRUPPNR)).*/           
+                           
+                     END.      
+                  END.   
+               END.
+               IF NOT AVAILABLE fri_tempm THEN DO:
+                  /*dummy för excelfel*/
+                  FIND FIRST fri_tempm NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE fri_tempm  THEN DO:
+                     FIND FIRST fri_temp NO-LOCK NO-ERROR.
+                  END.
+               END.         
+                  
+            END.
+         END.   
+         
+      END.
+   END.      
+END PROCEDURE.
+
+PROCEDURE elskyltr_UI :
+   FIND FIRST konstgrptemp WHERE konstgrptemp.KONSKOD = ekon_val.GRUPP NO-ERROR.   
+   FIND FIRST ekon_id WHERE ekon_id.NUM = ekon_val.NUM NO-LOCK NO-ERROR.
+   FIND FIRST bbenamntemp WHERE bbenamntemp.KONSKOD = ekon_val.GRUPP NO-ERROR.      
+   ejmed = FALSE.
+   IF ejmed = FALSE THEN DO:          
+      iColumn = iColumn + 1.
+      cColumn = STRING(iColumn).
+      cRange = "A" + cColumn.
+      IF AVAILABLE konstgrptemp THEN DO:
+         hjtext = konstgrptemp.BENAMNING .
+      END.   
+      chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+      chWorkSheet:Range(cRange):FONT:ColorIndex = 9 NO-ERROR.
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).   
+      cRange = "D" + cColumn.
+      IF AVAILABLE bbenamntemp THEN hjtext = bbenamntemp.B1 + " :".
+      IF AVAILABLE ekon_val THEN  hjtext = hjtext + ekon_val.F1 .        
+      chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+      chWorkSheet:Range(cRange):FONT:ColorIndex = 9 NO-ERROR.
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+      iColumn = iColumn + 1.
+      cColumn = STRING(iColumn).   
+      cRange = "A" + cColumn.
+      IF AVAILABLE bbenamntemp THEN hjtext = bbenamntemp.ID2 + " :".     
+      IF AVAILABLE ekon_id THEN hjtext = hjtext + STRING(ekon_id.FRI2).        
+      chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+      chWorkSheet:Range(cRange):FONT:ColorIndex = 9 NO-ERROR.
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).      
+      IF AVAILABLE ekon_id AND ekon_id.FRI3 NE "" THEN DO:
+         cRange = "D" + cColumn.
+         hjtext = "Littera: ".
+         IF AVAILABLE ekon_id THEN hjtext = hjtext + ekon_id.FRI3 .          
+         chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+         chWorkSheet:Range(cRange):FONT:ColorIndex = 9 NO-ERROR.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+      END.
+   END.  
+END PROCEDURE.
+
+PROCEDURE elskylt_UI :
+   FIND FIRST konstgrptemp WHERE konstgrptemp.KONSKOD = ekon_val.GRUPP NO-ERROR.   
+   FIND FIRST ekon_id WHERE ekon_id.NUM = ekon_val.NUM NO-LOCK NO-ERROR.
+   FIND FIRST bbenamntemp WHERE bbenamntemp.KONSKOD = ekon_val.GRUPP NO-ERROR.                
+   FOR EACH elist_mtrl WHERE elist_mtrl.NUM = ekon_val.NUM :
+      ejmed = FALSE.            
+      IF ejmed = FALSE THEN DO:                  
+         iColumn = iColumn + 1.
+         numskylt = numskylt + 1.
+         cColumn = STRING(iColumn).
+         cRange = "A" + cColumn.
+         hjtext = "Skylt " + STRING(numskylt).
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+         cRange = "B" + cColumn.
+         hjtext = "Art.nr " + SUBSTRING(elist_mtrl.ENR,2).
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+         cRange = "C" + cColumn.         
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT STRING(elist_mtrl.antal)).         
+         cRange = "D" + cColumn.
+         hjtext = elist_mtrl.MTRLTEXT.
+         chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+         chWorkSheet:Range(cRange):FONT:ColorIndex = 3 NO-ERROR.
+         RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+      END.   
+   END.         
+END PROCEDURE.   
+
+PROCEDURE id_UI.
+   FIND FIRST konstgrptemp WHERE konstgrptemp.KONSKOD = kon_val.GRUPP NO-ERROR.   
+   FIND FIRST kon_id WHERE kon_id.NUM = kon_val.NUM NO-LOCK NO-ERROR.
+   FIND FIRST bbenamntemp WHERE bbenamntemp.KONSKOD = kon_val.GRUPP NO-ERROR.      
+   iColumn = iColumn + 2.
+   cColumn = STRING(iColumn).
+   cRange = "A" + cColumn.
+   IF AVAILABLE konstgrptemp THEN DO:
+      hjtext = konstgrptemp.BENAMNING .
+   END.   
+   chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 9 NO-ERROR.
+   RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).   
+   cRange = "D" + cColumn.
+   IF AVAILABLE bbenamntemp THEN hjtext = bbenamntemp.B1 + " :".
+   IF AVAILABLE kon_val THEN  hjtext = hjtext + kon_val.F1 .        
+   chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 9 NO-ERROR.
+   RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+   iColumn = iColumn + 1.
+   cColumn = STRING(iColumn).   
+   cRange = "A" + cColumn.
+   IF AVAILABLE bbenamntemp THEN hjtext = bbenamntemp.ID2 + " :".     
+   IF AVAILABLE kon_id THEN hjtext = hjtext + STRING(kon_id.FRI2).        
+   chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 9 NO-ERROR.
+   RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).      
+   IF kon_id.FRI3 NE "" THEN DO:
+      cRange = "D" + cColumn.
+      hjtext = "Littera: ".
+      IF AVAILABLE kon_id THEN hjtext = hjtext + kon_id.FRI3 .          
+      chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+      chWorkSheet:Range(cRange):FONT:ColorIndex = 9 NO-ERROR.
+      RUN utexcel_UI (INPUT "ARIAL",INPUT 10,INPUT hjtext).
+   END.
+END PROCEDURE.            
+
+PROCEDURE utexcel_UI :
+   DEFINE INPUT PARAMETER typsnitt AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER storlek AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER varde AS CHARACTER NO-UNDO.
+   IF varde = "" THEN RETURN.
+   IF varde = ? THEN RETURN.
+   ASSIGN
+   chWorkSheet:Range(cRange):Font:NAME = typsnitt NO-ERROR.
+   chWorkSheet:Range(cRange):Font:SIZE = storlek  NO-ERROR.
+   chWorkSheet:Range(cRange):Value = varde NO-ERROR.  
+   {EXCELFEL.I}
+END PROCEDURE.

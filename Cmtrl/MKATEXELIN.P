@@ -1,0 +1,146 @@
+/*MKATEXELIN.P Inläsning materielkatalog från excel*/
+DEFINE TEMP-TABLE mkattmp   
+   FIELD ENR                AS CHARACTER 
+   FIELD BENAMNING          AS CHARACTER 
+   FIELD ENHET              AS CHARACTER
+   FIELD BPRIS              AS DECIMAL   
+   FIELD NPRIS              AS DECIMAL
+   FIELD NETTO              AS LOGICAL.   
+DEFINE TEMP-TABLE felex NO-UNDO LIKE mkattmp.
+
+
+
+   
+
+DEFINE VARIABLE utskriv AS LOGICAL NO-UNDO.
+
+
+{GLOBVAR2DEL1.I}
+{EXECLIN2.I}
+DEFINE INPUT PARAMETER filnamn AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR mkattmp.
+DEFINE OUTPUT PARAMETER TABLE FOR felex.
+DEFINE INPUT  PARAMETER svar11 AS LOGICAL NO-UNDO.
+EMPTY TEMP-TABLE mkattmp NO-ERROR. 
+EMPTY TEMP-TABLE felex NO-ERROR. 
+{AMERICANEUROPEAN.I}
+ RUN startin_UI.
+{EUROPEANAMERICAN.I}
+PROCEDURE startin_UI:
+   ASSIGN
+   startc = "A"
+   slutc = "F"
+   iRad = 0. 
+   RUN readexcelstart_UI (INPUT filnamn).   
+   DO WHILE iRad <= iRadslut:
+      iRad = iRad + 1.
+      RUN readexcel_UI.            
+      IF allacolumtext[1] NE "" THEN DO:    
+         IF Guru.Konstanter:globforetag = "sund" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "CORBI" OR Guru.Konstanter:globforetag = "celpa" THEN DO:
+            IF SUBSTRING(allacolumtext[1],1,1) NE  "E" THEN allacolumtext[1] = "E" + allacolumtext[1].
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "umea" OR Guru.Konstanter:globforetag = "Celpa" THEN DO:
+            
+         END.
+         ELSE IF SUBSTRING(allacolumtext[1],1,1) = "E" THEN allacolumtext[1] = SUBSTRING(allacolumtext[1],2).
+         /*allacolumtext[1] = REPLACE(allacolumtext[1],"E","").                 */
+         IF Guru.Konstanter:globforetag = "umea" OR Guru.Konstanter:globforetag = "Celpa" THEN.
+         ELSE allacolumtext[1] = REPLACE(allacolumtext[1]," ","").   
+         allacolumtext[4] = REPLACE(allacolumtext[4],",",".").   
+         allacolumtext[5] = REPLACE(allacolumtext[5],",",".").            
+         allacolumtext[4] = REPLACE(allacolumtext[4]," ","").   
+         allacolumtext[5] = REPLACE(allacolumtext[5]," ","").                     
+         RUN goromDec_UI(INPUT-OUTPUT allacolumtext[4]).
+         RUN goromDec_UI(INPUT-OUTPUT allacolumtext[5]).
+         IF allacolumtext[3] = "EA" THEN allacolumtext[3] = "ST".
+         IF allacolumtext[3] = "PK" THEN allacolumtext[3] = "FP".
+         IF allacolumtext[3] = "MTR" THEN allacolumtext[3] = "M".
+         IF allacolumtext[3] = "PR" THEN allacolumtext[3] = "PAR".
+         IF allacolumtext[3] = "RO" THEN allacolumtext[3] = "RLE".      
+
+         IF allacolumtext[3] = "BG" THEN allacolumtext[3] = "PÅS".      
+         IF allacolumtext[3] = "MKT" THEN allacolumtext[3] = "M2".      
+         IF allacolumtext[3] = "LTR" THEN allacolumtext[3] = "L".      
+         IF allacolumtext[3] = "KGM" THEN allacolumtext[3] = "KG".      
+
+         CREATE mkattmp.
+         ASSIGN mkattmp.ENR = allacolumtext[1] NO-ERROR.
+         mkattmp.BENAMNING = allacolumtext[2] NO-ERROR.
+         mkattmp.ENHET = allacolumtext[3] NO-ERROR.
+         mkattmp.BPRIS = DECIMAL(allacolumtext[4]) NO-ERROR.
+         mkattmp.NPRIS = DECIMAL(allacolumtext[5]) NO-ERROR.
+         /*IF allacolumtext[6] = ? THEN mkattmp.NETTO = ?.
+         ELSE IF allacolumtext[6] = "2" THEN mkattmp.NETTO = ?. /*färg 2*/
+         ELSE IF allacolumtext[6] NE "" THEN mkattmp.NETTO = TRUE.                  
+         ELSE mkattmp.NETTO = FALSE.*/                  
+         
+         IF svar11 = TRUE THEN DO:
+            /*sundsvall elnät 
+            Färg 1 = turkos = Onninen
+            Färg 2 = grön = Ahlsell*/                  
+            /*färg 1*/        
+            IF allacolumtext[6] NE "" THEN mkattmp.NETTO = TRUE.                                    
+         END.
+         ELSE DO:
+            /*färg2*/
+            IF allacolumtext[6] NE "" THEN mkattmp.NETTO = ?.             
+         END.  
+   
+         
+         IF ERROR-STATUS:ERROR = TRUE THEN DO:
+            IF AVAILABLE mkattmp THEN DO:              
+               CREATE felex.
+               BUFFER-COPY mkattmp TO felex.
+               DELETE mkattmp.
+            END.
+            ERROR-STATUS:ERROR = FALSE.
+         END.
+      END.      
+   END.
+   RUN slutreadexcel_UI.     
+END PROCEDURE.
+
+PROCEDURE goromDec_UI :
+   DEFINE INPUT-OUTPUT PARAMETER varde AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE ascivarde AS INTEGER NO-UNDO.
+   DEFINE VARIABLE artecken AS LOGICAL NO-UNDO.
+   DEFINE VARIABLE vardearray AS CHARACTER EXTENT 50 NO-UNDO.
+   DEFINE VARIABLE langd AS INTEGER NO-UNDO.
+   DEFINE VARIABLE i AS INTEGER NO-UNDO.
+
+   i = 1.
+
+   langd = LENGTH(varde).
+   DO WHILE i <= (langd):
+      vardearray[i] = SUBSTRING(varde,1, 1).
+      varde = SUBSTRING(varde,2).
+      i = i + 1.
+   END.
+   varde = "".
+   i = 1.
+   DO WHILE i <= langd:
+      ascivarde = ASC(vardearray[i]).
+      /*siffror*/
+      IF ascivarde >= 48 AND ascivarde <= 57 THEN artecken = TRUE.
+      ELSE artecken = FALSE.
+   
+      IF artecken = FALSE THEN DO:
+         /*varde = "".*/
+      END.
+      ELSE varde = varde + vardearray[i].
+      
+      IF vardearray[i] = "," THEN DO:
+         vardearray[i] = ".".
+         varde = varde + vardearray[i].
+      END.
+
+      IF vardearray[i] = "." THEN DO:
+         varde = varde + vardearray[i].
+      END.
+           
+      i = i + 1.      
+  END.      
+
+END PROCEDURE.
+
+

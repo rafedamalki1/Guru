@@ -1,0 +1,638 @@
+/*BERKOLLU2.P*/ 
+{STARTFORAPP.I}     
+{TIDUTTT.I}
+
+DEFINE INPUT PARAMETER leverant AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tidut.  
+DEFINE VARIABLE str AS CHARACTER NO-UNDO.
+DEFINE VARIABLE raknare AS INTEGER NO-UNDO. 
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFIN QUERY qmtrl FOR MTRLBER.
+
+
+felmedd = "".
+FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = leverant NO-LOCK NO-ERROR.
+FIND FIRST MTRLBER WHERE MTRLBER.LEVKOD = leverant NO-LOCK NO-ERROR.
+IF NOT AVAILABLE MTRLBER THEN DO:
+   FIND FIRST BERSTOLP WHERE BERSTOLP.LEVKOD =  leverant NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE BERSTOLP THEN DO:
+      FIND FIRST BERSKAP WHERE BERSKAP.LEVKOD = leverant NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BERSKAP THEN DO:
+         ASSIGN felmedd = "DET FINNS INGA ARTIKLAR FÖR LEVERANTÖR " + LEVERANTOR.LEVNAMN + " KOPPLADE TILL KONSTRUKTIONER".
+         
+         RETURN.
+      END.
+   END.    
+END.
+DO:
+   raknare = 0.     
+   FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD = leverant NO-LOCK NO-ERROR.                
+   FIND FIRST FORETAG NO-LOCK NO-ERROR.
+   Guru.Konstanter:globforetag = FORETAG.FORETAG.
+   
+   OPEN QUERY qmtrl FOR EACH MTRLBER WHERE MTRLBER.LEVKOD = leverant NO-LOCK.
+      
+   DO TRANSACTION:
+      GET FIRST qmtrl EXCLUSIVE-LOCK.
+      IF AVAILABLE MTRLBER THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = MTRLBER.LEVKOD AND 
+         MTRL.KALKNR = 0 AND MTRL.ENR = MTRLBER.ENR USE-INDEX LEV NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE MTRL THEN DO:
+            IF Guru.Konstanter:globforetag = "GRAN" THEN DO:
+               MTRLBER.PRIS = 0.
+            END.                
+            FIND FIRST tidut WHERE /*SUBSTRING(tidut.UT,1,10) = MTRLBER.KTYPKOD AND*/
+            SUBSTRING(tidut.UT,14,11) = MTRLBER.ENR NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE tidut THEN DO:                              
+               CREATE tidut.      
+               ASSIGN         
+               SUBSTRING(tidut.UT,1) = MTRLBER.KTYPKOD
+               SUBSTRING(tidut.UT,14) = MTRLBER.ENR     
+               SUBSTRING(tidut.UT,26) = SUBSTRING(MTRLBER.BENAMNING,1,40)                                     
+               SUBSTRING(tidut.UT,68) = MTRLBER.ENHET
+               SUBSTRING(tidut.UT,225) = "P"
+               raknare = raknare + 1.
+            END.                     
+         END.
+         ELSE DO:                      
+            ASSIGN
+            MTRLBER.BENAMNING = MTRL.BENAMNING
+            MTRLBER.PRIS = MTRL.NPRIS         
+            MTRLBER.ENHET = MTRL.ENHET.
+         END.                                      
+      END.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT qmtrl EXCLUSIVE-LOCK.
+         IF NOT AVAILABLE MTRLBER THEN LEAVE.
+         ELSE DO:
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = MTRLBER.LEVKOD AND 
+            MTRL.KALKNR = 0 AND MTRL.ENR = MTRLBER.ENR USE-INDEX LEV NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE MTRL THEN DO:   
+               IF Guru.Konstanter:globforetag = "GRAN" THEN DO:
+                  MTRLBER.PRIS = 0.
+               END.                                
+               FIND FIRST tidut WHERE /*SUBSTRING(tidut.UT,1,10) = MTRLBER.KTYPKOD AND*/
+               SUBSTRING(tidut.UT,14,11) = MTRLBER.ENR NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE tidut THEN DO:                              
+                  CREATE tidut.      
+                  ASSIGN         
+                  SUBSTRING(tidut.UT,1) = MTRLBER.KTYPKOD
+                  SUBSTRING(tidut.UT,14) = MTRLBER.ENR     
+                  SUBSTRING(tidut.UT,26) = SUBSTRING(MTRLBER.BENAMNING,1,40)                                      
+                  SUBSTRING(tidut.UT,68) = MTRLBER.ENHET
+                  SUBSTRING(tidut.UT,225) = "P"
+                  raknare = raknare + 1.                  
+               END.         
+            END.
+            ELSE DO:                      
+               ASSIGN
+               MTRLBER.BENAMNING = MTRL.BENAMNING
+               MTRLBER.PRIS = MTRL.NPRIS         
+               MTRLBER.ENHET = MTRL.ENHET.
+            END.
+         END.
+      END.
+   END. 
+
+   CREATE tidut.
+   CREATE tidut.
+   SUBSTRING(tidut.UT,225) = "R".
+   SUBSTRING(tidut.UT,1) = "KABELSKÅP".
+   SUBSTRING(tidut.UT,225) = "R".
+   CREATE tidut.
+   CREATE tidut.
+   
+   OPEN QUERY skapq FOR EACH BERSKAP WHERE BERSKAP.ENR NE "" AND
+   BERSKAP.LEVKOD = leverant NO-LOCK.
+      
+   DO TRANSACTION:
+      GET FIRST skapq EXCLUSIVE-LOCK.
+      IF AVAILABLE BERSKAP THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = BERSKAP.LEVKOD AND 
+         MTRL.KALKNR = 0 AND MTRL.ENR = BERSKAP.ENR USE-INDEX LEV NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE MTRL THEN DO:
+            IF Guru.Konstanter:globforetag = "GRAN" THEN DO:
+               BERSKAP.PRIS = 0.              
+            END.                                                                   
+            CREATE tidut.      
+            ASSIGN         
+            SUBSTRING(tidut.UT,1) = BERSKAP.KTYPKOD + " " + BERSKAP.KOD
+            SUBSTRING(tidut.UT,14) = BERSKAP.ENR     
+            SUBSTRING(tidut.UT,26) = SUBSTRING(BERSKAP.BENAMNING,1,40)                                     
+            SUBSTRING(tidut.UT,68) = BERSKAP.ENHET
+            SUBSTRING(tidut.UT,225) = "P"
+            raknare = raknare + 1.           
+         END.
+         ELSE DO:                      
+            ASSIGN
+            BERSKAP.BENAMNING = MTRL.BENAMNING
+            BERSKAP.PRIS = MTRL.NPRIS         
+            BERSKAP.ENHET = MTRL.ENHET.
+         END.                                      
+      END.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT skapq EXCLUSIVE-LOCK.
+         IF NOT AVAILABLE BERSKAP THEN LEAVE.
+         ELSE DO:
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = BERSKAP.LEVKOD AND 
+            MTRL.KALKNR = 0 AND MTRL.ENR = BERSKAP.ENR USE-INDEX LEV NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE MTRL THEN DO:  
+               IF Guru.Konstanter:globforetag = "GRAN" THEN DO:
+                  BERSKAP.PRIS = 0.              
+               END.                                                
+               CREATE tidut.      
+               ASSIGN         
+               SUBSTRING(tidut.UT,1) = BERSKAP.KTYPKOD + " " + BERSKAP.KOD
+               SUBSTRING(tidut.UT,14) = BERSKAP.ENR     
+               SUBSTRING(tidut.UT,26) = SUBSTRING(BERSKAP.BENAMNING,1,40)                                     
+               SUBSTRING(tidut.UT,68) = BERSKAP.ENHET
+               SUBSTRING(tidut.UT,225) = "P"
+               raknare = raknare + 1.                                      
+            END.
+            ELSE DO:                      
+               ASSIGN
+               BERSKAP.BENAMNING = MTRL.BENAMNING
+               BERSKAP.PRIS = MTRL.NPRIS         
+               BERSKAP.ENHET = MTRL.ENHET.
+            END.
+         END.
+      END.
+   END.  
+   CLOSE QUERY skapq.
+   CREATE tidut.
+   CREATE tidut.
+   SUBSTRING(tidut.UT,225) = "R".
+   SUBSTRING(tidut.UT,1) = "STOLPAR".
+   SUBSTRING(tidut.UT,225) = "R".
+   CREATE tidut.
+   CREATE tidut.
+   
+   OPEN QUERY stolpq FOR EACH BERSTOLP WHERE BERSTOLP.STOLPE = TRUE AND
+   BERSTOLP.LEVKOD = leverant NO-LOCK.
+
+   DO TRANSACTION:
+      GET FIRST stolpq EXCLUSIVE-LOCK.
+      IF AVAILABLE BERSTOLP THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = BERSTOLP.LEVKOD AND 
+         MTRL.KALKNR = 0 AND MTRL.ENR = BERSTOLP.ENR USE-INDEX LEV NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE MTRL THEN DO:        
+            IF Guru.Konstanter:globforetag = "GRAN" THEN DO:
+               BERSTOLP.PRIS = 0.                             
+            END.                                
+            CREATE tidut.      
+            ASSIGN         
+            SUBSTRING(tidut.UT,1) = ""
+            SUBSTRING(tidut.UT,14) = BERSTOLP.ENR     
+            SUBSTRING(tidut.UT,26) = SUBSTRING(BERSTOLP.BENAMNING,1,40)                                     
+            SUBSTRING(tidut.UT,68) = BERSTOLP.ENHET
+            SUBSTRING(tidut.UT,225) = "P"
+            raknare = raknare + 1.         
+         END.                  
+         ELSE DO:                      
+            ASSIGN
+            BERSTOLP.BENAMNING = MTRL.BENAMNING
+            BERSTOLP.PRIS = MTRL.NPRIS         
+            BERSTOLP.ENHET = MTRL.ENHET.
+         END.                                      
+      END.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT stolpq EXCLUSIVE-LOCK.
+         IF NOT AVAILABLE BERSTOLP THEN LEAVE.
+         ELSE DO:
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = BERSTOLP.LEVKOD AND 
+            MTRL.KALKNR = 0 AND MTRL.ENR = BERSTOLP.ENR USE-INDEX LEV NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE MTRL THEN DO:   
+               IF Guru.Konstanter:globforetag = "GRAN" THEN DO:
+                  BERSTOLP.PRIS = 0.                             
+               END.                                               
+               CREATE tidut.      
+               ASSIGN         
+               SUBSTRING(tidut.UT,1) = ""
+               SUBSTRING(tidut.UT,14) = BERSTOLP.ENR     
+               SUBSTRING(tidut.UT,26) = SUBSTRING(BERSTOLP.BENAMNING,1,40)                                    
+               SUBSTRING(tidut.UT,68) = BERSTOLP.ENHET
+               SUBSTRING(tidut.UT,225) = "P"
+               raknare = raknare + 1.                             
+            END.
+            ELSE DO:                      
+               ASSIGN
+               BERSTOLP.BENAMNING = MTRL.BENAMNING
+               BERSTOLP.PRIS = MTRL.NPRIS         
+               BERSTOLP.ENHET = MTRL.ENHET.
+            END.
+         END.
+      END.
+   END.
+   CLOSE QUERY stolpq.
+   CREATE tidut.
+   CREATE tidut.
+   SUBSTRING(tidut.UT,225) = "R".
+   SUBSTRING(tidut.UT,1) = "STATIONER".
+   SUBSTRING(tidut.UT,225) = "R".
+   CREATE tidut.
+   CREATE tidut.   
+   OPEN QUERY stolpq2 FOR EACH BERSTOLP WHERE BERSTOLP.STOLPE = FALSE AND
+   BERSTOLP.LEVKOD = leverant NO-LOCK.
+   
+   DO TRANSACTION:
+      GET FIRST stolpq2 EXCLUSIVE-LOCK.
+      IF AVAILABLE BERSTOLP THEN DO:      
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = BERSTOLP.LEVKOD AND 
+         MTRL.KALKNR = 0 AND MTRL.ENR = BERSTOLP.ENR USE-INDEX LEV NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE MTRL THEN DO:      
+            IF Guru.Konstanter:globforetag = "GRAN" THEN DO:
+               BERSTOLP.PRIS = 0.                             
+            END.                                              
+            CREATE tidut.      
+            ASSIGN         
+            SUBSTRING(tidut.UT,1) = ""
+            SUBSTRING(tidut.UT,14) = BERSTOLP.ENR     
+            SUBSTRING(tidut.UT,26) = SUBSTRING(BERSTOLP.BENAMNING,1,40)                
+            SUBSTRING(tidut.UT,68) = BERSTOLP.ENHET
+            SUBSTRING(tidut.UT,225) = "P"
+            raknare = raknare + 1.                             
+         END.
+         ELSE DO:                      
+            ASSIGN
+            BERSTOLP.BENAMNING = MTRL.BENAMNING
+            BERSTOLP.PRIS = MTRL.NPRIS         
+            BERSTOLP.ENHET = MTRL.ENHET.
+         END.   
+      END.
+   END.
+   REPEAT:
+      DO TRANSACTION:
+         GET NEXT stolpq2 EXCLUSIVE-LOCK.
+         IF NOT AVAILABLE BERSTOLP THEN LEAVE.
+         ELSE DO:
+            FIND FIRST MTRL WHERE MTRL.LEVKOD = BERSTOLP.LEVKOD AND 
+            MTRL.KALKNR = 0 AND MTRL.ENR = BERSTOLP.ENR USE-INDEX LEV NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE MTRL THEN DO:    
+               IF Guru.Konstanter:globforetag = "GRAN" THEN DO:
+                  BERSTOLP.PRIS = 0.                             
+               END.                                            
+               CREATE tidut.      
+               ASSIGN         
+               SUBSTRING(tidut.UT,1) = ""
+               SUBSTRING(tidut.UT,14) = BERSTOLP.ENR     
+               SUBSTRING(tidut.UT,26) = SUBSTRING(BERSTOLP.BENAMNING,1,40)
+               SUBSTRING(tidut.UT,68) = BERSTOLP.ENHET
+               SUBSTRING(tidut.UT,225) = "P"
+               raknare = raknare + 1.                        
+            END.
+            ELSE DO:                      
+               ASSIGN
+               BERSTOLP.BENAMNING = MTRL.BENAMNING
+               BERSTOLP.PRIS = MTRL.NPRIS         
+               BERSTOLP.ENHET = MTRL.ENHET.
+            END.
+         END.
+      END.
+   END.
+   CLOSE QUERY stolpq2.
+   CREATE tidut.
+   CREATE tidut.
+   SUBSTRING(tidut.UT,225) = "R".
+   SUBSTRING(tidut.UT,1) = "ERSÄTTNINGSLISTAN".
+   SUBSTRING(tidut.UT,225) = "R".
+   CREATE tidut.
+   CREATE tidut.
+   RUN UtbytStart_UI.
+   
+
+   IF ( Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" ) AND leverant = "1"  THEN DO:
+      /* Kontrollera sundsvalls egna satser som börjar på E99301 FÖR ONNINEN*/
+      CREATE tidut.
+      CREATE tidut.
+      SUBSTRING(tidut.UT,225) = "R".
+      SUBSTRING(tidut.UT,1) = "MATERIELSATSER".
+      SUBSTRING(tidut.UT,225) = "R".
+      CREATE tidut.
+      ASSIGN
+      str=                                                                    
+"============.===========.========================================.=====".                  
+      CREATE tidut.      
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = "SATS"
+      SUBSTRING(tidut.UT,14) = CAPS(Guru.Konstanter:genk)                                                                         
+      SUBSTRING(tidut.UT,26) = "BENÄMNING"         
+      SUBSTRING(tidut.UT,68) = "ENHET".                         
+      SUBSTRING(tidut.UT,225) = "R".
+      CREATE tidut.       
+      SUBSTRING(tidut.UT,1) = str.    
+      OPEN QUERY qmtrl5 FOR EACH SATS WHERE SATS.LEVKOD = leverant AND SATS.KOD BEGINS "E99301" NO-LOCK
+      BY SATS.KOD BY SATS.SATS BY SATS.ENR BY SATS.ENR2.
+      DO TRANSACTION:
+         GET FIRST qmtrl5 EXCLUSIVE-LOCK.
+         IF AVAILABLE SATS THEN DO:
+            IF SATS.SATS = TRUE THEN DO:
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = leverant AND
+               MTRL.KALKNR = 0 AND MTRL.ENR = SATS.ENR USE-INDEX LEV NO-LOCK NO-ERROR.
+               IF AVAILABLE MTRL THEN DO:
+                 /* ASSIGN
+                  SATS.PRIS = MTRL.NPRIS
+                  SATS.BENAMNING = MTRL.BENAMNING
+                  SATS.ENHET = MTRL.ENHET.*/
+               END.
+               ELSE DO:
+                  CREATE tidut.      
+                  ASSIGN         
+                  SUBSTRING(tidut.UT,1) = SATS.KOD
+                  SUBSTRING(tidut.UT,14) = SATS.ENR     
+                  SUBSTRING(tidut.UT,26) = SATS.BENAMNING                                     
+                  SUBSTRING(tidut.UT,68) = SATS.ENHET
+                  SUBSTRING(tidut.UT,225) = "P"
+                  raknare = raknare + 1.         
+               END.
+   
+            END.
+            ELSE DO:
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = leverant AND
+               MTRL.KALKNR = 0 AND MTRL.ENR = SATS.ENR2 USE-INDEX LEV NO-LOCK NO-ERROR.
+               IF AVAILABLE MTRL THEN DO:
+                  /*ASSIGN
+                  SATS.PRIS2 = MTRL.NPRIS
+                  SATS.BENAMNING2 = MTRL.BENAMNING
+                  SATS.ENHET2 = MTRL.ENHET.*/
+               END.
+               ELSE DO:
+                  CREATE tidut.      
+                  ASSIGN         
+                  SUBSTRING(tidut.UT,1) = SATS.KOD
+                  SUBSTRING(tidut.UT,14) = SATS.ENR2     
+                  SUBSTRING(tidut.UT,26) = SATS.BENAMNING2                                     
+                  SUBSTRING(tidut.UT,68) = SATS.ENHET2
+                  SUBSTRING(tidut.UT,225) = "P"
+                  raknare = raknare + 1.         
+               END.
+            END.
+         END.
+      END.
+      REPEAT:
+         DO TRANSACTION:
+            GET NEXT qmtrl5 EXCLUSIVE-LOCK.
+            IF NOT AVAILABLE SATS THEN LEAVE.
+            ELSE DO:
+               IF SATS.SATS = TRUE THEN DO:
+                  FIND FIRST MTRL WHERE MTRL.LEVKOD = leverant AND
+                  MTRL.KALKNR = 0 AND MTRL.ENR = SATS.ENR USE-INDEX LEV NO-LOCK NO-ERROR.
+                  IF AVAILABLE MTRL THEN DO:
+                     /*ASSIGN
+                     SATS.PRIS = MTRL.NPRIS
+                     SATS.BENAMNING = MTRL.BENAMNING
+                     SATS.ENHET = MTRL.ENHET.*/
+                  END.
+                  ELSE DO:
+                     CREATE tidut.      
+                     ASSIGN         
+                     SUBSTRING(tidut.UT,1) = SATS.KOD
+                     SUBSTRING(tidut.UT,14) = SATS.ENR     
+                     SUBSTRING(tidut.UT,26) = SATS.BENAMNING                                     
+                     SUBSTRING(tidut.UT,68) = SATS.ENHET
+                     SUBSTRING(tidut.UT,225) = "P"
+                     raknare = raknare + 1.         
+                  END.
+               END.
+               ELSE DO:
+                  FIND FIRST MTRL WHERE MTRL.LEVKOD = leverant AND
+                  MTRL.KALKNR = 0 AND MTRL.ENR = SATS.ENR2 USE-INDEX LEV NO-LOCK NO-ERROR.
+                  IF AVAILABLE MTRL THEN DO:
+                     /*ASSIGN
+                     SATS.PRIS2 = MTRL.NPRIS
+                     SATS.BENAMNING2 = MTRL.BENAMNING
+                     SATS.ENHET2 = MTRL.ENHET.*/
+                  END.
+                  ELSE DO:
+                     CREATE tidut.      
+                     ASSIGN         
+                     SUBSTRING(tidut.UT,1) = SATS.KOD
+                     SUBSTRING(tidut.UT,14) = SATS.ENR2     
+                     SUBSTRING(tidut.UT,26) = SATS.BENAMNING2                                     
+                     SUBSTRING(tidut.UT,68) = SATS.ENHET2
+                     SUBSTRING(tidut.UT,225) = "P"
+                     raknare = raknare + 1.         
+                  END.
+   
+               END.
+            END.
+         END.
+      END.
+      CLOSE QUERY qmtrl5.
+   END.
+
+   IF Guru.Konstanter:globforetag = "elpa"   THEN DO:
+      /* Kontrollera sundsvalls egna satser som börjar på E99301 FÖR ONNINEN*/
+      CREATE tidut.
+      CREATE tidut.
+      SUBSTRING(tidut.UT,225) = "R".
+      SUBSTRING(tidut.UT,1) = "MATERIELSATSER".
+      SUBSTRING(tidut.UT,225) = "R".
+      CREATE tidut.
+      ASSIGN
+      str=                                                                    
+"============.===========.========================================.=====".                  
+      CREATE tidut.      
+      ASSIGN
+      SUBSTRING(tidut.UT,1) = "SATS"
+      SUBSTRING(tidut.UT,14) = CAPS(Guru.Konstanter:genk)                                                                         
+      SUBSTRING(tidut.UT,26) = "BENÄMNING"         
+      SUBSTRING(tidut.UT,68) = "ENHET".                         
+      SUBSTRING(tidut.UT,225) = "R".
+      CREATE tidut.       
+      SUBSTRING(tidut.UT,1) = str.    
+      OPEN QUERY qmtrl5 FOR EACH SATS WHERE SATS.LEVKOD = leverant  NO-LOCK
+      BY SATS.KOD BY SATS.SATS BY SATS.ENR BY SATS.ENR2.
+      DO TRANSACTION:
+         GET FIRST qmtrl5 EXCLUSIVE-LOCK.
+         IF AVAILABLE SATS THEN DO:
+            IF SATS.SATS = TRUE THEN DO:
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = leverant AND
+               MTRL.KALKNR = 0 AND MTRL.ENR = SATS.ENR USE-INDEX LEV NO-LOCK NO-ERROR.
+               IF AVAILABLE MTRL THEN DO:
+                 /* ASSIGN
+                  SATS.PRIS = MTRL.NPRIS
+                  SATS.BENAMNING = MTRL.BENAMNING
+                  SATS.ENHET = MTRL.ENHET.*/
+               END.
+               ELSE DO:
+                  CREATE tidut.      
+                  ASSIGN         
+                  SUBSTRING(tidut.UT,1) = SATS.KOD
+                  SUBSTRING(tidut.UT,14) = SATS.ENR     
+                  SUBSTRING(tidut.UT,26) = SATS.BENAMNING                                     
+                  SUBSTRING(tidut.UT,68) = SATS.ENHET
+                  SUBSTRING(tidut.UT,225) = "P"
+                  raknare = raknare + 1.         
+               END.
+   
+            END.
+            ELSE DO:
+               FIND FIRST MTRL WHERE MTRL.LEVKOD = leverant AND
+               MTRL.KALKNR = 0 AND MTRL.ENR = SATS.ENR2 USE-INDEX LEV NO-LOCK NO-ERROR.
+               IF AVAILABLE MTRL THEN DO:
+                  /*ASSIGN
+                  SATS.PRIS2 = MTRL.NPRIS
+                  SATS.BENAMNING2 = MTRL.BENAMNING
+                  SATS.ENHET2 = MTRL.ENHET.*/
+               END.
+               ELSE DO:
+                  CREATE tidut.      
+                  ASSIGN         
+                  SUBSTRING(tidut.UT,1) = SATS.KOD
+                  SUBSTRING(tidut.UT,14) = SATS.ENR2     
+                  SUBSTRING(tidut.UT,26) = SATS.BENAMNING2                                     
+                  SUBSTRING(tidut.UT,68) = SATS.ENHET2
+                  SUBSTRING(tidut.UT,225) = "P"
+                  raknare = raknare + 1.         
+               END.
+            END.
+         END.
+      END.
+      REPEAT:
+         DO TRANSACTION:
+            GET NEXT qmtrl5 EXCLUSIVE-LOCK.
+            IF NOT AVAILABLE SATS THEN LEAVE.
+            ELSE DO:
+               IF SATS.SATS = TRUE THEN DO:
+                  FIND FIRST MTRL WHERE MTRL.LEVKOD = leverant AND
+                  MTRL.KALKNR = 0 AND MTRL.ENR = SATS.ENR USE-INDEX LEV NO-LOCK NO-ERROR.
+                  IF AVAILABLE MTRL THEN DO:
+                     /*ASSIGN
+                     SATS.PRIS = MTRL.NPRIS
+                     SATS.BENAMNING = MTRL.BENAMNING
+                     SATS.ENHET = MTRL.ENHET.*/
+                  END.
+                  ELSE DO:
+                     CREATE tidut.      
+                     ASSIGN         
+                     SUBSTRING(tidut.UT,1) = SATS.KOD
+                     SUBSTRING(tidut.UT,14) = SATS.ENR     
+                     SUBSTRING(tidut.UT,26) = SATS.BENAMNING                                     
+                     SUBSTRING(tidut.UT,68) = SATS.ENHET
+                     SUBSTRING(tidut.UT,225) = "P"
+                     raknare = raknare + 1.         
+                  END.
+               END.
+               ELSE DO:
+                  FIND FIRST MTRL WHERE MTRL.LEVKOD = leverant AND
+                  MTRL.KALKNR = 0 AND MTRL.ENR = SATS.ENR2 USE-INDEX LEV NO-LOCK NO-ERROR.
+                  IF AVAILABLE MTRL THEN DO:
+                     /*ASSIGN
+                     SATS.PRIS2 = MTRL.NPRIS
+                     SATS.BENAMNING2 = MTRL.BENAMNING
+                     SATS.ENHET2 = MTRL.ENHET.*/
+                  END.
+                  ELSE DO:
+                     CREATE tidut.      
+                     ASSIGN         
+                     SUBSTRING(tidut.UT,1) = SATS.KOD
+                     SUBSTRING(tidut.UT,14) = SATS.ENR2     
+                     SUBSTRING(tidut.UT,26) = SATS.BENAMNING2                                     
+                     SUBSTRING(tidut.UT,68) = SATS.ENHET2
+                     SUBSTRING(tidut.UT,225) = "P"
+                     raknare = raknare + 1.         
+                  END.
+   
+               END.
+            END.
+         END.
+      END.
+      CLOSE QUERY qmtrl5.
+   END.
+ 
+
+   IF raknare = 0 THEN DO:
+      CREATE tidut.
+      SUBSTRING(tidut.UT,225) = "R".
+      SUBSTRING(tidut.UT,1) = "ALLA ARTIKLAR FÖR LEVERANTÖR " + LEVERANTOR.LEVNAMN + " KOPPLADE TILL KONSTRUKTIONER FINNS I KATALOGEN".
+      SUBSTRING(tidut.UT,225) = "R".
+   END.   
+   IF Guru.Konstanter:globforetag = "VAST"   THEN DO:
+      OUTPUT TO e:\delad\pro9\guru\koll.txt APPEND.
+      PUT "BERKOLLU2.P mtrlkoll klart. " leverant  SUBSTRING(Guru.Konstanter:globforetag,1,10)  STRING(TODAY)  STRING(TIME) SKIP.
+      OUTPUT CLOSE.
+   END.   
+   ELSE IF Guru.Konstanter:globforetag = "FORS" THEN DO:
+      OUTPUT TO C:\DELAD\PRO9\GURU\koll.txt APPEND.
+      PUT "BERKOLLU2.P mtrlkoll klart. " leverant  SUBSTRING(Guru.Konstanter:globforetag,1,10)  STRING(TODAY) SKIP.
+      OUTPUT CLOSE.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "GKAL" THEN DO:
+      OUTPUT TO D:\DELAD\klient\PRO9\koll.txt APPEND.
+      PUT "BERKOLLU2.P mtrlkoll klart. " leverant  SUBSTRING(Guru.Konstanter:globforetag,1,10)  STRING(TODAY) SKIP.
+      OUTPUT CLOSE.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "GRAN" THEN DO:
+      OUTPUT TO d:\elpool\delad\pro9\wrk\koll.txt APPEND.
+      PUT "BERKOLLU2.P mtrlkoll klart. " leverant  SUBSTRING(Guru.Konstanter:globforetag,1,10)  STRING(TODAY) SKIP.
+      OUTPUT CLOSE.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "STRA" THEN DO:
+      OUTPUT TO E:\DELAD\PRO9\koll.txt APPEND.
+      PUT "BERKOLLU2.P mtrlkoll klart. " leverant  SUBSTRING(Guru.Konstanter:globforetag,1,10)  STRING(TODAY) SKIP.
+      OUTPUT CLOSE.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "BORL" THEN DO:
+      OUTPUT TO D:\GURU\PRO9\koll.txt APPEND.
+      PUT "BERKOLLU2.P mtrlkoll klart. " leverant  SUBSTRING(Guru.Konstanter:globforetag,1,10)  STRING(TODAY) SKIP.
+      OUTPUT CLOSE.
+   END.
+END.
+
+PROCEDURE UtbytStart_UI :
+  OPEN QUERY ersq FOR EACH UTBYTESLNAMN, 
+  EACH UTBYTESLISTA WHERE UTBYTESLISTA.UID = UTBYTESLNAMN.UID AND UTBYTESLISTA.ORGENR NE "" AND
+  UTBYTESLISTA.ORGLEVKOD = leverant NO-LOCK.
+  GET FIRST ersq NO-LOCK.
+  DO WHILE AVAILABLE(UTBYTESLISTA):
+     FIND FIRST MTRL WHERE MTRL.LEVKOD = UTBYTESLISTA.ORGLEVKOD AND 
+     MTRL.KALKNR = 0 AND MTRL.ENR = UTBYTESLISTA.ORGENR USE-INDEX LEV NO-LOCK NO-ERROR.
+     IF NOT AVAILABLE MTRL THEN DO:                                                    
+        CREATE tidut.      
+        ASSIGN         
+        SUBSTRING(tidut.UT,1) = "Från"
+        SUBSTRING(tidut.UT,14) = SUBSTRING(UTBYTESLNAMN.UNAMN,1,20) + " " + SUBSTRING(UTBYTESLISTA.ORGENR,1,20)                    
+        SUBSTRING(tidut.UT,225) = "P"
+        raknare = raknare + 1. 
+        FIND FIRST MTRLBER WHERE MTRLBER.ENR = UTBYTESLISTA.ORGENR NO-LOCK NO-ERROR.
+        IF AVAILABLE MTRLBER THEN DO:
+           SUBSTRING(tidut.UT,43) = MTRLBER.BENAMNING.
+        END.
+     END.         
+     GET NEXT ersq NO-LOCK. 
+  END.
+  CLOSE QUERY ersq.
+  
+  OPEN QUERY ersq2 FOR EACH UTBYTESLNAMN, 
+  EACH UTBYTESLISTA WHERE UTBYTESLISTA.UID = UTBYTESLNAMN.UID AND UTBYTESLISTA.BYTTILLENR NE "" AND
+  UTBYTESLISTA.BYTTILLLEVKOD = leverant NO-LOCK.
+  GET FIRST ersq2 NO-LOCK.
+  DO WHILE AVAILABLE(UTBYTESLISTA):
+     FIND FIRST MTRL WHERE MTRL.LEVKOD = UTBYTESLISTA.BYTTILLLEVKOD AND 
+     MTRL.KALKNR = 0 AND MTRL.ENR = UTBYTESLISTA.BYTTILLENR USE-INDEX LEV NO-LOCK NO-ERROR.
+     IF NOT AVAILABLE MTRL THEN DO:                                                    
+        CREATE tidut.      
+        ASSIGN         
+        SUBSTRING(tidut.UT,1) = "Till"
+        SUBSTRING(tidut.UT,14) = SUBSTRING(UTBYTESLNAMN.UNAMN,1,20) + " " + SUBSTRING(UTBYTESLISTA.BYTTILLENR,1,20)                    
+        SUBSTRING(tidut.UT,225) = "P"
+        raknare = raknare + 1. 
+        FIND FIRST MTRLBER WHERE MTRLBER.ENR = UTBYTESLISTA.BYTTILLENR NO-LOCK NO-ERROR.
+        IF AVAILABLE MTRLBER THEN DO:
+           SUBSTRING(tidut.UT,43) = MTRLBER.BENAMNING.
+        END.
+     END.         
+     GET NEXT ersq2 NO-LOCK. 
+  END.
+  CLOSE QUERY ersq2.
+END PROCEDURE.
+
+
+   

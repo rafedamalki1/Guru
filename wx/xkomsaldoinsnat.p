@@ -1,0 +1,123 @@
+   
+   /*INLÄSNING AV kompsaldo*/       
+/*DEFINE NEW SHARED VARIABLE quotervar AS CHARACTER FORMAT "X(256)" NO-UNDO.
+
+
+
+DEFINE VARIABLE gurubilder AS CHARACTER NO-UNDO.
+/*{PROVAG.I} */
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+*/
+DEFINE VARIABLE rad AS INTEGER NO-UNDO.
+DEFINE VARIABLE prognamn AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamndat AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE prognamnque AS CHARACTER FORMAT "X(20)" NO-UNDO.                
+DEFINE VARIABLE words AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE kommando2 AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE kommandoprog AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE satsvar AS CHARACTER FORMAT "X(11)" NO-UNDO.
+DEFINE VARIABLE enrvar AS CHARACTER FORMAT "X(11)" NO-UNDO.
+DEFINE VARIABLE melvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE melvar2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE langd AS INTEGER NO-UNDO.
+DEFINE VARIABLE pos1 AS INTEGER NO-UNDO. 
+DEFINE VARIABLE hjenr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE vald_depa  AS INTEGER NO-UNDO.
+DEFINE TEMP-TABLE tidinah
+   FIELD PERSONNUMMER    AS CHARACTER       
+   FIELD TIMMAR          AS DECIMAL      
+   INDEX PERSONNUMMER IS PRIMARY PERSONNUMMER.
+/*DEFINE TEMP-TABLE infil
+   FIELD PROGNAMN AS CHARACTER FORMAT "X(78)" 
+   INDEX PRO IS PRIMARY PROGNAMN.
+DEFINE TEMP-TABLE intid
+   FIELD TIN AS CHARACTER FORMAT "X(78)" .*/
+   
+DEFINE VARIABLE filnamn AS CHARACTER NO-UNDO.   
+
+
+
+
+FUNCTION klock100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+
+FUNCTION klock60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ):
+  RETURN TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) / 100) * 60 . 
+
+END FUNCTION.
+
+
+
+   
+
+
+FIND FIRST FORETAG NO-LOCK NO-ERROR. 
+ASSIGN   
+/*filnamn = "\\SERVER05\d\elpool\elplo\Sundsvall Elnät\Förslag kompsaldo\startsaldo\fix20180831 Elnät.SKV".*/
+/*filnamn = "c:\fix180831 Elnät.SKV".
+RUN in_UI.
+/*filnamn = "\\SERVER05\d\elpool\elplo\Sundsvall Elnät\Förslag kompsaldo\startsaldo\fix20180831 Servanet.SKV".*/
+filnamn = "c:\fix180831 Servanet.SKV".
+RUN in_UI.*/
+
+filnamn = "c:\fix180831 ElnätEXTRA.SKV".
+RUN in_UI.
+
+PROCEDURE in_UI: 
+   
+   EMPTY TEMP-TABLE tidinah NO-ERROR.
+   
+   INPUT FROM VALUE(filnamn) NO-ECHO.
+   REPEAT:
+      DO TRANSACTION: 
+         CREATE tidinah.
+         ASSIGN.
+         IMPORT DELIMITER ";" tidinah   NO-ERROR.
+      END.               
+   END.
+
+   FOR EACH tidinah WHERE tidinah.PERSONNUMMER = "":
+      DELETE tidinah.
+   END.     
+   OUTPUT TO c:\felKOMP.txt.
+
+   RUN skapaksaldo_UI.           
+   OS-DELETE VALUE(kommando).
+END PROCEDURE.
+
+PROCEDURE skapaksaldo_UI:   
+   FOR EACH tidinah NO-LOCK:                                   
+      DO TRANSACTION:          
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONNUMMER = tidinah.PERSONNUMMER  NO-LOCK NO-ERROR. 
+         IF AVAILABLE PERSONALTAB THEN DO:     
+            FIND FIRST KOMPSALDO WHERE KOMPSALDO.PERSONALKOD = PERSONALTAB.PERSONALKOD           USE-INDEX PKOD EXCLUSIVE-LOCK NO-ERROR.
+            IF NOT AVAILABLE KOMPSALDO  THEN DO:
+               CREATE KOMPSALDO.
+               KOMPSALDO.PERSONALKOD = PERSONALTAB.PERSONALKOD.              
+            END.
+            /*ACCKOMP -    Ingående kompsaldo
+             ACKOMPF -    Förra körningens ACCKOMP
+             PERIODKOMP - Körningens kompsaldo
+             BACKOMP -    Förra körningens PERIODKOMP
+            */                         
+            KOMPSALDO.ACKOMPF = KOMPSALDO.ACCKOMP.
+            KOMPSALDO.ACCKOMP =  klock60(klock100(KOMPSALDO.ACCKOMP) + klock100(KOMPSALDO.PERIODKOMP)).
+            ASSIGN
+            KOMPSALDO.BACKOMP = KOMPSALDO.PERIODKOMP           
+            KOMPSALDO.PERIODKOMP = klock60(tidinah.TIMMAR / 100)           
+            KOMPSALDO.KORDTOM = 08/31/2018.
+         END.
+      END.  
+   END.        
+         
+END PROCEDURE.   
+
+                
+

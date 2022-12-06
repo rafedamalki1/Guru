@@ -1,0 +1,5 @@
+/*PERSONALTEMP.I*/
+DEFINE {&NEW} {&SHARED} TEMP-TABLE personaltemp  NO-UNDO  
+   {PERSONALTT.I}
+   
+

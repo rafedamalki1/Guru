@@ -1,0 +1,99 @@
+/*UTLIGGPDF.P*/
+&Scoped-define NEW 
+{GLOBVAR2DEL1.I}
+
+{REGVAR.I}
+{pdf_StartInc.i}
+
+{TIDUTTTNEW.I}
+
+DEFINE INPUT PARAMETER TABLE FOR tidut.
+
+DEFINE VARIABLE utfil      AS CHARACTER NO-UNDO.
+DEFINE VARIABLE vline     AS INTEGER NO-UNDO.
+DEFINE VARIABLE pnum AS INTEGER NO-UNDO.
+
+DEFINE VARIABLE rb-print AS CHARACTER NO-UNDO.
+rb-print = SESSION:PRINTER-NAME.
+
+ASSIGN
+
+utfil = SESSION:TEMP-DIRECTORY.        
+{SESSIONTEMPDIR.I}
+IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN utfil = webclienttempdir.
+utfil = utfil + STRING(TIME) + "temp.pdf".
+IF Guru.GlobalaVariabler:globsids = 0 THEN Guru.GlobalaVariabler:globsids = 73.
+FIND LAST tidut NO-LOCK NO-ERROR.
+IF AVAILABLE tidut THEN DO: 
+   RUN startpdf_UI.
+   RUN pdf_close IN h_PDFinc ("Spdf").
+   IF VALID-HANDLE(h_PDFinc) THEN DELETE PROCEDURE h_PDFinc NO-ERROR. 
+   h_PDFinc = ?.
+   RUN OPENDOC.P (utfil,"","",NO).
+END.
+
+PROCEDURE startpdf_UI:
+   ASSIGN
+   vline = 0.
+   pnum = 1.
+   RUN pdf_new IN h_PDFinc ("Spdf",utfil).
+   RUN pdf_set_Orientation IN h_PDFinc ("Spdf","Landscape").
+   RUN pdf_set_page IN h_PDFinc ("Spdf",pnum).
+   RUN pdf_set_PaperType IN h_PDFinc ("Spdf","A4").
+   RUN pdf_set_PageHeight IN h_PDFinc ("Spdf",595).
+   RUN pdf_set_LeftMargin IN h_PDFinc ("Spdf",40). /*Dummy*/
+   
+   /* Dokument Information */ 
+   RUN pdf_set_info("Spdf","Author",Guru.Konstanter:globforetag).
+   RUN pdf_set_info("Spdf","Subject","").
+   RUN pdf_set_info("Spdf","Title","").
+   RUN pdf_set_info("Spdf","Keywords","").
+   RUN pdf_set_info("Spdf","Creator","PDFinclude").
+   RUN pdf_set_info("Spdf","Producer","UTLIGGPDF.P").
+   
+   /*Skapa ny sida*/
+   RUN pdf_new_page2 IN h_PDFinc ("Spdf","Landscape").
+   RUN pdf_set_LeftMargin IN h_PDFinc ("Spdf",40).
+   RUN pdf_set_TopMargin IN h_PDFinc ("Spdf",1).
+   /*Sätt font*/
+   RUN pdf_set_font IN h_PDFinc ("Spdf","Courier",10.0).
+   RUN pdf_text_color IN h_PDFinc ("Spdf",0.0,0.0,0.0).
+   
+   FOR EACH tidut NO-LOCK:
+      vline = vline + 1.
+      IF tidut.UT = ? THEN NEXT.
+      IF SUBSTRING(tidut.UT,132,1) = "$" THEN DO:
+         RUN new_page.
+      END.
+      ELSE IF vline >= Guru.GlobalaVariabler:globsidl THEN DO:
+         RUN new_page.
+      END.
+      ELSE DO:
+         RUN pdf_text IN h_PDFinc ("Spdf", tidut.UT).
+         RUN pdf_skip IN h_PDFinc ("Spdf").
+      END.
+   END.
+END.
+
+PROCEDURE new_page.
+   ASSIGN
+   vline = 0
+   pnum = pnum + 1.
+   RUN pdf_set_Orientation IN h_PDFinc ("Spdf","Landscape").
+   RUN pdf_set_page IN h_PDFinc ("Spdf",pnum).
+   RUN pdf_set_PaperType IN h_PDFinc ("Spdf","A4").
+   RUN pdf_set_PageHeight IN h_PDFinc ("Spdf",595).
+
+   RUN pdf_new_page2 IN h_PDFinc ("Spdf","Landscape").
+   RUN pdf_set_LeftMargin IN h_PDFinc ("Spdf",40).
+   RUN pdf_set_TopMargin IN h_PDFinc ("Spdf",1).
+   /*Sätt font*/
+   RUN pdf_set_font IN h_PDFinc ("Spdf","Courier",10.0).
+   RUN pdf_text_color IN h_PDFinc ("Spdf",0.0,0.0,0.0).
+   /*Flytta ner 5 rader*/ 
+   RUN pdf_skipn IN h_PDFinc ("Spdf",5).
+   RUN pdf_text IN h_PDFinc ("Spdf", tidut.UT).
+   RUN pdf_skip IN h_PDFinc ("Spdf").
+   
+END PROCEDURE.
+

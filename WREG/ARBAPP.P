@@ -1,0 +1,286 @@
+/*ARBAPP.P*/
+/*PRIAPP.P*/
+{PRIARBANLTEMP.I}
+{ARBART.I}
+
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(86)" NO-UNDO.    
+{TIDUTTTNEW.I}   
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+ASSIGN Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+{DYNHMT.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{EXTRADATA.I}
+
+
+PROCEDURE arbspara_UI :                         
+   DEFINE INPUT PARAMETER vem AS INTEGER NO-UNDO.           
+   DEFINE INPUT PARAMETER TABLE FOR arbarttemp.             
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.             
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   FIND FIRST arbarttemp NO-ERROR. 
+   RUN namnkoll_UI (INPUT vem,INPUT arbarttemp.ARBARTKOD,OUTPUT TABLE felmeddtemp).                   .     
+   FIND FIRST felmeddtemp NO-ERROR.
+   IF AVAILABLE felmeddtemp THEN RETURN.   
+   DO TRANSACTION:
+      FIND FIRST ARBETSART WHERE ARBETSART.ARBARTKOD = arbarttemp.ARBARTKOD EXCLUSIVE-LOCK NO-ERROR.    
+      IF NOT AVAILABLE ARBETSART THEN CREATE ARBETSART.
+      BUFFER-COPY arbarttemp TO ARBETSART.
+   END.
+   RELEASE ARBETSART NO-ERROR.
+END PROCEDURE.
+
+
+PROCEDURE arbsparafarg_UI :                         
+   DEFINE INPUT PARAMETER arbart AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER farg AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER aktiv AS LOGICAL NO-UNDO.
+   
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.            
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "ARBARTAKTIV"                   
+   inextradatatemp.HUVUDINT = arbart
+   inextradatatemp.SOKINT[1] = farg
+   inextradatatemp.SOKLOG[1] = aktiv.   
+   RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp). 
+END PROCEDURE.
+
+
+PROCEDURE arbspara2_UI :                         
+   DEFINE INPUT PARAMETER vem AS INTEGER NO-UNDO.           
+   DEFINE INPUT PARAMETER TABLE FOR arbarttemp2.             
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.             
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   FIND FIRST arbarttemp2 NO-ERROR. 
+   RUN namnkoll_UI (INPUT vem,INPUT arbarttemp2.ARBARTKOD,OUTPUT TABLE felmeddtemp).                   .     
+   FIND FIRST felmeddtemp NO-ERROR.
+   IF AVAILABLE felmeddtemp THEN RETURN.   
+   DO TRANSACTION:
+      FIND FIRST ARBETSART WHERE ARBETSART.ARBARTKOD = arbarttemp2.ARBARTKOD EXCLUSIVE-LOCK NO-ERROR.    
+      IF NOT AVAILABLE ARBETSART THEN CREATE ARBETSART.
+      BUFFER-COPY arbarttemp2 TO ARBETSART.
+   END.
+   RELEASE ARBETSART NO-ERROR.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.            
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "ARBARTAKTIV"                   
+   inextradatatemp.HUVUDINT = arbarttemp2.ARBARTKOD
+   inextradatatemp.SOKINT[1] = arbarttemp2.FARGKOD
+   inextradatatemp.SOKLOG[1] = arbarttemp2.AKTIV.   
+   RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp). 
+END PROCEDURE.
+PROCEDURE namnkoll_UI :                         
+   DEFINE INPUT PARAMETER vem AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vemsok AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.      
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   IF vem = ? THEN DO:
+      FIND FIRST ARBETSART WHERE ARBETSART.ARBARTKOD = vemsok NO-LOCK NO-ERROR.
+      IF AVAILABLE ARBETSART THEN DO:
+         CREATE felmeddtemp.
+         ASSIGN
+         felmeddtemp.FELMEDD = "Det finns redan en " + LC(Guru.Konstanter:gartk) + " med denna beteckning.".
+         RETURN.
+      END.      
+   END.
+END PROCEDURE.
+
+PROCEDURE arbhmt_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR arbarttemp.   
+   EMPTY TEMP-TABLE arbarttemp NO-ERROR.    
+   ASSIGN
+   nytab      = "arbarttemp"
+   orginaltab = "ARBETSART". 
+   kommandoquery = "FOR EACH " +  orginaltab + " NO-LOCK".       
+   /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE arbarttemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.   
+
+END PROCEDURE.
+
+PROCEDURE arbhmt2_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR arbarttemp2.      
+   EMPTY TEMP-TABLE arbarttemp2 NO-ERROR.    
+   ASSIGN
+   nytab      = "arbarttemp2"
+   orginaltab = "ARBETSART". 
+   kommandoquery = "FOR EACH " +  orginaltab + " NO-LOCK".       
+   /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE arbarttemp2:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.   
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   FOR EACH arbarttemp2:      
+      arbarttemp2.AKTIV = TRUE.
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "ARBARTAKTIV".
+      inextradatatemp.HUVUDINT = arbarttemp2.ARBARTKOD.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      /*RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp).*/
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      /*FIND FIRST extradatatemp WHERE extradatatemp.HUVUDINT = arbarttemp2.ARBARTKOD NO-LOCK NO-ERROR.*/
+      IF AVAILABLE extradatatemp THEN DO: 
+         ASSIGN
+         arbarttemp2.AKTIV = extradatatemp.SOKLOG[1]
+         arbarttemp2.FARGKOD = extradatatemp.SOKINT[1].
+      END.
+   END.
+
+END PROCEDURE.
+
+PROCEDURE hamtaen_UI:
+   DEFINE INPUT PARAMETER vem AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR arbarttemp.     
+   EMPTY TEMP-TABLE arbarttemp NO-ERROR.    
+   IF vem = ? THEN DO:
+      CREATE arbarttemp.
+      RETURN.
+   END.
+
+   ASSIGN
+   nytab      = "arbarttemp"
+   orginaltab = "ARBETSART".
+   kommandoquery = "ARBETSART.ARBARTKOD = " + STRING(vem).
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+   /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE arbarttemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.
+END PROCEDURE.
+
+PROCEDURE hamtaen2_UI:
+   DEFINE INPUT PARAMETER vem AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR arbarttemp2.     
+   EMPTY TEMP-TABLE arbarttemp2 NO-ERROR.    
+   IF vem = ? THEN DO:
+      CREATE arbarttemp2.
+      RETURN.
+   END.
+   FIND FIRST ARBETSART  WHERE ARBETSART.ARBARTKOD = vem NO-LOCK NO-ERROR.
+   IF AVAILABLE ARBETSART THEN DO:
+      CREATE arbarttemp2.
+      BUFFER-COPY ARBETSART TO arbarttemp2.
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.         
+      arbarttemp2.AKTIV = TRUE.
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "ARBARTAKTIV"                   
+      inextradatatemp.HUVUDINT = arbarttemp2.ARBARTKOD.                    
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF AVAILABLE extradatatemp THEN DO: 
+         ASSIGN
+         arbarttemp2.AKTIV = extradatatemp.SOKLOG[1]
+         arbarttemp2.FARGKOD = inextradatatemp.SOKINT[1].
+      END.                   
+   END.
+   /*ASSIGN
+   nytab      = "arbarttemp2"
+   orginaltab = "ARBETSART".
+   kommandoquery = "ARBETSART.ARBARTKOD = " + STRING(vem).
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".       
+   /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE arbarttemp2:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.*/
+   
+ END PROCEDURE.
+
+PROCEDURE arbbort_UI:
+   DEFINE INPUT PARAMETER vem AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.      
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   FIND FIRST ARBETSART WHERE ARBETSART.ARBARTKOD = vem NO-LOCK NO-ERROR.
+   DO TRANSACTION:
+      FIND CURRENT ARBETSART EXCLUSIVE-LOCK NO-ERROR.   
+      DELETE ARBETSART.
+   END.   
+END PROCEDURE.
+
+PROCEDURE arbbort2_UI:
+   DEFINE INPUT PARAMETER vem AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.      
+   EMPTY TEMP-TABLE felmeddtemp NO-ERROR.    
+   FIND FIRST ARBETSART WHERE ARBETSART.ARBARTKOD = vem NO-LOCK NO-ERROR.
+   DO TRANSACTION:
+      FIND CURRENT ARBETSART EXCLUSIVE-LOCK NO-ERROR.   
+      DELETE ARBETSART.
+   END.   
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph.         
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "ARBARTAKTIV"                   
+   inextradatatemp.HUVUDINT = vem.   
+   RUN exbort_UI IN edataapph (INPUT TABLE inextradatatemp).           
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+END PROCEDURE.
+
+
+PROCEDURE visaalla_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.   
+   EMPTY TEMP-TABLE tidut NO-ERROR.    
+   str = "=========.==================================".
+   EMPTY TEMP-TABLE tidut NO-ERROR.    
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:gartk)
+   SUBSTRING(tidut.UT,30) = STRING(TODAY).
+   CREATE tidut.
+   CREATE tidut.            
+   SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:gartk).
+   SUBSTRING(tidut.UT,11) = "BENÄMNING".                                
+   CREATE tidut.
+   ASSIGN tidut.UT = str.
+   OPEN QUERY arbq FOR EACH ARBETSART USE-INDEX ARB NO-LOCK.
+   GET FIRST arbq NO-LOCK.
+   DO WHILE AVAILABLE(ARBETSART):
+      CREATE tidut.
+      SUBSTRING(tidut.UT,1) = STRING(ARBETSART.ARBARTKOD).  
+      SUBSTRING(tidut.UT,11) = ARBETSART.ARBBENAMNING.           
+      GET NEXT arbq NO-LOCK.
+   END.                    
+   CLOSE QUERY arbq.
+   
+END PROCEDURE.
+PROCEDURE visaalla2_UI:
+   DEFINE INPUT PARAMETER TABLE FOR arbarttemp2.   
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.   
+   EMPTY TEMP-TABLE tidut NO-ERROR.    
+   str = "=========.==================================.========".
+   EMPTY TEMP-TABLE tidut NO-ERROR.    
+   CREATE tidut.
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:gartk) 
+   SUBSTRING(tidut.UT,30) = STRING(TODAY).
+   CREATE tidut.
+   CREATE tidut.            
+   SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:gartk).
+   SUBSTRING(tidut.UT,11) = "BENÄMNING".                                
+   SUBSTRING(tidut.UT,46) = "AKTIV".                                
+   CREATE tidut.
+   ASSIGN tidut.UT = str.
+   OPEN QUERY arbq FOR EACH arbarttemp2 USE-INDEX ARB NO-LOCK.
+   GET FIRST arbq NO-LOCK.
+   DO WHILE AVAILABLE(arbarttemp2):
+      CREATE tidut.
+      SUBSTRING(tidut.UT,1) = STRING(arbarttemp2.ARBARTKOD).  
+      SUBSTRING(tidut.UT,11) = arbarttemp2.ARBBENAMNING.           
+      SUBSTRING(tidut.UT,46) = STRING(arbarttemp2.AKTIV,"Ja/Nej").           
+      GET NEXT arbq NO-LOCK.
+   END.                    
+   CLOSE QUERY arbq.
+   
+END PROCEDURE.

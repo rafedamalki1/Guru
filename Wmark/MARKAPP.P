@@ -1,0 +1,63 @@
+/*
+     Filename: MARKAPP.P
+      Created: 03.04.0007 15:31ELPAO     
+     Modified: 
+*/
+
+DEFINE VARIABLE retvalue AS LOGICAL NO-UNDO.
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{SOKDEF.I}
+{MARKTEMP.I}
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valsoktemp.
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR urvardtemp. 
+{DYNHMT.I}
+
+FIND FIRST valsoktemp NO-ERROR.
+IF NOT AVAILABLE valsoktemp THEN RETURN NO-APPLY.
+IF valsoktemp.SOKVAL = 1 THEN DO: /*Hämtar flera poster, urvalssökning*/
+   EMPTY TEMP-TABLE urvardtemp NO-ERROR.    
+   FIND FIRST VARDERING NO-LOCK NO-ERROR. 
+   IF AVAILABLE VARDERING THEN DO:
+      IF STRING(valsoktemp.SOKCHAR[1]) NE "ALLA" THEN DO:
+         kommandoquery = kommandoquery + " VARDERING.OMRADE = " + 
+            """" + STRING(valsoktemp.SOKCHAR[1]) + """".
+      END.
+      IF STRING(valsoktemp.SOKCHAR[2]) NE "Alla" THEN DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " SUBSTRING(VARDERING.ANVANDARE,1,39) = " + 
+            """" + STRING(valsoktemp.SOKCHAR[2]) + """".
+      END.
+      IF STRING(valsoktemp.SOKCHAR[3]) NE "" THEN DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " VARDERING.VARDANV = " + 
+            """" + STRING(valsoktemp.SOKCHAR[3]) + """".
+      END.
+      IF valsoktemp.SOKLOG[1] = valsoktemp.SOKLOG[2] THEN DO:         
+      END.
+      ELSE IF valsoktemp.SOKLOG[1] = TRUE THEN DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " VARDERING.AKTIV = TRUE".
+      END.
+      ELSE DO:
+         RUN and_UI.
+         kommandoquery = kommandoquery + " VARDERING.AKTIV = FALSE".
+      END.  
+      RUN skapaq_UI.
+   END.
+
+END.
+RUN objdelete_UI.
+PROCEDURE skapaq_UI :
+   ASSIGN
+   nytab      = "urvardtemp"
+   orginaltab = "VARDERING".
+   ASSIGN
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".   
+/*    MESSAGE kommandoquery. */
+   /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE urvardtemp:DEFAULT-BUFFER-HANDLE.
+   ASSIGN extratemptabh2 = TEMP-TABLE valsoktemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).
+
+END PROCEDURE.

@@ -1,0 +1,288 @@
+/*EXPROTOU.P*/
+{TIDUTTTNEW.I}
+DEFINE INPUT PARAMETER excellista AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR tidut.
+DEFINE NEW SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE kommando2 AS CHARACTER FORMAT "X(20)" NO-UNDO.
+
+DEFINE VARIABLE bladvar2 AS INTEGER NO-UNDO.
+DEFINE VARIABLE protvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 0.
+DEFINE VARIABLE fnamn AS CHARACTER NO-UNDO.
+{GLOBVAR2DEL1.I}
+&SCOPED-DEFINE NEW NEW
+&SCOPED-DEFINE SHARED SHARED
+{BLOB.I}
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE blobproch AS HANDLE NO-UNDO.
+{EXECLIN.I}
+Guru.Konstanter:globforetag = gforetag.
+fnamn = "vprotokoll.XLS".
+/*IF Guru.Konstanter:globforetag = "UMEA" OR Guru.Konstanter:globforetag = "ELPA" THEN fnamn = "vprotokoll.XLS".
+ELSE fnamn = "vprotokoll.XLS".*/
+IF Guru.Konstanter:appcon THEN RUN FINNSTABELL.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT (INPUT "BLOBINFO", OUTPUT bloblog).
+ELSE RUN FINNSTABELL.P (INPUT "BLOBINFO", OUTPUT bloblog).
+IF bloblog = TRUE THEN DO:
+   {FINNSDYNBLOB.I}
+   DEFINE VARIABLE resid AS INTEGER NO-UNDO.
+   RUN blobfil_UI IN blobproch (INPUT fnamn, OUTPUT resid).
+   IF resid = ? THEN DO:
+      kommando = SEARCH(fnamn).      
+   END.
+   ELSE DO:
+      FIND FIRST blobinfotemp WHERE blobinfotemp.ID = resid NO-LOCK NO-ERROR.
+      RUN blobopen_UI IN blobproch (INPUT blobinfotemp.FILNAMN, OUTPUT kommando).      
+   END.
+   RUN deleteproc_UI IN blobproch.
+   IF VALID-HANDLE(blobproch) THEN DELETE PROCEDURE blobproch NO-ERROR.
+END.
+ELSE kommando = SEARCH(fnamn).   
+IF kommando = ? THEN DO:
+   MESSAGE "Hittade inte " fnamn VIEW-AS ALERT-BOX.
+   RETURN.       
+END.   
+kommando2 = SESSION:TEMP-DIRECTORY + Guru.Konstanter:globanv + "\".
+{SESSIONTEMPDIR.I}
+IF SESSION:CLIENT-TYPE = "WEBCLIENT" THEN kommando2 = webclienttempdir.
+
+OS-CREATE-DIR VALUE(kommando2) NO-ERROR.
+IF Guru.GlobalaVariabler:plusaonr = "" OR Guru.GlobalaVariabler:plusaonr = ? THEN DO:
+   kommando2 = kommando2 + fnamn.
+END.
+ELSE DO:
+   kommando2 = kommando2 + TRIM (Guru.GlobalaVariabler:plusaonr) + TRIM(STRING(Guru.GlobalaVariabler:plusdnr,Guru.Konstanter:varforetypchar[1])) + fnamn.
+END.
+
+OS-COPY VALUE(kommando) VALUE(kommando2).
+kommando = kommando2.
+/*RUN startexcel_UI.*/
+
+CREATE "Excel.Application" chExcelApplication.
+chExcelApplication:Visible = TRUE.
+{OPENEXCEL.I}
+chWorkbook = chExcelApplication:Workbooks:OPEN(kommando).
+
+chWorkSheet = chExcelApplication:Sheets:Item(1) NO-ERROR.
+antalbladstart = 2.
+RUN sambilagor_UI.
+{EXCELFEL.I}
+RUN slutexcel_UI.
+
+{EXCELFEL.I}
+PROCEDURE sambilagor_UI:
+   protvar = 1.
+   bladvar2 = 0.
+   
+   FIND FIRST tidut WHERE SUBSTRING(tidut.UT,45,14) = "Utskriftsdatum" NO-LOCK NO-ERROR.
+   IF AVAILABLE tidut THEN DO:
+      /*sammanställning och bilagor*/
+      RUN samman_UI.
+      {EXCELFEL.I}   
+      REPEAT:
+         IF NOT AVAILABLE tidut THEN LEAVE.
+         iRad = 1.
+         RUN bilagor_UI. /*även ytterligare sammanställningar om flera markägare valts*/      
+         {EXCELFEL.I}   
+      END.   
+   END.
+   ELSE DO:
+      /*enskild bilaga*/
+      FIND FIRST tidut NO-LOCK NO-ERROR.
+      REPEAT:
+         IF NOT AVAILABLE tidut THEN LEAVE.
+         FIND NEXT tidut NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE tidut THEN LEAVE.
+         ELSE FIND PREV tidut NO-LOCK.     
+         iRad = 1.
+         RUN bilagor1_UI. /*även ytterligare sammanställningar om flera markägare valts*/
+         {EXCELFEL.I}         
+         
+      END.
+   END.
+END.
+
+PROCEDURE samman_UI:
+   /*Vilka kolumner*/
+   ASSIGN
+   startc = "B"
+   slutc = "E"
+   slutbredd = 15
+   utnr[1] = 1
+   utnr[2] = 48
+   utnr[3] = 62
+   utnr[4] = 76.
+   ASSIGN
+   estartnr[1] = 1
+   estartnr[2] = 41
+   estartnr[3] = 54
+   estartnr[4] = 67.   
+   bladvar = 0.
+   RUN nyttbladexcel_UI.
+   chWorkSheet:Name = "Sammanst" NO-ERROR.   
+   IF Guru.Konstanter:globforetag = "CUMEA" OR Guru.Konstanter:globforetag = "CUMBR" THEN DO:     
+     RUN imageexcel2_UI.
+   END.
+   /*Rubriker*/
+   FIND FIRST tidut NO-LOCK.
+   REPEAT:
+      IF NOT AVAILABLE tidut  THEN LEAVE.
+      IF SUBSTRING(tidut.UT,132) = "$" THEN LEAVE.
+      IF SUBSTRING(tidut.UT,88,1) = "I" THEN SUBSTRING(tidut.UT,88,1) = " ".
+      IF SUBSTRING(tidut.UT,30,8) = " IFYLLES"  THEN DO:
+         /*Courier New*/
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 8,INPUT TRUE,INPUT 12,INPUT 0).
+      END.      
+      ELSE IF SUBSTRING(tidut.UT,5,37) = "V Ä R D E R I N G S P R O T O K O L L"  THEN DO:        
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 10,INPUT TRUE,INPUT 12,INPUT 0).         
+      END.
+      ELSE IF SUBSTRING(tidut.UT,30,37) = "V Ä R D E R I N G S P R O T O K O L L"  THEN DO:        
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 10,INPUT TRUE,INPUT 12,INPUT 0).         
+      END.
+      ELSE IF SUBSTRING(tidut.UT,5,5) = "=====" THEN DO:
+         musz = musz.
+      END.      
+      ELSE IF SUBSTRING(tidut.UT,5,5) = "_____"  THEN DO:
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 8,INPUT FALSE,INPUT 3,INPUT 0).
+      END.
+      ELSE IF SUBSTRING(tidut.UT,4,5) = " ----" THEN DO:
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 10,INPUT TRUE,INPUT 9,INPUT 0).
+      END.      
+      ELSE IF SUBSTRING(tidut.UT,5,5) = "-----" THEN DO:
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 8,INPUT TRUE,INPUT 9,INPUT 0).
+      END.
+      ELSE DO:
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 8,INPUT FALSE,INPUT 12,INPUT 0).
+      END.     
+      {EXCELFEL.I}
+      FIND NEXT tidut NO-LOCK.            
+   END.   
+END PROCEDURE.
+PROCEDURE bilagor_UI:
+   /*Vilka kolumner*/
+   ASSIGN
+   startc = "A"
+   slutc = "C"
+   slutbredd = 3
+   utnr[1] = 1
+   utnr[2] = 66
+   utnr[3] = 74.
+   FIND NEXT tidut NO-LOCK.
+   IF AVAILABLE tidut  THEN DO:   
+      RUN nyttbladexcel_UI.
+      IF SUBSTRING(tidut.UT,45,14) = "Utskriftsdatum" THEN DO:
+        protvar = protvar + 1.
+        IF protvar > 1  THEN chWorkSheet:Name = STRING(protvar) + "-Sammanst" NO-ERROR.   
+        ELSE chWorkSheet:Name = "Sammanst" NO-ERROR.   
+      END.
+      ELSE DO:                
+          IF protvar > 1  THEN chWorkSheet:Name = STRING(protvar) + "-bilaga " + SUBSTRING(tidut.UT,56,1) NO-ERROR.
+          ELSE chWorkSheet:Name = "bilaga " + SUBSTRING(tidut.UT,56,1) NO-ERROR.         
+      END.
+   END.
+   {EXCELFEL.I}
+   /*Rubriker*/   
+   REPEAT:
+      IF NOT AVAILABLE tidut THEN LEAVE.      
+      IF SUBSTRING(tidut.UT,88,1) = "I" THEN SUBSTRING(tidut.UT,88,1) = " ".
+      IF SUBSTRING(tidut.UT,30,8) = " IFYLLES"  THEN DO:
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 8,INPUT TRUE,INPUT 12,INPUT 0).
+      END.
+      ELSE IF SUBSTRING(tidut.UT,5,37) = "V Ä R D E R I N G S P R O T O K O L L"  THEN DO:
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 10,INPUT TRUE,INPUT 12,INPUT 0).
+      END.
+      ELSE IF SUBSTRING(tidut.UT,30,37) = "V Ä R D E R I N G S P R O T O K O L L"  THEN DO:
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 10,INPUT TRUE,INPUT 12,INPUT 0).
+      END.
+      ELSE IF SUBSTRING(tidut.UT,5,5) = "=====" THEN musz = musz.      
+      ELSE IF SUBSTRING(tidut.UT,5,5) = "_____"  THEN DO:
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 8,INPUT FALSE,INPUT 3,INPUT 0).
+      END.
+      ELSE IF SUBSTRING(tidut.UT,4,5) = " ----" THEN DO:
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 10,INPUT TRUE,INPUT 9,INPUT 0).
+      END.
+      ELSE IF SUBSTRING(tidut.UT,5,5) = "-----" THEN DO:
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 8,INPUT TRUE,INPUT 9,INPUT 0).
+      END.
+      ELSE DO:         
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 8,INPUT FALSE,INPUT 12,INPUT 0).
+      END.
+      {EXCELFEL.I}
+      FIND NEXT tidut NO-LOCK.   
+      IF NOT AVAILABLE tidut THEN LEAVE.      
+      IF SUBSTRING(tidut.UT,132) = "$" THEN DO: 
+         /*RELEASE OBJECT chWorksheet NO-ERROR.*/
+         LEAVE.      
+      END.
+   END.
+   
+END PROCEDURE.
+PROCEDURE bilagor1_UI:
+   /*Vilka kolumner*/
+   ASSIGN
+   startc = "A"
+   slutc = "C"
+   slutbredd = 3
+   utnr[1] = 1
+   utnr[2] = 66
+   utnr[3] = 74.   
+   IF AVAILABLE tidut  THEN DO:   
+      RUN nyttbladexcel_UI.       
+      IF protvar > 1  THEN chWorkSheet:Name = STRING(protvar) + "-bilaga " + SUBSTRING(tidut.UT,56,1) NO-ERROR.
+      ELSE chWorkSheet:Name = "bilaga " + SUBSTRING(tidut.UT,56,1) NO-ERROR.           
+      {EXCELFEL.I}
+   END.
+   /*Rubriker*/   
+   REPEAT:
+      IF NOT AVAILABLE tidut THEN LEAVE.      
+      IF SUBSTRING(tidut.UT,88,1) = "I" THEN SUBSTRING(tidut.UT,88,1) = " ".
+      IF SUBSTRING(tidut.UT,30,8) = " IFYLLES"  THEN DO:
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 8,INPUT TRUE,INPUT 12,INPUT 0).
+      END.
+      ELSE IF SUBSTRING(tidut.UT,5,37) = "V Ä R D E R I N G S P R O T O K O L L"  THEN DO:
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 10,INPUT TRUE,INPUT 12,INPUT 0).
+      END.
+      ELSE IF SUBSTRING(tidut.UT,30,37) = "V Ä R D E R I N G S P R O T O K O L L"  THEN DO:
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 10,INPUT TRUE,INPUT 12,INPUT 0).
+      END.
+      ELSE IF SUBSTRING(tidut.UT,5,5) = "=====" THEN musz = musz.      
+      ELSE IF SUBSTRING(tidut.UT,5,5) = "_____"  THEN DO:
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 8,INPUT FALSE,INPUT 3,INPUT 0).
+      END.
+      ELSE IF SUBSTRING(tidut.UT,4,5) = " ----" THEN DO:
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 10,INPUT TRUE,INPUT 9,INPUT 0).
+      END.      
+      ELSE IF SUBSTRING(tidut.UT,5,5) = "-----" THEN DO:
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 8,INPUT TRUE,INPUT 9,INPUT 0).
+      END.
+      ELSE DO:         
+         RUN rubrikerexcel_UI (INPUT tidut.UT,INPUT "Courier New",INPUT 8,INPUT FALSE,INPUT 12,INPUT 0).
+      END.
+      {EXCELFEL.I}
+      FIND NEXT tidut NO-LOCK.   
+      IF NOT AVAILABLE tidut THEN LEAVE.      
+      IF SUBSTRING(tidut.UT,132) = "$" THEN DO:
+         /*RELEASE OBJECT chWorksheet NO-ERROR.*/
+         LEAVE.      
+      END.
+   END.
+   
+END PROCEDURE.
+
+
+PROCEDURE imageexcel2_UI:
+   ASSIGN iColumn = iColumn + 1.
+   chWorkSheet:rows(iColumn):SELECT NO-ERROR.
+   link = Guru.Konstanter:gurubilder + "Umea Energi.gif".
+   IF link NE  ? THEN DO:
+      chWorksheetRange = chWorkSheet:Pictures:INSERT(link) NO-ERROR.
+      chWorksheetRange:TOP = 1 NO-ERROR.
+      chWorksheetRange:LEFT = 1 NO-ERROR.
+   END.
+   chExcelApplication:VISIBLE = TRUE NO-ERROR.
+   ASSIGN iColumn = iColumn + 7.
+   {EXCELFEL.I}
+END PROCEDURE.
+
+

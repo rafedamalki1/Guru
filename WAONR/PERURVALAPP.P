@@ -1,0 +1,173 @@
+/*PERURVALAPP.P*/
+{STARTFORAPP.I}
+
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{PHMT.I}
+{OMRTEMPW.I}
+{BOLAGSEKSTART.I}
+{SOKDEF.I}
+ 
+DEFINE TEMP-TABLE perstill    
+   FIELD EFTERNAMN LIKE PERSONALTAB.EFTERNAMN 
+   FIELD FORNAMN LIKE PERSONALTAB.FORNAMN 
+   FIELD PERSONALKOD LIKE PERSONALTAB.PERSONALKOD   
+   FIELD PERSTILLREC AS RECID  
+   FIELD OMRADE LIKE PERSONALTAB.OMRADE
+   FIELD ANSVARIGTIDR LIKE PERSONALTAB.ANSVARIGTIDR
+   INDEX PERSONALKOD IS PRIMARY PERSONALKOD ASCENDING. 
+
+
+
+DEFINE QUERY till FOR LONTILL. 
+DEFINE QUERY persq FOR PERSONALTAB.
+PROCEDURE anvglob_UI :
+   DEFINE INPUT PARAMETER anvglob AS CHARACTER NO-UNDO.
+   /*Guru.Konstanter:globanv = anvglob.*/
+END PROCEDURE.
+PROCEDURE ladda_UI :
+   DEFINE INPUT PARAMETER sektidkoll AS LOGICAL NO-UNDO.   
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR personaltemp.
+   EMPTY TEMP-TABLE personaltemp NO-ERROR.
+   IF Guru.Konstanter:varforetypval[18] = 0 OR Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)   THEN DO:    
+      FOR EACH PERSONALTAB NO-LOCK:
+         CREATE personaltemp.
+         BUFFER-COPY PERSONALTAB TO personaltemp.         
+         IF sektidkoll = TRUE THEN DO:
+            FIND FIRST valsoktemp WHERE valsoktemp.SOKVAL = 1 NO-ERROR.
+            IF valsoktemp.SOKINT[1] NE 0 THEN DO:
+               FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = valsoktemp.SOKCHAR[1] AND
+               TIDSEK.PERSONALKOD = personaltemp.PERSONALKOD AND TIDSEK.PANDRA = TRUE USE-INDEX TIDSEK NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE TIDSEK THEN DO: 
+                  DELETE personaltemp.                  
+               END.                 
+            END.               
+         END.
+         IF AVAILABLE personaltemp THEN Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+      END.
+      {GDPRLOGGCLIENT.I}
+      RETURN.
+   END.
+   FOR EACH BOLAGSEK WHERE BOLAGSEK.ANVANDARE = Guru.Konstanter:globanv NO-LOCK,
+   EACH omvtemp WHERE omvtemp.JUDID = BOLAGSEK.OMRADE,
+   EACH PERSONALTAB WHERE PERSONALTAB.OMRADE = omvtemp.OMRADE NO-LOCK:
+      CREATE personaltemp.
+      BUFFER-COPY PERSONALTAB TO personaltemp.
+      IF sektidkoll = TRUE THEN DO:
+         FIND FIRST valsoktemp WHERE valsoktemp.SOKVAL = 1 NO-ERROR.
+         IF valsoktemp.SOKINT[1] NE 0 THEN DO:
+            FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = valsoktemp.SOKCHAR[1] AND
+            TIDSEK.PERSONALKOD = personaltemp.PERSONALKOD AND TIDSEK.PANDRA = TRUE USE-INDEX TIDSEK NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE TIDSEK THEN DO: 
+               DELETE personaltemp.                  
+            END.                 
+         END.               
+      END.         
+      IF AVAILABLE personaltemp THEN Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+   END.   
+    {GDPRLOGGCLIENT.I}
+   RETURN.
+
+END PROCEDURE.
+
+PROCEDURE omr_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR omrtemp.
+   EMPTY TEMP-TABLE omrtemp NO-ERROR. 
+   FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.      
+   OPEN QUERY oq FOR EACH OMRADETAB WHERE OMRADETAB.ELVOMRKOD = 0 USE-INDEX OMR NO-LOCK.
+   GET FIRST oq NO-LOCK.
+   DO WHILE AVAILABLE(OMRADETAB):
+      CREATE omrtemp.
+      ASSIGN
+      omrtemp.OMRADE = OMRADETAB.OMRADE
+      omrtemp.NAMN = OMRADETAB.NAMN  
+      omrtemp.AVDELNINGNR = OMRADETAB.AVDELNINGNR.
+      GET NEXT oq NO-LOCK.
+   END.
+   IF Guru.Konstanter:varforetypval[18] = 0 OR Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)   THEN RETURN.
+   
+   FOR EACH omrtemp,
+   EACH omvtemp WHERE omvtemp.OMRADE = omrtemp.OMRADE:
+      FIND FIRST BOLAGSEK WHERE BOLAGSEK.ANVANDARE = Guru.Konstanter:globanv AND BOLAGSEK.OMRADE = omvtemp.JUDID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BOLAGSEK THEN DO:
+         DELETE omrtemp.
+      END.  
+   END.
+END PROCEDURE.
+
+/*PERSKAP*/
+PROCEDURE perskap_UI :   
+   DEFINE INPUT PARAMETER sektidkoll AS LOGICAL NO-UNDO.   
+   DEFINE INPUT PARAMETER TABLE FOR valsoktemp.
+   DEFINE INPUT PARAMETER allval AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER pansv LIKE ANSVARIGTAB.PERSONALKOD NO-UNDO.
+   DEFINE INPUT PARAMETER pomr LIKE OMRADETAB.OMRADE NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR perstill .
+   EMPTY TEMP-TABLE perstill NO-ERROR. 
+   IF allval = 2 THEN DO:
+      OPEN QUERY persq FOR EACH PERSONALTAB WHERE PERSONALTAB.OMRADE = pomr
+      USE-INDEX OMR NO-LOCK.
+      GET FIRST persq NO-LOCK.            
+      DO WHILE AVAILABLE(PERSONALTAB):     
+         CREATE perstill.
+         ASSIGN    
+         perstill.PERSTILLREC = RECID(PERSONALTAB)
+         perstill.PERSONALKOD = PERSONALTAB.PERSONALKOD
+         perstill.EFTERNAMN = PERSONALTAB.EFTERNAMN 
+         perstill.OMRADE = PERSONALTAB.OMRADE
+         perstill.ANSVARIGTIDR = PERSONALTAB.ANSVARIGTIDR
+         perstill.FORNAMN = PERSONALTAB.FORNAMN.
+         IF sektidkoll = TRUE THEN DO:
+            FIND FIRST valsoktemp WHERE valsoktemp.SOKVAL = 1 NO-ERROR.
+            IF valsoktemp.SOKINT[1] NE 0 THEN DO:
+               FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = valsoktemp.SOKCHAR[1] AND
+               TIDSEK.PERSONALKOD = perstill.PERSONALKOD AND TIDSEK.PANDRA = TRUE USE-INDEX TIDSEK NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE TIDSEK THEN DO: 
+                  DELETE perstill.                  
+               END.                 
+            END.               
+         END.
+         
+                    
+         GET NEXT persq NO-LOCK.          
+      END.   
+      CLOSE QUERY persq.  
+   END.   
+   IF allval = 3 THEN DO:
+      OPEN QUERY persq FOR EACH PERSONALTAB USE-INDEX PERSONALKOD NO-LOCK.
+      GET FIRST persq NO-LOCK.
+      DO WHILE AVAILABLE(PERSONALTAB):            
+         CREATE perstill.
+         ASSIGN    
+         perstill.PERSTILLREC = RECID(PERSONALTAB)
+         perstill.PERSONALKOD = PERSONALTAB.PERSONALKOD
+         perstill.EFTERNAMN = PERSONALTAB.EFTERNAMN
+         perstill.OMRADE = PERSONALTAB.OMRADE
+         perstill.ANSVARIGTIDR = PERSONALTAB.ANSVARIGTIDR
+         perstill.FORNAMN = PERSONALTAB.FORNAMN.
+         IF sektidkoll = TRUE THEN DO:
+            FIND FIRST valsoktemp WHERE valsoktemp.SOKVAL = 1 NO-ERROR.
+            IF valsoktemp.SOKINT[1] NE 0 THEN DO:
+               FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = valsoktemp.SOKCHAR[1] AND
+               TIDSEK.PERSONALKOD = perstill.PERSONALKOD AND TIDSEK.PANDRA = TRUE USE-INDEX TIDSEK NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE TIDSEK THEN DO: 
+                  DELETE perstill.                  
+               END.                 
+            END.               
+         END.          
+         GET NEXT persq NO-LOCK.
+      END. 
+      CLOSE QUERY persq.       
+   END.   
+   IF Guru.Konstanter:varforetypval[18] = 0 OR Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79)   THEN RETURN.
+   FOR EACH perstill,
+   EACH omvtemp WHERE omvtemp.OMRADE = perstill.OMRADE:
+      FIND FIRST BOLAGSEK WHERE BOLAGSEK.ANVANDARE = Guru.Konstanter:globanv AND BOLAGSEK.OMRADE = omvtemp.JUDID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE BOLAGSEK THEN DO:
+         DELETE perstill.
+      END.  
+      ELSE Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + perstill.PERSONALKOD.
+   END.
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.

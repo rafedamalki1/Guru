@@ -1,0 +1,94 @@
+/*KODSKAP2.P*/
+&Scoped-define NEW
+&Scoped-define SHARED 
+{KODERAVT.I}
+
+/*DEFINE TEMP-TABLE koder 
+   FIELD LONTILLAGG LIKE LONTILL.LONTILLAGG
+   FIELD VILART LIKE LONTILL.LONTILLAGG
+   FIELD LONKODTEXT LIKE LONTILL.LONKODTEXT
+   FIELD ENHET LIKE LONTILL.ENHET 
+   INDEX LONTILLAGG IS PRIMARY LONTILLAGG ASCENDING.*/ 
+DEFINE VARIABLE buff LIKE LONTILL.LONTILLAGG. 
+DEFINE INPUT PARAMETER slart AS INTEGER.
+DEFINE OUTPUT PARAMETER TABLE FOR koder .
+IF slart = 1 THEN DO:
+
+   buff = " ".   
+   OPEN QUERY till FOR EACH LONTILL WHERE LONTILL.VALBAR = TRUE BY LONTILL.VILART.
+   GET FIRST till NO-LOCK.   
+   DO WHILE AVAILABLE(LONTILL):
+      IF LONTILL.VILART NE buff THEN DO:  
+         CREATE koder.   
+         ASSIGN
+         koder.VILART = LONTILL.VILART
+         koder.LONTILLAGG = LONTILL.LONTILLAGG
+         koder.LONKODTEXT = LONTILL.LONKODTEXT 
+         koder.ENHET = LONTILL.ENHET     
+         koder.VALBAR = LONTILL.VALBAR    
+         buff = LONTILL.VILART. 
+      END.   
+      GET NEXT till NO-LOCK.      
+   END.
+   CLOSE QUERY till.
+END.
+IF slart = 2 THEN DO:
+
+   buff = " ".   
+   OPEN QUERY berq FOR EACH BERKOD WHERE BERKOD.VALBAR = TRUE BY BERKOD.VILART.
+   GET FIRST berq NO-LOCK.   
+   DO WHILE AVAILABLE(BERKOD):
+      IF BERKOD.VILART NE buff THEN DO:  
+         CREATE koder.   
+         ASSIGN
+         koder.VILART = BERKOD.VILART
+         koder.LONTILLAGG = BERKOD.BEREDSKAP
+         koder.LONKODTEXT = BERKOD.LONKODTEXT 
+         koder.ENHET = BERKOD.ENHET   
+         koder.VALBAR = BERKOD.VALBAR      
+         buff = BERKOD.VILART. 
+      END.   
+      GET NEXT berq NO-LOCK.      
+   END.
+   CLOSE QUERY berq.
+END.
+IF slart = 3 THEN DO:
+
+   buff = " ".   
+   OPEN QUERY traq FOR EACH TRAKTATAB WHERE TRAKTATAB.VALBAR = TRUE BY TRAKTATAB.VILART.
+   GET FIRST traq NO-LOCK.   
+   DO WHILE AVAILABLE(TRAKTATAB):
+      IF TRAKTATAB.VILART NE buff THEN DO:  
+         CREATE koder.   
+         ASSIGN
+         koder.VILART = TRAKTATAB.VILART
+         koder.LONTILLAGG = TRAKTATAB.TRAKTKOD
+         koder.LONKODTEXT = TRAKTATAB.FORKL 
+         koder.ENHET = "ST"         
+         koder.VALBAR = TRAKTATAB.VALBAR     
+         buff = TRAKTATAB.VILART. 
+      END.   
+      GET NEXT traq NO-LOCK.      
+   END.
+   CLOSE QUERY traq.
+END.
+IF slart = 4 THEN DO:
+
+   buff = " ".   
+   OPEN QUERY overq FOR EACH OVERKOD WHERE OVERKOD.VALBAR = TRUE BY OVERKOD.VILART.
+   GET FIRST overq NO-LOCK.   
+   DO WHILE AVAILABLE(OVERKOD):
+      IF OVERKOD.VILART NE buff THEN DO:  
+         CREATE koder.   
+         ASSIGN
+         koder.VILART = OVERKOD.VILART
+         koder.LONTILLAGG = OVERKOD.OVERTIDTILL
+         koder.LONKODTEXT = OVERKOD.LONKODTEXT 
+         koder.ENHET = OVERKOD.ENHET   
+         koder.VALBAR = OVERKOD.VALBAR       
+         buff = OVERKOD.VILART. 
+      END.   
+      GET NEXT overq NO-LOCK.      
+   END.
+   CLOSE QUERY overq.
+END.

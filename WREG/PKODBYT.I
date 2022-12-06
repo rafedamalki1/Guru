@@ -1,0 +1,93 @@
+
+/*------------------------------------------------------------------------
+    File        : PKODBYT.I
+    Purpose     : 
+
+    Syntax      :
+
+    Description : 
+
+    Author(s)   : 
+    Created     : Tue Aug 08 10:31:39 CEST 2017
+    Notes       :
+  ----------------------------------------------------------------------*/
+DEFINE VARIABLE sokv AS CHARACTER NO-UNDO.
+IF _File._File-name = "AONRTAB" THEN DO:
+         FOR EACH AONRTAB WHERE AONRTAB.STARTDAG =  gfalth:BUFFER-VALUE:
+            AONRTAB.STARTDAG =  Nyvarde.
+         END.
+         FOR EACH AONRTAB WHERE AONRTAB.ARBANSVARIG =  gfalth:BUFFER-VALUE:
+            AONRTAB.ARBANSVARIG =  Nyvarde.
+         END. 
+         FOR EACH AONRTAB WHERE AONRTAB.BEREDARE=  gfalth:BUFFER-VALUE:
+            AONRTAB.BEREDARE=  Nyvarde.
+         END.
+      END.
+      IF _File._File-name = "FASTSPEC" THEN DO:
+         FOR EACH FASTSPEC WHERE FASTSPEC.KALKANV =  gfalth:BUFFER-VALUE:
+            FASTSPEC.KALKANV =  Nyvarde.
+         END.
+      END.   
+      IF _File._File-name = "VARDERING" THEN DO:
+         FOR EACH VARDERING WHERE VARDERING.VARDANV =  gfalth:BUFFER-VALUE:
+            VARDERING.VARDANV =  Nyvarde.
+           
+         END.
+      END.   
+      
+       IF _File._File-name = "KALKHUV" THEN DO:
+         FOR EACH KALKHUV WHERE KALKHUV.KALKANV =  gfalth:BUFFER-VALUE:
+            KALKHUV.KALKANV = Nyvarde.
+         END.
+      END.
+      
+      IF _File._File-name = "EXTRADATA" THEN DO:
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = 'AOPROJ' AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE:
+            EXTRADATA.HUVUDCH = Nyvarde.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = 'OTBEORD' AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE:
+            EXTRADATA.HUVUDCH = Nyvarde.
+         END.
+                  
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "PFAKTOR" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = Nyvarde.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "DISPENSÖ" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = Nyvarde.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "DISPENSÖM" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = Nyvarde.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "DISPENSLÄ" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = Nyvarde.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "AVAFOR" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = Nyvarde.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "SPFRISK" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = Nyvarde.
+         END.         
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "LONVAXLINGATK" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = Nyvarde.
+         END.          
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "SPAVAAR" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = Nyvarde.
+         END.         
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "SPFRISKAR" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = Nyvarde.
+         END.         
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "ATKFRISK" AND EXTRADATA.HUVUDCH = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.HUVUDCH = Nyvarde.
+         END.
+         FOR EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "SUPPERS" AND EXTRADATA.SOKCHAR[1] = gfalth:BUFFER-VALUE EXCLUSIVE-LOCK:
+            EXTRADATA.SOKCHAR[1] = Nyvarde.
+         END.
+          
+         
+      END.      
+      IF _File._File-name = "ANVAOTAB" THEN DO:
+         sokv = gfalth:BUFFER-VALUE + "$AONRE".
+         FOR EACH ANVAOTAB WHERE ANVAOTAB.ANVANDARE MATCHES "*$AONRE" AND ANVAOTAB.ANVANDARE =  sokv EXCLUSIVE-LOCK:
+            ANVAOTAB.ANVANDARE = Nyvarde + "$AONRE".
+         END.
+      END.

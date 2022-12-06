@@ -1,0 +1,483 @@
+/*ZONRAPPATT.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2.I}
+{REGVAR.I}
+
+{AONRDEF.I}
+{DIRDEF.I}
+{AVTAONRTEMP.I}
+{OMRTEMPW.I}
+{ANMARKD.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT globforetag).
+
+DEFINE VARIABLE anmantal AS INTEGER NO-UNDO.
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(92)" NO-UNDO.
+DEFINE VARIABLE aonrvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE delnrvar AS INTEGER NO-UNDO.
+{TIDUTTT.I}
+DEFINE QUERY aonrq FOR AONRZON, AONRTAB. 
+
+str="====================================================================================================================================".
+
+PROCEDURE ladda.
+   DEFINE INPUT PARAMETER omr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TOG_AVS AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER TOG_EJAV AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER TOG_KONTO AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER RAD_FAST AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR zonvaltemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   EMPTY TEMP-TABLE zontemp NO-ERROR.    
+   OPEN QUERY zq FOR EACH ZON WHERE ZON.OMRADE = omr NO-LOCK.
+   GET FIRST zq NO-LOCK.
+   DO WHILE AVAILABLE(ZON):
+      CREATE zontemp.
+      BUFFER-COPY ZON TO zontemp.
+      GET NEXT zq NO-LOCK.
+   END.
+   CLOSE QUERY zq.
+   EMPTY TEMP-TABLE aonrzontemp NO-ERROR.    
+   OPEN QUERY azq FOR EACH AONRZON WHERE AONRZON.OMRADE = omr NO-LOCK.
+   GET FIRST azq NO-LOCK.
+   DO WHILE AVAILABLE(AONRZON):
+      CREATE aonrzontemp.
+      BUFFER-COPY AONRZON TO aonrzontemp.
+      GET NEXT azq NO-LOCK.
+   END.
+   CLOSE QUERY azq.
+   EMPTY TEMP-TABLE tidut NO-ERROR.    
+   FIND FIRST AONRTAB NO-LOCK NO-ERROR.
+   FOR EACH zonvaltemp USE-INDEX OMR:      
+      FIND FIRST ZON WHERE ZON.OMRADE = zonvaltemp.OMRADE AND
+      ZON.ZONNR = zonvaltemp.ZONNR USE-INDEX OMR NO-LOCK NO-ERROR.
+      /*EJ AVSLUTAD*/  
+      IF TOG_AVS = FALSE AND TOG_EJAV = TRUE THEN DO:         
+         OPEN QUERY aonrq FOR EACH AONRZON WHERE 
+         AONRZON.OMRADE = zonvaltemp.OMRADE AND
+         AONRZON.ZONNR = zonvaltemp.ZONNR, EACH AONRTAB WHERE 
+         AONRTAB.AONR = AONRZON.AONR AND
+         AONRTAB.DELNR = AONRZON.DELNR AND 
+         AONRTAB.AONRAVDATUM = 01/01/91 AND AONRTAB.FASTAAONR = RAD_FAST
+         USE-INDEX OMRADE NO-LOCK.
+         ASSIGN
+         aonrvar = AONRTAB.AONR  
+         delnrvar = AONRTAB.DELNR.
+         RUN huvud (INPUT aonrvar,INPUT delnrvar,
+                    INPUT TOG_KONTO,INPUT-OUTPUT TABLE tidut).
+         CLOSE QUERY aonrq.               
+      END.
+      IF TOG_AVS = TRUE AND TOG_EJAV = FALSE THEN DO:         
+         /*ALLA AVSLUTADE*/
+         OPEN QUERY aonrq FOR EACH AONRZON WHERE 
+         AONRZON.OMRADE = zonvaltemp.OMRADE AND
+         AONRZON.ZONNR = zonvaltemp.ZONNR, EACH AONRTAB WHERE 
+         AONRTAB.AONR = AONRZON.AONR AND
+         AONRTAB.DELNR = AONRZON.DELNR AND  
+         AONRTAB.AONRAVDATUM  >= bdatum AND AONRTAB.AONRAVDATUM <= avdatum AND 
+         AONRTAB.FASTAAONR = RAD_FAST
+         USE-INDEX OMRADE NO-LOCK.
+         ASSIGN
+         aonrvar = AONRTAB.AONR  
+         delnrvar = AONRTAB.DELNR.
+         RUN huvud (INPUT aonrvar,INPUT delnrvar,
+                    INPUT TOG_KONTO,INPUT-OUTPUT TABLE tidut).
+         CLOSE QUERY aonrq.     
+      END. 
+      IF TOG_AVS = TRUE AND TOG_EJAV = TRUE THEN DO:         
+         /*ALLA ICKE AVSLUTADE OCH AVSLUTADE*/
+         OPEN QUERY aonrq FOR EACH AONRZON WHERE 
+         AONRZON.OMRADE = zonvaltemp.OMRADE AND
+         AONRZON.ZONNR = zonvaltemp.ZONNR, EACH AONRTAB WHERE 
+         AONRTAB.AONR = AONRZON.AONR AND
+         AONRTAB.DELNR = AONRZON.DELNR AND 
+         ((AONRTAB.AONRAVDATUM >= bdatum AND AONRTAB.AONRAVDATUM <= avdatum) OR 
+         AONRTAB.AONRAVDATUM = 01/01/91) AND AONRTAB.FASTAAONR = RAD_FAST
+         USE-INDEX OMRADE NO-LOCK.
+         ASSIGN
+         aonrvar = AONRTAB.AONR  
+         delnrvar = AONRTAB.DELNR.
+         RUN huvud (INPUT aonrvar,INPUT delnrvar,
+                    INPUT TOG_KONTO,INPUT-OUTPUT TABLE tidut).
+         CLOSE QUERY aonrq.    
+      END.
+   END.
+   RETURN.
+END PROCEDURE.
+
+
+PROCEDURE huvud.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TOG_KONTO AS LOGICAL NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tidut.
+   /*HUVUD*/
+   FIND LAST tidut NO-LOCK NO-ERROR.
+   DO TRANSACTION:
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+      AONRTAB.DELNR = delnrvar EXCLUSIVE-LOCK NO-ERROR.
+      GET FIRST aonrq EXCLUSIVE-LOCK.
+      DO WHILE AVAILABLE(AONRZON):                                            
+         ASSIGN
+         AONRTAB.ANM[1] = AONRTAB.ANM[1] + AONRTAB.ANM[2] + 
+                          AONRTAB.ANM[3] + AONRTAB.ANM[4] + 
+                          AONRTAB.ANM[5] + AONRTAB.ANM[6]
+         AONRTAB.ARBUPPG[1] = AONRTAB.ARBUPPG[1] + AONRTAB.ARBUPPG[2].
+         ASSIGN 
+         AONRTAB.ARBUPPG[2] = ""                
+         AONRTAB.ANM[2] = ""
+         AONRTAB.ANM[3] = ""
+         AONRTAB.ANM[4] = "" 
+         AONRTAB.ANM[5] = ""
+         AONRTAB.ANM[6] = "".                      
+         CREATE tidut.         
+         ASSIGN
+         SUBSTRING(tidut.UT,1) = "ZONRAPPORT"
+         SUBSTRING(tidut.UT,60) = STRING(TODAY).
+         CREATE tidut.      
+         SUBSTRING(tidut.UT,4) = "ZON             :" + ZON.ZONNR. 
+         CREATE tidut.
+         SUBSTRING(tidut.UT,4) = "BENÄMNING       :" + ZON.BENAMNING.
+         CREATE tidut.               
+         IF AONRTAB.FASTAAONR = FALSE THEN DO:
+            SUBSTRING(tidut.UT,4) = CAPS(Guru.Konstanter:gutfk) + " " + CAPS(Guru.Konstanter:gomrl) + ":".   
+            FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = AONRTAB.OMRADE 
+            USE-INDEX OMR NO-LOCK NO-ERROR.
+            IF AVAILABLE OMRADETAB THEN DO:
+               SUBSTRING(tidut.UT,22) = OMRADETAB.NAMN.
+            END.     
+         END.
+         CREATE tidut. 
+         ASSIGN
+         SUBSTRING(tidut.UT,4) = CAPS(Guru.Konstanter:gaol) + "            :"
+         SUBSTRING(tidut.UT,22) = AONRTAB.AONR
+         SUBSTRING(tidut.UT,30) = "DELNR:"
+         SUBSTRING(tidut.UT,37) = STRING(AONRTAB.DELNR,Guru.Konstanter:varforetypchar[1]).
+         
+         IF AONRTAB.AONRAVDATUM NE 01/01/91 THEN DO:                             
+            SUBSTRING(tidut.UT,44) = "AVSLUTAT:".
+            SUBSTRING(tidut.UT,54) = STRING(AONRTAB.AONRAVDATUM).
+         END.
+         CREATE tidut.
+         SUBSTRING(tidut.UT,4) = CAPS(Guru.Konstanter:gaonamnk) + ":".
+         SUBSTRING(tidut.UT,22) = AONRTAB.ORT.
+         CREATE tidut.  
+         ASSIGN tidut.UT = str.   
+         IF LENGTH(AONRTAB.ARBUPPG[1]) > 0 THEN DO:
+            CREATE tidut. 
+            ASSIGN
+            SUBSTRING(tidut.UT,20) = ":"
+            SUBSTRING(tidut.UT,4) = "ARBETSUPPGIFT"
+            retvar = 1
+            ednum = 1
+            ednum3 = LENGTH(AONRTAB.ARBUPPG[1])
+            retvar = INDEX(AONRTAB.ARBUPPG[1],CHR(10),ednum)
+            edtecken = 38
+            edtext = AONRTAB.ARBUPPG[1]
+            tidtext = "". 
+            RUN anmarkning (INPUT retvar,INPUT edtecken ,INPUT ednum,
+                           INPUT ednum2,INPUT ednum3,INPUT edtext,
+                           INPUT tidtext,INPUT-OUTPUT TABLE tidut).
+/*             {ANMARK2.I} */
+         END.
+         CREATE tidut.  
+         ASSIGN tidut.UT = str.   
+         IF AONRTAB.FASTAAONR = FALSE THEN DO:
+            CREATE tidut. 
+            SUBSTRING(tidut.UT,4) = CAPS(Guru.Konstanter:gbestk) + " :".   
+            FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = AONRTAB.BESTID 
+            USE-INDEX OMR NO-LOCK NO-ERROR.
+            IF AVAILABLE OMRADETAB THEN DO:
+               SUBSTRING(tidut.UT,30) = AONRTAB.BESTID + " " + OMRADETAB.NAMN.
+            END.  
+            ELSE DO:
+               FIND FIRST BESTTAB WHERE BESTTAB.BESTID = AONRTAB.BESTID 
+               USE-INDEX BEST NO-LOCK NO-ERROR.
+               IF AVAILABLE BESTTAB THEN DO:
+                  SUBSTRING(tidut.UT,30) = AONRTAB.BESTID + " " +  BESTTAB.BESTNAMN.
+               END.
+               ELSE SUBSTRING(tidut.UT,22) = AONRTAB.BESTID.
+            END.         
+         END.
+         CREATE tidut.
+         SUBSTRING(tidut.UT,4) =    CAPS(Guru.Konstanter:gdebk) + "      :".
+         SUBSTRING(tidut.UT,30) = AONRTAB.PRISTYP.
+         CREATE tidut.  
+         ASSIGN tidut.UT = str.
+         CREATE tidut.                             
+         SUBSTRING(tidut.UT,4) = "ANLÄGGNINGSNR   :".
+         SUBSTRING(tidut.UT,22) = STRING(AONRTAB.ANLNR, "x(15)").   
+         SUBSTRING(tidut.UT,44) = "TRAKT.ZON:".
+         SUBSTRING(tidut.UT,55) = STRING(AONRTAB.TRAKTAMENTE).    
+         CREATE tidut.
+         SUBSTRING(tidut.UT,4) = "UTRYCKNING      :".      
+         IF AONRTAB.UTRYCKNING = TRUE THEN SUBSTRING(tidut.UT,22) = "JA". 
+         IF AONRTAB.UTRYCKNING = FALSE THEN SUBSTRING(tidut.UT,22) = "NEJ".
+         SUBSTRING(tidut.UT,44) = CAPS(Guru.Konstanter:gartk) + ":".
+         SUBSTRING(tidut.UT,55) = STRING(AONRTAB.ARBARTKOD).
+         SUBSTRING(tidut.UT,58) = CAPS(Guru.Konstanter:gpriok) + ":".
+         SUBSTRING(tidut.UT,69) = STRING(AONRTAB.PKOD).          
+         CREATE tidut.  
+         CREATE tidut.  
+         ASSIGN tidut.UT = str.
+         CREATE tidut.
+         ASSIGN
+         SUBSTRING(tidut.UT,4) = CAPS(Guru.Konstanter:gberek)
+         SUBSTRING(tidut.UT,28) = ":"
+         SUBSTRING(tidut.UT,30) = AONRTAB.BEREDARE
+         SUBSTRING(tidut.UT,44) = CAPS(Guru.Konstanter:garbak)
+         SUBSTRING(tidut.UT,59) = ":"
+         SUBSTRING(tidut.UT,61) = AONRTAB.ARBANSVARIG.   
+         CREATE tidut.
+         SUBSTRING(tidut.UT,4) = "ARBETSBESKED UTFÄRDAT AV:".
+         SUBSTRING(tidut.UT,30) = AONRTAB.UTFARDAT.
+         CREATE tidut.  
+         ASSIGN tidut.UT = str.
+         anmantal = 1.            
+         REPEAT:
+            IF anmantal <= LENGTH(AONRTAB.ANM[1]) THEN DO:
+               CREATE tidut.
+               IF anmantal = 1 THEN SUBSTRING(tidut.UT,4) = "ANMÄRKNING      :".
+               ELSE SUBSTRING(tidut.UT,4) = "                :".            
+               RUN SUBMARK.P           
+               (INPUT-OUTPUT anmantal, INPUT LENGTH(AONRTAB.ANM[1]), INPUT AONRTAB.ANM[1], INPUT 68, INPUT-OUTPUT retvar, OUTPUT tidtext).                                    
+               IF retvar = 0 THEN DO:           
+                  SUBSTRING(tidut.UT,22) = SUBSTRING(AONRTAB.ANM[1],anmantal,68).                              
+                  anmantal = anmantal + 68.
+               END.           
+               ELSE DO:      
+                  SUBSTRING(tidut.UT,22) = tidtext.
+                  anmantal = anmantal.                          
+               END.                        
+            END.
+            ELSE LEAVE.
+         END.
+         CREATE tidut.  
+         ASSIGN tidut.UT = str.    
+         IF TOG_KONTO = TRUE THEN DO:
+            FIND FIRST KBENAMNING USE-INDEX KBEN NO-LOCK NO-ERROR.
+            CREATE tidut.
+            SUBSTRING(tidut.UT,4) = "KONTOSTRÄNG".
+            SUBSTRING(tidut.UT,22) = KBENAMNING.K1. 
+            SUBSTRING(tidut.UT,29) = KBENAMNING.K2.
+            SUBSTRING(tidut.UT,36) = KBENAMNING.K3.
+            SUBSTRING(tidut.UT,43) = KBENAMNING.K4.
+            SUBSTRING(tidut.UT,50) = KBENAMNING.K5.     
+            SUBSTRING(tidut.UT,57) = "PROCENT".
+            CREATE tidut.  
+            ASSIGN tidut.UT = str.   
+            FOR EACH AONRKONTKOD WHERE
+               AONRKONTKOD.AONR = AONRTAB.AONR AND AONRKONTKOD.DELNR = AONRTAB.DELNR 
+               USE-INDEX AONRKONT NO-LOCK:         
+               CREATE tidut.
+               SUBSTRING(tidut.UT,22) = AONRKONTKOD.K1. 
+               SUBSTRING(tidut.UT,29) = AONRKONTKOD.K2.
+               SUBSTRING(tidut.UT,36) = AONRKONTKOD.K3.
+               SUBSTRING(tidut.UT,43) = AONRKONTKOD.K4.
+               SUBSTRING(tidut.UT,50) = AONRKONTKOD.K5. 
+               SUBSTRING(tidut.UT,57) = STRING(AONRKONTKOD.SATS%).
+            END.                          
+            CREATE tidut.  
+            ASSIGN tidut.UT = str.
+         END.   
+         CREATE tidut.
+         SUBSTRING(tidut.UT,132) = "$".
+         CREATE tidut.
+         CREATE tidut.
+         GET NEXT aonrq EXCLUSIVE-LOCK.
+      END.
+   END.
+   RELEASE AONRTAB NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE anmark_UI :
+   DEFINE INPUT PARAMETER anmark AS INTEGER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tidut.
+   FIND LAST tidut NO-LOCK NO-ERROR.
+   IF anmark = 2 THEN DO:                 
+      ASSIGN            
+      SUBSTRING(tidut.UT,20) = ":"   
+      SUBSTRING(tidut.UT,22) = tidtext.
+      CREATE tidut.
+   END.                              
+END PROCEDURE.
+
+PROCEDURE anmarkning.
+   DEFINE INPUT PARAMETER retvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER edtecken AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ednum AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ednum2 AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER ednum3 AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER edtext AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER tidtext AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR tidut.
+   FIND LAST tidut NO-LOCK NO-ERROR.
+   IF retvar = 0 THEN DO:                 
+      IF SUBSTRING(edtext,edtecken,1) = " " THEN DO:  
+         tidtext = SUBSTRING(edtext,ednum,edtecken).
+         ednum = ednum + edtecken.
+      END.
+      ELSE DO:                  
+         ednum2 = 1. 
+         retvar = INDEX(edtext," ",ednum2).
+         IF retvar > edtecken THEN DO:
+            tidtext = SUBSTRING(edtext,ednum,edtecken).
+            ednum = ednum + edtecken.
+         END.
+         ELSE IF retvar = 0 THEN DO:
+            tidtext = SUBSTRING(edtext,ednum,edtecken).
+            ednum = ednum + edtecken.
+         END.
+         ELSE DO:     
+            DO WHILE ednum2 < edtecken:
+               IF ednum2 > 0 THEN DO:
+                  retvar = INDEX(edtext," ",ednum2).
+                  ednum2 = INDEX(edtext," ",retvar + 1).                   
+               END.
+               ELSE LEAVE.   
+            END.             
+            tidtext = SUBSTRING(edtext,ednum,retvar).
+            ednum = ednum + retvar.
+         END.   
+      END.
+      RUN anmark_UI (INPUT 2,INPUT-OUTPUT TABLE tidut).             
+      DO WHILE ednum < ednum3:
+         IF SUBSTRING(edtext,ednum + edtecken,1) = " " THEN DO:
+            tidtext = SUBSTRING(edtext,ednum,edtecken).
+            ednum = ednum + edtecken + 1.
+         END.
+         ELSE DO:           
+            ednum2 = ednum.
+            retvar = INDEX(edtext," ",ednum2).
+            IF retvar > edtecken + ednum THEN DO:
+               tidtext = SUBSTRING(edtext,ednum,edtecken).
+               ednum = ednum + edtecken.
+            END.
+            ELSE IF retvar = 0 THEN DO:
+               tidtext = SUBSTRING(edtext,ednum,edtecken).
+               ednum = ednum + edtecken.
+            END.
+            ELSE DO:               
+               DO WHILE ednum2 < edtecken + ednum:
+                  IF ednum2 > 0 THEN DO:
+                     retvar = INDEX(edtext," ",ednum2).
+                     ednum2 = INDEX(edtext," ",retvar + 1).                   
+                  END.
+                  ELSE LEAVE.   
+               END. 
+               tidtext = SUBSTRING(edtext,ednum,retvar - ednum).
+               ednum = retvar + 1.
+            END.   
+         END.   
+         RUN anmark_UI (INPUT 2,INPUT-OUTPUT TABLE tidut).
+      END.
+   END.
+   ELSE DO:
+      IF retvar <= edtecken THEN DO:         
+         tidtext = SUBSTRING(edtext,ednum,retvar - 1).
+         ednum = retvar + 1.
+      END.
+      ELSE DO:
+         IF SUBSTRING(edtext,edtecken,1) = " " THEN DO:
+            tidtext = SUBSTRING(edtext,ednum,edtecken).
+            ednum = ednum + edtecken + 1.
+         END.
+         ELSE DO:    
+            ednum2 = 1.  
+            retvar = INDEX(edtext," ",ednum2).
+            IF retvar > edtecken THEN DO:
+               tidtext = SUBSTRING(edtext,ednum,edtecken).
+               ednum = ednum + edtecken.
+            END.
+            ELSE IF retvar = 0 THEN DO:
+               tidtext = SUBSTRING(edtext,ednum,edtecken).
+               ednum = ednum + edtecken.
+            END.
+            ELSE DO:    
+               DO WHILE ednum2 < edtecken:
+                  IF ednum2 > 0 THEN DO:
+                     retvar = INDEX(edtext," ",ednum2).
+                     ednum2 = INDEX(edtext," ",retvar + 1).
+                  END.
+                  ELSE LEAVE.   
+               END. 
+               tidtext = SUBSTRING(edtext,ednum,retvar).
+               ednum = ednum + retvar.  
+            END.   
+         END.
+      END.
+      retvar = INDEX(edtext,CHR(10),ednum).
+      RUN anmark_UI (INPUT 2,INPUT-OUTPUT TABLE tidut).
+      DO WHILE retvar > 0:
+         IF retvar <= edtecken + ednum THEN DO:         
+            tidtext = SUBSTRING(edtext,ednum,retvar - ednum).
+            ednum = retvar + 1.
+         END.
+         ELSE DO:
+            IF SUBSTRING(edtext,edtecken + ednum,1) = " " THEN DO:
+               tidtext = SUBSTRING(edtext,ednum,edtecken).
+               ednum = ednum + edtecken + 1.
+            END.
+            ELSE DO:    
+               ednum2 = ednum.      
+               retvar = INDEX(edtext," ",ednum2).
+               IF retvar > edtecken + ednum THEN DO:
+                  tidtext = SUBSTRING(edtext,ednum,edtecken).
+                  ednum = ednum + edtecken.
+               END.
+               ELSE IF retvar = 0 THEN DO:
+                  tidtext = SUBSTRING(edtext,ednum,edtecken).
+                  ednum = ednum + edtecken.
+               END.
+               ELSE DO:
+                  DO WHILE ednum2 < edtecken + ednum:
+                     IF ednum2 > 0 THEN DO:
+                        retvar = INDEX(edtext," ",ednum2).
+                        ednum2 = INDEX(edtext," ",retvar + 1).
+                     END.
+                     ELSE LEAVE.   
+                  END. 
+                  tidtext = SUBSTRING(edtext,ednum,retvar - ednum).
+                  ednum = retvar + 1.  
+               END.   
+            END.
+         END.
+         retvar = INDEX(edtext,CHR(10),ednum).
+         RUN anmark_UI (INPUT 2,INPUT-OUTPUT TABLE tidut).
+      END.   
+      DO WHILE ednum < ednum3:
+         IF SUBSTRING(edtext,ednum + edtecken,1) = " " THEN DO:
+            tidtext = SUBSTRING(edtext,ednum,edtecken).
+            ednum = ednum + edtecken + 1.
+         END.
+         ELSE DO:           
+            ednum2 = ednum.
+            retvar = INDEX(edtext," ",ednum2).
+            IF retvar > edtecken + ednum THEN DO:
+               tidtext = SUBSTRING(edtext,ednum,edtecken).
+               ednum = ednum + edtecken.
+            END.
+            ELSE IF retvar = 0 THEN DO:
+               tidtext = SUBSTRING(edtext,ednum,edtecken).
+               ednum = ednum + edtecken.
+            END.
+            ELSE DO:               
+               DO WHILE ednum2 < edtecken + ednum:
+                  IF ednum2 > 0 THEN DO:
+                     retvar = INDEX(edtext," ",ednum2).
+                     ednum2 = INDEX(edtext," ",retvar + 1).                   
+                  END.
+                  ELSE LEAVE.   
+               END. 
+               tidtext = SUBSTRING(edtext,ednum,retvar - ednum).
+               ednum = retvar + 1.
+            END.   
+         END.   
+         RUN anmark_UI (INPUT 2,INPUT-OUTPUT TABLE tidut).
+      END.
+   END.
+END PROCEDURE.
+
+

@@ -1,0 +1,89 @@
+/*VISFIFO.P UTLÄSNING AV DEPÅLAGER TILL EXCEL*/  
+DEFINE VARIABLE felexcel AS LOGICAL NO-UNDO.   
+DEFINE VARIABLE chExcelApplication      AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE chWorkbook              AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE chWorksheet             AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE chChart                 AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE chWorksheetRange        AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE iCount                  AS INTEGER NO-UNDO.
+DEFINE VARIABLE iIndex                  AS INTEGER NO-UNDO.
+DEFINE VARIABLE iMonth                  AS INTEGER NO-UNDO.
+DEFINE VARIABLE dAnnualQuota            AS DECIMAL NO-UNDO.
+DEFINE VARIABLE dTotalSalesAmount       AS DECIMAL NO-UNDO.
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 0 NO-UNDO.
+DEFINE VARIABLE cColumn                 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cRange                  AS CHARACTER NO-UNDO. 
+DEFINE SHARED VARIABLE vald_depa AS INTEGER NO-UNDO.
+DEFINE SHARED VARIABLE enrvar AS CHARACTER NO-UNDO.
+
+
+{EXTRADATA.I}
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+   
+   {muswait.i}
+   
+   CREATE "Excel.Application" chExcelApplication.
+   chExcelApplication:Visible = TRUE NO-ERROR.
+   chWorkbook = chExcelApplication:Workbooks:Add() NO-ERROR.
+   chWorkSheet = chExcelApplication:Sheets:Item(1) NO-ERROR.
+   chWorkSheet:Columns("A"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("B"):ColumnWidth = 30 NO-ERROR.
+   chWorkSheet:Columns("C"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("D"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("E"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("F"):ColumnWidth = 10 NO-ERROR.   
+
+/*    chWorkSheet:Range("A1:P1"):Font:Bold = TRUE.                                                           */
+/*    chWorkSheet:Range("A1"):Value = "DEPÅ - UTTAG/RETURER FR.O.M. DATUM:" + STRING(avdatum,"9999/99/99") + */
+/*    " T.O.M DATUM:" + STRING(bdatum,"9999/99/99").                                                         */
+   
+   chWorkSheet:Range("A1:P1"):Font:Bold = TRUE NO-ERROR.
+
+   chWorkSheet:Range("A1"):Value = Guru.Konstanter:genk NO-ERROR.
+   chWorkSheet:Range("B1"):Value = "BENÄMNING" NO-ERROR.
+   chWorkSheet:Range("C1"):Value = "ENHET" NO-ERROR.
+   chWorkSheet:Range("D1"):Value = "PRIS" NO-ERROR.
+   chWorkSheet:Range("E1"):Value = "ANTAL" NO-ERROR.
+   chWorkSheet:Range("F1"):Value = "DATUM" NO-ERROR.   
+   chWorkSheet:Range("G1"):Value = "KLOCKSLAG" NO-ERROR.   
+   chWorkSheet:Range("A:A"):NumberFormat = "@" NO-ERROR.   
+   {EXCELFEL.I}
+  
+   IF Guru.Konstanter:appcon THEN DO:
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT.
+   END.
+   ELSE DO:   
+      RUN EXTRADATAHMT.P PERSISTENT SET edataapph.      
+   END.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "FIFO"                                  
+   inextradatatemp.HUVUDINT =  vald_depa
+   inextradatatemp.HUVUDCH =  enrvar.                    
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp).     
+   iColumn = 1.
+   FOR EACH extradatatemp NO-LOCK BY extradatatemp.SOKDATE[1] BY extradatatemp.SOKINT[2] :
+      {EXCELFEL.I}
+      iColumn = iColumn + 1.
+      cColumn = STRING(iColumn).
+      cRange = "A" + cColumn.
+      chWorkSheet:Range(cRange):Value = extradatatemp.HUVUDCH NO-ERROR.
+      cRange = "B" + cColumn.
+      chWorkSheet:Range(cRange):Value = extradatatemp.SOKCHAR[2] NO-ERROR.
+      cRange = "C" + cColumn.
+      chWorkSheet:Range(cRange):Value = extradatatemp.SOKCHAR[3] NO-ERROR.
+      cRange = "D" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(extradatatemp.SOKDEC[1]) NO-ERROR.
+      cRange = "E" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(extradatatemp.SOKINT[1]) NO-ERROR.
+      cRange = "F" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(extradatatemp.SOKDATE[1],"9999/99/99") NO-ERROR.  
+      cRange = "G" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(extradatatemp.SOKINT[2],"HH:MM:SS") NO-ERROR. 
+   END.      
+   RELEASE OBJECT chExcelApplication NO-ERROR.      
+   RELEASE OBJECT chWorkbook NO-ERROR.
+   RELEASE OBJECT chWorksheet NO-ERROR.
+   

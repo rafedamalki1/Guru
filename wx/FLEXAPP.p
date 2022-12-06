@@ -1,0 +1,5 @@
+/*FLEXAPP.P*/
+{LDALIAS8.I}
+appfel = TRUE.
+RUN WSTARTAP.P.
+{DELALIAS.I}

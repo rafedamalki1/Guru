@@ -1,0 +1,179 @@
+/*FLAVVAPPNA.P  Nattkörning avviklese lista flex epost till berörda*/
+{STARTFORAPP.I}
+
+DEFINE TEMP-TABLE eposttemp NO-UNDO
+   FIELD EPOST AS CHARACTER
+   FIELD MEDD AS CHARACTER
+   INDEX EPOST EPOST.
+DEFINE TEMP-TABLE flexkoll NO-UNDO
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD FORNAMN     AS CHARACTER
+   FIELD EFTERNAMN   AS CHARACTER
+   FIELD EPOST AS CHARACTER
+   INDEX EPOST EPOST.
+DEFINE TEMP-TABLE flexdagtemp NO-UNDO
+   FIELD DATUM       AS DATE
+   FIELD EFTERNAMN   AS CHARACTER
+   FIELD FELMED      AS CHARACTER
+   FIELD FELOK       AS LOGICAL
+   FIELD FLARB       AS DECIMAL
+   FIELD FORNAMN     AS CHARACTER
+   FIELD KONTROLL    AS CHARACTER
+   FIELD KORD        AS DATE
+   FIELD OVINPLUS    AS DECIMAL
+   FIELD OVUTPLUS    AS DECIMAL
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD PLUS        AS DECIMAL
+   FIELD SLUT        AS DECIMAL
+   FIELD START       AS DECIMAL
+   FIELD TOTALT      AS DECIMAL
+   FIELD FREC        AS RECID
+   FIELD EPOST       AS CHARACTER
+   INDEX FLEX IS PRIMARY PERSONALKOD DATUM
+   INDEX FELOK PERSONALKOD FELOK
+   INDEX KONTROLL PERSONALKOD.
+
+DEFINE NEW SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE VARIABLE aonrrec AS RECID NO-UNDO.
+DEFINE VARIABLE skick AS LOGICAL NO-UNDO.
+DEFINE VARIABLE efel AS CHARACTER FORMAT "X(30)" NO-UNDO.
+DEFINE VARIABLE servervar AS CHARACTER LABEL "Smtp Server" NO-UNDO.
+DEFINE VARIABLE franvar AS CHARACTER NO-UNDO.
+
+{SMTPDEF3.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT FORETAG.FORETAG).
+
+IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "MISV"  THEN DO:
+   ASSIGN
+   franvar = "NOREPLY"
+   servervar = CHR(49) + CHR(55) + CHR(50) + CHR(46) + CHR(49) + CHR(54) + CHR(46) + CHR(50) + CHR(53) + CHR(52) + CHR(46) + CHR(50) + CHR(50) + CHR(50).
+   /*servervar = "130.1.27.253".
+   servervar = "172.16.79.249".*/
+END.
+ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+   {SMTPFRANELPOOL.I}
+END.
+ELSE DO:
+   ASSIGN
+   franvar = "elpool.ume@elpool.se"
+   servervar = CHR(115) + CHR(109) + CHR(116) + CHR(112) + CHR(46) + CHR(116) + CHR(101) + CHR(108) + CHR(101) + CHR(99) + CHR(111) + CHR(109) + CHR(51) + CHR(46) + CHR(110) + CHR(101) + CHR(116) .
+END.
+{AMERICANEUROPEAN.I}
+OPEN QUERY tfq FOR EACH PERSONALTAB WHERE PERSONALTAB.AKTIV = TRUE USE-INDEX PERSONALKOD NO-LOCK,
+EACH FLEXAVT WHERE FLEXAVT.PERSONALKOD = PERSONALTAB.PERSONALKOD AND FLEXAVT.FLEXTID = TRUE NO-LOCK,
+EACH FLEXDAG WHERE FLEXDAG.PERSONALKOD = PERSONALTAB.PERSONALKOD AND FLEXDAG.DATUM > 01/01/2007 AND 
+FLEXDAG.KORD = 01/01/1997 AND FLEXDAG.FELOK = FALSE AND FLEXDAG.KONTROLL = "KONTROLL" AND
+FLEXDAG.DATUM LE TODAY USE-INDEX FLEX NO-LOCK.        
+GET FIRST tfq NO-LOCK.
+DO WHILE AVAILABLE(FLEXDAG):   
+   CREATE flexdagtemp.
+   BUFFER-COPY FLEXDAG TO flexdagtemp.
+   ASSIGN
+   flexdagtemp.FREC = RECID(FLEXDAG)
+   flexdagtemp.FORNAMN = PERSONALTAB.FORNAMN
+   flexdagtemp.EFTERNAMN = PERSONALTAB.EFTERNAMN
+   flexdagtemp.EPOST = SUBSTRING(PERSONALTAB.PERSONSOK,20).   
+   GET NEXT tfq NO-LOCK.
+END.
+
+FOR EACH flexdagtemp WHERE flexdagtemp.EPOST = ""  NO-LOCK:
+   IF Guru.Konstanter:globforetag = "SUND" THEN DO:
+      OUTPUT TO D:\delad\server\pro10s\EXPORT\lon\epostsaknas.txt APPEND.
+      PUT UNFORMATTED TODAY " " flexdagtemp.PERSONALKOD " "  SKIP.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+      /*SNATBERGET*/
+     OUTPUT TO D:\DELAD\PRO10S\epostsaknas.txt APPEND.
+      PUT UNFORMATTED TODAY " " flexdagtemp.PERSONALKOD " "  SKIP.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "MISV" THEN DO:
+      /*Guru.Konstanter:AppSpringSet[1] = "misvstb"*/
+      OUTPUT TO D:\elpool\delad\pro10s\EXPORT\lon\epostsaknas.txt APPEND.
+      PUT UNFORMATTED TODAY " " flexdagtemp.PERSONALKOD " "  SKIP.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "ELPA" THEN DO:
+      OUTPUT TO c:\protemp9\epostsaknas.txt APPEND.            
+      PUT UNFORMATTED TODAY " " flexdagtemp.PERSONALKOD " "  SKIP.
+   END.
+   OUTPUT CLOSE.
+END.
+FOR EACH flexdagtemp WHERE flexdagtemp.EPOST NE ""  NO-LOCK:
+   FIND FIRST flexkoll WHERE flexkoll.PERSONALKOD = flexdagtemp.PERSONALKOD NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE flexkoll THEN DO:      
+      CREATE flexkoll.
+      ASSIGN
+      flexkoll.PERSONALKOD = flexdagtemp.PERSONALKOD
+      flexkoll.FORNAMN =  flexdagtemp.FORNAMN
+      flexkoll.EFTERNAMN =  flexdagtemp.EFTERNAMN
+      flexkoll.EPOST = flexdagtemp.EPOST.
+   END.
+END.
+EMPTY TEMP-TABLE eposttemp NO-ERROR. 
+FOR EACH flexkoll NO-LOCK,
+EACH flexdagtemp WHERE flexdagtemp.PERSONALKOD = flexkoll.PERSONALKOD NO-LOCK.
+   FIND FIRST eposttemp WHERE eposttemp.EPOST = flexkoll.EPOST AND 
+   LENGTH(eposttemp.MEDD,"CHARACTER") < 30000 NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE eposttemp THEN DO:
+      CREATE eposttemp.
+      eposttemp.EPOST = flexkoll.EPOST.
+      eposttemp.MEDD = " Avvikelelista flextid för " + flexkoll.FORNAMN + " " + flexkoll.EFTERNAMN + " till och med " + STRING(TODAY,"9999/99/99")  + CHR(10)
+                     + " ========================================================================== " + CHR(10).       
+   END.
+   eposttemp.MEDD = eposttemp.MEDD + STRING(flexdagtemp.DATUM,"9999/99/99") + " " + SUBSTRING(flexdagtemp.FELMED,1,25) + CHR(10) + CHR(10).         
+ 
+END.
+RUN emedd_UI.
+{EUROPEANAMERICAN.I}
+
+PROCEDURE emedd_UI.
+   DEFINE VARIABLE ctillvar AS CHARACTER LABEL "Kopia" NO-UNDO.
+   FOR EACH eposttemp:  
+      ASSIGN 
+      mailhub             = servervar     
+      EmailTo             = eposttemp.EPOST 
+      EmailFrom           = franvar
+      EmailCC             = " " /*"Ingrid.Eriksson@serva.se"*/
+      Attachmentstyp      = ""
+      LocalFiles          = ""
+      Subject             = "Avvikelselista flex" 
+      Bodysmtp            = eposttemp.MEDD
+      MIMEHeader          = "type=text/html:charset=iso-8859-1:filetype=ascii"
+      BodyType            = "".
+      IF Guru.Konstanter:globforetag = "sund" THEN EmailFrom = "webguru@sundsvallenergi.se".
+      IF Guru.Konstanter:globforetag = "SNAT" THEN EmailFrom = "@guru.sundsvallelnat.se".
+      IF Guru.Konstanter:globforetag = "MISV" THEN EmailFrom = "webguru@mittsverigevatten.se".
+      RUN smtpmail_UI (INPUT FALSE).
+      IF oSuccessful = TRUE THEN DO TRANSACTION:
+         oSuccessful = FALSE.               
+      END.      
+      ELSE DO:
+         IF Guru.Konstanter:globforetag = "SUND" THEN DO:
+            OUTPUT TO D:\delad\server\pro10s\EXPORT\lon\flexxkollfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+            /*SNATBERGET*/
+            OUTPUT TO D:\DELAD\pro10s\EXPORT\lonelnat\flexxkollfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "MISV" THEN DO:
+            /*Guru.Konstanter:AppSpringSet[1] = "misvstb"*/
+            OUTPUT TO D:\elpool\delad\pro10s\EXPORT\lon\flexxkollfel.txt APPEND.
+            
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "ELPA" THEN DO:
+            OUTPUT TO c:\protemp9\flexkollfel.txt APPEND.            
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         OUTPUT CLOSE.
+    
+      END.
+   END.     
+END PROCEDURE.  
+
+ 
+   
+

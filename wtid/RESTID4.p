@@ -1,0 +1,347 @@
+/* RESTID4.P RESTIDSERSATTNING */
+/*DEFINE SHARED VARIABLE globanv LIKE ANVANDARE.ANVANDARE NO-UNDO.*/
+DEFINE SHARED VARIABLE nytid AS DECIMAL NO-UNDO.
+DEFINE SHARED VARIABLE sekunder AS INTEGER NO-UNDO. 
+DEFINE SHARED VARIABLE regdatum LIKE TIDREGITAB.DATUM NO-UNDO. 
+DEFINE SHARED VARIABLE regstart LIKE TIDREGITAB.START NO-UNDO. 
+DEFINE SHARED VARIABLE regslut LIKE TIDREGITAB.SLUT NO-UNDO.
+DEFINE SHARED VARIABLE regstartsek AS INTEGER NO-UNDO.
+DEFINE SHARED VARIABLE regslutsek AS INTEGER NO-UNDO.
+DEFINE SHARED VARIABLE persrec AS RECID  NO-UNDO.    
+DEFINE SHARED VARIABLE tidtabrec AS RECID  NO-UNDO. 
+DEFINE SHARED VARIABLE regvnr LIKE TIDREGITAB.VECKONUMMER NO-UNDO. 
+DEFINE SHARED VARIABLE bustart3 LIKE TIDREGITAB.START NO-UNDO.
+DEFINE SHARED VARIABLE bilforare AS LOGICAL FORMAT "JA/NEJ" NO-UNDO.
+DEFINE SHARED VARIABLE enflerdygns AS LOGICAL FORMAT "ENDAGS/FLERDYGNS" NO-UNDO.
+
+DEFINE VARIABLE rstartsek AS INTEGER NO-UNDO.
+DEFINE VARIABLE rslutsek AS INTEGER NO-UNDO.
+DEFINE VARIABLE seku AS INTEGER NO-UNDO.
+DEFINE VARIABLE stop1 LIKE OVERTIDTAB.STOPP1 NO-UNDO.
+DEFINE VARIABLE stop2 LIKE OVERTIDTAB.STOPP1 NO-UNDO.
+DEFINE VARIABLE stop3 LIKE OVERTIDTAB.STOPP1 NO-UNDO.
+DEFINE VARIABLE stop4 LIKE OVERTIDTAB.STOPP1 NO-UNDO.
+DEFINE VARIABLE starta1 LIKE OVERTIDTAB.START1 NO-UNDO.
+DEFINE VARIABLE starta2 LIKE OVERTIDTAB.START1 NO-UNDO.
+DEFINE VARIABLE starta3 LIKE OVERTIDTAB.START1 NO-UNDO.
+DEFINE VARIABLE kod1 LIKE OVERTIDTAB.OVERTIDTILL NO-UNDO.
+DEFINE VARIABLE kod2 LIKE OVERTIDTAB.OVERTIDTILL NO-UNDO.
+DEFINE VARIABLE kod3 LIKE OVERTIDTAB.OVERTIDTILL NO-UNDO.
+DEFINE VARIABLE kod4 LIKE OVERTIDTAB.OVERTIDTILL NO-UNDO.
+DEFINE VARIABLE kod5 LIKE OVERTIDTAB.OVERTIDTILL NO-UNDO.
+DEFINE VARIABLE tiddiff1 LIKE OVERTIDTAB.START1 NO-UNDO.
+DEFINE VARIABLE tiddiff2 LIKE OVERTIDTAB.START1 NO-UNDO.
+DEFINE VARIABLE tiddiff3 LIKE OVERTIDTAB.START1 NO-UNDO.
+DEFINE VARIABLE tiddiff4 LIKE OVERTIDTAB.START1 NO-UNDO.
+DEFINE VARIABLE tiddiff5 LIKE OVERTIDTAB.START1 NO-UNDO.
+DEFINE VARIABLE tiddiff6 LIKE OVERTIDTAB.START1 NO-UNDO.
+DEFINE VARIABLE avdag LIKE RESTIDTAB.DAGNR NO-UNDO.
+DEFINE VARIABLE koll AS INTEGER NO-UNDO.
+DEFINE BUFFER tidbuff FOR TIDREGITAB.
+FIND PERSONALTAB WHERE RECID(PERSONALTAB) = persrec NO-LOCK NO-ERROR.
+FIND FIRST ANSTFORMTAB WHERE ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+USE-INDEX ANSTF NO-LOCK NO-ERROR.     
+FIND FIRST UTRYCKNING WHERE UTRYCKNING.KOD = ANSTFORMTAB.KOD
+USE-INDEX UT NO-LOCK NO-ERROR.
+FIND FIRST TIDREGITAB WHERE RECID(TIDREGITAB) = tidtabrec EXCLUSIVE-LOCK NO-ERROR.
+ASSIGN
+regvnr = TIDREGITAB.VECKONUMMER
+regdatum = TIDREGITAB.DATUM.
+RUN SLUTARB.P.
+nytid = regstart.
+RUN TIMSEK.P.
+ASSIGN
+seku = sekunder.
+nytid = TIDREGITAB.START.
+RUN TIMSEK.P.           
+ASSIGN
+regstartsek = sekunder
+nytid = TIDREGITAB.SLUT.
+RUN TIMSEK.P.         
+ASSIGN
+regslutsek = sekunder
+rslutsek = regslutsek
+rstartsek = regstartsek.
+/*OBS INGEN AVVIKELSEKALENDER FÖR RESTID */
+FIND FIRST OVERAVTAB WHERE OVERAVTAB.DATUM = TIDREGITAB.DATUM
+AND OVERAVTAB.KOD = ANSTFORMTAB.KOD USE-INDEX ODATUM NO-LOCK NO-ERROR.
+IF NOT AVAILABLE OVERAVTAB THEN  avdag = WEEKDAY(TIDREGITAB.DATUM).
+ELSE  avdag = OVERAVTAB.EQDAG.   
+FIND FIRST RESTIDTAB WHERE RESTIDTAB.DAGNR = avdag AND 
+RESTIDTAB.KOD = ANSTFORMTAB.KOD AND RESTIDTAB.ENFL = "flejb" AND 
+RESTIDTAB.START1 LE rstartsek AND RESTIDTAB.STOPP1 > rstartsek AND 
+RESTIDTAB.START1 NE RESTIDTAB.STOPP1 USE-INDEX RESTID NO-LOCK NO-ERROR.
+IF NOT AVAILABLE RESTIDTAB THEN DO:
+   FIND FIRST RESTIDTAB WHERE RESTIDTAB.DAGNR = avdag AND
+   RESTIDTAB.KOD = ANSTFORMTAB.KOD AND RESTIDTAB.ENFL = "flejb" AND
+   RESTIDTAB.START2 LE rstartsek AND RESTIDTAB.STOPP2 > rstartsek AND
+   RESTIDTAB.START2 NE RESTIDTAB.STOPP2 USE-INDEX RESTID  NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE RESTIDTAB THEN LEAVE.
+   ASSIGN
+   stop1 = RESTIDTAB.STOPP2
+   kod1 = RESTIDTAB.LONTILLAGG.
+END.
+ELSE DO:                   
+   ASSIGN
+   stop1 = RESTIDTAB.STOPP1
+   kod1 = RESTIDTAB.LONTILLAGG.
+END.
+
+IF rslutsek LE stop1 THEN DO: 
+   ASSIGN
+   tiddiff1 = rslutsek - rstartsek
+   sekunder = tiddiff1.
+   RUN SEKTIM.P.
+   ASSIGN TIDREGITAB.LONTILLAGG = kod1 TIDREGITAB.LONTILLANTAL = nytid.   
+   koll = 1.
+END.
+ELSE IF rslutsek LE seku AND rslutsek > stop1 THEN DO:
+   FIND FIRST RESTIDTAB WHERE RESTIDTAB.DAGNR = avdag AND
+   RESTIDTAB.KOD = ANSTFORMTAB.KOD AND RESTIDTAB.ENFL = "flejb" AND
+   RESTIDTAB.START1 = stop1 AND RESTIDTAB.START1 NE RESTIDTAB.STOPP1
+   USE-INDEX RESTID NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE RESTIDTAB THEN DO:
+      FIND FIRST RESTIDTAB WHERE RESTIDTAB.DAGNR = avdag AND
+      RESTIDTAB.KOD = ANSTFORMTAB.KOD AND RESTIDTAB.ENFL = "flejb" AND
+      RESTIDTAB.START2 = stop1 AND RESTIDTAB.START2 NE RESTIDTAB.STOPP2
+      USE-INDEX RESTID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE RESTIDTAB THEN DO:                              
+         ASSIGN
+	  tiddiff1 = stop1 - rstartsek
+	  sekunder = tiddiff1.
+	  RUN SEKTIM.P.
+	  ASSIGN TIDREGITAB.LONTILLAGG = kod1 TIDREGITAB.LONTILLANTAL = nytid.	  
+	  koll = 1.
+      END.
+      ELSE DO:
+	  koll = 0.
+      END.
+   END.
+   ELSE DO:
+      koll = 0.
+   END.
+END.
+IF koll = 0 THEN DO:
+   IF rslutsek > stop1 THEN DO:
+      FIND FIRST RESTIDTAB WHERE RESTIDTAB.DAGNR = avdag AND
+      RESTIDTAB.KOD = ANSTFORMTAB.KOD AND RESTIDTAB.ENFL = "flejb" AND
+      RESTIDTAB.START1 = stop1 AND RESTIDTAB.START1 NE RESTIDTAB.STOPP1
+      USE-INDEX RESTID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE RESTIDTAB THEN DO:
+	  FIND FIRST RESTIDTAB WHERE RESTIDTAB.DAGNR = avdag AND
+	  RESTIDTAB.KOD = ANSTFORMTAB.KOD AND RESTIDTAB.ENFL = "flejb" AND
+	  RESTIDTAB.START2 = stop1 AND RESTIDTAB.START2 NE RESTIDTAB.STOPP2
+	  USE-INDEX RESTID NO-LOCK NO-ERROR.
+	  IF NOT AVAILABLE RESTIDTAB THEN LEAVE.                              
+	  ASSIGN
+	  starta1 = RESTIDTAB.START2
+	  stop2 = RESTIDTAB.STOPP2
+	  kod2 = RESTIDTAB.LONTILLAGG.
+      END.
+      ELSE DO:                    
+         ASSIGN
+         starta1 = RESTIDTAB.START1
+	  stop2 = RESTIDTAB.STOPP1
+	  kod2 = RESTIDTAB.LONTILLAGG.
+      END.
+   END. 
+   IF rslutsek > stop2 THEN DO:
+      FIND FIRST RESTIDTAB WHERE RESTIDTAB.DAGNR = avdag AND
+      RESTIDTAB.KOD = ANSTFORMTAB.KOD AND RESTIDTAB.ENFL = "flejb" AND
+      RESTIDTAB.START1 = stop2 AND RESTIDTAB.START1 NE RESTIDTAB.STOPP1
+      USE-INDEX RESTID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE RESTIDTAB THEN DO:
+	  FIND FIRST RESTIDTAB WHERE RESTIDTAB.DAGNR = avdag AND
+	  RESTIDTAB.KOD = ANSTFORMTAB.KOD AND RESTIDTAB.ENFL = "flejb" AND
+	  RESTIDTAB.START2 = stop2 AND RESTIDTAB.START2 NE RESTIDTAB.STOPP2
+	  USE-INDEX RESTID NO-LOCK NO-ERROR.
+	  IF AVAILABLE RESTIDTAB THEN DO: 
+	     ASSIGN
+	     starta2 = RESTIDTAB.START2
+	     stop3 = RESTIDTAB.STOPP2
+	     kod3 = RESTIDTAB.LONTILLAGG.
+	  END.
+	  ELSE DO:                   
+	     ASSIGN
+	     starta2 = 0
+	     stop3 = 0
+	     kod3 = "".
+	  END.   
+      END.
+      ELSE DO:        
+         ASSIGN
+         starta2 = RESTIDTAB.START1
+	  stop3 = RESTIDTAB.STOPP1
+	  kod3 = RESTIDTAB.LONTILLAGG.
+      END.
+   END.
+END.
+IF rslutsek LE stop1 THEN persrec = persrec.   
+ELSE DO:
+   IF rslutsek > stop1 AND rslutsek le stop2 THEN DO:
+      ASSIGN
+      tiddiff1 = stop1 - rstartsek
+      sekunder = stop1.
+      RUN SEKTIM.P.
+      ASSIGN TIDREGITAB.SLUT = nytid.
+      sekunder = tiddiff1.
+      RUN SEKTIM.P.
+      ASSIGN TIDREGITAB.LONTILLAGG = kod1 TIDREGITAB.LONTILLANTAL = nytid.
+      nytid = TIDREGITAB.TOTALT.
+      RUN TIMSEK.P.               
+      ASSIGN
+      nytid = TIDREGITAB.START. 
+      RUN TIMSEK.P.            
+      ASSIGN
+      regstartsek = sekunder
+      nytid = TIDREGITAB.SLUT.
+      RUN TIMSEK.P.         
+      ASSIGN
+      regslutsek = sekunder
+      regdatum = TIDREGITAB.DATUM.
+      RUN TOTTID.P.                        
+      ASSIGN TIDREGITAB.TOTALT = nytid.
+      ASSIGN
+      tiddiff2 = rslutsek - starta1
+      sekunder = tiddiff2.
+      RUN SEKTIM.P.
+      bilforare = TIDREGITAB.BILFORARE.
+      CREATE tidbuff.
+      ASSIGN 
+      tidbuff.PERSONALKOD = TIDREGITAB.PERSONALKOD 
+      tidbuff.VECKONUMMER = TIDREGITAB.VECKONUMMER 
+      SUBSTRING(tidbuff.PROGRAM,1,158) = "RESTID4" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv
+      tidbuff.OVERTIDTILL = TIDREGITAB.OVERTIDTILL
+      tidbuff.DATUM = TIDREGITAB.DATUM 
+      tidbuff.DAG = TIDREGITAB.DAG
+      tidbuff.AONR = TIDREGITAB.AONR 
+      tidbuff.DELNR = TIDREGITAB.DELNR
+      tidbuff.TRAKTAMENTE = TIDREGITAB.TRAKTAMENTE
+      tidbuff.LONTILLAGG = kod2 
+      tidbuff.PRISTYP = TIDREGITAB.PRISTYP 
+      tidbuff.PRIS = TIDREGITAB.PRIS
+      tidbuff.BILFORARE = bilforare 
+      tidbuff.ENFLERDAGS = TIDREGITAB.ENFLERDAGS
+      tidbuff.UTRYCKNING = TIDREGITAB.UTRYCKNING 
+      tidbuff.LONTILLAGG = kod2.
+      ASSIGN
+      sekunder = stop1
+      regstartsek = sekunder.
+      RUN SEKTIM.P.
+      ASSIGN tidbuff.START = nytid.
+      ASSIGN
+      sekunder = rslutsek
+      regslutsek = sekunder.
+      RUN SEKTIM.P.
+      ASSIGN tidbuff.SLUT = nytid 
+      sekunder = tiddiff2.
+      RUN SEKTIM.P.
+      ASSIGN tidbuff.LONTILLANTAL = nytid .
+      ASSIGN
+      regdatum = tidbuff.DATUM.
+      RUN TOTTID.P.                         
+      ASSIGN tidbuff.TOTALT = nytid.      
+      tidtabrec = RECID(tidbuff).
+   END.
+   ELSE IF rslutsek > stop1 AND rslutsek > stop2  AND
+   rslutsek LE stop3 THEN DO:       
+      ASSIGN
+      tiddiff1 = stop1 - rstartsek
+      sekunder = stop1.
+      RUN SEKTIM.P.
+      ASSIGN TIDREGITAB.SLUT = nytid.
+      sekunder = tiddiff1.
+      RUN SEKTIM.P.
+      ASSIGN TIDREGITAB.LONTILLAGG = kod1 TIDREGITAB.LONTILLANTAL = nytid.
+      nytid = TIDREGITAB.TOTALT.
+      RUN TIMSEK.P.               
+      ASSIGN
+      nytid = TIDREGITAB.START. 
+      RUN TIMSEK.P.             
+      ASSIGN
+      regstartsek = sekunder
+      nytid = TIDREGITAB.SLUT.
+      RUN TIMSEK.P.         
+      ASSIGN
+      regslutsek = sekunder
+      regdatum = TIDREGITAB.DATUM.      
+      RUN TOTTID.P.                        
+      ASSIGN TIDREGITAB.TOTALT = nytid.      
+      tiddiff2 = stop2 - starta1.      
+      bilforare = TIDREGITAB.BILFORARE.
+      CREATE tidbuff.
+      ASSIGN 
+      tidbuff.PERSONALKOD = TIDREGITAB.PERSONALKOD 
+      tidbuff.VECKONUMMER = TIDREGITAB.VECKONUMMER 
+      SUBSTRING(tidbuff.PROGRAM,1,158) = "RESTID4" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv
+      tidbuff.OVERTIDTILL = TIDREGITAB.OVERTIDTILL
+      tidbuff.DATUM = TIDREGITAB.DATUM 
+      tidbuff.DAG = TIDREGITAB.DAG
+      tidbuff.AONR = TIDREGITAB.AONR 
+      tidbuff.DELNR = TIDREGITAB.DELNR
+      tidbuff.TRAKTAMENTE = TIDREGITAB.TRAKTAMENTE
+      tidbuff.LONTILLAGG = kod2 
+      tidbuff.PRISTYP = TIDREGITAB.PRISTYP 
+      tidbuff.PRIS = TIDREGITAB.PRIS
+      tidbuff.BILFORARE = bilforare 
+      tidbuff.ENFLERDAGS = TIDREGITAB.ENFLERDAGS
+      tidbuff.UTRYCKNING = TIDREGITAB.UTRYCKNING 
+      tidbuff.LONTILLAGG = kod2.       
+      ASSIGN
+      sekunder = stop1
+      regstartsek = sekunder.
+      RUN SEKTIM.P.
+      ASSIGN tidbuff.START = nytid.
+      ASSIGN
+      sekunder = stop2
+      regslutsek = sekunder.
+      RUN SEKTIM.P.
+      ASSIGN tidbuff.SLUT = nytid 
+      sekunder = tiddiff2.
+      RUN SEKTIM.P.
+      ASSIGN tidbuff.LONTILLANTAL = nytid .
+      ASSIGN
+      regdatum = tidbuff.DATUM.      
+      RUN TOTTID.P.                         
+      ASSIGN tidbuff.TOTALT = nytid.                  
+      bilforare = TIDREGITAB.BILFORARE.
+      CREATE tidbuff.
+      ASSIGN 
+      tidbuff.PERSONALKOD = TIDREGITAB.PERSONALKOD 
+      tidbuff.VECKONUMMER = TIDREGITAB.VECKONUMMER 
+      SUBSTRING(tidbuff.PROGRAM,1,158) = "RESTID4" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv
+      tidbuff.OVERTIDTILL = TIDREGITAB.OVERTIDTILL
+      tidbuff.DATUM = TIDREGITAB.DATUM 
+      tidbuff.DAG = TIDREGITAB.DAG
+      tidbuff.AONR = TIDREGITAB.AONR 
+      tidbuff.DELNR = TIDREGITAB.DELNR
+      tidbuff.TRAKTAMENTE = TIDREGITAB.TRAKTAMENTE
+      tidbuff.LONTILLAGG = kod2 
+      tidbuff.PRISTYP = TIDREGITAB.PRISTYP 
+      tidbuff.PRIS = TIDREGITAB.PRIS
+      tidbuff.BILFORARE = bilforare 
+      tidbuff.ENFLERDAGS = TIDREGITAB.ENFLERDAGS
+      tidbuff.UTRYCKNING = TIDREGITAB.UTRYCKNING 
+      tidbuff.LONTILLAGG = kod3.    
+      ASSIGN
+      sekunder = stop2
+      regstartsek = sekunder.
+      RUN SEKTIM.P.
+      ASSIGN tidbuff.START = nytid.
+      ASSIGN
+      sekunder = rslutsek
+      regslutsek = sekunder.
+      RUN SEKTIM.P.
+      ASSIGN tidbuff.SLUT = nytid.
+      ASSIGN
+      tiddiff2 = rslutsek - starta2
+      sekunder = tiddiff2.
+      RUN SEKTIM.P.
+      ASSIGN tidbuff.LONTILLANTAL = nytid .
+      ASSIGN
+      regdatum = tidbuff.DATUM.      
+      RUN TOTTID.P.                         
+      ASSIGN tidbuff.TOTALT = nytid.        
+      tidtabrec = RECID(tidbuff).
+   END.
+END.

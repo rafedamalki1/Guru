@@ -1,0 +1,83 @@
+/*KSKAPAPP.P*/
+
+DEFINE INPUT  PARAMETER BerValdNrIN AS INTEGER NO-UNDO.
+DEFINE INPUT  PARAMETER BerValdaOmrIN AS CHARACTER NO-UNDO.
+DEFINE VARIABLE bloblog AS LOGICAL NO-UNDO.
+{STARTFORAPP.I}
+
+&Scoped-define NEW 
+&Scoped-define SHARED
+{BERSKAP.I}
+
+
+DEFINE TEMP-TABLE impmtrl
+   FIELD ENR AS CHARACTER
+   FIELD BENAMNING AS CHARACTER
+   FIELD ANTAL AS INTEGER
+   FIELD PRIS AS DECIMAL.
+
+
+PROCEDURE berskaphmt_UI :
+   DEFINE OUTPUT PARAMETER TABLE FOR berskaptemp.
+   /*används inte*/
+   EMPTY TEMP-TABLE berskaptemp NO-ERROR. 
+   FOR EACH BERSKAP NO-LOCK.
+      {BerskapDubbStopp.I}
+      
+   END.
+
+END PROCEDURE.
+
+PROCEDURE berskaphmt2_UI :
+   DEFINE INPUT PARAMETER xtillyvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR berskaptemp.
+   DEFINE VARIABLE beflev AS CHARACTER NO-UNDO.
+   EMPTY TEMP-TABLE berskaptemp NO-ERROR. 
+   
+   FIND FIRST HUVUDLEV WHERE HUVUDLEV.DEP-NR = 999 NO-LOCK NO-ERROR.
+   IF AVAILABLE HUVUDLEV THEN DO:
+      beflev = HUVUDLEV.LEVKOD.
+   END.
+   ELSE DO:
+      FIND FIRST LEVERANTOR WHERE LEVERANTOR.LEVKOD NE "0"
+      AND LEVERANTOR.BORTTAG = FALSE NO-LOCK NO-ERROR.
+      beflev = LEVERANTOR.LEVKOD.
+   END.
+   
+   FOR EACH BERSKAP NO-LOCK.
+      {BerskapDubbStopp.I}
+      IF BERSKAP.ENR NE ""  THEN DO:
+         RUN UtbytStart_UI (INPUT "UPPERSATT",INPUT beflev,INPUT BerValdNrIn,INPUT BerValdaOmrIN).
+      END.
+   END.
+END PROCEDURE.
+
+
+PROCEDURE mtrlhmt_UI :
+   DEFINE INPUT PARAMETER vald_kundlev AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER gforetag AS CHARACTER NO-UNDO.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR impmtrl.
+  
+   FIND FIRST impmtrl NO-LOCK NO-ERROR.
+   IF AVAILABLE impmtrl THEN DO:
+      IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "ORBI" THEN DO:
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = vald_kundlev AND MTRL.ENR = "E" + impmtrl.ENR AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+      END.
+      ELSE DO:
+         FIND FIRST MTRL WHERE MTRL.LEVKOD = vald_kundlev AND MTRL.ENR = impmtrl.ENR AND MTRL.KALKNR = 0 NO-LOCK NO-ERROR.
+      END.
+      IF AVAILABLE MTRL THEN DO:
+         IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" OR Guru.Konstanter:globforetag = "ORBI" THEN DO:
+            impmtrl.ENR = "E" + impmtrl.ENR.
+         END.
+         ASSIGN
+         impmtrl.BENAMNING = MTRL.BENAMNING
+         impmtrl.PRIS = MTRL.NPRIS.
+      END.
+      ELSE DO:
+         impmtrl.PRIS = impmtrl.PRIS / 100.
+      END.   
+   END.
+END PROCEDURE.
+{UTBYTSTARTBER.I}            
+                 

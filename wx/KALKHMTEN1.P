@@ -1,0 +1,122 @@
+/*KALKHMTEN1.P*/
+&Scoped-define NEW NEW
+{KALKALLTEMP.I}  
+{GLOBVAR2DEL1.I}
+{BOLAGSEKSTART.I}
+FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+globforetag = FORETAG.FORETAG.
+DEFINE INPUT PARAMETER nyakalknr AS INTEGER NO-UNDO.
+DEFINE INPUT  PARAMETER ganv AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER varfinns AS LOGICAL NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR valdfasttemp.
+globanv = ganv.
+DEFINE TEMP-TABLE kalkaonrtemp NO-UNDO LIKE KALKAONR.
+FIND FIRST FORETAG WHERE NO-LOCK NO-ERROR.
+globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT globforetag).
+varfinns = TRUE.
+{DYNHMT.I}
+ASSIGN
+kommandoquery = "KALKAONR.KALKNR = " + STRING(nyakalknr)
+orginaltab = "KALKAONR"
+nytab      = "kalkaonrtemp".
+ASSIGN
+kommandoquery = "FOR EACH " + orginaltab + " WHERE " + kommandoquery + " NO-LOCK".
+/*BUGG 9.1c FIX*/
+ASSIGN extratemptabh = TEMP-TABLE kalkaonrtemp:DEFAULT-BUFFER-HANDLE.
+
+RUN dynquery_UI (INPUT FALSE,INPUT FALSE).
+RUN egenkoll_UI.
+RUN objdelete_UI.
+RUN aonrsekkoll_UI (INPUT 1).
+
+FIND FIRST valdfasttemp NO-ERROR.
+IF NOT AVAILABLE valdfasttemp THEN varfinns = FALSE.
+PROCEDURE aonrsekkoll_UI :
+   DEFINE INPUT PARAMETER vad AS INTEGER NO-UNDO.
+   IF varforetypchar[4] = "" AND varforetypval[18] = 0 THEN DO:
+      RETURN.
+   END.
+   IF Guru.Konstanter:globanv = CHR(69) + CHR(76) + CHR(80) + CHR(65) + CHR(79) THEN RETURN.
+   IF varforetypchar[4] = "ja" THEN DO:
+      IF vad = 1 THEN DO:
+         FOR EACH valdfasttemp:
+            FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = globanv AND 
+            OFFERT.OMRADE = valdfasttemp.OMRADE NO-LOCK NO-ERROR.
+            IF NOT AVAILABLE OFFERT THEN DO:
+               FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = globanv AND
+               OFFERT.AONR = valdfasttemp.AONR AND OFFERT.DELNR = valdfasttemp.DELNR
+               NO-LOCK NO-ERROR.
+               IF NOT AVAILABLE OFFERT THEN DO:
+                  FIND FIRST FASTSPEC WHERE FASTSPEC.KALKNR = valdfasttemp.KALKNR AND FASTSPEC.OMRADE = valdfasttemp.OMRADE NO-LOCK NO-ERROR.
+                  IF AVAILABLE FASTSPEC THEN DO:
+                     IF FASTSPEC.ANVANDARE = globanv AND valdfasttemp.AONR = ? THEN.
+                     ELSE DELETE valdfasttemp.  
+                  END.   
+                  ELSE DELETE valdfasttemp.
+               END.
+            END.
+         END.
+      END.
+   END.
+   IF varforetypval[18] = 1 THEN DO:
+      IF vad = 1 THEN DO:
+         FOR EACH valdfasttemp:
+            FIND FIRST omvtemp WHERE omvtemp.OMRADE = valdfasttemp.OMRADE NO-LOCK NO-ERROR.
+            IF AVAILABLE omvtemp THEN DO:
+               FIND FIRST BOLAGSEK WHERE BOLAGSEK.OMRADE = omvtemp.JUDID AND BOLAGSEK.ANVANDARE = globanv NO-LOCK NO-ERROR. 
+               IF NOT AVAILABLE BOLAGSEK THEN DELETE valdfasttemp.               
+            END.
+            ELSE DO:
+               IF valdfasttemp.OMRADE NE "" THEN DELETE valdfasttemp.  
+            END.
+         END.
+      END.
+   END.
+  
+END PROCEDURE.
+
+
+
+PROCEDURE egenkoll_UI:  
+   FOR EACH kalkaonrtemp WHERE kalkaonrtemp.KALKNR = ?:
+      DELETE kalkaonrtemp.
+   END.
+   FOR EACH kalkaonrtemp: 
+      IF kalkaonrtemp.TYP = 6 THEN DO:
+         FIND FIRST KALKSPEC WHERE KALKSPEC.KALKNR = kalkaonrtemp.KALKNR
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE KALKSPEC THEN DO:
+            CREATE valdfasttemp.
+            BUFFER-COPY KALKSPEC TO valdfasttemp.
+            BUFFER-COPY kalkaonrtemp TO valdfasttemp.
+            ASSIGN
+            valdfasttemp.BENAMNING = KALKSPEC.KALKTEXT  
+            valdfasttemp.TYPCHAR = "Fri"
+            valdfasttemp.TYP = 6.
+            /*KALKÅR*/
+            IF globforetag = "GRAN" THEN valdfasttemp.VIKATAR = valdfasttemp.KATAR - 2.
+            ELSE valdfasttemp.VIKATAR = valdfasttemp.KATAR - 1.                     
+            IF valdfasttemp.VIKATAR < 1900  THEN valdfasttemp.VIKATAR = 0.
+         END.
+      END.
+      ELSE DO:
+         FIND FIRST FASTSPEC WHERE FASTSPEC.KALKNR = kalkaonrtemp.KALKNR
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE FASTSPEC THEN DO:
+            CREATE valdfasttemp.
+            BUFFER-COPY FASTSPEC TO valdfasttemp.    
+            BUFFER-COPY kalkaonrtemp TO valdfasttemp.
+            valdfasttemp.TYPCHAR = STRING(valdfasttemp.TYP).
+            IF valdfasttemp.TYP = 5 THEN valdfasttemp.TYPCHAR = "Sam".
+            ELSE IF valdfasttemp.TYP = 7 THEN valdfasttemp.TYPCHAR = "Nät".
+            
+               IF globforetag = "GRAN" THEN valdfasttemp.VIKATAR = valdfasttemp.KATAR - 2.
+               ELSE valdfasttemp.VIKATAR = valdfasttemp.KATAR - 1.         
+            
+            IF valdfasttemp.VIKATAR < 1900  THEN valdfasttemp.VIKATAR = 0.
+         END.
+      END.
+   END.
+END PROCEDURE.
+

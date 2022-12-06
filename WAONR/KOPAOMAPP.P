@@ -1,0 +1,239 @@
+/*KOPAOMAPP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+{REGVAR.I}
+
+{AONRDEF.I}
+{AVTAONRTEMP.I}
+{OMRTEMPW.I}
+
+PROCEDURE vardhmt.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER omr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR varderingtemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR aovardtemp.
+   /*Hämta befintliga värderingar*/
+   EMPTY TEMP-TABLE varderingtemp NO-ERROR.    
+   OPEN QUERY vq FOR EACH VARDERING WHERE VARDERING.OMRADE = omr USE-INDEX AONR NO-LOCK.
+   GET FIRST vq NO-LOCK.
+   DO WHILE AVAILABLE(VARDERING):
+      CREATE varderingtemp.
+      BUFFER-COPY VARDERING TO varderingtemp.
+      GET NEXT vq NO-LOCK.         
+   END.
+   CLOSE QUERY vq.
+   EMPTY TEMP-TABLE aovardtemp NO-ERROR.    
+   OPEN QUERY aq FOR EACH AOVARD WHERE AOVARD.AONR = aonrvar AND
+   AOVARD.DELNR = delnrvar USE-INDEX AONR NO-LOCK.
+   GET FIRST aq NO-LOCK.
+   DO WHILE AVAILABLE(AOVARD):
+      CREATE aovardtemp.
+      BUFFER-COPY AOVARD TO aovardtemp.
+      GET NEXT aq NO-LOCK.         
+   END.
+   CLOSE QUERY aq.
+   RETURN.
+END PROCEDURE.
+PROCEDURE vardomrhmt.   
+   DEFINE INPUT PARAMETER omr AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR varderingtemp.   
+   /*Hämta befintliga värderingar*/
+   EMPTY TEMP-TABLE varderingtemp NO-ERROR.    
+   OPEN QUERY vq FOR EACH VARDERING WHERE VARDERING.OMRADE = omr USE-INDEX AONR NO-LOCK.
+   GET FIRST vq NO-LOCK.
+   DO WHILE AVAILABLE(VARDERING):
+      CREATE varderingtemp.
+      BUFFER-COPY VARDERING TO varderingtemp.
+      GET NEXT vq NO-LOCK.         
+   END.
+   CLOSE QUERY vq.   
+   RETURN.
+END PROCEDURE.
+         
+PROCEDURE skapaovard.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DO TRANSACTION:
+      FIND FIRST AOVARD WHERE AOVARD.AONR = aonrvar AND 
+      AOVARD.DELNR = delnrvar EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE AOVARD THEN DO:
+         CREATE AOVARD.
+         ASSIGN
+         AOVARD.AONR = aonrvar
+         AOVARD.DELNR = delnrvar.
+      END.     
+   END.
+   RELEASE AOVARD NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE kopplakoll.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER omr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vardnr AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+   IF vardnr NE ? THEN DO TRANSACTION: 
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+      AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.
+      FIND AOVARD WHERE AOVARD.AONR = aonrvar AND AOVARD.DELNR = delnrvar
+      USE-INDEX AONR NO-LOCK NO-ERROR.
+      FIND FIRST VARDERING WHERE VARDERING.OMRADE = omr AND
+      VARDERING.VARDNR = vardnr USE-INDEX VARDNR NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE VARDERING THEN DO:
+         CREATE felmeddtemp.
+         ASSIGN 
+         felmeddtemp.FELMEDD = "Det finns ingen värdering med nummer " + STRING(vardnr)  
+         felmeddtemp.VAL = 1.
+         RETURN.
+      END.
+      IF VARDERING.DELNR NE ? THEN DO:
+         CREATE felmeddtemp.
+         ASSIGN 
+         felmeddtemp.FELMEDD = "Det finns redan en koppling till ett " + LC(Guru.Konstanter:gaok) + " på denna värdering. Vill du ta bort den ?"
+         felmeddtemp.VAL = 2.
+         RETURN.
+      END.
+   END.
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE bortkopp.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER omr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vardnr AS INTEGER NO-UNDO.
+   DO TRANSACTION:     
+      FIND FIRST VARDERING WHERE VARDERING.OMRADE = omr AND
+      VARDERING.VARDNR = vardnr USE-INDEX VARDNR EXCLUSIVE-LOCK NO-ERROR.
+      FIND FIRST AOVARD WHERE AOVARD.AONR = VARDERING.AONR AND 
+      AOVARD.DELNR = VARDERING.DELNR 
+      USE-INDEX AONR EXCLUSIVE-LOCK NO-ERROR.
+      ASSIGN AOVARD.VARDNR = ?.
+      FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+      AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.
+      ASSIGN 
+      VARDERING.AONR = aonrvar 
+      VARDERING.DELNR = delnrvar.
+      ASSIGN AOVARD.VARDNR = vardnr.  
+   END.
+   RELEASE VARDERING NO-ERROR.
+   RELEASE AOVARD NO-ERROR.
+
+END PROCEDURE.
+
+PROCEDURE koppla.
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnrvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER omr AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER fillvardnr AS INTEGER NO-UNDO.  /*FILL-IN_VARDNR*/
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR varderingtemp.
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR aovardtemp.
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = aonrvar AND 
+   AONRTAB.DELNR = delnrvar NO-LOCK NO-ERROR.
+   FIND FIRST AOVARD WHERE AOVARD.AONR = aonrvar AND AOVARD.DELNR = delnrvar
+   USE-INDEX AONR NO-LOCK NO-ERROR.
+   IF AVAILABLE AOVARD THEN DO:
+      FIND FIRST aovardtemp WHERE aovardtemp.AONR = aonrvar AND aovardtemp.DELNR = delnrvar
+      USE-INDEX AONR NO-LOCK NO-ERROR.
+      IF AVAILABLE aovardtemp THEN DO:
+         IF AOVARD.VARDNR NE fillvardnr THEN DO TRANSACTION:
+           /*ÄNDRING*/
+            IF AOVARD.VARDNR = ? OR fillvardnr = ? THEN DO:
+               IF fillvardnr = ? THEN DO:
+                  /*TA BORT KOPPLING*/
+                  FIND FIRST AOVARD WHERE AOVARD.AONR = aonrvar AND AOVARD.DELNR = delnrvar
+                  USE-INDEX AONR EXCLUSIVE-LOCK NO-ERROR.
+                  FIND FIRST aovardtemp WHERE aovardtemp.AONR = aonrvar AND 
+                  aovardtemp.DELNR = delnrvar NO-LOCK NO-ERROR.
+                  FIND FIRST VARDERING WHERE VARDERING.OMRADE = omr AND
+                  VARDERING.VARDNR = AOVARD.VARDNR AND 
+                  VARDERING.AONR = aonrvar AND VARDERING.DELNR = delnrvar
+                  USE-INDEX VARDNR EXCLUSIVE-LOCK NO-ERROR.
+                  FIND FIRST varderingtemp WHERE varderingtemp.OMRADE = omr AND
+                  varderingtemp.VARDNR = AOVARD.VARDNR AND 
+                  varderingtemp.AONR = aonrvar AND varderingtemp.DELNR = delnrvar
+                  USE-INDEX VARDNR NO-LOCK NO-ERROR.
+                  ASSIGN 
+                  VARDERING.AONR = ? 
+                  VARDERING.DELNR = ?
+                  varderingtemp.AONR = ? 
+                  varderingtemp.DELNR = ?.
+                  ASSIGN 
+                  AOVARD.VARDNR = fillvardnr
+                  aovardtemp.VARDNR = fillvardnr.               
+               END.  
+            END.
+            ELSE DO:
+                /*BORTAG GAMLA AONR-KALKYL DVS AONR BYTER KALKYL*/
+               FIND FIRST VARDERING WHERE VARDERING.OMRADE = omr AND
+               VARDERING.VARDNR = AOVARD.VARDNR AND 
+               VARDERING.AONR = aonrvar AND VARDERING.DELNR = delnrvar
+               USE-INDEX VARDNR EXCLUSIVE-LOCK NO-ERROR.
+               IF AVAILABLE VARDERING THEN DO:
+                  FIND FIRST varderingtemp WHERE varderingtemp.OMRADE = omr AND
+                  varderingtemp.VARDNR = AOVARD.VARDNR AND 
+                  varderingtemp.AONR = aonrvar AND varderingtemp.DELNR = delnrvar
+                  USE-INDEX VARDNR NO-LOCK NO-ERROR.
+                  IF AVAILABLE varderingtemp THEN DO:
+                     ASSIGN 
+                     VARDERING.AONR = ? 
+                     VARDERING.DELNR = ?
+                     varderingtemp.AONR = ?   
+                     varderingtemp.DELNR = ?.  
+                  END.
+               END.
+            END.
+         END.
+         RELEASE AOVARD NO-ERROR.
+         RELEASE VARDERING NO-ERROR.
+      END.
+   END.
+   IF fillvardnr NE ? THEN DO TRANSACTION: 
+      FIND FIRST AOVARD WHERE AOVARD.AONR = aonrvar AND AOVARD.DELNR = delnrvar
+      USE-INDEX AONR EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE AOVARD THEN DO:
+         FIND FIRST aovardtemp WHERE aovardtemp.AONR = aonrvar AND aovardtemp.DELNR = delnrvar
+         USE-INDEX AONR NO-LOCK NO-ERROR.
+         IF AVAILABLE aovardtemp THEN DO:
+            FIND FIRST VARDERING WHERE VARDERING.OMRADE = omr AND
+            VARDERING.VARDNR = fillvardnr USE-INDEX VARDNR EXCLUSIVE-LOCK NO-ERROR.
+            IF AVAILABLE VARDERING THEN DO:
+               FIND FIRST varderingtemp WHERE varderingtemp.OMRADE = omr AND
+               varderingtemp.VARDNR = fillvardnr USE-INDEX VARDNR NO-LOCK NO-ERROR.
+               IF AVAILABLE varderingtemp THEN DO:
+                  IF VARDERING.DELNR = ? THEN DO:
+                     ASSIGN 
+                     AOVARD.VARDNR = fillvardnr
+                     aovardtemp.VARDNR = fillvardnr.
+                     ASSIGN 
+                     VARDERING.AONR = aonrvar 
+                     VARDERING.DELNR = delnrvar
+                     varderingtemp.AONR  = aonrvar  
+                     varderingtemp.DELNR = delnrvar.
+                  END.
+               END.
+            END.
+            ELSE DO:
+               RETURN.
+            END.
+         END.
+      END.
+   END.
+   RELEASE AOVARD NO-ERROR.
+   DO TRANSACTION:         
+      FIND FIRST MARKOVR WHERE MARKOVR.VARDNR = VARDERING.VARDNR USE-INDEX VARDNR EXCLUSIVE-LOCK
+      NO-ERROR.
+      IF NOT AVAILABLE MARKOVR THEN DO:
+         CREATE MARKOVR.
+      END.            
+      ASSIGN 
+      MARKOVR.AONR = VARDERING.AONR
+      MARKOVR.DELNR = VARDERING.DELNR
+      MARKOVR.VARDNR  = VARDERING.VARDNR.            
+   END.
+   RELEASE MARKOVR NO-ERROR.
+   RELEASE VARDERING NO-ERROR.
+   RETURN.
+END PROCEDURE.

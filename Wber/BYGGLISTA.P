@@ -1,0 +1,898 @@
+/*BYGGLISTA.P*/
+
+{STARTFORAPP.I}
+
+{ANMARKD.I} 
+{LISTDEF.I}
+{KONVALTEMP.I}
+{UPPLAGTEMP.I}
+
+   
+DEFINE TEMP-TABLE ord_temp
+   FIELD NUM LIKE BERORD.NUM 
+   FIELD ORD LIKE BERORD.ORD
+   INDEX NUM IS PRIMARY NUM ASCENDING.          
+   
+DEFINE TEMP-TABLE id_temp  
+   FIELD NUM LIKE BERVAL.NUM 
+   FIELD GRUPP LIKE BERVAL.KONSKOD  
+   FIELD FORNR LIKE BERID.FORNR
+   FIELD LINNR LIKE BERID.LINNR
+   FIELD NATNR LIKE BERID.NATNR
+   FIELD FRI1 LIKE BERID.FRI1
+   FIELD FRI2 LIKE BERID.FRI2 
+   FIELD XKORD LIKE BERID.XKORD
+   FIELD ENDKOMB LIKE BERID.ENDKOMB
+   FIELD FRI3 LIKE BERID.FRI3
+   FIELD ORD LIKE BERORD.ORD
+   INDEX NUM IS PRIMARY NUM ASCENDING
+   INDEX ORD FORNR LINNR NATNR FRI1 FRI2 ASCENDING
+   INDEX ORD2 ORD ASCENDING. 
+   
+{SKAPTEMP.I}
+
+{BYGGTEMP.I}
+
+{TIDUTTT.I}
+DEFINE TEMP-TABLE tidut2 NO-UNDO LIKE tidut.
+DEFINE INPUT  PARAMETER vadgora AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER valber AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+DEFINE OUTPUT PARAMETER TABLE FOR byggtemp.
+DEFINE VARIABLE byggord AS INTEGER NO-UNDO.
+DEFINE VARIABLE bladraknare  AS INTEGER NO-UNDO.
+DEFINE VARIABLE delraknare   AS INTEGER NO-UNDO.
+DEFINE VARIABLE radraknare1   AS INTEGER NO-UNDO.
+DEFINE VARIABLE radraknare2   AS INTEGER NO-UNDO.
+DEFINE VARIABLE platsraknare AS INTEGER NO-UNDO.
+DEFINE VARIABLE krullpv AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE krullph AS CHARACTER  NO-UNDO.
+DEFINE VARIABLE bernamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE sidextra AS INTEGER NO-UNDO.
+DEFINE VARIABLE sidbrytvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE bestdatum AS DATE NO-UNDO.
+DEFINE VARIABLE levveck   AS INTEGER NO-UNDO.
+DEFINE VARIABLE berutfdat AS DATE NO-UNDO.
+DEFINE VARIABLE radkollvar AS LOGICAL NO-UNDO.
+krullpv = "~{".
+krullph = "}".
+DEFINE TEMP-TABLE stolptab NO-UNDO
+   FIELD NUM LIKE mtrl_temp.NUM
+   FIELD ENR LIKE mtrl_temp.ENR
+   FIELD BENAMNING LIKE mtrl_temp.BENAMNING
+   INDEX NUM NUM.
+
+FIND FIRST BEREDNING WHERE  BEREDNING.BERNR = INTEGER(valber) AND BEREDNING.OMRADE = valomrade NO-LOCK NO-ERROR.
+IF NOT AVAILABLE BEREDNING THEN RETURN.
+
+FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = BEREDNING.ANVANDARE NO-LOCK NO-ERROR.
+IF AVAILABLE ANVANDARE THEN DO:
+   bernamn = ANVANDARE.AV-NAMN.
+   Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + ANVANDARE.PERSONALKOD.
+END.
+FIND FIRST BESTSTAT WHERE BESTSTAT.BERNR = INTEGER(valber) AND BESTSTAT.OMRADE = valomrade NO-LOCK NO-ERROR.
+IF AVAILABLE BESTSTAT THEN DO:
+   bestdatum = BESTSTAT.DATUM.
+END.
+ELSE bestdatum = ?.
+FIND FIRST LEVTRP WHERE LEVTRP.BERNR = INTEGER(valber) AND LEVTRP.OMRADE = valomrade NO-LOCK NO-ERROR.
+IF AVAILABLE LEVTRP THEN DO:
+   regdatum = LEVTRP.DATUM.
+   RUN REGVEC.P.
+   levveck = regvnr.
+END.
+ELSE levveck = ?.
+FIND FIRST AONRTAB WHERE AONRTAB.AONR = BEREDNING.AONR AND AONRTAB.DELNR = BEREDNING.DELNR NO-LOCK NO-ERROR.
+IF AVAILABLE AONRTAB THEN DO:
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = AONRTAB.BEREDARE NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      bernamn = PERSONALTAB.FORNAMN  + " " + PERSONALTAB.EFTERNAMN. 
+      Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+   END.   
+   FIND FIRST AONRTIDLAGE WHERE AONRTIDLAGE.AONR = AONRTAB.AONR AND 
+   AONRTIDLAGE.DELNR = AONRTAB.DELNR AND AONRTIDLAGE.IDTIDLAG = "BEREDNING"
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE AONRTIDLAGE THEN DO:
+      berutfdat = AONRTIDLAGE.DATUM2.
+   END.
+   ELSE berutfdat = ?.
+END.
+
+/*berval*/             /*+ berval*/                /*ID*/        
+RUN LISTKONU.P (INPUT valber, INPUT valomrade, INPUT FALSE, INPUT TABLE kon_val, OUTPUT TABLE uppl_temp,OUTPUT TABLE skap_temp, OUTPUT TABLE id_temp).
+                                                /*BERMTRL*/                     /*LINOR*/                /*LINOR*/
+RUN LISTPROG.P (INPUT valber, INPUT valomrade, OUTPUT TABLE mtrl_temp, OUTPUT TABLE lin_upp,OUTPUT TABLE lin_temp).
+
+/*FOR EACH uppl_temp:
+   MESSAGE uppl_temp.NUM uppl_temp.F1 uppl_temp.F2 uppl_temp.F3 uppl_temp.F4 uppl_temp.F5 uppl_temp.F6 uppl_temp.GRUPP VIEW-AS ALERT-BOX.
+END.*/   
+
+
+FOR EACH uppl_temp:   
+   IF uppl_temp.GRUPP = 19 OR uppl_temp.GRUPP = 20 OR uppl_temp.GRUPP = 21 OR uppl_temp.GRUPP = 22 THEN DO:
+      IF TRIM(uppl_temp.F5) = "31" OR TRIM(uppl_temp.F5) = "62" OR TRIM(uppl_temp.F5) = "99" OR TRIM(uppl_temp.F5) = "Jordlina" 
+      OR TRIM(uppl_temp.F5) = "J-Lin 1" OR TRIM(uppl_temp.F5) = "J-Lin 2" OR TRIM(uppl_temp.F5) = "J-Lin 3" THEN.
+      ELSE DO:
+         FOR EACH  BERVAL WHERE BERVAL.AONR = valber AND BERVAL.OMRADE = valomrade AND BERVAL.NUM = uppl_temp.NUM NO-LOCK.            
+            IF TRIM(BERVAL.F5) =  "31" THEN uppl_temp.F5 = BERVAL.F5.  
+            ELSE IF TRIM(BERVAL.F5) = "62" THEN uppl_temp.F5 = BERVAL.F5.
+            ELSE IF TRIM(BERVAL.F5) = "99" THEN uppl_temp.F5 = BERVAL.F5.
+            ELSE IF TRIM(BERVAL.F5) = "Jordlina" THEN uppl_temp.F5 = BERVAL.F5.
+            ELSE IF TRIM(BERVAL.F5) = "J-Lin 1" THEN uppl_temp.F5 = BERVAL.F5.
+            ELSE IF  TRIM(BERVAL.F5) = "J-Lin 2" THEN uppl_temp.F5 = BERVAL.F5.
+            ELSE IF TRIM(BERVAL.F5) = "J-Lin 3" THEN uppl_temp.F5 = BERVAL.F5.
+         END.   
+      END.
+   END.
+END.   
+                                 
+OPEN QUERY stq FOR EACH mtrl_temp,
+EACH BERSTOLP WHERE BERSTOLP.ENR = mtrl_temp.ENR AND BERSTOLP.STOLPE = TRUE NO-LOCK.
+GET FIRST stq NO-LOCK.
+DO WHILE AVAILABLE(BERSTOLP):
+   CREATE stolptab.
+   ASSIGN
+   stolptab.NUM = mtrl_temp.NUM
+   stolptab.ENR = mtrl_temp.ENR
+   stolptab.BENAMNING = mtrl_temp.BENAMNING.
+   stolptab.BENAMNING = TRIM(REPLACE(stolptab.BENAMNING,"FURUSTOLPE","")).   
+   stolptab.BENAMNING = TRIM(REPLACE(stolptab.BENAMNING,"KREOSOTSTOLPE","")).
+   stolptab.BENAMNING = TRIM(REPLACE(stolptab.BENAMNING,"KOMPOSITSTOLPE","")).
+   stolptab.BENAMNING = TRIM(REPLACE(stolptab.BENAMNING,"STOLPE","")).
+   stolptab.BENAMNING = TRIM(REPLACE(stolptab.BENAMNING,"MT  NTR-A .","")).
+   stolptab.BENAMNING = TRIM(REPLACE(stolptab.BENAMNING,"DLK .","")).
+   stolptab.BENAMNING = TRIM(REPLACE(stolptab.BENAMNING,"JEROL","")).
+   GET NEXT stq NO-LOCK.
+END.
+
+/*FOR EACH stolptab:
+   RUN versaler_UI (INPUT-OUTPUT stolptab.BENAMNING ).
+END.*/   
+DEFINE VARIABLE baldut AS INTEGER NO-UNDO.
+DEFINE VARIABLE delut AS INTEGER NO-UNDO.
+DEFINE VARIABLE platsut AS INTEGER NO-UNDO.
+DEFINE VARIABLE platsuthj AS INTEGER NO-UNDO.
+DEFINE VARIABLE bladtotal AS INTEGER NO-UNDO.
+baldut = baldut + 1.
+/*
+RUN htmkonval_UI (INPUT valber,INPUT valomrade,OUTPUT TABLE byggtemp).
+*/
+DEBUGGER:SET-BREAK().
+RUN htmkonval_UI (INPUT valber,INPUT valomrade).
+IF vadgora = 1 THEN DO: 
+   RUN htmstart_UI.
+   RUN bodystart_UI.
+   RUN htmslut_UI.
+END.
+IF vadgora = 2 THEN DO:
+END.      
+Guru.GlobalaVariabler:GDPRtyp = "PL".
+{GDPRLOGGCLIENT.I}
+PROCEDURE huvrad_UI :
+   DEFINE INPUT PARAMETER rad AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER konst AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER byggvar AS CHARACTER NO-UNDO.
+   FIND FIRST byggtemp WHERE byggtemp.BLADNR =  bladraknare AND byggtemp.DELBLAD  = delraknare AND byggtemp.RADNR  = rad NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE byggtemp THEN CREATE byggtemp.
+   IF byggvar = ? THEN byggvar = "".
+   ASSIGN        
+   byggtemp.BLADNR =  bladraknare 
+   byggtemp.DELBLAD  = delraknare  
+   byggtemp.RADNR  = rad         
+   byggtemp.BENAMNING = konst
+   byggtemp.BYGG[platsraknare] = byggvar
+   byggtemp.ENR = ""     
+   byggtemp.ANTAL = 0   
+   byggtemp.ANM   = ""
+   byggtemp.NUMMER[platsraknare] = uppl_temp.NUM.
+   byggtemp.GRUPP[platsraknare] = uppl_temp.GRUPP.
+   byggtemp.F1[platsraknare] = uppl_temp.F1.
+   byggtemp.F2[platsraknare] = uppl_temp.F2.
+   byggtemp.F3[platsraknare] = uppl_temp.F3.
+   byggtemp.F4[platsraknare] = uppl_temp.F4.
+   byggtemp.F5[platsraknare] = uppl_temp.F5.
+   byggtemp.F6[platsraknare] = uppl_temp.F6.
+   
+   FIND FIRST KONSTVAL WHERE KONSTVAL.KONSKOD = byggtemp.GRUPP[platsraknare] AND TRIM(KONSTVAL.KVALKOD) = TRIM(byggtemp.F1[platsraknare])  NO-LOCK NO-ERROR.
+   IF AVAILABLE KONSTVAL THEN byggtemp.F1NAMN[platsraknare] = KONSTVAL.BENAMNING.
+   FIND FIRST KONSTVAL WHERE KONSTVAL.KONSKOD = byggtemp.GRUPP[platsraknare] AND TRIM(KONSTVAL.KVALKOD) = TRIM(byggtemp.F2[platsraknare])  NO-LOCK NO-ERROR.
+   IF AVAILABLE KONSTVAL THEN byggtemp.F2NAMN[platsraknare] = KONSTVAL.BENAMNING.
+   FIND FIRST KONSTVAL WHERE KONSTVAL.KONSKOD = byggtemp.GRUPP[platsraknare] AND TRIM(KONSTVAL.KVALKOD) = TRIM(byggtemp.F3[platsraknare])  NO-LOCK NO-ERROR.
+   IF AVAILABLE KONSTVAL THEN byggtemp.F3NAMN[platsraknare] = KONSTVAL.BENAMNING.
+   FIND FIRST KONSTVAL WHERE KONSTVAL.KONSKOD = byggtemp.GRUPP[platsraknare] AND TRIM(KONSTVAL.KVALKOD) = TRIM(byggtemp.F4[platsraknare])  NO-LOCK NO-ERROR.
+   IF AVAILABLE KONSTVAL THEN byggtemp.F4NAMN[platsraknare] = KONSTVAL.BENAMNING.
+   FIND FIRST KONSTVAL WHERE KONSTVAL.KONSKOD = byggtemp.GRUPP[platsraknare] AND TRIM(KONSTVAL.KVALKOD) = TRIM(byggtemp.F5[platsraknare])  NO-LOCK NO-ERROR.
+   IF AVAILABLE KONSTVAL THEN byggtemp.F5NAMN[platsraknare] = KONSTVAL.BENAMNING.
+   FIND FIRST KONSTVAL WHERE KONSTVAL.KONSKOD = byggtemp.GRUPP[platsraknare] AND TRIM(KONSTVAL.KVALKOD) = TRIM(byggtemp.F6[platsraknare])  NO-LOCK NO-ERROR.
+   IF AVAILABLE KONSTVAL THEN byggtemp.F6NAMN[platsraknare] = KONSTVAL.BENAMNING.
+   
+END PROCEDURE.
+
+PROCEDURE htmkonval_UI:
+   DEFINE INPUT PARAMETER valber AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE stolpbenamn AS CHARACTER NO-UNDO.
+   /*
+   DEFINE OUTPUT PARAMETER TABLE FOR byggtemp.
+   */
+   DEFINE VARIABLE datvar AS DATE NO-UNDO.
+   EMPTY TEMP-TABLE byggtemp NO-ERROR. 
+
+   FIND LAST BERMTRL WHERE BERMTRL.AONR = valber AND 
+   BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE 
+   USE-INDEX DATUM NO-LOCK NO-ERROR.
+   IF AVAILABLE BERMTRL THEN DO:
+      datvar = BERMTRL.DATUM.
+   END.     
+   ELSE DO:
+      datvar = TODAY.
+   END.
+   ASSIGN
+   bladraknare  = 1              /*vilken sida*/
+   delraknare   = 1              /*vilkendel på sidan*/
+   radraknare1  = 1              /*vilken rad på delen*/
+   radraknare2  = 1
+   platsraknare = 1.            /*i vilken kolumn*/
+   FOR EACH uppl_temp BY ORD:     
+      IF platsraknare > 10 THEN DO:         
+         ASSIGN
+         platsraknare = 1
+         bladraknare  = bladraknare + 1.         
+         
+      END.
+      IF uppl_temp.UPPLAG = ? THEN RUN huvrad_UI (INPUT 1,"Upplag nr","").
+      ELSE RUN huvrad_UI (INPUT 1,"Upplag nr",STRING(uppl_temp.UPPLAG)).
+      FIND FIRST id_temp WHERE id_temp.NUM = uppl_temp.NUM NO-LOCK NO-ERROR.
+      IF AVAILABLE id_temp THEN DO:
+         FIND FIRST BBENAMNING WHERE BBENAMNING.KONSKOD = id_temp.GRUPP 
+         USE-INDEX KOD NO-LOCK NO-ERROR.
+         IF vadgora = 1 THEN DO: 
+            IF Guru.Konstanter:globforetag = "GRAN" OR Guru.Konstanter:globforetag = "ELKB" OR Guru.Konstanter:globforetag = "NAEK" OR Guru.Konstanter:globforetag = "CPOMA" THEN DO:
+               IF id_temp.FRI2 = 0 THEN DO:
+                  IF id_temp.FRI3 NE "" THEN DO:
+                     RUN huvrad_UI (INPUT 2,"Bygg nr",id_temp.FRI3).
+                  END.
+                  ELSE DO:
+                     RUN huvrad_UI (INPUT 2,"Bygg nr","").                
+                  END.
+               END.               
+               ELSE RUN huvrad_UI (INPUT 2,"Bygg nr",id_temp.FRI2).            
+               RUN huvrad_UI (INPUT 3,"Anmärkning",INPUT SUBSTRING(uppl_temp.ANMARK,1,5)).
+            END.
+            ELSE IF Guru.Konstanter:globforetag = "ELTE" OR Guru.Konstanter:globforetag = "ELPA" THEN DO:
+               IF id_temp.FRI2 = 0 THEN RUN huvrad_UI (INPUT 2,"Bygg nr","").
+               ELSE RUN huvrad_UI (INPUT 2,"Bygg nr",id_temp.FRI2).
+               RUN huvrad_UI (INPUT 3,"Fri id",INPUT id_temp.FRI3).
+            END.
+            ELSE DO:
+               IF id_temp.FRI3 NE "" THEN DO:
+                  RUN huvrad_UI (INPUT 2,"Bygg nr",id_temp.FRI3).
+               END.
+               ELSE DO:
+                   IF id_temp.FRI2 = 0 THEN RUN huvrad_UI (INPUT 2,"Bygg nr","").
+                   ELSE RUN huvrad_UI (INPUT 2,"Bygg nr",id_temp.FRI2).
+               END.
+               RUN huvrad_UI (INPUT 3,"Anmärkning",INPUT SUBSTRING(uppl_temp.ANMARK,1,5)).
+            END.
+         END.
+         ELSE IF vadgora = 2 THEN DO: 
+            IF Guru.Konstanter:varforetypval[32] = 1 THEN DO:            
+               IF id_temp.FRI2 = 0 THEN DO:
+                  IF id_temp.FRI3 NE "" THEN DO:
+                     RUN huvrad_UI (INPUT 2,"Bygg nr",id_temp.FRI3).
+                  END.
+                  ELSE RUN huvrad_UI (INPUT 2,"Bygg nr","").                                  
+               END.               
+               ELSE RUN huvrad_UI (INPUT 2,"Bygg nr",id_temp.FRI2).            
+               RUN huvrad_UI (INPUT 3,"Anmärkning",INPUT SUBSTRING(uppl_temp.ANMARK,1,5)).
+            END.            
+            ELSE DO:
+               IF id_temp.FRI3 NE "" THEN DO:
+                  RUN huvrad_UI (INPUT 2,"Bygg nr",id_temp.FRI3).
+               END.
+               ELSE DO:
+                   IF id_temp.FRI2 = 0 THEN RUN huvrad_UI (INPUT 2,"Bygg nr","").
+                   ELSE RUN huvrad_UI (INPUT 2,"Bygg nr",id_temp.FRI2).
+               END.
+               RUN huvrad_UI (INPUT 3,"Anmärkning",INPUT SUBSTRING(uppl_temp.ANMARK,1,5)).
+            END.
+         END.   
+         
+      END.
+      ELSE DO:
+         RUN huvrad_UI (INPUT 2,"Bygg nr","").
+      END.     
+      
+      
+      /*
+      RUN huvrad_UI (INPUT 3,"Anmärkning",INPUT SUBSTRING(uppl_temp.ANMARK,1,5)).
+      */
+      RUN huvrad_UI (INPUT 4,"EBR",uppl_temp.F4).
+      RUN huvrad_UI (INPUT 5,"Konstruktion",uppl_temp.F1).
+      FIND FIRST lin_temp WHERE lin_temp.NUM1 = uppl_temp.NUM OR lin_temp.NUM2 = uppl_temp.NUM USE-INDEX NUM NO-LOCK NO-ERROR.
+      IF AVAILABLE lin_temp THEN DO:
+         FOR EACH lin_temp WHERE lin_temp.NUM1 = uppl_temp.NUM OR lin_temp.NUM2 = uppl_temp.NUM USE-INDEX NUM:
+            IF lin_temp.NUM1 NE lin_temp.NUM2 THEN DO:
+               RUN huvrad_UI (INPUT 6,"Sektion","+" +  STRING(lin_temp.METER)).
+            END.
+         END.
+      END.
+      ELSE RUN huvrad_UI (INPUT 6,"Sektion","").
+      RUN huvrad_UI (INPUT 7,"Brytningsvinkel","").
+      RUN huvrad_UI (INPUT 8,"Nedgrävningsdjup","").
+      RUN huvrad_UI (INPUT 9,"Stagutlägg","").
+      RUN huvrad_UI (INPUT 10,"Korsning","").
+       
+      stolpbenamn = "".
+      FOR EACH stolptab WHERE stolptab.NUM = uppl_temp.NUM NO-LOCK:
+         stolpbenamn = TRIM(stolpbenamn + ";" + stolptab.BENAMNING,";").
+      END.
+      IF stolpbenamn NE "" THEN  RUN huvrad_UI (INPUT 11,"Stolpklass o längd",stolpbenamn).
+      ELSE RUN huvrad_UI (INPUT 11,"Stolpklass o längd","").
+      /*
+      FIND FIRST stolptab WHERE stolptab.NUM = uppl_temp.NUM NO-LOCK NO-ERROR.
+      IF AVAILABLE stolptab THEN RUN huvrad_UI (INPUT 11,"Stolpklass o längd",stolptab.BENAMNING).
+      ELSE RUN huvrad_UI (INPUT 11,"Stolpklass o längd","").
+      */
+      
+      RUN huvrad_UI (INPUT 12,"Placering","").
+      /* radraknare1 = radraknare1 + 1.*/
+      platsraknare = platsraknare + 1.
+   END.
+   bladtotal = bladraknare.
+   ASSIGN
+   bladraknare  = 1
+   delraknare   = 2
+   radraknare1  = 1
+   radraknare2  = 1
+   platsraknare = 1.     
+   
+   FOR EACH byggtemp WHERE byggtemp.DELBLAD = 1 AND byggtemp.RAD = 5 USE-INDEX ORD:     
+      REPEAT:        
+         IF platsraknare <= 10 THEN DO:
+            IF byggtemp.NUMMER[platsraknare] NE 0 THEN DO:
+               FOR EACH mtrl_temp WHERE mtrl_temp.NUM = byggtemp.NUMMER[platsraknare]:                        
+                  IF mtrl_temp.ANTAL = 0 THEN NEXT.
+                  FIND FIRST byggtempbuff WHERE byggtempbuff.BLADNR = byggtemp.BLADNR AND 
+                  byggtempbuff.DELBLAD = delraknare AND
+                  byggtempbuff.ENR = mtrl_temp.ENR NO-ERROR.
+                  IF NOT AVAILABLE byggtempbuff THEN DO:
+                     CREATE byggtempbuff.
+                     ASSIGN
+                     byggtempbuff.BLADNR =  byggtemp.BLADNR 
+                     byggtempbuff.DELBLAD  = delraknare 
+                     byggtempbuff.ERADNR = radraknare1
+                     byggtempbuff.RADNR  = radraknare1. 
+                     radraknare1 = radraknare1 + 1.     
+                     IF byggtempbuff.RADNR >= 43 THEN DO:
+                        byggtempbuff.ERADNR = byggtempbuff.RADNR - 42.
+                        REPEAT:
+                          IF byggtempbuff.ERADNR < 43 THEN LEAVE.
+                           byggtempbuff.ERADNR = byggtempbuff.ERADNR - 42.
+                        END.
+                     END.
+                        
+                  END.
+               
+                  ASSIGN
+                  byggtempbuff.BENAMNING = mtrl_temp.BENAMNING
+                  byggtempbuff.ENR = mtrl_temp.ENR  
+                  byggtempbuff.ANM = mtrl_temp.MTRLTEXT  
+                  byggtempbuff.BYGG[platsraknare] = STRING(mtrl_temp.ANTAL + DECIMAL(byggtempbuff.BYGG[platsraknare]))  
+                  byggtempbuff.ANTAL = byggtempbuff.ANTAL + mtrl_temp.ANTAL.  
+                  /*byggtempbuff.ANM   = BERMTRL.ANM*/
+                  
+                  IF byggtempbuff.ERADNR = 42 AND byggtempbuff.RADNR >= 42 THEN DO:
+                     /*> MAX ANTAL RADER*/
+                     bladtotal = bladtotal + 1.
+                     ASSIGN
+                     byggtempbuff.SIDBRYT = TRUE.
+                  
+                  END.
+                  /*
+                  IF radraknare1 = 43 OR radraknare1 = 85 OR radraknare1 = 127 OR radraknare1 = 169 THEN DO:
+                     /*> MAX ANTAL RADER*/
+                     bladtotal = bladtotal + 1.
+                     ASSIGN
+                     byggtempbuff.SIDBRYT = TRUE.
+                  
+                  END.                  
+                  */
+               END.
+            END.
+            platsraknare = platsraknare + 1.     
+         END.
+         ELSE DO:
+           
+            /*MAX ANTAL I BREDD*/
+            ASSIGN
+            bladraknare  = bladraknare + 1
+            radraknare1 = 1
+            platsraknare = 1.     
+            LEAVE.
+         END.
+         
+      END.
+   END.     
+END PROCEDURE.
+
+PROCEDURE tidut_UI :
+   DEFINE INPUT PARAMETER tvar AS CHARACTER NO-UNDO.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = LC(tvar).
+END PROCEDURE.
+PROCEDURE tidutC_UI :
+   DEFINE INPUT PARAMETER tvar AS CHARACTER NO-UNDO.
+   CREATE tidut.
+   ASSIGN
+   tidut.UT = tvar.
+END PROCEDURE.
+PROCEDURE tidut2_UI :
+   DEFINE INPUT PARAMETER tvar AS CHARACTER NO-UNDO.
+   CREATE tidut2.
+   ASSIGN
+   tidut2.UT = tvar.
+   CREATE tidut.
+   BUFFER-COPY tidut2 TO tidut.
+END PROCEDURE.
+PROCEDURE tidut3_UI :
+   FOR EACH tidut2:
+      CREATE tidut.
+      BUFFER-COPY tidut2 TO tidut.
+   END.   
+END PROCEDURE.
+
+PROCEDURE htmslut_UI :
+   RUN tidut_UI (INPUT '</body></html>').
+END PROCEDURE.
+
+PROCEDURE htmstart_UI:
+   RUN tidut_UI (INPUT '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">').
+   RUN tidut_UI (INPUT '<html>').
+   RUN tidut_UI (INPUT '<head>').
+   RUN tidut_UI (INPUT '<title>Beredningsprotokoll</title>').
+   RUN tidut_UI (INPUT '<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">').
+   RUN tidut_UI (INPUT '<style type="text/css">').
+   RUN tidut_UI (INPUT 'body' + krullpv + 'padding:0pt;margin:0pt;font-family:Arial, Helvetica, sans-serif;font-size:7pt; ' + krullph).
+   RUN tidut_UI (INPUT '.sidbryt ' + krullpv + ' page-break-after:always; ' + krullph).
+   RUN tidut_UI (INPUT '.main ' + krullpv + ' width:522pt; border:solid 1pt black; padding:0pt; margin:0pt; clear:both; float:left; border:solid 1pt black; left:0pt; top:0pt; ' + krullph).
+	RUN tidut_UI (INPUT '.rad ' + krullpv + ' width:522pt; padding:0pt; margin:0pt; clear:both; float:left; left:0pt; top:0pt; border:none; ' + krullph).
+	RUN tidut_UI (INPUT '.logga ' + krullpv + ' width:144pt;  padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; margin-top:20pt; font-size:22pt; ' + krullph).
+	RUN tidut_UI (INPUT '.berproto ' + krullpv + ' width:225pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; margin-top:40pt; text-align:left; font-weight:bold; font-size:16pt; ' + krullph).
+	RUN tidut_UI (INPUT '.box_foretag ' + krullpv + ' width:150pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; margin-top:30pt; height:auto;' + krullph).	
+	RUN tidut_UI (INPUT '.foretagsnamn ' + krullpv + ' width:150pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; border-bottom:solid 1pt black; font-size:9pt; ' + krullph).	
+	RUN tidut_UI (INPUT '.foretag ' + krullpv + ' width:100pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; margin:0pt; font-size:7pt; ' + krullph).	
+	RUN tidut_UI (INPUT '.rad_rubrik ' + krullpv + ' width:522pt; padding:0pt; margin-top:13pt; clear:both; float:left; left:0pt; top:0pt; ' + krullph).
+	RUN tidut_UI (INPUT '.rubrik ' + krullpv + ' width:522pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:center; font-weight:bold; font-size:18pt; font-stretch:expanded; ' + krullph).
+   RUN tidut_UI (INPUT '.box_obj ' + krullpv + ' width:397pt; padding:0pt; margin-left:0pt; float:left; left:0pt; top:0pt; border-right:solid 1pt black; height:12pt; text-align:left; ' + krullph).
+	RUN tidut_UI (INPUT '.obj_rubrik ' + krullpv + ' width:103pt; padding:0pt; margin-left:1pt; float:left; left:0pt; top:0pt; height:12pt; text-align:left; font-size:7pt; ' + krullph).
+	RUN tidut_UI (INPUT '.obj_data ' + krullpv + ' width:397pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; border-right:solid 1pt black; border-bottom:solid 1pt black; height:12pt; text-align:left; ' + krullph).
+	RUN tidut_UI (INPUT '.obj_namn ' + krullpv + ' width:390pt; padding:0pt; margin-left:1pt; float:left; left:0pt; top:0pt; font-size:9pt; font-weight:bold; text-align:left; ' + krullph).
+   RUN tidut_UI (INPUT '.left ' + krullpv + ' width:97pt; padding:0pt; margin:0pt; float:left; border-bottom:solid 1pt black; border-right:solid 1pt black; left:0pt; top:0pt; height:12pt; ' + krullph).
+	RUN tidut_UI (INPUT '.num_nbb ' + krullpv + ' width:97pt; padding:0pt; margin:0pt; float:left; border-right:solid 1pt black; left:0pt; top:0pt; height:12pt;' + krullph).
+	RUN tidut_UI (INPUT '.left_br ' + krullpv + ' width:14.2pt; padding:0pt; margin:0pt; border-right:solid 1pt black; float:left; left:0pt; top:0pt; height:12pt; ' + krullph).
+	RUN tidut_UI (INPUT '.left_bbr' + krullpv + ' width:14.2pt;  padding:0pt; border-right:solid 1pt black; border-bottom:solid 1pt black; margin:0pt; float:left; height:12pt; left:0pt; top:0pt;' + krullph).
+	RUN tidut_UI (INPUT '.num ' + krullpv + ' width:13.2pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; ' + krullph).
+   RUN tidut_UI (INPUT '.konst ' + krullpv + ' width:282pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; height:12pt; text-align:left; ' + krullph).
+	RUN tidut_UI (INPUT '.konst_cell ' + krullpv + ' width:28pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; border-right:solid 1pt black; border-bottom:solid 1pt black; height:12pt; text-align:left; ' + krullph).
+	RUN tidut_UI (INPUT '.konst_cell_nbb ' + krullpv + ' width:28pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; border-right:solid 1pt black; height:12pt; text-align:left; ' + krullph).
+   RUN tidut_UI (INPUT '.right ' + krullpv + ' width:125pt; padding:0pt; margin:0pt; float:left; border-bottom:solid 1pt black; left:0pt; top:0pt; height:12pt; text-align:left; ' + krullph).
+	RUN tidut_UI (INPUT '.right_nbb ' + krullpv + ' width:124pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; ' + krullph).
+   RUN tidut_UI (INPUT '.box_right ' + krullpv + ' width:124pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:left; ' + krullph).
+	RUN tidut_UI (INPUT '.box_right_col1 ' + krullpv + ' width:76pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:left; ' + krullph).
+	RUN tidut_UI (INPUT '.box_right_col2 ' + krullpv + ' width:47pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; border-left:solid 1pt black; ' + krullph).
+	RUN tidut_UI (INPUT '.box_right_col2_nb ' + krullpv + '  width:47pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; ' + krullph).
+   RUN tidut_UI (INPUT '.right_rubrik ' + krullpv + ' width:auto; padding:0pt; margin-left:1pt; float:left; left:0pt; top:0pt; text-align:left; font-size:7pt; ' + krullph).
+   RUN tidut_UI (INPUT '.rightdata_center ' + krullpv + ' width:100%; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:center; height:12pt; ' + krullph).
+	RUN tidut_UI (INPUT '.rightdata_left ' + krullpv + ' width:100%; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; ' + krullph).
+	RUN tidut_UI (INPUT '.box_blad_right ' + krullpv + ' width:47.5pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:right; height:12pt; ' + krullph).
+	RUN tidut_UI (INPUT '.blad_right ' + krullpv + ' width:46.5pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:right; height:12pt; ' + krullph).
+   RUN tidut_UI (INPUT '.rightdata_av ' + krullpv + ' width:12.5pt; padding:0pt; margin-left:1pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; font-size:7pt; ' + krullph).
+	RUN tidut_UI (INPUT '.rightdata_vecka ' + krullpv + ' width:20pt; padding:0pt; margin-left:1pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; font-size:7pt; ' + krullph).
+	RUN tidut_UI (INPUT '.box_rightdata_namn ' + krullpv + ' width:108pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; border-left:solid 1pt black; border-top:solid 1pt black; ' + krullph).
+	RUN tidut_UI (INPUT '.rightdata_namn ' + krullpv + ' width:107pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; ' + krullph).
+   RUN tidut_UI (INPUT '.box_rightdata_vnr ' + krullpv + ' width:30pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; height:12pt; border-left:solid 1pt black; border-top:solid 1pt black; border-right:solid 1pt black; ' + krullph).
+	RUN tidut_UI (INPUT '.rightdata_vnr ' + krullpv + ' width:29pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:center; height:12pt; font-size:8pt;' + krullph).
+   RUN tidut_UI (INPUT '.box_rightdata_best ' + krullpv + ' width:46pt; padding:0pt; margin:0pt; margin-left:23pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; border-left:solid 1pt black; border-top:solid 1pt black; ' + krullph).
+	RUN tidut_UI (INPUT '.rightdata_best ' + krullpv + ' width:44pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:right; height:12pt; font-size:8pt;' + krullph).
+	RUN tidut_UI (INPUT '.box_rightdata_datum ' + krullpv + ' width:45pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; border-left:solid 1pt black; border-bottom:solid 1pt black; ' + krullph).
+	RUN tidut_UI (INPUT '.rightdata_datum ' + krullpv + ' width:44pt; padding:0pt; margin:0pt; margin-right:2px; float:left; left:0pt; top:0pt;  height:12pt; text-align:right; font-size:8pt; ' + krullph).
+   RUN tidut_UI (INPUT '.right_tom ' + krullpv + ' width:124pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; ' + krullph).
+   RUN tidut_UI (INPUT '.rightdata_art_rubrik ' + krullpv + ' width:53pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:center; height:12pt; ' + krullph).
+	RUN tidut_UI (INPUT '.rightdata_ant_rubrik ' + krullpv + ' width:23pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:center; height:12pt; ' + krullph).
+	RUN tidut_UI (INPUT '.rightdata_anm_rubrik ' + krullpv + ' width:46pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:center; height:12pt; ' + krullph).
+   RUN tidut_UI (INPUT '.box_rightdata_art ' + krullpv + ' width:53pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; border-right:solid 1pt black; border-bottom:solid 1px black; ' + krullph).
+	RUN tidut_UI (INPUT '.box_rightdata_ant ' + krullpv + ' width:23pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:right; height:12pt; border-right:solid 1pt black; border-bottom:solid 1px black;' + krullph).
+	RUN tidut_UI (INPUT '.box_rightdata_anm ' + krullpv + ' width:46pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; border-bottom:solid 1px black; ' + krullph).
+	RUN tidut_UI (INPUT '.box_rightdata_art_nbb ' + krullpv + ' width:53pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; border-right:solid 1pt black; ' + krullph).
+	RUN tidut_UI (INPUT '.box_rightdata_ant_nbb ' + krullpv + ' width:23pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:right; height:12pt; border-right:solid 1pt black; ' + krullph).
+	RUN tidut_UI (INPUT '.box_rightdata_anm_nbb ' + krullpv + ' width:46pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; ' + krullph).
+   RUN tidut_UI (INPUT '.rightdata_art ' + krullpv + ' width:52pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; ' + krullph).
+	RUN tidut_UI (INPUT '.rightdata_ant ' + krullpv + ' width:22pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:right; height:12pt; ' + krullph).
+	RUN tidut_UI (INPUT '.rightdata_anm ' + krullpv + ' width:45pt; padding:0pt; margin:0pt; float:left; left:0pt; top:0pt; text-align:left; height:12pt; ' + krullph).
+   RUN tidut_UI (INPUT '.box_rightdata ' + krullpv + ' width:124pt; padding:0pt; margin:0pt; float:left; border-bottom:solid 1pt black; left:0pt; top:0pt; height:12pt; text-align:left; ' + krullph).
+	RUN tidut_UI (INPUT '.box_rightdata_col1 ' + krullpv + ' width:76pt; padding:0pt; margin:0pt; float:left; border-bottom:solid 1pt black; left:0pt; top:0pt; height:12pt; text-align:left; ' + krullph).
+	RUN tidut_UI (INPUT '.box_rightdata_col2 ' + krullpv + ' width:47pt; padding:0pt; margin:0pt; float:left; border-bottom:solid 1pt black; border-left:solid 1pt black; left:0pt; top:0pt; height:12pt; text-align:left; ' + krullph).
+   RUN tidut_UI (INPUT '</style></head>').
+END PROCEDURE.
+
+PROCEDURE bodystart_UI :
+   
+   RUN tidut_UI (INPUT '<body>').
+
+   RUN tidut2_UI (INPUT '<div class="rad">'). 
+   RUN tidut2_UI (INPUT '<div class="logga">&nbsp;</div>').
+   RUN tidut2_UI (INPUT '<div class="berproto">BEREDNINGSPROTOKOLL</div>').
+   RUN tidut2_UI (INPUT '<div class="box_foretag">').
+   RUN tidut2_UI (INPUT '<div class="foretagsnamn">' + SUBSTRING(FORETAG.ATRHOME,1,30) + '</div>').
+   RUN tidut2_UI (INPUT '<div class="foretag">Företag</div>').
+   RUN tidut2_UI (INPUT '</div>').
+   RUN tidut2_UI (INPUT '</div>').
+   RUN tidut2_UI (INPUT '<div class="rad_rubrik">').
+   RUN tidut2_UI (INPUT '<div class="rubrik">' + BEREDNING.BENAMNING + '</div>').
+   RUN tidut2_UI (INPUT '</div>').
+   RUN tidut2_UI (INPUT '<div class="main">').  /*första main*/
+   RUN tidut2_UI (INPUT '<!--FÖRSTA MAIN-->').
+   RUN tidut2_UI (INPUT '<div class="rad">'). 
+   RUN tidut2_UI (INPUT '<div class="box_obj">'). 
+   RUN tidut2_UI (INPUT '<div class="obj_rubrik">Objekt</div>').
+   RUN tidut2_UI (INPUT '</div>').  
+   RUN tidut2_UI (INPUT '<div class="box_right">'). 
+   IF AVAILABLE AONRTAB THEN RUN tidut2_UI (INPUT '<div class="right_rubrik">' + Guru.Konstanter:gaol + '</div>').
+   ELSE RUN tidut2_UI (INPUT '<div class="right_rubrik">Berednings nr</div>').
+   RUN tidut2_UI (INPUT '</div>').
+   RUN tidut2_UI (INPUT '</div>').     /*rad*/  
+   RUN tidut2_UI (INPUT '<div class="rad"> ').
+   RUN tidut2_UI (INPUT '<div class="obj_data"> ').
+   IF AVAILABLE AONRTAB THEN RUN tidut2_UI (INPUT '<div class="obj_namn">' + AONRTAB.ORT + '</div>').
+   ELSE RUN tidut2_UI (INPUT '<div class="obj_namn">' + BEREDNING.BENAMNING + '</div>').
+   RUN tidut2_UI (INPUT '</div>').
+   RUN tidut2_UI (INPUT '<div class="box_rightdata">'). 
+   IF AVAILABLE AONRTAB THEN DO:
+      
+      RUN tidut2_UI (INPUT '<div class="rightdata_center">' + AONRTAB.AONR + ' ' + STRING(AONRTAB.DELNR,Guru.Konstanter:varforetypchar[1]) +  '</div>').
+     
+   END.
+   ELSE RUN tidut2_UI (INPUT '<div class="rightdata_center">' + BEREDNING.BERAONR + ' ' + BEREDNING.OMRADE +  '</div>').
+   RUN tidut2_UI (INPUT '</div>').
+   RUN tidut2_UI (INPUT '</div>').     /*rad*/   
+   RUN tidut2_UI (INPUT '</div>').     /*första main*/
+   RUN tidut_UI (INPUT '<!--FÖRSTA main SLUT-->').
+   
+   REPEAT:
+      ASSIGN 
+      delut = delut + 1
+      platsut = platsut + 1
+      platsuthj = 20.
+      IF baldut > bladraknare THEN LEAVE.
+      
+      FOR EACH byggtemp WHERE byggtemp.BLADNR = baldut AND byggtemp.DELBLAD = delut:
+         IF byggtemp.DELBLAD = 2 THEN DO:
+            RUN radnrkoll_UI (INPUT 2, OUTPUT radkollvar).
+            IF radkollvar = TRUE THEN DO:
+               radkollvar = FALSE.
+               RUN tidut_UI (INPUT '<div class="main">').       /*övriga main*/
+               RUN tidut_UI (INPUT '<!--ÖVRIGA MAIN-->').
+            END.
+         END.
+         ELSE DO:
+            IF byggtemp.RADNR = 1 THEN DO:
+               IF baldut > 1 THEN DO:
+                  RUN tidut_UI (INPUT '<div class="sidbryt"></div>').
+                  RUN tidut3_UI.
+               END.
+               RUN tidut_UI (INPUT '<div class="main">').  /*upp main*/
+               RUN tidut_UI (INPUT '<!--UPP MAIN-->').
+            END.            
+         END.
+         RUN tidut_UI (INPUT '<div class="rad">').     /* OSÄKER 1*/
+         IF byggtemp.DELBLAD = 2 THEN DO:
+            RUN tidut_UI (INPUT '<div class="left_bbr">'). 
+            RUN radnrkoll_UI (INPUT 1, OUTPUT radkollvar).
+            IF radkollvar = TRUE THEN DO:
+               radkollvar = FALSE.
+               RUN tidut_UI (INPUT '<div class="num">' + STRING(byggtemp.RADNR,">99") + '</div>').
+               RUN tidut_UI (INPUT '</div>').                         /*sub*/                              
+               RUN tidutC_UI (INPUT '<div class="num_nbb">&nbsp;' + CAPS(SUBSTRING(TRIM(byggtemp.BENAMNING),1,1)) + LC(SUBSTRING(TRIM(byggtemp.BENAMNING),2,24)) + '</div>').
+            END.
+            ELSE DO:
+               RUN tidut_UI (INPUT '<div class="num">' + STRING(byggtemp.RADNR,">99") + '</div>').
+               RUN tidut_UI (INPUT '</div>').                         /*sub*/
+               RUN tidutC_UI (INPUT '<div class="left">&nbsp;' + CAPS(SUBSTRING(TRIM(byggtemp.BENAMNING),1,1)) + LC(SUBSTRING(TRIM(byggtemp.BENAMNING),2,24)) + '</div>').
+            END.
+            
+         END.
+         ELSE DO:                  
+             RUN tidut_UI (INPUT '<div class="left_br">&nbsp; </div>').        
+             IF byggtemp.RADNR = 12 THEN DO:
+                RUN tidutC_UI (INPUT '<div class="num_nbb">&nbsp;' + byggtemp.BENAMNING + '</div>').
+             END.
+             ELSE DO:
+                RUN tidutC_UI (INPUT '<div class="left">&nbsp;' + byggtemp.BENAMNING + '</div>').
+             END.    
+         END.
+         REPEAT:
+            IF byggtemp.BYGG[platsut] = "" THEN  byggtemp.BYGG[platsut] = "&nbsp;".
+            IF byggtemp.DELBLAD = 2 THEN DO:
+               RUN radnrkoll_UI (INPUT 1, OUTPUT radkollvar).
+               IF radkollvar = TRUE THEN DO:
+                  radkollvar = FALSE.
+                  RUN tidut_UI (INPUT '<div class="konst_cell_nbb">' + byggtemp.BYGG[platsut] + '</div>').
+               END.
+               ELSE DO:
+                  RUN tidut_UI (INPUT '<div class="konst_cell">' + byggtemp.BYGG[platsut] + '</div>').
+               END.
+            END.
+            ELSE DO:
+               IF byggtemp.RADNR = 12 THEN DO:                               /*sub*/
+                  RUN tidut_UI (INPUT '<div class="konst_cell_nbb">' + SUBSTRING(REPLACE(TRIM(byggtemp.BYGG[platsut])," ",""),1,8) + '</div>').
+               END.
+               ELSE DO:                                                             /*sub*/
+                  RUN tidut_UI (INPUT '<div class="konst_cell">' + SUBSTRING(REPLACE(TRIM(byggtemp.BYGG[platsut])," ",""),1,7) + '</div>').
+               END.         
+            END.
+            ASSIGN
+            platsuthj = platsuthj + 6
+            platsut = platsut + 1.
+            IF platsut > 10 THEN DO:
+               platsuthj = 20.
+               platsut = 1.
+               LEAVE.
+            END.
+         END.
+         IF delut = 1 THEN DO:
+            RUN radkoll_UI (INPUT byggtemp.RADNR,INPUT byggtemp.BLADNR).
+         END.
+         IF delut = 2 THEN DO:
+            RUN radnrkoll_UI (INPUT 1, OUTPUT radkollvar).
+            IF radkollvar = TRUE THEN DO:
+               radkollvar = FALSE.
+               RUN tidut_UI (INPUT '<div class="box_rightdata_art_nbb">'). 
+               RUN tidut_UI (INPUT '<div class="rightdata_art">' + byggtemp.ENR + '</div>').
+               RUN tidut_UI (INPUT '</div>').
+               RUN tidut_UI (INPUT '<div class="box_rightdata_ant_nbb">'). 
+               RUN tidut_UI (INPUT '<div class="rightdata_ant">' + STRING(byggtemp.ANTAL) + '&nbsp;</div>').
+               RUN tidut_UI (INPUT '</div>').
+               RUN tidut_UI (INPUT '<div class="box_rightdata_anm_nbb">'). 
+                                                                          /*sub*/ 
+               RUN tidut_UI (INPUT '<div class="rightdata_anm">&nbsp;' + SUBSTRING(TRIM(byggtemp.ANM),1,6) + '</div>').
+               RUN tidut_UI (INPUT '</div>').
+            END.
+            ELSE DO:
+               RUN tidut_UI (INPUT '<div class="box_rightdata_art">'). 
+               RUN tidut_UI (INPUT '<div class="rightdata_art">' + byggtemp.ENR + '</div>').
+               RUN tidut_UI (INPUT '</div>').
+               RUN tidut_UI (INPUT '<div class="box_rightdata_ant">'). 
+               RUN tidut_UI (INPUT '<div class="rightdata_ant">' + STRING(byggtemp.ANTAL) + '&nbsp;</div>').
+               RUN tidut_UI (INPUT '</div>').
+               RUN tidut_UI (INPUT '<div class="box_rightdata_anm">'). 
+                                                                            /*sub*/
+               RUN tidut_UI (INPUT '<div class="rightdata_anm">&nbsp;' + SUBSTRING(TRIM(byggtemp.ANM),1,6) + '</div>').
+               RUN tidut_UI (INPUT '</div>').         
+            END.
+         END.
+         RUN tidut_UI (INPUT '</div>').           /*OSÄKER 1*/
+         IF delut = 1 THEN DO:
+            IF byggtemp.RADNR = 12 THEN DO:
+               RUN tidut_UI (INPUT '</div>').     /*upp main*/
+               RUN tidut_UI (INPUT '<!--UPP main SLUT-->').
+            END.
+         END.
+         IF delut = 2 THEN DO:
+            RUN radnrkoll_UI (INPUT 1, OUTPUT radkollvar).
+            IF radkollvar = TRUE THEN DO:
+               radkollvar = FALSE.
+               RUN tidut_UI (INPUT '</div>').     /*övriga main*/
+               RUN tidut_UI (INPUT '<!--ÖVRIGA main SLUT -->').
+            END.
+         END.
+         IF byggtemp.SIDBRYT = TRUE THEN DO:
+            sidextra = sidextra + 1.
+            RUN tidut_UI (INPUT '</div>').      /*när det är mer än 42 artiklar*/
+            RUN tidut_UI (INPUT '<!-ÖVRIGA main SLUT SIDBRYT-->').
+            RUN tidut_UI (INPUT '<div class="sidbryt"></div>').
+            RUN tidut3_UI.
+            RUN tidut_UI (INPUT '<div class="main">').  /*andra main*/
+            RUN tidut_UI (INPUT '<!--andra main-->').
+            FOR EACH byggtempbuff WHERE byggtempbuff.BLADNR = byggtemp.BLADNR AND byggtempbuff.DELBLAD = 1:
+               RUN tidut_UI (INPUT '<div class="rad">').     /*OSÄKER 2*/
+               RUN tidut_UI (INPUT '<div class="left_br">&nbsp; </div>').        
+               IF byggtempbuff.RADNR = 12 THEN DO:                          /*SUB*/                      
+                  RUN tidutC_UI (INPUT '<div class="num_nbb">&nbsp;' + CAPS(SUBSTRING(TRIM(byggtempbuff.BENAMNING),1,1)) + SUBSTRING(TRIM(byggtempbuff.BENAMNING),2,24) + '</div>').
+               END.
+               ELSE DO:                                                            /*SUB*/
+                  RUN tidutC_UI (INPUT '<div class="left">&nbsp;' + CAPS(SUBSTRING(TRIM(byggtempbuff.BENAMNING),1,1)) + SUBSTRING(TRIM(byggtempbuff.BENAMNING),2,24) + '</div>').
+               END.
+               
+               REPEAT:                                                
+                  IF byggtempbuff.BYGG[platsut] = "" THEN  byggtempbuff.BYGG[platsut] = "&nbsp;".
+                  IF byggtempbuff.RADNR = 12 THEN DO:                       /*SUB*/
+                     RUN tidut_UI (INPUT '<div class="konst_cell_nbb">' + SUBSTRING(REPLACE(TRIM(byggtempbuff.BYGG[platsut])," ",""),1,7) + '</div>').
+                  END.
+                  ELSE DO:                                                         /*SUB*/
+                     RUN tidut_UI (INPUT '<div class="konst_cell">' + SUBSTRING(REPLACE(TRIM(byggtempbuff.BYGG[platsut])," ",""),1,7)  + '</div>').
+                  END.
+                  ASSIGN
+                  platsuthj = platsuthj + 6
+                  platsut = platsut + 1.
+                  IF platsut > 10 THEN DO:
+                     platsuthj = 20.
+                     platsut = 1.
+                     LEAVE.
+                  END.
+               END.
+               RUN radkoll_UI (INPUT byggtempbuff.RADNR,INPUT byggtempbuff.BLADNR).
+               RUN tidut_UI (INPUT '</div>').           /*OSÄKER 2*/
+            END.             
+            RUN tidut_UI (INPUT '</div>').     /*andra main*/   
+            RUN tidut_UI (INPUT '<!--andra main SLUT-->').
+            /*
+            RUN tidut_UI (INPUT '<div class="main">').       /* start nya material vid sid bryt main*/
+            RUN tidut_UI (INPUT '<!--start nya material-->').
+            */
+            sidbrytvar = TRUE.
+         END.
+      END.  
+      platsut = 0.
+      IF delut = 2 THEN DO:
+         ASSIGN
+         delut = 0
+         platsut = 0
+         baldut = baldut + 1.
+         IF sidbrytvar = TRUE THEN DO:
+            sidbrytvar = FALSE.
+            RUN tidut_UI (INPUT '</div>').                   /* start nya material vid sid bryt main typ rad 43*/
+            RUN tidut_UI (INPUT '<!--ÖVRIGA main SLUT EXTRA MTRL-->').
+            
+         END.
+         ELSE RUN tidut_UI (INPUT '</div>').
+      END.
+   END.
+   
+END PROCEDURE.
+
+PROCEDURE radnrkoll_UI :
+   DEFINE INPUT PARAMETER vad AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER okvar AS LOGICAL NO-UNDO.
+   okvar = FALSE.
+   IF vad = 1 THEN DO:
+      IF byggtemp.ERADNR = 9 OR byggtemp.ERADNR = 19 OR byggtemp.ERADNR = 29 OR byggtemp.ERADNR = 39 THEN okvar = TRUE.
+    
+   END.
+   IF vad = 2 THEN DO:
+      IF byggtemp.ERADNR = 1 OR  byggtemp.ERADNR = 10 OR byggtemp.ERADNR = 20 OR byggtemp.ERADNR = 30 OR byggtemp.ERADNR = 40 THEN okvar = TRUE.
+         
+   END.
+   /*
+         OR byggtemp.RADNR = 50 OR 
+         byggtemp.RADNR = 60 OR byggtemp.RADNR = 70 OR byggtemp.RADNR = 80 OR byggtemp.RADNR = 90 THEN okvar = TRUE.
+         */
+
+      /*   
+      OR byggtemp.RADNR = 49 OR byggtemp.RADNR = 59 OR 
+         byggtemp.RADNR = 69 OR byggtemp.RADNR = 79 OR byggtemp.RADNR = 89 OR byggtemp.RADNR = 99 THEN okvar = TRUE.
+         */
+END PROCEDURE.
+PROCEDURE radkoll_UI :
+   DEFINE INPUT PARAMETER radvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER bladvar AS INTEGER NO-UNDO.
+   
+   IF radvar = 1 THEN DO:
+      RUN tidut_UI (INPUT '<div class="box_right">'). 
+      RUN tidut_UI (INPUT '<div class="right_rubrik">Konto</div>').
+      RUN tidut_UI (INPUT '</div>').
+   END.
+   IF radvar = 2 THEN DO:
+      RUN tidut_UI (INPUT '<div class="box_rightdata">'). 
+      RUN tidut_UI (INPUT '<div class="rightdata_center">&nbsp;</div>').
+      RUN tidut_UI (INPUT '</div>').
+   END.
+   IF radvar = 3 THEN DO:
+      RUN tidut_UI (INPUT '<div class="box_right_col1">'). 
+      RUN tidut_UI (INPUT '<div class="right_rubrik">Blad nr</div>').
+      RUN tidut_UI (INPUT '</div>').
+      RUN tidut_UI (INPUT '<div class="box_right_col2">'). 
+      RUN tidut_UI (INPUT '<div class="right_rubrik">Antal blad</div>').
+      RUN tidut_UI (INPUT '</div>').
+   END.
+   IF radvar = 4 THEN DO:
+      RUN tidut_UI (INPUT '<div class="box_rightdata_col1">'). 
+      RUN tidut_UI (INPUT '<div class="rightdata_center">' + STRING(bladvar + sidextra) + ' </div>').
+      RUN tidut_UI (INPUT '</div>').
+      RUN tidut_UI (INPUT '<div class="box_rightdata_col2">'). 
+      RUN tidut_UI (INPUT '<div class="box_blad_right">').
+      RUN tidut_UI (INPUT '<div class="blad_right">' + STRING(bladtotal) + '</div>').
+      RUN tidut_UI (INPUT '</div>').
+      RUN tidut_UI (INPUT '</div>').
+   END.
+   IF radvar = 5 THEN DO:
+      RUN tidut_UI (INPUT '<div class="box_right_col1">'). 
+      RUN tidut_UI (INPUT '<div class="right_rubrik">Beredning utförd</div>').
+      RUN tidut_UI (INPUT '</div>').
+      RUN tidut_UI (INPUT '<div class="box_rightdata_datum">'). 
+      IF berutfdat = ? THEN RUN tidut_UI (INPUT '<div class="rightdata_datum">&nbsp</div>').
+      ELSE RUN tidut_UI (INPUT '<div class="rightdata_datum">' + STRING(berutfdat) + '</div>').
+      RUN tidut_UI (INPUT '</div>').
+   END.
+   IF radvar = 6 THEN DO:
+      RUN tidut_UI (INPUT '<div class="right_tom">&nbsp; </div>').
+   END.
+   IF radvar = 7 THEN DO:
+      RUN tidut_UI (INPUT '<div class="box_rightdata">'). 
+      RUN tidut_UI (INPUT '<div class="rightdata_av">av</div>').
+      RUN tidut_UI (INPUT '<div class="box_rightdata_namn">').        /*sub*/
+      RUN tidut_UI (INPUT '<div class="rightdata_namn">' + SUBSTRING(bernamn,1,20) + '</div>').
+      RUN tidut_UI (INPUT '</div>').
+      RUN tidut_UI (INPUT '</div>').
+   END.
+   
+   IF radvar = 8 THEN DO:
+      RUN tidut_UI (INPUT '<div class="box_right_col1">'). 
+      RUN tidut_UI (INPUT '<div class="right_rubrik">Materielleverans</div>').
+      RUN tidut_UI (INPUT '</div>').
+      RUN tidut_UI (INPUT '<div class="box_right_col2_nb">').                                                   
+      RUN tidut_UI (INPUT '<div class="right_rubrik">Beställt</div>').
+      RUN tidut_UI (INPUT '</div>').
+   END.
+   IF radvar = 9 THEN DO:
+      RUN tidut_UI (INPUT '<div class="box_rightdata">'). 
+      RUN tidut_UI (INPUT '<div class="rightdata_vecka">vecka</div>').
+      RUN tidut_UI (INPUT '<div class="box_rightdata_vnr">'). 
+      IF levveck = ? THEN RUN tidut_UI (INPUT '<div class="rightdata_vnr">&nbsp</div>').
+      ELSE RUN tidut_UI (INPUT '<div class="rightdata_vnr">' + STRING(levveck) + '</div>').                                                     
+      RUN tidut_UI (INPUT '</div>').
+      RUN tidut_UI (INPUT '<div class="box_rightdata_best">'). 
+      IF levveck = ? THEN RUN tidut_UI (INPUT '<div class="rightdata_best">&nbsp</div>').
+      ELSE RUN tidut_UI (INPUT '<div class="rightdata_best">' + STRING(bestdatum) + '</div>').
+      RUN tidut_UI (INPUT '</div>').
+      RUN tidut_UI (INPUT '</div>').
+   END.
+   IF radvar = 10 THEN DO:
+      RUN tidut_UI (INPUT '<div class="right_tom">&nbsp; </div>').  
+   END.
+   IF radvar = 11 THEN DO:
+      RUN tidut_UI (INPUT '<div class="right_tom">&nbsp; </div>').
+   END.
+   IF radvar = 12 THEN DO:      
+      RUN tidut_UI (INPUT '<div class="right_nbb">'). 
+      RUN tidut_UI (INPUT '<div class="rightdata_art_rubrik">Artikel nr</div>').
+      RUN tidut_UI (INPUT '<div class="rightdata_ant_rubrik">Antal</div>').
+      RUN tidut_UI (INPUT '<div class="rightdata_anm_rubrik">Anm.</div>').
+      RUN tidut_UI (INPUT '</div>').   
+   END.
+   
+END PROCEDURE.
+/*PROCEDURE versaler_UI :
+   DEFINE INPUT-OUTPUT PARAMETER innamn AS CHARACTER NO-UNDO.      
+   innamn = CAPS(SUBSTRING(innamn,1,1)) + LC(SUBSTRING(innamn,2)).
+   RUN stor_UI (INPUT-OUTPUT innamn, INPUT " ").
+   RUN stor_UI (INPUT-OUTPUT innamn,INPUT "-").
+   RUN stor_UI (INPUT-OUTPUT innamn,INPUT "/").
+   RUN stor_UI (INPUT-OUTPUT innamn,INPUT ",").
+   
+END PROCEDURE.
+
+PROCEDURE stor_UI :
+   DEFINE INPUT-OUTPUT PARAMETER innamn AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER sok AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE rakn AS INTEGER NO-UNDO.
+   rakn = 2.
+   REPEAT:
+     IF INDEX(innamn,sok,rakn) = 0 THEN LEAVE.
+      rakn = INDEX(innamn,sok,rakn).
+      rakn = rakn + 1.
+      SUBSTRING(innamn,rakn,1) = CAPS(SUBSTRING(innamn,rakn,1)).
+   END.
+END PROCEDURE.
+
+*/
+ 
+   
+   
+       
+
+
+
+  

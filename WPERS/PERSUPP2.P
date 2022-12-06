@@ -1,0 +1,121 @@
+/*PERSUPP2.P*/
+{PHMT.I}
+DEFINE TEMP-TABLE valperskolltemp NO-UNDO LIKE valperstemp. 
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+{SOKDEF.I}
+DEFINE INPUT PARAMETER vartifran AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR valperskolltemp.
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valsoktemp.
+DEFINE OUTPUT PARAMETER TABLE FOR felmeddtemp.
+DEFINE VARIABLE anstall AS INTEGER NO-UNDO.
+DEFINE VARIABLE sparaktiv AS LOGICAL NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+{FORESTYR.I}
+Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + pkod.
+{GDPRLOGGCLIENT.I}
+{LOGSEKREGTT.I}
+IF vartifran = 2 THEN DO:
+   sparaktiv = ?.
+   FIND FIRST valperskolltemp NO-ERROR.
+   IF valperskolltemp.PERSONALKOD = "" THEN DO:
+      CREATE felmeddtemp.
+      felmeddtemp.FELMEDD = "Enhet/Sign kan inte vara blank.".
+      RETURN.
+   END. 
+   FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = valperskolltemp.PERSONALKOD 
+   USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:       
+      sparaktiv = PERSONALTAB.AKTIV.
+   END.
+   IF pkod = "" THEN DO:
+      /*ny*/
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = valperskolltemp.PERSONALKOD 
+      USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB THEN DO:       
+         CREATE felmeddtemp.
+         felmeddtemp.FELMEDD = "Enhet/Sign finns redan upplaggd.".
+         RETURN.      
+      END.
+      
+   END.
+   IF valperskolltemp.ANSTNR NE "" THEN DO:
+      IF pkod = "" THEN DO:
+         /*ny*/
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.ANSTNR = valperskolltemp.ANSTNR 
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO:       
+            CREATE felmeddtemp.
+            felmeddtemp.FELMEDD = "Anställningsnumret finns redan.".
+            RETURN.
+         END.
+      END.
+      ELSE DO:
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD NE pkod AND 
+         PERSONALTAB.ANSTNR = valperskolltemp.ANSTNR 
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO:       
+            CREATE felmeddtemp.
+            felmeddtemp.FELMEDD = "Anställningsnumret finns redan.".
+            RETURN.
+         END.
+      END.
+   END.
+   /*OBLIGATORISKT FÖR ALLA LENA 20201123*/
+   IF  Guru.Konstanter:globforetag = "GKAL" THEN .
+   ELSE IF  Guru.Konstanter:globforetag = "LULE" THEN .          
+   ELSE IF SUBSTRING(valperskolltemp.PERSONSOK,20) = "" THEN DO:
+      CREATE felmeddtemp.
+      felmeddtemp.FELMEDD = "Epostadress skall vara ifylld" .
+      RETURN.
+   END.
+   DO TRANSACTION:       
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = valperskolltemp.PERSONALKOD 
+      USE-INDEX PERSONALKOD EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE PERSONALTAB THEN CREATE PERSONALTAB.
+      BUFFER-COPY valperskolltemp TO PERSONALTAB.
+      
+   END.
+   IF Guru.Konstanter:varforetypval[2] = 1 THEN DO TRANSACTION:
+      FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = valperskolltemp.PERSONALKOD 
+      USE-INDEX PERSONALKOD EXCLUSIVE-LOCK NO-ERROR.
+      PERSONALTAB.PERSMASK = TRUE.
+      
+   END.
+   /*endast nya */
+   IF pkod = "" THEN DO TRANSACTION:  
+      FIND FIRST valsoktemp WHERE valsoktemp.SOKVAL = 2 NO-ERROR.
+      IF AVAILABLE valsoktemp THEN DO:
+         FIND FIRST PERSEK WHERE PERSEK.ANVANDARE = valsoktemp.SOKCHAR[3] AND
+         PERSEK.PERSONALKOD = valperskolltemp.PERSONALKOD 
+         USE-INDEX PERSEK EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE PERSEK THEN DO:
+            CREATE logsekregTT.
+            ASSIGN 
+            logsekregTT.ANVANDARE = valsoktemp.SOKCHAR[3] 
+            logsekregTT.DATUM  = NOW 
+            logsekregTT.AVANVANDARE = valsoktemp.SOKCHAR[3]
+            logsekregTT.PROGRAM = THIS-PROCEDURE:NAME 
+            logsekregTT.TYP = "PERS"
+            logsekregTT.PERSONALKOD = valperskolltemp.PERSONALKOD
+            logsekregTT.TILLFRAN = TRUE.
+            RUN LOGSEKREG.P (INPUT TABLE logsekregTT).
+            DELETE logsekregTT.
+            CREATE PERSEK.
+            ASSIGN PERSEK.PANDRA = TRUE.            
+         END.
+         ASSIGN 
+         PERSEK.ANVANDARE = valsoktemp.SOKCHAR[3]         
+         PERSEK.PERSONALKOD = valperskolltemp.PERSONALKOD
+         PERSEK.FORNAMN = valperskolltemp.FORNAMN
+         PERSEK.EFTERNAMN = valperskolltemp.EFTERNAMN.
+      END.                           
+   END.         
+   Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + valperskolltemp.PERSONALKOD.
+   {GDPRLOGGCLIENT.I} 
+END.    
+
+

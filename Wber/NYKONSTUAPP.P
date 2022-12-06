@@ -1,0 +1,688 @@
+/*NYKONSTUAPP.P*/
+{STARTFORAPP.I}
+{KONSTRMTRL.I}
+
+DEFINE VARIABLE ord AS INTEGER NO-UNDO.                      
+DEFINE BUFFER kvalbuff FOR KONSTVAL.
+
+
+/* DEFINE TEMP-TABLE kval          */
+/*    FIELD KVALKOD AS CHARACTER   */
+/*    FIELD KTYPKOD AS CHARACTER   */
+/*    FIELD KONSKOD AS INTEGER     */
+/*    FIELD KOPP AS LOGICAL        */
+/*    FIELD BENAMNING AS CHARACTER */
+/*    FIELD BB AS CHARACTER        */
+/*    FIELD ORDNING AS INTEGER     */
+/*    FIELD KROWID AS ROWID        */
+/*    INDEX ORD ORDNING.           */
+
+
+/* DEFINE TEMP-TABLE kval                                                          */
+/*    FIELD TRIMKVALKOD   AS CHARACTER  FORMAT "X(8)" LABEL "Konstruktionsvalskod" */
+/*    FIELD KVALKOD AS CHARACTER                                                   */
+/*    FIELD KTYPKOD AS CHARACTER                                                   */
+/*    FIELD KONSKOD AS INTEGER                                                     */
+/*    FIELD KOPP AS LOGICAL                                                        */
+/*    FIELD BENAMNING AS CHARACTER                                                 */
+/*    FIELD BB AS CHARACTER                                                        */
+/*    FIELD ORDNING AS INTEGER                                                     */
+/*    FIELD KROWID AS ROWID                                                        */
+/*    INDEX ORD ORDNING.                                                           */
+
+
+/* PROCEDURE kontroll_UI:                                                           */
+/*    DEFINE INPUT PARAMETER varkod AS CHARACTER NO-UNDO.                           */
+/*    DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.                         */
+/*    DEFINE INPUT PARAMETER TABLE FOR kval.                                        */
+/*    FIND FIRST kval WHERE kval.KVALKOD = varkod NO-LOCK NO-ERROR.                 */
+/*    IF AVAILABLE kval THEN DO:                                                    */
+/*       ASSIGN felmedd = "Det finns redan en upplagd med denna kod. Ange ny kod.". */
+/*       RETURN.                                                                    */
+/*    END.                                                                          */
+/* END PROCEDURE.                                                                   */
+
+PROCEDURE konstvalok_UI:
+   DEFINE INPUT PARAMETER val          AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER krow         AS ROWID NO-UNDO.
+   DEFINE INPUT PARAMETER nykonst      AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER sparkod      AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kongrkod     AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER konstvalvar  AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER bbval        AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER varkod       AS CHARACTER NO-UNDO. /*FILL-IN-KOD*/
+   DEFINE INPUT PARAMETER benvar       AS CHARACTER NO-UNDO. /*FILL-IN-BEN*/
+   DEFINE INPUT PARAMETER TABLE FOR konstvaltemp.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER utval AS CHARACTER NO-UNDO.
+   felmedd = "".
+   utval = "".
+
+   IF val = TRUE THEN DO:
+      IF nykonst = FALSE THEN DO:
+         IF varkod NE sparkod THEN DO:            
+            FIND FIRST KONSTVAL WHERE KONSTVAL.KONSKOD = kongrkod AND KONSTVAL.BB = bbval AND
+            KONSTVAL.KVALKOD = varkod NO-LOCK NO-ERROR.
+            IF AVAILABLE KONSTVAL THEN DO:
+               ASSIGN felmedd = "Det finns redan en upplagd med denna kod. Ange ny kod.".
+               RETURN.
+            END.
+            ELSE DO:
+               FIND FIRST konstvaltemp WHERE konstvaltemp.KVALROW = krow NO-LOCK NO-ERROR.
+               IF AVAILABLE konstvaltemp THEN DO:
+                  OPEN QUERY konstq FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = kongrkod AND
+                  KONSTVAL.KVALKOD = konstvaltemp.KVALKOD AND KONSTVAL.BB = konstvaltemp.BB 
+                  USE-INDEX KOPIA NO-LOCK.              
+                  GET FIRST konstq NO-LOCK.
+                  DO WHILE AVAILABLE(KONSTVAL):                         
+                     DO TRANSACTION:
+                        GET CURRENT konstq EXCLUSIVE-LOCK.               
+                        ASSIGN
+                        KONSTVAL.KVALKOD = varkod
+                        KONSTVAL.BENAMNING = benvar.
+                     END.
+                     GET NEXT konstq NO-LOCK.
+                  END.
+                  CLOSE QUERY konstq.  
+                  RUN koll_UI (INPUT krow,INPUT kongrkod,INPUT varkod). 
+                  RETURN.
+               END.
+            END.            
+         END.
+         ELSE DO:
+            FIND FIRST konstvaltemp WHERE konstvaltemp.KVALROW = krow NO-LOCK NO-ERROR.
+            IF AVAILABLE konstvaltemp THEN DO:
+               OPEN QUERY konstq FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = kongrkod AND
+               KONSTVAL.KVALKOD = konstvaltemp.KVALKOD AND KONSTVAL.BB = konstvaltemp.BB 
+               USE-INDEX KOPIA NO-LOCK.
+               GET FIRST konstq NO-LOCK.
+               DO WHILE AVAILABLE(KONSTVAL):                         
+                  DO TRANSACTION:
+                     GET CURRENT konstq EXCLUSIVE-LOCK.  
+                     ASSIGN               
+                     KONSTVAL.BENAMNING = benvar.
+                  END.
+                  GET NEXT konstq NO-LOCK.
+               END.
+               CLOSE QUERY konstq.
+               RETURN.
+            END.
+         END.   
+      END.   
+      ELSE DO: 
+         FIND FIRST KONSTVAL WHERE KONSTVAL.KONSKOD = kongrkod AND KONSTVAL.BB = bbval AND
+         KONSTVAL.KVALKOD = varkod NO-LOCK NO-ERROR.         
+         IF AVAILABLE KONSTVAL THEN DO:
+            ASSIGN felmedd = "Det finns redan en upplagd med denna kod. Ange ny kod.".           
+            RETURN.
+         END.
+         ELSE DO TRANSACTION: 
+            CREATE KONSTVAL.                             
+            ASSIGN
+            KONSTVAL.KVALKOD = varkod
+            KONSTVAL.BENAMNING = benvar
+            KONSTVAL.KONSKOD = kongrkod
+            KONSTVAL.KTYPKOD = konstvalvar
+            KONSTVAL.BB = bbval
+            KONSTVAL.KOPP = FALSE.
+            FIND LAST kvalbuff WHERE kvalbuff.KONSKOD = kongrkod AND
+            kvalbuff.BB = bbval USE-INDEX ORD2 NO-LOCK NO-ERROR.
+            IF AVAILABLE kvalbuff THEN DO:
+               KONSTVAL.ORDNING = kvalbuff.ORDNING + 1.
+            END.
+            ELSE DO:
+               KONSTVAL.ORDNING = 1.
+            END.
+            RETURN. 
+         END.
+         RELEASE KONSTVAL NO-ERROR.
+      END.      
+   END.
+END PROCEDURE.
+   
+PROCEDURE konstrok_UI :
+   DEFINE INPUT PARAMETER val          AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER nykonst      AS LOGICAL NO-UNDO.
+   DEFINE INPUT PARAMETER ers_uid      AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER sparkod      AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kongrkod     AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER konstvalvar  AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER bbval        AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER varkod       AS CHARACTER NO-UNDO. /*FILL-IN-KOD*/
+   DEFINE INPUT PARAMETER benvar       AS CHARACTER NO-UNDO. /*FILL-IN-BEN*/
+   DEFINE INPUT-OUTPUT PARAMETER TABLE FOR konsttemp.
+   DEFINE OUTPUT PARAMETER felmedd AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER utval AS CHARACTER NO-UNDO.
+   felmedd = "".
+   utval = "".
+   IF val = FALSE THEN DO:
+      IF nykonst = TRUE THEN DO:
+         FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = varkod
+         USE-INDEX KOD NO-LOCK NO-ERROR.
+         IF AVAILABLE KONSTRUKTION THEN DO:
+            IF KONSTRUKTION.KTYPKOD = varkod THEN DO:
+               ASSIGN felmedd = "Det finns redan en konstruktion med denna kod " + varkod + " och benämningen " +
+               KONSTRUKTION.BENAMNING + ". Ange ny kod.".
+               RETURN.
+            END.
+            ELSE DO:
+               REPEAT:
+                  FIND NEXT KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = varkod
+                  USE-INDEX KOD NO-LOCK NO-ERROR.
+                  IF NOT AVAILABLE KONSTRUKTION THEN DO:
+                     FIND LAST KONSTRUKTION USE-INDEX ORDNING NO-LOCK NO-ERROR.
+                     IF AVAILABLE KONSTRUKTION THEN DO:
+                        ord = KONSTRUKTION.ORDNING + 1.
+                     END.
+                     ELSE DO:
+                        ord = 1.
+                     END.      
+                     DO TRANSACTION:                     
+                        CREATE KONSTRUKTION.
+                        ASSIGN                                                                                     
+                        KONSTRUKTION.KTYPKOD = varkod
+                        KONSTRUKTION.BENAMNING = benvar
+                        KONSTRUKTION.KONSKOD = kongrkod
+                        KONSTRUKTION.ORDNING = ord
+                        KONSTRUKTION.UID = ers_uid. 
+                        CREATE konsttemp.
+                        BUFFER-COPY KONSTRUKTION TO konsttemp.
+                        IF konsttemp.UID NE 0 THEN DO:
+                         FIND FIRST UTBYTESLNAMN WHERE UTBYTESLNAMN.UID = konsttemp.UID NO-LOCK NO-ERROR.
+                         IF AVAILABLE UTBYTESLNAMN THEN DO:
+                             konsttemp.UNAMN =  UTBYTESLNAMN.UNAMN.
+                          END. 
+                       END. 
+                       ELSE DO:
+                            ASSIGN konsttemp.UNAMN = "".
+                        END.
+                        
+                     END.
+                     utval = "GO".
+                     RELEASE KONSTRUKTION NO-ERROR.
+                     LEAVE.
+                  END.
+                  IF KONSTRUKTION.KTYPKOD = varkod THEN DO:
+                     ASSIGN felmedd = "Det finns redan en konstruktion med denna kod  " + varkod + " och benämningen " +
+                     KONSTRUKTION.BENAMNING + ". Ange ny kod.".
+                     utval = "ENTRY".
+                     LEAVE.
+                  END.
+               END.
+            END.
+         END.         
+         ELSE DO:   
+            FIND LAST KONSTRUKTION USE-INDEX ORDNING NO-LOCK NO-ERROR.
+            IF AVAILABLE KONSTRUKTION THEN DO:
+               ord = KONSTRUKTION.ORDNING + 1.
+            END.
+            ELSE DO:
+               ord = 1.
+            END.      
+            DO TRANSACTION:                     
+               CREATE KONSTRUKTION.
+               ASSIGN                                                                                     
+               KONSTRUKTION.KTYPKOD = varkod
+               KONSTRUKTION.BENAMNING = benvar
+               KONSTRUKTION.KONSKOD = kongrkod
+               KONSTRUKTION.ORDNING = ord
+               KONSTRUKTION.UID = ers_uid.
+               CREATE konsttemp.
+               BUFFER-COPY KONSTRUKTION TO konsttemp.
+               IF konsttemp.UID NE 0 THEN DO:
+                 FIND FIRST UTBYTESLNAMN WHERE UTBYTESLNAMN.UID = konsttemp.UID NO-LOCK NO-ERROR.
+                 IF AVAILABLE UTBYTESLNAMN THEN DO:
+                     konsttemp.UNAMN =  UTBYTESLNAMN.UNAMN.
+                  END. 
+               END.
+               ELSE DO:
+                    ASSIGN konsttemp.UNAMN = "".
+                END. 
+            END.
+            RELEASE KONSTRUKTION NO-ERROR.
+            RETURN.            
+         END.         
+      END.
+      ELSE DO:
+         IF varkod NE sparkod THEN DO:
+
+            FIND FIRST konsttemp WHERE konsttemp.KTYPKOD = varkod NO-LOCK NO-ERROR.
+            IF AVAILABLE konsttemp THEN DO:
+               FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = varkod
+               NO-LOCK NO-ERROR.
+               IF AVAILABLE KONSTRUKTION THEN DO:
+                  IF KONSTRUKTION.KTYPKOD = varkod THEN DO:
+                     ASSIGN felmedd = "Det finns redan en konstruktion med denna kod  " + varkod + " och benämningen " +
+                     KONSTRUKTION.BENAMNING + ". Ange ny kod.".
+                     RETURN.
+                  END.
+                  ELSE DO:
+                     REPEAT:
+                        FIND NEXT KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = varkod
+                        USE-INDEX KOD NO-LOCK NO-ERROR.
+                        IF NOT AVAILABLE KONSTRUKTION THEN DO:
+                           FIND FIRST konsttemp WHERE konsttemp.KTYPKOD = konstvalvar NO-LOCK NO-ERROR.
+                           IF AVAILABLE konsttemp THEN DO:
+                              FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = konstvalvar NO-LOCK NO-ERROR. 
+                              RUN koll2_UI (INPUT konstvalvar,INPUT kongrkod,INPUT varkod).
+                              DO TRANSACTION:
+                                 FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = konstvalvar EXCLUSIVE-LOCK NO-ERROR. 
+                                 ASSIGN
+                                 KONSTRUKTION.KTYPKOD = varkod
+                                 KONSTRUKTION.BENAMNING = benvar
+                                 KONSTRUKTION.UID  = ers_uid.
+                                 ASSIGN 
+                                 konsttemp.KTYPKOD = varkod
+                                 konsttemp.BENAMNING = benvar
+                                 konsttemp.UID = ers_uid.
+                                 IF konsttemp.UID NE 0 THEN DO:
+                                     FIND FIRST UTBYTESLNAMN WHERE UTBYTESLNAMN.UID = konsttemp.UID NO-LOCK NO-ERROR.
+                                     IF AVAILABLE UTBYTESLNAMN THEN DO:
+                                         konsttemp.UNAMN =  UTBYTESLNAMN.UNAMN.
+                                      END. 
+                                   END. 
+                                   ELSE DO:
+                                        ASSIGN konsttemp.UNAMN = "".
+                                    END.
+                              END.                           
+                              RELEASE KONSTRUKTION NO-ERROR.
+                              utval = "GO".
+                              LEAVE.
+                           END.
+                        END.
+                        IF KONSTRUKTION.KTYPKOD = varkod THEN DO:
+                           ASSIGN felmedd = "Det finns redan en konstruktion med denna kod  " + varkod + " och benämningen " +
+                           KONSTRUKTION.BENAMNING + ". Ange ny kod.". 
+                           utval = "ENTRY".
+                           LEAVE.
+                        END.
+                     END.
+                  END.
+               END.
+            END.
+            ELSE DO: 
+               FIND FIRST konsttemp WHERE konsttemp.KTYPKOD = konstvalvar NO-LOCK NO-ERROR.
+               IF AVAILABLE konsttemp THEN DO:
+                  FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = konstvalvar NO-LOCK NO-ERROR. 
+                  RUN koll2_UI (INPUT konstvalvar,INPUT kongrkod,INPUT varkod).
+                  DO TRANSACTION:
+                     FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = konstvalvar EXCLUSIVE-LOCK NO-ERROR. 
+                     ASSIGN
+                     KONSTRUKTION.KTYPKOD = varkod
+                     KONSTRUKTION.BENAMNING = benvar
+                     KONSTRUKTION.UID = ers_uid.
+                     ASSIGN 
+                     konsttemp.KTYPKOD = varkod
+                     konsttemp.BENAMNING = benvar
+                     konsttemp.UID = ers_uid.
+                     IF konsttemp.UID NE 0 THEN DO:
+                         FIND FIRST UTBYTESLNAMN WHERE UTBYTESLNAMN.UID = konsttemp.UID NO-LOCK NO-ERROR.
+                         IF AVAILABLE UTBYTESLNAMN THEN DO:
+                             konsttemp.UNAMN =  UTBYTESLNAMN.UNAMN.
+                          END. 
+                       END. 
+                     ELSE DO:
+                         ASSIGN konsttemp.UNAMN = "".
+                     END.                     
+                  END.
+                  RELEASE KONSTRUKTION NO-ERROR.
+                  utval = "GO".
+               END.
+               RETURN.
+            END.
+            
+         END.
+         ELSE DO: 
+            DO TRANSACTION:
+               FIND FIRST konsttemp WHERE konsttemp.KTYPKOD = konstvalvar NO-LOCK NO-ERROR.
+               IF AVAILABLE konsttemp THEN DO:
+                  FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = konstvalvar EXCLUSIVE-LOCK NO-ERROR.
+                  ASSIGN            
+                  KONSTRUKTION.BENAMNING = benvar
+                  KONSTRUKTION.UID = ers_uid
+                  konsttemp.BENAMNING = benvar
+                  konsttemp.UID = ers_uid.
+                  IF konsttemp.UID NE 0 THEN DO:
+                     FIND FIRST UTBYTESLNAMN WHERE UTBYTESLNAMN.UID = konsttemp.UID NO-LOCK NO-ERROR.
+                     IF AVAILABLE UTBYTESLNAMN THEN DO:
+                         konsttemp.UNAMN =  UTBYTESLNAMN.UNAMN.
+                      END. 
+                   END.
+                   ELSE DO:
+                        ASSIGN konsttemp.UNAMN = "".
+                    END. 
+                  utval = "GO".
+               END.
+            END.
+            RELEASE KONSTRUKTION NO-ERROR.
+            RETURN.                                          
+         END.   
+      END.
+   END.
+   RETURN.
+
+END PROCEDURE.
+
+PROCEDURE koll_UI :
+   DEFINE INPUT PARAMETER krow AS ROWID NO-UNDO.
+   DEFINE INPUT PARAMETER kongrkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER varkod AS CHARACTER NO-UNDO.
+   FIND FIRST konstvaltemp WHERE konstvaltemp.KVALROW = krow NO-LOCK NO-ERROR.
+   IF AVAILABLE konstvaltemp THEN DO:
+      DEBUGGER:SET-BREAK().
+      FIND FIRST BBENAMNING WHERE BBENAMNING.KONSKOD = kongrkod NO-LOCK NO-ERROR.
+      IF BBENAMNING.B2 = konstvaltemp.BB THEN DO:
+         OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = kongrkod
+         USE-INDEX KOD NO-LOCK.
+         GET FIRST kq NO-LOCK.
+         DO WHILE AVAILABLE(KONSTRUKTION):
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE
+            MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND MTRLBER.F1 = konstvaltemp.KVALKOD
+            USE-INDEX KOD NO-LOCK.
+            GET FIRST mtrlq NO-LOCK.
+            DO WHILE AVAILABLE(MTRLBER):
+               DO TRANSACTION:
+                  GET CURRENT mtrlq EXCLUSIVE-LOCK.
+                  MTRLBER.F1 = varkod.
+               END.
+               GET NEXT mtrlq NO-LOCK.
+            END.
+            CLOSE QUERY mtrlq.
+            OPEN QUERY kalkq FOR EACH KALKBER WHERE
+            KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND KALKBER.F1 = konstvaltemp.KVALKOD
+            NO-LOCK.
+            GET FIRST kalkq NO-LOCK.
+            DO WHILE AVAILABLE(KALKBER):
+               DO TRANSACTION:
+                  GET CURRENT kalkq EXCLUSIVE-LOCK.
+                  KALKBER.F1 = varkod.
+               END.
+               GET NEXT kalkq NO-LOCK.
+            END.
+            CLOSE QUERY kalkq.
+            OPEN QUERY valq FOR EACH BERVAL WHERE
+            BERVAL.KTYPKOD = KONSTRUKTION.KTYPKOD AND BERVAL.F2 = konstvaltemp.KVALKOD NO-LOCK.
+            GET FIRST valq NO-LOCK.
+            DO WHILE AVAILABLE(BERVAL):
+               DO TRANSACTION:
+                  GET CURRENT valq EXCLUSIVE-LOCK.
+                  BERVAL.F2 = varkod.
+               END.
+               GET NEXT valq NO-LOCK.
+            END.
+            CLOSE QUERY valq.
+            GET NEXT kq NO-LOCK.
+         END.
+         CLOSE QUERY kq.
+      END.
+      ELSE IF BBENAMNING.B3 = konstvaltemp.BB THEN DO:
+         OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = kongrkod
+         USE-INDEX KOD NO-LOCK.
+         GET FIRST kq NO-LOCK.
+         DO WHILE AVAILABLE(KONSTRUKTION):
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE
+            MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND MTRLBER.F2 = konstvaltemp.KVALKOD
+            USE-INDEX KOD NO-LOCK.
+            GET FIRST mtrlq NO-LOCK.
+            DO WHILE AVAILABLE(MTRLBER):
+               DO TRANSACTION:
+                  GET CURRENT mtrlq EXCLUSIVE-LOCK.
+                  MTRLBER.F2 = varkod.
+               END.
+               GET NEXT mtrlq NO-LOCK.
+            END.
+            CLOSE QUERY mtrlq.
+            OPEN QUERY kalkq FOR EACH KALKBER WHERE
+            KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND KALKBER.F2 = konstvaltemp.KVALKOD
+            NO-LOCK.
+            GET FIRST kalkq NO-LOCK.
+            DO WHILE AVAILABLE(KALKBER):
+               DO TRANSACTION:
+                  GET CURRENT kalkq EXCLUSIVE-LOCK.
+                  KALKBER.F2 = varkod.
+               END.
+               GET NEXT kalkq NO-LOCK.
+            END.
+            CLOSE QUERY kalkq.
+            OPEN QUERY valq FOR EACH BERVAL WHERE
+            BERVAL.KTYPKOD = KONSTRUKTION.KTYPKOD AND BERVAL.F3 = konstvaltemp.KVALKOD NO-LOCK.
+            GET FIRST valq NO-LOCK.
+            DO WHILE AVAILABLE(BERVAL):
+               DO TRANSACTION:
+                  GET CURRENT valq EXCLUSIVE-LOCK.
+                  BERVAL.F3 = varkod.
+               END.
+               GET NEXT valq NO-LOCK.
+            END.
+            CLOSE QUERY valq.
+            GET NEXT kq NO-LOCK.
+         END.
+         CLOSE QUERY kq.
+      END.
+      ELSE IF BBENAMNING.B4 = konstvaltemp.BB THEN DO:
+         OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = kongrkod
+         USE-INDEX KOD NO-LOCK.
+         GET FIRST kq NO-LOCK.
+         DO WHILE AVAILABLE(KONSTRUKTION):
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE
+            MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND MTRLBER.F3 = konstvaltemp.KVALKOD
+            USE-INDEX KOD NO-LOCK.
+            GET FIRST mtrlq NO-LOCK.
+            DO WHILE AVAILABLE(MTRLBER):
+               DO TRANSACTION:
+                  GET CURRENT mtrlq EXCLUSIVE-LOCK.
+                  MTRLBER.F3 = varkod.
+               END.
+               GET NEXT mtrlq NO-LOCK.
+            END.
+            CLOSE QUERY mtrlq.
+            OPEN QUERY kalkq FOR EACH KALKBER WHERE
+            KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND KALKBER.F3 = konstvaltemp.KVALKOD
+            NO-LOCK.
+            GET FIRST kalkq NO-LOCK.
+            DO WHILE AVAILABLE(KALKBER):
+               DO TRANSACTION:
+                  GET CURRENT kalkq EXCLUSIVE-LOCK.
+                  KALKBER.F3 = varkod.
+               END.
+               GET NEXT kalkq NO-LOCK.
+            END.
+            CLOSE QUERY kalkq.
+            OPEN QUERY valq FOR EACH BERVAL WHERE
+            BERVAL.KTYPKOD = KONSTRUKTION.KTYPKOD AND BERVAL.F4 = konstvaltemp.KVALKOD NO-LOCK.
+            GET FIRST valq NO-LOCK.
+            DO WHILE AVAILABLE(BERVAL):
+               DO TRANSACTION:
+                  GET CURRENT valq EXCLUSIVE-LOCK.
+                  BERVAL.F4 = varkod.
+               END.
+               GET NEXT valq NO-LOCK.
+            END.
+            CLOSE QUERY valq.
+            GET NEXT kq NO-LOCK.
+         END.
+         CLOSE QUERY kq.
+      END.
+      ELSE IF BBENAMNING.B5 = konstvaltemp.BB THEN DO:
+         OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = kongrkod
+         USE-INDEX KOD NO-LOCK.
+         GET FIRST kq NO-LOCK.
+         DO WHILE AVAILABLE(KONSTRUKTION):
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE
+            MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND MTRLBER.F4 = konstvaltemp.KVALKOD
+            USE-INDEX KOD NO-LOCK.
+            GET FIRST mtrlq NO-LOCK.
+            DO WHILE AVAILABLE(MTRLBER):
+               DO TRANSACTION:
+                  GET CURRENT mtrlq EXCLUSIVE-LOCK.
+                  MTRLBER.F4 = varkod.
+               END.
+               GET NEXT mtrlq NO-LOCK.
+            END.
+            CLOSE QUERY mtrlq.
+            OPEN QUERY kalkq FOR EACH KALKBER WHERE
+            KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND KALKBER.F4 = konstvaltemp.KVALKOD
+            NO-LOCK.
+            GET FIRST kalkq NO-LOCK.
+            DO WHILE AVAILABLE(KALKBER):
+               DO TRANSACTION:
+                  GET CURRENT kalkq EXCLUSIVE-LOCK.
+                  KALKBER.F4 = varkod.
+               END.
+               GET NEXT kalkq NO-LOCK.
+            END.
+            CLOSE QUERY kalkq.
+            OPEN QUERY valq FOR EACH BERVAL WHERE
+            BERVAL.KTYPKOD = KONSTRUKTION.KTYPKOD AND BERVAL.F5 = konstvaltemp.KVALKOD NO-LOCK.
+            GET FIRST valq NO-LOCK.
+            DO WHILE AVAILABLE(BERVAL):
+               DO TRANSACTION:
+                  GET CURRENT valq EXCLUSIVE-LOCK.
+                  BERVAL.F5 = varkod.
+               END.
+               GET NEXT valq NO-LOCK.
+            END.
+            CLOSE QUERY valq.
+            GET NEXT kq NO-LOCK.
+         END.
+         CLOSE QUERY kq.
+      END.
+      ELSE DO:
+         OPEN QUERY kq FOR EACH KONSTRUKTION WHERE KONSTRUKTION.KONSKOD = kongrkod
+         USE-INDEX KOD NO-LOCK.
+         GET FIRST kq NO-LOCK.
+         DO WHILE AVAILABLE(KONSTRUKTION):
+            OPEN QUERY mtrlq FOR EACH MTRLBER WHERE
+            MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND MTRLBER.F5 = konstvaltemp.KVALKOD
+            USE-INDEX KOD NO-LOCK.
+            GET FIRST mtrlq NO-LOCK.
+            DO WHILE AVAILABLE(MTRLBER):
+               DO TRANSACTION:
+                  GET CURRENT mtrlq EXCLUSIVE-LOCK.
+                  MTRLBER.F5 = varkod.
+               END.
+               GET NEXT mtrlq NO-LOCK.
+            END.
+            CLOSE QUERY mtrlq.
+            OPEN QUERY kalkq FOR EACH KALKBER WHERE
+            KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD AND KALKBER.F5 = konstvaltemp.KVALKOD
+            NO-LOCK.
+            GET FIRST kalkq NO-LOCK.
+            DO WHILE AVAILABLE(KALKBER):
+               DO TRANSACTION:
+                  GET CURRENT kalkq EXCLUSIVE-LOCK.
+                  KALKBER.F5 = varkod.
+               END.
+               GET NEXT kalkq NO-LOCK.
+            END.
+            CLOSE QUERY kalkq.
+            OPEN QUERY valq FOR EACH BERVAL WHERE
+            BERVAL.KTYPKOD = KONSTRUKTION.KTYPKOD AND BERVAL.F6 = konstvaltemp.KVALKOD NO-LOCK.
+            GET FIRST valq NO-LOCK.
+            DO WHILE AVAILABLE(BERVAL):
+               DO TRANSACTION:
+                  GET CURRENT valq EXCLUSIVE-LOCK.
+                  BERVAL.F6 = varkod.
+               END.
+               GET NEXT valq NO-LOCK.
+            END.
+            CLOSE QUERY valq.
+            GET NEXT kq NO-LOCK.
+         END.
+         CLOSE QUERY kq.
+      END.
+      DEBUGGER:SET-BREAK().
+      
+                  
+      OPEN QUERY bildq FOR EACH BERBILD WHERE BERBILD.KTYPKOD = konstvaltemp.KVALKOD NO-LOCK.
+      GET FIRST bildq NO-LOCK.
+      DO WHILE AVAILABLE(BERBILD):
+         DO TRANSACTION:
+            GET CURRENT bildq EXCLUSIVE-LOCK.
+            BERBILD.KTYPKOD = varkod.
+         END.
+         GET NEXT bildq NO-LOCK.
+      END.
+      CLOSE QUERY bildq.
+         
+         
+   END.
+END PROCEDURE.
+
+ PROCEDURE koll2_UI :
+   DEFINE INPUT PARAMETER konstvalvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER kongrkod AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER varkod AS CHARACTER NO-UNDO.
+   FIND FIRST KONSTRUKTION WHERE KONSTRUKTION.KTYPKOD = konstvalvar NO-LOCK NO-ERROR.
+   IF AVAILABLE KONSTRUKTION THEN DO:
+      OPEN QUERY konstq FOR EACH KONSTVAL WHERE KONSTVAL.KONSKOD = kongrkod AND
+      KONSTVAL.KTYPKOD = KONSTRUKTION.KTYPKOD NO-LOCK.
+      GET FIRST konstq NO-LOCK.
+      DO WHILE AVAILABLE(KONSTVAL):
+         DO TRANSACTION:
+            GET CURRENT konstq EXCLUSIVE-LOCK.
+            KONSTVAL.KTYPKOD = varkod.
+         END.
+         GET NEXT konstq NO-LOCK.
+      END.
+      CLOSE QUERY konstq.
+      IF kongrkod = 0 THEN DO:
+         /*byter man namn på kabelskåp måste även skåpen uppdateras. OBS!! hårdkodning CDC*/
+         OPEN QUERY skapq FOR EACH BERSKAP WHERE BERSKAP.KTYPKOD = KONSTRUKTION.KTYPKOD NO-LOCK.
+         GET FIRST skapq NO-LOCK.
+         DO WHILE AVAILABLE(BERSKAP):
+            DO TRANSACTION:
+               GET CURRENT skapq EXCLUSIVE-LOCK.
+               BERSKAP.KTYPKOD = varkod.
+            END.
+            GET NEXT skapq NO-LOCK.
+         END.
+         CLOSE QUERY skapq.
+      END.   
+      
+      OPEN QUERY mtrlq FOR EACH MTRLBER WHERE MTRLBER.KTYPKOD = KONSTRUKTION.KTYPKOD NO-LOCK.
+      GET FIRST mtrlq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLBER):
+         DO TRANSACTION:
+            GET CURRENT mtrlq EXCLUSIVE-LOCK.
+            MTRLBER.KTYPKOD = varkod.
+         END.
+         GET NEXT mtrlq NO-LOCK.
+      END.
+      CLOSE QUERY mtrlq.
+      OPEN QUERY kalkq FOR EACH KALKBER WHERE KALKBER.KTYPKOD = KONSTRUKTION.KTYPKOD NO-LOCK.
+      GET FIRST kalkq NO-LOCK.
+      DO WHILE AVAILABLE(KALKBER):
+         DO TRANSACTION:
+            GET CURRENT kalkq EXCLUSIVE-LOCK.
+            KALKBER.KTYPKOD = varkod.
+         END.
+         GET NEXT kalkq NO-LOCK.
+      END.
+      CLOSE QUERY kalkq.
+      OPEN QUERY valq FOR EACH BERVAL WHERE BERVAL.KTYPKOD = KONSTRUKTION.KTYPKOD NO-LOCK.
+      GET FIRST valq NO-LOCK.
+      DO WHILE AVAILABLE(BERVAL):
+         DO TRANSACTION:
+            GET CURRENT valq EXCLUSIVE-LOCK.
+            BERVAL.KTYPKOD = varkod.
+         END.
+         GET NEXT valq NO-LOCK.
+      END.
+      CLOSE QUERY valq.
+      DEBUGGER:SET-BREAK().
+      OPEN QUERY bildq FOR EACH BERBILD WHERE BERBILD.KTYPKOD = KONSTRUKTION.KTYPKOD NO-LOCK.
+      GET FIRST bildq NO-LOCK.
+      DO WHILE AVAILABLE(BERBILD):
+         DO TRANSACTION:
+            GET CURRENT bildq EXCLUSIVE-LOCK.
+            BERBILD.KTYPKOD = varkod.
+         END.
+         GET NEXT bildq NO-LOCK.
+      END.
+      CLOSE QUERY bildq.
+      
+      
+   END.
+END PROCEDURE.
+

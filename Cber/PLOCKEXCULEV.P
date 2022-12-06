@@ -1,0 +1,517 @@
+/*PLOCKEXCULEV.P UTLÄSNING AV MTRL KOPPLAT TILL KONSTRUKTIONER TILL EXCEL*/ 
+
+
+
+
+DEFINE VARIABLE val AS LOGICAL NO-UNDO.
+DEFINE VARIABLE felexcel AS LOGICAL NO-UNDO.
+DEFINE VARIABLE tamedidplac AS CHARACTER NO-UNDO.
+DEFINE VARIABLE finnsenr AS CHARACTER NO-UNDO.
+&Scoped-define NEW 
+{GLOBVAR2DEL1.I}
+{REGVAR.I}
+{ANMARKD.I}
+{BEREDNINGTEMP.I}
+{ANVPERS.I}
+{LISTDEF.I}
+DEFINE TEMP-TABLE mtrl_temp2   
+   {MTRLTEMP2TT.I}
+{FLBERTEMP.I}
+DEFINE TEMP-TABLE emtrl_temp2 LIKE mtrl_temp2.
+DEFINE INPUT PARAMETER tamedid AS LOGICAL NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR mtrl_temp2.
+DEFINE INPUT PARAMETER prisvar AS INTEGER.
+DEFINE INPUT PARAMETER valaonr AS INTEGER.
+DEFINE INPUT PARAMETER valomrade AS CHARACTER.
+DEFINE INPUT PARAMETER valort AS CHARACTER.
+DEFINE INPUT PARAMETER edmedd AS CHARACTER.
+DEFINE INPUT PARAMETER TABLE FOR flerbertemp.
+DEFINE VARIABLE chExcelApplication      AS COM-HANDLE.
+DEFINE VARIABLE chWorkbook              AS COM-HANDLE.
+DEFINE VARIABLE chWorksheet             AS COM-HANDLE.
+DEFINE VARIABLE chChart                 AS COM-HANDLE.
+DEFINE VARIABLE chWorksheetRange        AS COM-HANDLE.
+DEFINE VARIABLE iCount                  AS INTEGER.
+DEFINE VARIABLE iIndex                  AS INTEGER.
+DEFINE VARIABLE iMonth                  AS INTEGER.
+DEFINE VARIABLE dAnnualQuota            AS DECIMAL.
+DEFINE VARIABLE dTotalSalesAmount       AS DECIMAL.
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 0.
+DEFINE VARIABLE cColumn                 AS CHARACTER.
+DEFINE VARIABLE cRange                  AS CHARACTER.
+DEFINE VARIABLE slutsumvar              AS DECIMAL.
+DEFINE VARIABLE link AS CHARACTER NO-UNDO.
+DEFINE VARIABLE plockexcapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE aonrvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE delnrvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE sokpkod AS CHARACTER NO-UNDO.
+{AONRUTSID.I}
+   EMPTY TEMP-TABLE beredningtemp NO-ERROR. 
+   EMPTY TEMP-TABLE personaltemp NO-ERROR. 
+   EMPTY TEMP-TABLE anvandartemp NO-ERROR.
+   ASSIGN
+   aonrvar = ""
+   delnrvar = 0.   
+   IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "GRAN" OR Guru.Konstanter:globforetag = "NAEK" OR Guru.Konstanter:globforetag = "CPOMA" {GLOBVES.I} THEN DO:
+      MESSAGE "Vill Ni lägga till ett 'E' i " LC(Guru.Konstanter:genl) "?" VIEW-AS ALERT-BOX QUESTION BUTTONS YES-NO UPDATE val.
+   END.
+   ELSE DO:
+      val = FALSE.
+   END.
+   IF Guru.Konstanter:appcon THEN DO:
+      RUN PLOCKEXCAPP.P PERSISTENT SET plockexcapph ON Guru.Konstanter:apphand TRANSACTION DISTINCT. 
+   END.
+   ELSE DO:
+      RUN PLOCKEXCAPP.P PERSISTENT SET plockexcapph.
+   END. 
+   RUN hamta_UI IN plockexcapph (INPUT Guru.Konstanter:globanvpkod,INPUT valaonr,INPUT valomrade,
+                                  OUTPUT aonrvar,OUTPUT delnrvar,OUTPUT TABLE beredningtemp,
+                                  OUTPUT TABLE personaltemp,OUTPUT TABLE anvandartemp,OUTPUT sokpkod).           
+   CREATE "Excel.Application" chExcelApplication.
+   chExcelApplication:Visible = TRUE.
+   chWorkbook = chExcelApplication:Workbooks:Add() NO-ERROR.
+   chWorkSheet = chExcelApplication:Sheets:Item(1) NO-ERROR.      
+   chWorkSheet:Columns("A"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("B"):ColumnWidth = 40 NO-ERROR.
+   chWorkSheet:Columns("C"):ColumnWidth = 5 NO-ERROR.
+   chWorkSheet:Columns("D"):ColumnWidth = 8 NO-ERROR.
+   chWorkSheet:Columns("E"):ColumnWidth = 8 NO-ERROR.
+   chWorkSheet:Columns("F"):ColumnWidth = 10 NO-ERROR.
+   IF prisvar = 1 THEN tamedidplac = "G".
+   ELSE tamedidplac = "E".
+   IF prisvar = 1 THEN chWorkSheet:Columns("H"):ColumnWidth = 15 NO-ERROR.
+   ELSE chWorkSheet:Columns("F"):ColumnWidth = 15 NO-ERROR.    
+   {EXCELFEL.I} 
+   RUN excelhead_UI (INPUT 3,aoutvar).
+   {EXCELFEL.I} 
+   FIND FIRST beredningtemp WHERE beredningtemp.BERNR = INTEGER(valaonr) AND 
+   beredningtemp.OMRADE = valomrade USE-INDEX BERNR NO-LOCK NO-ERROR.  
+   ASSIGN
+   iColumn = 1
+   cColumn = STRING(iColumn)
+   cRange = "A" + cColumn      
+   link = ?.
+   /*FOREBILDER*/   
+   {LOGGOR.I}
+   IF link NE ? THEN RUN imageexcel_UI.
+   ASSIGN
+   cColumn = STRING(iColumn)
+   cRange = "A" + cColumn.
+   chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+   {EXCELFEL.I} 
+   IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" THEN DO:
+      ASSIGN        
+      chWorkSheet:Range(cRange):Value = "Lista materiel/projekt " + STRING(TODAY) + " " + STRING(TIME,"HH:MM:SS") NO-ERROR.
+   END.
+   ELSE IF Guru.Konstanter:globforetag = "UMEA" THEN DO:
+      ASSIGN        
+      chWorkSheet:Range(cRange):Value = "Materielspecifikation " + STRING(TODAY) + " " + STRING(TIME,"HH:MM:SS") NO-ERROR.
+   END.
+   ELSE DO: 
+      ASSIGN        
+      chWorkSheet:Range(cRange):Value = "Lista materiel/artikel/Leverantör/Kontroll mot leverantör       " + STRING(TODAY) + " " + STRING(TIME,"HH:MM:SS") NO-ERROR.
+   END.    
+   {EXCELFEL.I} 
+   ASSIGN
+   iColumn = iColumn + 2
+   cColumn = STRING(iColumn)
+   cRange = "A" + cColumn.   
+   chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+   {EXCELFEL.I} 
+   ASSIGN                                                               
+   chWorkSheet:Range(cRange):Value = Guru.Konstanter:gaonamnk + ": " + valort NO-ERROR.
+   FOR EACH flerbertemp:
+      IF valort = flerbertemp.BENAMNING THEN.
+      ELSE DO:
+         ASSIGN
+         iColumn = iColumn + 1
+         cColumn = STRING(iColumn)
+         cRange = "B" + cColumn
+         chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+         chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+         chWorkSheet:Range(cRange):Value = ":" + flerbertemp.BENAMNING NO-ERROR.
+        
+      END.               
+   END.
+   IF Guru.Konstanter:globforetag = "cELPA" OR Guru.Konstanter:globforetag = "BORL" THEN DO:  
+      FIND FIRST personaltemp WHERE personaltemp.PERSONALKOD = Guru.Konstanter:globanvpkod
+      NO-LOCK NO-ERROR.
+      IF AVAILABLE personaltemp THEN DO:
+         ASSIGN
+         iColumn = iColumn + 1
+         cColumn = STRING(iColumn)
+         cRange = "A" + cColumn.
+         chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+         chWorkSheet:Range(cRange):FONT:ColorIndex = 11   NO-ERROR.
+         chWorkSheet:Range(cRange):Value = "Beredare     : " + personaltemp.FORNAMN +
+         " " + personaltemp.EFTERNAMN + "     " + personaltemp.TELEFON + "     " + personaltemp.MOBILTEL NO-ERROR.
+      END.
+      FIND FIRST beredningtemp WHERE beredningtemp.BERNR = INTEGER(valaonr) AND 
+      beredningtemp.OMRADE = valomrade USE-INDEX BERNR NO-LOCK NO-ERROR.        
+      IF beredningtemp.AONR NE ? THEN DO:
+         IF aonrvar NE "" THEN DO:
+            ASSIGN
+            iColumn = iColumn + 1
+            cColumn = STRING(iColumn)
+            cRange = "A" + cColumn.
+            chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+            chWorkSheet:Range(cRange):FONT:ColorIndex = 11  NO-ERROR.
+            chWorkSheet:Range(cRange):Value = Guru.Konstanter:gaok + ": " + aonrvar + " Delnr:" +
+            STRING(delnrvar,Guru.Konstanter:varforetypchar[1]) NO-ERROR.
+         END.
+         ELSE DO:
+            ASSIGN
+            iColumn = iColumn + 1
+            cColumn = STRING(iColumn)
+            cRange = "A" + cColumn.
+            chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+            chWorkSheet:Range(cRange):FONT:ColorIndex = 11  NO-ERROR.
+            chWorkSheet:Range(cRange):Value = "Beredning nr : " + STRING(beredningtemp.BERNR) NO-ERROR.
+         END.
+      END.
+      {EXCELFEL.I} 
+   END.
+   ELSE DO:
+      ASSIGN
+      iColumn = iColumn + 1
+      cColumn = STRING(iColumn)
+      cRange = "A" + cColumn.   
+      chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+      chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+      ASSIGN                                                               
+      chWorkSheet:Range(cRange):Value = "Beredning nr : " + STRING(valaonr) NO-ERROR.   
+      FOR EACH flerbertemp:
+         IF valaonr = flerbertemp.BERNR THEN.
+         ELSE DO:
+            ASSIGN
+            iColumn = iColumn + 1
+            cColumn = STRING(iColumn)
+            cRange = "B" + cColumn
+            chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+            chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+            chWorkSheet:Range(cRange):Value = ":" + flerbertemp.BERAONR NO-ERROR.
+           
+         END.               
+      END.
+      IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "UMEA" THEN DO: 
+         FIND FIRST personaltemp WHERE personaltemp.PERSONALKOD = sokpkod 
+         USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE personaltemp THEN DO: 
+            ASSIGN
+            iColumn = iColumn + 1
+            cColumn = STRING(iColumn)
+            cRange = "A" + cColumn.
+            chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+            chWorkSheet:Range(cRange):FONT:ColorIndex = 11   NO-ERROR.
+            chWorkSheet:Range(cRange):Value = Guru.Konstanter:gberel + " : " + personaltemp.FORNAM +                
+            " " + personaltemp.EFTERNAMN + "     " + personaltemp.TELEFON + "     " + personaltemp.MOBILTEL NO-ERROR.
+         END.         
+      END.         
+      IF beredningtemp.AONR NE ? THEN DO:
+         IF aonrvar NE "" THEN DO:
+            ASSIGN
+            iColumn = iColumn + 1
+            cColumn = STRING(iColumn)
+            cRange = "A" + cColumn.               
+            chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+            chWorkSheet:Range(cRange):FONT:ColorIndex = 11  NO-ERROR.
+            chWorkSheet:Range(cRange):Value = Guru.Konstanter:gaok + " : " + aonrvar + " Delnr : " + STRING(delnrvar,Guru.Konstanter:varforetypchar[1]) NO-ERROR.
+            FOR EACH flerbertemp:
+               IF flerbertemp.AONR = aonrvar AND flerbertemp.DELNR = delnrvar THEN.
+               ELSE DO:
+                  ASSIGN
+                  iColumn = iColumn + 1
+                  cColumn = STRING(iColumn)
+                  cRange = "B" + cColumn
+                  chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+                  chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+                  chWorkSheet:Range(cRange):Value =":" + flerbertemp.AONR + " " + STRING(flerbertemp.DELNR,Guru.Konstanter:varforetypchar[1]) NO-ERROR.
+                 
+               END.               
+            END.
+         END.
+      END.
+      {EXCELFEL.I} 
+   END.
+   IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "UMEA" THEN DO:
+      RUN anm4_UI. 
+      {EXCELFEL.I} 
+   END.
+   ASSIGN
+   iColumn = iColumn + 2
+   cColumn = STRING(iColumn)
+   cRange = "A" + cColumn.
+   chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11   NO-ERROR.
+   chWorkSheet:Range(cRange):Value = Guru.Konstanter:genk NO-ERROR.
+   cRange = "B" + cColumn.
+   ASSIGN
+   chWorkSheet:Range(cRange):Font:Bold = TRUE  NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11  NO-ERROR.
+   chWorkSheet:Range(cRange):Value = "Benämning" NO-ERROR.
+   cRange = "C" + cColumn.
+   ASSIGN
+   chWorkSheet:Range(cRange):Font:Bold = TRUE  NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11   NO-ERROR.
+   chWorkSheet:Range(cRange):Value = "Enhet" NO-ERROR.
+   cRange = "D" + cColumn.
+   ASSIGN
+   chWorkSheet:Range(cRange):Font:Bold = TRUE   NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+   chWorkSheet:Range(cRange):Value = "Antal" NO-ERROR.
+   cRange = "E" + cColumn.
+   chWorkSheet:Range(cRange):Font:Bold = TRUE   NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+   chWorkSheet:Range(cRange):Value = "Levkod" NO-ERROR.
+   cRange = "F" + cColumn.
+   chWorkSheet:Range(cRange):Font:Bold = TRUE   NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+   chWorkSheet:Range(cRange):Value = "Kontroll mot lev" NO-ERROR.
+   IF prisvar = 1 THEN DO:
+      ASSIGN
+      cRange = "E" + cColumn
+      chWorkSheet:Range(cRange):Font:Bold = TRUE  NO-ERROR.
+      chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+      chWorkSheet:Range(cRange):Value = "Pris/Enhet" NO-ERROR.
+      cRange = "F" + cColumn.
+      chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+      chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+      chWorkSheet:Range(cRange):Value = "Summa" NO-ERROR.
+      cRange = "G" + cColumn.
+      chWorkSheet:Range(cRange):Font:Bold = TRUE   NO-ERROR.
+      chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+      chWorkSheet:Range(cRange):Value = "Levkod" NO-ERROR.
+      cRange = "H" + cColumn.
+      chWorkSheet:Range(cRange):Font:Bold = TRUE   NO-ERROR.
+      chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+      chWorkSheet:Range(cRange):Value = "Kontroll mot lev" NO-ERROR.
+   END. 
+   IF tamedid = TRUE THEN DO:
+      ASSIGN
+      cRange = tamedidplac + cColumn
+      chWorkSheet:Range(cRange):Font:Bold = TRUE  NO-ERROR.
+      chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+      IF Guru.Konstanter:varforetypval[32] = 0 THEN  chWorkSheet:Range(cRange):Value = "Ingår i KonstruktionsID".
+      ELSE  chWorkSheet:Range(cRange):Value = "Ingår i Byggnr".
+      
+   END.     
+   ASSIGN   
+   slutsumvar = 0.
+   {EXCELFEL.I} 
+   chWorkSheet:Range("A:B"):NumberFormat = "@" NO-ERROR.   
+   
+   FOR EACH mtrl_temp2 BY mtrl_temp2.LEVKOD BY mtrl_temp2.ENR :
+      {EXCELFEL.I} 
+      IF mtrl_temp2.ANTAL > 0 THEN DO:      
+         iColumn = iColumn + 1.
+         cColumn = STRING(iColumn).
+         cRange = "A" + cColumn.         
+         IF val = TRUE THEN DO: 
+            IF SUBSTRING(mtrl_temp2.ENR,1,1) = "E" THEN chWorkSheet:Range(cRange):Value = mtrl_temp2.ENR NO-ERROR.           
+            ELSE chWorkSheet:Range(cRange):Value = "E" + mtrl_temp2.ENR NO-ERROR.
+         END.
+         ELSE DO:               
+            chWorkSheet:Range(cRange):Value = mtrl_temp2.ENR NO-ERROR.
+         END.                 
+         cRange = "B" + cColumn.
+         chWorkSheet:Range(cRange):Value = SUBSTRING(mtrl_temp2.BENAMNING,1,40) NO-ERROR.
+         cRange = "C" + cColumn.
+         chWorkSheet:Range(cRange):Value = mtrl_temp2.ENHET NO-ERROR.
+         cRange = "D" + cColumn.
+         chWorkSheet:Range(cRange):Value = mtrl_temp2.ANTAL NO-ERROR.
+         cRange = "E" + cColumn.
+         chWorkSheet:Range(cRange):Value = mtrl_temp2.LEVKOD NO-ERROR.
+         EMPTY TEMP-TABLE emtrl_temp2 NO-ERROR.
+         CREATE emtrl_temp2.
+         BUFFER-COPY mtrl_temp2 TO emtrl_temp2.   
+         RUN enrcheck_UI IN plockexcapph (INPUT TABLE emtrl_temp2, OUTPUT finnsenr).         
+         IF finnsenr NE  "" THEN DO:
+            cRange = "F" + cColumn.
+            chWorkSheet:Range(cRange):Value = finnsenr NO-ERROR.
+         END.                                      
+         IF prisvar = 1 THEN DO:      
+            cRange = "E" + cColumn.
+            chWorkSheet:Range(cRange):Value = mtrl_temp2.PRIS NO-ERROR.
+            cRange = "F" + cColumn.
+            chWorkSheet:Range(cRange):Value = mtrl_temp2.ANTAL * mtrl_temp2.PRIS NO-ERROR.
+            cRange = "G" + cColumn.
+            chWorkSheet:Range(cRange):Value = mtrl_temp2.LEVKOD NO-ERROR.
+            slutsumvar = slutsumvar + (mtrl_temp2.ANTAL * mtrl_temp2.PRIS).
+            IF finnsenr NE  "" THEN DO:
+               cRange = "H" + cColumn.
+               chWorkSheet:Range(cRange):Value = finnsenr NO-ERROR.
+            END.
+         END.
+         IF tamedid = TRUE THEN DO:           
+            ASSIGN
+            cRange = tamedidplac + cColumn.
+            chWorkSheet:Range(cRange):NumberFormat = "@" NO-ERROR.
+            chWorkSheet:Range(cRange):Value = SUBSTRING(mtrl_temp2.BYGGNRID,1,200) NO-ERROR.                      
+         END.   
+      END.      
+   END. 
+   IF prisvar = 1 THEN DO:
+      iColumn = iColumn + 2.
+      cColumn = STRING(iColumn).    
+      cRange = "E" + cColumn.
+      chWorkSheet:Range(cRange):Value = "Tot.summa:" NO-ERROR.
+      cRange = "F" + cColumn.
+      chWorkSheet:Range(cRange):Value = slutsumvar NO-ERROR.         
+   END.      
+   {EXCELFEL.I} 
+   IF VALID-HANDLE(plockexcapph) THEN DELETE PROCEDURE plockexcapph.
+
+PROCEDURE texter_UI :
+   DEFINE INPUT PARAMETER TABLE FOR mtrl_temp.      
+   ASSIGN
+   iColumn = iColumn + 2
+   cColumn = STRING(iColumn)
+   cRange = "A" + cColumn
+   chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+   ASSIGN
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+   chWorkSheet:Range(cRange):Value = "Artiklar med text" NO-ERROR.
+   iColumn = iColumn + 2.
+   cColumn = STRING(iColumn).
+   cRange = "A" + cColumn.
+   ASSIGN
+   chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+   chWorkSheet:Range(cRange):Value = Guru.Konstanter:genk NO-ERROR.
+   cRange = "B" + cColumn.
+   ASSIGN
+   chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11  NO-ERROR.
+   chWorkSheet:Range(cRange):Value = "Benämning" NO-ERROR.
+   cRange = "C" + cColumn.
+   ASSIGN
+   chWorkSheet:Range(cRange):Font:Bold = TRUE  NO-ERROR. 
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+   chWorkSheet:Range(cRange):Value = "Enhet" NO-ERROR.
+   cRange = "D" + cColumn.
+   chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+   chWorkSheet:Range(cRange):Value = "Antal" NO-ERROR.   
+   {EXCELFEL.I} 
+    /*Ändrat från use-index enr till  BY mtrl_temp.ENR BY mtrl_temp.ORD   av Lena 20151005  om samma skylt enr många gångerblir det sorterat i ordning*/   
+   FOR EACH mtrl_temp BY mtrl_temp.LEVKOD BY mtrl_temp.ENR  BY mtrl_temp.ORD:
+      {EXCELFEL.I} 
+      IF mtrl_temp.ANTAL > 0 THEN DO:      
+         iColumn = iColumn + 1.
+         cColumn = STRING(iColumn).
+         cRange = "A" + cColumn.         
+         IF val = TRUE THEN DO: 
+            IF SUBSTRING(mtrl_temp.ENR,1,1) = "E" THEN chWorkSheet:Range(cRange):Value = mtrl_temp.ENR NO-ERROR.           
+            ELSE chWorkSheet:Range(cRange):Value = "E" + mtrl_temp.ENR NO-ERROR.
+         END.
+         ELSE DO:               
+            chWorkSheet:Range(cRange):Value = mtrl_temp.ENR NO-ERROR.
+         END.                  
+         cRange = "B" + cColumn.
+         chWorkSheet:Range(cRange):Value = SUBSTRING(mtrl_temp.BENAMNING,1,40) NO-ERROR.
+         cRange = "C" + cColumn.
+         chWorkSheet:Range(cRange):Value = mtrl_temp.ENHET NO-ERROR.
+         cRange = "D" + cColumn.
+         chWorkSheet:Range(cRange):Value = mtrl_temp.ANTAL NO-ERROR. 
+         iColumn = iColumn + 1.
+         cColumn = STRING(iColumn).
+         cRange = "A" + cColumn. 
+         chWorkSheet:Range(cRange):VALUE = "Text:" NO-ERROR.         
+         ASSIGN         
+         retvar = 1 
+         ednum = 1    
+         ednum3 = LENGTH(mtrl_temp.MTRLTEXT)      
+         retvar = INDEX(mtrl_temp.MTRLTEXT,CHR(10),ednum)
+         edtecken = 39   
+         edtext = mtrl_temp.MTRLTEXT
+         tidtext = "".        
+         {MTRLTEXT.I} 
+      END.      
+   END. 
+END PROCEDURE.
+PROCEDURE mtext_UI : 
+   cRange = "B" + cColumn.
+   chWorkSheet:Range(cRange):Value = tidtext NO-ERROR.
+   iColumn = iColumn + 1.
+   cColumn = STRING(iColumn).
+   {EXCELFEL.I} 
+END PROCEDURE.
+
+PROCEDURE anm4_UI.
+   ASSIGN
+   iColumn = iColumn + 1
+   cColumn = STRING(iColumn)
+   cRange = "A" + cColumn
+   chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range(cRange):FONT:ColorIndex = 11 NO-ERROR.
+   ASSIGN                                                               
+   chWorkSheet:Range(cRange):Value = "Anmärkning:"  NO-ERROR.
+   ASSIGN
+   retvar = 1
+   ednum = 1
+   ednum3 = LENGTH(edmedd)
+   retvar = INDEX(edmedd,CHR(10),ednum)
+   edtecken = 48
+   edtext = edmedd
+   tidtext = "".  
+   {ANMARK2.I}  
+   {EXCELFEL.I} 
+END PROCEDURE.
+PROCEDURE excelhead_UI :
+   DEFINE INPUT PARAMETER leftcenterright AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER head AS CHARACTER NO-UNDO.
+   head = head + " sid &S".
+   IF leftcenterright = 1 THEN chWorkSheet:PageSetup:LeftHeader = head NO-ERROR.
+   IF leftcenterright = 2 THEN chWorkSheet:PAGESETUP:CENTERHEADER = head NO-ERROR.
+   IF leftcenterright = 3 THEN chWorkSheet:PAGESETUP:RIGHTHEADER = head NO-ERROR.  
+END PROCEDURE.
+PROCEDURE imageexcel_UI:   
+   ASSIGN iColumn = 1.
+   chWorkSheet:rows(iColumn):SELECT NO-ERROR.       
+   IF link NE  ? THEN chWorkSheetRange = chWorkSheet:Pictures:INSERT(link) NO-ERROR. 
+   ELSE RETURN.     
+   chWorkSheetRange:TOP = 1 NO-ERROR.
+   chWorkSheetRange:LEFT = 1 NO-ERROR.
+   ASSIGN iColumn = iColumn + 5.     
+   {EXCELFEL.I} 
+END PROCEDURE.
+PROCEDURE ostempdel_UI :
+  /*SKA VARA KVAR*/
+END PROCEDURE.
+PROCEDURE anmark_UI.
+   DEFINE INPUT PARAMETER anmark AS INTEGER NO-UNDO. 
+   ASSIGN
+   iColumn = iColumn + 1
+   cColumn = STRING(iColumn)
+   cRange = "A" + cColumn
+   chWorkSheet:Range(cRange):Font:Bold = FALSE NO-ERROR.
+   ASSIGN                                                               
+   chWorkSheet:Range(cRange):Value = tidtext NO-ERROR.   
+   {EXCELFEL.I} 
+END PROCEDURE.
+PROCEDURE slutexcel_UI:
+   chExcelApplication:VISIBLE = TRUE NO-ERROR.
+   chExcelApplication:DisplayAlerts = TRUE NO-ERROR.   /*all prompts will be shutoff/on*/      
+   chWorkSheet:SELECT NO-ERROR.         
+   RELEASE OBJECT chWorkbook NO-ERROR.                   
+   RELEASE OBJECT chExcelApplication NO-ERROR.                 
+   RELEASE OBJECT chWorksheet NO-ERROR.                  
+   RELEASE OBJECT chChart NO-ERROR.                      
+   RELEASE OBJECT chWorksheetRange NO-ERROR.                
+   ASSIGN
+   chWorkbook = ?  
+   chExcelApplication = ?
+   chWorksheet = ?
+   chChart = ?
+   chWorksheetRange = ?.   
+   ASSIGN
+   iCount  = 0            
+   iIndex  = 0            
+   iMonth   = 0           
+   dAnnualQuota  = 0       
+   dTotalSalesAmount  = 0  
+   cRange             = "".   
+   {EXCELFEL.I} 
+END PROCEDURE.

@@ -1,0 +1,574 @@
+/*BERLISTAPP3.P*/
+{STARTFORAPP.I}
+{ANMARKD.I}
+{LISTDEF.I} 
+DEFINE VARIABLE globanvpkod AS CHARACTER NO-UNDO.
+DEFINE VARIABLE edmedd AS CHARACTER NO-UNDO.                              
+DEFINE VARIABLE prisvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE musz AS LOGICAL NO-UNDO.         
+DEFINE VARIABLE valaonr AS CHARACTER NO-UNDO.
+DEFINE VARIABLE valdelnr AS INTEGER NO-UNDO.
+DEFINE VARIABLE valort AS CHARACTER NO-UNDO. 
+DEFINE VARIABLE valomrade AS CHARACTER NO-UNDO.    
+
+DEFINE VARIABLE arrhjsum AS DECIMAL NO-UNDO.      
+DEFINE VARIABLE str AS CHARACTER FORMAT "X(130)" NO-UNDO. 
+DEFINE VARIABLE str2 AS CHARACTER FORMAT "X(130)" NO-UNDO. 
+DEFINE VARIABLE str3 AS CHARACTER FORMAT "X(130)" NO-UNDO.
+DEFINE VARIABLE str4 AS CHARACTER FORMAT "X(130)" NO-UNDO.
+DEFINE VARIABLE totalsum AS DECIMAL NO-UNDO.
+DEFINE VARIABLE totalt AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE sumpris AS DECIMAL NO-UNDO.
+DEFINE VARIABLE sumantal AS INTEGER NO-UNDO.
+
+DEFINE VARIABLE forsta AS LOGICAL NO-UNDO.
+DEFINE VARIABLE upput AS LOGICAL NO-UNDO.
+DEFINE VARIABLE edvar AS LOGICAL NO-UNDO.
+   
+DEFINE TEMP-TABLE mtrl_temp2   
+   {MTRLTEMP2TT.I}
+   
+{UPPLAGTEMP.I}
+   
+DEFINE TEMP-TABLE grupp_temp
+   FIELD KONSKOD AS INTEGER
+   FIELD BENAMNING AS CHARACTER
+   FIELD ORDNING AS INTEGER
+   INDEX ORD IS PRIMARY ORDNING ASCENDING.
+
+{TIDUTTTNEW.I}
+
+DEFINE QUERY mtrlprisq FOR BERMTRL.
+DEFINE QUERY upplq FOR BERVAL.
+DEFINE QUERY berq FOR BERUPP.
+DEFINE QUERY gruppq FOR KONSTGRUPP.
+
+PROCEDURE skapalista_UI :
+   DEFINE INPUT PARAMETER valaonr2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valomrade2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER valort2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER globanvpkod2 AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER prisvar2 AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER edmedd2 AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER musz2 AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.
+   EMPTY TEMP-TABLE tidut NO-ERROR. 
+   ASSIGN 
+   valaonr = valaonr2
+   valomrade = valomrade2
+   valort = valort2
+   globanvpkod = globanvpkod2
+   prisvar = prisvar2
+   edmedd = edmedd2
+   musz = FALSE
+   edvar = FALSE.
+   RUN huvud_UI.   
+   IF musz = FALSE THEN RUN summa_UI. 
+   musz2 = musz.
+   
+   {GDPRLOGGCLIENT.I}
+   RETURN.
+END PROCEDURE.
+
+PROCEDURE anm3_UI :
+ 
+   CREATE tidut.      
+   ASSIGN
+   SUBSTRING(tidut.UT,1) = "Anmärkning   :"
+   retvar = 1
+   ednum = 1
+   ednum3 = LENGTH(edmedd)
+   retvar = INDEX(edmedd,CHR(10),ednum)
+   edtecken = 48
+   edtext = edmedd
+   tidtext = "".  
+   {ANMARK2.I}   
+END PROCEDURE.
+
+PROCEDURE anmark_UI :
+          
+   DEFINE INPUT PARAMETER anmark AS INTEGER NO-UNDO.
+   IF anmark = 2 THEN DO:                
+      IF edvar = FALSE THEN DO:      
+         ASSIGN            
+         /*SUBSTRING(tidut.UT,11) = ":"*/   
+         SUBSTRING(tidut.UT,12) = tidtext.
+         CREATE tidut.
+      END.
+      ELSE DO:
+         ASSIGN                     
+         SUBSTRING(tidut.UT,16) = tidtext.
+         CREATE tidut.
+      END.
+   END.      
+END PROCEDURE.
+
+PROCEDURE huvud_UI :
+     /*HUVUD*/ 
+   DO TRANSACTION:         
+      IF musz = TRUE THEN musz = musz.   
+      ELSE DO:
+         IF Guru.Konstanter:globforetag = "CELPA" OR Guru.Konstanter:globforetag = "BORL" THEN DO:           
+            CREATE tidut. 
+            ASSIGN        
+            SUBSTRING(tidut.UT,1) = "Lista materiel/upplag/artikel".
+            ASSIGN   
+            SUBSTRING(tidut.UT,40) = STRING(TODAY)
+            SUBSTRING(tidut.UT,58) = STRING(TIME,"HH:MM:SS").                                                               
+            CREATE tidut.              
+            CREATE tidut.           
+            ASSIGN                       
+            SUBSTRING(tidut.UT,1) = Guru.Konstanter:gaonamnk + ": " + valort.
+            
+            FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = globanvpkod  
+            NO-LOCK NO-ERROR.
+            IF AVAILABLE PERSONALTAB THEN DO:            
+               FIND FIRST BEREDAONR WHERE BEREDAONR.PERSONALKOD = globanvpkod 
+               USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.   
+               IF NOT AVAILABLE BEREDAONR THEN DO:
+                  CREATE BEREDAONR.
+                  ASSIGN 
+                  BEREDAONR.PERSONALKOD = PERSONALTAB.PERSONALKOD
+                  BEREDAONR.FORNAMN = PERSONALTAB.FORNAMN
+                  BEREDAONR.EFTERNAMN = PERSONALTAB.EFTERNAMN.
+               END.
+               CREATE tidut.
+               ASSIGN                   
+               SUBSTRING(tidut.UT,1) = "Beredare     : " + PERSONALTAB.FORNAMN +
+               " " + PERSONALTAB.EFTERNAMN + "     " + PERSONALTAB.TELEFON + "     " + PERSONALTAB.MOBILTEL.
+               Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+            END.
+            FIND FIRST BEREDNING WHERE BEREDNING.BERNR = INTEGER(valaonr) AND 
+            BEREDNING.OMRADE = valomrade USE-INDEX BERNR NO-LOCK NO-ERROR.        
+            IF BEREDNING.AONR NE ? THEN DO:
+               FIND FIRST AONRTAB WHERE AONRTAB.AONR = BEREDNING.AONR AND
+               AONRTAB.DELNR = BEREDNING.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.
+               IF AVAILABLE AONRTAB THEN DO:
+                  CREATE tidut.
+                  ASSIGN
+                  SUBSTRING(tidut.UT,1) = Guru.Konstanter:gaok
+                  SUBSTRING(tidut.UT,14) = ": " + AONRTAB.AONR + " Delnr:" +
+                  STRING(AONRTAB.DELNR,Guru.Konstanter:varforetypchar[1]).
+               END.
+               ELSE DO:
+                  CREATE tidut.
+                  ASSIGN
+                  SUBSTRING(tidut.UT,1) = "Beredning nr : " + STRING(BEREDNING.BERNR).
+               END.
+            END.
+         END.
+         ELSE DO:
+
+            CREATE tidut. 
+            IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "SNAT" THEN DO:
+               ASSIGN        
+               SUBSTRING(tidut.UT,1) = "Lista materiel/upplag/konstruktionsgrupp/projekt".
+            END.
+            ELSE DO:
+               ASSIGN        
+               SUBSTRING(tidut.UT,1) = "Lista materiel/upplag/konsruktionsgrupp/artikel".
+            END.
+            ASSIGN              
+            SUBSTRING(tidut.UT,52) = STRING(TODAY)
+            SUBSTRING(tidut.UT,62) = STRING(TIME,"HH:MM:SS").                                                               
+            CREATE tidut.     
+            CREATE tidut. 
+            ASSIGN                                                               
+            SUBSTRING(tidut.UT,1) = Guru.Konstanter:gaonamnk + ": " + valort.
+            CREATE tidut.  
+            ASSIGN                                                               
+            SUBSTRING(tidut.UT,1) = "Beredning nr : " + valaonr.
+            FIND FIRST BEREDNING WHERE BEREDNING.BERNR = INTEGER(valaonr) AND 
+            BEREDNING.OMRADE = valomrade USE-INDEX BERNR NO-LOCK NO-ERROR.
+            IF Guru.Konstanter:globforetag = "ELPA" OR Guru.Konstanter:globforetag = "UMEA" THEN DO:
+               IF BEREDNING.AONR = ? THEN DO:           
+                  FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = BEREDNING.ANVANDARE
+                  USE-INDEX ANDV NO-LOCK NO-ERROR.
+                  IF AVAILABLE ANVANDARE THEN DO:            
+                     FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD
+                     USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+                  END.   
+               END.
+               ELSE DO: 
+                  FIND FIRST AONRTAB WHERE AONRTAB.AONR = BEREDNING.AONR AND
+                  AONRTAB.DELNR = BEREDNING.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.
+                  FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = AONRTAB.BEREDARE
+                  USE-INDEX PERSONALKOD NO-LOCK NO-ERROR.
+               END.                
+               IF AVAILABLE PERSONALTAB THEN DO: 
+                  CREATE tidut.
+                  SUBSTRING(tidut.UT,1) = Guru.Konstanter:gberel + "     : " + PERSONALTAB.FORNAM +                
+                  " " + PERSONALTAB.EFTERNAMN + "     " + PERSONALTAB.TELEFON + 
+                  "     " + PERSONALTAB.MOBILTEL.
+                  Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+               END.            
+            END.  
+            IF BEREDNING.AONR NE ? THEN DO:
+               FIND FIRST AONRTAB WHERE AONRTAB.AONR = BEREDNING.AONR AND
+               AONRTAB.DELNR = BEREDNING.DELNR USE-INDEX AONR NO-LOCK NO-ERROR.
+               IF AVAILABLE AONRTAB THEN DO:
+                  CREATE tidut.
+                  ASSIGN               
+                  SUBSTRING(tidut.UT,1) = Guru.Konstanter:gaok
+                  SUBSTRING(tidut.UT,14) = ": " + AONRTAB.AONR + " Delnr:" + 
+                  STRING(AONRTAB.DELNR,Guru.Konstanter:varforetypchar[1]).
+               END.
+            END.
+         END.
+         IF edmedd NE "" THEN DO:
+            edvar = TRUE.
+            RUN anm3_UI.
+            edvar = FALSE.
+         END.
+         CREATE tidut. 
+         str3 =
+"=====================================================================================".
+      END.
+   END. 
+   RELEASE BEREDAONR NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE rubrik_UI :
+
+   CREATE tidut. 
+   ASSIGN  
+   SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:genk)
+   SUBSTRING(tidut.UT,13) = "BENÄMNING"
+   SUBSTRING(tidut.UT,54) = "ENH"
+   SUBSTRING(tidut.UT,58) = "   ANTAL".
+   IF prisvar = 1 THEN ASSIGN SUBSTRING(tidut.UT,67) = "PRIS/ENH"
+   SUBSTRING(tidut.UT,76) = "     SUMMA".   
+   ASSIGN
+   str =
+"===========.========================================.===.========.========.==========" 
+   str2 =
+"===========.========================================.===.========"
+   str3 =
+"====================================================================================="
+   str4 =
+"=================================================================".
+   /*
+   IF prisvar = 1 THEN DO:      
+      SUBSTRING(tidut.UT,1) = str.                                                                                        
+   END.
+   ELSE DO:  
+      SUBSTRING(tidut.UT,1) = str2.                                                                                        
+   END.               
+   */
+END PROCEDURE.
+
+PROCEDURE summa_UI :   
+   DEFINE VARIABLE upppris AS DECIMAL NO-UNDO.
+   ASSIGN
+   sumpris = 0
+   sumantal = 0.
+   OPEN QUERY upplq FOR EACH BERVAL WHERE BERVAL.AONR = valaonr
+   AND BERVAL.OMRADE = valomrade AND BERVAL.KSKAP = FALSE USE-INDEX LISTA NO-LOCK.
+   GET FIRST upplq NO-LOCK.
+   DO WHILE AVAILABLE(BERVAL):
+      CREATE uppl_temp.  
+      ASSIGN
+      uppl_temp.NUM = BERVAL.NUM       
+      uppl_temp.UPPLAG = BERVAL.UPPLAG
+      uppl_temp.GRUPP = BERVAL.KONSKOD.
+      GET NEXT upplq NO-LOCK.
+   END.
+   CLOSE QUERY upplq. 
+     
+   RUN LISTPROG.P
+      (INPUT valaonr, INPUT valomrade, OUTPUT TABLE mtrl_temp, OUTPUT TABLE lin_upp, 
+      OUTPUT TABLE lin_temp).
+   
+   FOR EACH mtrl_temp:
+      FIND FIRST uppl_temp WHERE uppl_temp.NUM = mtrl_temp.NUM
+      USE-INDEX NUM NO-LOCK NO-ERROR.
+      IF AVAILABLE uppl_temp THEN DO: 
+         ASSIGN
+         mtrl_temp.UPPLAG = uppl_temp.UPPLAG
+         mtrl_temp.GRUPP = uppl_temp.GRUPP.
+      END.
+      ELSE DO:
+         mtrl_temp.UPPLAG = ?.
+      END.
+   END.         
+   
+   FOR EACH mtrl_temp BREAK BY mtrl_temp.ENR BY mtrl_temp.UPPLAG BY mtrl_temp.GRUPP: 
+      ACCUMULATE mtrl_temp.TOTPRIS (TOTAL BY mtrl_temp.ENR BY mtrl_temp.UPPLAG 
+      BY mtrl_temp.GRUPP). 
+      ACCUMULATE mtrl_temp.ANTAL (TOTAL BY mtrl_temp.ENR BY mtrl_temp.UPPLAG 
+      BY mtrl_temp.GRUPP).       
+      IF LAST-OF(mtrl_temp.GRUPP) THEN DO:
+         CREATE mtrl_temp2.
+         ASSIGN                        
+         mtrl_temp2.UPPLAG = mtrl_temp.UPPLAG 
+         mtrl_temp2.GRUPP = mtrl_temp.GRUPP
+         mtrl_temp2.ENR = mtrl_temp.ENR
+         mtrl_temp2.BENAMNING = mtrl_temp.BENAMNING 
+         mtrl_temp2.ENHET = mtrl_temp.ENHET
+         mtrl_temp2.PRIS = mtrl_temp.PRIS
+         mtrl_temp2.TOTPRIS = (ACCUM TOTAL mtrl_temp.TOTPRIS) - sumpris                       
+         mtrl_temp2.ANTAL = (ACCUM TOTAL mtrl_temp.ANTAL) - sumantal                
+         sumpris = ACCUM TOTAL mtrl_temp.TOTPRIS 
+         sumantal = ACCUM TOTAL mtrl_temp.ANTAL.                       
+      END.     
+   END.           
+   OPEN QUERY gruppq FOR EACH KONSTGRUPP NO-LOCK.
+   GET FIRST gruppq NO-LOCK.
+   DO WHILE AVAILABLE(KONSTGRUPP):
+      CREATE grupp_temp.
+      ASSIGN 
+      grupp_temp.KONSKOD = KONSTGRUPP.KONSKOD
+      grupp_temp.BENAMNING = KONSTGRUPP.BENAMNING
+      grupp_temp.ORDNING = KONSTGRUPP.ORDNING.
+      GET NEXT gruppq NO-LOCK.
+   END.
+   CLOSE QUERY gruppq. 
+   ASSIGN
+   totalsum = 0
+   forsta = TRUE. 
+   OPEN QUERY berq FOR EACH BERUPP WHERE BERUPP.AONR = valaonr AND
+   BERUPP.OMRADE = valomrade USE-INDEX OMR NO-LOCK.
+   GET FIRST berq NO-LOCK.
+   DO WHILE AVAILABLE(BERUPP):
+      upput = FALSE.
+      IF Guru.Konstanter:globforetag = "UMEA" THEN DO:
+         FIND FIRST mtrl_temp2 WHERE mtrl_temp2.UPPLAG = BERUPP.UPPLAG
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE mtrl_temp2 THEN DO:
+            FIND FIRST lin_upp WHERE lin_upp.UPPLAG = BERUPP.UPPLAG 
+            NO-LOCK NO-ERROR.
+            IF AVAILABLE lin_upp THEN upput = TRUE.
+            ELSE upput = FALSE.
+         END.
+         ELSE DO:
+            upput = TRUE.
+         END.
+      END.
+      ELSE DO:
+         upput = TRUE.
+      END.
+      IF upput = TRUE THEN DO:
+         CREATE tidut. 
+         IF prisvar = 1 THEN SUBSTRING(tidut.UT,1) = str3.         
+         ELSE SUBSTRING(tidut.UT,1) = str4.
+         IF forsta = TRUE THEN forsta = FALSE.
+         ELSE DO:
+            SUBSTRING(tidut.UT,132) = "$".
+         END.
+         CREATE tidut.                                 
+         ASSIGN
+         SUBSTRING(tidut.UT,1) = "Upplag nr :" 
+         SUBSTRING(tidut.UT,12) = STRING(BERUPP.UPPLAG).
+         CREATE tidut.
+         ASSIGN
+         SUBSTRING(tidut.UT,1) = "Adress    :".
+         FIND FIRST BERPUNKT  WHERE BERPUNKT.AONR = valaonr AND BERPUNKT.OMRADE  = valomrade  AND BERPUNKT.NUM = BERUPP.UPPLAG  AND BERPUNKT.KONSTRUKTIONUPPLAG = FALSE NO-LOCK NO-ERROR.
+         IF AVAILABLE BERPUNKT THEN SUBSTRING(tidut.UT,12) = ":" + BERUPP.ADRESS + ", " + STRING(BERPUNKT.VINKEL,"XXX XX") + " " + BERPUNKT.PUNKTNAMN.                                           
+         ELSE SUBSTRING(tidut.UT,12) = ":" + BERUPP.ADRESS.   
+
+ 
+         FIND FIRST BERPUNKT  WHERE BERPUNKT.AONR = BERUPP.AONR AND BERPUNKT.OMRADE  = BERUPP.OMRADE  AND BERPUNKT.NUM = BERUPP.UPPLAG  AND BERPUNKT.KONSTRUKTIONUPPLAG = FALSE NO-LOCK NO-ERROR.
+         IF AVAILABLE BERPUNKT THEN DO:
+            IF BERPUNKT.XKORD > 0 AND BERPUNKT.YKORD > 0 AND BERPUNKT.XKORDCH = "" AND BERPUNKT.YKORDCH = "" THEN DO:
+               CREATE tidut.
+               ASSIGN               
+               SUBSTRING(tidut.UT,1) = "X och Y   :".               
+               SUBSTRING(tidut.UT,12) = STRING( BERPUNKT.XKORD / 10000000 )  + " " + STRING( BERPUNKT.YKORD / 10000000 ).               
+            END.               
+            ELSE IF BERPUNKT.XKORDCH = "0" AND BERPUNKT.YKORDCH = "0" THEN.
+            ELSE DO:
+               CREATE tidut.               
+               SUBSTRING(tidut.UT,1) = "X och Y   :".               
+               SUBSTRING(tidut.UT,12) =  BERPUNKT.XKORDCH + " " + BERPUNKT.YKORDCH.               
+            END.
+         END.
+         
+         IF BERUPP.ANMARK NE "" THEN DO: 
+            DEFINE VARIABLE nyanm AS CHARACTER NO-UNDO.
+            IF INDEX (BERUPP.ANMARK,"$") > 0 THEN nyanm = SUBSTRING(BERUPP.ANMARK,1,INDEX(BERUPP.ANMARK,"$")  - 1).
+            ELSE nyanm = BERUPP.ANMARK.  
+            /* anm2_UI */
+            CREATE tidut.      
+            ASSIGN
+            SUBSTRING(tidut.UT,1) = "Anmärkning:"
+            retvar = 1
+            ednum = 1
+            ednum3 = LENGTH(nyanm )
+            retvar = INDEX(nyanm ,CHR(10),ednum)
+            edtecken = 50
+            edtext = nyanm 
+            tidtext = "".  
+            {ANMARK2.I}  
+         END.
+         CREATE tidut. 
+         IF prisvar = 1 THEN SUBSTRING(tidut.UT,1) = str3.         
+         ELSE SUBSTRING(tidut.UT,1) = str4.
+         RUN rubrik_UI.
+         FOR EACH grupp_temp USE-INDEX ORD:
+            FIND FIRST mtrl_temp2 WHERE mtrl_temp2.UPPLAG = BERUPP.UPPLAG AND
+            mtrl_temp2.GRUPP = grupp_temp.KONSKOD NO-LOCK NO-ERROR.
+            IF AVAILABLE mtrl_temp2 THEN DO:
+               sumpris = 0. 
+               CREATE tidut.    
+               CREATE tidut.
+               SUBSTRING(tidut.UT,1) = grupp_temp.BENAMNING + ":".       
+               FOR EACH mtrl_temp2 WHERE mtrl_temp2.UPPLAG = BERUPP.UPPLAG AND
+               mtrl_temp2.GRUPP = grupp_temp.KONSKOD: 
+                  IF mtrl_temp2.ANTAL = 0 THEN DO:
+                     musz = musz.
+                  END.   
+                  ELSE DO:
+                     CREATE tidut.
+                     ASSIGN
+                     SUBSTRING(tidut.UT,1) = mtrl_temp2.ENR
+                     SUBSTRING(tidut.UT,13) = SUBSTRING(mtrl_temp2.BENAMNING,1,40) 
+                     SUBSTRING(tidut.UT,54) = mtrl_temp2.ENHET
+                     SUBSTRING(tidut.UT,58) = STRING(mtrl_temp2.ANTAL,">>>>>>>9"). 
+                     IF prisvar = 1 THEN DO:
+                        ASSIGN 
+                        SUBSTRING(tidut.UT,67) = STRING(mtrl_temp2.PRIS,">>>>>>>9")
+                        SUBSTRING(tidut.UT,76) = STRING(mtrl_temp2.TOTPRIS,">>>>>>>>>9").
+                     END.
+                     sumpris = sumpris + mtrl_temp2.TOTPRIS.
+                     upppris = upppris + + mtrl_temp2.TOTPRIS.
+                  END.                    
+               END.      
+               IF prisvar = 1 THEN DO:
+                  CREATE tidut. 
+                  SUBSTRING(tidut.UT,1) = "Kostnad för " + grupp_temp.BENAMNING + " upplag nr " + STRING(BERUPP.UPPLAG).
+                  SUBSTRING(tidut.UT,76) = STRING(upppris,">>>>>>>>>9").                                                 
+                  upppris = 0.
+               END.
+               totalsum = totalsum + sumpris.   
+            END.
+            
+         END.      
+         FIND FIRST lin_upp WHERE lin_upp.UPPLAG = BERUPP.UPPLAG NO-LOCK NO-ERROR.
+         IF AVAILABLE lin_upp THEN DO: 
+            sumpris = 0.
+            IF prisvar = 1 THEN DO:  
+               CREATE tidut. 
+               CREATE tidut. 
+               SUBSTRING(tidut.UT,1) = str3.
+               CREATE tidut.                                 
+               ASSIGN
+               SUBSTRING(tidut.UT,1) = "Linor och kablar till upplag nr:" + STRING(BERUPP.UPPLAG).      
+               CREATE tidut. 
+               SUBSTRING(tidut.UT,1) = str3. 
+            END.
+            ELSE DO:
+               CREATE tidut. 
+               CREATE tidut. 
+               SUBSTRING(tidut.UT,1) = str4.
+               CREATE tidut.                                 
+               ASSIGN
+               SUBSTRING(tidut.UT,1) = "Linor och kablar till upplag nr:" + STRING(BERUPP.UPPLAG).      
+               CREATE tidut. 
+               SUBSTRING(tidut.UT,1) = str4. 
+            END.
+            CREATE tidut.
+            FOR EACH lin_upp WHERE lin_upp.UPPLAG = BERUPP.UPPLAG:
+               CREATE tidut.
+               ASSIGN
+               SUBSTRING(tidut.UT,1) = lin_upp.ENR
+               SUBSTRING(tidut.UT,13) = SUBSTRING(lin_upp.BENAMNING,1,40) 
+               SUBSTRING(tidut.UT,54) = lin_upp.ENHET
+               SUBSTRING(tidut.UT,58) = STRING(lin_upp.TOTMETER,">>>>>>>9"). 
+               IF prisvar = 1 THEN ASSIGN SUBSTRING(tidut.UT,67) = STRING(lin_upp.PRIS,">>>>>>>9")
+               SUBSTRING(tidut.UT,76) = STRING(lin_upp.TOTPRIS,">>>>>>>>>9"). 
+               upppris = upppris + + lin_upp.TOTPRIS.
+               sumpris = sumpris + lin_upp.TOTPRIS.              
+            END.  
+            IF prisvar = 1 THEN DO:
+               CREATE tidut. 
+               SUBSTRING(tidut.UT,1) = "Kostnad för linor/kablar upplag nr " + STRING(BERUPP.UPPLAG).
+               SUBSTRING(tidut.UT,76) = STRING(upppris,">>>>>>>>>9").                                                 
+               upppris = 0.
+            END.
+            totalsum = totalsum + sumpris.
+            CREATE tidut.
+         END.    
+      END.
+      GET NEXT berq NO-LOCK.   
+   END.                     
+   CLOSE QUERY berq.
+   FIND FIRST mtrl_temp2 WHERE mtrl_temp2.UPPLAG = ? NO-LOCK NO-ERROR.
+   IF AVAILABLE mtrl_temp2 THEN DO:  
+      IF prisvar = 1 THEN DO:  
+         CREATE tidut. 
+         SUBSTRING(tidut.UT,1) = str3.
+         CREATE tidut.                                 
+         ASSIGN
+         SUBSTRING(tidut.UT,1) = "Materiel ej kopplat till upplag".      
+         CREATE tidut. 
+         SUBSTRING(tidut.UT,1) = str3.
+      END.
+      ELSE DO:
+         CREATE tidut. 
+         SUBSTRING(tidut.UT,1) = str4.
+         CREATE tidut.                                 
+         ASSIGN
+         SUBSTRING(tidut.UT,1) = "Materiel ej kopplat till upplag".      
+         CREATE tidut. 
+         SUBSTRING(tidut.UT,1) = str4.
+      END.
+      RUN rubrik_UI.
+      FOR EACH grupp_temp:
+         FIND FIRST mtrl_temp2 WHERE mtrl_temp2.UPPLAG = ? AND
+         mtrl_temp2.GRUPP = grupp_temp.KONSKOD NO-LOCK NO-ERROR.
+         IF AVAILABLE mtrl_temp2 THEN DO:
+            CREATE tidut. 
+            CREATE tidut.
+            SUBSTRING(tidut.UT,1) = grupp_temp.BENAMNING + ":".       
+            sumpris = 0.    
+            FOR EACH mtrl_temp2 WHERE mtrl_temp2.UPPLAG = ? AND
+            mtrl_temp2.GRUPP = grupp_temp.KONSKOD: 
+               IF mtrl_temp2.ANTAL = 0 THEN DO:
+                  musz = musz.
+               END.   
+               ELSE DO:
+                  CREATE tidut.
+                  ASSIGN
+                  SUBSTRING(tidut.UT,1) = mtrl_temp2.ENR
+                  SUBSTRING(tidut.UT,13) = SUBSTRING(mtrl_temp2.BENAMNING,1,40) 
+                  SUBSTRING(tidut.UT,54) = mtrl_temp2.ENHET
+                  SUBSTRING(tidut.UT,58) = STRING(mtrl_temp2.ANTAL,">>>>>>>9"). 
+                  IF prisvar = 1 THEN ASSIGN SUBSTRING(tidut.UT,67) = STRING(mtrl_temp2.PRIS,">>>>>>>9")
+                  SUBSTRING(tidut.UT,76) = STRING(mtrl_temp2.TOTPRIS,">>>>>>>>>9").         
+                  upppris = upppris + + mtrl_temp2.TOTPRIS.
+                  sumpris = sumpris + mtrl_temp2.TOTPRIS.
+               END.   
+            END.  
+            IF prisvar = 1 THEN DO:
+               CREATE tidut. 
+               SUBSTRING(tidut.UT,1) = "Kostnad för materiel ej kopplat till upplag för".
+               CREATE tidut. 
+               SUBSTRING(tidut.UT,1) = "konstruktionsgrupp " + grupp_temp.BENAMNING.
+               SUBSTRING(tidut.UT,76) = STRING(upppris,">>>>>>>>>9"). 
+               upppris = 0.
+            END.
+            totalsum = totalsum + sumpris.   
+         END.
+      END.       
+      CREATE tidut.                 
+      IF prisvar = 1 THEN DO:
+         CREATE tidut.
+         SUBSTRING(tidut.UT,76) = "==========".
+         CREATE tidut.
+         ASSIGN
+         SUBSTRING(tidut.UT,58) = "Total summa:"
+         SUBSTRING(tidut.UT,76) = STRING(totalsum,">>>>>>>>>9").  
+      END.       
+   END.      
+   ELSE DO:  
+      CREATE tidut.               
+      IF prisvar = 1 THEN DO:
+         CREATE tidut.
+         SUBSTRING(tidut.UT,76) = "==========".
+         CREATE tidut.
+         ASSIGN
+         SUBSTRING(tidut.UT,58) = "Total summa:"
+         SUBSTRING(tidut.UT,76) = STRING(totalsum,">>>>>>>>>9").  
+      END.     
+   END.    
+END PROCEDURE.

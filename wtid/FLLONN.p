@@ -1,0 +1,548 @@
+/*FLLONN.P FLERDYGNSTRAKTAMENTE */
+/*DEFINE SHARED VARIABLE globanv LIKE ANVANDARE.ANVANDARE NO-UNDO.*/
+
+DEFINE SHARED VARIABLE regdatum LIKE TIDREGITAB.DATUM NO-UNDO.
+DEFINE SHARED VARIABLE regvnr LIKE TIDREGITAB.VECKONUMMER NO-UNDO.
+DEFINE SHARED VARIABLE tidtabrec AS RECID  NO-UNDO.
+DEFINE SHARED VARIABLE persrec AS RECID NO-UNDO.
+DEFINE SHARED VARIABLE bdatum LIKE TIDREGITAB.DATUM NO-UNDO.
+DEFINE SHARED VARIABLE avdatum LIKE TIDREGITAB.DATUM NO-UNDO.
+DEFINE SHARED VARIABLE reddatum LIKE TIDREGITAB.DATUM NO-UNDO.
+DEFINE SHARED VARIABLE enflerdygns AS LOGICAL FORMAT "ENDAGS/FLERDYGNS" NO-UNDO.
+DEFINE SHARED VARIABLE bilforare AS LOGICAL FORMAT "JA/NEJ" NO-UNDO.
+DEFINE SHARED VARIABLE fostart AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE foslut AS LOGICAL NO-UNDO.
+DEFINE SHARED VARIABLE restart AS DECIMAL NO-UNDO.
+DEFINE SHARED VARIABLE reslut AS DECIMAL NO-UNDO.
+&Scoped-define NEW
+{RESDEF.I}
+/*DEFINE SHARED TEMP-TABLE kosters
+   FIELD MPERSONALKOD LIKE PERSONALTAB.PERSONALKOD
+   FIELD MDAG LIKE TIDREGITAB.DAG
+   FIELD MVECKONUMMER LIKE TIDREGITAB.VECKONUMMER
+   FIELD MDATUM LIKE TIDREGITAB.DATUM
+   FIELD KR LIKE TIDREGITAB.LONTILLANTAL.
+DEFINE SHARED TEMP-TABLE maltidfil
+   FIELD MPERSONALKOD LIKE MALTIDTAB.PERSONALKOD
+   FIELD MDAG LIKE MALTIDTAB.DAG
+   FIELD MVECKONUMMER LIKE MALTIDTAB.VECKONUMMER
+   FIELD MDATUM LIKE MALTIDTAB.DATUM
+   FIELD MFRU LIKE MALTIDTAB.FRU
+   FIELD MLUN LIKE MALTIDTAB.FRU
+   FIELD MMID LIKE MALTIDTAB.FRU.*/
+   
+DEFINE VARIABLE maltid LIKE TIDREGITAB.LONTILLANTAL NO-UNDO.
+DEFINE VARIABLE skatt LIKE TIDREGITAB.LONTILLANTAL NO-UNDO.
+DEFINE VARIABLE skfri LIKE TIDREGITAB.LONTILLANTAL NO-UNDO.
+
+
+DEFINE BUFFER lontillbuff FOR LONTILL.
+DEFINE BUFFER tidbuff FOR TIDREGITAB.
+DEFINE SHARED VARIABLE FILL-IN-FRIMAT AS LOGICAL FORMAT "JA/NEJ":U INITIAL NO 
+     VIEW-AS FILL-IN 
+     SIZE 4 BY 1
+       NO-UNDO.
+DEFINE  SHARED VARIABLE FILL-IN-REDTRAKT AS LOGICAL FORMAT "JA/NEJ":U INITIAL NO 
+     LABEL "5. Reducerat traktamente                         ?" 
+     VIEW-AS FILL-IN 
+     SIZE 6 BY 1
+       NO-UNDO.     
+DEFINE SHARED VARIABLE FILL-IN-3MAN AS LOGICAL FORMAT "JA/NEJ":U INITIAL NO 
+     VIEW-AS FILL-IN 
+     SIZE 4 BY 1 NO-UNDO.
+
+          
+FIND tidbuff WHERE RECID(tidbuff) = tidtabrec NO-LOCK NO-ERROR.
+FIND PERSONALTAB WHERE RECID(PERSONALTAB) = persrec NO-LOCK NO-ERROR.
+FIND FIRST ANSTFORMTAB WHERE ANSTFORMTAB.ANSTALLNING = PERSONALTAB.ANSTALLNING
+USE-INDEX ANSTF NO-LOCK NO-ERROR.     
+IF foslut = TRUE THEN ASSIGN reslut = 24.
+IF fostart = TRUE THEN ASSIGN restart = 00.
+IF tidbuff.DATUM = bdatum THEN DO:            
+   IF fostart = TRUE AND bdatum = avdatum  THEN persrec = persrec.
+   ELSE DO:   
+ 
+      IF FILL-IN-REDTRAKT = TRUE AND FILL-IN-3MAN = TRUE AND 
+      tidbuff.DATUM GE reddatum THEN DO:
+          /* 3 MÅNADER långtidsförrättning*/
+          FIND FIRST LONFLER WHERE LONFLER.DAGTYP = "3MLANG" AND
+          LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL USE-INDEX FLON NO-LOCK NO-ERROR.
+          IF NOT AVAILABLE LONFLER THEN DO: 
+             FIND FIRST LONFLER WHERE LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL AND
+             LONFLER.RESSTART LE restart AND
+             LONFLER.RESSTART2 GE restart AND LONFLER.DAGTYP = "UTRESA"
+             USE-INDEX FLON NO-LOCK NO-ERROR.
+         END.
+      END.
+      ELSE IF FILL-IN-REDTRAKT = TRUE AND FILL-IN-3MAN = TRUE AND 
+      tidbuff.DATUM < reddatum THEN DO:
+          /* 3 MÅNADER korttidsförrättning*/ 
+          FIND FIRST LONFLER WHERE LONFLER.DAGTYP = "UTRESAR" AND
+          LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL AND LONFLER.RESSTART LE tidbuff.SLUT AND
+          LONFLER.RESSTART2 GE tidbuff.SLUT USE-INDEX FLON NO-LOCK NO-ERROR.
+          IF NOT AVAILABLE LONFLER THEN DO: 
+             FIND FIRST LONFLER WHERE LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL AND
+             LONFLER.RESSTART LE restart AND
+             LONFLER.RESSTART2 GE restart AND LONFLER.DAGTYP = "UTRESA"
+             USE-INDEX FLON NO-LOCK NO-ERROR.
+         END.
+      END.
+      ELSE IF FILL-IN-REDTRAKT = TRUE AND FILL-IN-3MAN = FALSE AND 
+      tidbuff.DATUM GE reddatum THEN DO:
+         /*långtidsförrättning*/
+          FIND FIRST LONFLER WHERE LONFLER.DAGTYP = "REDUCER" AND
+          LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL USE-INDEX FLON NO-LOCK NO-ERROR.
+          IF NOT AVAILABLE LONFLER THEN DO: 
+             FIND FIRST LONFLER WHERE LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL AND
+             LONFLER.RESSTART LE restart AND
+             LONFLER.RESSTART2 GE restart AND   LONFLER.DAGTYP = "UTRESA"
+             USE-INDEX FLON NO-LOCK NO-ERROR.
+         END.
+      END.
+      ELSE DO:   
+         IF FILL-IN-3MAN = TRUE THEN DO:
+            FIND FIRST LONFLER WHERE LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL AND
+            LONFLER.RESSTART LE restart AND
+            LONFLER.RESSTART2 GE restart AND  LONFLER.DAGTYP = "UTRESAR"
+            USE-INDEX FLON NO-LOCK NO-ERROR.
+         END.
+         ELSE DO:    
+            FIND FIRST LONFLER WHERE LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL AND
+            LONFLER.RESSTART LE restart AND
+            LONFLER.RESSTART2 GE restart AND LONFLER.DAGTYP = "UTRESA"
+            USE-INDEX FLON NO-LOCK NO-ERROR.
+         END.   
+      END.   
+      IF NOT AVAILABLE LONFLER THEN persrec = persrec.
+      ELSE DO:
+         FIND FIRST LONTILL WHERE LONTILL.KOD = ANSTFORMTAB.KOD AND 
+         LONTILL.LONTILLAGG = LONFLER.LONTILLAGG NO-LOCK NO-ERROR.
+         IF AVAILABLE LONTILL AND LONTILL.LONTILLAGG = "880" AND LONTILL.ENHET = "KR" THEN DO:
+            /*>3MÅNADER PRISSATT  ES AB*/
+            CREATE TIDREGITAB.
+            ASSIGN TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            SUBSTRING(TIDREGITAB.PROGRAM,1,158) = "FLLONN" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv            
+            TIDREGITAB.DAG = tidbuff.DAG
+            TIDREGITAB.VECKONUMMER = tidbuff.VECKONUMMER
+            TIDREGITAB.START = 7.00
+            TIDREGITAB.SLUT = 7.00
+            TIDREGITAB.TIDLOG = FALSE
+            TIDREGITAB.LONTILLAGG = LONFLER.LONTILLAGG
+            TIDREGITAB.LONTILLANTAL = LONFLER.LONTILLANTAL
+            TIDREGITAB.AONR = tidbuff.AONR
+            TIDREGITAB.DELNR = tidbuff.DELNR
+            TIDREGITAB.BILFORARE = tidbuff.BILFORARE
+            TIDREGITAB.ENFLERDAGS = tidbuff.ENFLERDAGS
+            TIDREGITAB.DATUM = tidbuff.DATUM.         
+         END.
+         ELSE IF AVAILABLE LONTILL AND LONTILL.ENHET = "KR" THEN DO:         /*HAVDA KOSTNADER MODERN ES*/
+            FIND FIRST kosters WHERE kosters.MDATUM = tidbuff.DATUM NO-LOCK NO-ERROR.
+            IF AVAILABLE kosters THEN DO:
+               maltid = 0.
+               FIND FIRST maltidfil WHERE maltidfil.MDATUM = tidbuff.DATUM NO-LOCK NO-ERROR.
+               IF AVAILABLE maltidfil THEN DO:
+                  FIND FIRST AVDRAGMALTID WHERE
+                  AVDRAGMALTID.RESSTART LE tidbuff.START AND AVDRAGMALTID.RESSTART2 GE tidbuff.START AND 
+                  AVDRAGMALTID.DAGTYP = "UTRESA" AND AVDRAGMALTID.ENFLER = enflerdygns 
+                  USE-INDEX MALTID NO-LOCK NO-ERROR.
+                  IF AVAILABLE AVDRAGMALTID  THEN DO:
+                     IF maltidfil.MFRU = TRUE THEN DO:                  
+                        FIND FIRST lontillbuff WHERE lontillbuff.KOD = ANSTFORMTAB.KOD AND 
+                        lontillbuff.LONTILLAGG = "FRUK" NO-LOCK NO-ERROR.   
+                        IF AVAILABLE lontillbuff THEN ASSIGN maltid = maltid + (lontillbuff.ERSATTNING * AVDRAGMALTID.AVDRAGSTYP).
+                     END. 
+                     IF maltidfil.MLUN = TRUE THEN DO:                  
+                        FIND FIRST lontillbuff WHERE lontillbuff.KOD = ANSTFORMTAB.KOD AND 
+                        lontillbuff.LONTILLAGG = "LUNC" NO-LOCK NO-ERROR.   
+                        IF AVAILABLE lontillbuff THEN ASSIGN maltid = maltid + (lontillbuff.ERSATTNING * AVDRAGMALTID.AVDRAGSTYP).
+                     END.  
+                     IF maltidfil.MMID = TRUE THEN DO:                  
+                        FIND FIRST lontillbuff WHERE lontillbuff.KOD = ANSTFORMTAB.KOD AND 
+                        lontillbuff.LONTILLAGG = "MIDD" NO-LOCK NO-ERROR.   
+                        IF AVAILABLE lontillbuff THEN ASSIGN maltid = maltid + (lontillbuff.ERSATTNING * AVDRAGMALTID.AVDRAGSTYP).
+                     END.
+                  END.
+               END.      
+               skfri = LONTILL.ERSATTNING - maltid.
+               skatt = 0.
+               IF skfri > kosters.KR THEN skfri = kosters.KR.
+               ELSE skatt = kosters.KR - skfri.            
+               FIND FIRST lontillbuff WHERE lontillbuff.KOD = ANSTFORMTAB.KOD AND 
+               lontillbuff.LONTILLAGG = "842" NO-LOCK NO-ERROR.
+               IF AVAILABLE lontillbuff AND lontillbuff.ENHET = "KR" THEN DO:
+                  IF skfri > 0 THEN DO:
+                     CREATE TIDREGITAB.    /*SKATTEFRI 842*/
+                     ASSIGN TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+                     SUBSTRING(TIDREGITAB.PROGRAM,1,158) = "FLLONN" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv
+                     TIDREGITAB.DAG = tidbuff.DAG
+                     TIDREGITAB.VECKONUMMER = tidbuff.VECKONUMMER
+                     TIDREGITAB.START = 7.00
+                     TIDREGITAB.SLUT = 7.00
+                     TIDREGITAB.TIDLOG = FALSE
+                     TIDREGITAB.LONTILLAGG = lontillbuff.LONTILLAGG
+                     TIDREGITAB.LONTILLANTAL = skfri
+                     TIDREGITAB.AONR = tidbuff.AONR
+                     TIDREGITAB.DELNR = tidbuff.DELNR
+                     TIDREGITAB.BILFORARE = tidbuff.BILFORARE
+                     TIDREGITAB.ENFLERDAGS = tidbuff.ENFLERDAGS
+                     TIDREGITAB.DATUM = tidbuff.DATUM.
+                  END.
+                  IF skatt > 0 THEN DO:   
+                     CREATE TIDREGITAB. /*SKATT 882  OBS 881 ENDAST SOM HJÄLP ATT AVGÖRA 180 EL 90 KR LÄGGS EJ UT*/
+                     ASSIGN TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+                     SUBSTRING(TIDREGITAB.PROGRAM,1,158) = "FLLONN" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv
+                     TIDREGITAB.DAG = tidbuff.DAG
+                     TIDREGITAB.VECKONUMMER = tidbuff.VECKONUMMER
+                     TIDREGITAB.START = 7.00
+                     TIDREGITAB.SLUT = 7.00
+                     TIDREGITAB.TIDLOG = FALSE
+                     TIDREGITAB.LONTILLAGG = "882"
+                     TIDREGITAB.LONTILLANTAL = skatt
+                     TIDREGITAB.AONR = tidbuff.AONR
+                     TIDREGITAB.DELNR = tidbuff.DELNR
+                     TIDREGITAB.BILFORARE = tidbuff.BILFORARE
+                     TIDREGITAB.ENFLERDAGS = tidbuff.ENFLERDAGS
+                     TIDREGITAB.DATUM = tidbuff.DATUM.
+                  END.   
+               END.            
+            END.
+         END.      
+         ELSE IF LONFLER.LONTILLAGG NE '' THEN DO:
+            CREATE TIDREGITAB.
+            ASSIGN TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            SUBSTRING(TIDREGITAB.PROGRAM,1,158) = "FLLONN" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv
+            TIDREGITAB.DAG = tidbuff.DAG
+            TIDREGITAB.VECKONUMMER = tidbuff.VECKONUMMER
+            TIDREGITAB.START = 7.00
+            TIDREGITAB.SLUT = 7.00
+            TIDREGITAB.TIDLOG = FALSE
+            TIDREGITAB.LONTILLAGG = LONFLER.LONTILLAGG
+            TIDREGITAB.LONTILLANTAL = LONFLER.LONTILLANTAL
+            TIDREGITAB.AONR = tidbuff.AONR
+            TIDREGITAB.DELNR = tidbuff.DELNR
+            TIDREGITAB.BILFORARE = tidbuff.BILFORARE
+            TIDREGITAB.ENFLERDAGS = tidbuff.ENFLERDAGS
+            TIDREGITAB.DATUM = tidbuff.DATUM.         
+         END.
+      END.
+   END.
+END.
+IF tidbuff.DATUM > bdatum AND tidbuff.DATUM < avdatum THEN DO:
+   /* MELLANDAGAR */
+   IF (Guru.Konstanter:globforetag = "GRAN"   OR 
+   Guru.Konstanter:globforetag = "GREN"   )
+   AND FILL-IN-FRIMAT = TRUE THEN DO:
+      FIND FIRST LONFLER WHERE LONFLER.DAGTYP = "FRIMAT" AND
+      LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL USE-INDEX FLON NO-LOCK NO-ERROR.
+   END.                       
+   ELSE IF FILL-IN-REDTRAKT = TRUE AND FILL-IN-3MAN = TRUE AND 
+   tidbuff.DATUM GE reddatum THEN DO:
+      /* 3 MÅNADER långtidsförrättning*/
+      FIND FIRST LONFLER WHERE LONFLER.DAGTYP = "3MLANG" AND
+      LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL USE-INDEX FLON NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE LONFLER THEN DO:
+         FIND FIRST LONFLER WHERE LONFLER.DAGTYP = "HELDAG" AND
+         LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL USE-INDEX FLON NO-LOCK NO-ERROR.
+      END.   
+   END.  
+   ELSE IF FILL-IN-REDTRAKT = TRUE AND FILL-IN-3MAN = TRUE AND 
+   tidbuff.DATUM < reddatum THEN DO:
+      /* 3 MÅNADER korttidsförrättning*/
+      FIND FIRST LONFLER WHERE LONFLER.DAGTYP = "HELDAGR" AND
+      LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL USE-INDEX FLON NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE LONFLER THEN DO:
+         FIND FIRST LONFLER WHERE LONFLER.DAGTYP = "HELDAG" AND
+         LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL USE-INDEX FLON NO-LOCK NO-ERROR.
+      END.   
+   END.  
+   ELSE IF FILL-IN-REDTRAKT = TRUE AND FILL-IN-3MAN = FALSE AND 
+   tidbuff.DATUM GE reddatum THEN DO:
+      /*långtidsförrättning*/
+      FIND FIRST LONFLER WHERE LONFLER.DAGTYP = "REDUCER" AND
+      LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL USE-INDEX FLON NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE LONFLER THEN DO:
+         FIND FIRST LONFLER WHERE LONFLER.DAGTYP = "HELDAG" AND
+         LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL USE-INDEX FLON NO-LOCK NO-ERROR.
+      END.   
+   END.  
+   ELSE DO:
+      IF FILL-IN-3MAN = TRUE THEN DO:
+         FIND FIRST LONFLER WHERE LONFLER.DAGTYP = "HELDAGR" AND
+         LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL USE-INDEX FLON NO-LOCK NO-ERROR.
+      END.
+      ELSE DO:
+         FIND FIRST LONFLER WHERE LONFLER.DAGTYP = "HELDAG" AND
+         LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL USE-INDEX FLON NO-LOCK NO-ERROR.
+      END.   
+   END.    
+   IF NOT AVAILABLE LONFLER THEN persrec = persrec.
+   ELSE DO:
+      FIND FIRST LONTILL WHERE LONTILL.KOD = ANSTFORMTAB.KOD AND 
+      LONTILL.LONTILLAGG = LONFLER.LONTILLAGG NO-LOCK NO-ERROR.
+      IF AVAILABLE LONTILL AND LONTILL.ENHET = "KR" THEN DO:  /*HAVDA KOSTNADER MODERN ES*/
+         FIND FIRST kosters WHERE kosters.MDATUM = tidbuff.DATUM NO-LOCK NO-ERROR.
+         IF AVAILABLE kosters THEN DO:
+            maltid = 0.
+            FIND FIRST maltidfil WHERE maltidfil.MDATUM = tidbuff.DATUM NO-LOCK NO-ERROR.
+            IF AVAILABLE maltidfil THEN DO:
+               FIND FIRST AVDRAGMALTID WHERE
+               AVDRAGMALTID.DAGTYP = "HELDAG" AND AVDRAGMALTID.ENFLER = enflerdygns 
+               USE-INDEX MALTID NO-LOCK NO-ERROR.
+               IF AVAILABLE AVDRAGMALTID  THEN DO:
+                  IF maltidfil.MFRU = TRUE THEN DO:                  
+                     FIND FIRST lontillbuff WHERE lontillbuff.KOD = ANSTFORMTAB.KOD AND 
+                     lontillbuff.LONTILLAGG = "FRUK" NO-LOCK NO-ERROR.   
+                     IF AVAILABLE lontillbuff THEN ASSIGN maltid = maltid + (lontillbuff.ERSATTNING * AVDRAGMALTID.AVDRAGSTYP).
+                  END. 
+                  IF maltidfil.MLUN = TRUE THEN DO:                  
+                     FIND FIRST lontillbuff WHERE lontillbuff.KOD = ANSTFORMTAB.KOD AND 
+                     lontillbuff.LONTILLAGG = "LUNC" NO-LOCK NO-ERROR.   
+                     IF AVAILABLE lontillbuff THEN ASSIGN maltid = maltid + (lontillbuff.ERSATTNING * AVDRAGMALTID.AVDRAGSTYP).
+                  END.  
+                  IF maltidfil.MMID = TRUE THEN DO:                  
+                     FIND FIRST lontillbuff WHERE lontillbuff.KOD = ANSTFORMTAB.KOD AND 
+                     lontillbuff.LONTILLAGG = "MIDD" NO-LOCK NO-ERROR.   
+                     IF AVAILABLE lontillbuff THEN ASSIGN maltid = maltid + (lontillbuff.ERSATTNING * AVDRAGMALTID.AVDRAGSTYP).
+                  END.
+               END.
+            END.      
+            skfri = LONTILL.ERSATTNING - maltid.
+            skatt = 0.
+            IF skfri > kosters.KR THEN skfri = kosters.KR.
+            ELSE skatt = kosters.KR - skfri.            
+            FIND FIRST lontillbuff WHERE lontillbuff.KOD = ANSTFORMTAB.KOD AND 
+            lontillbuff.LONTILLAGG = "842" NO-LOCK NO-ERROR.
+            IF AVAILABLE lontillbuff AND lontillbuff.ENHET = "KR" THEN DO:
+               IF skfri > 0 THEN DO:
+                  CREATE TIDREGITAB. /*SKATTEFRI 842*/
+                  ASSIGN TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+                  SUBSTRING(TIDREGITAB.PROGRAM,1,158) = "FLLONN" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv
+                  TIDREGITAB.DAG = tidbuff.DAG
+                  TIDREGITAB.VECKONUMMER = tidbuff.VECKONUMMER
+                  TIDREGITAB.START = 7.00
+                  TIDREGITAB.SLUT = 7.00
+                  TIDREGITAB.TIDLOG = FALSE
+                  TIDREGITAB.LONTILLAGG = lontillbuff.LONTILLAGG
+                  TIDREGITAB.LONTILLANTAL = skfri
+                  TIDREGITAB.AONR = tidbuff.AONR
+                  TIDREGITAB.DELNR = tidbuff.DELNR
+                  TIDREGITAB.BILFORARE = tidbuff.BILFORARE
+                  TIDREGITAB.ENFLERDAGS = tidbuff.ENFLERDAGS
+                  TIDREGITAB.DATUM = tidbuff.DATUM.
+               END.
+               IF skatt > 0 THEN DO:   
+                  CREATE TIDREGITAB.   /*SKATT 882*/
+                  ASSIGN TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+                  SUBSTRING(TIDREGITAB.PROGRAM,1,158) = "FLLONN" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv
+                  TIDREGITAB.DAG = tidbuff.DAG
+                  TIDREGITAB.VECKONUMMER = tidbuff.VECKONUMMER
+                  TIDREGITAB.START = 7.00
+                  TIDREGITAB.SLUT = 7.00
+                  TIDREGITAB.TIDLOG = FALSE
+                  TIDREGITAB.LONTILLAGG = "882"
+                  TIDREGITAB.LONTILLANTAL = skatt
+                  TIDREGITAB.AONR = tidbuff.AONR
+                  TIDREGITAB.DELNR = tidbuff.DELNR
+                  TIDREGITAB.BILFORARE = tidbuff.BILFORARE
+                  TIDREGITAB.ENFLERDAGS = tidbuff.ENFLERDAGS
+                  TIDREGITAB.DATUM = tidbuff.DATUM.
+               END.   
+            END.            
+         END.
+      END.              
+      ELSE DO:
+         CREATE TIDREGITAB.	
+         ASSIGN TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+         SUBSTRING(TIDREGITAB.PROGRAM,1,158) = "FLLONN" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv         
+         TIDREGITAB.DAG = tidbuff.DAG
+         TIDREGITAB.VECKONUMMER = tidbuff.VECKONUMMER
+         TIDREGITAB.START = 7.00
+         TIDREGITAB.SLUT = 7.00
+         TIDREGITAB.TIDLOG = FALSE
+         TIDREGITAB.LONTILLAGG = LONFLER.LONTILLAGG
+         TIDREGITAB.LONTILLANTAL = LONFLER.LONTILLANTAL
+         TIDREGITAB.AONR = tidbuff.AONR
+         TIDREGITAB.DELNR = tidbuff.DELNR
+         TIDREGITAB.BILFORARE = tidbuff.BILFORARE
+         TIDREGITAB.ENFLERDAGS = tidbuff.ENFLERDAGS
+         TIDREGITAB.DATUM = tidbuff.DATUM.     
+      END.   
+   END.
+END.        
+IF tidbuff.DATUM = avdatum THEN DO:   
+   IF foslut = TRUE AND bdatum = avdatum  THEN persrec = persrec.
+   ELSE DO:   
+      
+      IF FILL-IN-REDTRAKT = TRUE AND FILL-IN-3MAN = TRUE AND 
+      foslut = TRUE THEN DO:
+          /* 3 MÅNADER långtidsförrättning*/
+          FIND FIRST LONFLER WHERE LONFLER.DAGTYP = "3MLANG" AND
+          LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL USE-INDEX FLON NO-LOCK NO-ERROR.
+          IF NOT AVAILABLE LONFLER THEN DO: 
+             FIND FIRST LONFLER WHERE LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL AND            
+             LONFLER.RESSTART LE reslut AND
+             LONFLER.RESSTART2 GE reslut AND LONFLER.DAGTYP = "HEMRESA"
+             USE-INDEX FLON NO-LOCK NO-ERROR.
+         END.
+      END.
+      ELSE IF FILL-IN-REDTRAKT = TRUE AND FILL-IN-3MAN = FALSE AND 
+      foslut = TRUE THEN DO:
+          /*långtidsförrättning*/
+          FIND FIRST LONFLER WHERE LONFLER.DAGTYP = "REDUCER" AND
+          LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL USE-INDEX FLON NO-LOCK NO-ERROR.
+          IF NOT AVAILABLE LONFLER THEN DO: 
+             FIND FIRST LONFLER WHERE LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL AND            
+             LONFLER.RESSTART LE reslut AND
+             LONFLER.RESSTART2 GE reslut AND LONFLER.DAGTYP = "HEMRESA"
+             USE-INDEX FLON NO-LOCK NO-ERROR.
+         END.
+      END.
+      ELSE IF FILL-IN-REDTRAKT = TRUE AND FILL-IN-3MAN = TRUE THEN DO:
+          /*HEMRESA > 3 MÅNADER INNAN 19*/       
+          FIND FIRST LONFLER WHERE LONFLER.DAGTYP = "3MLANGH" AND
+          LONFLER.RESSTART LE reslut AND
+          LONFLER.RESSTART2 GE reslut AND          
+          LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL USE-INDEX FLON NO-LOCK NO-ERROR.
+      
+      END.
+      ELSE IF FILL-IN-REDTRAKT = TRUE AND FILL-IN-3MAN = FALSE THEN DO:
+          FIND FIRST LONFLER WHERE LONFLER.DAGTYP = "REDHEM" AND
+          LONFLER.RESSTART LE reslut AND
+          LONFLER.RESSTART2 GE reslut AND          
+          LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL USE-INDEX FLON NO-LOCK NO-ERROR.
+          IF NOT AVAILABLE LONFLER THEN DO: 
+             FIND FIRST LONFLER WHERE LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL AND
+             LONFLER.RESSTART LE reslut AND
+             LONFLER.RESSTART2 GE reslut AND LONFLER.DAGTYP = "HEMRESA"
+             USE-INDEX FLON NO-LOCK NO-ERROR.
+         END.
+      END.   
+      ELSE DO:       
+         IF FILL-IN-3MAN = TRUE THEN DO:
+            FIND FIRST LONFLER WHERE LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL AND
+            LONFLER.RESSTART LE reslut AND
+            LONFLER.RESSTART2 GE reslut AND LONFLER.DAGTYP = "HEMRESAR"
+            USE-INDEX FLON NO-LOCK NO-ERROR.
+         END.
+         ELSE DO:
+            FIND FIRST LONFLER WHERE LONFLER.TRAAVTAL = PERSONALTAB.TRAAVTAL AND
+            LONFLER.RESSTART LE reslut AND
+            LONFLER.RESSTART2 GE reslut AND LONFLER.DAGTYP = "HEMRESA"
+            USE-INDEX FLON NO-LOCK NO-ERROR.
+         END.   
+      END.   
+      IF NOT AVAILABLE LONFLER THEN persrec = persrec.
+      ELSE DO:
+         FIND FIRST LONTILL WHERE LONTILL.KOD = ANSTFORMTAB.KOD AND 
+         LONTILL.LONTILLAGG = LONFLER.LONTILLAGG NO-LOCK NO-ERROR.
+         IF AVAILABLE LONTILL AND LONTILL.LONTILLAGG = "880" AND LONTILL.ENHET = "KR" THEN DO:
+            /*>3MÅNADER PRISSATT  ES AB*/
+            CREATE TIDREGITAB.
+            ASSIGN TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            SUBSTRING(TIDREGITAB.PROGRAM,1,158) = "FLLONN" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv
+            TIDREGITAB.DAG = tidbuff.DAG
+            TIDREGITAB.VECKONUMMER = tidbuff.VECKONUMMER
+            TIDREGITAB.START = 7.00
+            TIDREGITAB.SLUT = 7.00
+            TIDREGITAB.TIDLOG = FALSE
+            TIDREGITAB.LONTILLAGG = LONFLER.LONTILLAGG
+            TIDREGITAB.LONTILLANTAL = LONFLER.LONTILLANTAL
+            TIDREGITAB.AONR = tidbuff.AONR
+            TIDREGITAB.DELNR = tidbuff.DELNR
+            TIDREGITAB.BILFORARE = tidbuff.BILFORARE
+            TIDREGITAB.ENFLERDAGS = tidbuff.ENFLERDAGS
+            TIDREGITAB.DATUM = tidbuff.DATUM.        
+         END.
+         ELSE IF AVAILABLE LONTILL AND LONTILL.ENHET = "KR" THEN DO: /*HAVDA KOSTNADER MODERN ES*/
+            FIND FIRST kosters WHERE kosters.MDATUM = tidbuff.DATUM NO-LOCK NO-ERROR.
+            IF AVAILABLE kosters THEN DO:
+               maltid = 0.
+               FIND FIRST maltidfil WHERE maltidfil.MDATUM = tidbuff.DATUM NO-LOCK NO-ERROR.
+               IF AVAILABLE maltidfil THEN DO:
+                  FIND FIRST AVDRAGMALTID WHERE AVDRAGMALTID.RESSTART LE tidbuff.SLUT AND 
+                  AVDRAGMALTID.RESSTART2 GE tidbuff.SLUT AND
+                  AVDRAGMALTID.DAGTYP = "HEMRESA" AND AVDRAGMALTID.ENFLER = enflerdygns 
+                  USE-INDEX MALTID NO-LOCK NO-ERROR.
+                  IF AVAILABLE AVDRAGMALTID  THEN DO:
+                     IF maltidfil.MFRU = TRUE THEN DO:                  
+                        FIND FIRST lontillbuff WHERE lontillbuff.KOD = ANSTFORMTAB.KOD AND 
+                        lontillbuff.LONTILLAGG = "FRUK" NO-LOCK NO-ERROR.   
+                        IF AVAILABLE lontillbuff THEN ASSIGN maltid = maltid + (lontillbuff.ERSATTNING * AVDRAGMALTID.AVDRAGSTYP).
+                     END. 
+                     IF maltidfil.MLUN = TRUE THEN DO:                  
+                        FIND FIRST lontillbuff WHERE lontillbuff.KOD = ANSTFORMTAB.KOD AND 
+                        lontillbuff.LONTILLAGG = "LUNC" NO-LOCK NO-ERROR.   
+                        IF AVAILABLE lontillbuff THEN ASSIGN maltid = maltid + (lontillbuff.ERSATTNING * AVDRAGMALTID.AVDRAGSTYP).
+                     END.  
+                     IF maltidfil.MMID = TRUE THEN DO:                  
+                        FIND FIRST lontillbuff WHERE lontillbuff.KOD = ANSTFORMTAB.KOD AND 
+                        lontillbuff.LONTILLAGG = "MIDD" NO-LOCK NO-ERROR.   
+                        IF AVAILABLE lontillbuff THEN ASSIGN maltid = maltid + (lontillbuff.ERSATTNING * AVDRAGMALTID.AVDRAGSTYP).
+                     END.
+                  END.
+               END.      
+               skfri = LONTILL.ERSATTNING - maltid.
+               skatt = 0.
+               IF skfri > kosters.KR THEN skfri = kosters.KR.
+               ELSE skatt = kosters.KR - skfri.            
+               FIND FIRST lontillbuff WHERE lontillbuff.KOD = ANSTFORMTAB.KOD AND 
+               lontillbuff.LONTILLAGG = "842" NO-LOCK NO-ERROR.
+               IF AVAILABLE lontillbuff AND lontillbuff.ENHET = "KR" THEN DO:
+                  IF skfri > 0 THEN DO:
+                     CREATE TIDREGITAB.  /*SKATTEFRI 842*/
+                     ASSIGN TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+                     SUBSTRING(TIDREGITAB.PROGRAM,1,158) = "FLLONN" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv
+                     TIDREGITAB.DAG = tidbuff.DAG
+                     TIDREGITAB.VECKONUMMER = tidbuff.VECKONUMMER
+                     TIDREGITAB.START = 7.00
+                     TIDREGITAB.SLUT = 7.00
+                     TIDREGITAB.TIDLOG = FALSE
+                     TIDREGITAB.LONTILLAGG = lontillbuff.LONTILLAGG
+                     TIDREGITAB.LONTILLANTAL = skfri
+                     TIDREGITAB.AONR = tidbuff.AONR
+                     TIDREGITAB.DELNR = tidbuff.DELNR
+                     TIDREGITAB.BILFORARE = tidbuff.BILFORARE
+                     TIDREGITAB.ENFLERDAGS = tidbuff.ENFLERDAGS
+                     TIDREGITAB.DATUM = tidbuff.DATUM.
+                  END.
+                  IF skatt > 0 THEN DO:   
+                     CREATE TIDREGITAB.  /*SKATT 882*/
+                     ASSIGN TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+                     SUBSTRING(TIDREGITAB.PROGRAM,1,158) = "FLLONN" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv
+                     TIDREGITAB.DAG = tidbuff.DAG
+                     TIDREGITAB.VECKONUMMER = tidbuff.VECKONUMMER
+                     TIDREGITAB.START = 7.00
+                     TIDREGITAB.SLUT = 7.00
+                     TIDREGITAB.TIDLOG = FALSE
+                     TIDREGITAB.LONTILLAGG = "882"
+                     TIDREGITAB.LONTILLANTAL = skatt
+                     TIDREGITAB.AONR = tidbuff.AONR
+                     TIDREGITAB.DELNR = tidbuff.DELNR
+                     TIDREGITAB.BILFORARE = tidbuff.BILFORARE
+                     TIDREGITAB.ENFLERDAGS = tidbuff.ENFLERDAGS
+                     TIDREGITAB.DATUM = tidbuff.DATUM.
+                  END.   
+               END.            
+            END.
+         END.      
+         ELSE IF LONFLER.LONTILLAGG NE '' THEN DO:
+            CREATE TIDREGITAB.
+            ASSIGN TIDREGITAB.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            SUBSTRING(TIDREGITAB.PROGRAM,1,158) = "FLLONN" + STRING(TODAY) + STRING(TIME,"HH:MM") + Guru.Konstanter:globanv
+            TIDREGITAB.DAG = tidbuff.DAG
+            TIDREGITAB.VECKONUMMER = tidbuff.VECKONUMMER
+            TIDREGITAB.START = 7.00
+            TIDREGITAB.SLUT = 7.00
+            TIDREGITAB.TIDLOG = FALSE
+            TIDREGITAB.LONTILLAGG = LONFLER.LONTILLAGG
+            TIDREGITAB.LONTILLANTAL = LONFLER.LONTILLANTAL
+            TIDREGITAB.AONR = tidbuff.AONR
+            TIDREGITAB.DELNR = tidbuff.DELNR
+            TIDREGITAB.BILFORARE = tidbuff.BILFORARE
+            TIDREGITAB.ENFLERDAGS = tidbuff.ENFLERDAGS
+            TIDREGITAB.DATUM = tidbuff.DATUM.        
+         END.
+      END.
+   END.
+END.
+   

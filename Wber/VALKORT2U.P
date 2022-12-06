@@ -1,0 +1,272 @@
+   /*VALKORT2U.P*/
+{KONVALTEMP.I}   
+{FRITEMP.I}   
+{LISTMTRL.I}    
+{KONID.I}   
+
+
+DEFINE TEMP-TABLE kopp_lina
+   FIELD NUM1 LIKE BERLINKAB.NUM1 
+   FIELD NUM2 LIKE BERLINKAB.NUM2   
+   FIELD METER LIKE BERLINKAB.METER   
+   FIELD LEDARE LIKE BERLINKAB.LEDARE   
+   FIELD ENR LIKE BERLINKAB.ENR         
+   FIELD BENAMNING LIKE BERLINKAB.BENAMNING 
+   FIELD PRIS LIKE BERLINKAB.PRIS
+   FIELD ENHET LIKE BERLINKAB.ENHET
+   FIELD KABNR LIKE BERLINKAB.KABNR
+   FIELD SKAP LIKE BERLINKAB.SKAP
+   FIELD SKAPADR LIKE BERLINKAB.SKAPADR
+   FIELD KABADR LIKE BERLINKAB.KABADR
+   FIELD TYP LIKE BERLINKAB.TYP 
+   FIELD ARTAL LIKE BERLINKAB.ARTAL
+   FIELD SAKR LIKE BERLINKAB.SAKR 
+   FIELD MAXSAKR LIKE BERLINKAB.MAXSAKR
+   FIELD ANMARK LIKE BERLINKAB.ANMARK
+   FIELD KORTKOD LIKE BERLINKAB.KORTKOD
+   FIELD KABNR2 LIKE BERLINKAB.KABNR2    
+   FIELD TOTMETER LIKE BERLINKAB.TOTMETER
+   FIELD UPPLAG LIKE BERLINKAB.UPPLAG 
+   FIELD LEVKOD LIKE BERLINKAB.LEVKOD  
+   FIELD APPARAT LIKE BERLINKAB.APPARAT  
+   FIELD DIAMETER LIKE BERLINKAB.DIAMETER  
+   INDEX NUM IS PRIMARY NUM1 NUM2 ASCENDING 
+   INDEX ENR ENR ASCENDING
+   INDEX KABNR KABNR ASCENDING
+   INDEX LIN NUM1 NUM2 KABNR ASCENDING.   
+ 
+DEFINE TEMP-TABLE ord_temp
+   FIELD NUM LIKE BERORD.NUM
+   FIELD ORD LIKE BERORD.ORD
+   INDEX NUM NUM ASCENDING.
+
+DEFINE BUFFER konbuff FOR kon_val.
+
+DEFINE INPUT PARAMETER valaonr LIKE AONRTAB.AONR NO-UNDO.
+DEFINE INPUT PARAMETER valomrade LIKE AONRTAB.OMRADE NO-UNDO.
+DEFINE INPUT PARAMETER datvar LIKE BERMTRL.DATUM NO-UNDO.
+DEFINE OUTPUT PARAMETER TABLE FOR kon_val.
+DEFINE OUTPUT PARAMETER TABLE FOR kon_id.
+DEFINE OUTPUT PARAMETER TABLE FOR list_mtrl.
+DEFINE OUTPUT PARAMETER TABLE FOR kopp_lina.
+DEFINE OUTPUT PARAMETER TABLE FOR fri_temp.
+
+   /*VALDA KONSTRUKTIONER*/   
+   OPEN QUERY ordq FOR EACH BERORD WHERE BERORD.AONR = valaonr AND
+   BERORD.OMRADE = valomrade USE-INDEX ORD NO-LOCK.
+   GET FIRST ordq NO-LOCK.
+   DO WHILE AVAILABLE(BERORD):
+      CREATE ord_temp.
+      ASSIGN 
+      ord_temp.NUM = BERORD.NUM
+      ord_temp.ORD = BERORD.ORD.
+      GET NEXT ordq NO-LOCK.
+   END.          
+   CLOSE QUERY ordq.
+   
+   OPEN QUERY berq FOR EACH BERVAL WHERE BERVAL.AONR = valaonr AND
+   BERVAL.OMRADE = valomrade USE-INDEX OMR NO-LOCK.
+   GET FIRST berq NO-LOCK.
+   DO WHILE AVAILABLE(BERVAL):
+      CREATE kon_val.
+      ASSIGN 
+      kon_val.GRUPP = BERVAL.KONSKOD 
+      kon_val.F1 = BERVAL.KTYPKOD
+      kon_val.F2 = BERVAL.F2 
+      kon_val.F3 = BERVAL.F3 
+      kon_val.F4 = BERVAL.F4 
+      kon_val.F5 = BERVAL.F5 
+      kon_val.F6 = BERVAL.F6 
+      kon_val.NUM = BERVAL.NUM
+      kon_val.ID = BERVAL.ID
+      kon_val.UPPLAG = BERVAL.UPPLAG
+      kon_val.KSKAP = BERVAL.KSKAP
+      kon_val.TYP = BERVAL.TYP
+      kon_val.SKAPNUM = BERVAL.SKAPNUM
+      kon_val.ANMARK = BERVAL.ANMARK.
+      IF kon_val.KSKAP = FALSE THEN DO:
+         FIND FIRST ord_temp WHERE ord_temp.NUM = kon_val.NUM
+         USE-INDEX NUM NO-LOCK NO-ERROR.
+         IF AVAILABLE ord_temp THEN DO:
+            kon_val.ORD = ord_temp.ORD.
+         END.
+      END.
+      GET NEXT berq NO-LOCK.
+   END.          
+   CLOSE QUERY berq.
+   /*MATERIEL*/
+   
+   FIND FIRST PARSTOLP NO-LOCK NO-ERROR.
+   OPEN QUERY berqmtrl FOR EACH BERMTRL WHERE BERMTRL.AONR = valaonr AND
+   BERMTRL.OMRADE = valomrade AND BERMTRL.INKOP = FALSE AND
+   BERMTRL.DATUM = datvar USE-INDEX DATUM NO-LOCK.
+   GET FIRST berqmtrl NO-LOCK.
+   DO WHILE AVAILABLE(BERMTRL):              
+      CREATE list_mtrl.
+      ASSIGN      
+      list_mtrl.NUM = BERMTRL.NUM 
+      list_mtrl.ENR = BERMTRL.ENR 
+      list_mtrl.BENAMNING = BERMTRL.BENAMNING 
+      list_mtrl.ENHET = LC(BERMTRL.ENHET) 
+      list_mtrl.ANTAL = BERMTRL.ANTAL 
+      list_mtrl.PRIS = BERMTRL.PRIS 
+      list_mtrl.LEVKOD = BERMTRL.LEVKOD
+      list_mtrl.LINKAB = BERMTRL.LINKAB
+      list_mtrl.MODUL = BERMTRL.MODUL  
+      list_mtrl.SKAPNUM = BERMTRL.SKAPNUM
+      list_mtrl.TYPBER = BERMTRL.TYPBER
+      list_mtrl.SKAPMTRL = BERMTRL.SKAPMTRL
+      list_mtrl.SKAPMODUL = BERMTRL.SKAPMODUL
+      list_mtrl.DIAMETER = BERMTRL.DIAMETER
+      list_mtrl.MTRLTEXT = BERMTRL.MTRLTEXT
+      list_mtrl.SATS = BERMTRL.SATS
+      list_mtrl.PAR = BERMTRL.PAR.
+      IF list_mtrl.PAR > 0 THEN DO:
+         IF list_mtrl.PAR = 1 THEN list_mtrl.PAR2 = PARSTOLP.A.
+         ELSE IF list_mtrl.PAR = 2 THEN list_mtrl.PAR2 = PARSTOLP.B.
+         ELSE list_mtrl.PAR2 = PARSTOLP.C.
+      END.      
+      GET NEXT berqmtrl NO-LOCK.
+   END.   
+   CLOSE QUERY berqmtrl. 
+   /*INDENTIFIKATION*/
+   
+   OPEN QUERY berqid FOR EACH BERID WHERE BERID.AONR = valaonr AND
+   BERID.OMRADE = valomrade USE-INDEX OMR NO-LOCK.
+   GET FIRST berqid NO-LOCK.
+   DO WHILE AVAILABLE(BERID): 
+      FIND FIRST kon_val WHERE kon_val.NUM = BERID.NUM USE-INDEX NUM NO-LOCK NO-ERROR.
+      CREATE kon_id.
+      ASSIGN      
+      kon_id.NUM = BERID.NUM 
+      kon_id.GRUPP = kon_val.GRUPP
+      kon_id.FORNR = BERID.FORNR 
+      kon_id.LINNR = BERID.LINNR 
+      kon_id.NATNR = BERID.NATNR 
+      kon_id.FRI1 = BERID.FRI1 
+      kon_id.FRI2 = BERID.FRI2
+      kon_id.XKORD = BERID.XKORD 
+      kon_id.ENDKOMB = BERID.ENDKOMB
+      kon_id.FRI3 = BERID.FRI3
+      kon_id.A = BERID.A
+      kon_id.B = BERID.B
+      kon_id.C = BERID.C. 
+      GET NEXT berqid NO-LOCK.
+   END.  
+   CLOSE QUERY berqid.   
+   /*LINOR OCH KABLAR*/
+   
+   OPEN QUERY berqlin FOR EACH BERLINKAB WHERE BERLINKAB.AONR = valaonr AND
+   BERLINKAB.OMRADE = valomrade AND BERLINKAB.DATUM = datvar USE-INDEX DATUM NO-LOCK.
+   GET FIRST berqlin NO-LOCK.
+   DO WHILE AVAILABLE(BERLINKAB): 
+      CREATE kopp_lina.
+      ASSIGN        
+      kopp_lina.NUM1 = BERLINKAB.NUM1
+      kopp_lina.NUM2 = BERLINKAB.NUM2 
+      kopp_lina.ENR = BERLINKAB.ENR
+      kopp_lina.BENAMNING = BERLINKAB.BENAMNING 
+      kopp_lina.PRIS = BERLINKAB.PRIS
+      kopp_lina.ENHET = BERLINKAB.ENHET
+      kopp_lina.METER = BERLINKAB.METER
+      kopp_lina.LEDARE = BERLINKAB.LEDARE
+      kopp_lina.KABNR = BERLINKAB.KABNR  
+      kopp_lina.KABNR2 = BERLINKAB.KABNR2
+      kopp_lina.SKAP = BERLINKAB.SKAP
+      kopp_lina.SKAPADR = BERLINKAB.SKAPADR
+      kopp_lina.KABADR = BERLINKAB.KABADR
+      kopp_lina.ARTAL = BERLINKAB.ARTAL
+      kopp_lina.SAKR = BERLINKAB.SAKR
+      kopp_lina.MAXSAKR = BERLINKAB.MAXSAKR
+      kopp_lina.ANMARK = BERLINKAB.ANMARK
+      kopp_lina.TYP = BERLINKAB.TYP
+      kopp_lina.KORTKOD = BERLINKAB.KORTKOD
+      kopp_lina.TOTMETER = BERLINKAB.TOTMETER
+      kopp_lina.UPPLAG = BERLINKAB.UPPLAG
+      kopp_lina.LEVKOD = BERLINKAB.LEVKOD
+      kopp_lina.APPARAT = BERLINKAB.APPARAT
+      kopp_lina.DIAMETER = BERLINKAB.DIAMETER.               
+      GET NEXT berqlin NO-LOCK.
+   END.
+   CLOSE QUERY berqlin.  
+   
+   /*FRITT KORT*/
+   OPEN QUERY friq FOR EACH FRIKORT WHERE FRIKORT.AONR = valaonr AND
+   FRIKORT.OMRADE = valomrade USE-INDEX OMR NO-LOCK.
+   GET FIRST friq NO-LOCK.
+   DO WHILE AVAILABLE(FRIKORT):
+      CREATE fri_temp.
+      ASSIGN
+      fri_temp.NUM = FRIKORT.NUM       
+      fri_temp.BENAMNING = FRIKORT.BENAMNING    
+      fri_temp.SKAP = FRIKORT.SKAP
+      fri_temp.SKAPADR = FRIKORT.SKAPADR
+      fri_temp.KABADR = FRIKORT.KABADR
+      fri_temp.TYP = FRIKORT.TYP 
+      fri_temp.ARTAL = FRIKORT.ARTAL
+      fri_temp.SAKR = FRIKORT.SAKR 
+      fri_temp.MAXSAKR = FRIKORT.MAXSAKR
+      fri_temp.ANMARK = FRIKORT.ANMARK   
+      fri_temp.APPARAT = FRIKORT.APPARAT  
+      fri_temp.METER = FRIKORT.METER
+      fri_temp.KABNR = FRIKORT.KABNR.
+      IF fri_temp.ARTAL = ? THEN fri_temp.ARTAL = YEAR(TODAY).     
+      GET NEXT friq NO-LOCK.
+   END.
+   CLOSE QUERY friq.
+
+   OPEN QUERY konq FOR EACH kon_val WHERE kon_val.KSKAP = FALSE NO-LOCK.
+   GET FIRST konq NO-LOCK.
+   DO WHILE AVAILABLE(kon_val):
+      IF kon_val.ID = TRUE THEN DO:
+         FIND FIRST kon_id WHERE kon_id.NUM = kon_val.NUM
+         USE-INDEX NUM NO-LOCK NO-ERROR.
+         IF AVAILABLE kon_id THEN DO:
+            IF kon_id.FRI2 = ? THEN kon_val.ID2 = kon_id.NATNR.
+            ELSE kon_val.ID2 = STRING(kon_id.FRI2).    
+            FIND FIRST konbuff WHERE konbuff.NUM = kon_val.NUM AND
+            konbuff.KSKAP = TRUE NO-LOCK NO-ERROR.
+            IF AVAILABLE konbuff THEN DO:
+               kon_val.EXTRA = "+" + " " + kon_id.FRI3.
+            END.
+            ELSE DO:
+               kon_val.EXTRA = "  " + kon_id.FRI3.
+            END.
+            ASSIGN
+            kon_val.EXTRA1 = SUBSTRING(kon_val.EXTRA,3)
+            kon_val.EXTRA2 = SUBSTRING(kon_val.EXTRA,1,1).
+         END.
+      END.
+      ELSE DO:
+         FIND FIRST konbuff WHERE konbuff.NUM = kon_val.NUM AND
+         konbuff.KSKAP = TRUE NO-LOCK NO-ERROR.
+         IF AVAILABLE konbuff THEN kon_val.EXTRA = "+".
+         ASSIGN
+         kon_val.EXTRA1 = SUBSTRING(kon_val.EXTRA,3)
+         kon_val.EXTRA2 = SUBSTRING(kon_val.EXTRA,1,1).
+      END.
+      GET NEXT konq NO-LOCK.
+   END.
+   CLOSE QUERY konq.
+
+
+   OPEN QUERY konq2 FOR EACH kon_val WHERE kon_val.KSKAP = FALSE NO-LOCK.
+   GET FIRST konq2 NO-LOCK.
+   DO WHILE AVAILABLE(kon_val):
+      FIND FIRST fri_temp WHERE fri_temp.NUM = kon_val.NUM
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE fri_temp THEN DO: 
+         FIND FIRST kopp_lina WHERE kopp_lina.KORTKOD = kon_val.NUM
+         NO-LOCK NO-ERROR.
+         IF NOT AVAILABLE kopp_lina THEN DO:
+            FOR EACH konbuff WHERE konbuff.NUM = kon_val.NUM AND 
+            RECID(konbuff) NE RECID(kon_val):
+               DELETE konbuff.
+            END.
+            DELETE kon_val.
+         END.
+      END.
+      GET NEXT konq2 NO-LOCK.
+   END.
+   CLOSE QUERY konq2.
+      

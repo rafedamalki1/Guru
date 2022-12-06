@@ -1,0 +1,155 @@
+/*VECKOVFLEX.P*/
+/*SKICKA MAIL TILL ALLA SOM HAR ARBETAT UNDER VECKOVILA SOM SKA FÅ FLEX FÖR DET*/
+{LESAMMAN.I}  
+RUN sammut_UI (INPUT 1).
+{STARTFORAPP.I}
+DEFINE TEMP-TABLE pveckfl
+   FIELD PERSONALKOD AS CHARACTER
+   FIELD FORNAMN AS CHARACTER
+   FIELD EFTERNAMN AS CHARACTER
+   FIELD DATUM AS DATE
+   FIELD START AS DECIMAL
+   FIELD SLUT AS DECIMAL
+   FIELD TOTALT AS DECIMAL
+   FIELD EPOST AS CHARACTER
+   INDEX PERSONALKOD IS PRIMARY PERSONALKOD DATUM.   
+DEFINE TEMP-TABLE eposttemp NO-UNDO
+   FIELD EPOST AS CHARACTER
+   FIELD MEDD AS CHARACTER
+   INDEX EPOST EPOST.
+DEFINE VARIABLE vpers AS CHARACTER NO-UNDO.
+DEFINE VARIABLE otbeordapph AS HANDLE NO-UNDO.
+DEFINE VARIABLE aonrrec AS RECID NO-UNDO.
+DEFINE VARIABLE skick AS LOGICAL NO-UNDO.
+DEFINE VARIABLE efel AS CHARACTER FORMAT "X(30)" NO-UNDO.
+DEFINE VARIABLE servervar AS CHARACTER LABEL "Smtp Server" NO-UNDO.
+DEFINE VARIABLE franvar AS CHARACTER NO-UNDO.
+{SMTPDEF3.I}
+{AMERICANEUROPEAN.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+RUN STYRFORE.P (INPUT FORETAG.FORETAG).
+IF Guru.Konstanter:globforetag = "SUND" OR Guru.Konstanter:globforetag = "MISV" THEN DO:
+   ASSIGN
+   franvar = "NOREPLY"
+   servervar = CHR(49) + CHR(55) + CHR(50) + CHR(46) + CHR(49) + CHR(54) + CHR(46) + CHR(50) + CHR(53) + CHR(52) + CHR(46) + CHR(50) + CHR(50) + CHR(50).
+   /*servervar = "130.1.27.253".
+   servervar = "172.16.79.249".*/
+END.
+ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+   {SMTPFRANELPOOL.I}
+END.
+ELSE DO:
+   ASSIGN
+   franvar = "elpool.ume@elpool.se"
+   servervar = CHR(115) + CHR(109) + CHR(116) + CHR(112) + CHR(46) + CHR(116) + CHR(101) + CHR(108) + CHR(101) + CHR(99) + CHR(111) + CHR(109) + CHR(51) + CHR(46) + CHR(110) + CHR(101) + CHR(116) .
+END.
+
+FIND FIRST VECKONATT WHERE VECKONATT.NYKORD = TRUE AND 
+SUBSTRING(VECKONATT.DAG_AR,1,3) = "DAG" USE-INDEX NATT NO-LOCK NO-ERROR.
+IF NOT AVAILABLE VECKONATT THEN DO:
+   FIND FIRST VECKONATT WHERE 
+   SUBSTRING(VECKONATT.DAG_AR,1,3) = "DAG" USE-INDEX NATT NO-LOCK NO-ERROR.
+END.
+IF AVAILABLE VECKONATT THEN DO:
+   EMPTY TEMP-TABLE pveckfl NO-ERROR. 
+   OPEN QUERY tq FOR EACH TIDREGITAB WHERE TIDREGITAB.VECKOKORD = VECKONATT.VECKOKORD AND TIDREGITAB.LONTILLAGG = "190" NO-LOCK. 
+   GET FIRST tq NO-LOCK.
+   DO WHILE AVAILABLE(TIDREGITAB):    
+      FIND FIRST FLBET WHERE FLBET.PERSONALKOD = TIDREGITAB.PERSONALKOD AND FLBET.DATUM = TIDREGITAB.DATUM AND
+      FLBET.ANVANDARE = "Arb.u.veckovila"  NO-LOCK NO-ERROR.
+      IF AVAILABLE FLBET THEN DO:
+         CREATE pveckfl.
+         ASSIGN
+         pveckfl.PERSONALKOD = TIDREGITAB.PERSONALKOD
+         pveckfl.DATUM = TIDREGITAB.DATUM      
+         pveckfl.TOTALT = TIDREGITAB.LONTILLANTAL.    
+         FIND FIRST PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = TIDREGITAB.PERSONALKOD  NO-LOCK NO-ERROR.
+         IF AVAILABLE PERSONALTAB THEN DO:
+            ASSIGN
+            pveckfl.FORNAMN = PERSONALTAB.FORNAMN
+            pveckfl.EFTERNAMN = PERSONALTAB.EFTERNAMN
+            pveckfl.EPOST = SUBSTRING(PERSONALTAB.PERSONSOK,20).
+         END.      
+      END.
+      GET NEXT tq NO-LOCK.
+   END.
+END.
+
+
+EMPTY TEMP-TABLE eposttemp NO-ERROR. 
+FOR EACH pveckfl WHERE pveckfl.EPOST NE "" USE-INDEX PERSONALKOD.
+   FIND FIRST eposttemp WHERE eposttemp.EPOST = pveckfl.EPOST AND 
+   LENGTH(eposttemp.MEDD,"CHARACTER") < 30000 NO-LOCK NO-ERROR.
+   IF NOT AVAILABLE eposttemp THEN DO:
+      CREATE eposttemp.
+      eposttemp.EPOST = pveckfl.EPOST.
+      eposttemp.MEDD = " Arbete under veckovila har gett flextid för "  + pveckfl.PERSONALKOD  + " " +  pveckfl.FORNAMN + " " + pveckfl.EFTERNAMN + "       gällande körning utförd " + SUBSTRING(VECKONATT.VECKOKORD,2,8)  + CHR(10)
+                     + "=================================================================================== " + CHR(10).       
+   END.
+   eposttemp.MEDD = eposttemp.MEDD  + STRING(pveckfl.DATUM,"9999/99/99") + " " + STRING(pveckfl.TOTALT,">9.99") +
+   " timmar " + pveckfl.PERSONALKOD   + " " + SUBSTRING(pveckfl.FORNAMN,1,1) + "." + pveckfl.EFTERNAMN +  CHR(10)  + CHR(10).         
+END.
+   
+RUN emedd_UI.
+RUN sammut_UI (INPUT 2).
+
+Guru.GlobalaVariabler:GDPRtyp = "EP". 
+{GDPRLOGGCLIENT.I}
+IF VALID-HANDLE(otbeordapph) THEN DELETE PROCEDURE otbeordapph NO-ERROR.
+{EUROPEANAMERICAN.I}
+PROCEDURE emedd_UI.
+   DEFINE VARIABLE ctillvar AS CHARACTER LABEL "Kopia" NO-UNDO.
+   FOR EACH eposttemp:  
+      ASSIGN 
+      mailhub             = servervar     
+      EmailTo             = eposttemp.EPOST 
+      EmailFrom           = franvar
+      EmailCC             = ""
+      /* Victoria R vill inte längre ha detta mail Lena 20200205
+      EmailCC             = "victoria.rosengren@sundsvallelnat.se"*/
+      Attachmentstyp      = ""
+      LocalFiles          = ""
+      Subject             = "Flextid för arbete under veckovila" 
+      Bodysmtp            = eposttemp.MEDD
+      MIMEHeader          = "type=text/plain/html:charset=iso-8859-1:filetype=ascii"
+      BodyType            = "".       
+      IF Guru.Konstanter:globforetag = "sund" THEN EmailFrom = "webguru@sundsvallenergi.se".
+      IF Guru.Konstanter:globforetag = "SNAT" THEN EmailFrom = "@guru.sundsvallelnat.se".
+      IF Guru.Konstanter:globforetag = "MISV" THEN EmailFrom = "webguru@mittsverigevatten.se".
+      RUN smtpmail_UI (INPUT FALSE).
+      IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+         /*SNATBERGET*/
+          OUTPUT TO D:\DELAD\PRO10S\mailrapparbveck.txt APPEND.
+          PUT UNFORMATTED TODAY " " oSuccessful " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+          OUTPUT CLOSE. 
+       END.      
+      IF oSuccessful = TRUE THEN DO TRANSACTION:
+         oSuccessful = FALSE.               
+      END.      
+      ELSE DO:
+         IF Guru.Konstanter:globforetag = "SUND" THEN DO:
+            OUTPUT TO D:\delad\server\pro10s\EXPORT\lon\obeordfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "SNAT" THEN DO:
+            /*SNATBERGET*/
+            OUTPUT TO D:\delad\pro10s\EXPORT\lonelnat\obeordfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "MISV" THEN DO:            
+            OUTPUT TO D:\elpool\delad\pro10s\EXPORT\lon\obeordfel.txt APPEND.
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         ELSE IF Guru.Konstanter:globforetag = "ELPA" THEN DO:
+            OUTPUT TO c:\protemp9\obeordfel.txt APPEND.            
+            PUT UNFORMATTED TODAY " " vMessage " " servervar " " eposttemp.EPOST " " EmailFrom SKIP.
+         END.
+         OUTPUT CLOSE.         
+      END.
+      IF AVAILABLE eposttemp THEN Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + eposttemp.EPOST + "," + EmailCC + "," + eposttemp.MEDD .
+   END.     
+END PROCEDURE.  
+
+ 
+   

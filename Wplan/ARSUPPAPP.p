@@ -1,0 +1,230 @@
+/*ARSUPPAPP.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{GLOBVAR2DEL1.I}
+{REGVAR.I}
+
+{PLANNRTEMP.I}
+{AVTPLANTEMP.I}
+&Scoped-define NEW NEW
+
+DEFINE TEMP-TABLE arsupptemp
+   FIELD A% AS DECIMAL
+   FIELD AKR AS INTEGER 
+   FIELD ARTAL AS INTEGER
+   FIELD MASK% AS DECIMAL
+   FIELD MASKKR AS INTEGER
+   FIELD MTRL% AS DECIMAL
+   FIELD MTRLKR AS INTEGER
+   FIELD O% AS DECIMAL
+   FIELD OKR AS INTEGER
+   FIELD PLANNR AS CHARACTER
+   FIELD T% AS DECIMAL
+   FIELD TKR AS INTEGER
+   INDEX PLAN IS PRIMARY PLANNR ARTAL.
+
+DEFINE INPUT PARAMETER vart AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER plannrvar AS CHARACTER NO-UNDO.
+DEFINE OUTPUT PARAMETER radval AS INTEGER NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETER artalvar AS INTEGER NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETER finns AS LOGICAL NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETER t%var AS DECIMAL NO-UNDO.
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR valplantemp.
+DEFINE INPUT-OUTPUT PARAMETER TABLE FOR arsupptemp.
+
+DEFINE BUFFER planbuff FOR PLANNRTAB.
+DEFINE BUFFER kontbuff FOR PLANKONTO.
+
+FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = plannrvar AND 
+PLANNRTAB.ARTAL = artalvar USE-INDEX PLANNR NO-LOCK NO-ERROR.
+
+/*BTN_OK*/
+IF vart = 1 THEN DO:
+   FIND FIRST arsupptemp WHERE arsupptemp.PLANNR = plannrvar AND
+   arsupptemp.ARTAL = artalvar USE-INDEX PLAN EXCLUSIVE-LOCK NO-ERROR.  
+   IF finns = TRUE THEN DO:         
+      FIND FIRST UPPDELA WHERE UPPDELA.PLANNR = plannrvar AND
+      UPPDELA.ARTAL = artalvar USE-INDEX PLAN EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE UPPDELA THEN DO:
+         ASSIGN
+         UPPDELA.MTRL% = arsupptemp.MTRL%
+         UPPDELA.MTRLKR = arsupptemp.MTRLKR
+         UPPDELA.A% = arsupptemp.A%
+         UPPDELA.AKR = arsupptemp.AKR
+         UPPDELA.MASK% = arsupptemp.MASK%
+         UPPDELA.MASKKR = arsupptemp.MASKKR
+         UPPDELA.O% = arsupptemp.O%
+         UPPDELA.OKR = arsupptemp.OKR
+         UPPDELA.T% = 0
+         UPPDELA.TKR = 0.
+      END.
+   END.
+   ELSE DO:
+      RUN skapa_UI.
+      CREATE UPPDELA.
+      ASSIGN
+      UPPDELA.PLANNR = PLANNRTAB.PLANNR
+      UPPDELA.ARTAL = PLANNRTAB.ARTAL
+      UPPDELA.MTRL% = arsupptemp.MTRL%
+      UPPDELA.MTRLKR = arsupptemp.MTRLKR
+      UPPDELA.A% = arsupptemp.A%
+      UPPDELA.AKR = arsupptemp.AKR
+      UPPDELA.MASK% = arsupptemp.MASK%
+      UPPDELA.MASKKR = arsupptemp.MASKKR
+      UPPDELA.O% = arsupptemp.O%
+      UPPDELA.OKR = arsupptemp.OKR.         
+   END.   
+END.
+/*BTN_OK*/
+IF vart = 2 THEN DO:
+   IF finns = TRUE THEN DO:
+      FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = plannrvar AND 
+      PLANNRTAB.ARTAL = artalvar USE-INDEX PLANNR NO-LOCK NO-ERROR.
+      IF AVAILABLE PLANNRTAB THEN DO:
+         FIND FIRST UPPDELA WHERE UPPDELA.PLANNR = PLANNRTAB.PLANNR AND
+         UPPDELA.ARTAL = PLANNRTAB.ARTAL USE-INDEX PLAN EXCLUSIVE-LOCK NO-ERROR.
+         ASSIGN
+         UPPDELA.MTRL% = 0
+         UPPDELA.MTRLKR = 0
+         UPPDELA.A% = 0
+         UPPDELA.AKR = 0
+         UPPDELA.MASK% = 0
+         UPPDELA.MASKKR = 0
+         UPPDELA.O% = 0
+         UPPDELA.OKR = 0
+         UPPDELA.T% = t%var.
+      END.      
+   END.
+   ELSE DO:
+      RUN skapa_UI.
+      CREATE UPPDELA.
+      ASSIGN
+      UPPDELA.PLANNR = PLANNRTAB.PLANNR
+      UPPDELA.ARTAL = PLANNRTAB.ARTAL
+      UPPDELA.T% = t%var.
+   END.
+END.
+/*Ladda i main*/
+IF vart = 3 THEN DO:   
+   FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = plannrvar AND 
+   PLANNRTAB.ARTAL = artalvar USE-INDEX PLANNR NO-LOCK NO-ERROR.   
+   IF PLANNRTAB.UPP = TRUE THEN DO:
+      IF PLANNRTAB.UPPNR = TRUE THEN DO:
+         finns = TRUE.
+      END.
+      ELSE DO:
+         ASSIGN
+         plannrvar = PLANNRTAB.PLANNR
+         artalvar = PLANNRTAB.ARTAL - 1
+         finns = TRUE.
+         FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = plannrvar AND
+         PLANNRTAB.ARTAL = artalvar USE-INDEX PLANNR NO-LOCK NO-ERROR.   
+      END.   
+      FIND FIRST UPPDELA WHERE UPPDELA.PLANNR = PLANNRTAB.PLANNR AND
+      UPPDELA.ARTAL = PLANNRTAB.ARTAL USE-INDEX PLAN NO-LOCK NO-ERROR.
+      IF UPPDELA.T% > 0 OR UPPDELA.TKR > 0 THEN DO:
+         CREATE arsupptemp.
+         ASSIGN
+         radval = 2
+         arsupptemp.PLANNR = PLANNRTAB.PLANNR
+         arsupptemp.ARTAL = PLANNRTAB.ARTAL
+         arsupptemp.T% = UPPDELA.T%
+         arsupptemp.PLANNR = UPPDELA.PLANNR
+         arsupptemp.ARTAL = UPPDELA.ARTAL.
+      END.
+      ELSE DO:
+         CREATE arsupptemp.
+         ASSIGN
+         radval = 1  
+         arsupptemp.PLANNR = PLANNRTAB.PLANNR
+         arsupptemp.ARTAL = PLANNRTAB.ARTAL
+         arsupptemp.MTRL%  = UPPDELA.MTRL%
+         arsupptemp.MTRLKR = UPPDELA.MTRLKR
+         arsupptemp.A%     = UPPDELA.A%
+         arsupptemp.AKR    = UPPDELA.AKR
+         arsupptemp.MASK%  = UPPDELA.MASK%         
+         arsupptemp.MASKKR = UPPDELA.MASKKR
+         arsupptemp.O%     = UPPDELA.O%
+         arsupptemp.OKR    = UPPDELA.OKR
+         arsupptemp.PLANNR = UPPDELA.PLANNR
+         arsupptemp.ARTAL  = UPPDELA.ARTAL.
+      END.
+   END.
+   ELSE DO:          
+      finns = FALSE.
+      ASSIGN
+      radval = 1.
+   END.
+END.
+
+PROCEDURE skapa_UI.
+   FIND FIRST PLANNRTAB WHERE PLANNRTAB.PLANNR = plannrvar AND
+   PLANNRTAB.ARTAL = artalvar USE-INDEX PLANNR EXCLUSIVE-LOCK NO-ERROR.
+   IF AVAILABLE PLANNRTAB THEN DO:
+      ASSIGN 
+      plannrvar = PLANNRTAB.PLANNR
+      artalvar = PLANNRTAB.ARTAL.
+      ASSIGN 
+      PLANNRTAB.UPP = TRUE
+      PLANNRTAB.UPPNR = TRUE.
+   END.
+   CREATE planbuff.
+   ASSIGN     
+   planbuff.FASTAPLANNR = PLANNRTAB.FASTAPLANNR      
+   planbuff.ANLNR = PLANNRTAB.ANLNR
+   planbuff.PLANNR = PLANNRTAB.PLANNR
+   planbuff.ARBANSVARIG = PLANNRTAB.ARBANSVARIG
+   planbuff.ARBARTKOD = PLANNRTAB.ARBARTKOD      
+   planbuff.BEREDARE = PLANNRTAB.BEREDARE 
+   planbuff.BESTID = PLANNRTAB.BESTID
+   planbuff.ARTAL = PLANNRTAB.ARTAL + 1
+   planbuff.OMRADE = PLANNRTAB.OMRADE
+   planbuff.ORT = PLANNRTAB.ORT
+   planbuff.PKOD = PLANNRTAB.PKOD
+   planbuff.PRISTYP = PLANNRTAB.PRISTYP      
+   planbuff.SLUTVNR = PLANNRTAB.SLUTVNR      
+   planbuff.STARTVNR = PLANNRTAB.STARTVNR
+   planbuff.TRAKTAMENTE = PLANNRTAB.TRAKTAMENTE
+   planbuff.FASTKALK = FALSE
+   planbuff.KOPPAO = FALSE
+   planbuff.ANM = PLANNRTAB.ANM
+   planbuff.PLANNRAVDATUM = PLANNRTAB.PLANNRAVDATUM
+   planbuff.UPP = TRUE.
+
+   CREATE valplantemp.
+   ASSIGN     
+   valplantemp.FASTAPLANNR = PLANNRTAB.FASTAPLANNR      
+   valplantemp.ANLNR = PLANNRTAB.ANLNR
+   valplantemp.PLANNR = PLANNRTAB.PLANNR
+   valplantemp.ARBANSVARIG = PLANNRTAB.ARBANSVARIG
+   valplantemp.ARBARTKOD = PLANNRTAB.ARBARTKOD      
+   valplantemp.BEREDARE = PLANNRTAB.BEREDARE 
+   valplantemp.BESTID = PLANNRTAB.BESTID
+   valplantemp.ARTAL = PLANNRTAB.ARTAL + 1
+   valplantemp.OMRADE = PLANNRTAB.OMRADE
+   valplantemp.ORT = PLANNRTAB.ORT
+   valplantemp.PKOD = PLANNRTAB.PKOD
+   valplantemp.PRISTYP = PLANNRTAB.PRISTYP      
+   valplantemp.SLUTVNR = PLANNRTAB.SLUTVNR      
+   valplantemp.STARTVNR = PLANNRTAB.STARTVNR
+   valplantemp.TRAKTAMENTE = PLANNRTAB.TRAKTAMENTE
+   valplantemp.FASTKALK = FALSE
+   valplantemp.KOPPAO = FALSE
+   valplantemp.ANM = PLANNRTAB.ANM
+   valplantemp.PLANNRAVDATUM = PLANNRTAB.PLANNRAVDATUM
+   valplantemp.UPP = TRUE.
+
+   FOR EACH PLANKONTO WHERE PLANKONTO.PLANNR = PLANNRTAB.PLANNR AND
+   PLANKONTO.ARTAL = PLANNRTAB.ARTAL USE-INDEX PLANKONT NO-LOCK:
+      CREATE kontbuff.
+      ASSIGN
+      kontbuff.PLANNR = PLANNRTAB.PLANNR
+      kontbuff.ARTAL = PLANNRTAB.ARTAL + 1
+      kontbuff.K1 = PLANKONTO.K1
+      kontbuff.K2 = PLANKONTO.K2
+      kontbuff.K3 = PLANKONTO.K3
+      kontbuff.K4 = PLANKONTO.K4
+      kontbuff.K5 = PLANKONTO.K5
+      kontbuff.SATS% = PLANKONTO.SATS%.
+   END.
+END PROCEDURE.

@@ -1,0 +1,48 @@
+/*BESTALLTSKAPU.P*/
+&Scoped-define NEW NEW
+&Scoped-define SHARED SHARED
+{BESTKUNDALLT.I}
+DEFINE INPUT PARAMETER val AS INTEGER NO-UNDO.   
+DEFINE OUTPUT PARAMETER TABLE FOR bestkundallt .
+DEFINE OUTPUT PARAMETER TABLE FOR bestkundextra .
+IF val = 1 THEN DO:
+   OPEN QUERY bq FOR EACH BESTTAB USE-INDEX BEST NO-LOCK.
+   GET FIRST bq NO-LOCK.
+   DO WHILE AVAILABLE(BESTTAB):
+      CREATE bestkundallt.
+      BUFFER-COPY BESTTAB TO bestkundallt.      
+      GET NEXT bq NO-LOCK.
+   END.
+END.
+IF val = 2 OR val = 3 THEN DO:
+   /*endast kunder som får kopplas till aonr med mera*/
+   OPEN QUERY bq FOR EACH BESTTAB WHERE BESTTAB.AOKUND = TRUE 
+   USE-INDEX BEST NO-LOCK.
+   GET FIRST bq NO-LOCK.
+   DO WHILE AVAILABLE(BESTTAB):
+      CREATE bestkundallt.
+      BUFFER-COPY BESTTAB TO bestkundallt.      
+      GET NEXT bq NO-LOCK.
+   END.
+END.
+IF val = 3 THEN DO:
+   FOR EACH bestkundallt:
+      FIND FIRST KUNDREGLER WHERE KUNDREGLER.BESTID = bestkundallt.BESTID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE KUNDREGLER THEN DO:
+         DELETE bestkundallt.
+      END.
+      ELSE IF KUNDREGLER.KUNDID = ? THEN DELETE bestkundallt.
+   END.
+   
+END.
+
+FOR EACH bestkundallt,
+EACH EXTRADATA WHERE EXTRADATA.PROGRAM = "BESTEPOST" AND EXTRADATA.HUVUDCH = bestkundallt.BESTID NO-LOCK:
+   CREATE bestkundextra.
+   ASSIGN
+   bestkundextra.BESTID     =      bestkundallt.BESTID   
+   bestkundextra.BESTNAMN   =      bestkundallt.BESTNAMN 
+   bestkundextra.VIBESTID   =      bestkundallt.VIBESTID 
+   bestkundextra.AVDELNING  =      EXTRADATA.SOKCHAR[2]
+   bestkundextra.EPOST      =      EXTRADATA.SOKCHAR[1].
+END.

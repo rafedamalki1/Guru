@@ -1,0 +1,1540 @@
+/*ANVDYNAPP.P*/             
+&Scoped-define NEW NEW
+{GLOBVAR2DEL1.I}
+{OMRTEMPW.I}
+&Scoped-define NEW   
+&Scoped-define SHARED
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+
+DEFINE VARIABLE webusertabh AS HANDLE NO-UNDO.
+DEFINE VARIABLE webuserdateh AS HANDLE NO-UNDO.
+DEFINE VARIABLE webuserlog AS LOGICAL NO-UNDO.
+DEFINE VARIABLE restuserh AS HANDLE NO-UNDO.
+CREATE WIDGET-POOL "DynTableANV" NO-ERROR. 
+{EXTRADATA.I}
+FIND FIRST FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.
+
+{FORESTYR.I}
+{TIDUTTT.I}
+{PERSTEMP.I}
+{sekperstemp.I}
+
+DEFINE TEMP-TABLE tidstemp NO-UNDO LIKE perstemp.
+DEFINE VARIABLE gord AS INTEGER NO-UNDO.
+
+{GURUSKEKMENY.I}
+{ANVPERS.I}
+DEFINE TEMP-TABLE omranvandartemp NO-UNDO LIKE anvandartemp.
+{DYNHMT.I}
+
+{BOLAGSEKTEMP.I}
+{LOGSEKREGTT.I}
+
+RUN userbuff_UI.
+PROCEDURE userbuff_UI :
+   RUN FINNSTABELL.P (INPUT "WEBUSERTAB", OUTPUT webuserlog).
+   IF webuserlog = TRUE THEN DO: 
+      CREATE BUFFER webusertabh FOR TABLE "WEBUSERTAB" IN WIDGET-POOL "DynTableANV".
+      CREATE BUFFER webuserdateh FOR TABLE "WEBUSERDATE" IN WIDGET-POOL "DynTableANV".
+   END.
+   /*detta program används RESTUSERS.P till att byta lösen och userid även för mobilusers*/
+   RUN RESTUSERS.P PERSISTENT SET restuserh. 
+END PROCEDURE.
+
+PROCEDURE avs_UI :
+   DELETE WIDGET-POOL "DynTableANV" NO-ERROR.
+   DELETE OBJECT webusertabh NO-ERROR.
+   webusertabh = ?.
+   DELETE OBJECT webuserdateh NO-ERROR.
+   webuserdateh = ?.
+   
+   IF VALID-HANDLE(restuserh) THEN DO:
+      RUN avslutarestUsr_UI IN restuserh.
+      DELETE PROCEDURE restuserh NO-ERROR.
+      restuserh = ?.
+   END.
+END PROCEDURE.
+PROCEDURE perssek_UI:
+   DEFINE INPUT PARAMETER persandras AS CHARACTER NO-UNDO. /* person som ska ändras för MULTI */
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vadtid AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER vadfakt AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR perstemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidstemp.
+   EMPTY TEMP-TABLE perstemp NO-ERROR. 
+   EMPTY TEMP-TABLE tidstemp NO-ERROR. 
+   /*multi */
+   OPEN QUERY persqmulti FOR EACH PERSONALTAB USE-INDEX PERSONALKOD NO-LOCK.
+   GET FIRST persqmulti NO-LOCK.
+   DO WHILE AVAILABLE(PERSONALTAB):
+      /*hitta användare*/
+      FIND FIRST ANVANDARE WHERE ANVANDARE.PERSONALKOD = PERSONALTAB.PERSONALKOD NO-LOCK NO-ERROR.
+      FIND FIRST PERSEK WHERE PERSEK.ANVANDARE = ANVANDARE.ANVANDARE AND PERSEK.PERSONALKOD = persandras AND PERSEK.PANDRA = TRUE NO-LOCK NO-ERROR. /* Personen som ändras på  */
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+
+      IF AVAILABLE ANVANDARE THEN DO:
+         IF ANVANDARE.AV-LEVEL NE 0 THEN DO:
+            IF AVAILABLE PERSEK THEN DO:
+               CREATE perstemp.
+               ASSIGN 
+               perstemp.TYP = "MULTIPERS"
+               perstemp.PERSONALKOD = PERSONALTAB.PERSONALKOD
+               perstemp.FORNAMN = PERSONALTAB.FORNAMN
+               perstemp.EFTERNAMN = PERSONALTAB.EFTERNAMN
+               perstemp.ANVANDARE = ANVANDARE.ANVANDARE
+               perstemp.AKTIV = PERSONALTAB.AKTIV
+               perstemp.KATEGORI = ANVANDARE.KATEGORI.
+               IF AVAILABLE OMRADETAB THEN DO:
+                  ASSIGN
+                  perstemp.OMRADE = OMRADETAB.NAMN               
+                  perstemp.OMRADENUM = OMRADETAB.OMRADE.
+               END.   
+               Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+            END.
+            ELSE DO:
+               CREATE tidstemp.
+               ASSIGN 
+               tidstemp.TYP = "MULTIPERS"
+               tidstemp.PERSONALKOD = PERSONALTAB.PERSONALKOD
+               tidstemp.FORNAMN = PERSONALTAB.FORNAMN
+               tidstemp.EFTERNAMN = PERSONALTAB.EFTERNAMN
+               tidstemp.ANVANDARE = ANVANDARE.ANVANDARE
+               tidstemp.AKTIV = PERSONALTAB.AKTIV
+               tidstemp.KATEGORI = ANVANDARE.KATEGORI.
+               IF AVAILABLE OMRADETAB THEN DO:
+                  ASSIGN
+                  tidstemp.OMRADE = OMRADETAB.NAMN 
+                  tidstemp.OMRADENUM = OMRADETAB.OMRADE.
+               END.   
+               Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+            END.  
+         END.
+      END.
+      /*område för användaren som ändrar */
+      
+      IF vadtid = 0 THEN DO:
+      /*multitid lista*/
+         FIND FIRST ANVANDARE WHERE ANVANDARE.PERSONALKOD = PERSONALTAB.PERSONALKOD NO-LOCK NO-ERROR.
+         FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = ANVANDARE.ANVANDARE AND TIDSEK.PERSONALKOD = persandras AND TIDSEK.PANDRA = TRUE NO-LOCK NO-ERROR. /* Personen som ändras på  */
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+
+         IF AVAILABLE ANVANDARE THEN DO: 
+            IF ANVANDARE.AV-LEVEL NE 0 THEN DO:
+               IF AVAILABLE TIDSEK THEN DO:
+                  CREATE perstemp.
+                  ASSIGN 
+                  perstemp.TYP = "MULTITID"
+                  perstemp.PERSONALKOD = PERSONALTAB.PERSONALKOD
+                  perstemp.FORNAMN = PERSONALTAB.FORNAMN
+                  perstemp.EFTERNAMN = PERSONALTAB.EFTERNAMN
+                  perstemp.ANVANDARE = ANVANDARE.ANVANDARE
+                  perstemp.AKTIV = PERSONALTAB.AKTIV
+                  perstemp.KATEGORI = ANVANDARE.KATEGORI.
+                  IF AVAILABLE OMRADETAB THEN DO:
+                     ASSIGN   
+                     perstemp.OMRADE = OMRADETAB.NAMN                  
+                     perstemp.OMRADENUM = OMRADETAB.OMRADE.
+                  END.
+                  Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+               END.
+               ELSE DO:
+                  CREATE tidstemp.
+                  ASSIGN 
+                  tidstemp.TYP = "MULTITID"
+                  tidstemp.PERSONALKOD = PERSONALTAB.PERSONALKOD
+                  tidstemp.FORNAMN = PERSONALTAB.FORNAMN
+                  tidstemp.EFTERNAMN = PERSONALTAB.EFTERNAMN
+                  tidstemp.ANVANDARE = ANVANDARE.ANVANDARE
+                  tidstemp.AKTIV = PERSONALTAB.AKTIV
+                  tidstemp.KATEGORI = ANVANDARE.KATEGORI.
+                  IF AVAILABLE OMRADETAB THEN DO:
+                     ASSIGN
+                     tidstemp.OMRADE = OMRADETAB.NAMN                        
+                     tidstemp.OMRADENUM = OMRADETAB.OMRADE.
+                  END.   
+                  Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+               END.
+            END.
+         END.         
+      END.
+      FIND FIRST PERSEK WHERE PERSEK.ANVANDARE = vem AND
+      PERSEK.PERSONALKOD = PERSONALTAB.PERSONALKOD USE-INDEX PERSEK NO-LOCK NO-ERROR.
+      FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+      FIND FIRST ANVANDARE WHERE ANVANDARE.PERSONALKOD = PERSONALTAB.PERSONALKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSEK THEN DO:
+         CREATE perstemp.
+         ASSIGN 
+         perstemp.TYP = "PERS"
+         perstemp.PERSONALKOD = PERSONALTAB.PERSONALKOD
+         perstemp.FORNAMN = PERSONALTAB.FORNAMN
+         perstemp.EFTERNAMN = PERSONALTAB.EFTERNAMN
+         perstemp.AKTIV = PERSONALTAB.AKTIV.         
+         
+         IF AVAILABLE OMRADETAB THEN DO:
+            ASSIGN
+            perstemp.OMRADE = OMRADETAB.NAMN 
+            perstemp.OMRADENUM = OMRADETAB.OMRADE.
+         END.
+         IF AVAILABLE ANVANDARE THEN DO:
+            ASSIGN
+            perstemp.ANVANDARE = ANVANDARE.ANVANDARE
+            perstemp.KATEGORI = ANVANDARE.KATEGORI.
+         END.
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.  
+
+      END.
+      ELSE DO:
+         CREATE tidstemp.
+         ASSIGN 
+         tidstemp.TYP = "PERS"
+         tidstemp.PERSONALKOD = PERSONALTAB.PERSONALKOD
+         tidstemp.FORNAMN = PERSONALTAB.FORNAMN
+         tidstemp.EFTERNAMN = PERSONALTAB.EFTERNAMN
+         tidstemp.AKTIV = PERSONALTAB.AKTIV.         
+         IF AVAILABLE OMRADETAB THEN DO:
+            ASSIGN
+            tidstemp.OMRADE = OMRADETAB.NAMN 
+            tidstemp.OMRADENUM = OMRADETAB.OMRADE.
+         END.
+         IF AVAILABLE ANVANDARE THEN DO:
+            ASSIGN
+            tidstemp.ANVANDARE = ANVANDARE.ANVANDARE
+            tidstemp.KATEGORI = ANVANDARE.KATEGORI.
+         END.
+         Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+      END.
+      IF vadtid = 0 THEN DO: 
+         FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = vem AND
+         TIDSEK.PERSONALKOD = PERSONALTAB.PERSONALKOD USE-INDEX TIDSEK NO-LOCK NO-ERROR.
+         IF AVAILABLE TIDSEK THEN DO:
+            CREATE perstemp.
+            ASSIGN 
+            perstemp.TYP = "TID"
+            perstemp.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            perstemp.FORNAMN = PERSONALTAB.FORNAMN
+            perstemp.EFTERNAMN = PERSONALTAB.EFTERNAMN
+            perstemp.AKTIV = PERSONALTAB.AKTIV.            
+            IF AVAILABLE OMRADETAB THEN DO:
+               ASSIGN
+               perstemp.OMRADE = OMRADETAB.NAMN 
+               perstemp.OMRADENUM = OMRADETAB.OMRADE.
+            END.
+            IF AVAILABLE ANVANDARE THEN DO:
+               ASSIGN
+               perstemp.ANVANDARE = ANVANDARE.ANVANDARE
+               perstemp.KATEGORI = ANVANDARE.KATEGORI.
+            END.
+            Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+         END.
+         ELSE DO:
+            CREATE tidstemp.
+            ASSIGN 
+            tidstemp.TYP = "TID"
+            tidstemp.PERSONALKOD = PERSONALTAB.PERSONALKOD
+            tidstemp.FORNAMN = PERSONALTAB.FORNAMN
+            tidstemp.EFTERNAMN = PERSONALTAB.EFTERNAMN
+            tidstemp.AKTIV = PERSONALTAB.AKTIV.            
+            IF AVAILABLE OMRADETAB THEN DO:
+               ASSIGN
+               tidstemp.OMRADE = OMRADETAB.NAMN 
+               tidstemp.OMRADENUM = OMRADETAB.OMRADE.
+            END.
+            IF AVAILABLE ANVANDARE THEN DO:
+               ASSIGN
+               tidstemp.ANVANDARE = ANVANDARE.ANVANDARE
+               tidstemp.KATEGORI = ANVANDARE.KATEGORI.
+            END.
+            Guru.GlobalaVariabler:GDPRvem = Guru.GlobalaVariabler:GDPRvem + "," + PERSONALTAB.PERSONALKOD.
+         END.           
+      END.
+  
+      GET NEXT persqmulti NO-LOCK.     
+   END.
+
+   IF vadfakt >= 1 AND vadfakt < 4 THEN DO:
+      OPEN QUERY omrq FOR EACH OMRADETAB WHERE OMRADETAB.ELVOMRKOD = 0 NO-LOCK.
+      GET FIRST omrq NO-LOCK.
+      DO WHILE AVAILABLE(OMRADETAB):      
+         FIND FIRST OMRSEK WHERE OMRSEK.ANVANDARE = vem AND
+         OMRSEK.OMRADE = OMRADETAB.OMRADE
+         NO-LOCK NO-ERROR.
+         IF AVAILABLE OMRSEK THEN DO:
+            CREATE perstemp.
+            ASSIGN 
+            perstemp.TYP     = "OMR"
+            perstemp.FORNAMN = OMRADETAB.NAMN
+            perstemp.OMRADE  = OMRADETAB.OMRADE. 
+         END.
+         ELSE DO:
+            CREATE tidstemp.
+            ASSIGN 
+            tidstemp.TYP     = "OMR"
+            tidstemp.FORNAMN = OMRADETAB.NAMN
+            tidstemp.OMRADE  = OMRADETAB.OMRADE. 
+         END.         
+         GET NEXT omrq NO-LOCK.     
+      END.
+   END.
+   
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+PROCEDURE bolagsekhmt_UI :
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR bolagsektemp.
+   DEFINE OUTPUT PARAMETER TABLE FOR ebolagsektemp.
+   EMPTY TEMP-TABLE ebolagsektemp NO-ERROR. 
+   EMPTY TEMP-TABLE bolagsektemp NO-ERROR. 
+   FOR EACH BOLAGSEK WHERE BOLAGSEK.ANVANDARE = vem NO-LOCK:
+      CREATE bolagsektemp.
+      ASSIGN bolagsektemp.JUDID = BOLAGSEK.OMRADE.
+      bolagsektemp.ANVANDARE = BOLAGSEK.ANVANDARE.
+      FIND FIRST JURPERS WHERE JURPERS.JUDID = bolagsektemp.JUDID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE JURPERS THEN DELETE bolagsektemp.
+      ELSE DO:
+         bolagsektemp.NAMN = JURPERS.NAMN.
+      END.   
+   END.   
+   FOR EACH JURPERS NO-LOCK:
+      FIND FIRST bolagsektemp WHERE bolagsektemp.JUDID = JURPERS.JUDID NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE bolagsektemp THEN DO:
+         CREATE ebolagsektemp.
+         ASSIGN 
+         ebolagsektemp.JUDID = JURPERS.JUDID
+         ebolagsektemp.ANVANDARE = vem
+         ebolagsektemp.NAMN = JURPERS.NAMN.
+      END.   
+   END.   
+       
+END PROCEDURE.
+PROCEDURE sparbolag_UI :
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR bolagsektemp.
+   DO TRANSACTION:
+      FOR EACH BOLAGSEK WHERE BOLAGSEK.ANVANDARE = vem EXCLUSIVE-LOCK:
+         DELETE BOLAGSEK.
+      END.
+   END.       
+   DO TRANSACTION:
+      FOR EACH bolagsektemp:
+          CREATE BOLAGSEK.
+          BUFFER-COPY bolagsektemp TO BOLAGSEK.
+          BOLAGSEK.OMRADE = bolagsektemp.JUDID.       
+          BOLAGSEK.ANVANDARE = vem.
+      END.
+   END.
+   DO TRANSACTION:      
+      /*FÖR ATT RÄTTA EN LITEN BUG....*/
+      FOR EACH BOLAGSEK WHERE BOLAGSEK.ANVANDARE = "" EXCLUSIVE-LOCK:
+         DELETE BOLAGSEK.
+      END.
+   END.       
+   RELEASE BOLAGSEK NO-ERROR.
+END PROCEDURE.
+/*SPARARFRÅN BRW*/
+PROCEDURE sparpanv_UI :
+   /*Anders Olsson Elpool i Umeå AB  23 nov 2022 10:47:02 
+   vid ändring av kategori mm 
+   */
+   DEFINE INPUT PARAMETER TABLE FOR exanvandartemp.
+   FOR EACH exanvandartemp WHERE NO-LOCK:
+      FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = exanvandartemp.ANVANDARE EXCLUSIVE-LOCK NO-ERROR.
+      IF AVAILABLE ANVANDARE  THEN DO:
+         BUFFER-COPY exanvandartemp TO ANVANDARE. 
+         
+      END.
+   END.
+   RELEASE ANVANDARE NO-ERROR.
+END PROCEDURE.
+PROCEDURE sparpers_UI:
+   DEFINE INPUT  PARAMETER gavanv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER signatur AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER gamanv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR exanvandartemp.   
+   DEFINE INPUT PARAMETER TABLE FOR perstemp. 
+   
+   DEFINE VARIABLE anvandrar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE persandras AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE anvrow AS ROWID NO-UNDO.
+   FIND FIRST exanvandartemp NO-ERROR.
+   DEFINE VARIABLE qH       AS HANDLE    NO-UNDO.
+   DEFINE VARIABLE queryvar AS CHARACTER NO-UNDO.
+   RUN EXTRADATAHMT.P PERSISTENT SET edataapph. 
+   IF gamanv = "" THEN DO TRANSACTION:
+      gamanv = exanvandartemp.ANVANDARE.
+      FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = exanvandartemp.ANVANDARE EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE ANVANDARE THEN CREATE ANVANDARE.
+      BUFFER-COPY exanvandartemp TO ANVANDARE.
+      
+      RUN webuser_UI (INPUT exanvandartemp.ANVANDARE).
+      
+   END.
+   ELSE DO TRANSACTION:
+      FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = gamanv EXCLUSIVE-LOCK NO-ERROR.
+      IF NOT AVAILABLE ANVANDARE THEN CREATE ANVANDARE.
+      BUFFER-COPY exanvandartemp TO ANVANDARE.
+      
+      RUN webuser_UI (INPUT gamanv).    
+      
+   END.
+   
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "FAVO"                   
+   inextradatatemp.HUVUDCH = gamanv                    
+   inextradatatemp.HUVUDINT = ?.
+   
+   RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp).
+   FIND FIRST extradatatemp WHERE NO-LOCK NO-ERROR.
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR.
+   /*för nya anv sätt default värderna här*/
+   CREATE inextradatatemp.          
+   ASSIGN
+   inextradatatemp.PROGRAM = "FAVO"                   
+   inextradatatemp.HUVUDCH = gamanv
+   inextradatatemp.HUVUDINT = ?
+   /*autospar 5 min*/
+   inextradatatemp.SOKINT[1] = 5
+   /*utfärdare förvalt*/
+   inextradatatemp.SOKINT[2] = 1.    
+   IF AVAILABLE extradatatemp THEN BUFFER-COPY extradatatemp TO inextradatatemp.              
+   RUN extraspar_UI IN edataapph (INPUT TABLE inextradatatemp).
+   EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+   EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+   FIND CURRENT ANVANDARE NO-LOCK NO-ERROR.
+   /*pers bort*/
+   anvrow = ROWID(ANVANDARE).
+   OPEN QUERY persq2 FOR EACH PERSEK WHERE PERSEK.ANVANDARE = ANVANDARE.ANVANDARE
+   USE-INDEX PERSEK NO-LOCK.   
+   GET FIRST persq2 NO-LOCK.
+   DO WHILE AVAILABLE(PERSEK):
+      /*Anders Olsson Elpool i Umeå AB  23 nov 2022 10:49:37 
+      finns det bhörighet tidigare 
+      */
+      FIND FIRST perstemp WHERE perstemp.TYP = "PERS" AND perstemp.PERSONALKOD = PERSEK.PERSONALKOD 
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE perstemp THEN DO TRANSACTION:
+         GET CURRENT persq2 EXCLUSIVE-LOCK.
+         CREATE logsekregTT.
+         ASSIGN 
+         logsekregTT.ANVANDARE = PERSEK.ANVANDARE
+         logsekregTT.DATUM  = NOW 
+         logsekregTT.AVANVANDARE = gavanv
+         logsekregTT.PROGRAM = THIS-PROCEDURE:NAME 
+         logsekregTT.TYP = "PERS"
+         logsekregTT.PERSONALKOD = PERSEK.PERSONALKOD
+         logsekregTT.TILLFRAN = FALSE.
+         RUN LOGSEKREG.P (INPUT TABLE logsekregTT).
+         DELETE logsekregTT. 
+         DELETE PERSEK.            
+      END.   
+      GET NEXT persq2 NO-LOCK.
+   END.     
+   CLOSE QUERY persq2.
+   
+   /*multipers bort */
+   OPEN QUERY persq2 FOR EACH PERSEK WHERE PERSEK.PERSONALKOD = ANVANDARE.PERSONALKOD
+   USE-INDEX PERSEK NO-LOCK.   
+   GET FIRST persq2 NO-LOCK.
+   DO WHILE AVAILABLE(PERSEK):
+      FIND FIRST perstemp WHERE perstemp.TYP = "MULTIPERS" AND perstemp.ANVANDARE = PERSEK.ANVANDARE 
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE perstemp THEN DO TRANSACTION:
+         GET CURRENT persq2 EXCLUSIVE-LOCK.
+         CREATE logsekregTT.
+         ASSIGN 
+         logsekregTT.ANVANDARE = PERSEK.ANVANDARE
+         logsekregTT.DATUM  = NOW 
+         logsekregTT.AVANVANDARE = gavanv
+         logsekregTT.PROGRAM = THIS-PROCEDURE:NAME 
+         logsekregTT.TYP = "PERS"
+         logsekregTT.PERSONALKOD = PERSEK.PERSONALKOD
+         logsekregTT.TILLFRAN = FALSE.
+         RUN LOGSEKREG.P (INPUT TABLE logsekregTT).
+         DELETE logsekregTT. 
+         DELETE PERSEK.            
+      END.   
+      GET NEXT persq2 NO-LOCK.
+   END.     
+   CLOSE QUERY persq2.
+   /*pers add*/
+   FOR EACH perstemp WHERE perstemp.TYP = "PERS": /* användaren ändrar på ett antal personal */
+      DO TRANSACTION:
+         FIND FIRST PERSEK WHERE PERSEK.ANVANDARE = exanvandartemp.ANVANDARE AND 
+         PERSEK.PERSONALKOD = perstemp.PERSONALKOD EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE PERSEK THEN DO:
+            CREATE logsekregTT.
+            ASSIGN 
+            logsekregTT.ANVANDARE = exanvandartemp.ANVANDARE
+            logsekregTT.DATUM  = NOW 
+            logsekregTT.AVANVANDARE = gavanv
+            logsekregTT.PROGRAM = THIS-PROCEDURE:NAME 
+            logsekregTT.TYP = "PERS"
+            logsekregTT.PERSONALKOD = perstemp.PERSONALKOD
+            logsekregTT.TILLFRAN = TRUE.
+            RUN LOGSEKREG.P (INPUT TABLE logsekregTT).
+            DELETE logsekregTT.
+            CREATE PERSEK.
+         END.
+         ASSIGN
+         PERSEK.ANVANDARE = exanvandartemp.ANVANDARE        /*ändrare */
+         PERSEK.PERSONALKOD = perstemp.PERSONALKOD          /*ändrad */
+         PERSEK.PANDRA = TRUE.         
+      END.     
+      DELETE perstemp.
+   END.
+   /*multipers add*/
+   FOR EACH perstemp WHERE perstemp.TYP = "MULTIPERS": /* ny MULTI PERS. ett antal personal ändrar på en användare */
+     
+      DO TRANSACTION:
+         /* användare på den som ska ÄNDRA */
+         IF gamanv = perstemp.ANVANDARE THEN DO:
+            FIND ANVANDARE WHERE ROWID(ANVANDARE) = anvrow NO-LOCK NO-ERROR.
+         END.
+         ELSE DO:
+            FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = perstemp.ANVANDARE NO-LOCK NO-ERROR.
+         END.          
+         anvandrar = ANVANDARE.ANVANDARE.
+
+         FIND FIRST PERSEK WHERE PERSEK.ANVANDARE = anvandrar AND PERSEK.PERSONALKOD = signatur EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE PERSEK THEN DO:
+            
+            CREATE logsekregTT.
+            ASSIGN 
+            logsekregTT.ANVANDARE = anvandrar
+            logsekregTT.DATUM  = NOW 
+            logsekregTT.AVANVANDARE = gavanv
+            logsekregTT.PROGRAM = THIS-PROCEDURE:NAME 
+            logsekregTT.TYP = "PERS"
+            logsekregTT.PERSONALKOD = signatur
+            logsekregTT.TILLFRAN = TRUE.
+            RUN LOGSEKREG.P (INPUT TABLE logsekregTT).
+            DELETE logsekregTT.
+            CREATE PERSEK.
+         END.    
+         ASSIGN
+         PERSEK.ANVANDARE = anvandrar
+         PERSEK.PERSONALKOD = signatur
+         PERSEK.PANDRA = TRUE.         
+      END.
+      DELETE perstemp.
+   END.
+  
+   
+   /*tid bort*/
+   FIND ANVANDARE WHERE ROWID(ANVANDARE) = anvrow NO-LOCK NO-ERROR.
+   RELEASE PERSEK NO-ERROR.
+   OPEN QUERY persq3 FOR EACH TIDSEK WHERE TIDSEK.ANVANDARE = ANVANDARE.ANVANDARE
+   USE-INDEX TIDSEK NO-LOCK.   
+   GET FIRST persq3 NO-LOCK.
+   DO WHILE AVAILABLE(TIDSEK):
+      FIND FIRST perstemp WHERE perstemp.TYP = "TID" AND perstemp.PERSONALKOD = TIDSEK.PERSONALKOD 
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE perstemp THEN DO TRANSACTION:
+         GET CURRENT persq3 EXCLUSIVE-LOCK.
+         CREATE logsekregTT.
+         ASSIGN 
+         logsekregTT.ANVANDARE = TIDSEK.ANVANDARE
+         logsekregTT.DATUM  = NOW 
+         logsekregTT.AVANVANDARE =  gavanv
+         logsekregTT.PROGRAM = THIS-PROCEDURE:NAME 
+         logsekregTT.TYP = "TID"
+         logsekregTT.PERSONALKOD = TIDSEK.PERSONALKOD
+         logsekregTT.TILLFRAN = FALSE.
+         RUN LOGSEKREG.P (INPUT TABLE logsekregTT).
+         DELETE logsekregTT.     
+         DELETE TIDSEK.            
+      END.   
+      GET NEXT persq3 NO-LOCK.
+   END.     
+   CLOSE QUERY persq3.
+
+   /*multitid bort*/
+
+   OPEN QUERY persq3 FOR EACH TIDSEK WHERE TIDSEK.PERSONALKOD = ANVANDARE.PERSONALKOD
+   USE-INDEX TIDSEK NO-LOCK.   
+   GET FIRST persq3 NO-LOCK.
+   DO WHILE AVAILABLE(TIDSEK):
+      FIND FIRST perstemp WHERE perstemp.TYP = "MULTITID" AND perstemp.ANVANDARE = TIDSEK.ANVANDARE
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE perstemp THEN DO TRANSACTION:
+         GET CURRENT persq3 EXCLUSIVE-LOCK.
+         CREATE logsekregTT.
+         ASSIGN 
+         logsekregTT.ANVANDARE = TIDSEK.ANVANDARE
+         logsekregTT.DATUM  = NOW 
+         logsekregTT.AVANVANDARE =  gavanv
+         logsekregTT.PROGRAM = THIS-PROCEDURE:NAME 
+         logsekregTT.TYP = "TID"
+         logsekregTT.PERSONALKOD = TIDSEK.PERSONALKOD
+         logsekregTT.TILLFRAN = FALSE.
+         RUN LOGSEKREG.P (INPUT TABLE logsekregTT).
+         DELETE logsekregTT.   
+         DELETE TIDSEK.            
+      END.   
+      GET NEXT persq3 NO-LOCK.
+   END.     
+   CLOSE QUERY persq3.
+
+
+   /*tid add*/
+   FOR EACH perstemp WHERE perstemp.TYP = "TID":
+      DO TRANSACTION:
+         FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = exanvandartemp.ANVANDARE AND 
+         TIDSEK.PERSONALKOD = perstemp.PERSONALKOD EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE TIDSEK THEN DO:
+            CREATE logsekregTT.
+            ASSIGN 
+            logsekregTT.ANVANDARE = exanvandartemp.ANVANDARE
+            logsekregTT.DATUM  = NOW 
+            logsekregTT.AVANVANDARE = gavanv
+            logsekregTT.PROGRAM = THIS-PROCEDURE:NAME 
+            logsekregTT.TYP = "TID"
+            logsekregTT.PERSONALKOD = perstemp.PERSONALKOD
+            logsekregTT.TILLFRAN = TRUE.
+            RUN LOGSEKREG.P (INPUT TABLE logsekregTT).
+            DELETE logsekregTT.
+            CREATE TIDSEK.
+         END.   
+         ASSIGN
+         TIDSEK.ANVANDARE = exanvandartemp.ANVANDARE         
+         TIDSEK.PERSONALKOD = perstemp.PERSONALKOD
+         TIDSEK.PANDRA = TRUE.   
+      END.     
+      DELETE perstemp.
+   END.
+
+   /*multitid add*/
+   FOR EACH perstemp WHERE perstemp.TYP = "MULTITID":
+      DEFINE VARIABLE anvandrarr AS CHARACTER NO-UNDO.
+      DEFINE VARIABLE tidandras AS CHARACTER NO-UNDO.
+      DO TRANSACTION:
+         IF gamanv = perstemp.ANVANDARE THEN DO:
+            FIND ANVANDARE WHERE ROWID(ANVANDARE) = anvrow NO-LOCK NO-ERROR.
+         END.
+         ELSE DO:
+            FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = perstemp.ANVANDARE NO-LOCK NO-ERROR.
+         END.              
+         anvandrarr = ANVANDARE.ANVANDARE.
+
+         FIND FIRST TIDSEK WHERE TIDSEK.ANVANDARE = anvandrarr AND TIDSEK.PERSONALKOD = signatur EXCLUSIVE-LOCK NO-ERROR.
+         
+         IF NOT AVAILABLE TIDSEK THEN DO:
+            CREATE logsekregTT.
+            ASSIGN 
+            logsekregTT.ANVANDARE = anvandrarr
+            logsekregTT.DATUM  = NOW 
+            logsekregTT.AVANVANDARE = gavanv
+            logsekregTT.PROGRAM = THIS-PROCEDURE:NAME 
+            logsekregTT.TYP = "TID"
+            logsekregTT.PERSONALKOD = signatur
+            logsekregTT.TILLFRAN = TRUE.
+            RUN LOGSEKREG.P (INPUT TABLE logsekregTT).
+            DELETE logsekregTT.
+            CREATE TIDSEK.
+         END.   
+         ASSIGN
+         TIDSEK.ANVANDARE = anvandrarr         
+         TIDSEK.PERSONALKOD = signatur
+         TIDSEK.PANDRA = TRUE.   
+      END.     
+      DELETE perstemp.
+   END.
+  
+   
+   /* slut pers/tid */
+
+   FIND ANVANDARE WHERE ROWID(ANVANDARE) = anvrow NO-LOCK NO-ERROR.
+   RELEASE TIDSEK   NO-ERROR.
+   OPEN QUERY omrk FOR EACH OMRSEK WHERE OMRSEK.ANVANDARE = ANVANDARE.ANVANDARE
+   NO-LOCK.   
+   GET FIRST omrk NO-LOCK.
+   DO WHILE AVAILABLE(OMRSEK):
+      FIND FIRST perstemp WHERE perstemp.TYP = "OMR" AND perstemp.OMRADE = OMRSEK.OMRADE 
+      NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE perstemp THEN DO TRANSACTION:
+         GET CURRENT omrk EXCLUSIVE-LOCK.
+         DELETE OMRSEK.            
+      END.   
+      GET NEXT omrk NO-LOCK.
+   END.     
+   CLOSE QUERY omrk.
+   FOR EACH perstemp WHERE perstemp.TYP = "OMR":
+      DO TRANSACTION:
+         FIND FIRST OMRSEK WHERE OMRSEK.ANVANDARE = exanvandartemp.ANVANDARE AND 
+         OMRSEK.OMRADE = perstemp.OMRADE EXCLUSIVE-LOCK NO-ERROR.
+         IF NOT AVAILABLE OMRSEK THEN CREATE OMRSEK.
+         ASSIGN
+         OMRSEK.ANVANDARE = exanvandartemp.ANVANDARE         
+         OMRSEK.OMRADE = perstemp.OMRADE
+         OMRSEK.PANDRA = TRUE.   
+      END.     
+      DELETE perstemp.
+   END.
+   RELEASE OMRSEK NO-ERROR.
+   RELEASE PERSEK NO-ERROR.
+   RELEASE TIDSEK NO-ERROR.
+   FIND ANVANDARE WHERE ROWID(ANVANDARE) = anvrow NO-LOCK NO-ERROR.
+   IF gamanv NE ANVANDARE.ANVANDARE THEN DO:    
+      RUN BYTANV.P (INPUT gamanv, INPUT ANVANDARE.ANVANDARE, INPUT gavanv).   
+      RUN bytwebuser_UI (INPUT gamanv, INPUT ANVANDARE.ANVANDARE). 
+      RUN bytanvegen_UI (INPUT gamanv, INPUT ANVANDARE.ANVANDARE).  
+      RUN restBytUser_UI IN restuserh(INPUT ANVANDARE.PERSONALKOD,INPUT gamanv, OUTPUT TABLE felmeddtemp).                 
+   END.
+   RUN restBytLosenord_UI IN restuserh(INPUT ANVANDARE.PERSONALKOD,INPUT ANVANDARE.AV-LOSEN, OUTPUT TABLE felmeddtemp).
+   
+   IF VALID-HANDLE(edataapph) THEN DELETE PROCEDURE edataapph. 
+   edataapph = ?. 
+   IF VALID-HANDLE(webusertabh) THEN webusertabh:BUFFER-RELEASE() NO-ERROR.
+   IF VALID-HANDLE(webuserdateh) THEN webuserdateh:BUFFER-RELEASE() NO-ERROR.
+   
+   
+   RELEASE ANVANDARE NO-ERROR.
+END PROCEDURE.
+
+PROCEDURE webuser_UI :
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   IF webuserlog = FALSE THEN RETURN.
+   IF NOT VALID-HANDLE(webusertabh) THEN RUN userbuff_UI.
+   
+   webusertabh:FIND-FIRST("WHERE ANVANDARE = '" + vem + "'", NO-LOCK) NO-ERROR.
+   IF webusertabh:AVAILABLE THEN DO:
+   END.
+   ELSE DO TRANSACTION:      
+      webusertabh:BUFFER-CREATE().      
+      webusertabh:BUFFER-FIELD("ANVANDARE"):BUFFER-VALUE = vem.
+   END.
+   webuserdateh:FIND-FIRST("WHERE IDUSER = '" + vem + "' AND APPID = 'GURU'",NO-LOCK) NO-ERROR.
+   IF webuserdateh:AVAILABLE THEN DO:
+   END.
+   ELSE DO TRANSACTION:      
+      webuserdateh:BUFFER-CREATE().      
+      webuserdateh:BUFFER-FIELD("IDUSER"):BUFFER-VALUE = vem.
+      webuserdateh:BUFFER-FIELD("APPID"):BUFFER-VALUE = "GURU".
+      webuserdateh:BUFFER-FIELD("STDATE"):BUFFER-VALUE = TODAY.
+      webuserdateh:BUFFER-FIELD("EXDATE"):BUFFER-VALUE = ?.
+      webuserdateh:BUFFER-FIELD("FORETAG"):BUFFER-VALUE = Guru.Konstanter:globforetag.
+   END.
+END PROCEDURE.
+PROCEDURE bytwebuser_UI :
+   DEFINE INPUT PARAMETER gvem AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE qH       AS HANDLE    NO-UNDO.
+   DEFINE VARIABLE queryvar AS CHARACTER NO-UNDO.
+   IF webuserlog = FALSE THEN RETURN.
+   queryvar = "FOR EACH " + "WEBUSERTAB" + " WHERE ANVANDARE = '" + gvem + "' NO-LOCK".
+   RUN CreateCustomQuery(INPUT webusertabh,INPUT queryvar,OUTPUT qh).
+   qH:GET-FIRST(NO-LOCK).
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      DO TRANSACTION:
+         qH:GET-CURRENT(EXCLUSIVE-LOCK).
+         webusertabh:BUFFER-FIELD("ANVANDARE"):BUFFER-VALUE = vem. 
+      END. 
+      qH:GET-NEXT(NO-LOCK).
+   END.
+   RUN CloseCustomQuery(INPUT qH).
+   queryvar = "FOR EACH " + "WEBUSERDATE" + " WHERE IDUSER = '" + gvem + "' NO-LOCK".
+   RUN CreateCustomQuery(INPUT webuserdateh,INPUT queryvar,OUTPUT qh).
+   qH:GET-FIRST(NO-LOCK).
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      DO TRANSACTION:
+         qH:GET-CURRENT(EXCLUSIVE-LOCK).
+         webuserdateh:BUFFER-FIELD("IDUSER"):BUFFER-VALUE = vem.
+      END.
+      qH:GET-NEXT(NO-LOCK).
+   END.
+   RUN CloseCustomQuery(INPUT qH).
+  
+END PROCEDURE.
+
+PROCEDURE bytanvegen_UI :
+   DEFINE INPUT PARAMETER gvem AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE qH       AS HANDLE    NO-UNDO.
+   DEFINE VARIABLE queryvar AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE anvegentabh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE anvegentabsubh AS HANDLE NO-UNDO.
+   DEFINE VARIABLE anvegenlog AS LOGICAL NO-UNDO.
+   RUN FINNSTABELL.P (INPUT "KALKNUMANVEGEN", OUTPUT anvegenlog).
+   IF anvegenlog = TRUE THEN DO: 
+      CREATE BUFFER anvegentabh FOR TABLE "KALKNUMANVEGEN" IN WIDGET-POOL "DynTableANV".
+      CREATE BUFFER anvegentabsubh FOR TABLE "KALKNUMANVEGENSUB" IN WIDGET-POOL "DynTableANV".
+   END.
+   IF anvegenlog = FALSE THEN RETURN.
+   queryvar = "FOR EACH " + "KALKNUMANVEGEN" + " WHERE ANVANDARE = '" + gvem + "' NO-LOCK".
+   RUN CreateCustomQuery(INPUT anvegentabh,INPUT queryvar,OUTPUT qh).
+   qH:GET-FIRST(NO-LOCK).
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      DO TRANSACTION:
+         qH:GET-CURRENT(EXCLUSIVE-LOCK).
+         anvegentabh:BUFFER-FIELD("ANVANDARE"):BUFFER-VALUE = vem. 
+      END. 
+      qH:GET-NEXT(NO-LOCK).
+   END.
+   RUN CloseCustomQuery(INPUT qH).
+   queryvar = "FOR EACH " + "KALKNUMANVEGENSUB" + " WHERE ANVANDARE = '" + gvem + "' NO-LOCK".
+   RUN CreateCustomQuery(INPUT anvegentabsubh,INPUT queryvar,OUTPUT qh).
+   qH:GET-FIRST(NO-LOCK).
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      DO TRANSACTION:
+         qH:GET-CURRENT(EXCLUSIVE-LOCK).
+         anvegentabsubh:BUFFER-FIELD("ANVANDARE"):BUFFER-VALUE = vem.
+      END.
+      qH:GET-NEXT(NO-LOCK).
+   END.
+   RUN CloseCustomQuery(INPUT qH).
+   DELETE OBJECT anvegentabh NO-ERROR.
+   anvegentabh = ?.
+   DELETE OBJECT anvegentabsubh NO-ERROR.
+   anvegentabsubh = ?.
+END PROCEDURE.
+PROCEDURE bortwebuser_UI :
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE VARIABLE qH       AS HANDLE    NO-UNDO.
+   DEFINE VARIABLE queryvar AS CHARACTER NO-UNDO.
+   IF webuserlog = FALSE THEN RETURN.
+   queryvar = "FOR EACH " + "WEBUSERTAB" + " WHERE ANVANDARE = '" + vem + "' NO-LOCK".
+   RUN CreateCustomQuery(INPUT webusertabh,INPUT queryvar,OUTPUT qh).
+   qH:GET-FIRST(NO-LOCK).
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      DO TRANSACTION:
+         qH:GET-CURRENT(EXCLUSIVE-LOCK).
+         webusertabh:BUFFER-DELETE().
+      END.
+      qH:GET-NEXT(NO-LOCK).
+   END.
+   RUN CloseCustomQuery(INPUT qH).
+   queryvar = "FOR EACH " + "WEBUSERDATE" + " WHERE IDUSER = '" + vem + "' NO-LOCK".
+   RUN CreateCustomQuery(INPUT webuserdateh,INPUT queryvar,OUTPUT qh).
+   qH:GET-FIRST(NO-LOCK).
+   DO WHILE qH:QUERY-OFF-END = FALSE:
+      DO TRANSACTION:
+         qH:GET-CURRENT(EXCLUSIVE-LOCK).
+         webuserdateh:BUFFER-DELETE().
+      END.
+      
+      qH:GET-NEXT(NO-LOCK).
+   END.
+   RUN CloseCustomQuery(INPUT qH).
+/*
+   RESTUSERS.p ta bort
+  */ 
+  
+   
+END PROCEDURE.
+
+PROCEDURE CreateCustomQuery:
+   DEFINE INPUT PARAMETER tth  AS HANDLE NO-UNDO.
+   DEFINE INPUT PARAMETER q AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CREATE QUERY CustomQueryh IN WIDGET-POOL "DynTableANV".
+   CustomQueryh:SET-BUFFERS(tth).
+   CustomQueryh:QUERY-PREPARE(q).
+   CustomQueryh:QUERY-OPEN().
+END PROCEDURE.
+PROCEDURE CloseCustomQuery:
+   DEFINE INPUT PARAMETER CustomQueryh AS HANDLE NO-UNDO.
+   CustomQueryh:QUERY-CLOSE() NO-ERROR.
+   DELETE OBJECT CustomQueryh NO-ERROR.
+   CustomQueryh = ?.
+END PROCEDURE.
+PROCEDURE allxguru_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR xgurutemp.   
+   EMPTY TEMP-TABLE xgurutemp NO-ERROR. 
+   FIND FIRST XGURU WHERE XGURU.MENYVART = 'GURU' AND XGURU.AV-LEVEL NE 0 NO-LOCK NO-ERROR.   
+   gord = XGURU.ORDNING.
+   ASSIGN
+   nytab      = "xgurutemp"
+   orginaltab = "XGURU".
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE XGURU.MENYVART = 'GURU' AND XGURU.AV-LEVEL NE 0 AND XGURU.ORDNING = " + STRING(gord) + " NO-LOCK".   
+      /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE xgurutemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.
+END PROCEDURE.
+PROCEDURE allapers_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR personaltemp.   
+   EMPTY TEMP-TABLE personaltemp NO-ERROR.    
+   ASSIGN
+   nytab      = "personaltemp"
+   orginaltab = "PERSONALTAB".
+   kommandoquery = "FOR EACH " +  orginaltab + " NO-LOCK".   
+      /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE personaltemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.
+END PROCEDURE.
+
+PROCEDURE hamta_UI:
+   DEFINE INPUT PARAMETER ejnoll AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR anvandartemp.   
+   EMPTY TEMP-TABLE anvandartemp NO-ERROR.    
+   ASSIGN
+   nytab      = "anvandartemp"
+   orginaltab = "ANVANDARE"
+   kommandoquery = " ANVANDARE.AV-LEVEL NE 0".
+   IF ejnoll = TRUE THEN DO:
+      kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".   
+   END.
+   ELSE kommandoquery = "FOR EACH " +  orginaltab + " NO-LOCK".   
+      /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE anvandartemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.
+   RUN anvomr_UI.
+   {GDPRLOGGCLIENT.I}
+END PROCEDURE.
+
+PROCEDURE anvomr_UI :
+   FOR EACH anvandartemp,
+   EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = anvandartemp.PERSONALKOD NO-LOCK:
+      anvandartemp.OMRADE = PERSONALTAB.OMRADE.       
+   END.
+
+END PROCEDURE.
+PROCEDURE omrhamtaanv_UI:
+   DEFINE INPUT PARAMETER anv AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR omrtempsek.   
+   EMPTY TEMP-TABLE omrtempsek NO-ERROR. 
+   /*BUGG när man gick in på en användare DELETADES alla OFFERT som hade projekt,
+   dvs när man hade varit inne på ett projekt och lagt till användare.
+   Lösning = lade till AND OFFERT.AONR = ""   Lena 20170704*/
+   FOR EACH OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = anv AND OFFERT.AONR = "" NO-LOCK:
+      CREATE omrtempsek.
+      ASSIGN
+      omrtempsek.OMRADE = OFFERT.OMRADE.
+   END.
+   FOR EACH omrtempsek,
+   EACH OMRADETAB WHERE OMRADETAB.OMRADE = omrtempsek.OMRADE NO-LOCK:
+      omrtempsek.NAMN = OMRADETAB.NAMN.
+   END.
+   FOR EACH omrtempsek WHERE omrtempsek.NAMN = "":
+      FOR EACH OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = anv AND OFFERT.AONR = "" EXCLUSIVE-LOCK:
+         DELETE OFFERT.
+      END.
+      DELETE omrtempsek.
+   END.
+END PROCEDURE.
+PROCEDURE omrsparhamtaanv_UI:
+   DEFINE INPUT PARAMETER anv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR omrtempsek.   
+   /*BUGG när man gick in på en användare DELETADES alla OFFERT som hade projekt,
+   dvs när man hade varit inne på ett projekt och lagt till användare.
+   Lösning = lade till AND OFFERT.AONR = ""   Lena 20170704*/
+   OPEN QUERY omrq FOR EACH OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = anv AND OFFERT.AONR = "" NO-LOCK.
+   GET FIRST omrq NO-LOCK.
+   DO WHILE AVAILABLE(OFFERT):
+      FIND FIRST omrtempsek WHERE omrtempsek.OMRADE  = OFFERT.OMRADE NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE omrtempsek THEN DO TRANSACTION:
+         GET CURRENT omrq EXCLUSIVE-LOCK.
+         DELETE OFFERT.
+      END.
+      ELSE DELETE omrtempsek.
+      GET NEXT omrq NO-LOCK.
+   END.
+   FOR EACH omrtempsek:
+      FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = anv AND OFFERT.OMRADE = omrtempsek.OMRADE AND OFFERT.AONR = "" NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE OFFERT THEN DO TRANSACTION:
+         CREATE OFFERT.
+         ASSIGN
+         OFFERT.OFFNR = 1
+         OFFERT.AONR = ""
+         OFFERT.OMRADE = omrtempsek.OMRADE
+         OFFERT.OFFANV = anv.
+      END.
+   END.
+   RELEASE OFFERT NO-ERROR.
+END PROCEDURE.
+PROCEDURE omrhamta_UI:
+   DEFINE INPUT PARAMETER omrvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR omranvandartemp.   
+   /*BUGG när man gick in på en användare DELETADES alla OFFERT som hade projekt,
+   dvs när man hade varit inne på ett projekt och lagt till användare.
+   Lösning = lade till AND OFFERT.AONR = ""   Lena 20170704*/
+   EMPTY TEMP-TABLE omranvandartemp NO-ERROR. 
+   FOR EACH OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OMRADE = omrvar AND OFFERT.AONR = "" NO-LOCK:
+      CREATE omranvandartemp.
+      ASSIGN
+      omranvandartemp.ANVANDARE = OFFERT.OFFANV.
+   END.
+   FOR EACH omranvandartemp,
+   EACH ANVANDARE WHERE ANVANDARE.ANVANDARE = omranvandartemp.ANVANDARE NO-LOCK:
+      BUFFER-COPY ANVANDARE TO omranvandartemp.
+   END.
+   FOR EACH omranvandartemp WHERE omranvandartemp.AV-NAMN = "":
+      FOR EACH OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = omranvandartemp.ANVANDARE AND OFFERT.AONR = "" EXCLUSIVE-LOCK:
+         DELETE OFFERT.
+      END.
+      DELETE omranvandartemp.
+   END.
+END PROCEDURE.
+
+PROCEDURE omrsparhamta_UI:
+   DEFINE INPUT PARAMETER omrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR omranvandartemp.   
+   OPEN QUERY omrq FOR EACH OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OMRADE = omrvar NO-LOCK.
+   GET FIRST omrq NO-LOCK.
+   DO WHILE AVAILABLE(OFFERT):
+      FIND FIRST omranvandartemp WHERE omranvandartemp.ANVANDARE = OFFERT.OFFANV NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE omranvandartemp THEN DO TRANSACTION:
+         GET CURRENT omrq EXCLUSIVE-LOCK.
+         DELETE OFFERT.
+      END.
+      ELSE DELETE omranvandartemp.
+      GET NEXT omrq NO-LOCK.
+   END.
+   FOR EACH omranvandartemp:
+      FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = omranvandartemp.ANVANDARE AND OFFERT.OMRADE = omrvar NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE OFFERT THEN DO TRANSACTION:
+         CREATE OFFERT.
+         ASSIGN
+         OFFERT.OFFNR = 1
+         OFFERT.AONR = ""
+         OFFERT.OMRADE = omrvar
+         OFFERT.OFFANV = omranvandartemp.ANVANDARE.
+      END.
+   END.
+   RELEASE OFFERT NO-ERROR.
+END PROCEDURE.
+PROCEDURE aonrbehorig_UI :
+     DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+     DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+     DEFINE INPUT PARAMETER delnvar AS INTEGER NO-UNDO.
+     FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = ganv AND OFFERT.AONR = aonrvar AND OFFERT.DELNR = delnvar  NO-LOCK NO-ERROR.
+     IF AVAILABLE OFFERT THEN RETURN.
+     ELSE DO TRANSACTION:
+         CREATE OFFERT.
+         ASSIGN
+         OFFERT.OFFNR = 1
+         OFFERT.AONR = aonrvar 
+         OFFERT.DELNR = delnvar
+         OFFERT.OFFANV = ganv.
+      END.  
+      RELEASE OFFERT NO-ERROR.   
+END PROCEDURE.
+PROCEDURE omrperskoll_UI :
+   DEFINE INPUT PARAMETER ganv AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER omrvar AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER okvar AS LOGICAL NO-UNDO.
+   FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = ganv AND OFFERT.OMRADE = omrvar AND OFFERT.AONR = ""
+   NO-LOCK NO-ERROR.
+   IF AVAILABLE OFFERT THEN okvar = TRUE.
+   ELSE okvar = FALSE.
+
+END PROCEDURE.
+
+
+PROCEDURE omrhamtaao_UI:
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnvar AS INTEGER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR omranvandartemp.   
+   EMPTY TEMP-TABLE omranvandartemp NO-ERROR. 
+   FOR EACH OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.AONR = aonrvar AND OFFERT.DELNR = delnvar NO-LOCK:
+      CREATE omranvandartemp.
+      ASSIGN
+      omranvandartemp.ANVANDARE = OFFERT.OFFANV.
+   END.
+   FOR EACH omranvandartemp,
+   EACH ANVANDARE WHERE ANVANDARE.ANVANDARE = omranvandartemp.ANVANDARE NO-LOCK:
+      BUFFER-COPY ANVANDARE TO omranvandartemp.
+   END.
+   FOR EACH omranvandartemp WHERE omranvandartemp.AV-NAMN = "":
+      FOR EACH OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = omranvandartemp.ANVANDARE EXCLUSIVE-LOCK:
+         DELETE OFFERT.
+      END.
+      DELETE omranvandartemp.
+   END.
+END PROCEDURE.
+
+PROCEDURE omrsparhamtaao_UI:
+   DEFINE INPUT PARAMETER aonrvar AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER delnvar AS INTEGER NO-UNDO.
+   DEFINE INPUT PARAMETER TABLE FOR omranvandartemp.   
+   OPEN QUERY omrq FOR EACH OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.AONR = aonrvar AND OFFERT.DELNR = delnvar NO-LOCK.
+   GET FIRST omrq NO-LOCK.
+   DO WHILE AVAILABLE(OFFERT):
+      FIND FIRST omranvandartemp WHERE omranvandartemp.ANVANDARE = OFFERT.OFFANV NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE omranvandartemp THEN DO TRANSACTION:
+         GET CURRENT omrq EXCLUSIVE-LOCK.
+         DELETE OFFERT.
+      END.
+      ELSE DELETE omranvandartemp.
+      GET NEXT omrq NO-LOCK.
+   END.
+   FOR EACH omranvandartemp:
+      FIND FIRST OFFERT WHERE OFFERT.OFFNR = 1 AND OFFERT.OFFANV = omranvandartemp.ANVANDARE AND OFFERT.AONR = aonrvar AND OFFERT.DELNR = delnvar NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE OFFERT THEN DO TRANSACTION:
+         CREATE OFFERT.
+         ASSIGN
+         OFFERT.OFFNR = 1
+         OFFERT.AONR = aonrvar 
+         OFFERT.DELNR = delnvar
+         OFFERT.OFFANV = omranvandartemp.ANVANDARE.
+      END.
+   END.
+   RELEASE OFFERT NO-ERROR.
+END PROCEDURE.
+
+
+
+PROCEDURE kollanvpkod_UI :
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER ejnoll AS LOGICAL NO-UNDO.
+   ejnoll = FALSE.
+   FIND FIRST ANVANDARE WHERE ANVANDARE.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+   IF AVAILABLE ANVANDARE THEN DO:
+      IF ANVANDARE.ANVANDARE = vem THEN DO:
+         FIND NEXT ANVANDARE WHERE ANVANDARE.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+         IF AVAILABLE ANVANDARE THEN ejnoll = TRUE.
+      END.
+      ELSE ejnoll = TRUE.
+   END.
+END PROCEDURE.
+PROCEDURE hamtaenanv_UI:
+   DEFINE INPUT PARAMETER pkod AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER ejnoll AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR anvandartemp.   
+   vem = "".
+   EMPTY TEMP-TABLE anvandartemp NO-ERROR.    
+   ASSIGN
+   nytab      = "anvandartemp"
+   orginaltab = "ANVANDARE".
+   kommandoquery = "ANVANDARE.PERSONALKOD = " + '"' + pkod + '"'.
+   IF ejnoll = TRUE THEN DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + " ANVANDARE.AV-LEVEL NE 0".
+      kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".   
+   END.
+   ELSE kommandoquery = "FOR EACH " +  orginaltab + " NO-LOCK".   
+      /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE anvandartemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.
+   FIND FIRST anvandartemp WHERE anvandartemp.PERSONALKOD = pkod NO-LOCK NO-ERROR.
+   IF AVAILABLE anvandartemp THEN vem = anvandartemp.ANVANDARE.
+   RUN anvomr_UI.
+END PROCEDURE.
+PROCEDURE hamtaenSupport_UI:
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR anvandartemp.   
+   EMPTY TEMP-TABLE anvandartemp NO-ERROR.    
+   ASSIGN
+   nytab      = "anvandartemp"
+   orginaltab = "ANVANDARE".
+   kommandoquery = "ANVANDARE.ANVANDARE = " + '"' + vem + '"'.
+   kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".   
+   ASSIGN extratemptabh = TEMP-TABLE anvandartemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.
+   
+END PROCEDURE.
+
+PROCEDURE hamtaen_UI:
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE INPUT PARAMETER ejnoll AS LOGICAL NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR anvandartemp.   
+   EMPTY TEMP-TABLE anvandartemp NO-ERROR.    
+   ASSIGN
+   nytab      = "anvandartemp"
+   orginaltab = "ANVANDARE".
+   kommandoquery = "ANVANDARE.ANVANDARE = " + '"' + vem + '"'.
+   IF ejnoll = TRUE THEN DO:
+      RUN and_UI.
+      kommandoquery = kommandoquery + " ANVANDARE.AV-LEVEL NE 0".
+      kommandoquery = "FOR EACH " +  orginaltab + " WHERE " + kommandoquery + " NO-LOCK".   
+   END.
+   ELSE kommandoquery = "FOR EACH " +  orginaltab + " NO-LOCK".   
+      /*BUGG 9.1c FIX*/
+   ASSIGN extratemptabh = TEMP-TABLE anvandartemp:DEFAULT-BUFFER-HANDLE.
+   RUN dynquery_UI (INPUT FALSE,INPUT FALSE).   
+   RUN objdelete_UI.
+   RUN anvomr_UI.
+END PROCEDURE.
+PROCEDURE bort_UI:
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE INPUT  PARAMETER gavanv AS CHARACTER NO-UNDO.
+   FIND FIRST ANVANDARE WHERE ANVANDARE.ANVANDARE = vem NO-LOCK NO-ERROR.
+   DEFINE QUERY persekq FOR PERSEK.
+   OPEN QUERY persekq FOR EACH PERSEK WHERE PERSEK.ANVANDARE = ANVANDARE.ANVANDARE
+   USE-INDEX PERSEK NO-LOCK. 
+   DO TRANSACTION:       
+      GET FIRST persekq EXCLUSIVE-LOCK.
+      IF AVAILABLE PERSEK THEN DO:
+         CREATE logsekregTT.
+         ASSIGN 
+         logsekregTT.ANVANDARE = PERSEK.ANVANDARE
+         logsekregTT.DATUM  = NOW 
+         logsekregTT.AVANVANDARE = gavanv
+         logsekregTT.PROGRAM = THIS-PROCEDURE:NAME 
+         logsekregTT.TYP = "PERS"
+         logsekregTT.PERSONALKOD = PERSEK.PERSONALKOD
+         logsekregTT.TILLFRAN = FALSE.
+         RUN LOGSEKREG.P (INPUT TABLE logsekregTT).
+         DELETE logsekregTT. 
+         DELETE PERSEK.
+      END.       
+   END.
+   REPEAT:  
+      DO TRANSACTION:
+         GET NEXT persekq EXCLUSIVE-LOCK.
+         IF AVAILABLE PERSEK THEN DO:
+            CREATE logsekregTT.
+            ASSIGN 
+            logsekregTT.ANVANDARE = PERSEK.ANVANDARE
+            logsekregTT.DATUM  = NOW 
+            logsekregTT.AVANVANDARE = gavanv
+            logsekregTT.PROGRAM = THIS-PROCEDURE:NAME 
+            logsekregTT.TYP = "PERS"
+            logsekregTT.PERSONALKOD = PERSEK.PERSONALKOD
+            logsekregTT.TILLFRAN = FALSE.
+            RUN LOGSEKREG.P (INPUT TABLE logsekregTT).
+            DELETE logsekregTT. 
+            DELETE PERSEK.
+            DELETE PERSEK.
+         END.       
+         ELSE LEAVE.      
+      END.         
+   END.   
+   DEFINE QUERY tidsekq FOR TIDSEK.
+   OPEN QUERY tidsekq FOR EACH TIDSEK WHERE TIDSEK.ANVANDARE = ANVANDARE.ANVANDARE
+   USE-INDEX TIDSEK NO-LOCK. 
+   DO TRANSACTION:       
+      GET FIRST tidsekq EXCLUSIVE-LOCK.
+      IF AVAILABLE TIDSEK THEN DO:
+         CREATE logsekregTT.
+         ASSIGN 
+         logsekregTT.ANVANDARE = TIDSEK.ANVANDARE
+         logsekregTT.DATUM  = NOW 
+         logsekregTT.AVANVANDARE =  gavanv
+         logsekregTT.PROGRAM = THIS-PROCEDURE:NAME 
+         logsekregTT.TYP = "TID"
+         logsekregTT.PERSONALKOD = TIDSEK.PERSONALKOD
+         logsekregTT.TILLFRAN = FALSE.
+         RUN LOGSEKREG.P (INPUT TABLE logsekregTT).
+         DELETE logsekregTT.   
+         DELETE TIDSEK.
+      END.       
+   END.
+   REPEAT:  
+      DO TRANSACTION:
+         GET NEXT tidsekq EXCLUSIVE-LOCK.         
+         IF AVAILABLE TIDSEK THEN DO:
+            CREATE logsekregTT.
+            ASSIGN 
+            logsekregTT.ANVANDARE = TIDSEK.ANVANDARE
+            logsekregTT.DATUM  = NOW 
+            logsekregTT.AVANVANDARE =  gavanv
+            logsekregTT.PROGRAM = THIS-PROCEDURE:NAME 
+            logsekregTT.TYP = "TID"
+            logsekregTT.PERSONALKOD = TIDSEK.PERSONALKOD
+            logsekregTT.TILLFRAN = FALSE.
+            RUN LOGSEKREG.P (INPUT TABLE logsekregTT).
+            DELETE logsekregTT. 
+            DELETE TIDSEK.
+         END.       
+         ELSE LEAVE.      
+      END.         
+   END.
+   OPEN QUERY omrsekq FOR EACH OMRSEK WHERE OMRSEK.ANVANDARE = ANVANDARE.ANVANDARE
+   NO-LOCK. 
+   DO TRANSACTION:       
+      GET FIRST omrsekq EXCLUSIVE-LOCK.
+      IF AVAILABLE OMRSEK THEN DELETE OMRSEK.    
+   END.
+   REPEAT:  
+      DO TRANSACTION:
+         GET NEXT omrsekq EXCLUSIVE-LOCK.         
+         IF AVAILABLE OMRSEK THEN DELETE OMRSEK.    
+         ELSE LEAVE.      
+      END.         
+   END.
+   OPEN QUERY bsekq FOR EACH BOLAGSEK WHERE BOLAGSEK.ANVANDARE = ANVANDARE.ANVANDARE
+   NO-LOCK. 
+   DO TRANSACTION:       
+      GET FIRST bsekq EXCLUSIVE-LOCK.
+      IF AVAILABLE BOLAGSEK THEN DELETE BOLAGSEK.    
+   END.
+   REPEAT:  
+      DO TRANSACTION:
+         GET NEXT bsekq EXCLUSIVE-LOCK.         
+         IF AVAILABLE BOLAGSEK THEN DELETE BOLAGSEK.    
+         ELSE LEAVE.      
+      END.         
+   END.    
+   OPEN QUERY sanvq FOR EACH ANVAOTAB WHERE ANVAOTAB.ANVANDARE BEGINS ANVANDARE.ANVANDARE NO-LOCK.
+   GET FIRST sanvq NO-LOCK.
+   DO WHILE AVAILABLE(ANVAOTAB): 
+      DO TRANSACTION:
+         GET CURRENT sanvq EXCLUSIVE-LOCK.
+         DELETE ANVAOTAB.
+      END.      
+      GET NEXT sanvq NO-LOCK.
+   END.
+   FOR EACH MEDDELANDE WHERE MEDDELANDE.MOTTAGARE = ANVANDARE.ANVANDARE EXCLUSIVE-LOCK:
+      DELETE MEDDELANDE.
+   END.
+   
+   RUN restTabortUser_UI IN restuserh(INPUT ANVANDARE.PERSONALKOD, OUTPUT TABLE felmeddtemp).
+   FOR EACH DEPSEK WHERE DEPSEK.ANVANDARE = ANVANDARE.ANVANDARE EXCLUSIVE-LOCK:
+      DELETE DEPSEK.
+   END.
+   
+   DO TRANSACTION:
+      FIND CURRENT ANVANDARE EXCLUSIVE-LOCK NO-ERROR.
+      DELETE ANVANDARE.      
+   END.
+   RUN bortwebuser_UI (INPUT vem). 
+END PROCEDURE.
+PROCEDURE visaalla_UI:
+   
+   DEFINE INPUT PARAMETER vem AS CHARACTER NO-UNDO.
+   DEFINE OUTPUT PARAMETER TABLE FOR tidut.   
+   EMPTY TEMP-TABLE tidut NO-ERROR.    
+   CREATE tidut. 
+   SUBSTRING(tidut.UT,60) = STRING(TODAY) + " " + STRING(TIME,"HH:MM").
+   CREATE tidut.
+   CREATE tidut.                           
+   tidut.UT = "VISNING AV ANVÄNDARE I GURU".
+   CREATE tidut.
+   CREATE tidut.                           
+   IF vem NE ? THEN DO:
+      FIND ANVANDARE WHERE ANVANDARE.ANVANDARE = vem NO-LOCK NO-ERROR.        
+      CREATE tidut.        
+      SUBSTRING(tidut.UT,1) = "ANVÄNDARE              :".
+      SUBSTRING(tidut.UT,26) = ANVANDARE.ANVANDARE.  
+      CREATE tidut.
+      SUBSTRING(tidut.UT,1) = "ANVÄNDAR NAMN          :".
+      SUBSTRING(tidut.UT,26) = ANVANDARE.AV-NAMN.
+      CREATE tidut.
+      SUBSTRING(tidut.UT,1) = "ENHET/SIGN             :".
+      SUBSTRING(tidut.UT,26) = ANVANDARE.PERSONALKOD.
+      CREATE tidut.
+      SUBSTRING(tidut.UT,1) = "VISA ALLA PERSONER     :".
+      SUBSTRING(tidut.UT,26) = STRING(ANVANDARE.ALLPERS,"Ja/Nej").
+      CREATE tidut.
+      SUBSTRING(tidut.UT,1) = "VISA ALLA " + CAPS(Guru.Konstanter:gaok) + " :".
+      SUBSTRING(tidut.UT,26) = STRING(ANVANDARE.ALLAONR,"Ja/Nej"). 
+      CREATE tidut.
+      SUBSTRING(tidut.UT,1) = "ANVÄNDARNIVÅ           :".
+      SUBSTRING(tidut.UT,26) = STRING(ANVANDARE.AV-LEVEL).
+      
+      CREATE tidut.
+      SUBSTRING(tidut.UT,1) = "FÖNSTERSTORLEK (HÖJD) :".
+      IF ANVANDARE.SIDS < 682 THEN SUBSTRING(tidut.UT,26) = "682".
+      ELSE SUBSTRING(tidut.UT,26) = STRING(ANVANDARE.SIDS).
+      CREATE tidut.
+      SUBSTRING(tidut.UT,1) = "FÖNSTERSTORLEK (BREDD) :".
+      IF ANVANDARE.SIDL < 682 THEN SUBSTRING(tidut.UT,26) = "1000".
+      ELSE SUBSTRING(tidut.UT,26) = STRING(ANVANDARE.SIDL).      
+      CREATE tidut.
+      CREATE tidut.
+      CREATE tidut.
+      CREATE tidut.
+      ASSIGN                   
+      SUBSTRING(tidut.UT,1) = "SEKRETESS FÖR PERSONALREGISTRERING".
+      CREATE tidut.
+      ASSIGN                   
+      SUBSTRING(tidut.UT,1) = "ENHET/SIGN"
+      SUBSTRING(tidut.UT,12) = "FÖRNAMN"
+      SUBSTRING(tidut.UT,28) = "EFTERNAMN"
+      SUBSTRING(tidut.UT,54) = "ÄNDRA PÅ".
+      CREATE tidut.
+      ASSIGN                   
+      SUBSTRING(tidut.UT,1) = 
+      "==========.===============.=========================.========".
+      OPEN QUERY psekq FOR EACH PERSEK WHERE PERSEK.ANVANDARE = ANVANDARE.ANVANDARE NO-LOCK,
+      EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = PERSEK.PERSONALKOD
+      NO-LOCK.
+      GET FIRST psekq NO-LOCK.
+      DO WHILE AVAILABLE(PERSEK):
+         CREATE tidut.
+         ASSIGN                   
+         SUBSTRING(tidut.UT,1) = PERSEK.PERSONALKOD
+         SUBSTRING(tidut.UT,12) = PERSONALTAB.FORNAMN
+         SUBSTRING(tidut.UT,28) = PERSONALTAB.EFTERNAMN
+         SUBSTRING(tidut.UT,54) = STRING(PERSEK.PANDRA,"Ja/Nej").                       
+         GET NEXT psekq NO-LOCK.
+      END.
+      CREATE tidut.
+      CREATE tidut.
+      ASSIGN                   
+      SUBSTRING(tidut.UT,1) = "SEKRETESS FÖR TIDREGISTRERING".
+      CREATE tidut.
+      ASSIGN                   
+      SUBSTRING(tidut.UT,1) = "ENHET/SIGN"
+      SUBSTRING(tidut.UT,12) = "FÖRNAMN"
+      SUBSTRING(tidut.UT,28) = "EFTERNAMN"
+      SUBSTRING(tidut.UT,54) = "ÄNDRA PÅ".
+      CREATE tidut.
+      ASSIGN                   
+      SUBSTRING(tidut.UT,1) = 
+      "==========.===============.=========================.========".
+      OPEN QUERY tsekq FOR EACH TIDSEK WHERE TIDSEK.ANVANDARE = ANVANDARE.ANVANDARE NO-LOCK,
+      EACH PERSONALTAB WHERE PERSONALTAB.PERSONALKOD = TIDSEK.PERSONALKOD
+      NO-LOCK.
+      GET FIRST tsekq NO-LOCK.
+      DO WHILE AVAILABLE(TIDSEK):
+         CREATE tidut.
+         ASSIGN                   
+         SUBSTRING(tidut.UT,1) = TIDSEK.PERSONALKOD
+         SUBSTRING(tidut.UT,12) = PERSONALTAB.FORNAMN
+         SUBSTRING(tidut.UT,28) = PERSONALTAB.EFTERNAMN
+         SUBSTRING(tidut.UT,54) = STRING(TIDSEK.PANDRA,"Ja/Nej").                       
+         GET NEXT tsekq NO-LOCK.
+      END.
+      CREATE tidut.
+      CREATE tidut.
+      IF Guru.Konstanter:varforetypval[3] >= 1 AND Guru.Konstanter:varforetypval[3] < 4 THEN DO:
+         ASSIGN                   
+         SUBSTRING(tidut.UT,1) = "SEKRETESS FÖR FAKTUREING".
+         CREATE tidut.
+         ASSIGN                   
+         SUBSTRING(tidut.UT,1) = CAPS(Guru.Konstanter:gomrk)
+         SUBSTRING(tidut.UT,8) = "BENÄMNING"      
+         SUBSTRING(tidut.UT,25) = "FAKTURERA".                                 
+         CREATE tidut.
+         ASSIGN                   
+         SUBSTRING(tidut.UT,1) =                   
+         "======.================.=========".
+         OPEN QUERY osekq FOR EACH OMRSEK WHERE 
+         OMRSEK.ANVANDARE = ANVANDARE.ANVANDARE NO-LOCK,
+         EACH OMRADETAB WHERE OMRADETAB.OMRADE = OMRSEK.OMRADE
+         NO-LOCK.
+         GET FIRST osekq NO-LOCK.
+         DO WHILE AVAILABLE(OMRSEK):
+            CREATE tidut.
+            ASSIGN                   
+            SUBSTRING(tidut.UT,1) = OMRSEK.OMRADE
+            SUBSTRING(tidut.UT,8) = OMRADETAB.NAMN
+            SUBSTRING(tidut.UT,25) = STRING(OMRSEK.PANDRA,"Ja/Nej").                       
+            GET NEXT osekq NO-LOCK.
+         END.        
+      END.
+   END.
+   ELSE DO:
+      CREATE tidut.
+      ASSIGN                   
+      SUBSTRING(tidut.UT,1) = "ANVÄNDAR REGISTER".
+      CREATE tidut.
+      CREATE tidut.
+      ASSIGN                    
+      SUBSTRING(tidut.UT,1) = "ANVÄNDARE"
+      SUBSTRING(tidut.UT,14) = "ANVÄNDAR" 
+      SUBSTRING(tidut.UT,23) = "NAMN"
+      SUBSTRING(tidut.UT,64) = "ENHET/"     
+      SUBSTRING(tidut.UT,71) = "FÖNSTERSTORLEK".    
+      CREATE tidut.
+      ASSIGN                         
+      SUBSTRING(tidut.UT,14) = "NIVÅ"      
+      SUBSTRING(tidut.UT,64) = "SIGN"     
+      SUBSTRING(tidut.UT,71) = "HÖJD".
+      SUBSTRING(tidut.UT,80) = "BREDD".      
+      CREATE tidut.
+      ASSIGN                   
+      SUBSTRING(tidut.UT,1) =         
+      "============.========.========================================.======.========.========".
+      OPEN QUERY anvq FOR EACH ANVANDARE WHERE ANVANDARE.AV-LEVEL NE 0
+      USE-INDEX ANDV NO-LOCK. 
+      GET FIRST anvq NO-LOCK.
+      DO WHILE AVAILABLE(ANVANDARE):
+         CREATE tidut.               
+         ASSIGN                    
+         SUBSTRING(tidut.UT,1) = ANVANDARE.ANVANDARE
+         SUBSTRING(tidut.UT,14) = STRING(ANVANDARE.AV-LEVEL) 
+         SUBSTRING(tidut.UT,23) = ANVANDARE.AV-NAMN
+         SUBSTRING(tidut.UT,64) = ANVANDARE.PERSONALKOD.
+         IF ANVANDARE.SIDS < 682 THEN SUBSTRING(tidut.UT,71) = "682".
+         ELSE SUBSTRING(tidut.UT,71) = STRING(ANVANDARE.SIDS).
+         IF ANVANDARE.SIDL < 1000 THEN SUBSTRING(tidut.UT,80) = "1000".
+         ELSE SUBSTRING(tidut.UT,80) = STRING(ANVANDARE.SIDL).
+         GET NEXT anvq NO-LOCK.
+      END.
+   END.
+END PROCEDURE.
+PROCEDURE hamtsek_UI:
+   DEFINE OUTPUT PARAMETER TABLE FOR sekperstemp.
+   EMPTY TEMP-TABLE sekperstemp NO-ERROR. 
+   OPEN QUERY anvq FOR EACH ANVANDARE WHERE ANVANDARE.AV-LEVEL NE 0
+   USE-INDEX ANDV NO-LOCK. 
+   GET FIRST anvq NO-LOCK.
+   DO WHILE AVAILABLE(ANVANDARE):
+      CREATE sekperstemp.                         
+      ASSIGN                    
+      sekperstemp.ANVANDARE = ANVANDARE.ANVANDARE.
+      sekperstemp.AV-LEVEL = ANVANDARE.AV-LEVEL. 
+      sekperstemp.AV-NAMN = ANVANDARE.AV-NAMN.
+      sekperstemp.PERSONALKOD = ANVANDARE.PERSONALKOD.
+      sekperstemp.SKAPAD-AV = ANVANDARE.SKAPAD-AV.
+      sekperstemp.SKAPAD-DATUMTID = ANVANDARE.SKAPAD-DATUMTID.
+      IF ANVANDARE.SIDS < 682 THEN sekperstemp.SIDS = 682.
+      ELSE sekperstemp.SIDS = ANVANDARE.SIDS.
+      IF ANVANDARE.SIDL < 1000 THEN sekperstemp.SIDL = 1000.
+      ELSE sekperstemp.SIDL = ANVANDARE.SIDL.
+      FIND FIRST PERSONALTAB  WHERE PERSONALTAB.PERSONALKOD = ANVANDARE.PERSONALKOD NO-LOCK NO-ERROR.
+      IF AVAILABLE PERSONALTAB  THEN DO:
+         ASSIGN
+         sekperstemp.AKTIV = PERSONALTAB.AKTIV
+         sekperstemp.OMRADE = PERSONALTAB.OMRADE
+         sekperstemp.MOBIL = PERSONALTAB.MOBILTEL
+         sekperstemp.EPOST = SUBSTRING(PERSONALTAB.PERSONSOK,20).
+         
+         FIND FIRST OMRADETAB WHERE OMRADETAB.OMRADE = PERSONALTAB.OMRADE NO-LOCK NO-ERROR.
+         IF AVAILABLE OMRADETAB THEN DO:
+           sekperstemp.OMRADENAMN = OMRADETAB.NAMN.
+         END.   
+      END.
+      ELSE sekperstemp.AKTIV = ?.   
+      GET NEXT anvq NO-LOCK.
+   END.
+
+END PROCEDURE.
+
+PROCEDURE omrade_UI :
+   DEFINE OUTPUT PARAMETER omrkvar AS LOGICAL NO-UNDO.
+   FIND FIRST OMRADETAB WHERE OMRADETAB.ELVOMRKOD = 0 NO-LOCK NO-ERROR.
+   IF AVAILABLE OMRADETAB THEN DO:
+      FIND NEXT OMRADETAB WHERE OMRADETAB.ELVOMRKOD = 0 NO-LOCK NO-ERROR.
+   END.
+   IF AVAILABLE OMRADETAB THEN DO:
+      omrkvar = TRUE.
+   END.
+
+END PROCEDURE.
+PROCEDURE beredare_UI :
+   DEFINE OUTPUT PARAMETER berkvar AS LOGICAL NO-UNDO.
+   FIND FIRST BEREDAONR NO-LOCK NO-ERROR.
+   IF AVAILABLE BEREDAONR THEN DO:
+      FIND NEXT BEREDAONR NO-LOCK NO-ERROR.
+   END.
+   IF AVAILABLE BEREDAONR THEN DO:
+      berkvar = TRUE.
+   END.
+
+END PROCEDURE.
+PROCEDURE anvandare_UI :
+   DEFINE OUTPUT PARAMETER anvkvar AS LOGICAL NO-UNDO.
+   FIND FIRST ANVANDARE WHERE ANVANDARE.AV-LEVEL NE 0  NO-LOCK NO-ERROR.
+   IF AVAILABLE ANVANDARE THEN DO:
+      FIND NEXT ANVANDARE WHERE ANVANDARE.AV-LEVEL NE 0  NO-LOCK NO-ERROR.
+   END.
+   IF AVAILABLE ANVANDARE THEN DO:
+      anvkvar = TRUE.
+   END.
+
+END PROCEDURE.
+
+PROCEDURE personal_UI :
+   DEFINE OUTPUT PARAMETER perkvar AS LOGICAL NO-UNDO.
+   FIND FIRST PERSONALTAB  NO-LOCK NO-ERROR.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      FIND NEXT ANVANDARE NO-LOCK NO-ERROR.
+   END.
+   IF AVAILABLE PERSONALTAB THEN DO:
+      perkvar = TRUE.
+   END.
+
+END PROCEDURE.
+

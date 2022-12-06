@@ -1,0 +1,178 @@
+/*VKALKUPPU.P*/
+DEFINE VARIABLE felexcel AS LOGICAL NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE chExcelApplication      AS COM-HANDLE.
+DEFINE VARIABLE chWorkbook              AS COM-HANDLE.
+DEFINE VARIABLE chWorksheet             AS COM-HANDLE.
+DEFINE VARIABLE chChart                 AS COM-HANDLE.
+DEFINE VARIABLE chWorksheetRange        AS COM-HANDLE.
+DEFINE VARIABLE iCount                  AS INTEGER.
+DEFINE VARIABLE iIndex                  AS INTEGER.
+DEFINE VARIABLE iMonth                  AS INTEGER.
+DEFINE VARIABLE dAnnualQuota            AS DECIMAL.
+DEFINE VARIABLE dTotalSalesAmount       AS DECIMAL.
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 10.
+DEFINE VARIABLE cColumn                 AS CHARACTER.
+DEFINE VARIABLE cRange                  AS CHARACTER.
+DEFINE VARIABLE radnrS                  AS CHARACTER.
+DEFINE VARIABLE pristext                AS CHARACTER.
+
+DEFINE TEMP-TABLE kalk_temp2
+   FIELD ARBKOD AS CHARACTER
+   FIELD LOPNR AS INTEGER
+   FIELD ENHET AS CHARACTER
+   FIELD BENAMNING AS CHARACTER
+   FIELD ANTAL AS DECIMAL
+   INDEX KOD ARBKOD LOPNR ASCENDING.
+&Scoped-define SHARED SHARED 
+{OMRTEMPW.I}
+DEFINE INPUT PARAMETER utomr AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER period AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER bdatum AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER avdatum AS DATE NO-UNDO.
+DEFINE INPUT PARAMETER typval AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER globforetag AS CHARACTER NO-UNDO.
+DEFINE INPUT PARAMETER TABLE FOR kalk_temp2.
+{muswait.i}
+
+CREATE "Excel.Application" chExcelApplication.
+chExcelApplication:Visible = TRUE.
+chWorkbook = chExcelApplication:Workbooks:Add().
+chWorkSheet = chExcelApplication:Sheets:Item(1).
+
+FIND FIRST omrtemp WHERE omrtemp.OMRADE = utomr NO-LOCK NO-ERROR.
+
+
+DEFINE VARIABLE ctidvar AS CHARACTER NO-UNDO.  
+  
+IF globforetag = "ELPA" THEN DO:
+   ctidvar = wtidvar.
+   ctidvar = REPLACE(ctidvar,"wtid","ctid").
+   /*
+   ctidvar = ctidvar  + "BILDER\elpool.gif".
+   */
+   ctidvar = ctidvar  + "BILDER\elpoollogo.png".
+   chWorkbook = chExcelApplication:ActiveSheet:Pictures:Insert(ctidvar) NO-ERROR.
+   iColumn = 8.
+END.
+ELSE IF globforetag = "cGRAN" THEN DO:
+   chWorkbook = chExcelApplication:ActiveSheet:Pictures:Insert("\\GRANGURU\guru_ser\klient\pro9\graninge.gif") NO-ERROR.
+   iColumn = 5.
+END.
+ELSE IF globforetag = "CGKAL" THEN DO:
+   chWorkbook = chExcelApplication:ActiveSheet:Pictures:Insert("\\goliat\DELAD\klient\pro9\graninge.gif") NO-ERROR.
+   iColumn = 5.
+END.
+ELSE iColumn = 1.
+chWorkSheet:Columns("A"):ColumnWidth = 4.
+chWorkSheet:Columns("B"):ColumnWidth = 3.
+chWorkSheet:Columns("C"):ColumnWidth = 40.
+chWorkSheet:Columns("D"):ColumnWidth = 12.
+chWorkSheet:Columns("E"):ColumnWidth = 4.
+iColumn = iColumn + 1.
+cColumn = STRING(iColumn).
+cRange = "A" + cColumn.
+RUN huvud_UI.  
+{EXCELFEL.I}
+RUN rubrik_UI.
+{EXCELFEL.I}
+RUN kalk_UI.
+RUN slutexcel_UI.
+{EXCELFEL.I}
+
+
+PROCEDURE huvud_UI.
+   chWorkSheet:Range(cRange):Font:NAME = "Courier New" NO-ERROR.
+   chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+
+   chWorkSheet:Range(cRange):Value = "UPPFÖLJNING KALKYLKODER TYP " + STRING(typval) NO-ERROR.
+      
+   RUN ny_UI.
+   RUN ny_UI.
+   chWorkSheet:Range(cRange):Value = "OMRÅDE: " + omrtemp.NAMN NO-ERROR.      
+   RUN ny_UI.
+   IF period = 1 THEN DO:
+      chWorkSheet:Range(cRange):Value = "ÅRTAL: " + STRING(YEAR(bdatum)) NO-ERROR.
+   END.
+   ELSE DO:
+      chWorkSheet:Range(cRange):Value = "PERIOD: " + STRING(bdatum,"9999/99/99") + 
+      " - " + STRING(avdatum,"9999/99/99") NO-ERROR.
+   END.   
+   {EXCELFEL.I}
+END PROCEDURE.
+
+PROCEDURE ny_UI.
+   iColumn = iColumn + 1.
+   cColumn = STRING(iColumn).
+   cRange = "A" + cColumn.
+   chWorkSheet:Range(cRange):Font:NAME = "Courier New" NO-ERROR.
+   chWorkSheet:Range(cRange):Font:Bold = TRUE NO-ERROR.
+   {EXCELFEL.I}
+END PROCEDURE.
+
+PROCEDURE rubrik_UI.
+   iColumn = iColumn + 2.
+   cColumn = STRING(iColumn).
+   cRange = "A" + cColumn.
+   chWorkSheet:Range("A" + cColumn):Font:NAME = "Courier New" NO-ERROR.
+   chWorkSheet:Range("A" + cColumn):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range("B" + cColumn):Font:NAME = "Courier New" NO-ERROR.
+   chWorkSheet:Range("B" + cColumn):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range("C" + cColumn):Font:NAME = "Courier New" NO-ERROR.
+   chWorkSheet:Range("C" + cColumn):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range("D" + cColumn):Font:NAME = "Courier New" NO-ERROR.
+   chWorkSheet:Range("D" + cColumn):Font:Bold = TRUE NO-ERROR.
+   chWorkSheet:Range("E" + cColumn):Font:NAME = "Courier New" NO-ERROR.
+   chWorkSheet:Range("E" + cColumn):Font:Bold = TRUE NO-ERROR.   
+   
+  
+   chWorkSheet:Range("A" + cColumn):Value = "KOD" NO-ERROR.
+   chWorkSheet:Range("B" + cColumn):Value = "NR" NO-ERROR.
+   chWorkSheet:Range("C" + cColumn):Value = "BENÄMNING" NO-ERROR.
+   chWorkSheet:Range("D" + cColumn):Value = "ANTAL" NO-ERROR.
+   chWorkSheet:Range("E" + cColumn):Value = "ENH" NO-ERROR.  
+   {EXCELFEL.I}
+END PROCEDURE.
+
+PROCEDURE kalk_UI.
+   FOR EACH kalk_temp2 USE-INDEX KOD:      
+      iColumn = iColumn + 1.
+      cColumn = STRING(iColumn).
+      cRange = "A" + cColumn.
+      chWorkSheet:Range(cRange):Value = kalk_temp2.ARBKOD NO-ERROR.
+      cRange = "B" + cColumn.
+      chWorkSheet:Range(cRange):Value = kalk_temp2.LOPNR NO-ERROR.
+      cRange = "C" + cColumn.
+      chWorkSheet:Range(cRange):Value = SUBSTRING(kalk_temp2.BENAMNING,1,40) NO-ERROR.
+      cRange = "D" + cColumn.
+      chWorkSheet:Range(cRange):Value = DECIMAL(STRING(kalk_temp2.ANTAL,">>>>>>>9.999")) NO-ERROR.
+      cRange = "E" + cColumn.
+      chWorkSheet:Range(cRange):Value = kalk_temp2.ENHET NO-ERROR.            
+      {EXCELFEL.I}
+   END.   
+END PROCEDURE.
+PROCEDURE slutexcel_UI:
+   
+
+   chExcelApplication:VISIBLE = TRUE NO-ERROR.
+   chExcelApplication:DisplayAlerts = TRUE NO-ERROR.   /*all prompts will be shutoff/on*/   
+   
+   RELEASE OBJECT chWorkbook NO-ERROR.                   
+   RELEASE OBJECT chExcelApplication NO-ERROR.           
+                  
+                       
+   RELEASE OBJECT chWorksheet NO-ERROR.                  
+   RELEASE OBJECT chChart NO-ERROR.                      
+   RELEASE OBJECT chWorksheetRange NO-ERROR.             
+ 
+
+   ASSIGN
+   chWorkbook = ?  
+   chExcelApplication = ?
+
+   chWorksheet = ?
+   chChart = ?
+   chWorksheetRange = ?.
+
+      
+END PROCEDURE.

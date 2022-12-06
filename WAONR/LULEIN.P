@@ -1,0 +1,299 @@
+/*LULEIN.P*/
+/*
+GUDIM1 4 TEXT('Konto')
+GUDIM2 3 TEXT('AO')
+GUDIM3 4 TEXT('Rgr')
+GUDIM4 9 TEXT('Projekt')
+GUBDAT 10 0 TEXT('Bokf.datum') Format: ÅÅÅÅMMDD + två blanka
+GUBELX 17 3 TEXT('Belopp i SEK') 17 inkl. 3 dec
+GUTEXT 30 TEXT('Verifikattext')
+GUPERI 8 0 TEXT('Period') Format: ÅÅÅÅMM + två blanka
+GUDOTY 3 TEXT('Verifikattyp') 
+GUIDNO 7 0 TEXT('Verifikatnummer')
+GUTID1 6 2 TEXT('Ant tim normaltid') 
+GUBEL1 17 3 TEXT('Belopp normaltid')
+GUTID2 6 2 TEXT('Ant tim övertid') 
+GUBEL2 17 3 TEXT('Belopp övertid')
+GUTID3 6 2 TEXT('Ant tim kval. övertid') 
+GUBEL3 17 3 TEXT('Belopp kval. övertid')
+*/
+{NAMNDB.I}
+FUNCTION klockan100 RETURNS DECIMAL
+  ( INPUT ber60 AS DECIMAL ):
+  RETURN  (TRUNCATE(ber60,0) * 3600 + (ber60 - TRUNCATE(ber60,0)) * 100 * 60) / 3600.
+
+END FUNCTION.
+
+FUNCTION klockan60 RETURNS DECIMAL
+  ( INPUT ber100 AS DECIMAL ):
+  RETURN TRUNCATE(ber100,0) + ((ber100 - TRUNCATE(ber100,0)) / 100) * 60 . 
+
+END FUNCTION.
+
+&Scoped-define NEW NEW
+{REGVAR.I}
+DEFINE NEW SHARED VARIABLE musz AS LOGICAL NO-UNDO.
+DEFINE VARIABLE befvar LIKE  PERSONALTAB.BEFATTNING NO-UNDO.
+DEFINE VARIABLE omrpers LIKE PERSONALTAB.OMRADE NO-UNDO.
+DEFINE VARIABLE tidtim AS DECIMAL NO-UNDO. 
+DEFINE VARIABLE otidtim AS DECIMAL NO-UNDO.
+DEFINE VARIABLE tid100 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE otidtim1 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE otidtim2 AS DECIMAL NO-UNDO.
+DEFINE VARIABLE otidtim3 AS DECIMAL NO-UNDO.
+
+DEFINE VARIABLE aonrtvar LIKE AONRTAB.AONR NO-UNDO.  
+DEFINE VARIABLE delnrtvar LIKE AONRTAB.DELNR NO-UNDO.  
+DEFINE VARIABLE pkod LIKE PERSONALTAB.PERSONALKOD NO-UNDO. 
+DEFINE VARIABLE kollvecka LIKE VECKONATT.VECKOKORD NO-UNDO.
+DEFINE VARIABLE nattaonr LIKE AONRTAB.AONR NO-UNDO.  
+DEFINE VARIABLE nattdelnr LIKE AONRTAB.DELNR NO-UNDO.  
+DEFINE VARIABLE nattaoomr LIKE AONRTAB.OMRADE NO-UNDO. 
+
+DEFINE VARIABLE kommandoprog AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE prognamnvar AS CHARACTER FORMAT "X(50)" NO-UNDO.                
+DEFINE VARIABLE prognamnvarhj AS CHARACTER FORMAT "X(50)" NO-UNDO.                
+DEFINE VARIABLE progkopia AS CHARACTER FORMAT "X(50)" NO-UNDO.                
+DEFINE VARIABLE progque AS CHARACTER FORMAT "X(50)" NO-UNDO.                
+DEFINE VARIABLE felvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE words AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE aonrvar AS CHARACTER NO-UNDO.
+DEFINE VARIABLE delnrvar AS INTEGER NO-UNDO.
+DEFINE VARIABLE totnormal     AS DECIMAL NO-UNDO.
+DEFINE VARIABLE totprisnormal AS DECIMAL NO-UNDO.
+DEFINE VARIABLE totenk        AS DECIMAL NO-UNDO.
+DEFINE VARIABLE totprisenk    AS DECIMAL NO-UNDO.
+DEFINE VARIABLE totkval       AS DECIMAL NO-UNDO.
+DEFINE VARIABLE totpriskval   AS DECIMAL NO-UNDO.
+DEFINE VARIABLE totnormalhjkoll AS DECIMAL NO-UNDO.
+DEFINE VARIABLE totnormalhj AS DECIMAL NO-UNDO.
+
+DEFINE VARIABLE rad AS INTEGER NO-UNDO.
+DEFINE STREAM eko.  
+DEFINE STREAM ekospar.
+DEFINE TEMP-TABLE infil
+   FIELD PROGNAMN AS CHARACTER FORMAT "X(78)" 
+   INDEX PRO IS PRIMARY PROGNAMN. 
+DEFINE TEMP-TABLE tidin
+   FIELD TIN AS CHARACTER FORMAT "X(132)".   
+IF namndb() = "UTBI" THEN RETURN.
+{AMERICANEUROPEAN.I}
+regar = YEAR(TODAY).
+IF MONTH(TODAY) = 1 THEN regmannamn = "jan".
+ELSE IF MONTH(TODAY) = 2 THEN regmannamn = "feb".
+ELSE IF MONTH(TODAY) = 3 THEN regmannamn = "mar". 
+ELSE IF MONTH(TODAY) = 4 THEN regmannamn = "apr". 
+ELSE IF MONTH(TODAY) = 5 THEN regmannamn = "maj". 
+ELSE IF MONTH(TODAY) = 6 THEN regmannamn = "jun".
+ELSE IF MONTH(TODAY) = 7 THEN regmannamn = "jul".
+ELSE IF MONTH(TODAY) = 8 THEN regmannamn = "aug". 
+ELSE IF MONTH(TODAY) = 9 THEN regmannamn = "sep".
+ELSE IF MONTH(TODAY) = 10 THEN regmannamn = "okt". 
+ELSE IF MONTH(TODAY) = 11 THEN regmannamn = "nov".
+ELSE IF MONTH(TODAY) = 12 THEN regmannamn = "dec".
+
+FIND FIRST FORETAG USE-INDEX FORETAG NO-LOCK NO-ERROR.
+Guru.Konstanter:globforetag = FORETAG.FORETAG.   
+IF Guru.Konstanter:globforetag = "ELPA" THEN DO:            
+   prognamnvar = "D:\DELAD\PRO9s\".   
+END.
+ELSE DO:            
+   prognamnvar = "D:\elpool\DELAD\PRO9s\".
+END.
+progkopia = prognamnvar + "imkopia\tidko" + STRING(regar) + regmannamn + ".txt".    
+kommandoprog = prognamnvar + "import\guruin.txt".
+kommando = "DIR/a:-d /b " + prognamnvar + "import\verif2guru*.* > " + prognamnvar + "import\GURUIN.TXT".   
+
+RUN startin_UI.
+prognamnvarhj = prognamnvar + "autotid.txt".
+OUTPUT TO VALUE(prognamnvarhj) APPEND.
+PUT "KLAR LULEIN " TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+OUTPUT CLOSE.
+{EUROPEANAMERICAN.I}
+PROCEDURE startin_UI:
+   OS-DELETE VALUE(kommandoprog) NO-ERROR.
+   OS-COMMAND SILENT VALUE(kommando).
+   INPUT FROM VALUE(kommandoprog) NO-ECHO.
+   REPEAT:
+      DO TRANSACTION: 
+         CREATE infil.
+         ASSIGN.
+         IMPORT infil NO-ERROR.
+      END.
+   END.
+   INPUT CLOSE.
+   FOR EACH infil:   
+      IF INDEX(infil.PROGNAMN,".txt") = 0 THEN DO:       
+         DELETE infil.
+         NEXT.
+      END.
+   END.
+   FIND FIRST infil NO-ERROR.
+   IF NOT AVAILABLE infil THEN DO:
+      prognamnvarhj = prognamnvar + "autotid.txt".
+      OUTPUT TO VALUE(prognamnvarhj) APPEND.
+      PUT "DET FANNS INGEN TIDFIL FRÅN EKO " Guru.Konstanter:globforetag " " TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+      OUTPUT CLOSE.
+      RETURN.
+   END.
+   FOR EACH infil:  
+      EMPTY TEMP-TABLE tidin NO-ERROR. 
+      prognamnvarhj = prognamnvar + "import\" + infil.PROGNAMN.
+      RUN in_UI.
+      IF felvar = 0 THEN DO:
+         OUTPUT TO VALUE(progkopia) APPEND.
+         PUT "ny fil  " TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+         OUTPUT CLOSE.
+         OS-APPEND VALUE(prognamnvarhj) VALUE(progkopia).
+         OS-DELETE VALUE(prognamnvarhj).
+      END.
+      felvar = 0.
+   END.
+END PROCEDURE.
+
+PROCEDURE in_UI:
+   progque = prognamnvar + "import\tid.q".
+   OS-DELETE SILENT VALUE(progque).       
+   kommando = SEARCH("quoter.exe").
+   IF kommando = ? THEN DO:
+      felvar = 1.
+      RETURN.
+   END.
+   
+   OS-COMMAND SILENT VALUE(kommando) VALUE(prognamnvarhj) > VALUE(progque).      
+   INPUT FROM VALUE(progque) NO-ECHO.
+   REPEAT:
+      SET words VIEW-AS EDITOR INNER-CHARS 50 INNER-LINES 3 WITH FRAME DDD WIDTH 80.   
+      REPEAT:
+         IF INDEX(words,'"',1) = 0 THEN LEAVE.
+         words = REPLACE(words,'"',' ').
+      END.
+      CREATE tidin.   
+      ASSIGN tidin.TIN = words.   
+   END.
+   INPUT CLOSE.  
+   FOR EACH tidin:
+      IF tidin.TIN = "" THEN. 
+     /*
+      IF SUBSTRING(tidin.TIN,86,2) = "TI" THEN.
+      ELSE 
+      */
+      ELSE RUN kostreg_UI.
+      DELETE tidin.
+   END.
+
+  
+END PROCEDURE.
+
+
+
+PROCEDURE kostreg_UI:
+   
+   FIND FIRST AONRTAB WHERE AONRTAB.AONR = SUBSTRING(tidin.TIN,12,6) AND AONRTAB.DELNR = INTEGER(SUBSTRING(tidin.TIN,18,3)) 
+   NO-LOCK NO-ERROR.
+   
+   IF NOT AVAILABLE AONRTAB THEN aonrvar = "XXXXXX".
+   ELSE DO:
+      ASSIGN
+      aonrvar = AONRTAB.AONR
+      delnrvar = AONRTAB.DELNR.
+   END.
+   
+   regdatum = DATE(INTEGER(SUBSTRING(tidin.TIN,25,2)),INTEGER(SUBSTRING(tidin.TIN,27,2)),INTEGER(SUBSTRING(tidin.TIN,21,4))).
+   IF SUBSTRING(tidin.TIN,1,1) = "x" OR SUBSTRING(tidin.TIN,1,1) = "x" THEN musz = musz.
+   ELSE DO:
+      FIND LAST KOSTREG WHERE KOSTREG.AONR = aonrvar AND KOSTREG.DELNR = delnrvar  NO-LOCK NO-ERROR.  
+      rad = 1.                                                                      
+      IF AVAILABLE KOSTREG THEN rad = KOSTREG.RADNR + 1.     
+      
+      
+      DO TRANSACTION:
+         CREATE KOSTREG.
+         ASSIGN  
+         KOSTREG.RADNR = rad
+         KOSTREG.AONR = aonrvar
+         KOSTREG.DELNR = delnrvar
+         KOSTREG.REGDATUM = regdatum       
+         KOSTREG.BETDATUM = TODAY
+         KOSTREG.BENAMNING = TRIM(SUBSTRING(tidin.TIN,48,30))
+         KOSTREG.BOKKONTO = SUBSTRING(tidin.TIN,1,4)
+         KOSTREG.FAKTNR = SUBSTRING(tidin.TIN,89,11)
+         KOSTREG.FAKTURERAD = ?
+         KOSTREG.LEVKOD = ""
+         SUBSTRING(KOSTREG.ANVANDARE,1,12) = "ASWEKO"
+         KOSTREG.KOSTAUTO = TRUE. 
+         IF SUBSTRING(KOSTREG.BOKKONTO,1,1) = "3" THEN DO:
+            ASSIGN KOSTREG.INKOMST = DECIMAL(SUBSTRING(tidin.TIN,31,17)) * -1.
+         END. 
+         ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) = "7930" THEN DO:
+            ASSIGN KOSTREG.INKOMST = DECIMAL(SUBSTRING(tidin.TIN,31,17)) * -1.
+         END.
+         ELSE IF SUBSTRING(tidin.TIN,86,2) = "TI" THEN DO:
+            IF SUBSTRING(tidin.TIN,106,17) NE "" THEN KOSTREG.PERSKOST = DECIMAL(SUBSTRING(tidin.TIN,106,173)).
+            ELSE IF SUBSTRING(tidin.TIN,129,17) NE "" THEN KOSTREG.PERSKOST = DECIMAL(SUBSTRING(tidin.TIN,129,17)).
+            ELSE IF SUBSTRING(tidin.TIN,152,17) NE "" THEN KOSTREG.PERSKOST = DECIMAL(SUBSTRING(tidin.TIN,152,17)).
+         END.   
+         ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) = "6510" THEN DO:
+            ASSIGN KOSTREG.MASK = DECIMAL(SUBSTRING(tidin.TIN,31,17)).
+         END.
+         ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) = "6571" THEN DO:
+            ASSIGN KOSTREG.MASK = DECIMAL(SUBSTRING(tidin.TIN,31,17)).
+         END.
+         ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) = "6572" THEN DO:
+            ASSIGN KOSTREG.MASK = DECIMAL(SUBSTRING(tidin.TIN,31,17)).
+         END.
+         ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) >= "7020" AND SUBSTRING(KOSTREG.BOKKONTO,1,4) <= "7390" THEN DO:
+            ASSIGN KOSTREG.PERS = DECIMAL(SUBSTRING(tidin.TIN,31,17)).
+         END.
+         ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) >= "9700" AND SUBSTRING(KOSTREG.BOKKONTO,1,4) <= "9712" THEN DO:
+            ASSIGN KOSTREG.PERS = DECIMAL(SUBSTRING(tidin.TIN,31,17)).
+         END.
+         ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) >= "9750" AND SUBSTRING(KOSTREG.BOKKONTO,1,4) <= "9759" THEN DO:
+            ASSIGN KOSTREG.PERS = DECIMAL(SUBSTRING(tidin.TIN,31,17)).
+         END.
+         ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) >= "4500" AND SUBSTRING(KOSTREG.BOKKONTO,1,4) <= "4899" THEN DO:
+            ASSIGN KOSTREG.MTRL = DECIMAL(SUBSTRING(tidin.TIN,31,17)). 
+         END. 
+         ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) >= "9040" AND SUBSTRING(KOSTREG.BOKKONTO,1,4) <= "9048" THEN DO:
+            ASSIGN KOSTREG.MTRL = DECIMAL(SUBSTRING(tidin.TIN,31,17)). 
+         END.
+         /*ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) >= "9060" AND SUBSTRING(KOSTREG.BOKKONTO,1,4) <= "9069" THEN DO: /*ny*/ 
+            ASSIGN KOSTREG.MTRL = DECIMAL(SUBSTRING(tidin.TIN,31,17)). 
+         END.*/
+         ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) >= "9460" AND SUBSTRING(KOSTREG.BOKKONTO,1,4) <= "9469" THEN DO:
+            ASSIGN KOSTREG.MTRL = DECIMAL(SUBSTRING(tidin.TIN,31,17)). 
+         END.
+         ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) >= "5000" AND SUBSTRING(KOSTREG.BOKKONTO,1,4) <= "5199" THEN DO:
+            ASSIGN KOSTREG.OVRKR = DECIMAL(SUBSTRING(tidin.TIN,31,17)). 
+         END.
+         ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) >= "5300" AND SUBSTRING(KOSTREG.BOKKONTO,1,4) <= "6499" THEN DO:
+            ASSIGN KOSTREG.OVRKR = DECIMAL(SUBSTRING(tidin.TIN,31,17)). 
+         END.
+         ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) >= "6520" AND SUBSTRING(KOSTREG.BOKKONTO,1,4) <= "6560" THEN DO:
+            ASSIGN KOSTREG.OVRKR = DECIMAL(SUBSTRING(tidin.TIN,31,17)). 
+         END.
+         ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) >= "6580" AND SUBSTRING(KOSTREG.BOKKONTO,1,4) <= "6999" THEN DO:
+            ASSIGN KOSTREG.OVRKR = DECIMAL(SUBSTRING(tidin.TIN,31,17)). 
+         END.
+         ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) >= "7610" AND SUBSTRING(KOSTREG.BOKKONTO,1,4) <= "7981" THEN DO:
+            ASSIGN KOSTREG.OVRKR = DECIMAL(SUBSTRING(tidin.TIN,31,17)). 
+         END.
+         ELSE IF SUBSTRING(KOSTREG.BOKKONTO,1,4) = "9080" THEN DO:
+            ASSIGN KOSTREG.OVRKR = DECIMAL(SUBSTRING(tidin.TIN,31,17)). 
+         END.
+         ELSE DO:
+            ASSIGN KOSTREG.OVRKR = DECIMAL(SUBSTRING(tidin.TIN,31,17)). 
+         END.
+                 
+      END.
+   END.
+   
+   
+END PROCEDURE.
+  
+
+
+
+
+				

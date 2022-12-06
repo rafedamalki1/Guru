@@ -1,0 +1,141 @@
+/*SINGELMTRL.P*/
+/* SINGEL LEVKOD 1 = ELEKTROSKANDIA
+                 2 = AHLSELL
+                 5 = ONNINEN
+   ES     LEVKOD 1 = ONNINEN
+                 2 = AHLSELL
+   INFRA  LEVKOD 1 = ELEKTROSKANDIA
+                 2 = AHLSELL
+                 5 = ONNINEN
+   VATTEN LEVKOD 1 = ELEKTROSKANDIA                 
+                 16= ONNINEN                               
+                 20 = AHLSELL KÖRS EJ*/
+
+DEFINE TEMP-TABLE MTRLES NO-UNDO LIKE MTRL.
+DEFINE TEMP-TABLE MTRLINFRA NO-UNDO LIKE MTRL.
+DEFINE TEMP-TABLE MTRLVATTEN NO-UNDO LIKE MTRL.
+DEFINE TEMP-TABLE mtrlut NO-UNDO LIKE MTRL.
+DEFINE VARIABLE enrvar AS CHARACTER NO-UNDO.             
+DEFINE VARIABLE levvar AS CHARACTER NO-UNDO.
+{AMERICANEUROPEAN.I}
+MESSAGE "in vatten".
+INPUT FROM c:\temp\mtrlvatten.d convert target "iso8859-1" source "iso8859-1" NO-ECHO.
+REPEAT:
+   CREATE MTRLVATTEN.
+   ASSIGN.
+   IMPORT MTRLVATTEN.
+END.
+MESSAGE "in ES".    
+INPUT FROM c:\temp\mtrles.d convert target "iso8859-1" source "iso8859-1" NO-ECHO.
+REPEAT:
+   CREATE MTRLES.
+   ASSIGN.
+   IMPORT MTRLES.
+END. 
+MESSAGE "in infra".
+INPUT FROM c:\temp\mtrlinfra.d convert target "iso8859-1" source "iso8859-1" NO-ECHO.
+REPEAT:
+   CREATE MTRLINFRA.
+   ASSIGN.
+   IMPORT MTRLINFRA.
+END. 
+MESSAGE "ES".
+FOR EACH MTRLES WHERE MTRLES.KALKNR = 0 NO-LOCK:
+   levvar = "0".
+   IF MTRLES.LEVKOD = "1" THEN levvar = "5".
+   IF MTRLES.LEVKOD = "2" THEN levvar = "2".
+   enrvar = MTRLES.ENR.
+   IF SUBSTRING(enrvar,1,1) = "E" THEN enrvar = SUBSTRING(enrvar,2).
+   IF LENGTH(enrvar) < 6 THEN NEXT.
+   IF LENGTH(enrvar) = ? THEN NEXT.
+   IF levvar = "2" OR levvar = "5" THEN DO:
+      FIND FIRST mtrlut WHERE mtrlut.KALKNR = 0 AND mtrlut.LEVKOD = levvar AND mtrlut.Enr = enrvar NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE mtrlut THEN DO:
+         CREATE mtrlut.
+         BUFFER-COPY MTRLES TO mtrlut.
+         ASSIGN 
+         mtrlut.Enr    = enrvar
+         mtrlut.LEVKOD = levvar
+         mtrlut.BPRIS = 0
+         mtrlut.KPRIS = 0
+         mtrlut.NPRIS = 0
+         mtrlut.KUND = FALSE.
+      END.
+   END.  
+   
+END. 
+MESSAGE "INFRA".      
+FOR EACH MTRLINFRA WHERE MTRLINFRA.KALKNR = 0 NO-LOCK :
+   levvar = "0".
+   IF MTRLINFRA.LEVKOD = "1" THEN levvar = "1".
+   IF MTRLINFRA.LEVKOD = "2" THEN levvar = "2".
+   IF MTRLINFRA.LEVKOD = "5" THEN levvar = "5".
+   enrvar = MTRLINFRA.ENR.
+   IF SUBSTRING(enrvar,1,1) = "E" THEN enrvar = SUBSTRING(enrvar,2).
+   IF LENGTH(enrvar) < 6 THEN NEXT.
+   IF LENGTH(enrvar) = ? THEN NEXT.
+   IF levvar = "2" THEN DO:
+      FIND FIRST mtrlut WHERE mtrlut.KALKNR = 0 AND mtrlut.LEVKOD = levvar AND mtrlut.Enr = MTRLINFRA.ENR NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE mtrlut THEN DO:
+         CREATE mtrlut.
+         BUFFER-COPY MTRLINFRA TO mtrlut.
+         ASSIGN 
+         mtrlut.Enr    = enrvar
+         mtrlut.LEVKOD = levvar
+         mtrlut.BPRIS = 0
+         mtrlut.KPRIS = 0
+         mtrlut.NPRIS = 0
+         mtrlut.KUND = FALSE.
+      END.
+   END.   
+   
+END.   
+MESSAGE "VATTEN".      
+FOR EACH MTRLVATTEN WHERE MTRLVATTEN.KALKNR = 0 NO-LOCK:
+    levvar = "0".
+   IF MTRLVATTEN.LEVKOD = "1" THEN levvar = "1".
+   IF MTRLVATTEN.LEVKOD = "16" THEN levvar = "5".
+   enrvar = MTRLVATTEN.ENR.
+   IF SUBSTRING(enrvar,1,1) = "E" THEN enrvar = SUBSTRING(enrvar,2).
+   IF LENGTH(enrvar) < 6 THEN NEXT.
+   IF LENGTH(enrvar) = ? THEN NEXT.
+   IF levvar = "1" OR levvar = "5" THEN DO:
+      FIND FIRST mtrlut WHERE mtrlut.KALKNR = 0 AND mtrlut.LEVKOD = levvar AND mtrlut.Enr = MTRLVATTEN.ENR NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE mtrlut THEN DO:
+         CREATE mtrlut.
+         BUFFER-COPY MTRLVATTEN TO mtrlut.
+         ASSIGN 
+         mtrlut.Enr    = enrvar        
+         mtrlut.LEVKOD = levvar
+         mtrlut.BPRIS = 0
+         mtrlut.KPRIS = 0
+         mtrlut.NPRIS = 0
+         mtrlut.KUND = FALSE.
+      END.
+   END.   
+   
+END. 
+
+MESSAGE "UT".
+OUTPUT TO C:\TEMP\elektroskandia.d convert target "iso8859-1" source "iso8859-1". 
+FOR EACH mtrlut WHERE mtrlut.LEVKOD = "1" AND mtrlut.KALKNR = 0 NO-LOCK BY mtrlut.ENR.   
+   EXPORT mtrlut.
+END.                  
+OUTPUT CLOSE.   
+OUTPUT TO C:\TEMP\ahlsell.d convert target "iso8859-1" source "iso8859-1". 
+FOR EACH mtrlut WHERE mtrlut.LEVKOD = "2" AND mtrlut.KALKNR = 0 NO-LOCK BY mtrlut.ENR .   
+   EXPORT mtrlut.
+END.                  
+OUTPUT CLOSE. 
+OUTPUT TO C:\TEMP\onninen.d convert target "iso8859-1" source "iso8859-1". 
+FOR EACH mtrlut WHERE mtrlut.LEVKOD = "5" AND mtrlut.KALKNR = 0 NO-LOCK BY mtrlut.ENR.   
+   EXPORT mtrlut.
+END.                  
+OUTPUT CLOSE.
+OS-DELETE "C:\TEMP\onelah.d" SILENT.
+{EUROPEANAMERICAN.I}
+/*
+OS-APPEND "C:\TEMP\elektroskandia.d"  "C:\TEMP\onelah.d".
+OS-APPEND "C:\TEMP\ahlsell.d"  "C:\TEMP\onelah.d".
+OS-APPEND "C:\TEMP\onninen.d"  "C:\TEMP\onelah.d".
+*/

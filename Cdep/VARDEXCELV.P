@@ -1,0 +1,105 @@
+/*VARDEXCELV.P UTLÄSNING AV DEPÅLAGER TILL EXCEL*/   
+DEFINE VARIABLE felexcel AS LOGICAL NO-UNDO.  
+DEFINE VARIABLE chExcelApplication      AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE chWorkbook              AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE chWorksheet             AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE chChart                 AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE chWorksheetRange        AS COM-HANDLE NO-UNDO.
+DEFINE VARIABLE iCount                  AS INTEGER NO-UNDO.
+DEFINE VARIABLE iIndex                  AS INTEGER NO-UNDO.
+DEFINE VARIABLE iMonth                  AS INTEGER NO-UNDO.
+DEFINE VARIABLE dAnnualQuota            AS DECIMAL NO-UNDO.
+DEFINE VARIABLE dTotalSalesAmount       AS DECIMAL NO-UNDO.
+DEFINE VARIABLE iColumn                 AS INTEGER INITIAL 0 NO-UNDO.
+DEFINE VARIABLE cColumn                 AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cRange                  AS CHARACTER NO-UNDO. 
+DEFINE SHARED VARIABLE vald_depa AS INTEGER NO-UNDO.
+
+
+{TMPUT.i}
+/*DEFINE TEMP-TABLE tmp_ut NO-UNDO
+ FIELD BENAMNING  AS CHARACTER 
+ FIELD BESTKVANT  AS DECIMAL 
+ FIELD BESTPUNKT  AS INTEGER
+ FIELD BPRIS      AS DECIMAL 
+ FIELD DEPNR      AS INTEGER 
+ FIELD ENHET      AS CHARACTER  
+ FIELD ENR        AS CHARACTER 
+ FIELD FACKID     AS CHARACTER 
+ FIELD IB         AS INTEGER 
+ FIELD IBDATUM    AS DATE 
+ FIELD INVANT     AS INTEGER 
+ FIELD INVDATUM   AS DATE  
+ FIELD LAGER      AS LOGICAL 
+ FIELD LEVKOD     AS CHARACTER
+ FIELD NPRIS      AS DECIMAL 
+ FIELD OMSATT     AS DECIMAL 
+ FIELD SALDO      AS INTEGER
+ INDEX ENR ENR.*/
+   
+   {muswait.i}
+   Guru.Konstanter:AmericanSet().
+   CREATE "Excel.Application" chExcelApplication.
+   chExcelApplication:Visible = TRUE NO-ERROR.
+   chWorkbook = chExcelApplication:Workbooks:Add() NO-ERROR.
+   chWorkSheet = chExcelApplication:Sheets:Item(1) NO-ERROR.
+   chWorkSheet:Columns("A"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("B"):ColumnWidth = 30 NO-ERROR.
+   chWorkSheet:Columns("C"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("D"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("E"):ColumnWidth = 10 NO-ERROR.
+   chWorkSheet:Columns("F"):ColumnWidth = 15 NO-ERROR.
+   chWorkSheet:Columns("G"):ColumnWidth = 10 NO-ERROR.   
+
+/*    chWorkSheet:Range("A1:P1"):Font:Bold = TRUE.                                                           */
+/*    chWorkSheet:Range("A1"):Value = "DEPÅ - UTTAG/RETURER FR.O.M. DATUM:" + STRING(avdatum,"9999/99/99") + */
+/*    " T.O.M DATUM:" + STRING(bdatum,"9999/99/99").                                                         */
+   
+   chWorkSheet:Range("A1:P1"):Font:Bold = TRUE NO-ERROR.
+
+   chWorkSheet:Range("A1"):Value = Guru.Konstanter:genk NO-ERROR.
+   chWorkSheet:Range("B1"):Value = "BENÄMNING" NO-ERROR.
+   chWorkSheet:Range("C1"):Value = "ENHET" NO-ERROR.
+   chWorkSheet:Range("D1"):Value = "PRIS" NO-ERROR.
+   chWorkSheet:Range("E1"):Value = "SALDO" NO-ERROR.
+   chWorkSheet:Range("F1"):Value = "VÄRDE I KR" NO-ERROR.
+      
+   chWorkSheet:Range("G1"):Value = "FACKID" NO-ERROR.
+      
+   chWorkSheet:Range("A:A"):NumberFormat = "@" NO-ERROR.   
+         {EXCELFEL.I}
+   FOR EACH tmp_ut:
+      DELETE tmp_ut.
+   END.
+   IF Guru.Konstanter:appcon THEN DO:                           
+      RUN VARDDEPV.P ON Guru.Konstanter:apphand TRANSACTION DISTINCT 
+      (INPUT vald_depa, OUTPUT TABLE tmp_ut).
+   END.
+   ELSE DO:
+      RUN VARDDEPV.P
+      (INPUT vald_depa, OUTPUT TABLE tmp_ut).
+   END.       
+   iColumn = 1.
+   FOR EACH tmp_ut USE-INDEX ENR NO-LOCK:
+      {EXCELFEL.I}
+      iColumn = iColumn + 1.
+      cColumn = STRING(iColumn).
+      cRange = "A" + cColumn.
+      chWorkSheet:Range(cRange):Value = tmp_ut.ENR NO-ERROR.
+      cRange = "B" + cColumn.
+      chWorkSheet:Range(cRange):Value = tmp_ut.BENAMNING NO-ERROR.
+      cRange = "C" + cColumn.
+      chWorkSheet:Range(cRange):Value = tmp_ut.ENHET NO-ERROR.
+      cRange = "D" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(tmp_ut.NPRIS) NO-ERROR.
+      cRange = "E" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(tmp_ut.SALDO) NO-ERROR.
+      cRange = "F" + cColumn.
+      chWorkSheet:Range(cRange):Value = STRING(tmp_ut.NPRIS * tmp_ut.SALDO) NO-ERROR.
+      cRange = "G" + cColumn.
+      chWorkSheet:Range(cRange):Value = tmp_ut.FACKID NO-ERROR.      
+   END.     
+   Guru.Konstanter:EuropeanAmericanReset(). 
+   RELEASE OBJECT chExcelApplication NO-ERROR.      
+   RELEASE OBJECT chWorkbook NO-ERROR.
+   RELEASE OBJECT chWorksheet NO-ERROR.

@@ -1,0 +1,141 @@
+/*---------------------------------------------------------
+  File: XFRM-SIZE.P
+  Purpose: Changes the size and shape of the panel.  This
+  routine spaces the buttons to fill the available space.
+  
+  Input Parameters: 
+    ph_frame    - the handle of the frame
+    pd_height-p - the desired height (in pixels)
+    pd_width-p  - the desired width  (in pixels)
+
+  Notes:
+    This procedure assumes that the target frame:
+       - is not hidden
+       - is not scrollable
+       - has a single iteration without column labels
+---------------------------------------------------------*/
+DEFINE INPUT PARAMETER ph_frame    AS HANDLE  NO-UNDO.
+DEFINE INPUT PARAMETER pd_height-p AS INTEGER NO-UNDO.
+DEFINE INPUT PARAMETER pd_width-p  AS INTEGER NO-UNDO.
+DEFINE VAR x-border AS INTEGER NO-UNDO.
+DEFINE VAR y-border AS INTEGER NO-UNDO.
+DEFINE VAR x-mult AS DECIMAL NO-UNDO.
+DEFINE VAR y-mult AS DECIMAL NO-UNDO.
+DEFINE VAR h AS HANDLE  NO-UNDO.
+DEFINE VARIABLE hidvar AS LOGICAL NO-UNDO.
+DEFINE VARIABLE fh AS HANDLE NO-UNDO.
+/* Make the frame SCROLLABLE and reset the virtual-size
+   of the frame to accomodate any growing children.
+   This may cause scrollbars to appear, so hide the frame
+   during resizing. */
+hidvar = ph_frame:HIDDEN.
+ASSIGN ph_frame:HIDDEN     = YES
+       ph_frame:SCROLLABLE = yes.
+
+IF pd_height-p > ph_frame:VIRTUAL-HEIGHT-PIXELS THEN 
+  ph_frame:VIRTUAL-HEIGHT-PIXELS = pd_height-p.
+IF pd_width-p > ph_frame:VIRTUAL-WIDTH-PIXELS THEN 
+  ph_frame:VIRTUAL-WIDTH-PIXELS = pd_width-p.
+/* How much should we scale the size of the children? 
+   Note that the frame border will not be resized.  If we
+   have the size of the frame, the border will grow 
+   proportionally, and take more of the frame.  So we need
+   to subtract the border size is deciding how much to 
+   scale the children. */
+ASSIGN x-border = ph_frame:BORDER-LEFT-PIXELS +
+                  ph_frame:BORDER-RIGHT-PIXELS
+       y-border = ph_frame:BORDER-TOP-PIXELS +
+                  ph_frame:BORDER-BOTTOM-PIXELS
+       x-mult = (pd_width-p - x-border) /
+                (ph_frame:WIDTH-PIXELS - x-border) 
+       y-mult = (pd_height-p - y-border) / 
+                (ph_frame:HEIGHT-PIXELS - y-border).
+
+/* Walk the widget tree and scale all the children. */
+ASSIGN h = ph_frame:CURRENT-ITERATION /* The field-group */
+       h = h:FIRST-CHILD.             /* First true child */
+DO WHILE VALID-HANDLE(h):
+  /* We need to call this file recursively if one of the
+     children is another frame. */
+  fh = h:FRAME.
+  
+  IF h:TYPE eq "FRAME":U
+  THEN DO:        
+     RUN VALUE(THIS-PROCEDURE:FILE-NAME)
+             (INPUT h,
+              INPUT h:HEIGHT-PIXELS * y-mult,
+              INPUT h:WIDTH-PIXELS * x-mult).
+
+     
+  END.
+  
+  ELSE DO:
+    /* Unfortunately, there are some objects that cannot
+       be resized dynamically - BROWSES and COMBO-BOX
+       height.  Assign the new sizes NO-ERROR to deal with
+       these cases.  If an error occurred, make sure the
+       frame can still hold all its children. */   
+     
+     IF h:TYPE = "BUTTON" THEN DO:
+        IF h:NAME MATCHES("FBTN_*") OR h:NAME MATCHES("MBTN_*") THEN x-mult = x-mult. 
+        ELSE IF h:NAME MATCHES("FMBTN_*") THEN h:Y = h:Y * y-mult.
+        ELSE RUN flyttaXY_UI.              
+     END.
+     ELSE IF h:TYPE = "TEXT" THEN DO:
+        RUN flyttaXY_UI.   
+     END.  
+     ELSE IF h:TYPE = "LITERAL" THEN DO:                       
+        RUN flyttaXY_UI.
+     END.  
+     ELSE IF h:TYPE = "FILL-IN" THEN DO:
+        RUN flyttaXY_UI.       
+     END.
+     ELSE IF h:TYPE = "RECTANGLE" THEN DO:
+        RUN flyttaXY_UI.
+        ASSIGN
+        h:WIDTH-PIXELS = h:WIDTH-PIXELS * x-mult.
+        IF fh:NAME = "FRAME-BARABREDD" THEN DO:
+        END.
+        ELSE h:HEIGHT-PIXELS = h:HEIGHT-PIXELS * y-mult NO-ERROR.
+     END.
+     ELSE DO:      
+        RUN flyttaXY_UI.        
+        ASSIGN
+        h:WIDTH-PIXELS = h:WIDTH-PIXELS * x-mult.
+        IF fh:NAME = "FRAME-BARABREDD" THEN DO:
+        END.
+        ELSE h:HEIGHT-PIXELS = h:HEIGHT-PIXELS * y-mult NO-ERROR.
+     END.
+         
+  END.
+  /* Check the new frame size of the frame against the new
+     size of the child. */
+  ASSIGN 
+    pd_width-p = MAX (pd_width-p, 
+                      h:X + h:WIDTH-PIXELS + x-border)
+    pd_height-p = MAX (pd_height-p, 
+                       h:Y + h:HEIGHT-PIXELS + y-border).
+  /* Get the next child. */
+  
+  h = h:NEXT-SIBLING.
+END.
+
+
+/* Now size the frame to its new size. */
+ASSIGN ph_frame:SCROLLABLE    = no
+       ph_frame:WIDTH-PIXELS  = pd_width-p
+       ph_frame:HEIGHT-PIXELS = pd_height-p
+       ph_frame:HIDDEN        = hidvar.
+
+
+PROCEDURE flyttaXY_UI :
+    IF h:TYPE = "BUTTON" AND h:FRAME:NAME = "AMULTISTART-FRAME" THEN DO:
+    END.
+    ELSE IF h:TYPE = "RECTANGLE" AND h:FRAME:NAME = "AMULTISTART-FRAME" THEN DO:
+    END.
+    ELSE DO:
+       h:X = h:X * x-mult.
+       IF fh:NAME = "FRAME-BARABREDD" THEN RETURN.
+       h:Y = h:Y * y-mult. 
+    END.
+END PROCEDURE.

@@ -1,0 +1,280 @@
+/*UmemtrlXMLDYNOE10.P*/
+
+DEFINE INPUT PARAMETER prognamnque AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cSourceType AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cTargetType AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cFile AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cReadMode AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cSchemaLocation AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lOverrideDefaultMapping AS LOGICAL NO-UNDO.
+DEFINE VARIABLE cFieldTypeMapping AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cVerifySchemaMode AS CHARACTER NO-UNDO.
+DEFINE VARIABLE cEncoding AS CHARACTER NO-UNDO.
+DEFINE VARIABLE lFormatted AS LOGICAL NO-UNDO.
+DEFINE VARIABLE lWriteSchema AS LOGICAL NO-UNDO.
+DEFINE VARIABLE lMinSchema AS LOGICAL NO-UNDO.
+DEFINE VARIABLE lWriteBeforeImage AS LOGICAL NO-UNDO.
+DEFINE VARIABLE lReturn AS LOGICAL NO-UNDO.
+
+DEFINE VARIABLE kommando AS CHARACTER FORMAT "X(132)" NO-UNDO.
+DEFINE VARIABLE kommandoprog AS CHARACTER FORMAT "X(20)" NO-UNDO.
+DEFINE VARIABLE tider AS CHARACTER NO-UNDO.
+DEFINE VARIABLE prognamnvar AS CHARACTER FORMAT "X(50)" NO-UNDO.
+DEFINE VARIABLE progkopiainnan AS CHARACTER FORMAT "X(50)" NO-UNDO.               
+DEFINE VARIABLE progkopia AS CHARACTER FORMAT "X(50)" NO-UNDO.
+DEFINE VARIABLE rens AS LOGICAL NO-UNDO.
+DEFINE VARIABLE fnamn AS CHARACTER NO-UNDO.
+DEFINE VARIABLE levant LIKE LEVERANTOR.LEVKOD NO-UNDO.
+
+
+DEFINE VARIABLE hPDS AS HANDLE NO-UNDO.
+DEFINE TEMP-TABLE Articles NO-UNDO
+ FIELD source AS CHARACTER
+ FIELD date AS CHARACTER.
+
+DEFINE TEMP-TABLE Article NO-UNDO
+ FIELD nr AS CHARACTER
+ FIELD name AS CHARACTER
+ FIELD saldo AS DECIMAL
+ FIELD unit AS CHARACTER.
+
+DEFINE TEMP-TABLE infil
+   FIELD PROGNAMN AS CHARACTER FORMAT "X(78)"   
+   INDEX PRO IS PRIMARY PROGNAMN.
+ 
+ 
+DEFINE BUFFER mtrlbuff FOR MTRL.
+DEFINE BUFFER mtrldepbuff FOR MTRLDEP.
+DEFINE BUFFER ArticlesBUFF FOR Articles.
+DEFINE BUFFER ArticleBUFF FOR Article.
+DEFINE DATASET xmldata XML-NODE-NAME "Guru_ArticleReplication" FOR Articles,Article.
+hPDS = DATASET xmldata:HANDLE.
+
+DEFINE VARIABLE edataapph AS HANDLE NO-UNDO.
+{EXTRADATA.I}
+RUN EXTRADATAHMT.P PERSISTENT SET edataapph.
+
+DEFINE VARIABLE dynxml AS HANDLE NO-UNDO.
+RUN READWRIXMLOE.P PERSISTENT SET dynxml.
+
+{AMERICANEUROPEAN.I}
+SESSION:NUMERIC-FORMAT = "european".
+
+DEFINE VARIABLE kommandofran AS CHARACTER NO-UNDO.
+DEFINE VARIABLE kommandotill AS CHARACTER NO-UNDO.
+
+/*
+kommandofran = '"D:\Guru-IFS Replikering\Prod\'.
+*/
+kommandofran = '"D:\Guru-IFSReplikering\Prod\'.
+kommandotill =  "D:\delad\pro9s\imkopia\mtrl\".
+           
+kommandoprog = "D:\Guru-IFSReplikering\Prod\MTRLIN.TXT".
+kommando = 'DIR/a:-d /b ' + kommandofran  + '*.xml" > ' + kommandofran + 'MTRLIN.TXT"'.               
+kommandofran = TRIM(kommandofran,'"').
+
+
+OS-DELETE VALUE(kommandoprog) NO-ERROR.
+OS-COMMAND SILENT VALUE(kommando).
+INPUT FROM VALUE(kommandoprog) NO-ECHO.
+REPEAT:
+   DO TRANSACTION:       
+      CREATE infil.
+      ASSIGN.
+      IMPORT DELIMITER ".xml" infil   NO-ERROR.      
+   END.
+END.
+INPUT CLOSE.
+
+FOR EACH infil:   
+   IF infil.PROGNAMN = "" OR infil.PROGNAMN = ".xml"  THEN DO:       
+      DELETE infil.      
+   END.
+END.
+FIND FIRST infil NO-ERROR.
+IF NOT AVAILABLE infil THEN DO:
+   OUTPUT TO VALUE(prognamnque)  APPEND.
+   /*OUTPUT TO "D:\delad\pro9s\automtrl.txt"  APPEND.*/
+   PUT "DET FANNS INGEN MTRL-FIL  "  TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+   OUTPUT CLOSE.
+END.
+ELSE DO:    
+   FOR EACH infil:   
+      levant = "1".  /*egen depå*/
+      tider = REPLACE(STRING(TIME,"HH:MM"),":","").
+      progkopia = kommandotill  + STRING(TODAY,"99999999") + tider + infil.PROGNAMN + ".xml".    
+      cFile = kommandofran + infil.PROGNAMN + ".xml".
+      fnamn = "mtrl" +  STRING(TODAY,"99999999") + tider + ".d".                          
+      progkopiainnan = kommandotill + fnamn.
+      RUN sakkopia_ui.
+      
+      ASSIGN
+      cSourceType = "FILE"
+      cReadMode = "EMPTY"
+      cSchemaLocation = ?
+      lOverrideDefaultMapping = NO.
+      RUN readxml_UI IN dynxml (INPUT-OUTPUT hPDS,INPUT cSourceType,INPUT cFile,
+                                INPUT cReadMode,INPUT cSchemaLocation,INPUT lOverrideDefaultMapping, 
+                                 OUTPUT lReturn).
+                      
+      
+      IF lReturn = FALSE THEN DO:
+         OUTPUT TO VALUE(prognamnque)  APPEND.
+         PUT "Fel!"   TODAY " " STRING(TIME,"HH:MM:SS") SKIP.
+         OUTPUT CLOSE.
+         IF VALID-HANDLE(dynxml) THEN DELETE PROCEDURE dynxml.
+         RETURN.
+      END.   
+      
+      
+      /*FOR EACH Articles NO-LOCK:
+         display Articles.
+      END.
+      FOR EACH Article NO-LOCK:
+         display Article.
+      END.*/
+      
+      
+      /*levant = "1".  /*egen depå*/
+      tider = REPLACE(STRING(TIME,"HH:MM"),":","").
+      progkopia = "D:\delad\pro9s\importkopia\mtrl\"  + STRING(TODAY,"99999999") + tider + cFile.    
+      prognamnvar = "D:\delad\pro9s\import\mtrl\" + cFile.
+      fnamn = "mtrl" +  STRING(TODAY,"99999999") + tider + ".d".                          
+      progkopiainnan = "D:\delad\pro9s\importkopia\mtrl\" + fnamn.
+      RUN sakkopia_ui.*/
+              
+      RUN in_UI.      
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      EMPTY TEMP-TABLE extradatatemp NO-ERROR. 
+      CREATE inextradatatemp.          
+      ASSIGN
+      inextradatatemp.PROGRAM = "INLKAT"                   
+      inextradatatemp.HUVUDCH = levant.                                              
+      RUN etabhamt_UI IN edataapph (INPUT TABLE inextradatatemp, OUTPUT TABLE extradatatemp). 
+      FIND FIRST extradatatemp NO-LOCK NO-ERROR.
+      IF NOT AVAILABLE extradatatemp THEN DO:
+         CREATE extradatatemp.
+         ASSIGN
+         extradatatemp.PROGRAM = "INLKAT"                   
+         extradatatemp.HUVUDCH = levant
+         extradatatemp.SOKLOG[1] = FALSE.
+      END.
+      ASSIGN
+      extradatatemp.SOKDATE[1] = TODAY 
+      extradatatemp.SOKCHAR[1] = STRING(TIME,"hh:mm") 
+      extradatatemp.SOKCHAR[2] =  "Natt"
+      extradatatemp.SOKLOG[1] =  TRUE.
+      RUN extraspar_UI IN edataapph (INPUT TABLE extradatatemp). 
+      EMPTY TEMP-TABLE inextradatatemp NO-ERROR. 
+      EMPTY TEMP-TABLE extradatatemp NO-ERROR.
+      
+      OS-RENAME VALUE(cFile) VALUE(progkopia).
+   END.
+   IF VALID-HANDLE(dynxml) THEN DELETE PROCEDURE dynxml.   
+END.         
+
+SESSION:NUMERIC-FORMAT = "AMERICAN".
+{EUROPEANAMERICAN.I}   
+   
+PROCEDURE in_UI:          
+        
+   rens = TRUE.  /*ska den sättas till true någon gång????????*/
+   IF rens = TRUE THEN RUN tabort_UI.     
+       
+   RUN skapaenr_UI.
+END.      
+
+PROCEDURE skapaenr_UI:                   
+   FOR EACH Article  NO-LOCK:                                          
+      DO TRANSACTION: 
+         FIND FIRST mtrlbuff WHERE mtrlbuff.ENR =  Article.NR AND
+         mtrlbuff.LEVKOD = levant AND mtrlbuff.KALKNR = 0 USE-INDEX LEV
+         EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE mtrlbuff THEN DO:            
+            ASSIGN 
+            mtrlbuff.BENAMNING = Article.NAME
+            mtrlbuff.ENHET = Article.UNIT       
+            mtrlbuff.BPRIS = 0.
+            mtrlbuff.NPRIS = 0.
+            mtrlbuff.KUND = FALSE.            
+         END.
+         ELSE DO:                               
+            CREATE MTRL.
+            ASSIGN      
+            MTRL.ENR = Article.NR
+            MTRL.LEVKOD = levant 
+            MTRL.KALKNR = 0        
+            MTRL.BENAMNING = Article.NAME
+            MTRL.ENHET = Article.UNIT           
+            MTRL.BPRIS = 0 
+            MTRL.NPRIS = 0.                                
+            MTRL.KUND = FALSE.  
+             {MTRLCREATE.I}            
+         END.
+         FIND FIRST mtrldepbuff WHERE mtrldepbuff.ENR =  Article.NR AND
+         mtrldepbuff.LEVKOD = levant  EXCLUSIVE-LOCK NO-ERROR.
+         IF AVAILABLE mtrldepbuff THEN DO:
+            mtrldepbuff.SALDO = Article.SALDO.
+         END.
+         ELSE DO:   
+            CREATE MTRLDEP.
+            ASSIGN 
+            MTRLDEP.DEPNR = 1
+            MTRLDEP.ENR = Article.NR
+            MTRLDEP.LEVKOD = levant
+            MTRLDEP.BENAMNING = Article.NAME
+            MTRLDEP.ENHET = Article.UNIT
+            MTRLDEP.BESTPUNKT = 0
+            MTRLDEP.BESTKV = 0
+            MTRLDEP.FACKID = ""
+            MTRLDEP.OMSATT = 0
+            MTRLDEP.NPRIS = 0
+            MTRLDEP.BPRIS = 0 
+            MTRLDEP.LAGER = TRUE
+            MTRLDEP.IBDATUM = ?         
+            MTRLDEP.INVDATUM = TODAY
+            MTRLDEP.SALDO = Article.SALDO.
+         END.      
+      END.
+   END.                     
+END PROCEDURE.   
+
+PROCEDURE tabort_UI:
+   FIND FIRST Article WHERE Article.NR NE ""  NO-ERROR.
+   IF AVAILABLE Article THEN DO:
+      OPEN QUERY dq FOR EACH MTRL WHERE MTRL.LEVKOD = levant AND  MTRL.KALKNR = 0 /*AND MTRL.KPRIS = 0*/ NO-LOCK.
+      GET FIRST dq NO-LOCK.
+      DO WHILE AVAILABLE(MTRL):
+         DO TRANSACTION:
+            GET CURRENT dq EXCLUSIVE-LOCK NO-WAIT.            
+            IF AVAILABLE MTRL THEN DELETE MTRL.
+         END.   
+         GET NEXT dq NO-LOCK.
+      END.
+      OPEN QUERY depq FOR EACH MTRLDEP WHERE MTRLDEP.LEVKOD = levant  NO-LOCK.
+      GET FIRST depq NO-LOCK.
+      DO WHILE AVAILABLE(MTRLDEP):
+         DO TRANSACTION:
+            GET CURRENT depq EXCLUSIVE-LOCK NO-WAIT.            
+            IF AVAILABLE MTRLDEP THEN DELETE MTRLDEP.
+         END.   
+         GET NEXT depq NO-LOCK.
+      END.                 
+   END.
+END PROCEDURE.
+
+PROCEDURE sakkopia_UI:
+   OUTPUT TO VALUE(progkopiainnan) convert target "iso8859-1" source "iso8859-1".   
+   OPEN QUERY mq FOR EACH MTRL WHERE MTRL.LEVKOD = levant AND  MTRL.KALKNR = 0 /*AND MTRL.KPRIS = 0*/ NO-LOCK.
+   GET FIRST mq NO-LOCK.
+   DO WHILE AVAILABLE(MTRL):
+      EXPORT MTRL.
+      GET NEXT mq NO-LOCK.
+   END.
+   CLOSE QUERY mq.
+   OUTPUT CLOSE.
+END PROCEDURE.
+
+                
+
+
